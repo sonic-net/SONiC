@@ -83,6 +83,10 @@ In short, this does the work of:
 - Template composition for common services
 - System startup
 
+## System Reference
+- [Command Reference](command_reference.md)
+- [Troubleshooting Connectivity](troubleshooting_conn.md)
+
 
 ## External Links
 - [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)
