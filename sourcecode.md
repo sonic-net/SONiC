@@ -1,11 +1,11 @@
 #SONiC Source Repositories
-- https://github.com/Azure/sonic-swss
+- https://github.com/Azure/swss
 	- Switch State Service - Core component of SONiC
 - https://github.com/Azure/sonic-linux-kernel
 	- kernel patches for various device drivers
 - https://github.com/opencomputeproject/SAI
 	- Switch Abstraction Interface standard headers
-- https://github.com/Azure/libsairedis
+- https://github.com/Azure/sonic-sairedis
 	- c++ library for interfacing to SAI objects in Redis 
 - https://github.com/Azure/sonic-utilities
 	- Various command line utilities used in SONiC
