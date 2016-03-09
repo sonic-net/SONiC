@@ -44,7 +44,7 @@ Switch: 192.168.0.128
 ## Installation
 
 ### Preparing the Image
-Build instructions for SONiC can be found at [NEED LINK FOR BUILD INSTRUCTIONS.]
+Build instructions for SONiC can be found at under the [build image project](https://github.com/Azure/sonic-buildimage).
 
 Once the image has been created, host the image via HTTP.
 
