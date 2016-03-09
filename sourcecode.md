@@ -1,0 +1,25 @@
+#SONiC Source Repositories
+- https://github.com/Azure/sonic-swss
+	- Switch State Service - Core component of SONiC
+- https://github.com/Azure/sonic-linux-kernel
+	- kernel patches for various device drivers
+- https://github.com/opencomputeproject/SAI
+	- Switch Abstraction Interface standard headers
+- https://github.com/Azure/libsairedis
+	- c++ library for interfacing to SAI objects in Redis 
+- https://github.com/Azure/sonic-utilities
+	- Various command line utilities used in SONiC
+- https://github.com/Azure/sonic-snmpagent
+	- a net-snmpd agentx subagent 
+- https://github.com/Azure/sonic-py-swsssdk
+	- python switch state service library
+- https://github.com/Azure/sonic-dbsyncd
+	- python redis common functions
+- https://github.com/Azure/sonic-mgmt
+	- Example configuration scripts
+- https://github.com/Azure/sonic-buildimage
+	- Source to build an ONIE installable image 
+- https://github/com/Azure/sonic-platform-dell-s6000
+	- Linux device drivers for Dell S6000
+- https://github.com/AristaNetworks/sonic-platform-arista-7050
+	- Linux device drivers for Arista 7050
