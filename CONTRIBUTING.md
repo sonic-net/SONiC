@@ -1,8 +1,8 @@
 ## GitHub Workflow
 
-We're following basic GitHub Flow. If you have no idea what we're talking about, check out 
-[GitHub's official guide](https://guides.github.com/introduction/flow/). Note that merge is only 
-performed by the repository maintainer.
+We're following basic GitHub Flow. If you have no idea what we're talking 
+about, check out [GitHub's official guide](https://guides.github.com/introduction/flow/). 
+Note that merge is only performed by the repository maintainer.
 
 Guide for performing commits:
 
@@ -34,7 +34,14 @@ For example:
 * Use issues to keep track of what is going on
 
 ##Responding to pull requests
-Responsible individual: A contribution needs to be looked at by its maintainers. In the absence of the maintainer, the project leader can respond.  A pull request should be responded to in approximately 48 hours. This does not mean the contribution will be resolved in 48 hours.  It could even mean an email that states: “busy now, will get to it soon.” 
+Responsible individual: A contribution needs to be looked at by its 
+maintainers. In the absence of the maintainer, the project leader can respond.
+A pull request should be responded to in approximately 48 hours. This does 
+not mean the contribution will be resolved in 48 hours.  It could even mean 
+an email that states: “busy now, will get to it soon.” 
 
 ##Contributors License Agreement
-All contributors must sign a contribution license agreement before contributions can be accepted.  This process is automatically triggered when submitting a pull request.
+All contributors must sign a contribution license agreement before 
+contributions can be accepted.  In the near future, this process will
+automatically trigger when submitting a pull request. Until then, we will 
+send contributors a license agreement to be signed.

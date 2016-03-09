@@ -18,7 +18,7 @@ code repositories needed to create the official distribution of the project.
 - *Contributors* are people who have submitted work to the project.  Work includes all kinds of tasking, including 
 things like code, tests, code reviews, documentation, infrastructure and proposals.
 - *Maintainers* have permission to accept pull requests and merge them into the master branch of a given repository.  
-Each repository contains a MAINTAINERS file listing the maintainers.  There should be at least two named maintainers 
+Each repository contains a MAINTAINERS file listing the maintainers.  There must be one or more named maintainers 
 per repository.
 - The *Project Leader* is responsible for the success of the project and resolving conflict between the maintainers 
 and keep the project.  Today the project leader is appointed by Microsoft.  A new Project Leader is expected to be 
