@@ -21,7 +21,7 @@
 	- Source to build an ONIE installable image 
 - https://github.com/Azure/sonic-build-tools
 	- Source for tools used to build and run CI for SONiC
-- https://github.com/Azure/sonic-platform-dell-s6000
+- https://github.com/Azure/sonic-platform-modules-s6000
 	- Linux device drivers for Dell S6000
 - https://github.com/aristanetworks/sonic
 	- Linux device drivers for Arista 7050
