@@ -1,5 +1,5 @@
 #SONiC Source Repositories
-- https://github.com/Azure/swss
+- https://github.com/Azure/sonic-swss
 	- Switch State Service - Core component of SONiC
 - https://github.com/Azure/sonic-linux-kernel
 	- kernel patches for various device drivers
@@ -15,8 +15,6 @@
 	- python switch state service library
 - https://github.com/Azure/sonic-dbsyncd
 	- python redis common functions
-- https://github.com/Azure/sonic-mgmt
-	- Example configuration scripts
 - https://github.com/Azure/sonic-buildimage
 	- Source to build an ONIE installable image 
 - https://github.com/Azure/sonic-build-tools
