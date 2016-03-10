@@ -1,25 +1,25 @@
 #SONiC Source Repositories
 - https://github.com/Azure/sonic-swss
-	- Switch State Service - Core component of SONiC
+	- Switch State Service - Core component of SONiC ([Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0))
 - https://github.com/Azure/sonic-linux-kernel
 	- kernel patches for various device drivers
 - https://github.com/opencomputeproject/SAI
-	- Switch Abstraction Interface standard headers
+	- Switch Abstraction Interface standard headers ([OWFa 1.0](http://www.openwebfoundation.org/legal/the-owf-1-0-agreements/owfa-1-0))
 - https://github.com/Azure/sonic-sairedis
-	- c++ library for interfacing to SAI objects in Redis 
+	- c++ library for interfacing to SAI objects in Redis (Seems to 404)
 - https://github.com/Azure/sonic-utilities
-	- Various command line utilities used in SONiC
+	- Various command line utilities used in SONiC ([GNU v2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html))
 - https://github.com/Azure/sonic-snmpagent
-	- a net-snmpd agentx subagent 
+	- a net-snmpd agentx subagent ([Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0))
 - https://github.com/Azure/sonic-py-swsssdk
-	- python switch state service library
+	- python switch state service library ([Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0))
 - https://github.com/Azure/sonic-dbsyncd
-	- python redis common functions
+	- python redis common functions ([Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0))
 - https://github.com/Azure/sonic-buildimage
-	- Source to build an ONIE installable image 
+	- Source to build an ONIE installable image ([GNU v2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html))
 - https://github.com/Azure/sonic-build-tools
-	- Source for tools used to build and run CI for SONiC
+	- Source for tools used to build and run CI for SONiC ([Apache 2.0 License](http://www.apache.org/licenses/LICENSE-2.0))
 - https://github.com/Azure/sonic-platform-modules-s6000
-	- Linux device drivers for Dell S6000
+	- Linux device drivers for Dell S6000 ([GNU v2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html))
 - https://github.com/aristanetworks/sonic
-	- Linux device drivers for Arista 7050
+	- Linux device drivers for Arista 7050 ([GNU v2](http://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html))
