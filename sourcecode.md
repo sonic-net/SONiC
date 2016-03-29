@@ -3,11 +3,11 @@
 - https://github.com/Azure/sonic-swss
 	- Switch State Service - Core component of SONiC which processes network switch data    
 - https://github.com/Azure/sonic-swss-common
-	- Switch State Service - Common routines for SONiC switch state service
-- https://github.com/Azure/sonic-sairedis
-	- c++ library for interfacing to SAI objects in Redis 
+	- Switch State Service common library - Common library for Switch State Service
 - https://github.com/opencomputeproject/SAI
 	- Switch Abstraction Interface standard headers
+- https://github.com/Azure/sonic-sairedis
+	- c++ library for interfacing to SAI objects in Redis 
 - https://github.com/Azure/sonic-dbsyncd
 	- python Redis common functions
 - https://github.com/Azure/sonic-py-swsssdk
