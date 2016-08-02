@@ -6,6 +6,8 @@
 sudo portstat
 ```
 
+portstat example
+
 ```
 sonicadmin@sonicswitch:~$ sudo portstat
      Iface    RX_OK    RX_RATE    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_RATE    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
@@ -21,6 +23,7 @@ Ethernet12   533446        N/A        N/A         0    540582         0    82635
 sudo sfputil
 ```
 
+sfputil example
 ```
 sonicadmin@sonicswitch:~$ sudo sfputil --dom -p Ethernet0
 Ethernet12: SFP detected
