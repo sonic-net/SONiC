@@ -1,6 +1,6 @@
 This information details the steps to install SONiC and apply a basic configuration.
 
-# Prerequisites
+## Prerequisites
 - [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)-compliant switch (for this guide, we'll be using a Dell S6000-ON)
 - DHCP server (reachable by the target device)
 - HTTP server (to host the install image)
@@ -28,13 +28,11 @@ This information details the steps to install SONiC and apply a basic configurat
 |   .128   |       |           |
 +----------+       +-----------+
 
-
 Subnet: 192.168.0.1/24
 DHCP Range: 192.168.0.128 - 253
 Web: 192.168.0.10
 DHCP: 192.168.0.254
 Switch: 192.168.0.128
-
 ```
 
 ## Installation
@@ -66,15 +64,15 @@ For more information regarding booting with ONIE visit the [project wiki](https:
 
 ### Machine Configuration
 
-There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help you along:
+There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help you:
 
 [Azure / sonic-mgmt](https://github.com/Azure/sonic-mgmt)
 > Tools for managing, configuring and monitoring SONiC
 
-In short, this does the work of:
+Includes:
 
 - Host configuration
-- Daemon installs & configuration
+- Daemon installs and configuration
 - Template composition for common services
 - System startup
 
