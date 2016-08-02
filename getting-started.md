@@ -55,7 +55,7 @@ dhcp-host=aa:bb:cc:dd:ee:ff,192.168.0.128,set:onie
 dhcp-option=tag:onie,114,"http://HTTPSERVER/path/to/binary/sonic.bin"
 ```
 
-With DHCP configured, power cycling the switch should initiate the process of:
+With DHCP configured, power cycling the switch should initiate:
 
 - DHCP lease acquisition
 - Image download
@@ -68,12 +68,11 @@ For more information regarding booting with ONIE visit the [project wiki](https:
 There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help:
 
 [Azure / sonic-mgmt](https://github.com/Azure/sonic-mgmt)
-> Tools for managing, configuring and monitoring SONiC
 
 Configuration:
 
 - Host configuration
-- Daemon installs & configuration
+- Daemon installs and configuration
 - Template composition for common services
 - System startup
 
