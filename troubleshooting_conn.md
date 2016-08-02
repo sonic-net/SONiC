@@ -6,7 +6,7 @@
 sudo portstat
 ```
 
-portstat example
+Example
 
 ```
 sonicadmin@sonicswitch:~$ sudo portstat
@@ -23,7 +23,7 @@ Ethernet12   533446        N/A        N/A         0    540582         0    82635
 sudo sfputil
 ```
 
-sfputil example
+Example
 ```
 sonicadmin@sonicswitch:~$ sudo sfputil --dom -p Ethernet0
 Ethernet12: SFP detected
