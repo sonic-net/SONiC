@@ -1,8 +1,5 @@
-# Software for Open Networking in the Cloud (SONiC)
-## Frequently Asked Questions
+# Software for Open Networking in the Cloud (SONiC) FAQ
 
-
-###SCOPE
 Q. Is SONiC a Linux distribution?
 
 A. No, SONiC is a collection of networking software components required to have a fully functional L3 device that can be agnostic of any particular Linux distribution. Today SONiC runs on Debian 
@@ -80,7 +77,7 @@ Q. Is SONiC a supported product?
 A. SONiC is a community supported product.  Microsoft is interested in keeping SONiC relevant, reliable and stable.  We run it in our own network.
  
 ----------
-###CONTRIBUTING
+###Contributing
 Q. Can anyone contribute to SONiC?
 
 A. Yes, SONiC collaborates and welcome open community involvement. Please check the contributors guide for details. 
