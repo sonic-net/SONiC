@@ -1,7 +1,6 @@
 #Software for Open Networking in the Cloud - SONiC
 ##Governance
 
-##Goals
 The goal of governance for the project is to maintain and emphasize a technical meritocracy of contributors.  Those 
 who contribute the most and the best technical solutions, have the most influence in the direction of the project.  
 An element of benevolent dictatorship exists per component and at an overall project level to keep the project 
@@ -29,7 +28,7 @@ Each repository is expected to resolve conflicts for itself and between dependen
 cannot be found in a reasonable time, the issue will be escalated to the Project Leader who will help the teams 
 find a solution to move the project forward. 
 
-###Example of conflict resolution
+###Example of Conflict Resolution
 Let's say the link aggregation repositor(ies) (LACP) merge a change that is incompatible with the other parts 
 of the project.  At a minimum, the build-repo maintainer will detect this and continue to build with the older 
 release of the LACP repo(s).  The community discusses the changes.

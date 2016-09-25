@@ -1,7 +1,5 @@
 # Software for Open Networking in the Cloud (SONiC)
 
-This is the repository for the Web site for the Software for Open Networking in the Cloud (SONiC)
+This is the repository for the Software for Open Networking in the Cloud (SONiC) project.
 
-The site is intended to host a nice looking web page for the project and publish links to download and install SONiC and links to source.
-It is also stores documents that are project wide in scope, such as the getting started guide, faq, general requirements for 
-contribution, governance, architecture and so on.
+The site contains information about the SONiC NAS Host-Adapter and includes installation, architecture, and repository locations to download source files. Also included is information on contributing, governance, and license agreement. 

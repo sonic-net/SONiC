@@ -1,9 +1,8 @@
 # SONiC - Getting Started
 
-## Description
-This guide details the steps to install SONiC and apply a basic configuration.
+This information includes steps to install SONiC and apply a basic configuration.
 
-# Prerequisites
+## Prerequisites
 - [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)-compliant switch (for this guide, we'll be using a Dell S6000-ON)
 - DHCP server (reachable by the target device)
 - HTTP server (to host the install image)
@@ -31,26 +30,21 @@ This guide details the steps to install SONiC and apply a basic configuration.
 |   .128   |       |           |
 +----------+       +-----------+
 
-
 Subnet: 192.168.0.1/24
 DHCP Range: 192.168.0.128 - 253
 Web: 192.168.0.10
 DHCP: 192.168.0.254
 Switch: 192.168.0.128
-
 ```
-
 
 ## Installation
 
 ### Preparing the Image
-Build instructions for SONiC can be found at under the [build image project](https://github.com/Azure/sonic-buildimage).
-
-Once the image has been created, host the image via HTTP.
+Build instructions for SONiC can be found at under the [build image project](https://github.com/Azure/sonic-buildimage). Once the image has been created, host the image via HTTP.
 
 
 ### ONIE Boot
-_The remainder of this guide will assume that your switch is able to boot into [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)._
+_The remainder of this guideassumes that your switch is able to boot into [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)._
 
 Configure the DHCP server option url to point to the SONiC image. As an example with `dnsmasq` and in the respective `.conf`:
 ```
@@ -61,7 +55,7 @@ dhcp-host=aa:bb:cc:dd:ee:ff,192.168.0.128,set:onie
 dhcp-option=tag:onie,114,"http://HTTPSERVER/path/to/binary/sonic.bin"
 ```
 
-With DHCP configured, power cycling the switch should initiate the process of:
+With DHCP configured, power cycling the switch should initiate:
 
 - DHCP lease acquisition
 - Image download
@@ -71,15 +65,14 @@ For more information regarding booting with ONIE visit the [project wiki](https:
 
 ### Machine Configuration
 
-There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help you along:
+There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help:
 
 [Azure / sonic-mgmt](https://github.com/Azure/sonic-mgmt)
-> Tools for managing, configuring and monitoring SONiC
 
-In short, this does the work of:
+Configuration:
 
 - Host configuration
-- Daemon installs & configuration
+- Daemon installs and configuration
 - Template composition for common services
 - System startup
 
@@ -87,9 +80,7 @@ In short, this does the work of:
 - [Command Reference](command_reference.md)
 - [Troubleshooting Connectivity](troubleshooting_conn.md)
 
-
 ## External Links
 - [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)
 - [dnsmasq](http://www.thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html)
 - [Ansible](http://docs.ansible.com/)
-

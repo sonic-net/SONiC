@@ -4,19 +4,17 @@
 
 SONiC has SSH enabled by default.
 
-Example:
 ```
 user@debug:~$ ssh sonicadmin@sonicswitch
 ```
 
 ### LLDP
 
-Usage:
 ```
-sudo llpdctl [Interface]
+sudo llpdctl [interface]
 ```
 
-Example:
+Example
 ```
 sonicadmin@sonicswitch:~$ sudo lldpctl
 -------------------------------------------------------------------------------
@@ -52,12 +50,11 @@ Interface:    eth0, via: LLDP, RID: 1, Time: 11 days, 15:16:47
 
 BGP is implemented via [Quagga](http://www.nongnu.org/quagga/docs/docs-info.html#Show-IP-BGP).
 
-Usage:
 ```
 sudo vtysh
 ```
 
-Example:
+Example
 ```
 sonicadmin@sonicswitch:~$ sudo vtysh -c "show ip bgp summary"
 BGP router identifier 100.1.0.32, local AS number 65100
