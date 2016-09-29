@@ -14,6 +14,8 @@
 	- python switch state service library
 
 ##Monitoring and management tools 
+- https://github.com/Azure/sonic-mgmt
+	- Management and automation code used for build, test and deployment automation
 - https://github.com/Azure/sonic-utilities
 	- Various command line utilities used in SONiC
 - https://github.com/Azure/sonic-snmpagent
