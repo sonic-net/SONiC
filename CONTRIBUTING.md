@@ -42,6 +42,5 @@ an email that states: “busy now, will get to it soon.”
 
 ##Contributors License Agreement
 All contributors must sign a contribution license agreement before 
-contributions can be accepted.  In the near future, this process will
-automatically trigger when submitting a pull request. Until then, we will 
-send contributors a license agreement to be signed.
+contributions can be accepted.  Send email to [sonic-cla](mailto:sonic-cla-agreements@microsoft.com)
+to request a copy of the contributors a license agreement to be signed.
