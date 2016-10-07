@@ -33,6 +33,10 @@ For example:
 * Use a pull request to do code review
 * Use issues to keep track of what is going on
 
+## Commiting new test
+When commiting a new feature with a new test, please fill test plan from the template
+[click here to see the file](https://github.com/Azure/SONiC/blob/gh-pages/doc/SONiC%20Test%20Plan%20Template.md)
+
 ##Responding to pull requests
 Responsible individual: A contribution needs to be looked at by its 
 maintainers. In the absence of the maintainer, the project leader can respond.
