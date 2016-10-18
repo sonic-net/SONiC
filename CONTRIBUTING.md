@@ -33,9 +33,12 @@ For example:
 * Use a pull request to do code review
 * Use issues to keep track of what is going on
 
+##Expectations for pull requests
+Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as PTF tests defined in the [sonic-mgmt repo](https://github.com/Azure/sonic-mgmt/tree/master/ansible/roles/test/tasks).
+
 ## Commiting new test
-When commiting a new feature with a new test, please fill test plan from the template
-[click here to see the file](https://github.com/Azure/SONiC/blob/gh-pages/doc/SONiC%20Test%20Plan%20Template.md)
+When commiting a new feature with a new test, please complete a [test plan from the template](https://github.com/Azure/SONiC/blob/gh-pages/doc/SONiC%20Test%20Plan%20Template.md)
+
 
 ##Responding to pull requests
 Responsible individual: A contribution needs to be looked at by its 
