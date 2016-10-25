@@ -44,10 +44,10 @@ All modules should use the same common API for logging and dumps (provided by li
 
 ## Configuration flow
 
-Logging is configured using standard tools rsyslog and logrotate via their config files.  
 Those parameters in configuration files are deployed via sonic-mgmt.  
+It is done during deployment stage.  
 
 ## UI types to support
 
-User can change logging configuration via ansible, which takes care of deploying configs for rsyslog.  
+User can change logging configuration via sonic-mgmt, which takes care of deploying configs.  
 Sysdump should be available through sonic-mgmt.  
