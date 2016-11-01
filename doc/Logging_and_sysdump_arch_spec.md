@@ -35,8 +35,7 @@ System should provide an interface to generate such dump on demand and upload it
 In order to not use all available space on disk, log files should be rotated automaticcaly and their size should be limited.  
 Log files should be limitatied in their overall size.  
 Spamming log messages should be limited in frequency of their occurence.  
-
-*TODO* Parameters for measuring performance
+Sysdump archive should have a limitation in size
 
 ## Interaction with other modules
 
@@ -44,6 +43,12 @@ All modules should use the same common API for logging and dumps (provided by li
 
 ## Configuration flow
 
+Following list of parameters should be configurable:  
+1. Maximum number of files for rotation  
+2. Rotation period  
+3. Maximum log file size  
+4. Compress type for rotated log files  
+5. Post rotation actions  
 Those parameters in configuration files are deployed via sonic-mgmt.  
 It is done during deployment stage.  
 
