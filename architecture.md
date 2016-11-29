@@ -13,8 +13,6 @@ High Level Architecture
 
 The following picture presents the target SONiC Architecture.
 
-The left side of the picture focuses on supporting platform related
-concepts including:
 
 -   Fans
 -   Power supplies
@@ -31,7 +29,9 @@ components including:
 Figure 1 – Target SONiC High Level Software Design
 
 The current SONiC project implements Switch State Service (SWSS)
-as it’s ASIC control software. NAS is a new ASIC control software that
+as it’s ASIC control software. 
+<!---The left side of the picture focuses on supporting platform related
+concepts including:NAS is a new ASIC control software that
 is in the process of being integrated with SWSS into a single component.
 
 Each one of these will be described in sections below but a high level
@@ -40,7 +40,7 @@ picture of both architectures is shown below.
 ![NAS and SWSS merge](images/sonic-nas-swss-merge.png)
 
 Figure 2- NAS and SWSS merge
-
+--->
 Definitions
 ===========
 
@@ -357,6 +357,7 @@ applications could be used.
 
 Figure 4 – Learn bgp route
 
+<!---
 Network Abstraction Services (NAS) Switch Control
 =================================================
 
@@ -370,7 +371,6 @@ Interface to:
 
 -   Standard Linux networking APIs and Linux Interfaces
 
-<!-- -->
 
 -   SONiC specific Object Library API functionality.
 
@@ -472,7 +472,7 @@ of the object model.
 
 SONiC provides both C/C++ and Python programming interfaces for the
 Object Library.
-
+--->
 Porting New Hardware to SONiC
 =============================
 
