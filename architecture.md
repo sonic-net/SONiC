@@ -89,7 +89,7 @@ Libraries API’s to get and set the state of the SONiC SAI Host Adapter.
 SONiC Object Library
 ====================
 
-The object library is updated as PAS and NAS are integrated into the project. A high level description of the Object library follows.
+The object library is updated as PAS <!---and NAS are ---> is integrated into the project. A high level description of the Object library follows.
 
 The SONiC Object Library (Object Library) mediates interactions between
 SONiC applications and external applications. The Object Library
