@@ -28,12 +28,11 @@ Features currently in development
 - SNMP subagent hardening
 - LLDP update for SwSS
 - Warm boot (ISSU-like feature, less than 1 second data plane impact)
-
+- DHCP Relay Agent
 ##Committed Roadmap
 - Open source build (make it easier to build sonic)
 - Open source mgmt repo (high priority)
 - Open source test (high priority)
-- DHCP relay agent 
 - Buffer monitoring 
 - ERSPAN/Everflow (mirror packet via ACL and encap in GRE)
 - sFlow
