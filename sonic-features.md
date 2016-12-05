@@ -28,7 +28,7 @@ Features currently in development
 - SNMP subagent hardening
 - LLDP update for SwSS
 - Warm boot (ISSU-like feature, less than 1 second data plane impact)
-- DHCP Relay Agent
+- DHCP Relay Agent (in code review)
 ##Committed Roadmap
 - Open source build (make it easier to build sonic)
 - Open source mgmt repo (high priority)
