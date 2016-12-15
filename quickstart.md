@@ -1,7 +1,12 @@
 # SONiC - Getting Started
 
 ## Description
-This guide details the steps to install SONiC and apply a basic configuration.
+This guide details the steps to install SONiC and apply a basic configuration. 
+
+Please note that, the stack of OS10 from Dell is currently independent
+from SONiC stack. All the following instructions if not specified are for SONiC. Please find documentation
+of OS10 [here](https://github.com/Azure/SONiC/wiki/OS10-Documentation-Folder). 
+
 
 # Prerequisites
 - [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)-compliant switch (for this guide, we'll be using a Dell S6000-ON)
