@@ -16,6 +16,7 @@ Features which are implemented, tested and deployed in production.
 - NTP 
 - LAG
 - tcpdump for packets sent to CPU 
+- AD based AAA
  
 ##In progress
 Features currently in development 
@@ -29,16 +30,17 @@ Features currently in development
 - LLDP update for SwSS
 - Warm boot (ISSU-like feature, less than 1 second data plane impact)
 - DHCP Relay Agent (in code review)
+- IPV6
+- Hardware table usage and capacity reporting (FIB, ACL, etc) 
+- ERSPAN/Everflow (mirror packet via ACL and encap in GRE)
+- QOS - RDMA
+- COPP
 
 ##Committed Roadmap
-- Open source build (make it easier to build sonic)
-- Open source mgmt repo (high priority)
-- Open source test (high priority)
+- Warm Reboot
 - Buffer monitoring 
-- ERSPAN/Everflow (mirror packet via ACL and encap in GRE)
 - sFlow
-- IPV6
-- Hardware table usage and capacity reporting (FIB, ACL, etc)  
+- VxLAN
 
 ##What is not supported
 Here we attempt to list some of the features that may be surprising which are not supported, nor in the current roadmap.
