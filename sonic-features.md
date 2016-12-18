@@ -17,23 +17,23 @@ Features which are implemented, tested and deployed in production.
 - LAG
 - tcpdump for packets sent to CPU 
 - AD based AAA
- 
+- Netbouncer (tunnel decap)
+- SNMP subagent hardening 
+- COPP
+- QOS - RDMA
+- DHCP Relay Agent
+
 ##In progress
 Features currently in development 
  
 - Fast reboot (reboot with less than 30 seconds data plane impact)
-- Control plane packet rate limiting (in code review)
-- VLAN (in code review and testing)
+- Control plane packet rate limiting
+- VLAN (in testing)
 - ACL permit/deny
-- Netbouncer (tunnel decap)
-- SNMP subagent hardening
 - LLDP update for SwSS
-- DHCP Relay Agent (in code review)
-- IPV6
+- IPV6 (in testing)
 - Hardware table usage and capacity reporting (FIB, ACL, etc) 
 - ERSPAN/Everflow (mirror packet via ACL and encap in GRE)
-- QOS - RDMA
-- COPP
 
 ##Committed Roadmap
 - Warm Reboot
