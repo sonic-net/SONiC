@@ -28,7 +28,6 @@ Features currently in development
 - Netbouncer (tunnel decap)
 - SNMP subagent hardening
 - LLDP update for SwSS
-- Warm boot (ISSU-like feature, less than 1 second data plane impact)
 - DHCP Relay Agent (in code review)
 - IPV6
 - Hardware table usage and capacity reporting (FIB, ACL, etc) 
