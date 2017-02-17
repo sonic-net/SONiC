@@ -43,7 +43,5 @@ Features currently in development
 
 ##What is not supported
 Here we attempt to list some of the features that may be surprising which are not supported, nor in the current roadmap.
-  
-- Transceiver graceful insertion/removal
 - Graceful reconfiguration of breakout cables (qsfp to sfp)
 - No plan for OSPF, ISIS, etc, but might work fine as quagga supports these
