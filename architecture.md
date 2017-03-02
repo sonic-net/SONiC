@@ -52,18 +52,9 @@ switch enclosure (chassis). This includes fans, power supplies, status
 LEDs and network transceivers. In SONiC terminology, these are called
 “system devices”.
 
-Platform Adaptation Services (PAS)
+Platform Adaptation Layer (PAL)
 ----------------------------------
 
-The platform abstraction layer is an interface to network switch
-hardware peripherals such as transceivers, fans, power supplies and
-leds. SONiC exposes these details via the platform abstraction services.
-
-The PAS uses an abstract low-level platform-independent abstraction for
-all types of system devices, called System Device Interface (SDI) API.
-Therefore, only system device drivers (either user space or kernel
-device drivers) which implement the SDI API are hardware-specific, while
-the API itself is hardware-independent.
 
 Switch Abstraction Interface (SAI)
 ----------------------------------
@@ -108,86 +99,6 @@ for independent operation of client and server applications.  A key tenant
 of the SONiC  architecture is to allows processes to be stopped, started, 
 restarted and replaced.
 
-Platform Abstraction Service (PAS)
-==================================
-
-The PAS implements the object models associated with system devices such 
-as fans, power supplies and leds.  
-
-The PAS monitors the status of system devices and publishes status 
-changes or faults as events. It also allows user applications to
-retrieve current status information and set the control variables of
-system devices.
-
-For example, the PAS Object API allows user applications to:
-
--   Read current temperature values reported by temperature sensors.
-
--   Get and set fan speed values.
-
--   Set a LED state.
-
--   Read power levels reported by PSUs.
-
--   Get system inventory and EEPROM information.
-
--   Set transceiver module state (for example, Tx laser on/off) and get
-    module information.
-
-The PAS detects:
-
--   Common field replaceable units (FRUs), such as PSUs and fans, and
-    insertion and removal events.
-
--   Over-temperature events for pre-defined temperature thresholds.
-
--   Transceiver insertion on physical ports.
-
-### System Device Interface (SDI)
-
-Below the PAS is the System Device Interface (SDI).  A system device 
-refers to a hardware component, such as:
-
--   Fans/cooling devices
-
--   Power supplies
-
--   Temperature sensors
-
--   LEDs
-
--   EEPROM
-
--   Programmable devices
-
--   Transceivers
-
-All hardware components except for NPUs are abstracted as system
-devices.
-
-The SDI API defines a low-level platform-independent abstraction for all
-types of system devices. Only system device drivers that implement the
-SDI API are hardware-specific; the API itself is hardware-independent.
-
-The implementation of the SDI API can use any approach suitable for a
-given platform or vendor:
-
--   'sysfs' access to Linux kernel device drivers 
-
--   user space devices drivers using UIO or other methods
-
--   new vendor specific kernel modules, accessible through sysfs,
-    netlink or ioctl calls
-
--   combination of any of the above methods
-
-In general, other approaches not mentioned above are also possible, as
-long as the implementation supports the SDI API.
-
-An application will use the PAS Object model through the Object Library.
-The PAS service will use the SDI (System Device Interface) to access the
-drivers which will (as an option) communicate with the Sysfs file system
-which in turn communicates with the actual hardware device drivers.
 
 Switch State Service (SwSS) – Switch control
 ============================================
