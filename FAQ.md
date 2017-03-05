@@ -51,15 +51,16 @@ A. From our demo in the Microsoft booth you can see switches and chipsets that S
 
 ----------
 
-Q.  Is the same version on GitHub running in deployment today (March 9th, 2016)?
 
-A. No.  As of March 9th, 2016, we are running SONiC v1 in the Microsoft production network.  The open source release of SONiC is v2 and represents many improvements over v1.    We will be working hard to deploy SONiC v2 into production in the coming weeks.
+Q.  Is the same version on GitHub running in deployment today?
+
+A. Yes.
 
 ----------
 
 Q. Does the SONiC offer Linux options, and/or can it be customized?
 
-A. Today (March 9, 2016) SONiC requires Linux kernel 3.16.  We built and tested on Debian Linux, but theoretically any distribution could be supported.  It is fully open sourced and can be customized by users.  A contributor’s guide is posted to cover how to add documentation, code and report and fix bugs. 
+A. Today (March, 2017) SONiC requires Linux kernel 3.16.  We built and tested on Debian Linux, but theoretically any distribution could be supported.  It is fully open sourced and can be customized by users.  A contributor’s guide is posted to cover how to add documentation, code and report and fix bugs. 
 
 ----------
 
@@ -83,4 +84,4 @@ A. SONiC is a community supported product.  Microsoft is interested in keeping S
 ###CONTRIBUTING
 Q. Can anyone contribute to SONiC?
 
-A. Yes, SONiC collaborates and welcome open community involvement. Please check the contributors guide for details. 
+A. Yes, SONiC collaborates and welcome open community involvement. Please check the contributors guide for details: https://github.com/Azure/SONiC/wiki
