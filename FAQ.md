@@ -51,6 +51,11 @@ A. From our demo in the Microsoft booth you can see switches and chipsets that S
 
 ----------
 
+Q. Which commmercial hardware platforms support SONiC?
+
+A. You can find a full list of supported platforms at: https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms
+
+----------
 
 Q.  Is the same version on GitHub running in deployment today?
 
