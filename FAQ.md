@@ -5,7 +5,7 @@
 ###SCOPE
 Q. Is SONiC a Linux distribution?
 
-A. No, SONiC is a collection of networking software components required to have a fully functional L3 device that can be agnostic of any particular Linux distribution. Today SONiC runs on Debian 
+A. No, SONiC is a collection of networking software components required to have a fully functional L3 device that can be agnostic of any particular Linux distribution. Today SONiC runs on Debian. SONiC on Ubuntu is coming very soon. 
 
 ----------
 
@@ -29,7 +29,7 @@ A. SONiC is deployed in Microsoft cloud data center infrastructure.
 
 Q. Is SONiC what was formerly the Azure Cloud Switch (ACS)?
 
-A. Mostly.   ACS builds on top of SONiC with internal cloud management applications. 
+A. Mostly. ACS builds on top of SONiC with internal cloud management applications. 
 
 ----------
 
@@ -41,7 +41,7 @@ A. Yes, SONiC is deployed in Microsoft production datacenters.
 
 Q. How many devices are SONiC based?
 
-A. The deployment is currently small but growing.  We plan to rapidly expand SONiC deployment over the coming months. 
+A. The deployment is growing from one datacetner to cross regions.  We plan to rapidly expand SONiC deployment over the coming months. 
 
 ----------
 
