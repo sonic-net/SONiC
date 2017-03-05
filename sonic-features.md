@@ -1,4 +1,9 @@
-#SONIC Feature List
+#SONIC Features and Roadmap
+
+SONiC community hosts periodic SONiC Roadmap planning sessions. These will define the new capabilities to be delivered by the SONiC project in the it's next release. It's expected that new feature contributions will be aligned with the roadmap. 
+
+Pull requests for features that are not in the roadmap may not be accepted into the project. This is to help ensure the project can produce a stable, reliable release and make progress. 
+
 ##Current 
 Features which are implemented, tested and deployed in production. 
  
