@@ -59,8 +59,7 @@ You can also build SONiC from source and the instructions can be found [here](ht
     ONIE:/ # onie-nos-install http://192.168.2.10/sonic-broadcom.bin
 ```
 
-    **Note:** There are many options to install SONiC ONIE image on a ONIE-enabled switch. 
-    For more installation options, visit the [ONIE](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
+  **Note:** There are many options to install SONiC ONIE image on a ONIE-enabled switch. For more installation options, visit the [ONIE](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
 
 When NOS installation finishes, the box will reboot into SONiC by default.
 
