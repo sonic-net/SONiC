@@ -10,6 +10,7 @@ user@debug:~$ ssh admin@sonic
 
 ### Hardware Platform
 * Command `decode-syseeprom` is used to decode the EEPROM that stores the system information.
+
 Example:
 ```
 admin@sonic:~$ decode-syseeprom
@@ -28,6 +29,7 @@ Base MAC Address      12 FE:EC:BA:AB:CD:EF
 
 ```
 * Command `sfputils` is the utility to decode the SFP EEPROM that stores the SFP information.
+
 Example:
 ```
 admin@sonic:~$ sfputils --port Ethernet0 --dom
@@ -44,8 +46,8 @@ Ethernet0: SFP detected
                 Fibre Channel link length/Transmitter Technology : Electrical inter-enclosure (EL)
                 Fibre Channel transmission media : Twin Axial Pair (TW)
         Vendor Date Code(YYYY-MM-DD Lot) : 2015-10-31
-        Vendor Name : Molex Inc.
-        Vendor OUI : 00-09-3a
+        Vendor Name : XXXXX
+        Vendor OUI : XX-XX-XX
         Vendor PN : 1111111111
         Vendor Rev :
         Vendor SN : 111111111
@@ -62,11 +64,12 @@ Ethernet0: SFP detected
                 Temperature : 1.1111C
                 Vcc : 0.0000Volts
 ```
-* Command `sensors` is the utility installed via lm_sensors (Linux monitoring sensors) that provides tools and drivers for monitoring temperatures, voltage, and fans.
+* Command `sensors` is the utility installed via lm_sensors (Linux monitoring sensors) that provides tools and drivers for monitoring temperatures, voltage, and fans. (Ref: https://wiki.archlinux.org/index.php/lm_sensors)
 
 ### Switch Platform
 * Command `portstat` is the utility that calculate the RX/TX packets rate on each physical port.
 Use `portstat -c` to clear the counters and use `portstat` to get the packets number/rate after the counter is cleared.
+
 Example:
 ```
 admin@sonic:~$ portstat -c
@@ -83,8 +86,74 @@ Last cached time was 2017-03-05 08:22:22.22222
 
 ### Layer 2
 * Command `brctl` is the utility for Ethernet bridge administration. (Ref: http://linuxcommand.org/man_pages/brctl8.html)
+
+Example:
+```
+admin@sonic:~$ brctl
+bridge name     bridge id               STP enabled     interfaces
+Vlan1000                8000.ecf4bbfe880a       no              Ethernet12
+                                                        Ethernet16
+                                                        Ethernet20
+                                                        Ethernet24
+                                                        Ethernet28
+                                                        Ethernet32
+                                                        Ethernet36
+                                                        Ethernet4
+                                                        Ethernet40
+                                                        Ethernet44
+                                                        Ethernet48
+                                                        Ethernet52
+                                                        Ethernet56
+                                                        Ethernet60
+                                                        Ethernet64
+                                                        Ethernet68
+                                                        Ethernet72
+                                                        Ethernet76
+                                                        Ethernet8
+                                                        Ethernet80
+                                                        Ethernet84
+                                                        Ethernet88
+                                                        Ethernet92
+                                                        Ethernet96
+
+```
 * Command `teamdctl` is the utility for querying a unning instance of teamd for statistics or configuration information, or to make changes. (Ref: https://www.systutorials.com/docs/linux/man/8-teamdctl/)
+
+Example:
+```
+admin@sonic:~$ teamdctl PortChannel0 state
+setup:
+  runner: lacp
+ports:
+  Ethernet4
+    link watches:
+      link summary: up
+      instance[link_watch_0]:
+        name: ethtool
+        link: up
+        down count: 0
+    runner:
+      aggregator ID: 1317, Selected
+      selected: yes
+      state: current
+  Ethernet0
+    link watches:
+      link summary: up
+      instance[link_watch_0]:
+        name: ethtool
+        link: up
+        down count: 0
+    runner:
+      aggregator ID: 1317, Selected
+      selected: yes
+      state: current
+runner:
+  active: yes
+  fast rate: no
+```
+
 * Command `teamshow` is the utility that displays all teamd instances in a one-shot command.
+
 Example:
 ```
 admin@sonic:~$ teamshow
@@ -103,6 +172,7 @@ Flags: A - active, I - inactive, N/A - Not Available, S - selected, D - deselect
 ```
 * Command `lldpctl` is the utility that controls the LLDP daemon. (Ref: https://manpages.debian.org/testing/lldpd/lldpctl.8.en.html)
 * Command `lldpshow` is the utility that displays all LLDP neighbors in a pretty one-shot command.
+
 Example:
 ```
 admin@sonic:~$ lldpshow
@@ -119,8 +189,8 @@ Total entries displayed:  4
 
 ### Layer 3
 * Command `ifconfig` is the utility that configures the network interfaces. (Ref: http://linuxcommand.org/man_pages/ifconfig8.html)
-
 * Command `ip address` is the utility that shows/manipulate addresses. (Ref:https://linux.die.net/man/8/ip)
+
 Example:
 ```
 admin@sonic:~$ ip route show Ethernet112
@@ -135,6 +205,8 @@ admin@sonic:~$ ip route show Ethernet112
 ```
 * Command `ip route` is the utility that shows/manipulate routing. (Ref:https://linux.die.net/man/8/ip)
 Note: Because Quagga is used as the routing software suite in SONiC, it will automatically sync routes to the kernel. That is the reason `ip route` command is able to list all the routes in Quagga.
+
+Example:
 ```
 admin@sonic:~$ ip route show
 default  proto zebra  src 10.1.0.32
@@ -159,6 +231,7 @@ default  proto zebra  src 10.1.0.32
 
 ### BGP
 * Command `vtysh` is the integrated shell for Quagga routing software. (Ref: http://man.cx/vtysh(1))
+
 Example:
 ```
 admin@sonic:~$ vtysh -c "show ip bgp summary"
