@@ -154,10 +154,9 @@ Device mini graph contains all the information about a given device in particula
   - BGP AS Number
   - Peers and Peering sessions 
 
-## Command line and troubleshooting
+## Command line
 
-SONiC uses Linux command line and you can use those commands to view platform, transceivers, L2, IP, BGP status, and etc. on.
+SONiC includes commmands that allow user to show platform, transceivers, L2, IP, BGP status, and etc. on.
 
-- [Command Reference](command_reference.md)
-- [Troubleshooting Connectivity](troubleshooting_conn.md)
+- [Command Reference](commands.md)
 
