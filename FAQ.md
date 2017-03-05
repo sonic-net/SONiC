@@ -47,21 +47,10 @@ A. The deployment is growing from one datacetner to cross regions.  We plan to r
 
 Q. Which hardware platforms and ASIC chipset are you running SONiC on?
 
-A. From our demo in the Microsoft booth you can see switches and chipsets that SONiC is running on.   We can’t comment on the hardware deployed in our production network.  
-
-----------
-
-Q. Which commmercial hardware platforms support SONiC?
-
 A. You can find a full list of supported platforms at: https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms
 
 ----------
 
-Q.  Is the same version on GitHub running in deployment today?
-
-A. Yes.
-
-----------
 
 Q. Does the SONiC offer Linux options, and/or can it be customized?
 
