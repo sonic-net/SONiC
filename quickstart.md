@@ -7,21 +7,39 @@ This guide details the steps to install SONiC image on your switch.
 
 We have one SONiC Image per ASIC vendor. You can download SONiC Image from [here](https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms)
 
-You can also build SONiC from scratch and build instructions can be found [here](https://github.com/Azure/sonic-buildimage).
+You can also build SONiC from source and the instructions can be found [here](https://github.com/Azure/sonic-buildimage).
 
 ## Installation
 
 ### Install SONiC ONIE Image
 
 
-- Connect to switch via serial console
+- Connect to switch via serial console.
+
+- (Optional) Some switches may come with a NOS and you need to uninstall existing NOS first before you install SONiC. Boot into ONIE and select Uninstall OS.
+
+```
+                         GNU GRUB  version 2.02~beta2+e4a1fe391
+     +----------------------------------------------------------------------------+
+     |*ONIE: Install OS                                                           | 
+     | ONIE: Rescue                                                               |
+     | ONIE: Uninstall OS  <----- Select this one                                 |
+     | ONIE: Update ONIE                                                          |
+     | ONIE: Embed ONIE                                                           |
+     +----------------------------------------------------------------------------+
+
+          Use the ^ and v keys to select which entry is highlighted.          
+          Press enter to boot the selected OS, `e' to edit the commands       
+          before booting or `c' for a command-line.                           
+```
+
 
 - Reboot the into ONIE and select Install OS.
 
 ```
                          GNU GRUB  version 2.02~beta2+e4a1fe391
      +----------------------------------------------------------------------------+
-     |*ONIE: Install OS                                                           | 
+     |*ONIE: Install OS    <----- Select this one                                 | 
      | ONIE: Rescue                                                               |
      | ONIE: Uninstall OS                                                         |
      | ONIE: Update ONIE                                                          |
@@ -36,7 +54,7 @@ You can also build SONiC from scratch and build instructions can be found [here]
 - Install SONiC. 
 
     **Note** There are many options to install SONiC ONIE image on a ONIE-enabled switch. 
-    For more installation options, visit the [project wiki](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
+    For more installation options, visit the [ONIE](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
 
 Here, we assume you have uploaded SONiC image onto a http server. Once you are in ONIE, you can first configure a management IP and default gateway for your switch, and then install the SONiC image from the http server.
 
@@ -86,8 +104,28 @@ admin@sonic:~$
 
 ### Install SONiC EOS Image
 
-_This section is only applicable when you plan to install SONiC image on Arista switches_
+    This section is only applicable when you plan to install SONiC image on Arista switches.
 
+Installing SONiC EOS uses the same step as you upgrade a normal EOS image. You download SONiC EOS image in an Arista box, select to boot from the image, and reload the box. 
+
+```
+localhost#copy http://192.168.2.10/sonic-aboot-broadcom.swi flash: 
+Copy completed successfully.                                                    
+localhost(config)#boot system flash:sonic-aboot-broadcom.swi  
+localhost(config)#reload 
+System configuration has been modified. Save? [yes/no/cancel/diff]:no 
+Proceed with reload? [confirm] [type enter] 
+ 
+Broadcast message from root@localhost 
+        (unknown) at 8:22 ... 
+
+..... (boot messages)
+
+ 
+Debian GNU/Linux 8 sonic ttyS0 
+ 
+sonic login:
+```
 
 ## Configuration
 
