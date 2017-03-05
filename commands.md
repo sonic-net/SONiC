@@ -66,6 +66,28 @@ Ethernet0: SFP detected
 ```
 * Command `sensors` is the utility installed via lm_sensors (Linux monitoring sensors) that provides tools and drivers for monitoring temperatures, voltage, and fans. (Ref: https://wiki.archlinux.org/index.php/lm_sensors)
 
+Example:
+```
+admin@sonic:~$ sensors
+max6620-i2c-11-29
+Adapter: i2c-2-mux (chan_id 1)
+fan1:        15360 RPM  (div = 2)
+fan2:        14894 RPM  (div = 2)
+fan3:        15855 RPM  (div = 2)
+fan4:        15855 RPM  (div = 2)
+
+tmp75-i2c-11-4c
+Adapter: i2c-2-mux (chan_id 1)
+temp1:        +31.6 C  (high = +50.0 C, hyst = +25.0 C)
+
+tmp75-i2c-11-4d
+Adapter: i2c-2-mux (chan_id 1)
+temp1:        +29.4 C  (high = +50.0 C, hyst = +25.0 C)
+
+tmp75-i2c-11-4e
+Adapter: i2c-2-mux (chan_id 1)
+temp1:        +27.4 C  (high = +50.0 C, hyst = +25.0 C)
+```
 ### Switch Platform
 * Command `portstat` is the utility that calculate the RX/TX packets rate on each physical port.
 Use `portstat -c` to clear the counters and use `portstat` to get the packets number/rate after the counter is cleared.
@@ -85,6 +107,7 @@ Last cached time was 2017-03-05 08:22:22.22222
 ```
 
 ### Layer 2
+#### VLAN
 * Command `brctl` is the utility for Ethernet bridge administration. (Ref: http://linuxcommand.org/man_pages/brctl8.html)
 
 Example:
@@ -117,6 +140,7 @@ Vlan1000                8000.ecf4bbfe880a       no              Ethernet12
                                                         Ethernet96
 
 ```
+#### LAG
 * Command `teamdctl` is the utility for querying a unning instance of teamd for statistics or configuration information, or to make changes. (Ref: https://www.systutorials.com/docs/linux/man/8-teamdctl/)
 
 Example:
@@ -170,6 +194,7 @@ Flags: A - active, I - inactive, N/A - Not Available, S - selected, D - deselect
     8  PortChannel8   LACP(A)     Ethernet8(S) Ethernet12(S)
 
 ```
+#### LLDP
 * Command `lldpctl` is the utility that controls the LLDP daemon. (Ref: https://manpages.debian.org/testing/lldpd/lldpctl.8.en.html)
 * Command `lldpshow` is the utility that displays all LLDP neighbors in a pretty one-shot command.
 
@@ -228,8 +253,7 @@ default  proto zebra  src 10.1.0.32
 10.0.0.28/31 dev PortChannel56  proto kernel  scope link  src 10.0.0.28
 
 ```
-
-### BGP
+#### BGP
 * Command `vtysh` is the integrated shell for Quagga routing software. (Ref: http://man.cx/vtysh(1))
 
 Example:
