@@ -1,100 +1,104 @@
 # SONiC - Getting Started
 
 ## Description
-This guide details the steps to install SONiC and apply a basic configuration. 
+This guide details the steps to install SONiC image on your switch. 
 
-Please note that, the stack of OS10 from Dell is currently independent
-from SONiC stack. All the following instructions if not specified are for SONiC. Please find documentation
-of OS10 [here](https://github.com/Azure/SONiC/wiki/OS10-Documentation-Folder). 
+## Download Image
 
+We have one SONiC Image per ASIC vendor. You can download SONiC Image from [here](https://github.com/Azure/SONiC/wiki/Supported-Devices-and-Platforms)
 
-# Prerequisites
-- [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)-compliant switch (for this guide, we'll be using a Dell S6000-ON)
-- DHCP server (reachable by the target device)
-- HTTP server (to host the install image)
-
-### Example Environment Topology
-```
-+----------+       +-----------+
-|          |       |           |
-|   Web    |       |           |
-|  Server  +-------+           |
-|   .10    |       |           |
-+----------+       |           |
-                   |           |
-+----------+       |           |
-|          |       |           |
-|   DHCP   |       |    L2     |
-|  Server  +-------+  Network  |
-|   .254   |       |           |
-+----------+       |           |
-                   |           |
-+----------+       |           |
-|          |       |           |
-|   SONiC  |       |           |
-|  Switch  +-------+           |
-|   .128   |       |           |
-+----------+       +-----------+
-
-
-Subnet: 192.168.0.1/24
-DHCP Range: 192.168.0.128 - 253
-Web: 192.168.0.10
-DHCP: 192.168.0.254
-Switch: 192.168.0.128
-
-```
-
+You can also build SONiC from scratch and build instructions can be found [here](https://github.com/Azure/sonic-buildimage).
 
 ## Installation
 
-### Preparing the Image
-Build instructions for SONiC can be found at under the [build image project](https://github.com/Azure/sonic-buildimage).
-
-Once the image has been created, host the image via HTTP.
+### Install SONiC ONIE Image
 
 
-### ONIE Boot
-_The remainder of this guide will assume that your switch is able to boot into [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)._
+- Connect to switch via serial console
 
-Configure the DHCP server option url to point to the SONiC image. As an example with `dnsmasq` and in the respective `.conf`:
+- Reboot the into ONIE and select Install OS.
+
 ```
-# Note MAC specific to the mgmt port and apply a static lease.
-dhcp-host=aa:bb:cc:dd:ee:ff,192.168.0.128,set:onie
+                         GNU GRUB  version 2.02~beta2+e4a1fe391
+     +----------------------------------------------------------------------------+
+     |*ONIE: Install OS                                                           | 
+     | ONIE: Rescue                                                               |
+     | ONIE: Uninstall OS                                                         |
+     | ONIE: Update ONIE                                                          |
+     | ONIE: Embed ONIE                                                           |
+     +----------------------------------------------------------------------------+
 
-# Specify Option 114 and point to the image URL.
-dhcp-option=tag:onie,114,"http://HTTPSERVER/path/to/binary/sonic.bin"
+          Use the ^ and v keys to select which entry is highlighted.          
+          Press enter to boot the selected OS, `e' to edit the commands       
+          before booting or `c' for a command-line.                           
 ```
 
-With DHCP configured, power cycling the switch should initiate the process of:
+- Install SONiC. 
 
-- DHCP lease acquisition
-- Image download
-- Image installation
+    **Note** There are many options to install SONiC ONIE image on a ONIE-enabled switch. 
+    For more installation options, visit the [project wiki](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
 
-For more information regarding booting with ONIE visit the [project wiki](https://github.com/opencomputeproject/onie/wiki/Quick-Start-Guide).
+Here, we assume you have uploaded SONiC image onto a http server. Once you are in ONIE, you can first configure a management IP and default gateway for your switch, and then install the SONiC image from the http server.
 
-### Machine Configuration
+```
+    ONIE:/ # ifconfig eth0 192.168.0.2 netmask 255.255.255.0
+    ONIE:/ # ip route add default via 192.168.0.1
+    ONIE:/ # onie-nos-install http://192.168.2.10/sonic-broadcom.bin
+```
 
-There's a fair amount of post-install configuration ahead and we've gone ahead and published a project to help you along:
+When installation finishes, it will reboot the box and then boot into SONiC by default.
 
-[Azure / sonic-mgmt](https://github.com/Azure/sonic-mgmt)
-> Tools for managing, configuring and monitoring SONiC
+```
+                         GNU GRUB  version 2.02~beta2+e4a1fe391
 
-In short, this does the work of:
+     +----------------------------------------------------------------------------+
+     |*SONiC-OS-7069cef                                                           | 
+     | ONIE                                                                       | 
+     +----------------------------------------------------------------------------+
+ ```
 
-- Host configuration
-- Daemon installs & configuration
-- Template composition for common services
-- System startup
+SONiC Login prompt
+ ```
+    Debian GNU/Linux 8 sonic ttyS0
 
-## System Reference
+    sonic login: 
+ ```
+
+  **Note**: By default, SONiC console baud rate is 9600. You can use ```admin``` and ```YourPaSsWoRd``` to login.
+
+SONiC Welcome motd
+
+```
+You are on
+  ____   ___  _   _ _  ____
+ / ___| / _ \| \ | (_)/ ___|
+ \___ \| | | |  \| | | |
+  ___) | |_| | |\  | | |___
+ |____/ \___/|_| \_|_|\____|
+
+-- Software for Open Networking In the Cloud --
+
+Unauthorized access and/or use are prohibited.
+All access and/or use are subject to monitoring.
+
+admin@sonic:~$ 
+```
+
+### Install SONiC EOS Image
+
+_This section is only applicable when you plan to install SONiC image on Arista switches_
+
+
+## Configuration
+
+SONiC is using ```/etc/sonic/minigraph.xml``` to configure the box. 
+
+Describe minigraph high level structure here.
+
+## Command line and troubleshooting
+
+SONiC uses Linux command line and you can use those commands to view platform, transceivers, L2, IP, BGP status, and etc. on.
+
 - [Command Reference](command_reference.md)
 - [Troubleshooting Connectivity](troubleshooting_conn.md)
-
-
-## External Links
-- [ONIE](http://www.opencompute.org/wiki/Networking/ONIE)
-- [dnsmasq](http://www.thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html)
-- [Ansible](http://docs.ansible.com/)
 
