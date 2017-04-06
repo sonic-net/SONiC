@@ -1,5 +1,5 @@
-#SONiC Source Repositories
-##SAI, Switch State Service
+# SONiC Source Repositories
+## SAI, Switch State Service
 - https://github.com/Azure/sonic-swss
 	- Switch State Service - Core component of SONiC which processes network switch data    
 - https://github.com/Azure/sonic-swss-common
@@ -15,7 +15,7 @@
 - https://github.com/Azure/sonic-quagga
 	- Quagga 
 	
-##Monitoring and management tools 
+## Monitoring and management tools 
 - https://github.com/Azure/sonic-mgmt
 	- Management and automation code used for build, test and deployment automation
 - https://github.com/Azure/sonic-utilities
@@ -23,7 +23,7 @@
 - https://github.com/Azure/sonic-snmpagent
 	- a net-snmpd agentx subagent 
 
-##Imaging and Building tools
+## Imaging and Building tools
 - https://github.com/Azure/sonic-docker-base
     - Source to build base docker image
 - https://github.com/Azure/sonic-buildimage
@@ -31,7 +31,7 @@
 - https://github.com/Azure/sonic-build-tools
 	- Source for tools used to build and run CI for SONiC
 
-##Switch hardware drivers
+## Switch hardware drivers
 - https://github.com/Azure/sonic-linux-kernel
 	- kernel patches for various device drivers
 - https://github.com/Azure/sonic-platform-modules-s6000
