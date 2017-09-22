@@ -1,0 +1,459 @@
+{
+    "DEVICE_METADATA": {
+        "localhost": {
+            "bgp_asn": 65100, 
+            "deployment_id": null, 
+            "hostname": "switch1", 
+            "type": "LeafRouter", 
+            "hwsku": "Force10-S6000"
+        }
+    }, 
+    "BGP_PEER_RANGE": {}, 
+    "VLAN": {}, 
+    "PORT": {
+        "Ethernet8": {
+            "alias": "fortyGigE0/8"
+        }, 
+        "Ethernet0": {
+            "alias": "fortyGigE0/0"
+        }, 
+        "Ethernet4": {
+            "alias": "fortyGigE0/4"
+        }, 
+        "Ethernet108": {
+            "alias": "fortyGigE0/108"
+        }, 
+        "Ethernet100": {
+            "alias": "fortyGigE0/100"
+        }, 
+        "Ethernet104": {
+            "alias": "fortyGigE0/104"
+        }, 
+        "Ethernet68": {
+            "alias": "fortyGigE0/68"
+        }, 
+        "Ethernet96": {
+            "alias": "fortyGigE0/96"
+        }, 
+        "Ethernet124": {
+            "alias": "fortyGigE0/124"
+        }, 
+        "Ethernet92": {
+            "alias": "fortyGigE0/92"
+        }, 
+        "Ethernet120": {
+            "alias": "fortyGigE0/120"
+        }, 
+        "Ethernet52": {
+            "alias": "fortyGigE0/52"
+        }, 
+        "Ethernet56": {
+            "alias": "fortyGigE0/56"
+        }, 
+        "Ethernet76": {
+            "alias": "fortyGigE0/76"
+        }, 
+        "Ethernet72": {
+            "alias": "fortyGigE0/72"
+        }, 
+        "Ethernet64": {
+            "alias": "fortyGigE0/64"
+        }, 
+        "Ethernet32": {
+            "alias": "fortyGigE0/32"
+        }, 
+        "Ethernet16": {
+            "alias": "fortyGigE0/16"
+        }, 
+        "Ethernet36": {
+            "alias": "fortyGigE0/36"
+        }, 
+        "Ethernet12": {
+            "alias": "fortyGigE0/12"
+        }, 
+        "Ethernet88": {
+            "alias": "fortyGigE0/88"
+        }, 
+        "Ethernet116": {
+            "alias": "fortyGigE0/116"
+        }, 
+        "Ethernet80": {
+            "alias": "fortyGigE0/80"
+        }, 
+        "Ethernet112": {
+            "alias": "fortyGigE0/112"
+        }, 
+        "Ethernet84": {
+            "alias": "fortyGigE0/84"
+        }, 
+        "Ethernet48": {
+            "alias": "fortyGigE0/48"
+        }, 
+        "Ethernet44": {
+            "alias": "fortyGigE0/44"
+        }, 
+        "Ethernet40": {
+            "alias": "fortyGigE0/40"
+        }, 
+        "Ethernet28": {
+            "alias": "fortyGigE0/28"
+        }, 
+        "Ethernet60": {
+            "alias": "fortyGigE0/60"
+        }, 
+        "Ethernet20": {
+            "alias": "fortyGigE0/20"
+        }, 
+        "Ethernet24": {
+            "alias": "fortyGigE0/24"
+        }
+    }, 
+    "SYSLOG_SERVER": {}, 
+    "VLAN_INTERFACE": {}, 
+    "BGP_NEIGHBOR": {
+        "10.0.0.61": {
+            "local_addr": "10.0.0.60", 
+            "asn": 64015, 
+            "name": "ARISTA15T0"
+        }, 
+        "10.0.0.49": {
+            "local_addr": "10.0.0.48", 
+            "asn": 64009, 
+            "name": "ARISTA09T0"
+        }, 
+        "10.0.0.43": {
+            "local_addr": "10.0.0.42", 
+            "asn": 64006, 
+            "name": "ARISTA06T0"
+        }, 
+        "10.0.0.41": {
+            "local_addr": "10.0.0.40", 
+            "asn": 64005, 
+            "name": "ARISTA05T0"
+        }, 
+        "10.0.0.47": {
+            "local_addr": "10.0.0.46", 
+            "asn": 64008, 
+            "name": "ARISTA08T0"
+        }, 
+        "10.0.0.45": {
+            "local_addr": "10.0.0.44", 
+            "asn": 64007, 
+            "name": "ARISTA07T0"
+        }, 
+        "10.0.0.63": {
+            "local_addr": "10.0.0.62", 
+            "asn": 64016, 
+            "name": "ARISTA16T0"
+        }, 
+        "10.0.0.39": {
+            "local_addr": "10.0.0.38", 
+            "asn": 64004, 
+            "name": "ARISTA04T0"
+        }, 
+        "10.0.0.33": {
+            "local_addr": "10.0.0.32", 
+            "asn": 64001, 
+            "name": "ARISTA01T0"
+        }, 
+        "10.0.0.31": {
+            "local_addr": "10.0.0.30", 
+            "asn": 65200, 
+            "name": "ARISTA16T2"
+        }, 
+        "10.0.0.37": {
+            "local_addr": "10.0.0.36", 
+            "asn": 64003, 
+            "name": "ARISTA03T0"
+        }, 
+        "10.0.0.35": {
+            "local_addr": "10.0.0.34", 
+            "asn": 64002, 
+            "name": "ARISTA02T0"
+        }, 
+        "10.0.0.59": {
+            "local_addr": "10.0.0.58", 
+            "asn": 64014, 
+            "name": "ARISTA14T0"
+        }, 
+        "10.0.0.17": {
+            "local_addr": "10.0.0.16", 
+            "asn": 65200, 
+            "name": "ARISTA09T2"
+        }, 
+        "10.0.0.11": {
+            "local_addr": "10.0.0.10", 
+            "asn": 65200, 
+            "name": "ARISTA06T2"
+        }, 
+        "10.0.0.13": {
+            "local_addr": "10.0.0.12", 
+            "asn": 65200, 
+            "name": "ARISTA07T2"
+        }, 
+        "10.0.0.51": {
+            "local_addr": "10.0.0.50", 
+            "asn": 64010, 
+            "name": "ARISTA10T0"
+        }, 
+        "10.0.0.19": {
+            "local_addr": "10.0.0.18", 
+            "asn": 65200, 
+            "name": "ARISTA10T2"
+        }, 
+        "10.0.0.53": {
+            "local_addr": "10.0.0.52", 
+            "asn": 64011, 
+            "name": "ARISTA11T0"
+        }, 
+        "10.0.0.55": {
+            "local_addr": "10.0.0.54", 
+            "asn": 64012, 
+            "name": "ARISTA12T0"
+        }, 
+        "10.0.0.57": {
+            "local_addr": "10.0.0.56", 
+            "asn": 64013, 
+            "name": "ARISTA13T0"
+        }, 
+        "10.0.0.9": {
+            "local_addr": "10.0.0.8", 
+            "asn": 65200, 
+            "name": "ARISTA05T2"
+        }, 
+        "10.0.0.5": {
+            "local_addr": "10.0.0.4", 
+            "asn": 65200, 
+            "name": "ARISTA03T2"
+        }, 
+        "10.0.0.7": {
+            "local_addr": "10.0.0.6", 
+            "asn": 65200, 
+            "name": "ARISTA04T2"
+        }, 
+        "10.0.0.1": {
+            "local_addr": "10.0.0.0", 
+            "asn": 65200, 
+            "name": "ARISTA01T2"
+        }, 
+        "10.0.0.3": {
+            "local_addr": "10.0.0.2", 
+            "asn": 65200, 
+            "name": "ARISTA02T2"
+        }, 
+        "10.0.0.15": {
+            "local_addr": "10.0.0.14", 
+            "asn": 65200, 
+            "name": "ARISTA08T2"
+        }, 
+        "10.0.0.29": {
+            "local_addr": "10.0.0.28", 
+            "asn": 65200, 
+            "name": "ARISTA15T2"
+        }, 
+        "10.0.0.25": {
+            "local_addr": "10.0.0.24", 
+            "asn": 65200, 
+            "name": "ARISTA13T2"
+        }, 
+        "10.0.0.27": {
+            "local_addr": "10.0.0.26", 
+            "asn": 65200, 
+            "name": "ARISTA14T2"
+        }, 
+        "10.0.0.21": {
+            "local_addr": "10.0.0.20", 
+            "asn": 65200, 
+            "name": "ARISTA11T2"
+        }, 
+        "10.0.0.23": {
+            "local_addr": "10.0.0.22", 
+            "asn": 65200, 
+            "name": "ARISTA12T2"
+        }
+    }, 
+    "PORTCHANNEL_INTERFACE": {}, 
+    "PORTCHANNEL": {}, 
+    "MGMT_INTERFACE": {}, 
+    "DHCP_SERVER": {}, 
+    "NTP_SERVER": {
+        "2.debian.pool.ntp.org": {}, 
+        "1.debian.pool.ntp.org": {}, 
+        "3.debian.pool.ntp.org": {}, 
+        "0.debian.pool.ntp.org": {}
+    }, 
+    "DEVICE_NEIGHBOR": {
+        "ARISTA16T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet60"
+        }, 
+        "ARISTA16T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet124"
+        }, 
+        "ARISTA11T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet104"
+        }, 
+        "ARISTA10T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet100"
+        }, 
+        "ARISTA11T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet40"
+        }, 
+        "ARISTA10T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet36"
+        }, 
+        "ARISTA09T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet32"
+        }, 
+        "ARISTA09T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet96"
+        }, 
+        "ARISTA06T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet84"
+        }, 
+        "ARISTA06T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet20"
+        }, 
+        "ARISTA08T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet28"
+        }, 
+        "ARISTA08T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet92"
+        }, 
+        "ARISTA07T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet88"
+        }, 
+        "ARISTA07T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet24"
+        }, 
+        "ARISTA01T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet0"
+        }, 
+        "ARISTA01T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet64"
+        }, 
+        "ARISTA05T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet16"
+        }, 
+        "ARISTA05T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet80"
+        }, 
+        "ARISTA02T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet68"
+        }, 
+        "ARISTA03T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet72"
+        }, 
+        "ARISTA02T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet4"
+        }, 
+        "ARISTA03T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet8"
+        }, 
+        "ARISTA04T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet12"
+        }, 
+        "ARISTA04T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet76"
+        }, 
+        "ARISTA15T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet120"
+        }, 
+        "ARISTA15T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet56"
+        }, 
+        "ARISTA14T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet116"
+        }, 
+        "ARISTA14T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet52"
+        }, 
+        "ARISTA12T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet44"
+        }, 
+        "ARISTA12T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet108"
+        }, 
+        "ARISTA13T2": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet48"
+        }, 
+        "ARISTA13T0": {
+            "port": "Ethernet1", 
+            "local_port": "Ethernet112"
+        }
+    }, 
+    "LOOPBACK_INTERFACE": {
+        "Loopback0|10.1.0.32/32": {}
+    }, 
+    "ACL_TABLE": {}, 
+    "MIRROR_SESSION": {
+        "everflow0": {
+            "src_ip": "10.1.0.32", 
+            "dst_ip": "2.2.2.2"
+        }
+    }, 
+    "INTERFACE": {
+        "Ethernet8|10.0.0.4/31": {}, 
+        "Ethernet20|10.0.0.10/31": {}, 
+        "Ethernet56|10.0.0.28/31": {}, 
+        "Ethernet40|10.0.0.20/31": {}, 
+        "Ethernet60|10.0.0.30/31": {}, 
+        "Ethernet12|10.0.0.6/31": {}, 
+        "Ethernet36|10.0.0.18/31": {}, 
+        "Ethernet92|10.0.0.46/31": {}, 
+        "Ethernet112|10.0.0.56/31": {}, 
+        "Ethernet28|10.0.0.14/31": {}, 
+        "Ethernet52|10.0.0.26/31": {}, 
+        "Ethernet80|10.0.0.40/31": {}, 
+        "Ethernet16|10.0.0.8/31": {}, 
+        "Ethernet32|10.0.0.16/31": {}, 
+        "Ethernet108|10.0.0.54/31": {}, 
+        "Ethernet104|10.0.0.52/31": {}, 
+        "Ethernet68|10.0.0.34/31": {}, 
+        "Ethernet4|10.0.0.2/31": {}, 
+        "Ethernet44|10.0.0.22/31": {}, 
+        "Ethernet100|10.0.0.50/31": {}, 
+        "Ethernet64|10.0.0.32/31": {}, 
+        "Ethernet0|10.0.0.0/31": {}, 
+        "Ethernet48|10.0.0.24/31": {}, 
+        "Ethernet84|10.0.0.42/31": {}, 
+        "Ethernet72|10.0.0.36/31": {}, 
+        "Ethernet76|10.0.0.38/31": {}, 
+        "Ethernet24|10.0.0.12/31": {}, 
+        "Ethernet120|10.0.0.60/31": {}, 
+        "Ethernet124|10.0.0.62/31": {}, 
+        "Ethernet96|10.0.0.48/31": {}, 
+        "Ethernet88|10.0.0.44/31": {}, 
+        "Ethernet116|10.0.0.58/31": {}
+    }
+}
