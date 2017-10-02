@@ -6,7 +6,7 @@ This document captures the SONiC requirements for monitoring critical ASIC resou
 1.	User must be able to query (via CLI/Show command) the current usage/availability of critical resources
 2.	System must log WARNING if there are any resources that exceeds a pre-defined threshold value
 
-## Summary of resources
+## Requirement
 This section captures a list of CLI requirements for monitoring the Critical Resources. It also requires that appropriate logging must be provided for all these resources if the usage exceeds the threshold. 
 1.	User shall be able to query currently used number of IPv4 routes and number of available entries
 2.	User shall be able to query currently used number of IPv6 routes and number of available entries
