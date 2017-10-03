@@ -31,11 +31,11 @@ User must be able to configure the threshold parameters.
 3. In actual free count 
 
 The configured values shall be updated in the CONFIG_DB. The default upper threshold for which there is no user configuration is capped generically as 85%. If the usage exceeds 85% threshold, then a WARNING is logged. The default lower threshold for which there is no user configuration can be capped at 70%. If the usage reduces below 70%, then a CLEAR is logged.  
-The SYSLOG Warning message *must* be in the following format:
+The SYSLOG Warning message must be in the following format:
  
-"<Date/Time> <Device Name> WARNING <Process name>: THRESHOLD_EXCEEDED for <TH_TYPE> <CR name> <%> Used count \<value> free count \<value>"
+"<Date/Time> <Device Name> WARNING \<Process name>: THRESHOLD_EXCEEDED for <TH_TYPE> <CR name> <%> Used count \<value> free count \<value>"
 
-"<Date/Time> <Device Name> NOTICE <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <CR name> <%>  Used count \<value> free count \<value>"
+"<Date/Time> <Device Name> NOTICE \<Process name>: THRESHOLD_CLEAR for <TH_TYPE> <CR name> <%>  Used count \<value> free count \<value>"
 
 <TH_TYPE> = <TH_PERCENTAGE, TH_USED, TH_FREE> 
 
