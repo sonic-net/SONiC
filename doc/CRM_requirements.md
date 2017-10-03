@@ -1,4 +1,3 @@
-
 # Critical Resource Monitoring
 
 ## Overview
@@ -23,3 +22,26 @@ This section captures a list of CLI requirements for monitoring the Critical Res
   -	ACL Counters/Statistics
   
 10.	User shall be able to query currently used number of FDB entries and number of available entries
+
+### Notes
+For the ALARM notification, user can specify the threshold values in hysterisis mode. A WARNING shall be raised if the value exceeds an _upper_ threshold and CLEAR when the threshold goes below the configured _lower_ value. 
+User must be able to configure the threshold parameters.
+1. In percentage OR
+2. In actual used count OR
+3. In actual free count 
+
+The configured values shall be updated in the CONFIG_DB. The default upper threshold for which there is no user configuration is capped generically as 85%. If the usage exceeds 85% threshold, then a WARNING is logged. The default lower threshold for which there is no user configuration can be capped at 70%. If the usage reduces below 70%, then a CLEAR is logged.  
+The SYSLOG Warning message *must* be in the following format:
+ 
+"<Date/Time> <Device Name> WARNING <Process name>: THRESHOLD_EXCEEDED for <TH_TYPE> <CR name> <%> Used count \<value> free count \<value>"
+
+"<Date/Time> <Device Name> NOTICE <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <CR name> <%>  Used count \<value> free count \<value>"
+
+<TH_TYPE> = <TH_PERCENTAGE, TH_USED, TH_FREE> 
+
+The default polling time can be limited to every 5 minutes. These messages must be suppressed after printing for 10 times. 
+
+## Implementation
+In regards to CLI command to query the USED and AVAILABLE numbers, SAI provides API to query the current available entries. This means, Orchagent shall keep track of the respective entries that are programmed and implements the logic to calculate the Used/Available entries. 
+
+To poll the counter values from SAI, suggest to follow the same approach as FLEX Counters where syncd can update the values to COUNTER_DB and _critical_resource_monitoring_ process can fetch the information from COUNTER_DB and perform the calculations. This can be further discussed in the Design meeting. 
