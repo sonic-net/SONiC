@@ -5,7 +5,7 @@ The LACP Fallback Feature allows an active LACP interface to establish a Link Ag
 
 This feature is useful in environments where customers have Preboot Execution Environment (PXE) Servers connected with a LACP Port Channel to the switch.  Since PXE images are very small, many operating systems are unable to leverage LACP during the preboot process.  The server’s NICs do not have the capability to run LACP without the assistance of a fully functional OS; during the PXE process, they are unaware of the other NIC and don’t have a method to form a LACP connection. Both the NIC’s on the server will be active and are sourcing frames from their respective MAC addresses during the initial boot process.  Simply keeping both ports in the LAG active will not solve the problem because packets sourced from the MAC address of NIC-1 can be returned to the port on which NIC-2 is attached, which will cause NIC-2 to drop the packets (due to MAC mismatch).
 
-![lag.png](https://private-alipayobjects.alipay.com/alipay-rmsdeploy-image/skylark/png/f631ae48-b412-4f1e-8834-c726b4505f3f.png)
+![lag.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/lag.png)
 
 With the LACP fallback feature, the switch allows the server to bring up the LAG (before receiving any LACP PDUs from the server) and keeps a single port active until it receive the LACP PDUs from the server. This allows the PXE boot server to establish a connection over one Ethernet port, download its boot image and then continue the booting process. When the server boot process is complete, the server fully forms an LACP port-channel.
 
@@ -41,7 +41,7 @@ The receive machine has four states:
 One timer:
 Current while timer that is started in the Rxm_current and Rxm_expired states with two timeout: Short timeout (3s) and Long timeout (180s) depending on the value of the Actor’s Operational Status LACP_Timeout, as transmitted in LACPDUs.
 
-![Current_LACP_State_Machine.png](https://private-alipayobjects.alipay.com/alipay-rmsdeploy-image/skylark/png/2be106a7-2167-4cb0-ba1d-fe60dca3f604.png)
+![Current_LACP_State_Machine.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/Current_LACP_State_Machine.png)
 
 ## Receive Machine Events
 The following events can occur:
@@ -52,7 +52,7 @@ The following events can occur:
 • Current while timer expiry
 The physical MAC disabled event indicates that either or both of the physical MAC transmission or reception for the physical port associated with the actor have become non-operational. The received LACPDU event only occurs if both physical transmission and reception are operational, so far as the actor is aware.
 
-![rxm.png](https://private-alipayobjects.alipay.com/alipay-rmsdeploy-image/skylark/png/56eb288a-6b1e-41d1-ac65-10c517572f1f.png)
+![rxm.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/rxm.png)
 
 # LACP Fallback Design
 
@@ -60,7 +60,7 @@ With the standard rx state machine described above, the member port will be put 
 
 In order to support LACP fallback feature, we need to make the port selectable in defaulted state if fallback is enabled. Hence we'd like to introduce the fallback mode in defaulted state.
 
-![LACP_Defaulted.png](https://private-alipayobjects.alipay.com/alipay-rmsdeploy-image/skylark/png/171b117e-db78-4f78-819e-3fc9bc95b0b5.png)
+![LACP_Defaulted.png](https://github.com/Azure/SONiC/blob/gh-pages/images/lacp_fallback_hld/LACP_Defaulted.png)
 
 Fallback Mode:
 In this mode, the port selected bit is being set, which means the port is selectable and can be aggregated into the LAG. If any LACP PDU is being received over the LAG during this mode, the port will move to expired state, and restart the LACP negotiation with peer.
