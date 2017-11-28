@@ -6,7 +6,7 @@ Related documents
 |-------------------|----------|
 | AAA_with_SONiC_v2 | [https://github.com/Azure/SONiC/blob/gh-pages/doc/AAA_with_SONiC_v2.docx](https://github.com/Azure/SONiC/blob/gh-pages/doc/AAA_with_SONiC_v2.docx) |
 | pam_tacplus | [https://github.com/jeroennijhof/pam_tacplus/blob/master/README.md](https://github.com/jeroennijhof/pam_tacplus/blob/master/README.md) |
-| tacacs+ daemon configuration file | [http://manpages.ubuntu.com/manpages/xenial/man5/tac_plus.conf.5.html](http://manpages.ubuntu.com/manpages/xenial/man5/tac_plus.conf.5.html) |
+| tacacs+ daemon | [http://manpages.ubuntu.com/manpages/xenial/man8/tac_plus.8.html](http://manpages.ubuntu.com/manpages/xenial/man8/tac_plus.8.html) |
 
 
 ## Overview
@@ -136,9 +136,9 @@ Note: tac_pwd is a utility supplied with tac_plus to assist in performing the en
 
 tacacs.yml includes three parts
 
-**tacacs_configure.yml**: apply TACACS+ configuration.
-**tacacs_test.yml**: run TACACS+ authentication test.
-**tacacs_cleanup.yml**: clear TACACS+ configuration from the switch.
++ **tacacs_configure.yml**: apply TACACS+ configuration.
++ **tacacs_test.yml**: run TACACS+ authentication test.
++ **tacacs_cleanup.yml**: clear TACACS+ configuration from the switch.
 
 ## Test cases
 
@@ -172,7 +172,7 @@ Verify TACACS+ source address configuration works. In the procduction scenario, 
 
 #### Test description
 
-* Config ip address for the interface loopback in switch DUT.
+* Config ip address for the loopback interface in switch DUT.
 * Config the loopback address as TACACS+ source address.
 * Check no route for the loopback address in TACACS+ server.
 * Verfiy TACACS+ user login via ssh fails.
