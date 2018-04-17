@@ -1,7 +1,7 @@
 
-      OID for Transceiver and Sensor data
+# OID for Transceiver and Sensor data
 
-- Transceiver requirements
+## Transceiver requirements
 
 | OID | SNMP counter | Where to get the info in Sonic. | Example: |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@
 | 1.3.6.1.2.1.47.1.1.1.1.12. 100329210 | entPhysicalMfgName | AOI |
 | 1.3.6.1.2.1.47.1.1.1.1.13. 100329210 | entPhysicalModelName | AQOA9N09ADLN0720 |
 
-- Sensor requirements:
+## Sensor requirements:
 
 | OID | SNMP counter | Where to get the info in Sonic. | Example: |
 | --- | --- | --- | --- |
