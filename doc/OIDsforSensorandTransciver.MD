@@ -67,4 +67,8 @@
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | DOM RX Power Sensor for Ethernet29/1 | DOM RX Power Sensor for Ethernet29/1 | DOM Temperature Sensor for Ethernet29 | DOM Voltage Sensor for Ethernet29 |
 
 Note: Enum definition:   [https://tools.ietf.org/html/rfc3433](https://tools.ietf.org/html/rfc3433)
+
+## Proposed System Chart
+
+![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SonicMonitorSNMP.jpg)
     
