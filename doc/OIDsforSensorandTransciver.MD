@@ -1,7 +1,7 @@
 
 # OID for Transceiver and Sensor data
 
-## Transceiver requirements
+## Transceiver requirements (ENTITY-MIB)
 
 | OID | SNMP counter | Where to get the info in Sonic. | Example: |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@
 | 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI | FINISAR CORP |
 | 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI | FCBN410QD3C02 |
 
-- A sample from arista MIB data as reference:
+- An example as reference:
 
 | OID | SNMP counter | Value |
 | --- | --- | --- |
@@ -31,7 +31,7 @@
 | 1.3.6.1.2.1.47.1.1.1.1.12. 100329210 | entPhysicalMfgName | AOI |
 | 1.3.6.1.2.1.47.1.1.1.1.13. 100329210 | entPhysicalModelName | AQOA9N09ADLN0720 |
 
-## Sensor requirements:
+## Sensor requirements (ENTITY-SENSOR-MIB)
 
 | OID | SNMP counter | Where to get the info in Sonic. | Example: |
 | --- | --- | --- | --- |
@@ -52,7 +52,7 @@
 | DOM Temperature Sensor for Ethernet[X] | Ifindex \* 1000 + 200 + 1 |
 | DOM Voltage Sensor for Ethernet[X] | Ifindex \* 1000 + 200 + 2 |
 
-- A sample from arista MIB data as reference:
+- An example as reference:
 
 | OID | SNMP counter | Sensor 1 RX Power | Sensor 2 TX Bias Sensor | Sensor 3 Temperature | Sensor 4 Voltage |
 | --- | --- | --- | --- | --- | --- |
