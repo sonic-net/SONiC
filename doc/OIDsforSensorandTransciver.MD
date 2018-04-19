@@ -71,4 +71,25 @@ Note: Enum definition:   [https://tools.ietf.org/html/rfc3433](https://tools.iet
 ## Proposed System Chart
 
 ![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SonicMonitorSNMP.jpg)
+
+## Proposed CounterDB Schema
     
+Keyname:  COUNTERS:SENSOR:[IntefaceName]
+Fields name:
+[SENSOR_ID]:Type
+[SENSOR_ID]:Scale
+[SENSOR_ID]::Precision
+[SENSOR_ID]::Value
+[SENSOR_ID]::Descr
+
+
+Keyname:  COUNTERS:TRANSCEIVER:[IntefaceName]
+Fields name : 
+Descr
+Name
+HardwareVersion
+FirmwareVersion
+SoftwareRevision
+SerialNum
+MfgName
+ModelName
