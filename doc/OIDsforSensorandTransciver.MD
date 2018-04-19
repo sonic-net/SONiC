@@ -78,9 +78,9 @@ Keyname:  COUNTERS:SENSOR:[IntefaceName]
 Fields name:
 [SENSOR_ID]:Type
 [SENSOR_ID]:Scale
-[SENSOR_ID]::Precision
-[SENSOR_ID]::Value
-[SENSOR_ID]::Descr
+[SENSOR_ID]:Precision
+[SENSOR_ID]:Value
+[SENSOR_ID]:Descr
 
 
 Keyname:  COUNTERS:TRANSCEIVER:[IntefaceName]
