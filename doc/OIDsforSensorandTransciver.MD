@@ -1,5 +1,37 @@
+# Sensor and Transceiver Info Monitoring Requirement
+## Overall Requirement
+As shown in the following diagram, we need to collect sensor and transceiver infomation from SFP into Telemetry DB and then into snmpagent.
+![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
 
-# OID for Transceiver and Sensor data
+## Proposed Telemetry DB Schema    
+### Keyname:  COUNTERS:SENSOR:[IntefaceName]
+Field: [SensorName] : [SensorValue]
+
+Example: 
+- COUNTERS:SENSOR:Ethernet0
+    - Temperature: 20.1367C
+    - Vcc: 3.3324Volts
+    - RX1Power: -2.0426dBm
+    - RX2Power: -1.8177dBm
+    - RX3Power: -1.7921dBm
+    - RX4Power: -1.8046dBm 
+    - TX1Bias: 0.0800mA
+    - TX2Bias: 0.0940mA
+    - TX3Bias: 0.1000mA
+    - TX4Bias: 0.1260mA
+    
+### Keyname:  COUNTERS:TRANSCEIVER:[IntefaceName]
+Fields: Descr, Name, HardwareVersion, FirmwareVersion ,SoftwareRevision, SerialNum, MfgName ,ModelName and their values
+Example:
+- COUNTERS:TRANSCEIVER:Ethernet0
+    - Descr: Xcvr for Ethernet29
+    - Name: Ethernet29
+    - HardwareVersion: A1
+    - FirmwareVersion:
+    - SoftwareRevision:
+    - SerialNum: WW5062F
+    - MfgName: FINISAR CORP
+    - ModelName: FCBN410QD3C02
 
 ## Transceiver requirements (ENTITY-MIB)
 
@@ -67,29 +99,3 @@
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | DOM RX Power Sensor for Ethernet29/1 | DOM RX Power Sensor for Ethernet29/1 | DOM Temperature Sensor for Ethernet29 | DOM Voltage Sensor for Ethernet29 |
 
 Note: Enum definition:   [https://tools.ietf.org/html/rfc3433](https://tools.ietf.org/html/rfc3433)
-
-## Proposed System Chart
-
-![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SonicMonitorSNMP.jpg)
-
-## Proposed CounterDB Schema
-    
-Keyname:  COUNTERS:SENSOR:[IntefaceName]
-Fields name:
-[SENSOR_ID]:Type
-[SENSOR_ID]:Scale
-[SENSOR_ID]:Precision
-[SENSOR_ID]:Value
-[SENSOR_ID]:Descr
-
-
-Keyname:  COUNTERS:TRANSCEIVER:[IntefaceName]
-Fields name : 
-Descr
-Name
-HardwareVersion
-FirmwareVersion
-SoftwareRevision
-SerialNum
-MfgName
-ModelName
