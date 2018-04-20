@@ -43,7 +43,7 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1.2. ifindex | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | Show interfaces alias | Ethernet29/1 |
+| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | Show interfaces alias | Ethernet29 |
 | 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI | A1 |
 | 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped |   |
 | 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped |   |
