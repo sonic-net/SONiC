@@ -1,40 +1,30 @@
-# Sensor and Transceiver Info Monitoring Requirement
-## Overall Requirement
+# Sensor and Transceiver Info Monitoring Requirement## Overall Requirement
 As shown in the following diagram, we need to collect sensor and transceiver infomation from SFP into Telemetry DB and then into snmpagent.
 
-The Sensorinfod should peroidally pull the new DOM sensor info to telmetryDB. Ideally, the transceiver info should be retrived only after a sfp module is inserted and notifies the deamon via interrupt. However, due to the interrupt of new sfp plg-in has not been implemented. We need to peroidally pull the new transceiver info as well. Both info will ne retrived from the dictionary returned by port_eeprom_data_string_pretty() API in sfputil.
+The xcvrd should peroidally pull the new DOM sensor info to telmetryDB. Ideally, the transceiver info should be retrived only after a sfp module is inserted and notifies the deamon via interrupt. However, due to the interrupt of new sfp plg-in has not been implemented. We need to peroidally pull the new transceiver info as well. Both info will ne retrived from the dictionary returned by port_eeprom_data_string_pretty() API in sfputil.
 
 ![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
 
-## Proposed Telemetry DB Schema    
-### Keyname:  COUNTERS:SENSOR:[IntefaceName]
-Field: [SensorName] : [SensorValue]
-
-Example: 
-- COUNTERS:SENSOR:Ethernet0
-    - Temperature: 20.1367C
-    - Vcc: 3.3324Volts
-    - RX1Power: -2.0426dBm
-    - RX2Power: -1.8177dBm
-    - RX3Power: -1.7921dBm
-    - RX4Power: -1.8046dBm 
-    - TX1Bias: 0.0800mA
-    - TX2Bias: 0.0940mA
-    - TX3Bias: 0.1000mA
-    - TX4Bias: 0.1260mA
-    
-### Keyname:  COUNTERS:TRANSCEIVER:[IntefaceName]
-Fields: Descr, Name, HardwareVersion, FirmwareVersion ,SoftwareRevision, SerialNum, MfgName ,ModelName and their values
+## Proposed State DB Schema
+### Keyname:  TRANSCEIVER:[InterfaceName]
+Fields: HardwareVersion, FirmwareVersion, SoftwareRevision, SerialNum, ManufactureName, ModelName and their raw values
 Example:
-- COUNTERS:TRANSCEIVER:Ethernet0
-    - Descr: Xcvr for Ethernet0
-    - Name: Ethernet0
+- TRANSCEIVER|Ethernet0
+    - Type: (transciever type)
     - HardwareVersion: A1
-    - FirmwareVersion:
-    - SoftwareRevision:
     - SerialNum: WW5062F
-    - MfgName: FINISAR CORP
+    - ManufactureName: FINISAR CORP
     - ModelName: FCBN410QD3C02
+    - Temperature: rawdata
+    - Voltage: rawdata
+    - RX1Power: rawdata
+    - RX2Power: rawdata
+    - RX3Power: rawdata
+    - RX4Power: rawdata
+    - TX1Bias: rawdata
+    - TX2Bias: rawdata
+    - TX3Bias: rawdata
+    - TX4Bias: rawdata
 
 ## Transceiver requirements (ENTITY-MIB)
 
@@ -51,6 +41,8 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI | FINISAR CORP |
 | 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI | FCBN410QD3C02 |
 
+ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
+
 - An example as reference:
 
 | OID | SNMP counter | Value |
@@ -66,6 +58,7 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1.1.12. 100329210 | entPhysicalMfgName | AOI |
 | 1.3.6.1.2.1.47.1.1.1.1.13. 100329210 | entPhysicalModelName | AQOA9N09ADLN0720 |
 
+
 ## Sensor requirements (ENTITY-SENSOR-MIB)
 
 | OID | SNMP counter | Where to get the info in Sonic. | Example: |
@@ -79,6 +72,10 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | Show interfaces alias | DOM RX Power Sensor for DOM RX Power Sensor for Ethernet29/1 |
 
 - All sensors to be added in MIB and the index to use:
+
+index = 10000 + ifindex * 1000 + (lane - 1) * 10 + 1
+
+
 
 | Sensor to collect | Proposed index to use |
 | --- | --- |
