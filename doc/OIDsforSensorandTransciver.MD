@@ -27,8 +27,8 @@ Example: 
 Fields: Descr, Name, HardwareVersion, FirmwareVersion ,SoftwareRevision, SerialNum, MfgName ,ModelName and their values
 Example:
 - COUNTERS:TRANSCEIVER:Ethernet0
-    - Descr: Xcvr for Ethernet29
-    - Name: Ethernet29
+    - Descr: Xcvr for Ethernet0
+    - Name: Ethernet0
     - HardwareVersion: A1
     - FirmwareVersion:
     - SoftwareRevision:
