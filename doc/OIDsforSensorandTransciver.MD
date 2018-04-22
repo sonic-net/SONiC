@@ -17,7 +17,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 Fields: Type, HardwareVersion, SerialNum, ManufactureName, ModelName and their raw sendor values
 Example:
 - TRANSCEIVER|Ethernet0
-    - Type: (transciever type)
+    - Type: (transciever type) # E.g. Xcvr
     - HardwareVersion: A1
     - SerialNum: WW5062F
     - ManufactureName: FINISAR CORP
@@ -41,24 +41,24 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1.2. ifindex | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | Show interfaces alias | Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI | A1 |
+| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | skipped | |
+| 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
 | 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped |   |
 | 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped |   |
-| 1.3.6.1.2.1.47.1.1.1.1.11.ifindex | entPhysicalSerialNum | Vendor SN in CLI | WW5062F |
-| 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI | FINISAR CORP |
-| 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI | FCBN410QD3C02 |
+| 1.3.6.1.2.1.47.1.1.1.1.11.ifindex | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
+| 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
+| 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
 
 ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
 
-- An example as reference (assume that interface Ethernet100's alias Ethernet29) :
+- An example as reference (assume that interface Ethernet100's alias is Ethernet29) :
 
 | OID | SNMP counter | Value |
 | --- | --- | --- |
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |
 | 1.3.6.1.2.1.47.1.1.1.1.2.101 | entPhysicalDescr | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7.101 | entPhysicalName |   |
+| 1.3.6.1.2.1.47.1.1.1.1.7.101 | entPhysicalName | |
 | 1.3.6.1.2.1.47.1.1.1.1.8.101 | entPhysicalHardwareVersion | A |
 | 1.3.6.1.2.1.47.1.1.1.1.9.101 | entPhysicalFirmwareVersion |   |
 | 1.3.6.1.2.1.47.1.1.1.1.10.101 | entPhysicalSoftwareRevision |   |
