@@ -1,7 +1,8 @@
-# Sensor and Transceiver Info Monitoring Requirement## Overall Requirement
-As shown in the following diagram, we need to collect sensor and transceiver infomation from SFP into Telemetry DB and then into snmpagent.
+# Sensor and Transceiver Info Monitoring Requirement
+## Overall Requirement
+As shown in the following diagram, we need to collect sensor and transceiver infomation from SFP into Sonic Database and then into snmpagent.
 
-The xcvrd should peroidally pull the new DOM sensor info to telmetryDB. Ideally, the transceiver info should be retrived only after a sfp module is inserted and notifies the deamon via interrupt. However, due to the interrupt of new sfp plg-in has not been implemented. We need to peroidally pull the new transceiver info as well. Both info will ne retrived from the dictionary returned by port_eeprom_data_string_pretty() API in sfputil.
+The new xcvrd should peroidally pull the new DOM sensor info to telmetryDB. Ideally, the transceiver info should be retrived only after a sfp module is inserted and notifies the deamon via interrupt. However, due to the interrupt of new sfp plg-in has not been implemented. We need to peroidally pull the new transceiver info as well. Both info will ne retrived from the dictionary returned by port_eeprom_data_string_pretty() API in sfputil.
 
 ![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
 
