@@ -8,10 +8,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 
 - The snmpagent should peroidically pull the sensor and transceiver info from DB to SNMP MIBs.
 
-- The initial implemenat    - TX2Bias: rawdata
-    - TX3Bias: rawdata
-    - TX4Bias: rawdata
-ion can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
+- The initial implemenation can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
 
 ![alt text](https://github.com/Azure/SONimilliC/blob/gh-pages/doc/SensorMonitor.PNG)
 
@@ -32,9 +29,9 @@ Example:
     - RX3Power: rawdata
     - RX4Power: rawdata
     - TX1Bias: rawdata  # in mA
-    - TX2Bias: rawdata
-    - TX3Bias: rawdata
-    - TX4Bias: rawdata
+    - TX2Bias: rawdata
+    - TX3Bias: rawdata
+    - TX4Bias: rawdata
 
 
 ## Transceiver requirements (ENTITY-MIB)
