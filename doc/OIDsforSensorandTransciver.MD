@@ -51,20 +51,20 @@ Example:
 
 ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
 
-- An example as reference:
+- An example as reference (assume that interface Ethernet100's alias Ethernet29) :
 
 | OID | SNMP counter | Value |
 | --- | --- | --- |
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |
-| 1.3.6.1.2.1.47.1.1.1.1.2. 100329100 | entPhysicalDescr | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. 100329210 | entPhysicalName |   |
-| 1.3.6.1.2.1.47.1.1.1.1.8. 100329210 | entPhysicalHardwareVersion | A |
-| 1.3.6.1.2.1.47.1.1.1.1.9. 100329210 | entPhysicalFirmwareVersion |   |
-| 1.3.6.1.2.1.47.1.1.1.1.10. 100329210 | entPhysicalSoftwareRevision |   |
-| 1.3.6.1.2.1.47.1.1.1.1.11. 100329210 | entPhysicalSerialNum | 40714F20112 |
-| 1.3.6.1.2.1.47.1.1.1.1.12. 100329210 | entPhysicalMfgName | AOI |
-| 1.3.6.1.2.1.47.1.1.1.1.13. 100329210 | entPhysicalModelName | AQOA9N09ADLN0720 |
+| 1.3.6.1.2.1.47.1.1.1.1.2.101 | entPhysicalDescr | Xcvr for Ethernet29 |
+| 1.3.6.1.2.1.47.1.1.1.1.7.101 | entPhysicalName |   |
+| 1.3.6.1.2.1.47.1.1.1.1.8.101 | entPhysicalHardwareVersion | A |
+| 1.3.6.1.2.1.47.1.1.1.1.9.101 | entPhysicalFirmwareVersion |   |
+| 1.3.6.1.2.1.47.1.1.1.1.10.101 | entPhysicalSoftwareRevision |   |
+| 1.3.6.1.2.1.47.1.1.1.1.11.101 | entPhysicalSerialNum | 40714F20112 |
+| 1.3.6.1.2.1.47.1.1.1.1.12.101 | entPhysicalMfgName | AOI |
+| 1.3.6.1.2.1.47.1.1.1.1.13.101 | entPhysicalModelName | AQOA9N09ADLN0720 |
 
 
 ## Sensor requirements (ENTITY-SENSOR-MIB)
@@ -81,16 +81,12 @@ ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/
 
 - All sensors to be added in MIB and the index to use:
 
-index = 10000 + ifindex * 1000 + (lane - 1) * 10 + 1
-
-
-
 | Sensor to collect | Proposed index to use |
 | --- | --- |
-| DOM RX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000 + 200 + (LANEID - 1) \* 10 + 3 |
-| DOM TX Bias Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000 + 200 + (LANEID - 1) \* 10 + 1 |
-| DOM Temperature Sensor for Ethernet[X] | Ifindex \* 1000 + 200 + 1 |
-| DOM Voltage Sensor for Ethernet[X] | Ifindex \* 1000 + 200 + 2 |
+| DOM RX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + (LANEID - 1) \* 10 + 1 |
+| DOM TX Bias Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + (LANEID - 1) \* 10 + 2 |
+| DOM Temperature Sensor for Ethernet[X] | Ifindex \* 1000  + 1 |
+| DOM Voltage Sensor for Ethernet[X] | Ifindex \* 1000 + 2 |
 
 - An example as reference:
 
