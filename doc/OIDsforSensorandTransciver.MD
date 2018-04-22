@@ -4,17 +4,20 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 
 - The new Xcvrd in platform monitor container should peroidally pull the new DOM sensor info to state DB. The finallized DB to be used to cache telemetry data is to be determined.
 
-- Xcvrd should monitor the interrupt of new sfp plg-in event. When an event is triggered, the transceiver info should be retrived and updated in DB. At the initial implemenation, we can peroidally pull the new transceiver info until the new interrput is implemented. 
+- Xcvrd should monitor the interrupt of new sfp plg-in event. When an event is triggered, the transceiver info should be retrived and updated in DB. At the initial implemenation, we can peroidally pull the new transceiver info until the new interrput is implemented too in this project.
 
-- The snmpagent should peroidically pull the sensor and transceiver info from DB to MIBs.
+- The snmpagent should peroidically pull the sensor and transceiver info from DB to SNMP MIBs.
 
-- The initial implemenation can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
+- The initial implemenat    - TX2Bias: rawdata
+    - TX3Bias: rawdata
+    - TX4Bias: rawdata
+ion can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
 
-![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
+![alt text](https://github.com/Azure/SONimilliC/blob/gh-pages/doc/SensorMonitor.PNG)
 
 ## Proposed State DB Schema
 ### Keyname:  TRANSCEIVER:[InterfaceName]
-Fields: HardwareVersion, FirmwareVersion, SoftwareRevision, SerialNum, ManufactureName, ModelName and their raw values
+Fields: Type, HardwareVersion, SerialNum, ManufactureName, ModelName and their raw sendor values
 Example:
 - TRANSCEIVER|Ethernet0
     - Type: (transciever type)
@@ -24,14 +27,15 @@ Example:
     - ModelName: FCBN410QD3C02
     - Temperature: rawdata
     - Voltage: rawdata
-    - RX1Power: rawdata
+    - RX1Power: rawdata # in dbm
     - RX2Power: rawdata
     - RX3Power: rawdata
     - RX4Power: rawdata
-    - TX1Bias: rawdata
-    - TX2Bias: rawdata
-    - TX3Bias: rawdata
+    - TX1Bias: rawdata  # in mA
+    - TX2Bias: rawdata
+    - TX3Bias: rawdata
     - TX4Bias: rawdata
+
 
 ## Transceiver requirements (ENTITY-MIB)
 
