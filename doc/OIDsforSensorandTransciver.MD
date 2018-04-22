@@ -10,7 +10,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 
 - The initial implemenation can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
 
-![alt text](https://github.com/Azure/SONimilliC/blob/gh-pages/doc/SensorMonitor.PNG)
+![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
 
 ## Proposed State DB Schema
 ### Keyname:  TRANSCEIVER:[InterfaceName]
@@ -83,8 +83,8 @@ ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/
 
 | Sensor to collect | Proposed index to use |
 | --- | --- |
-| DOM RX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + (LANEID - 1) \* 10 + 1 |
-| DOM TX Bias Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + (LANEID - 1) \* 10 + 2 |
+| DOM RX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + LANEID \* 10 + 1 |
+| DOM TX Bias Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + LANEID \* 10 + 2 |
 | DOM Temperature Sensor for Ethernet[X] | Ifindex \* 1000  + 1 |
 | DOM Voltage Sensor for Ethernet[X] | Ifindex \* 1000 + 2 |
 
@@ -95,7 +95,7 @@ ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/
 | 1.3.6.1.2.1.99.1.1 | entPhySensorTable |   |   |   |   |
 | 1.3.6.1.2.1.99.1.1.1 | entPhySensorEntry |   |   |   |   |
 | Raw values in command output for DOM |   | -0.97dBm | 4.44mA | 25.39 | 3.37 Volts |
-| Index used |   | 100329213 | 100329221 | 100329201 | 100329202 |
+| Index used |   | 101011 | 101012 | 101001 | 101002 |
 | 1.3.6.1.2.1.99.1.1.1.1.index | entPhySensorType |  6   (i.e.  watts according to EntitySensorDataType) | 5 (i.e.  amperes according to EntitySensorDataType) |  8   (i.e.  Celsius according to EntitySensorDataType) |  6   (i.e.  voltsDC according to EntitySensorDataType) |
 | 1.3.6.1.2.1.99.1.1.1.2.index | entPhySensorScale |  8  (i.e.  milli according to EntitySensorDataScale) |  8  (i.e.  milli according to EntitySensorDataScale) |  9  (i.e.  units according to EntitySensorDataScale) |  9  (i.e.  units according to EntitySensorDataScale) |
 | 1.3.6.1.2.1.99.1.1.1.3.index | entPhySensorPrecision |  4 | 2 | 1 | 2 |
