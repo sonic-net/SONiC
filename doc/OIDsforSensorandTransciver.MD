@@ -6,7 +6,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 
 - Xcvrd should monitor the interrupt of new sfp plg-in event. When an event is triggered, the transceiver info should be retrived and updated in DB. At the initial implemenation, we can peroidally pull the new transceiver info until the new interrput is implemented too in this project.
 
-- The snmpagent should peroidically pull the sensor and transceiver info from DB to SNMP MIBs.
+- The snmpagent should subscribe to TRANSCEIVER keys in state DB and pull the sensor and transceiver info to SNMP MIBs when there is a change.
 
 - The initial implemenation can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
 
