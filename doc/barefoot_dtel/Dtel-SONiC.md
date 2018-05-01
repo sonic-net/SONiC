@@ -18,6 +18,7 @@ SAI                       | Switch Abstraction Interface
 INT                       | In-band Network Telemetry
 DSCP							| Differentiated Services Code Point
 OID								| Object IDentifier
+PTF			  | Packet Test Framework
 
 # Sub-system Overview 
 For more information on Dataplane Telemetry, please refer to 
@@ -31,132 +32,6 @@ __Figure 1: Dataplane Telemetry in SONiC__.
 
 
 Components of SONiC that will be modified or newly added are discussed in the following sub-sections.
-
-## Application to configure DTel via SONiC
-Since currently there is no SONiC CLI, users can configure DTel by interacting with ConfigDB. This can be done either directly, through the Redis CLI, or through the use of configuration tools, such as the [Python SwSS SDK](https://github.com/Azure/sonic-py-swsssdk).
-
-## euclid
-
-euclid (Euclid Universal Configuration LIbrary for Dataplane telemetry)
-is a Python module for configuring telemetry on a switch. Using euclid,
-users can write short Python scripts and easily configure one or more switches.
-
-euclid is composed of two submodules.
-The first one is dtel, and it abstracts telemetry on a switch to a set of classes.
-One of these is the Switch class, which contains switch-wide attributes,
-such as telemetry type (INT Endpoint, INT Transit, Postcard),
-latency sensitivity, switch ID, etc. After instantiating a switch,
-a user can create related objects such as a report session,
-a watchlist or an INT session.
-
-The sonic submodule of euclid takes all classes in the dtel submodule
-and extends them to contain all SONiC specific aspects of telemetry configuration.
-Upon instantiating a SONiCSwitch (which is a subclass of Switch),
-the previous telemetry configuration is wiped (by default),
-and the switch is re-configured from scratch. euclid connects
-to the database container on the switch,
-and manipulates ConfigDB by adding, modifying, and deleting keys and values.
-
-All parameters are implemented as Python properties,
-so their values are set with simple assignment.
-In a typical workflow, a user would start by instantiating a switch:
-
-```python
-my_switch = sonic_switch.SONiCSwitch(dtel_switch_id=’123’,
-                                     management_ip=’10.10.10.10’,
-                                     dtel_monitoring_type='postcard')
-```
-
-Then create a report session:
-
-```python
-rs = my_switch.create_dtel_report_session(‘192.168.0.1’)
-```
-
-Create a watchlist:
-
-```python
-wl = my_switch.create_dtel_watchlist('flow')
-```
-
-Add entries to the watchlist:
-
-```python
-wl.create_entry(priority=10,
-                src_ip='10.131.0.0',
-                src_ip_mask=11,
-                dst_ip='10.131.0.0',
-                dst_ip_mask=11,
-                dtel_sample_percent=100,
-                dtel_report_all=True)
-```
-
-etc.
-
-To use euclid, users have to just import the module in their python script.
-Our tests for DTel make use of euclid, and more examples can be found there.
-
-Sample configuration in config_db.json after "config save":
-
-```
-    "DTEL_A_TABLE": {
-        "FLOW_STATE_CLEAR_CYCLE": {
-            "FLOW_STATE_CLEAR_CYCLE": "0"
-        },
-        "SINK_PORT_LIST": {
-            "Ethernet2": "Ethernet2",
-            "Ethernet0": "Ethernet0",
-            "Ethernet1": "Ethernet1"
-        },
-        "INT_ENDPOINT": {
-            "INT_ENDPOINT": "TRUE"
-        },
-        "INT_L4_DSCP": {
-            "INT_L4_DSCP_MASK": "1",
-            "INT_L4_DSCP_VALUE": "1"
-        },
-        "SWITCH_ID": {
-            "SWITCH_ID": "1"
-        },
-        "LATENCY_SENSITIVITY": {
-            "LATENCY_SENSITIVITY": "30"
-        }
-    },
-    
-    "DTEL_C_INT_SESSION_TABLE": {
-        "INT_SESSION1": {
-            "COLLECT_EGRESS_TIMESTAMP": "FALSE",
-            "COLLECT_SWITCH_PORTS": "FALSE",
-            "COLLECT_INGRESS_TIMESTAMP": "FALSE",
-            "COLLECT_SWITCH_ID": "TRUE",
-            "MAX_HOP_COUNT": "8",
-            "COLLECT_QUEUE_INFO": "FALSE"
-        }
-    },
-    
-    "DTEL_B_REPORT_SESSION_TABLE": {
-        "REPORT_SESSION1": {
-            "SRC_IP": "10.12.11.20",
-            "TRUNCATE_SIZE": "256",
-            "VRF": "default",
-            "DST_IP_LIST": "192.168.2.2",
-            "UDP_DEST_PORT": "32766"
-        }
-    },
-    
-    "ACL_RULE": {
-        "DTEL_FLOW_WATCHLIST|RULE1": {
-            "FLOW_SAMPLE_PERCENT": "100",
-            "PRIORITY": "10",
-            "ETHER_TYPE": "2048",
-            "REPORT_ALL_PACKETS": "TRUE",
-            "SRC_IP": "192.168.4.2/32",
-            "INT_SESSION": "INT_SESSION1",
-            "FLOW_OP": "INT",
-            "DST_IP": "192.168.3.2/32"
-        }
-    },
-```
 
 ## Config DB 
 ### New tables in Config DB for Dataplane Telemetry configuration
@@ -375,6 +250,8 @@ INT_SESSION                 = 1*255VCHAR ; previously configured INT-session-nam
                                          ; Applicable only when FLOW_OP = INT or IOAM
 DROP_REPORT_ENABLE          = "TRUE" / "FALSE" ; Applicable only when table name is DTEL_DROP_WATCHLIST
                                                ; Note: FLOW_OP is not set when this is set
+REPORT_TAIL_DROPS           = "TRUE" / "FALSE" ; Applicable only when table name is DTEL_DROP_WATCHLIST
+                                               ; and DROP_REPORT_ENABLE = "TRUE"
 FLOW_SAMPLE_PERCENT         = 1*DIGIT ; number between 0 to 100
                                       ; Applicable only when FLOW_OP = INT or IOAM or POSTCARD
 REPORT_ALL_PACKETS          = "TRUE" / "FALSE" ; Applicable only when FLOW_OP = INT or IOAM or POSTCARD
@@ -488,4 +365,145 @@ Following is the minimum configuration for each DTel feature to detect intended 
 1. At least one drop watchlist with drop report enabled
 
 **Queue report specific:**
-1. Reporting enabled on at least one queue with some threshold (latency or depth) set or trail drop enabled.
+1. Reporting enabled on at least one queue with some threshold (latency or depth) set or tail drop enabled.
+
+## Application to configure DTel via SONiC
+Since currently there is no SONiC CLI, users can configure DTel by interacting with ConfigDB. This can be done either directly, through the Redis CLI, or through the use of configuration tools, such as the [Python SwSS SDK](https://github.com/Azure/sonic-py-swsssdk).
+
+## euclid
+
+euclid (Euclid Universal Configuration LIbrary for Dataplane telemetry)
+is a Python module for configuring telemetry on a switch. Using euclid,
+users can write short Python scripts and easily configure one or more switches.
+
+euclid is composed of two submodules.
+The first one is dtel, and it abstracts telemetry on a switch to a set of classes.
+One of these is the Switch class, which contains switch-wide attributes,
+such as telemetry type (INT Endpoint, INT Transit, Postcard),
+latency sensitivity, switch ID, etc. After instantiating a switch,
+a user can create related objects such as a report session,
+a watchlist or an INT session.
+
+The sonic submodule of euclid takes all classes in the dtel submodule
+and extends them to contain all SONiC specific aspects of telemetry configuration.
+Upon instantiating a SONiCSwitch (which is a subclass of Switch),
+the previous telemetry configuration is wiped (by default),
+and the switch is re-configured from scratch. euclid connects
+to the database container on the switch,
+and manipulates ConfigDB by adding, modifying, and deleting keys and values.
+
+All parameters are implemented as Python properties,
+so their values are set with simple assignment.
+In a typical workflow, a user would start by instantiating a switch:
+
+```python
+my_switch = sonic_switch.SONiCSwitch(dtel_switch_id=’123’,
+                                     management_ip=’10.10.10.10’,
+                                     dtel_monitoring_type='postcard')
+```
+
+Then create a report session:
+
+```python
+rs = my_switch.create_dtel_report_session(‘192.168.0.1’)
+```
+
+Create a watchlist:
+
+```python
+wl = my_switch.create_dtel_watchlist('flow')
+```
+
+Add entries to the watchlist:
+
+```python
+wl.create_entry(priority=10,
+                src_ip='10.131.0.0',
+                src_ip_mask=11,
+                dst_ip='10.131.0.0',
+                dst_ip_mask=11,
+                dtel_sample_percent=100,
+                dtel_report_all=True)
+```
+
+etc.
+
+To use euclid, users have to just import the module in their python script.
+Our tests for DTel make use of euclid, and more examples can be found there.
+
+Sample configuration in config_db.json after "config save":
+
+```
+    "DTEL_A_TABLE": {
+        "FLOW_STATE_CLEAR_CYCLE": {
+            "FLOW_STATE_CLEAR_CYCLE": "0"
+        },
+        "SINK_PORT_LIST": {
+            "Ethernet2": "Ethernet2",
+            "Ethernet0": "Ethernet0",
+            "Ethernet1": "Ethernet1"
+        },
+        "INT_ENDPOINT": {
+            "INT_ENDPOINT": "TRUE"
+        },
+        "INT_L4_DSCP": {
+            "INT_L4_DSCP_MASK": "1",
+            "INT_L4_DSCP_VALUE": "1"
+        },
+        "SWITCH_ID": {
+            "SWITCH_ID": "1"
+        },
+        "LATENCY_SENSITIVITY": {
+            "LATENCY_SENSITIVITY": "30"
+        }
+    },
+    
+    "DTEL_C_INT_SESSION_TABLE": {
+        "INT_SESSION1": {
+            "COLLECT_EGRESS_TIMESTAMP": "FALSE",
+            "COLLECT_SWITCH_PORTS": "FALSE",
+            "COLLECT_INGRESS_TIMESTAMP": "FALSE",
+            "COLLECT_SWITCH_ID": "TRUE",
+            "MAX_HOP_COUNT": "8",
+            "COLLECT_QUEUE_INFO": "FALSE"
+        }
+    },
+    
+    "DTEL_B_REPORT_SESSION_TABLE": {
+        "REPORT_SESSION1": {
+            "SRC_IP": "10.12.11.20",
+            "TRUNCATE_SIZE": "256",
+            "VRF": "default",
+            "DST_IP_LIST": "192.168.2.2",
+            "UDP_DEST_PORT": "32766"
+        }
+    },
+    
+    "ACL_RULE": {
+        "DTEL_FLOW_WATCHLIST|RULE1": {
+            "FLOW_SAMPLE_PERCENT": "100",
+            "PRIORITY": "10",
+            "ETHER_TYPE": "2048",
+            "REPORT_ALL_PACKETS": "TRUE",
+            "SRC_IP": "192.168.4.2/32",
+            "INT_SESSION": "INT_SESSION1",
+            "FLOW_OP": "INT",
+            "DST_IP": "192.168.3.2/32"
+        }
+    },
+```
+
+
+## Testing
+
+Topology used to test DTel features is shown below:
+
+<img src="dtel-test-topology.jpg" width="400" height="400">
+
+Following are the test cases to verify:
+* INT source behavior
+* INT sink behavior (using 1-hop sink)
+* INT behavior with and without report suppression
+* POSTCARD behavior with and without report suppression
+* Drop reporting 
+* Queue reporting
