@@ -186,11 +186,19 @@ For SAI redis create operation of those objects with object key type of sai_obje
 
 For object ID previously fetched via sai redis get operation, the same method still works.
 
-One possible solution is to save the mapping between OID and attr_list at redis_generic_create(). This assumes that during restore, exact same attr_list will be used for object create, so same OID may be found and returned.   Constructore phase mapping will be handled in separate table due to the fact that the attributes for an object may be change later, but during restore the default attributes will be used again.
+One possible solution is to save the mapping between OID and attr_list at redis_generic_create(). This assumes that during restore, exact same attr_list will be used for object create, so same OID may be found and returned.
 
-For the case of multiple objects created for the same set of attributes, an owner identifier may be assigned for the mapping from attributes to OID, so each object is uniquely identifieable based on the owner context.
+When there is attribute change for the first time, the original default mapping could be saved in DEFAULT_ATTR2OID_ and DEFAULT_OID2ATTR_ tables. This is because during restore, object create may use the default attributes instead of current attribues.
 
-The other more complex solution is to save OID in redis DB for the created objects in each orchagent sub-routine and restore from that. This is good for handling the case of multiple OIDs mapped to the same attributes list.
+All new changes will be applied on the regular ATTR2OID_ and OID2ATTR_ mapping tables.
+
+For the case of multiple objects created for the same set of attributes, an extra owner identifier may be assigned for the mapping from attributes to OID, so each object is uniquely identifieable based on the owner context. One prominent example is using lag_alias as the lag owner so each lag may retrieve the the same OID during restart though NULL attribute is provided for lag create.
+
+```
++    SET_OBJ_OWNER(lag_alias);
+     sai_status_t status = sai_lag_api->create_lag(&lag_id, gSwitchId, 0, NULL);
++    UNSET_OBJ_OWNER();
+```
 
 Virtual OID should not be necessary in this solution.  But it doesn’t hurt either if the virtual OID layer is kept.
 
@@ -291,12 +299,13 @@ All objects in current VIEW which have reference count 0 at the end should be de
 `Question 4`:  how to handle two objects with exactly same attributes?   Example: overlay loopback RIF and underlay loopback RIF.   VRF and possibly some other object in same situation?
 
 `Question 5`:  New version of software call create() API with one extra attribute,  how will that be handled?  Old way of create() plus set() for the extra attribute, or delete the existing object then create a brand new one?
-Question 6: findCurrentBestMatchForGenericObject(),  the method looks dynamic.  What we need is deterministic processing which matches exactly what orchagent will do (if same operation is to be done there instead), no new unnecessary REMOVE/SET/CREATE, how to guarantee that?
+
+`Question 6`: findCurrentBestMatchForGenericObject(),  the method looks dynamic.  What we need is deterministic processing which matches exactly what orchagent will do (if same operation is to be done there instead), no new unnecessary REMOVE/SET/CREATE, how to guarantee that?
 
 ## Orchagent and network application layer processing
 Except for the idempotency support of create/set/remove operation at libsairedis interface, this proposal requires the same processing as in proposal 1, like original data restore and appDB stale data removal by each individual applications as needed.
 
-One possible by extreme solution is: Always flush whole appDB and let each application re-populate new data from scratch.  The new set of data is then pushed down to syncd. syncd do the comparison logic between the old data and new data.
+One possible but kind of extreme solution is: Always flush all related appDB tables or even the whole appDB when there application restart, and let each application re-populate new data from scratch.  The new set of data is then pushed down to syncd. syncd does the comparison logic between the old data and new data.
 
 ##	Approach evaluation
 ###	Advantages
