@@ -43,7 +43,7 @@ New Transceiver table will be added to state DB to store the transceiver and DOM
 	tx3bias                 = FLOAT                            ; tx3 bias in mA
 	tx4bias                 = FLOAT                            ; tx4 bias in mA
 
-### 1.2 Local cache for Transceiver info###
+### 1.2 Local cache for Transceiver info ###
 
 Xcvrd will maintain a local cache for the Transceiver and DOM status, after fetched the latest status, will compare to the local cache. TRANSCEIVER_TABLE will only be updates when there is status change 
 
