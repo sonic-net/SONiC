@@ -20,28 +20,34 @@ If there is transceiver and sensor status change, Xcvrd will write the new statu
  
 ### 1.1 State DB Schema ###
 
-New Transceiver table will be added to state DB to store the transceiver and DOM sensor information. 
+New Transceiver info table and transceiver DOM sensor table will be added to state DB to store the transceiver and DOM sensor information. 
 
-#### 1.1.1 Transceiver Table ####
+#### 1.1.1 Transceiver info Table ####
 
-	; Defines Transceiver and DOM sensor information for a port
-	key                     = TRANSCEIVER_TABLE|ifname         ; configuration for watchdog on port
+	; Defines Transceiver information for a port
+	key                     = TRANSCEIVER_INFO_TABLE|ifname         ; configuration for watchdog on port
 	; field                 = value
 	type                    = 1*255VCHAR                       ; type of sfp
 	hardwarerev             = 1*255VCHAR                       ; hardware version of sfp
 	serialnum               = 1*255VCHAR                       ; serial number of the sfp
 	manufacturename         = 1*255VCHAR                       ; sfp venndor name
 	modelname               = 1*255VCHAR                       ; sfp model name
-	temperature             = FLOAT                            ; temperature value in Celsius
-	voltage                 = FLOAT                            ; voltage value
-	rx1power                = FLOAT                            ; rx1 power in dbm
-	rx2power                = FLOAT                            ; rx2 power in dbm
-	rx3power                = FLOAT                            ; rx3 power in dbm
-	rx4power                = FLOAT                            ; rx4 power in dbm
-	tx1bias                 = FLOAT                            ; tx1 bias in mA
-	tx2bias                 = FLOAT                            ; tx2 bias in mA
-	tx3bias                 = FLOAT                            ; tx3 bias in mA
-	tx4bias                 = FLOAT                            ; tx4 bias in mA
+
+#### 1.1.2 Transceiver DOM sensor Table ####
+
+	; Defines Transceiver DOM sensor information for a port
+	key                     = TRANSCEIVER_DOM_SENSOR_TABLE|ifname        ; configuration for watchdog on port
+	temperature             = FLOAT                                      ; temperature value in Celsius
+	voltage                 = FLOAT                                      ; voltage value
+	rx1power                = FLOAT                                      ; rx1 power in dbm
+	rx2power                = FLOAT                                      ; rx2 power in dbm
+	rx3power                = FLOAT                                      ; rx3 power in dbm
+	rx4power                = FLOAT                                      ; rx4 power in dbm
+	tx1bias                 = FLOAT                                      ; tx1 bias in mA
+	tx2bias                 = FLOAT                                      ; tx2 bias in mA
+	tx3bias                 = FLOAT                                      ; tx3 bias in mA
+	tx4bias                 = FLOAT                                      ; tx4 bias in mA
+
 
 ### 1.2 Local cache for Transceiver info ###
 
@@ -99,7 +105,7 @@ To get the transceiver and dom sensor status, SNMP agent need to connect to STAT
 
 ## 3. Open Questions ##
 
-1. split the TRANSCEIVER_TABLE to 2 tables, one is for transceiver which store the information needed by entPhysicalTable and another is for entPhySensorTable ?
+1. performance concern on fetch all sensor information, need test; may need to use SX_TRAP_ID_PMPE event in the future to trigger the transceiver information update instead of using polling, but how about the DOM sensor?  
 
 
      
