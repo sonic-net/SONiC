@@ -41,10 +41,10 @@ Example:
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1.2. ifindex | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | skipped | |
+| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | skipped |"" |
 | 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
-| 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped |   |
-| 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped |   |
+| 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped | ""  |
+| 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped | ""  |
 | 1.3.6.1.2.1.47.1.1.1.1.11.ifindex | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
 | 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
 | 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
