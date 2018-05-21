@@ -16,7 +16,7 @@ The requirement is described in [Sensor and Transceiver Info Monitoring Requirem
 
 New Xcvrd in platform monitor container need to periodically fetch the transceiver and DOM sensor information from the eeprom. For now the time period temporarily set to 5s, need to be adjusted according the later test.
 
-If there is transceiver and sensor status change, Xcvrd will write the new status to state DB, to store these information a new transceiver table will be added.
+If there is transceiver and sensor status change, Xcvrd will write the new status to state DB, to store these information somes new tables will be added to STATE_DB.
  
 ### 1.1 State DB Schema ###
 
