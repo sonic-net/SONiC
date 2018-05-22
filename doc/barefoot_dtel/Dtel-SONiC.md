@@ -1,6 +1,6 @@
 # Dataplane Telemetry in SONiC 
 # High Level Design
-Revision 0.1
+Revision 0.2
 
 # About this Manual
 This document provides general information on the implementation of the Dataplane Telemetry (DTel) feature in SONiC.
@@ -38,54 +38,54 @@ Components of SONiC that will be modified or newly added are discussed in the fo
 
 Table name				     | Description
 ----------------------------| -------------
-DTEL\_A\_TABLE	               | Switch-wide DTel configuration parameters
-DTEL\_B\_REPORT\_SESSION\_TABLE| DTel report session specific configuration
-DTEL\_C\_INT\_SESSION\_TABLE   | In-band Network Telemetry session specific configuration
-DTEL\_D\_QUEUE\_REPORT\_TABLE  | DTel Queue report related configuration
-DTEL\_E\_EVENT\_TABLE          | Configuration specific to DTel events that trigger reports 
+DTEL	               | Switch-wide DTel configuration parameters
+DTEL\_REPORT\_SESSION| DTel report session specific configuration
+DTEL\_INT\_SESSION   | In-band Network Telemetry session specific configuration
+DTEL\_QUEUE\_REPORT  | DTel Queue report related configuration
+DTEL\_EVENT          | Configuration specific to DTel events that trigger reports 
 
 Please refer to 
 [Dataplane Telemetry SAI API](https://github.com/opencomputeproject/SAI/blob/master/doc/DTEL/SAI-Proposal-Data-Plane-Telemetry.md) for more information on the above terminology
 
-#### Schema for DTEL_A_TABLE
+#### Schema for DTEL
 
 ```
 ; Switch global Dataplane telemetry configuration
 ; SAI mapping - saidtel.h
 
-key                     = "DTEL_A_TABLE|SWITCH_ID"
+key                     = "DTEL|SWITCH_ID"
 ;field                  = value
 SWITCH_ID               = 1*DIGIT
 
-key                     = "DTEL_A_TABLE|FLOW_STATE_CLEAR_CYCLE"
+key                     = "DTEL|FLOW_STATE_CLEAR_CYCLE"
 ;field                  = value
 FLOW_STATE_CLEAR_CYCLE  = 1*DIGIT
 
-key                     = "DTEL_A_TABLE|LATENCY_SENSITIVITY"
+key                     = "DTEL|LATENCY_SENSITIVITY"
 ;field                  = value
 LATENCY_SENSITIVITY     = 1*DIGIT
 
-key                     = "DTEL_A_TABLE|SINK_PORT_LIST"
+key                     = "DTEL|SINK_PORT_LIST"
 ;field                  = value
 ifName                  = ifName
 
-key                     = "DTEL_A_TABLE|INT_ENDPOINT"
+key                     = "DTEL|INT_ENDPOINT"
 ;field                  = value
 INT_ENDPOINT            = "TRUE" / "FALSE"
 
-key                     = "DTEL_A_TABLE|POSTCARD"
+key                     = "DTEL|POSTCARD"
 ;field                  = value
 POSTCARD                = "TRUE" / "FALSE"
 
-key                     = "DTEL_A_TABLE|DROP_REPORT"
+key                     = "DTEL|DROP_REPORT"
 ;field                  = value
 DROP_REPORT             = "TRUE" / "FALSE"
 
-key                     = "DTEL_A_TABLE|QUEUE_REPORT"
+key                     = "DTEL|QUEUE_REPORT"
 ;field                  = value
 QUEUE_REPORT            = "TRUE" / "FALSE"
 
-key                     = "DTEL_A_TABLE|INT_L4_DSCP"
+key                     = "DTEL|INT_L4_DSCP"
 ;field                  = value
 INT_L4_DSCP_VALUE       = 1*DIGIT
 INT_L4_DSCP_MASK        = 1*DIGIT
@@ -93,26 +93,26 @@ INT_L4_DSCP_MASK        = 1*DIGIT
 
 Example configuration using redis-cli
 
-    HSET DTEL_A_TABLE|SWITCH_ID SWITCH_ID "1"
-    HSET DTEL_A_TABLE|FLOW_STATE_CLEAR_CYCLE FLOW_STATE_CLEAR_CYCLE "10"
-    HSET DTEL_A_TABLE|LATENCY_SENSITIVITY LATENCY_SENSITIVITY "100"
-    HMSET DTEL_A_TABLE|SINK_PORT_LIST Ethernet8 "Ethernet8" Ethernet76 "Ethernet76" Ethernet84 "Ethernet84"
-    HSET DTEL_A_TABLE|INT_ENDPOINT INT_ENDPOINT "TRUE"
-    HSET DTEL_A_TABLE|INT_TRANSIT INT_TRANSIT "TRUE"
-    HSET DTEL_A_TABLE|POSTCARD POSTCARD "TRUE"
-    HSET DTEL_A_TABLE|DROP_REPORT DROP_REPORT "TRUE"
-    HSET DTEL_A_TABLE|QUEUE_REPORT QUEUE_REPORT "TRUE"
-    HMSET DTEL_A_TABLE|INT_L4_DSCP INT_L4_DSCP_VALUE "128" INT_L4_DSCP_MASK "255"
+    HSET DTEL|SWITCH_ID SWITCH_ID "1"
+    HSET DTEL|FLOW_STATE_CLEAR_CYCLE FLOW_STATE_CLEAR_CYCLE "10"
+    HSET DTEL|LATENCY_SENSITIVITY LATENCY_SENSITIVITY "100"
+    HMSET DTEL|SINK_PORT_LIST Ethernet8 "Ethernet8" Ethernet76 "Ethernet76" Ethernet84 "Ethernet84"
+    HSET DTEL|INT_ENDPOINT INT_ENDPOINT "TRUE"
+    HSET DTEL|INT_TRANSIT INT_TRANSIT "TRUE"
+    HSET DTEL|POSTCARD POSTCARD "TRUE"
+    HSET DTEL|DROP_REPORT DROP_REPORT "TRUE"
+    HSET DTEL|QUEUE_REPORT QUEUE_REPORT "TRUE"
+    HMSET DTEL|INT_L4_DSCP INT_L4_DSCP_VALUE "128" INT_L4_DSCP_MASK "255"
     
-#### Schema for DTEL\_B\_REPORT\_SESSION\_TABLE
+#### Schema for DTEL\_REPORT\_SESSION
 
 ```
 ; Dataplane telemetry report session configuration
 ; SAI mapping - saidtel.h
 
-key                     = DTEL_B_REPORT_SESSION_TABLE|report-session-name ; report-session-name is a 
-                                                                        ; unique string representing 
-                                                                        ; a report session
+key                     = DTEL_REPORT_SESSION|report-session-name ; report-session-name is a 
+                                                                  ; unique string representing 
+                                                                  ; a report session
 ;field                  = value
 SRC_IP                  = ipv4_addr   ;IP address
 DST_IP_LIST             = 1*ipv4_addr ;IP addresses separated by semi-colon
@@ -130,16 +130,16 @@ dec-octet   = DIGIT                     ; 0-9
 ```
 Example configuration using redis-cli
 
-    HMSET DTEL_B_REPORT_SESSION_TABLE|RS-1 SRC_IP 10.10.10.1 DST_IP_LIST 20.20.20.1;20.20.20.2;20.20.20.3 VRF default TRUNCATE_SIZE 256 UDP_DEST_PORT 2000
+    HMSET DTEL_REPORT_SESSION|RS-1 SRC_IP 10.10.10.1 DST_IP_LIST 20.20.20.1;20.20.20.2;20.20.20.3 VRF default TRUNCATE_SIZE 256 UDP_DEST_PORT 2000
 
-#### Schema for DTEL\_C\_INT\_SESSION\_TABLE
+#### Schema for DTEL\_INT\_SESSION
 ```
 ; Dataplane telemetry INT session configuration
 ; SAI mapping - saidtel.h
 
-key                         = DTEL_C_INT_SESSION_TABLE|INT-session-name ; INT-session-name is a 
-                                                                      ; unique string representing 
-                                                                      ; a INT session
+key                         = DTEL_INT_SESSION|INT-session-name ; INT-session-name is a 
+                                                                ; unique string representing 
+                                                                ; a INT session
 ;field                      = value
 MAX_HOP_COUNT               = 1*DIGIT
 COLLECT_SWITCH_ID           = "TRUE" / "FALSE"
@@ -150,14 +150,14 @@ COLLECT_QUEUE_INFO          = "TRUE" / "FALSE"
 ```
 Example configuration using redis-cli
 
-    HMSET DTEL_C_INT_SESSION_TABLE|INT-1 MAX_HOP_COUNT 50 COLLECT_SWITCH_ID TRUE COLLECT_INGRESS_TIMESTAMP TRUE COLLECT_EGRESS_TIMESTAMP TRUE COLLECT_SWITCH_PORTS TRUE COLLECT_QUEUE_INFO TRUE
+    HMSET DTEL_INT_SESSION|INT-1 MAX_HOP_COUNT 50 COLLECT_SWITCH_ID TRUE COLLECT_INGRESS_TIMESTAMP TRUE COLLECT_EGRESS_TIMESTAMP TRUE COLLECT_SWITCH_PORTS TRUE COLLECT_QUEUE_INFO TRUE
 
-#### Schema for DTEL\_D\_QUEUE\_REPORT\_TABLE
+#### Schema for DTEL\_QUEUE\_REPORT
 ```
 ; Dataplane telemetry queue report configuration
 ; SAI mapping - saidtel.h
 
-key                         = DTEL_D_QUEUE_REPORT_TABLE|ifName|qnum  ; ifname is the name of the interface
+key                         = DTEL_QUEUE_REPORT|ifName|qnum  ; ifname is the name of the interface
 ;field                      = value
 QUEUE_DEPTH_THRESHOLD       = 1*DIGIT
 QUEUE_LATENCY_THRESHOLD     = 1*DIGIT
@@ -169,39 +169,39 @@ qnum = 1*DIGIT ; number between 0 and MAX_QUEUES_PER_PORT for the platform
 ```
 Example configuration using redis-cli
 
-    HMSET DTEL_D_QUEUE_REPORT_TABLE|Ethernet8|0 QUEUE_DEPTH_THRESHOLD 1000 QUEUE_LATENCY_THRESHOLD 2000 THRESHOLD_BREACH_QUOTA 3000 REPORT_TAIL_DROP TRUE
+    HMSET DTEL_QUEUE_REPORT|Ethernet8|0 QUEUE_DEPTH_THRESHOLD 1000 QUEUE_LATENCY_THRESHOLD 2000 THRESHOLD_BREACH_QUOTA 3000 REPORT_TAIL_DROP TRUE
     
-#### Schema for DTEL\_E\_EVENT\_TABLE
+#### Schema for DTEL\_EVENT
 ```
 ; Dataplane telemetry event related configuration
 ; SAI mapping - saidtel.h
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_STATE"
+key                         = "DTEL_EVENT|EVENT_TYPE_FLOW_STATE"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_REPORT_ALL_PACKETS"
+key                         = "DTEL_EVENT|EVENT_TYPE_FLOW_REPORT_ALL_PACKETS"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_TCPFLAG"
+key                         = "DTEL_EVENT|EVENT_TYPE_FLOW_TCPFLAG"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_QUEUE_REPORT_THRESHOLD_BREACH"
+key                         = "DTEL_EVENT|EVENT_TYPE_QUEUE_REPORT_THRESHOLD_BREACH"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_QUEUE_REPORT_TAIL_DROP"
+key                         = "DTEL_EVENT|EVENT_TYPE_QUEUE_REPORT_TAIL_DROP"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
 
-key                         = "DTEL_E_EVENT_TABLE|EVENT_TYPE_DROP_REPORT"
+key                         = "DTEL_EVENT|EVENT_TYPE_DROP_REPORT"
 ;field                      = value
 EVENT_REPORT_SESSION        = 1*255VCHAR ; previously configured report-session-name
 EVENT_DSCP_VALUE            = 1*DIGIT
@@ -209,12 +209,12 @@ EVENT_DSCP_VALUE            = 1*DIGIT
 
 Example configuration using redis-cli
 
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_STATE EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 65
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_REPORT_ALL_PACKETS EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 64
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_FLOW_TCPFLAG EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 63
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_QUEUE_REPORT_THRESHOLD_BREACH EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 62
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_QUEUE_REPORT_TAIL_DROP EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 61
-    HMSET DTEL_E_EVENT_TABLE|EVENT_TYPE_DROP_REPORT EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 60
+    HMSET DTEL_EVENT|EVENT_TYPE_FLOW_STATE EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 65
+    HMSET DTEL_EVENT|EVENT_TYPE_FLOW_REPORT_ALL_PACKETS EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 64
+    HMSET DTEL_EVENT|EVENT_TYPE_FLOW_TCPFLAG EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 63
+    HMSET DTEL_EVENT|EVENT_TYPE_QUEUE_REPORT_THRESHOLD_BREACH EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 62
+    HMSET DTEL_EVENT|EVENT_TYPE_QUEUE_REPORT_TAIL_DROP EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 61
+    HMSET DTEL_EVENT|EVENT_TYPE_DROP_REPORT EVENT_REPORT_SESSION RS-1 EVENT_DSCP_VALUE 60
     
 #### Changes to ACL\_TABLE for DTel watchlist support
 Two new ACL table types are introduced to support DTel watchlists:
@@ -283,7 +283,8 @@ Most events are handled as shown in the sequence diagram below. Ones which are d
 
 __Figure 2: Generic control flow for DTel events__. 
 
-  
+Configuring INT sink ports and queue reports requires looking up port OIDs for the interfaces involved. Note that these configurations are currently only applicable to physical ports. If the port object is not initialized yet, DTelOrch agent will set up a callback to receive a notification on port init and perform a deferred config application.
+
 ![Control flow](cflow-2.jpg)
 
 __Figure 3: Control flow for DTel events that depend on other Orch agents__. 
@@ -291,10 +292,13 @@ __Figure 3: Control flow for DTel events that depend on other Orch agents__.
 
 ### Ref-counted DTel objects
 
-These objects cannot be deleted unless their ref-counts are zero.
-
 * INT sessions referenced by INT watchlists
 * Report sessions referenced by DTel events
+
+DTel event object creation mandates that the required report-session object is already created. Similarly, INT flow watchlist creation mandates that the required INT session object is already created. When DTel orchagent is restarted and all the ConfigDB events are played back, dependent events played out of order are inherently ordered by the orchagent. This is done by not processing the dependent event until all the pre-requisite events have been processed.
+
+Reference counting is used to control the deletion of report session and INT session objects. When the object is created, initial reference count of these objects are set to 1. Each time a new object reference is added, the count is incremented by 1. When a delete event is received, or when a reference is removed, the count is decremented by 1. The object will be deleted only if the count reaches zero.
+
 
 ![Control flow](cflow-3.jpg "Control flow")
 
@@ -434,7 +438,7 @@ Our tests for DTel make use of euclid, and more examples can be found there.
 Sample configuration in config_db.json after "config save":
 
 ```
-    "DTEL_A_TABLE": {
+    "DTEL": {
         "FLOW_STATE_CLEAR_CYCLE": {
             "FLOW_STATE_CLEAR_CYCLE": "0"
         },
@@ -458,7 +462,7 @@ Sample configuration in config_db.json after "config save":
         }
     },
     
-    "DTEL_C_INT_SESSION_TABLE": {
+    "DTEL_INT_SESSION": {
         "INT_SESSION1": {
             "COLLECT_EGRESS_TIMESTAMP": "FALSE",
             "COLLECT_SWITCH_PORTS": "FALSE",
@@ -469,7 +473,7 @@ Sample configuration in config_db.json after "config save":
         }
     },
     
-    "DTEL_B_REPORT_SESSION_TABLE": {
+    "DTEL_REPORT_SESSION": {
         "REPORT_SESSION1": {
             "SRC_IP": "10.12.11.20",
             "TRUNCATE_SIZE": "256",
@@ -496,14 +500,16 @@ Sample configuration in config_db.json after "config save":
 
 ## Testing
 
-Topology used to test DTel features is shown below:
+1. A virtual switch test to verify all DTel configuration flow from ConfigDB to AsicDB will be added.
+2. Following tests to be run on hardware switch will be added:
+	* INT source behavior
+	* INT sink behavior
+	* INT transit behavior
+	* POSTCARD behavior
+	* Drop reporting 
+	* Queue reporting
 
-<img src="dtel-test-topology.jpg" width="400" height="400">
+Please find all the details in the test plan:
+[DTel test plan](Dtel-test-plan.md)
 
-Following are the test cases to verify:
-* INT source behavior
-* INT sink behavior (using 1-hop sink)
-* INT behavior with and without report suppression
-* POSTCARD behavior with and without report suppression
-* Drop reporting 
-* Queue reporting
+3. All ACL tests will be run to make sure there are no regressions.
