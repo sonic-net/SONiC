@@ -13,19 +13,19 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 ![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
 
 ## Proposed State DB Schema
-### Keyname:  TRANSCEIVER_INFO_TABLE:[InterfaceName]
+### Keyname:  TRANSCEIVER_INFO:[InterfaceName]
 #### Fields: Type, HardwareVersion, SerialNum, ManufactureName, ModelName 
 #### Example:
-- TRANSCEIVER_INFO_TABLE|Ethernet0
+- TRANSCEIVER_INFO|Ethernet0
     - Type: (transciever type) # E.g. Xcvr
     - HardwareVersion: A1
     - SerialNum: WW5062F
     - ManufactureName: FINISAR CORP
     - ModelName: FCBN410QD3C02
-### Keyname:  TRANSCEIVER_DOM_SENSOR_TABLE:[InterfaceName]
+### Keyname:  TRANSCEIVER_DOM_SENSOR:[InterfaceName]
 #### Fields: Raw sendor values
 #### Example:
-- TRANSCEIVER_DOM_SENSOR_TABLE|Ethernet0
+- TRANSCEIVER_DOM_SENSOR|Ethernet0
     - Temperature: rawdata
     - Voltage: rawdata
     - RX1Power: rawdata # in dbm
