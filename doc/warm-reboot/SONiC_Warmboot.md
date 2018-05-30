@@ -2,7 +2,6 @@
 
 Table of Contents
 =================
-
 * [Overview](#overview)
 * [Use cases](#use-cases)
   * [In\-Service restart](#in-service-restart)
@@ -31,7 +30,7 @@ Table of Contents
     * [What is missing in Orchagent for it to restore to the state of pre\-shutdown](#what-is-missing-in-orchagent-for-it-to-restore-to-the-state-of-pre-shutdown)
     * [How Orchagent gets the OID information](#how-orchagent-gets-the-oid-information)
     * [How to handle the cases of SAI api call change during restore phase\.](#how-to-handle-the-cases-of-sai-api-call-change-during-restore-phase)
-    * [How to deal with missing of notification during the reboot/restart window](#how-to-deal-with-missing-of-notification-during-the-rebootrestart-window)
+    * [How to deal with the missing notification during the reboot/restart window](#how-to-deal-with-the-missing-notification-during-the-rebootrestart-window)
   * [Requirements on LibSAI and ASIC](#requirements-on-libsai-and-asic)
   * [Requirements on syncd](#requirements-on-syncd)
   * [Requirement on network applications and orch data](#requirement-on-network-applications-and-orch-data)
@@ -59,7 +58,15 @@ Table of Contents
   * [Approach evaluation](#approach-evaluation-1)
     * [Advantages](#advantages-1)
     * [Concerns/Issues with this approach](#concernsissues-with-this-approach-1)
-
+* [Open issues](#open-issues)
+  * [How to do version control for software upgrade at docker level?](#how-to-do-version-control-for-software-upgrade-at-docker-level)
+  * [Rollback support in SONiC](#rollback-support-in-sonic)
+  * [What is the requirement on control plane down time?](#what-is-the-requirement-on-control-plane-down-time)
+  * [Upgrade path with warm reboot support](#upgrade-path-with-warm-reboot-support)
+  * [Latency requirement on LibSAI/SDK warm restart](#latency-requirement-on-libsaisdk-warm-restart)
+  * [Backward compatibility requirement on SAI/LibSAI/SDK?](#backward-compatibility-requirement-on-sailibsaisdk)
+  * [What is the requirment on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?](#what-is-the-requirment-on-libsaisdk-with-regards-to-data-plane-traffic-during-warm-reboot-could-fdb-be-flushed)
+  * [What are the the principles of warm reboot support for SONiC?](#what-are-the-the-principles-of-warm-reboot-support-for-sonic)
 
 
 # Overview
@@ -129,12 +136,13 @@ This is the most complex scenario, all other objects which have dependency on th
 An option to do cold restart or warm restart through configuration for swss, syncd and teamd dockers should be provided.
 Upon failure of warm restart, fallback mechanism to cold restart should be available.
 
+
 # Proposal 1: Reconciliation at Orchagent
 ## Key steps
 ###	Restore to original state
 `a.` LibSAI/ASIC is able to restore to the state of pre-reboot without interrupting upper layer.
 `b.` Syncd is able to restore to the state of pre-reboot without interrupting ASIC and upper layer.
-`c.`	Syncd state is driven by Orchagent (with exception of FDB), once it is restored, no need to perform reconciliation by itself.
+`c.` Syncd state is driven by Orchagent (with exception of FDB), once it is restored, no need to perform reconciliation by itself.
 
 ###	Remove stale date and perform new update
 
@@ -216,7 +224,7 @@ Idempotency is required for LibSaiRedis interface.
 [case 2\.3\.2 Old object in previous version to be replaced with new object in new software version](#case-232-old-object-in-previous-version-to-be-replaced-with-new-object-in-new-software-version):  If this is a leaf object like route entry, neighbor entry, or fdb entry, just add version specific logic to remove it and create the new one.
 Otherwise if there are other objects which have to use this object as one of the attributes during create call, those objects should be deleted first before deleting this old object.  Version specific logic is needed here.
 
-###	How to deal with missing of notification during the reboot/restart window
+###	How to deal with the missing notification during the reboot/restart window
 Port/fdb may have new state notification during reboot window?   Probably the corresponding orchagent subroutine should perform get operation for the objects?
 
 ## Requirements on LibSAI and ASIC
@@ -305,7 +313,7 @@ All objects in current VIEW which have reference count 0 at the end should be de
 ## Orchagent and network application layer processing
 Except for the idempotency support of create/set/remove operation at libsairedis interface, this proposal requires the same processing as in proposal 1, like original data restore and appDB stale data removal by each individual applications as needed.
 
-One possible but kind of extreme solution is: Always flush all related appDB tables or even the whole appDB when there application restart, and let each application re-populate new data from scratch.  The new set of data is then pushed down to syncd. syncd does the comparison logic between the old data and new data.
+One possible but kind of extreme solution is: Always flush all related appDB tables or even the whole appDB when there is application restart, and let each application re-populate new data from scratch.  The new set of data is then pushed down to syncd. syncd does the comparison logic between the old data and new data.
 
 ##	Approach evaluation
 ###	Advantages
@@ -316,4 +324,67 @@ One possible but kind of extreme solution is: Always flush all related appDB tab
 * Highly complex logic in syncd
 * Warm restart of upper layer applications closely coupled with syncd.
 * Various corner cases from SAI object model and changes in SAI object model itself have to be handled.
+
+# Open issues
+
+## How to do version control for software upgrade at docker level?
+
+`Show version` command is able to retrieve the version data for each docker.  Furher extention may be based on that.
+
+```
+root@PSW-A2-16-A02.NA62:/home/admin# show version
+SONiC Software Version: SONiC.130-14f14a1
+Distribution: Debian 8.1
+Kernel: 3.16.0-4-amd64
+Build commit: 14f14a1
+Build date: Wed May 23 09:12:22 UTC 2018
+Built by: jipan@ubuntu01
+
+Docker images:
+REPOSITORY                 TAG                 IMAGE ID            SIZE
+docker-fpm-quagga          latest              0f631e0fb8d0        390.4 MB
+docker-syncd-brcm          130-14f14a1         4941b40cc8e7        444.4 MB
+docker-syncd-brcm          latest              4941b40cc8e7        444.4 MB
+docker-orchagent-brcm      130-14f14a1         40d4a1c08480        386.6 MB
+docker-orchagent-brcm      latest              40d4a1c08480        386.6 MB
+docker-lldp-sv2            130-14f14a1         f32d15dd4b77        382.7 MB
+docker-lldp-sv2            latest              f32d15dd4b77        382.7 MB
+docker-dhcp-relay          130-14f14a1         df7afef22fa0        378.2 MB
+docker-dhcp-relay          latest              df7afef22fa0        378.2 MB
+docker-database            130-14f14a1         a4a6ba6874c7        377.7 MB
+docker-database            latest              a4a6ba6874c7        377.7 MB
+docker-snmp-sv2            130-14f14a1         89d249faf6c4        444 MB
+docker-snmp-sv2            latest              89d249faf6c4        444 MB
+docker-teamd               130-14f14a1         b127b2dd582d        382.8 MB
+docker-teamd               latest              b127b2dd582d        382.8 MB
+docker-sonic-telemetry     130-14f14a1         89f4e1bb1ede        396.1 MB
+docker-sonic-telemetry     latest              89f4e1bb1ede        396.1 MB
+docker-router-advertiser   130-14f14a1         6c90b2951c2c        375.4 MB
+docker-router-advertiser   latest              6c90b2951c2c        375.4 MB
+docker-platform-monitor    130-14f14a1         29ef746feb5a        397 MB
+docker-platform-monitor    latest              29ef746feb5a        397 MB
+docker-fpm-quagga          130-14f14a1         5e87d0ae9190        389.4 MB
+```
+## Rollback support in SONiC
+This is a general requirement not limited to warm reboot. Probably a separate design document should be prepared for this topic.
+
+## What is the requirement on control plane down time?
+Currently there is no hard requirement on the down time of control plane during warm reboot. An appropriate number should be agreed on.
+
+## Upgrade path with warm reboot support
+No clear requirement available yet. The general idea is to support warm reboot between consecutive SONiC releases.
+
+## Latency requirement on LibSAI/SDK warm restart
+No strict requuirment on this layer yet.  Probably in the order of seconds, say, 10 seconds?
+
+## Backward compatibility requirement on SAI/LibSAI/SDK?
+Yes, Backward compatibility is mandatory for warm reboot support.
+
+## What is the requirment on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?
+No packet loss at data plane for existing data flow.  In general, FDB flush should be triggered by NOS instread of LibSAI/SDK.
+
+## What are the the principles of warm reboot support for SONiC?
+One of the priciples talked about is have warm restart support at each layer/module/docker, each layer/module/docker is self contained as to warm restart.
+
+
 
