@@ -58,34 +58,53 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 
 Transceiver information eeprom can be accessed via read files(e.g. /sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom), different vendors may have these files under different folders, these folder need to be mounted to platform container so Xcvrd can access them. 
 
-Another potential enhancement to the eeprom reading is to only read the needed parameters out instead of read all of them, this can be achieved by add new API to `SfpUtilBase` which can read desired bytes starting from give offset and parse the bytes to readable format accordingly.
 
-For the convenience of implementation and reduce the time consuming, need to enhance the `SfpUtilBase` class to provide functions to get `eeprom_if_dict` and `eeprom_dom_dict` separately, the intrested values are defined  in section 1.1.1 and 1.1.2, we can pick up these values from eeprom by calling the above new API with proper offset and number of bytes. 
+For the convenience of implementation and reduce the time consuming, need to do enhancement to the `SfpUtilBase` class:
+
+1. `SfpUtilBase` internally should add the ability to read the eeprom and only pick up the interested bytes by given offset and bumber of bytes.
+
+2. `SfpUtilBase` will provide APIs `get_eeprom_sfp_info_dict(self, port_num)` and `get_eeprom_dom_info_dict(self, port_num)` to return `eeprom_if_dict` and `eeprom_dom_dict` separately, the interested values of these two dict are defined  in section 1.1.1 and 1.1.2.  In these two APIs can pick up these values from eeprom by provide the corresponding offset and number of bytes. 
 
 
 ### 1.3 Transceiver plug in/out event ###
 
 Xcvrd need to be triggered by transceiver plug in/out event to refresh the transceiver info table.
 
-Transceiver plug in/out status can be derived from the content of sysfs file like `"/sys/bus/i2c/devices/2-0048/hwmon/hwmon7/qsfp10_status"`, if the content of the file is "good" represent SFP is present, conent change to "not_connected" means SFP plug out.
+Transceiver plug in/out status can be derived from the content of sysfs file like `"/sys/bus/i2c/devices/2-0048/hwmon/hwmon7/qsfp10_status"`. 
 
-To monitor the file change, can introduce python lib [inotify](https://pypi.org/project/inotify/), which can raise notification when target file change. Below is a sample for how to use inotify lib to monitor file change:
+To get this sfp status file path for a certain port, each vendor need to implement a new API `get_sfp_status_file_path(self, port_num)` in the SFP plugin(class SfpUtil).
 
-    i = inotify.adapters.Inotify()
+Python lib [inotify](https://pypi.org/project/inotify/), is a good tool to monitor the file change and raise notification. 
 
-    i.add_watch(b'/bsp/qsfp/qsfp10_status')
+Below is a sample for how to use inotify lib to monitor file change:
 
-    try:
-        for event in i.event_gen():
-            if event is not None:
-                (header, type_names, watch_path, filename) = event
-                _LOGGER.info("WD=(%d) MASK=(%d) COOKIE=(%d) LEN=(%d) MASK->NAMES=%s "
-                             "WATCH-PATH=[%s] FILENAME=[%s]",
-                             header.wd, header.mask, header.cookie, header.len, type_names,
-                             watch_path.decode('utf-8'), filename.decode('utf-8'))
-    finally:
-        i.remove_watch(b'/tmp')
+	import os
+	import inotify
+	import time
+	import inotify.adapters
 
+	def _main():
+	    i = inotify.adapters.Inotify()
+	    i.add_watch(b'/sys/bus/i2c/devices/2-0048/hwmon/hwmon6/qsfp10_status')
+	    try:
+	        while True:
+	            events = i.event_gen(timeout_s=1)
+	            for event in events:
+	                if event is not None:
+	                    (header, type_names, watch_path, filename) = event
+	                    print "MASK->NAMES=%s WATCH-PATH=[%s] FILENAME=[%s]" % (type_names, watch_path.decode('utf-8'),filename.decode('utf-8'))
+	            print("no event found")
+	            time.sleep(10)
+	                    
+	    finally:
+	        i.remove_watch(b'/sys/bus/i2c/devices/2-0048/hwmon/hwmon6/qsfp10_status')
+	
+	if __name__ == '__main__':
+	    _main()
+
+Xcvrd will pass all the sfp status files to inotify and monitor them for the change.
+
+When a sfp status file change notification received by Xcvrd, by calling current SFP plugin API `get_presence(self, port_num)` it can get the SFP present status.
 
 ### 1.4 Xcvrd daemon flow ###
 
