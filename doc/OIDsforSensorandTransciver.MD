@@ -45,16 +45,20 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 | --- | --- | --- | --- |
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |   |
-| 1.3.6.1.2.1.47.1.1.1.1.2. ifindex | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | skipped |"" |
-| 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
-| 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped | ""  |
-| 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped | ""  |
-| 1.3.6.1.2.1.47.1.1.1.1.11.ifindex | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
-| 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
-| 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
+| 1.3.6.1.2.1.47.1.1.1.1.2. index | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
+| 1.3.6.1.2.1.47.1.1.1.1.7. index | entPhysicalName | skipped |"" |
+| 1.3.6.1.2.1.47.1.1.1.1.8. index | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
+| 1.3.6.1.2.1.47.1.1.1.1.9. index | entPhysicalFirmwareVersion | Skipped | ""  |
+| 1.3.6.1.2.1.47.1.1.1.1.10.index | entPhysicalSoftwareRevision | Skipped | ""  |
+| 1.3.6.1.2.1.47.1.1.1.1.11.index | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
+| 1.3.6.1.2.1.47.1.1.1.1.12.index | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
+| 1.3.6.1.2.1.47.1.1.1.1.13.index | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
 
 ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/src/swsssdk/port_util.py#L19
+
+| Interface | Proposed index to use |
+| --- | --- |
+| Ethernet[X] | Ifindex \* 1000 |
 
 - An example as reference (assume that interface Ethernet100's alias is Ethernet29) :
 
@@ -62,14 +66,14 @@ ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/
 | --- | --- | --- |
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |
-| 1.3.6.1.2.1.47.1.1.1.1.2.101 | entPhysicalDescr | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7.101 | entPhysicalName | |
-| 1.3.6.1.2.1.47.1.1.1.1.8.101 | entPhysicalHardwareVersion | A |
-| 1.3.6.1.2.1.47.1.1.1.1.9.101 | entPhysicalFirmwareVersion |   |
-| 1.3.6.1.2.1.47.1.1.1.1.10.101 | entPhysicalSoftwareRevision |   |
-| 1.3.6.1.2.1.47.1.1.1.1.11.101 | entPhysicalSerialNum | 40714F20112 |
-| 1.3.6.1.2.1.47.1.1.1.1.12.101 | entPhysicalMfgName | AOI |
-| 1.3.6.1.2.1.47.1.1.1.1.13.101 | entPhysicalModelName | AQOA9N09ADLN0720 |
+| 1.3.6.1.2.1.47.1.1.1.1.2.101000 | entPhysicalDescr | Xcvr for Ethernet29 |
+| 1.3.6.1.2.1.47.1.1.1.1.7.101000 | entPhysicalName | |
+| 1.3.6.1.2.1.47.1.1.1.1.8.101000 | entPhysicalHardwareVersion | A |
+| 1.3.6.1.2.1.47.1.1.1.1.9.101000 | entPhysicalFirmwareVersion |   |
+| 1.3.6.1.2.1.47.1.1.1.1.10.101000 | entPhysicalSoftwareRevision |   |
+| 1.3.6.1.2.1.47.1.1.1.1.11.101000 | entPhysicalSerialNum | 40714F20112 |
+| 1.3.6.1.2.1.47.1.1.1.1.12.101000 | entPhysicalMfgName | AOI |
+| 1.3.6.1.2.1.47.1.1.1.1.13.101000 | entPhysicalModelName | AQOA9N09ADLN0720 |
 
 
 ## Sensor requirements (ENTITY-SENSOR-MIB)
