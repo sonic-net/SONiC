@@ -19,7 +19,7 @@ New Xcvrd in platform monitor container is designed to fetch the transceiver and
 
 For the transceiver it's self, the type, serial number, hardware version, etc. will not change after plug in. The suitable way for transceiver information update can be triggered by transceiver plug in/out event.
 
-The transceiver dom sensor information(temperature, power,voltage, etc.) can change frequently, these information need to be updated periodically, for now the time period temporarily set to 120s(see open question 1), this time period need to be adjusted according the later on test on all vendors platform.
+The transceiver dom sensor information(temperature, power,voltage, etc.) can change frequently, these information need to be updated periodically, for now the time period temporarily set to 60s(see open question 1), this time period need to be adjusted according the later on test on all vendors platform.
 
 If there is transceiver and sensor status change, Xcvrd will write the new status to state DB, to store these information some new tables will be added to STATE_DB.
  
@@ -56,12 +56,12 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 
 ### 1.2 Access eeprom from platform container ###
 
-Transceiver information eeprom can be accessed via read files(e.g. /sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom), different vendors may have these files under different folders, these folder need to be mounted to platform container so Xcvrd can access them. 
+Transceiver information eeprom can be accessed via read files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`), different vendors may have these files under different folders, these folder need to be mounted to platform container so Xcvrd can access them. 
 
 
 For the convenience of implementation and reduce the time consuming, need to do enhancement to the `SfpUtilBase` class:
 
-1. `SfpUtilBase` internally should add the ability to read the eeprom and only pick up the interested bytes by given offset and bumber of bytes.
+1. `SfpUtilBase` internally should add the ability to read the eeprom and only pick up the interested bytes by given offset and number of bytes.
 
 2. `SfpUtilBase` will provide APIs `get_eeprom_sfp_info_dict(self, port_num)` and `get_eeprom_dom_info_dict(self, port_num)` to return `eeprom_if_dict` and `eeprom_dom_dict` separately, the interested values of these two dict are defined  in section 1.1.1 and 1.1.2.  In these two APIs can pick up these values from eeprom by provide the corresponding offset and number of bytes. 
 
@@ -70,45 +70,37 @@ For the convenience of implementation and reduce the time consuming, need to do 
 
 Xcvrd need to be triggered by transceiver plug in/out event to refresh the transceiver info table.
 
-Transceiver plug in/out status can be derived from the content of sysfs file like `"/sys/bus/i2c/devices/2-0048/hwmon/hwmon7/qsfp10_status"`. 
+How to get this event is various on different platform, there is no common implementation available. 
 
-To get this sfp status file path for a certain port, each vendor need to implement a new API `get_sfp_status_file_path(self, port_num)` in the SFP plugin(class SfpUtil).
+Here we define a common platform API to wait for this event in class `SfpUtilBase`: 
 
-Python lib [inotify](https://pypi.org/project/inotify/), is a good tool to monitor the file change and raise notification. 
+    @abc.abstractmethod
+    def get_transceiver_change_event(self):
+        """
+        :returns: Boolean, True if call successful, False if not; 
+        dict for pysical port number and the SFP status. like {'0': 'PLUGIN', '31':'PLUGOUT'}
+        """
+        return 
 
-Below is a sample for how to use inotify lib to monitor file change:
+Each vendor need to implement this function in `SfpUtil` plugin.
 
-	import os
-	import inotify
-	import time
-	import inotify.adapters
+Xcvrd will call this API to wait for the sfp plug in/out event, following example code showing how this API will be called:
 
-	def _main():
-	    i = inotify.adapters.Inotify()
-	    i.add_watch(b'/sys/bus/i2c/devices/2-0048/hwmon/hwmon6/qsfp10_status')
-	    try:
-	        while True:
-	            events = i.event_gen(timeout_s=1)
-	            for event in events:
-	                if event is not None:
-	                    (header, type_names, watch_path, filename) = event
-	                    print "MASK->NAMES=%s WATCH-PATH=[%s] FILENAME=[%s]" % (type_names, watch_path.decode('utf-8'),filename.decode('utf-8'))
-	            print("no event found")
-	            time.sleep(10)
-	                    
-	    finally:
-	        i.remove_watch(b'/sys/bus/i2c/devices/2-0048/hwmon/hwmon6/qsfp10_status')
-	
-	if __name__ == '__main__':
-	    _main()
+    while True:
+        status, port_dict = platform_sfputil.get_transceiver_change_event()
+        if(status):
+            for key, value in port_dict.iteritems():
+                print("SFP on port: %s" was %s" % (key, value))
+                 
 
-Xcvrd will pass all the sfp status files to inotify and monitor them for the change.
-
-When a sfp status file change notification received by Xcvrd, by calling current SFP plugin API `get_presence(self, port_num)` it can get the SFP present status.
 
 ### 1.4 Xcvrd daemon flow ###
 
-Xcvrd retrieve transceiver by event trigger, DOM sensor information will be periodically freshed, these infomation can be readed via sfputil.  
+Xcvrd will spawn a thread to wait for the SFP plug in/out event, when event received, it will update the DB entries accordingly.
+
+A timer will be started to periodically refresh the DOM sensor information . 
+
+Detailed flow as showed in below chart: 
 
 ![](https://github.com/keboliu/SONiC/blob/xcvrd-hld/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
@@ -154,6 +146,6 @@ To get the transceiver and dom sensor status, SNMP agent need to connect to STAT
 
 ## 3. Open Questions ##
 
-1. DOM sensor polling period need to be finialized after collecting enough data on various platform and later on test based on the new eerpom reading API.
+1. DOM sensor polling period need to be finalized after collecting enough data on various platform and later on test based on the new eeprom reading API.
 
       
