@@ -75,10 +75,11 @@ How to get this event is various on different platform, there is no common imple
 Here we define a common platform API to wait for this event in class `SfpUtilBase`: 
 
     @abc.abstractmethod
-    def get_transceiver_change_event(self):
+    def get_transceiver_change_event(self, timeout=0):
         """
+		:param timeout: function will return success and a empty dict if no event in this period, default value 0 means never timeout.
         :returns: Boolean, True if call successful, False if not; 
-        dict for pysical port number and the SFP status. like {'0': 'PLUGIN', '31':'PLUGOUT'}
+        dict for pysical port number and the SFP status, status '1' represent plug in, '0' represent plug out(eg. {'0': '1', '31':'0'})
         """
         return 
 
@@ -114,14 +115,14 @@ MIB table entPhysicalTable from [Entity MIB(RFC2737)](https://tools.ietf.org/htm
 | --- | --- | --- | --- |
 | 1.3.6.1.2.1.47.1.1.1 | entPhysicalTable |   |   |
 | 1.3.6.1.2.1.47.1.1.1.1 | entPhysicalEntry |   |   |
-| 1.3.6.1.2.1.47.1.1.1.1.2. ifindex | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
-| 1.3.6.1.2.1.47.1.1.1.1.7. ifindex | entPhysicalName | skipped | |
-| 1.3.6.1.2.1.47.1.1.1.1.8. ifindex | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
-| 1.3.6.1.2.1.47.1.1.1.1.9. ifindex | entPhysicalFirmwareVersion | Skipped |   |
-| 1.3.6.1.2.1.47.1.1.1.1.10.ifindex | entPhysicalSoftwareRevision | Skipped |   |
-| 1.3.6.1.2.1.47.1.1.1.1.11.ifindex | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
-| 1.3.6.1.2.1.47.1.1.1.1.12.ifindex | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
-| 1.3.6.1.2.1.47.1.1.1.1.13.ifindex | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
+| 1.3.6.1.2.1.47.1.1.1.1.2. index | entPhysicalDescr | Show interfaces alias | Xcvr for Ethernet29 |
+| 1.3.6.1.2.1.47.1.1.1.1.7. index | entPhysicalName | skipped | |
+| 1.3.6.1.2.1.47.1.1.1.1.8. index | entPhysicalHardwareVersion | Vendor Rev in CLI or sfputil | A1 |
+| 1.3.6.1.2.1.47.1.1.1.1.9. index | entPhysicalFirmwareVersion | Skipped |   |
+| 1.3.6.1.2.1.47.1.1.1.1.10.index | entPhysicalSoftwareRevision | Skipped |   |
+| 1.3.6.1.2.1.47.1.1.1.1.11.index | entPhysicalSerialNum | Vendor SN in CLI or sfputil | WW5062F |
+| 1.3.6.1.2.1.47.1.1.1.1.12.index | entPhysicalMfgName | Vendor Name in CLI or sfputil | FINISAR CORP |
+| 1.3.6.1.2.1.47.1.1.1.1.13.index | entPhysicalModelName | Vendor PN in CLI or sfputil| FCBN410QD3C02 |
 
 
 Another entPhySensorTable which is defined in [Entity Sensor MIB(RFC3433)](https://tools.ietf.org/html/rfc3433) need to be new added.
@@ -146,6 +147,6 @@ To get the transceiver and dom sensor status, SNMP agent need to connect to STAT
 
 ## 3. Open Questions ##
 
-1. DOM sensor polling period need to be finalized after collecting enough data on various platform and later on test based on the new eeprom reading API.
+1. DOM sensor polling period may need to be adjusted after collecting enough data on various platform.
 
       
