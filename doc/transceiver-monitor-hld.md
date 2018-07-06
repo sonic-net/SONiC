@@ -103,7 +103,7 @@ A timer will be started to periodically refresh the DOM sensor information .
 
 Detailed flow as showed in below chart: 
 
-![](https://github.com/keboliu/SONiC/blob/xcvrd-hld/images/transceiver_monitoring_hld/xcvrd_flow.svg)
+![](https://github.com/Azure/SONiC/blob/gh-pages/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
 ## 2. SNMP Agent Change ##
 
