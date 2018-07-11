@@ -36,6 +36,10 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
     - TX2Bias: rawdata
     - TX3Bias: rawdata
     - TX4Bias: rawdata
+    - TX1Power: rawdata # in dbm
+    - TX2Power: rawdata
+    - TX3Power: rawdata
+    - TX4Power: rawdata
 
 
 
@@ -94,6 +98,7 @@ ifindex is the ifindex in https://github.com/Azure/sonic-py-swsssdk/blob/master/
 | --- | --- |
 | DOM RX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + LANEID \* 10 + 1 |
 | DOM TX Bias Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + LANEID \* 10 + 2 |
+| DOM TX Power Sensor for Ethernet[X]/[LANEID] | Ifindex \* 1000  + LANEID \* 10 + 3 |
 | DOM Temperature Sensor for Ethernet[X] | Ifindex \* 1000  + 1 |
 | DOM Voltage Sensor for Ethernet[X] | Ifindex \* 1000 + 2 |
 
