@@ -16,8 +16,8 @@
 ## Proposal: new SONiC port naming convention ##
 - et[sX]pY[abcd]
   - et: SONiC choice of port name prefix. (em, en ...)
-  - Optional:  sX, slot X, X = 0, 1, ...
-  - Mandatory: pY, front panel port Y, Usually Y start from 1.
+  - Optional:  sX, slot X, X = 1, 2, ... Usually X starts from 1.
+  - Mandatory: pY, front panel port Y, Usually Y starts from 1.
   - Optional:  [abcd], port breakout.
 
 - Examples
@@ -34,3 +34,10 @@
 2. Break SONiC code dependency of 'Ethernet' prefix.
 3. Break SONiC test dependency of 'Ethernet' prefix and/or 'Ethernet0'.
 4. Change SONiC port name to new naming convention.
+   (Note: at this stage, SONiC internal port names will match the same naming convention,
+          Linux interface name will als match the same naming convention).
+
+## Comments from the community ##
+- When index starts from 1, there may or may not be a single entry waste depend on the implementation and programming language.
+  - e.g. C/C++ array index starts from 0.
+
