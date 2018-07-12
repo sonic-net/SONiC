@@ -3,6 +3,7 @@
 
 Table of Contents
 =================
+
 * [Overview](#overview)
 * [Input Data for swss](#input-data-for-swss)
   * [configDB](#configdb)
@@ -11,13 +12,16 @@ Table of Contents
   * [BGP and fpmsyncd](#bgp-and-fpmsyncd)
   * [JSON files](#json-files)
   * [Syncd](#syncd)
-* [Swss state restore](#swss-state-restore)
+* [SWSS state restore](#swss-state-restore)
   * [PORT, VLAN and INTF](#port-vlan-and-intf)
   * [ARP, LAG and route data in orchagent](#arp-lag-and-route-data-in-orchagent)
   * [QoS, Buffer, CRM, PFC WD and ACL data in orchagent](#qos-buffer-crm-pfc-wd-and-acl-data-in-orchagent)
   * [COPP, Tunnel and Mirror data in orchagent](#copp-tunnel-and-mirror-data-in-orchagent)
   * [FDB and port state in orchagent](#fdb-and-port-state-in-orchagent)
   * [OID for switch default objects in orchagent\.](#oid-for-switch-default-objects-in-orchagent)
+* [SWSS state consistency validation](#swss-state-consistency-validation)
+  * [Pre\-restart state validation](#pre-restart-state-validation)
+  * [Post\-restore state validation](#post-restore-state-validation)
 * [SWSS state sync up](#swss-state-sync-up)
   * [ARP sync up](#arp-sync-up)
   * [port state sync up](#port-state-sync-up)
@@ -72,7 +76,7 @@ For copp, tunnel and mirror related configurations,  they are loaded from json f
 FDB and Port state notifications come from ASIC, syncd relays the data to orchagent.
 Orchagent also gets info for the objects created by ASIC by default, ex. the port list, hw lanes and queues.
 
-# Swss state restore
+# SWSS state restore
 During swss warm restart, the state of swss should be restored. It is assumed that all data in APPDB has either been restored or been kept intact.
 
 ## PORT, VLAN and INTF
@@ -92,11 +96,25 @@ Orchagent fetch the existing data from configDB at startup.
 These configuration will be loaded to APPDB from JSON files then received by orchagent at startup.
 
 ## FDB and port state in orchagent
-The FDB data is restored from APPDB by orchagent.
-TODO: Port state restore.
+Both the FDB and port state data is restored from APPDB by orchagent.
 
 ## OID for switch default objects in orchagent.
 Orchagent relies on SAI get api to fetch the OID data from syncd for switch default objects.
+
+# SWSS state consistency validation
+After swss state restore, the state of each swss processes especially orchagent should be consistent with the state before restart.
+For now, it is assumed that no configDB change during the whole warm restart window. Then the state of orchagent is mainly driven by APPDB data changes.  Following basic pre-restart and post-restore validation could be applied.
+
+## Pre-restart state validation
+A "restart prepare" request is sent to orchagent, if there no pending data in SyncMap (m_toSync) of all application consumers in orchagent, OrchDaemon will set a flag to stop processing any further APPDB data change and return success for the "restart prepare"
+request. Otherwise failure should be returned for the request to indicate that there is un-fullfilled dependency in orchagent which is not ready to do warm restart.
+
+The existing ProducerStateTable/ConsumerStateTable implementation should be updated so that only consumer side modify the actual table.
+
+## Post-restore state validation
+After swss state restore, same as that in pre-restart phase, no pending data in SyncMap (m_toSync) of all application consumers should exist. This should be done before swss state sync up.
+
+ *More exhaustive validation beyond this is to be designed and implemented.*
 
 # SWSS state sync up
 During the restart window, dynamic data like ARP, port state, FDB, LAG and route may be changed. Orchagent needs to sync up with the latest network state.
