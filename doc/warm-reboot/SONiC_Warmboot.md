@@ -67,6 +67,7 @@ Table of Contents
   * [Backward compatibility requirement on SAI/LibSAI/SDK?](#backward-compatibility-requirement-on-sailibsaisdk)
   * [What is the requirment on LibSAI/SDK with regards to data plane traffic during warm reboot? Could FDB be flushed?](#what-is-the-requirment-on-libsaisdk-with-regards-to-data-plane-traffic-during-warm-reboot-could-fdb-be-flushed)
   * [What are the the principles of warm reboot support for SONiC?](#what-are-the-the-principles-of-warm-reboot-support-for-sonic)
+* [References](#references)
 
 
 # Overview
@@ -386,5 +387,6 @@ No packet loss at data plane for existing data flow.  In general, FDB flush shou
 ## What are the the principles of warm reboot support for SONiC?
 One of the priciples talked about is have warm restart support at each layer/module/docker, each layer/module/docker is self contained as to warm restart.
 
-
+# References
+* [SAI Warmboot spec](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_Proposal_Warmboot.docx?raw=true)
 
