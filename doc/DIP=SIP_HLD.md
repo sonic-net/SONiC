@@ -7,21 +7,25 @@ The purpose of this test is to validate that SONiC switch supports routing of L3
 ## Topology
 
 ```
-                               |-----|
-|--------|          |----------|     |
-|DST HOST|----------|DST ROUTER|     |
-|--------|          |----------|     |
-                               | DUT |
-|--------|          |----------|     |
-|SRC HOST|----------|SRC ROUTER|     |
-|--------|          |----------|     |
-                               |-----|
+                    |-----------------------|
+                    |                       |
+|--------|          |-------|               |
+|DST HOST|----------|DST RIF|               |
+|--------|          |-------|               |
+                    |                       |
+                    |          DUT          |
+                    |                       |
+|--------|          |-------|               |
+|SRC HOST|----------|SRC RIF|               |
+|--------|          |-------|               |
+                    |                       |
+                    |-----------------------|
 ```
 
 _Note_:
 
 > Hosts are emulated using VMs  
-> Router types are PORT/LAG
+> RIF types are PORT/LAG
 
 ## Sources
 
@@ -71,7 +75,7 @@ Workflow:
 1. Gather minigraph info
 2. Gather LLDP info
 3. Get DST/SRC host MAC address
-3. Get DST/SRC router MAC/IPv4 address
+3. Get DST/SRC router MAC/IPv4/IPv6 address
 4. Get DST/SRC port indices (PTF port numbers)
 5. Run PTF test
 
@@ -86,17 +90,19 @@ It provides mechanism for UDP packets composing/sending/receiving.
 
 Supported parameters:
 
-| Parameter      | Description                                                   |
-|:-------------- |:------------------------------------------------------------- |
-| testbed_type   | Testbed type                                                  |
-| dst_host_mac   | Destination host MAC address                                  |
-| src_host_mac   | Source host MAC address                                       |
-| dst_router_mac | Destination router MAC address                                |
-| src_router_mac | Source router MAC address                                     |
-| dst_router_ip  | Destination router IPv4 address                               |
-| src_router_ip  | Source router IPv4 address                                    |
-| dst_port_ids   | Destination port array of indices (when router has a members) |
-| src_port_ids   | Source port array of indices (when router has a members)      |
+| Parameter       | Description                                                   |
+|:--------------- |:------------------------------------------------------------- |
+| testbed_type    | Testbed type                                                  |
+| dst_host_mac    | Destination host MAC address                                  |
+| src_host_mac    | Source host MAC address                                       |
+| dst_router_mac  | Destination router MAC address                                |
+| src_router_mac  | Source router MAC address                                     |
+| dst_router_ipv4 | Destination router IPv4 address                               |
+| src_router_ipv4 | Source router IPv4 address                                    |
+| dst_router_ipv6 | Destination router IPv6 address                               |
+| src_router_ipv6 | Source router IPv6 address                                    |
+| dst_port_ids    | Destination port array of indices (when router has a members) |
+| src_port_ids    | Source port array of indices (when router has a members)      |
 
 ## Description
 
@@ -107,28 +113,28 @@ After data packet is sent using source port index, we are waiting expected packe
 
 Default values:
 
-* pkt_ttl=64
+* pkt_ttl_hlim=64
 
 Values:
 
-* dst_host_ip=\<dst_router_ip\>+1
-* src_host_ip=\<src_router_ip\>+1
+* dst_host_ipv4_ipv6=\<dst_router_ipv4_ipv6\>+1
+* src_host_ipv4_ipv6=\<src_router_ipv4_ipv6\>+1
 
 Data packet:
 
 * DST_MAC=\<src_router_mac\>
 * SRC_MAC=\<src_host_mac\>
-* DST_IPv4=\<dst_host_ip\>
-* SRC_IPv4=\<dst_host_ip\>
-* TTL=\<pkt_ttl\>
+* DST_IPv4_IPv6=\<dst_host_ipv4_ipv6\>
+* SRC_IPv4_IPv6=\<dst_host_ipv4_ipv6\>
+* TTL_HL=\<pkt_ttl_hlim\>
 
 Expected packet:
 
 * DST_MAC=\<dst_host_mac\>
 * SRC_MAC=\<dst_router_mac\>
-* DST_IPv4=\<dst_host_ip\>
-* SRC_IPv4=\<dst_host_ip\>
-* TTL=\<pkt_ttl\>-1
+* DST_IPv4_IPv6=\<dst_host_ipv4_ipv6\>
+* SRC_IPv4_IPv6=\<dst_host_ipv4_ipv6\>
+* TTL_HL=\<pkt_ttl_hlim\>-1
 
 ### Expected results
 
