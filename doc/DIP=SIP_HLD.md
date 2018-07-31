@@ -67,8 +67,14 @@ It performs all the necessary prerequisite operations based on provided topology
 Supported topologies:
 
 * t0
+* t0-16
+* t0-56
+* t0-64
+* t0-64-32
+* t0-116
 * t1
 * t1-lag
+* t1-64-lag
 
 Workflow:
 
