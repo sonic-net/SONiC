@@ -95,6 +95,23 @@ Xcvrd will call this API to wait for the sfp plug in/out event, following exampl
                  
 It's possible that when received the plug in/out event, the transceiver eeprom is not ready for reading, so need to give another try if first reading failed. 
 
+#### 1.3.1 Transceiver plug in/out event implementation on mlnx platform ####
+
+On mlnx platform the event is exposed by mlnx SDK which reside in syncd container. A dedicated daemon mlnx-sfpd is added to mlnx syncd container which will register to mlnx SDK and listen for the SFP plug/in out event.
+
+When mlnx-sfpd get the event, it will populate it to STATE_DB. get_transceiver_change_event on mlnx platform will subscribe to STATE_DB and waiting for it.
+
+Since xcvrd does not talk to mlnx-sfpd directly, need to have some mechanism to notify xcvrd when mlnx-sfpd fail, so xcvrd can handle accordingly. The intermediate will still be STATE_DB.
+
+mnlx-sfpd will populate error when:
+
+1. not able to get correct sfp change event from SDK
+2. mlnx-sfpd itself failed for some reason.
+
+mlnx-sfpd will periodically write a timestamp to STATE_DB to show the liveness. On above two failure cases mlnx-sfpd will stop update the timestamp and exit. Related info will be logged as error indication to user.  
+ 
+In the  mlnx implementation of 'get_transceiver_change_event',  it will check the timestamp every time when being called, if the timestamp is already outdated(more that two update interval period compare to current time), it will return an error. Xcvrd will know that mlnx-sfpd failed by getting the error, as a result, it will stop polling the dom info and clean all the transceiver info in the DB.
+
 ### 1.4 Xcvrd daemon flow ###
 
 Xcvrd will spawn a thread to wait for the SFP plug in/out event, when event received, it will update the DB entries accordingly.
