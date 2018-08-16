@@ -19,7 +19,7 @@ path delay = ((t4-t1) - (t3-t2))/2
 
 offset from master clock = (t2 - t1) - path delay
 
-figure here.
+![PTP Messages for boundry clock](ptp-messages.jpg)
 
 Achieving high precision requires hardware timestamping
 
@@ -52,7 +52,7 @@ ptp4l has PI (proportional-integral) controller servo
 - A kind of feedback loop
 - Determine frequency set to PHC
 
-
+![ptp servo](ptp-servo.PNG)
 
 
 # LinuxPTP on SONiC
