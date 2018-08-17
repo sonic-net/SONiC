@@ -21,7 +21,7 @@ In the end this is used to produce /etc/snmp/snmpd.conf
 - This goes against the principle of having the config DB be the central repository of configuration data
 - Imposes the provisioning of multiple static files
 - the snmpContact is hardcoded in the /usr/share/sonic/templates/snmpd.conf.j2 file
-- pass-trhoughs are hard-coded
+- pass-throughs are hard-coded
 
 ## Proposal: integrate the SNMP configuration into config DB ##
 ### Proposed Schema ###
@@ -30,7 +30,7 @@ In the end this is used to produce /etc/snmp/snmpd.conf
 "SNMP": {
     "location": LOCATION_STRING,
     "contact": CONTACT_STRING,
-	"v2c": {
+    "v2c": {
         COMMUNITY_STRING: {
             "type": "rw"|"ro",
             "acl": ACL_STRING
@@ -38,27 +38,26 @@ In the end this is used to produce /etc/snmp/snmpd.conf
     },
     "pass_trough": {
         OID_STRING: COMMAND_STRING,
-	}
+    }
 }
 ```
 
 Where:
-| Name | Type | meaning | default value |
-|------|------|---------|---------------|
-| LOCATION_STRING: | String | defines the snmpLocation | "" |
-| CONTACT_STRING: | String | defines the snmpContact | "" or the current hardcoded value for backwards compatibility. |
-| COMMUNITY_STRING: | String | defines the community string | |
-| ACL_STRING: | String | name of the ACL that controls access to SNMP daemon, default: "SNMP_ACL" | |
-| OID_STRING: | String | a dotted notation OID prefix | |
-| COMMAND_STRING: | String | command to be called when OID_STRING is requested | |
+- LOCATION_STRING:  String, defines the snmpLocation, default: ""  
+- CONTACT_STRING:   String, defines the snmpContact, default: "" or the current hardcoded value for backwards compatibility.  
+- COMMUNITY_STRING: String, defines the community string  
+- ACL_STRING:       String, name of the ACL that controls access to SNMP daemon, default: "SNMP_ACL"  
+- OID_STRING:       String. a dotted notation OID prefix  
+- COMMAND_STRING:   String: command to be called when OID_STRING is requested
 
 Variables and dicts:
-| Name | description |
-|------|-------------|
-| "v2c": | we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2, we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods |
-| "type": | there are 2 possible types:   * "ro": read-only, the only implemented method at this time  *"rw": well you never know - here for completeness but unused in the code |
-| "acl": | allows to override the default SNMP_ACL definition ( useful for management VRFs? ) |
-| "pass_trough": | used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription |
+- "v2c": we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2  
+       we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods  
+- "type":  there are 2 possible types:  
+       "ro": read-only, the only implemented method at this time  
+       "rw": well you never know - here for completeness but unused in the code  
+- "acl":   allows to override the default SNMP_ACL definition ( useful for management VRFs? )  
+- "pass_trough": used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription
 
 ### files needing modification for implementation ###
 
