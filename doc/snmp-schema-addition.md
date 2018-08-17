@@ -42,22 +42,23 @@ In the end this is used to produce /etc/snmp/snmpd.conf
 }
 ```
 
-Where:  
-LOCATION_STRING:  String, defines the snmpLocation, default: ""  
-CONTACT_STRING:   String, defines the snmpContact, default: "" or the current hardcoded value for backwards compatibility.  
-COMMUNITY_STRING: String, defines the community string  
-ACL_STRING:       String, name of the ACL that controls access to SNMP daemon, default: "SNMP_ACL"  
-OID_STRING:       String. a dotted notation OID prefix  
-COMMAND_STRING:   String: command to be called when OID_STRING is requested
+Where:
+| Name | Type | meaning | default value |
+|------|------|---------|---------------|
+| LOCATION_STRING: | String | defines the snmpLocation | "" |
+| CONTACT_STRING: | String | defines the snmpContact | "" or the current hardcoded value for backwards compatibility. |
+| COMMUNITY_STRING: | String | defines the community string | |
+| ACL_STRING: | String | name of the ACL that controls access to SNMP daemon, default: "SNMP_ACL" | |
+| OID_STRING: | String | a dotted notation OID prefix | |
+| COMMAND_STRING: | String | command to be called when OID_STRING is requested | |
 
-Variables and dicts:  
-"v2c": we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2  
-       we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods  
-"type":  there are 2 possible types:  
-       "ro": read-only, the only implemented method at this time  
-       "rw": well you never know - here for completeness but unused in the code  
-"acl":   allows to override the default SNMP_ACL definition ( useful for management VRFs? )  
-"pass_trough": used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription
+Variables and dicts:
+| Name | description |
+|------|-------------|
+| "v2c": | we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2, we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods |
+| "type": | there are 2 possible types:   * "ro": read-only, the only implemented method at this time  *"rw": well you never know - here for completeness but unused in the code |
+| "acl": | allows to override the default SNMP_ACL definition ( useful for management VRFs? ) |
+| "pass_trough": | used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription |
 
 ### files needing modification for implementation ###
 
