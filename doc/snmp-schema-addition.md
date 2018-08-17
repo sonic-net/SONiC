@@ -50,12 +50,12 @@ Where:
 - OID_STRING:       String. a dotted notation OID prefix.  
 - COMMAND_STRING:   String: command to be called when OID_STRING is requested.
 
-Variables and dicts:
+New keys:
 - "v2c": we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2  
-       we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods.  
-- "type":  there are 2 possible types:  
-       "ro": read-only, the only implemented method at this time.  
-       "rw": well you never know - here for completeness but unused in the code.  
+         we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods.  
+- "type":  there are 2 possible values:  
+           "ro": read-only, the only implemented method at this time.  
+           "rw": well you never know - here for completeness but unused in the code.  
 - "acl":   allows to override the default SNMP_ACL definition ( useful for management VRFs? ).  
 - "pass_trough": used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription.
 
