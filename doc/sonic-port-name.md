@@ -35,7 +35,7 @@
 3. Break SONiC test dependency of 'Ethernet' prefix and/or 'Ethernet0'.
 4. Change SONiC port name to new naming convention.
    (Note: at this stage, SONiC internal port names will match the same naming convention,
-          Linux interface name will als match the same naming convention).
+          Linux interface name will also match the same naming convention).
 
 ## Comments from the community ##
 - When index starts from 1, there may or may not be a single entry waste depend on the implementation and programming language.
