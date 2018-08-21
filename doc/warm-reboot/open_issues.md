@@ -14,6 +14,8 @@ Table of Contents
     * [Code change:](#code-change)
     * [Design doc:](#design-doc-1)
     * [Current status:](#current-status-1)
+* [What is the requirement on libsai as to planned/unplanned warm restart?](#what-is-the-requirement-on-libsai-as-to-plannedunplanned-warm-restart)
+* [How to determine the success/failure of warm restart?](#how-to-determine-the-successfailure-of-warm-restart)
 
 
 
@@ -113,3 +115,14 @@ This file contains major part of the implementation (not complete):
 Major code changes are already in sycd repo, but not being actively used in SONiC code logical flow, nor have been verified in production environment as of today.
 
 There are unit test cases available at syncd docker only, but integration test is to be done.
+
+# What is the requirement on libsai as to planned/unplanned warm restart?
+Only planned warm restart is mandatory. SONiC will issue explicit request to libsai/SDK for warm restart.
+
+# How to determine the success/failure of warm restart?
+Warm restart is usually performed in two steps: state restore and state sync up.
+For start restore,  based on configuration, a series of state consistency check and validation could be done to ensure application has reached the desired state.
+
+State sync up is a little tricky, since application is trying to get synchronized with lastest state which is not deterministic. Current idea is to have an application specific timer to guard this process. Once timer expires, the sync up processing is treat as done and successfull. Each application should apply its own internal speicific check.
+
+
