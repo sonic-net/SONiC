@@ -77,7 +77,7 @@ Here we define a common platform API to wait for this event in class `SfpUtilBas
     @abc.abstractmethod
     def get_transceiver_change_event(self, timeout=0):
         """
-		:param timeout: function will return success and a empty dict if no event in this period, default value 0 means never timeout.
+		:param timeout: function will return success and a empty dict if no event in this period, default value is 0.
         :returns: Boolean, True if call successful, False if not; 
         dict for pysical port number and the SFP status, status '1' represent plug in, '0' represent plug out(eg. {'0': '1', '31':'0'})
         """
