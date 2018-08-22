@@ -108,9 +108,9 @@ mnlx-sfpd will populate error when:
 1. not able to get correct sfp change event from SDK
 2. mlnx-sfpd itself failed for some reason.
 
-mlnx-sfpd will periodically write a timestamp to STATE_DB to show the liveness. On above two failure cases mlnx-sfpd will stop update the timestamp and exit. Related info will be logged as error indication to user.  
+mlnx-sfpd will have a liveness indication mechanisim to let xcvrd know that it is working or not. mlnx-sfpd use STATE_DB to convey it's liveness status to the outside.  
  
-In the  mlnx implementation of 'get_transceiver_change_event',  it will check the timestamp every time when being called, if the timestamp is already outdated(more that two update interval period compare to current time), it will return an error. Xcvrd will know that mlnx-sfpd failed by getting the error, as a result, it will stop polling the dom info and clean all the transceiver info in the DB.
+In the  mlnx implementation of 'get_transceiver_change_event',  it will check the STATE_DB to get the liveness status of mlnx-sfpd every time when being called, if mlnx-sfpd is not working anymore, it will return an error. Xcvrd will know that mlnx-sfpd failed by getting the error, as a result, it will stop polling the dom info and clean all the transceiver info in the DB.
 
 ### 1.4 Xcvrd daemon flow ###
 
