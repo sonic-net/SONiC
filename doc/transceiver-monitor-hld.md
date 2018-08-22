@@ -77,7 +77,7 @@ Here we define a common platform API to wait for this event in class `SfpUtilBas
     @abc.abstractmethod
     def get_transceiver_change_event(self, timeout=0):
         """
-		:param timeout: function will return success and a empty dict if no event in this period, default value 0 means never timeout.
+	:param timeout: function will return success and a empty dict if no event in this period, default value is 0.
         :returns: Boolean, True if call successful, False if not; 
         dict for pysical port number and the SFP status, status '1' represent plug in, '0' represent plug out(eg. {'0': '1', '31':'0'})
         """
@@ -94,6 +94,23 @@ Xcvrd will call this API to wait for the sfp plug in/out event, following exampl
                 print("SFP on port: %s" was %s" % (key, value))
                  
 It's possible that when received the plug in/out event, the transceiver eeprom is not ready for reading, so need to give another try if first reading failed. 
+
+#### 1.3.1 Transceiver plug in/out event implementation on mlnx platform ####
+
+On mlnx platform the event is exposed by mlnx SDK which reside in syncd container. A dedicated daemon mlnx-sfpd is added to mlnx syncd container which will register to mlnx SDK and listen for the SFP plug/in out event.
+
+When mlnx-sfpd get the event, it will populate it to STATE_DB. get_transceiver_change_event on mlnx platform will subscribe to STATE_DB and waiting for it.
+
+Since xcvrd does not talk to mlnx-sfpd directly, need to have some mechanism to notify xcvrd when mlnx-sfpd fail, so xcvrd can handle accordingly. The intermediate will still be STATE_DB.
+
+mnlx-sfpd will populate error when:
+
+1. not able to get correct sfp change event from SDK
+2. mlnx-sfpd itself failed for some reason.
+
+mlnx-sfpd will have a liveness indication mechanisim to let xcvrd know that it is working or not. mlnx-sfpd use STATE_DB to convey it's liveness status to the outside.  
+ 
+In the  mlnx implementation of 'get_transceiver_change_event',  it will check the STATE_DB to get the liveness status of mlnx-sfpd every time when being called, if mlnx-sfpd is not working anymore, it will return an error. Xcvrd will know that mlnx-sfpd failed by getting the error, as a result, it will stop polling the dom info and clean all the transceiver info in the DB.
 
 ### 1.4 Xcvrd daemon flow ###
 
