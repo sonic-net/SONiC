@@ -68,14 +68,20 @@ In repo *sonic-buidlimage*:
     verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
 
 *dockers/docker-snmp-v2/snmpd-config-updater*:  
-this file will be deprecated soon by cacl so no updates will be done
+    this file will be deprecated soon by cacl so no updates will be done
 
 
-in repo *sonic-swss-common*: 
+In repo *sonic-swss-common*: 
 
 *common/schema.h*:  
 ```
 #define CFG_SNMP_TABLE_NAME           "SNMP"
 ```
+
+In repo *sonic-swss*:
+
+*doc/swss-schema.md*:
+    add the definition of this schema
+
 ## Unsolved Issues ##
 - Uploading custom pass-through
