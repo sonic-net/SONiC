@@ -33,7 +33,6 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
     "v2c": {
         COMMUNITY_STRING: {
             "type": "rw"|"ro",
-            "acl": ACL_STRING
         }
     },
     "pass_trough": {
@@ -53,7 +52,7 @@ Where:
 New keys:
 - "v2c": we define a "v2c" tree to allow for future expansion for other versions of the SNMP protocol, this spec only defines for SNMP v2  
          we could imagine the implementation of "v3" with the inclusion of users or references to central PAM methods.  
-- "type":  there are 2 possible values:  
+- "type":  Optional, if ommited defaults to 'ro', there are 2 possible values:  
            "ro": read-only, the only implemented method at this time.  
            "rw": well you never know - here for completeness but unused in the code.  
 - "acl":   allows to override the default SNMP_ACL definition ( useful for management VRFs? ).  
@@ -69,8 +68,7 @@ In repo *sonic-buidlimage*:
     verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
 
 *dockers/docker-snmp-v2/snmpd-config-updater*:  
-In *run(self)*: check for SNMP key in DB and set flag  
-At the start of *get_src_ip_allow_list* and *write_configuration_file* check for flag and branch to the 2 behaviors
+this file will be deprecated soon by cacl so no updates will be done
 
 
 in repo *sonic-swss-common*: 
