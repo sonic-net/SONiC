@@ -10,7 +10,7 @@ As shown in the following diagram, we need to collect sensor and transceiver inf
 
 - The initial implemenation can get the data requiued via the dictionary returned by port_eeprom_data_string_pretty() API in sfputil. The API retrieve all EEPROM data block for each interface and then parse the whole data block. A potential opmization is to add new API in sfputil, which just retrives and parses the necessary data via the correspoding offset and size.
 
-![alt text](https://github.com/Azure/SONiC/blob/gh-pages/doc/SensorMonitor.PNG)
+![alt text](SensorMonitor.PNG)
 
 ## Proposed State DB Schema
 ### Keyname:  TRANSCEIVER_INFO:[InterfaceName]
