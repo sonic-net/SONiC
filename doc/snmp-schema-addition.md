@@ -45,7 +45,6 @@ Where:
 - LOCATION_STRING:  String, defines the snmpLocation, default: "".  
 - CONTACT_STRING:   String, defines the snmpContact, default: "" or the current hardcoded value for backwards compatibility.  
 - COMMUNITY_STRING: String, defines the community string.  
-- ACL_STRING:       String, name of the ACL that controls access to SNMP daemon, default: "SNMP_ACL".  
 - OID_STRING:       String. a dotted notation OID prefix.  
 - COMMAND_STRING:   String: command to be called when OID_STRING is requested.
 
@@ -55,7 +54,6 @@ New keys:
 - "type":  Optional, if ommited defaults to 'ro', there are 2 possible values:  
            "ro": read-only, the only implemented method at this time.  
            "rw": well you never know - here for completeness but unused in the code.  
-- "acl":   allows to override the default SNMP_ACL definition ( useful for management VRFs? ).  
 - "pass_trough": used for pass-trough definitions - currently the config only has one hard-coded pass-through defined for SysDescription.
 
 ### Files needing modification for implementation ###
@@ -68,7 +66,7 @@ In repo *sonic-buidlimage*:
     verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
 
 *dockers/docker-snmp-v2/snmpd-config-updater*:  
-    this file will be deprecated soon by cacl so no updates will be done
+    this file will be deprecated soon by caclmgrd so no updates will be done
 
 
 In repo *sonic-swss-common*: 
