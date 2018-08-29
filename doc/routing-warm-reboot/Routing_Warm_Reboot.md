@@ -4,17 +4,17 @@
 
 ## Table of Contents
 
-* [1. Introduction](Introduction)
-* [2. Problem Statement](Problem\ Statement)
-* [3. Scope](Scope)
-* [4. BGP Graceful-Restart Overview](BGP\ Graceful\-Restart\ Overview)
-* [5. High-level Design](High\-level\ Design)
-* [6. Low-level Design](Low\-level\ Design)<br>
-<sp>* [6.1. WarmStartHelper Class Overview](WarmStartHelper\ Class\ Overview)<br>
-<sp>* [6.2. Route Reconciliation Logic](Route\ Reconciliation\ Logic)<br>
-<sp>* [6.3. Configuration / CLI additions](Configuration\/CLI\ additions)
-* [7. Known limitations / Next steps](Known\ limitations/\ Next\ steps)
-* [8. Unit Testing](Unit\ Testing)
+1. [Introduction](#1.\ Introduction)
+2. [Problem Statement](#2.\ Problem\ Statement)
+3. [Scope](#3.\ Scope)
+4. [BGP Graceful-Restart Overview](#4.\ BGP\ Graceful\-Restart\ Overview)
+5. [High-level Design](#5.\ High-level\ Design)
+6. [Low-level Design](#6.\ Low\-level\ Design)  
+6.1. [WarmStartHelper Class Overview](#6.1.\ WarmStartHelper\ Class\ Overview)  
+6.2. [Route Reconciliation Logic](#6.2.\ Route\ Reconciliation\ Logic)  
+6.3. [Configuration / CLI additions](#6.3.\ Configuration\ /\ CLI\ additions)
+7. [Known limitations / Next steps](#7.\ Known\ limitations\ /\ Next\ steps)
+8. [Unit Testing](#8.\ Unit\ Testing)
 
 
 <br>
@@ -86,23 +86,23 @@ Upon establishment of an fpm-client (re)connection, fpmsyncd will initiate a seq
 The following diagram provides a high-level description of the typical sequence of steps involved in the graceful-restart cycle:
 
 
-  1. A BGP session is initially established with GR-capabilities turned on.<br/><br/>
+  1. A BGP session is initially established with GR-capabilities turned on.
 
-  2. zebra & bgpd processes are restarted. It is important to highlight that right when this happens the routing-state previously pushed to the kernel (by zebra) will be eliminated. See more on this point further below when we discuss the known-limitations of this solution. On the other hand, the AppDB routing-state is kept untouched.<br/><br/>
+  2. zebra & bgpd processes are restarted. It is important to highlight that right when this happens the routing-state previously pushed to the kernel (by zebra) will be eliminated. See more on this point further below when we discuss the known-limitations of this solution. On the other hand, the AppDB routing-state is kept untouched.
 
-  3. The receiver side detects the broken TCP-session and proceeds to initiate the gr-helper logic described above. Neither control nor forwarding planes are updated on the receiver side.<br/><br/>
+  3. The receiver side detects the broken TCP-session and proceeds to initiate the gr-helper logic described above. Neither control nor forwarding planes are updated on the receiver side.
 
-  4. Upon zebra coming up it will attempt to establish a TCP connection with fpmSyncd socket.<br/><br/>
+  4. Upon zebra coming up it will attempt to establish a TCP connection with fpmSyncd socket.
 
-  5. Once zebra connectivity is up, a new fpmSyncd-specific restart-timer (wrTimer) is initiated in fpmSyncd. This new timer has a strict correlation with the BGP restart-timer previously discussed, however, this one is configured through a different interface and carries slightly different semantics (more on this later). Syncd will now request a dump of all the routing-state previously pushed to AppDB. Upon arrival, all these route/next-hop tuples will be marked as **stale** within fpmSyncd&#39;s data-structures.<br/><br/>
+  5. Once zebra connectivity is up, a new fpmSyncd-specific restart-timer (wrTimer) is initiated in fpmSyncd. This new timer has a strict correlation with the BGP restart-timer previously discussed, however, this one is configured through a different interface and carries slightly different semantics (more on this later). Syncd will now request a dump of all the routing-state previously pushed to AppDB. Upon arrival, all these route/next-hop tuples will be marked as **stale** within fpmSyncd&#39;s data-structures.
 
-  6. In parallel with the above, bgpd will establish connectivity with all its remote peers. The R-bit and F-bit will be advertised to request gr-helper functionality from its bgp neighbors.<br/><br/>
+  6. In parallel with the above, bgpd will establish connectivity with all its remote peers. The R-bit and F-bit will be advertised to request gr-helper functionality from its bgp neighbors.
 
-  7. Eventually, the routing-state advertised by its peers will reach zebra, which will proceed to disseminate this information to both kernel and fpmSyncd. Notice that till this time there won&#39;t be any BGP routing-state in kernel (see point 1. above).<br/><br/>
+  7. Eventually, the routing-state advertised by its peers will reach zebra, which will proceed to disseminate this information to both kernel and fpmSyncd. Notice that till this time there won&#39;t be any BGP routing-state in kernel (see point 1. above).
 
-  8. Assuming that the fpmsyncd&#39;s restart-timer has not expired yet, fpmsyncd will push this state into the same data-structures where all AppDB state previously went in. The route/next-hop tuples that fully match the existing entries are marked as **clean**. This process will continue till fpmsyncd&#39;s restart-timer expires, at which point the route-state-reconciliation process will take place to update the routes in AppDB that require it (see more details on route-reconciliation process in low-level design section).<br/><br/>
+  8. Assuming that the fpmsyncd&#39;s restart-timer has not expired yet, fpmsyncd will push this state into the same data-structures where all AppDB state previously went in. The route/next-hop tuples that fully match the existing entries are marked as **clean**. This process will continue till fpmsyncd&#39;s restart-timer expires, at which point the route-state-reconciliation process will take place to update the routes in AppDB that require it (see more details on route-reconciliation process in low-level design section).
 
-  9. Any routing-state change detected during reconciliation process will be pushed down to AppDB, and from here it will follow the usual path towards orchAgent.<br/><br/>
+  9. Any routing-state change detected during reconciliation process will be pushed down to AppDB, and from here it will follow the usual path towards orchAgent.
 
   10. Once in orchAgent this new state will make its way into sairedis and AsicDB to update the forwarding-plane.
 
