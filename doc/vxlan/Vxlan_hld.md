@@ -73,11 +73,13 @@ Phase #2
 
 ## 1.2 Orchagent requirements
 ### Vxlan orchagent:
- - Should be able to create VRF/VLAN to VNI mapping and also monitor for peering configurations. 
+ - Should be able to create VRF/VLAN to VNI mapping and also track peering configurations. 
+ - Should be able to create VRFs per VNET tables. 
  - Should be able to create tunnels and encap/decap mappers. 
 
 ### Route orchagent:
  - Should be able to handle routes within a VNet 
+ - Should be able to create NH tunnels for the endpoints
  - Should be VNet/VRF aware
 
 ### FDB orchagent:
@@ -233,7 +235,7 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
 
 ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch.png)
  ### VxlanOrch
- This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VNet/VNI to respective tunnel. VxlanOrch creates Ingress/Egress VRFs for each VNEet table. VxlanOrch also creates the RIF based on VNet Interface configuration. 
+ This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VNet/VNI to respective tunnel. VxlanOrch creates Ingress/Egress VRFs for each VNet table. VxlanOrch also creates the RIF based on VNet Interface configuration. 
  	
  ### RouterOrch
  Add VxlanOrch as a member of RouterOrch. When app-route-table has new updates for the VNet, RouterOrch gets the VRF ID from VxlanOrch and programs SAI.
