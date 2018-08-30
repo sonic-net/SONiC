@@ -41,7 +41,7 @@
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
 # Scope
-This document describes the high level design of the Vxlan feature. Vxlan with EVPN and configuring Linux kernel with Vxlan interface is currently beyond the scope of this document
+This document describes the high level design of the Vxlan feature. 
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -51,7 +51,7 @@ This document describes the high level design of the Vxlan feature. Vxlan with E
 | VTEP                     | Vxlan Tunnel End Point         |
 | VM                       | Virtual Machine                |
 | VRF                      | Virtual Routing and Forwarding |
-| VNET                     | Virtual Network                |
+| VNet                     | Virtual Network                |
 
 # 1 Requirements Overview
 ## 1.1 Functional requirements
@@ -59,30 +59,33 @@ This section describes the SONiC requirements for Vxlan feature.
 
 At a high level the following should be supported:
 
+Phase #1
 - Should be able to perform the role of Vxlan Tunnel End Point (VTEP)
-- VNET peering between customer VMs and Baremetal servers [VNET Requirements](https://github.com/lguohan/SAI/blob/vni/doc/SAI-Proposal-QinQ-VXLAN.md).
-- Distributed Vxlan routing with Symmetric IRB model
-- Should be able to perform RIOT
+- VNet peering between customer VMs and Baremetal servers [VNet Requirements](https://github.com/lguohan/SAI/blob/vni/doc/SAI-Proposal-QinQ-VXLAN.md).
+- Distributed Vxlan routing with Symmetric IRB model (RIOT)
+
+Phase #2
+- Integration with BGP EVPN and create VRF devices in linux kernel
 - Should support untagged or tagged traffic (Overlay layer 2 networks over layer 3 underlay)
 - Should be able to do HER for unicast traffic based on configured flood list
 - CLI commands to configure Vxlan
 
 
 ## 1.2 Orchagent requirements
-Vxlan orchagent:
+### Vxlan orchagent:
  - Should be able to create VRF/VLAN to VNI mapping and also monitor for peering configurations. 
  - Should be able to create tunnels and encap/decap mappers. 
 
-Route orchagent:
- - Should be able to handle routes within a VNET 
- - Should be VNET/VRF aware
+### Route orchagent:
+ - Should be able to handle routes within a VNet 
+ - Should be VNet/VRF aware
 
-FDB orchagent:
+### FDB orchagent:
  - Should be VTEP aware
  - Should support static configuration of FDB entries learnt on remote VTEP
  
-INTFs orchagent:
- - Should be VNET/VRF aware
+### INTFs orchagent:
+ - Should be VNet/VRF aware
  
 ## 1.3 CLI requirements
 - User should be able to get FDB learnt per VNI
@@ -97,12 +100,12 @@ In summary:
 	- show mac <vxlan_name>
 	- show vxlan <vxlan_name>
 ```
-Configuring VNET peering via CLI is beyond the scope
+Configuring VNet peering via CLI is beyond the scope
 
 ## 1.4 Scalability requirements
 
-### 2.1.1 VNET Peering
-###### Table 2: VNET peering scalability
+### 2.1.1 VNet Peering
+###### Table 2: VNet peering scalability
 | Vxlan component          | Expected value              |
 |--------------------------|-----------------------------|
 | VNI                      | 8k                          |
@@ -163,7 +166,7 @@ VLAN_ID                               = 1\*4DIGIT                     ; 1 to 409
 ```
 
 ```
-; Defines schema for VNET configuration attributes
+; Defines schema for VNet configuration attributes
 key                                   = VNET:name                     ; Vnet name
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
@@ -173,7 +176,7 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 ```
 
 ```
-; Defines schema for VNET Interface configuration attributes
+; Defines schema for VNet Interface configuration attributes
 key                                   = VNET_INTF:name:prefix         ; Vnet interface name with IP prefix
 ; field                               = value
 VNET_NAME                             = vnet_name                     ; vnet name where the interface belongs to
@@ -182,7 +185,7 @@ VNET_NAME                             = vnet_name                     ; vnet nam
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ## 2.2 APP DB
-Two new tables would be introduced to specify routes and tunnel end points in VNET domain. 
+Two new tables would be introduced to specify routes and tunnel end points in VNet domain. 
 
 ```
 VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}} 
@@ -203,7 +206,7 @@ VXLAN_FDB_TABLE::{{tunnel_name}}:{{vni_id}}:{{mac_address}}
 ### 2.2.1 Schemas
 
 ```
-; Defines schema for VNET Route table attributes
+; Defines schema for VNet Route table attributes
 key                                   = VNET_ROUTE_TABLE:vnet_name:prefix ; Vnet route table with prefix
 ; field                               = value
 NEXTHOP                               = ipv4                          ; Nexthop IP address
@@ -211,7 +214,7 @@ INTF_NAME                             = ifname                        ; Interfac
 ```
 
 ```
-; Defines schema for VNET Route tunnel table attributes
+; Defines schema for VNet Route tunnel table attributes
 key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix
 ; field                               = value
 ENDPOINT                              = ipv4                          ; Host VM IP address
@@ -230,10 +233,10 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
 
 ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch.png)
  ### VxlanOrch
- This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VNET/VNI to respective tunnel. VxlanOrch creates Ingress/Egress VRFs for each VNET table. VxlanOrch also creates the RIF based on VNET Interface configuration. 
+ This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VNet/VNI to respective tunnel. VxlanOrch creates Ingress/Egress VRFs for each VNEet table. VxlanOrch also creates the RIF based on VNet Interface configuration. 
  	
  ### RouterOrch
- Add VxlanOrch as a member of RouterOrch. When app-route-table has new updates for the VNET, RouterOrch gets the VRF ID from VxlanOrch and programs SAI.
+ Add VxlanOrch as a member of RouterOrch. When app-route-table has new updates for the VNet, RouterOrch gets the VRF ID from VxlanOrch and programs SAI.
  	- ROUTE_TABLE is translated to create route entries
 	- ROUTE_TUNNEL_TABLE is translated to create Nexthop tunnel
 	
@@ -241,7 +244,7 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
  Add VrfOrch as a member of VxlanOrch. For L3 tunnels, VxlanOrch creates ingress and egress VRFs and maintains the mapping
  
  ### IntfsOrch
- Add IntfsOrch as a member of VxlanOrch. For L3 tunnels, VxlanOrch creates ingress and egress RIFs based on VNET interface table and maintains the mapping. IntfsOrch must also create subnet routes and ip2me routes for the corresponding VRF. 
+ Add IntfsOrch as a member of VxlanOrch. For L3 tunnels, VxlanOrch creates ingress and egress RIFs based on VNet interface table and maintains the mapping. IntfsOrch must also create subnet routes and ip2me routes for the corresponding VRF. 
  
  ### FdbOrch
  Add VxlanOrch as a member of FDBOrch. For FDB entries learnt on remote VTEP, app-fdb-table shall be updated and programmed to SAI by getting the BridgeIf/RemoteVTEP mapping from VxlanOrch. 
@@ -249,7 +252,7 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
 ## 2.4 SAI
 Shown below table represents main SAI attributes which shall be used for Vxlan
 
-###### Table 3: VNET peering SAI attributes
+###### Table 3: VNet peering SAI attributes
 | Vxlan component          | SAI attribute                                         |
 |--------------------------|-------------------------------------------------------|
 | Vxlan Tunnel type        | SAI_TUNNEL_TYPE_VXLAN                                 |
@@ -262,7 +265,7 @@ Shown below table represents main SAI attributes which shall be used for Vxlan
 
 ## 2.5 CLI
 
-Commands summary:
+Commands summary (Phase #2):
 
 ```
 	- config vxlan <vxlan_name>
@@ -320,10 +323,13 @@ Commands:
 
 # 3 Flows
 
-## 3.1 Vxlan Vnet peering 
+## 3.1 Vxlan VNet peering 
 ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1.png)
 
 ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_2.png)
+
+## Layer 2 Vxlan 
+TBD 
 
 ## 3.2 Vxlan CLI flow
 TBD
