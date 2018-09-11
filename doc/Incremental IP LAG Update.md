@@ -11,11 +11,11 @@
 
 ##### Revision
 | Rev |  Date   |       Author       | Change Description |
-|:---:|:--------|:------------------:|--------------------|
+|:---:|:-------:|:------------------:|:------------------:|
 | 0.1 | 2018-09 |   Shuotian Cheng   | Initial Version    |
 
 # About
-This document provides the general information about basic SONiC incremental configuration support including IP addresses configuration changes, and port channel configuration changes.
+This document provides the general information about basic SONiC incremental configuration support including IP addresses configuration changes, MTU configuration changes, and port channel configuration changes.
 
 # 1. Requirements Overview
 ## 1.1 Functional Requirements
@@ -23,9 +23,8 @@ This document provides the general information about basic SONiC incremental con
 - Should be able to boot directly into working state given a working minigraph:
   1. All IPs are assigned correctly to each router interfaces
   2. All port channel interfaces are created with correct members enslaved
-  3. All VLAN interfaces are created with correct members enslaved
-  4. All configured ports are set to admin status UP
-  5. All configured ports are set to desired MTU
+  3. All configured ports are set to admin status UP
+  4. All configured ports are set to desired MTU
 #### Phase #1
 - Should not have static front panel interface configurations in `/etc/network/interfaces` file
 - Should not have static teamd configurations in `/etc/teamd/` folder.
@@ -55,14 +54,15 @@ This document provides the general information about basic SONiC incremental con
 
 #### Future Work
 TBD
+
 ## 1.2 Orchagent Requirements
 The gap that orchagent daemon needs to fill is mostly related to MTU:
 - Should be able to change router interface MTU
 - Should be able to change LAG MTU
 
 ## 1.3 \*-syncd Requirements
-- `portsyncd`: Should not be responsible for setting admin status and MTU
-
+- `portsyncd`: Should not be responsible for setting admin status and MTU. Should write 'state' -> 'ok' when associated netdev is created.
+- `teamsyncd`: Should write 'state' -> 'ok' when associated netdev is created.
 ## 1.4 \*-mgrd Requirements
 - `portmgrd`: Should be responsible port for admin status and MTU configuration changes. Related tables: `PORT`
 - `intfsmgrd`: Should be responsible for port/port channel/VLAN IP configuraton changes. Related tables: `PORT_INTERFACE`, `PORTCHANNEL_INTERFACE`, `VLAN_INTERFACE`.
@@ -82,7 +82,7 @@ config port_channel member remove <port_channel_name> <port_name>
 
 # 2. Database Design
 ## 2.1 CONF_DB
-> Each configuration table must have one and only one manager daemon associated with it.
+> Theorem: Each configuration table can have one and only one manager daemon associated with it.
 #### 2.1.1 PORT Table
 ```
 PORT|{{port_name}}
@@ -129,6 +129,7 @@ PORTCHANNEL_MEMBER|{{port_channel_name}}|{{port_name}}
 ## 3.1 `orchagent`
 - When LAG MTU is updated, all LAG members' MTUs are updated.
 - When port/LAG MTU is updated, the associated router interface MTU is updated.
+- If a port is part of a port channel, MTU will not be applied.
 ## 3.2 `portmgrd`
 - Monitor `PORT` configuration table
 - Should be responsible for admin status changes and MTU changes
@@ -140,16 +141,17 @@ PORTCHANNEL_MEMBER|{{port_channel_name}}|{{port_name}}
 - Monitor `PORTCHANNEL` and `PORTCHANNEL_MEMBER` configuration tables
 - Should be responsible for port channel changes and member changes
 - Should listen to state database changes to detect port channel members creation and removal
+- Should revert port configurations (admin status and MTU) after the port is removed from port channel
 
 # 4. Flow
 ## 4.1 Admin Status/MTU Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/admin_status.png)
+![Image](https://github.com/stcheng/SONiC/blob/master/images/admin_status_mtu_configuration_flow.png)
 ## 4.2 Port Channel and Member Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/port_channel.png)
+![Image](https://github.com/stcheng/SONiC/blob/master/images/port_channel_member_configuration_flow.png)
 ## 4.3 IP Configuration Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/ip.png)
+![Image](https://github.com/stcheng/SONiC/blob/master/images/ip_configuration_flow.png)
 ## 4.4 Device Start Flow
-![Image](https://github.com/stcheng/SONiC/blob/gh-pages/doc/device_start.png)
+![Image](https://github.com/stcheng/SONiC/blob/master/images/device_start_flow.png)
 ## 4.5 Docker swss Restart
 TBD
 ## 4.6 Docker teamd Restart
