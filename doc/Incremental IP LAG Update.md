@@ -71,7 +71,7 @@ config interface <interface_name> add ip <ip_address>
 config interface <interface_name> remove ip <ip_address>
 config interface <interface_name> mtu <mtu_value>
 
-config port_channel add <port_channel_name>
+config port_channel add <port_channel_name> --min_links <min_links> --fall_back <true|false>
 config port_channel remove <port_channel_name>
 config port_channel member add <port_channel_name> <port_name>
 config port_channel member remove <port_channel_name> <port_name>
