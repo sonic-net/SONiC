@@ -132,11 +132,11 @@ PORTCHANNEL_MEMBER|{{port_channel_name}}|{{port_name}}
 ## 3.2 `portmgrd`
 - Monitor `PORT` configuration table
 - Should be responsible for admin status changes and MTU changes
-## 3.3 intfmgrd
+## 3.3 `intfmgrd`
 - Monitor `PORT_INTERFACE`,  `PORTCHANNEL_INTERFACE`, `VLAN_INTERFACE` configuration tables
 - Should be responsible for IP changes
 - Should listen to state database changes to detect port channels creation and removal
-## 3.4 teammgrd
+## 3.4 `teammgrd`
 - Monitor `PORTCHANNEL` and `PORTCHANNEL_MEMBER` configuration tables
 - Should be responsible for port channel changes and member changes
 - Should listen to state database changes to detect port channel members creation and removal
