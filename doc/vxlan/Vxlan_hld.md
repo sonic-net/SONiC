@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 0.1
+### Rev 1.0
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -37,11 +37,12 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 |             |     Prince Sunny   | Initial version                   |
+| 1.0 |             |     Prince Sunny   | Review comments/feedback          |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
 # Scope
-This document describes the high level design of the Vxlan feature. 
+This document describes the high level design of the Vxlan feature. Kernel VRF (L3mdev) programming for VNET peering is beyond the scope of this document. 
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -65,7 +66,7 @@ Phase #1
 - Distributed Vxlan routing with Symmetric IRB model (RIOT)
 
 Phase #2
-- Integration with BGP EVPN and create VRF devices in linux kernel
+- Integration with BGP EVPN 
 - Should support untagged or tagged traffic (Overlay layer 2 networks over layer 3 underlay)
 - Should be able to do HER for unicast traffic based on configured flood list
 - CLI commands to configure Vxlan
@@ -73,11 +74,16 @@ Phase #2
 
 ## 1.2 Orchagent requirements
 ### Vxlan orchagent:
- - Should be able to create VRF/VLAN to VNI mapping and also track peering configurations. 
- - Should be able to create VRFs per VNET tables. 
+ - Should be able to create VRF/VLAN to VNI mapping.
+ - Should be able to create NH Tunnel and Tunnel termination tables.  
  - Should be able to create tunnels and encap/decap mappers. 
 
-### Route orchagent:
+### Vnet orchagent:
+ - Should be able to create VRFs per VNET tables. 
+ - Should be able to track peering configurations.
+ - Should be VNet/VRF aware
+ 
+### Vnet Route orchagent:
  - Should be able to handle routes within a VNet 
  - Should be able to create NH tunnels for the endpoints
  - Should be VNet/VRF aware
@@ -87,7 +93,8 @@ Phase #2
  - Should support static configuration of FDB entries learnt on remote VTEP
  
 ### INTFs orchagent:
- - Should be VNet/VRF aware
+ - Should be VRF aware
+ - Should be able to create router interfaces in a specific VRF
  
 ## 1.3 CLI requirements
 - User should be able to get FDB learnt per VNI
@@ -95,11 +102,10 @@ Phase #2
 
 In summary:
 ```
-	- config vxlan <vxlan_name>
 	- config vxlan <vxlan_name> vlan <vlan_id> vni <vni_id>
-	- config vxlan <vxlan_name> src_lb_if <loopback_if>
+	- config vxlan <vxlan_name> src_if <interface>
 	- config vxlan <vxlan_name> vlan <vlan_id> flood vtep <ip1, ip2, ip3>
-	- show mac <vxlan_name>
+	- show mac vxlan <vxlan_name> <vni_id>
 	- show vxlan <vxlan_name>
 ```
 Configuring VNet peering via CLI is beyond the scope
@@ -119,36 +125,38 @@ Configuring VNet peering via CLI is beyond the scope
 
 ## 2.1 Config DB
 Following new tables will be added to Config DB
+
 ### 2.1.1 VXLAN Table
-
-
 ```
-VXLAN_TUNNEL:{{tunnel_name}} 
-    "src_ip": {{ip_address}} 
-    "dst_ip": {{ip_address}}
+VXLAN_TUNNEL|{{tunnel_name}} 
+    "src_ip": {{ip_address}} 
+    "dst_ip": {{ip_address}}
 
 VXLAN_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
-    "vni_id": {{ vni_id}}
-    "vlan_id": {{ vlan_id }}
+    "vni": {{ vni_id}}
+    "vlan": {{ vlan_id }}
 ```
 ### 2.1.2 VNET Table
 ```
-VNET:{{vnet_name}} 
-    "vxlan_tunnel": {{tunnel_name}}
-    "vxlanid": {{vni}} 
-    "peer_list": {{vnet_name_list}} 
+VNET|{{vnet_name}} 
+    "vxlan_tunnel": {{tunnel_name}}
+    "vni": {{vni}} 
+    "peer_list": {{vnet_name_list}} 
 
-VNET_INTF|{{intf_name}}|{{prefix}}  
-    "vnet_name": {{vnet_name}} 
+INTERFACE|{{intf_name}} 
+    "vnet_name": {{vnet_name}} 
+    
+INTERFACE|{{intf_name}}|{{prefix}}  
+    { }
 ```
 
-### 2.1.2 Schemas
+### 2.1.2 ConfigDB Schemas
 ```
 ; Defines schema for VXLAN Tunnel configuration attributes
 key                                   = VXLAN_TUNNEL:name             ; Vxlan tunnel configuration
 ; field                               = value
-SRC_IP                                = ipv4                          ; Ipv4 source address, lpbk address
-DST_IP                                = ipv4                          ; Ipv4 source address, lpbk address
+SRC_IP                                = ipv4                          ; Ipv4 source address, lpbk address for tunnel term
+DST_IP                                = ipv4                          ; Ipv4 destination address, for P2P
 
 ;value annotations
 ipv4          = dec-octet "." dec-octet "." dec-octet "." dec-octet     
@@ -163,8 +171,8 @@ dec-octet     = DIGIT                     ; 0-9
 ; Defines schema for VXLAN Tunnel map configuration attributes
 key                                   = VXLAN_TUNNEL:tunnel_name:name ; Vxlan tunnel configuration
 ; field                               = value
-VNI_ID                                = DIGITS                        ; 1 to 16 million values
-VLAN_ID                               = 1\*4DIGIT                     ; 1 to 4094 Vlan id
+VNI                                   = DIGITS                        ; 1 to 16 million values
+VLAN                                  = 1\*4DIGIT                     ; 1 to 4094 Vlan id
 ```
 
 ```
@@ -172,16 +180,22 @@ VLAN_ID                               = 1\*4DIGIT                     ; 1 to 409
 key                                   = VNET:name                     ; Vnet name
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
-VNI_ID                                = DIGITS                        ; 1 to 16 million VNI values
+VNI                                   = DIGITS                        ; 1 to 16 million VNI values
 PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
                                                                              (empty indicates no peering)
 ```
 
 ```
 ; Defines schema for VNet Interface configuration attributes
-key                                   = VNET_INTF:name:prefix         ; Vnet interface name with IP prefix
+key                                   = INTERFACE:name                ; Vnet interface name. This can be port, vlan 
+                                                                        or port-channel interface
 ; field                               = value
 VNET_NAME                             = vnet_name                     ; vnet name where the interface belongs to
+
+; Defines schema for VNet Interface configuration attributes
+key                                   = INTERFACE:name:prefix         ; Vnet interface name with IP prefix. No change to 
+                                                                        existing schema. 
+; field                               = value
 ```
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
@@ -190,14 +204,14 @@ Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc
 Two new tables would be introduced to specify routes and tunnel end points in VNet domain. 
 
 ```
-VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}} 
-    "nexthop": {{ip_address}} 
-    "intf_name": {{intf_name}} 
- 
-VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
-    "endpoint": {{ip_address}} 
-    "mac_address":{{mac_address}} (OPTIONAL) 
-    "vxlanid": {{vni}}(OPTIONAL) 
+VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}} 
+    "nexthop": {{ip_address}} 
+    "intf_name": {{intf_name}} 
+ 
+VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
+    "endpoint": {{ip_address}} 
+    "mac_address":{{mac_address}} (OPTIONAL) 
+    "vxlanid": {{vni}}(OPTIONAL) 
 ```
 
 ```
@@ -205,7 +219,18 @@ VXLAN_FDB_TABLE::{{tunnel_name}}:{{vni_id}}:{{mac_address}}
     "remote_vtep": {{ip_address}} 
 ```
 
-### 2.2.1 Schemas
+VRFMgrD creates the VNI-VRF tunnel mapper and the VNET table
+
+```
+VXLAN_TUNNEL_MAP:{{tunnel_name}}:{{tunnel_map}}
+    "vni": {{ vni_id}}
+    "vrf": {{ vrf_name }}
+    
+VNET_TABLE:{{vnet_name}}
+    "peer_list": {{ vnet_name_list }}
+```
+
+### 2.2.1 APP DB Schemas
 
 ```
 ; Defines schema for VNet Route table attributes
@@ -230,26 +255,58 @@ key                                   = VXLAN_FDB_TABLE:tunnel_name:vni_id:mac_a
 REMOTE_VTEP                           = ipv4                          ; Remote VTEP where the host resides
 ```
 
+```
+; Defines schema for VXLAN VRF Tunnel map attributes
+key                                   = VXLAN_TUNNEL:tunnel_name:name ; Vxlan tunnel map
+; field                               = value
+VNI                                   = DIGITS                        ; 1 to 16 million values
+VRF                                   = vrf_name                      ; VRF name 
+```
+
+```
+; Defines schema for VRF Table attributes
+key                                   = VRF_TABLE:name                ; VRF table name
+; field                               = value
+VNET_NAME                             = vnet_name                     ; Vnet to which the VRF belongs, from VNET Config
+PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
+                                                                             (empty indicates no peering)
+```
+
 ## 2.3 Orchestration Agent
 Following orchagents shall be modified with high level decomposition. Flow diagrams are captured in a later section. 
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch.png)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_1.PNG)
+
  ### VxlanOrch
- This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VNet/VNI to respective tunnel. VxlanOrch creates Ingress/Egress VRFs for each VNet table. VxlanOrch also creates the RIF based on VNet Interface configuration. 
+ This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
  	
  ### RouterOrch
- Add VxlanOrch as a member of RouterOrch. When app-route-table has new updates for the VNet, RouterOrch gets the VRF ID from VxlanOrch and programs SAI.
- 	- ROUTE_TABLE is translated to create route entries
+ Add VrfOrch as a member of RouterOrch. When app-route-table has new updates for the VNet, RouterOrch gets the VRF ID from VRFOrch and programs SAI.  
+ 	- ROUTE_TABLE is translated to create route entries  
 	- ROUTE_TUNNEL_TABLE is translated to create Nexthop tunnel
-	
+
+ ### VrfMgrD
+ VrfMgrD gets the VNET Table config and creates the L3mdev interface in kernel. VrfMgrD updates the APP_DB with VXLAN_TUNNEL_MAP and the VRF_TABLE for later to be used by VxlanOrch and VrfOrch respectively. VrfMgrD also updates the STATE_DB for the status of VRF created. 
+ 
  ### VrfOrch
- Add VrfOrch as a member of VxlanOrch. For L3 tunnels, VxlanOrch creates ingress and egress VRFs and maintains the mapping
+ VrfOrch creates VRF in SAI from APP_DB updates from VrfMgrD for the regular VRF configurations. RouterOrch fetch this information for programming routes based on VRF.
+
+ ### VnetOrch/VnetRouteOrch
+ VnetOrch creates ingress/Egress (based on context) VRF in SAI for a VNET and also maintains the peering list. VnetRouterOrch fetch this information for replicating the routes and VxlanOrch uses this for creating encap/decap mappers. 
+ 
+ ### IntfMgrD
+ IntfMgrD creates the kernel routing interface and enslave it to the VRF L3mdev. IntfMgrD waits for VRF creation update in STATE_DB and updates the APP_DB INTF_TABLE with the Vrf name. It is recommended to combine IntfSyncd with IntfMgrd.
  
  ### IntfsOrch
- Add IntfsOrch as a member of VxlanOrch. For L3 tunnels, VxlanOrch creates ingress and egress RIFs based on VNet interface table and maintains the mapping. IntfsOrch must also create subnet routes and ip2me routes for the corresponding VRF. 
+ Add VrfOrch as a member of IntfsOrch. IntfsOrch creates Router Interfaces based on interface table (INTF_TABLE) and the VRF information. IntfsOrch no longer creates the subnet routes but only the ip2me routes in the corresponding VRF. 
  
  ### FdbOrch
- Add VxlanOrch as a member of FDBOrch. For FDB entries learnt on remote VTEP, app-fdb-table shall be updated and programmed to SAI by getting the BridgeIf/RemoteVTEP mapping from VxlanOrch. 
+ Add VxlanOrch as a member of FDBOrch. For FDB entries learnt on remote VTEP, app-fdb-table shall be updated and programmed to SAI by getting the BridgeIf/RemoteVTEP mapping from VxlanOrch. (TBD)
+ 
+ The overall flow diagram is captured below for all TABLE updates. 
+ 
+ ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_3_2.png)
+ 
  
 ## 2.4 SAI
 Shown below table represents main SAI attributes which shall be used for Vxlan
@@ -270,11 +327,10 @@ Shown below table represents main SAI attributes which shall be used for Vxlan
 Commands summary (Phase #2):
 
 ```
-	- config vxlan <vxlan_name>
 	- config vxlan <vxlan_name> vlan <vlan_id> vni <vni_id>
-	- config vxlan <vxlan_name> src_lb_if <loopback_if>
+	- config vxlan <vxlan_name> src_if <interface>
 	- config vxlan <vxlan_name> vlan <vlan_id> flood vtep <ip1, ip2, ip3>
-	- show mac <vxlan_name>
+	- show mac vxlan <vxlan_name> <vni_id>
 	- show vxlan <vxlan_name>
 ```
 
@@ -326,9 +382,9 @@ Commands:
 # 3 Flows
 
 ## 3.1 Vxlan VNet peering 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1.png)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1_2.png)
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_2.png)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_2_3.png)
 
 ## Layer 2 Vxlan 
 TBD 
