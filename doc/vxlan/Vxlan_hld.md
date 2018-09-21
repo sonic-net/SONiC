@@ -275,7 +275,7 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 ## 2.3 Orchestration Agent
 Following orchagents shall be modified with high level decomposition. Flow diagrams are captured in a later section. 
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_1.PNG)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_1.png)
 
  ### VxlanOrch
  This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
