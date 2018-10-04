@@ -31,7 +31,7 @@
   * [3 Flows](#3-flows)
 	* [3.1 Functional flow](#31-vxlan-vnet-peering)
 	* [3.2 CLI flow ](#32-vxlan-cli-flow)
-	
+  * [4 Example configuration](#4-example-configuration)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -392,3 +392,89 @@ TBD
 ## 3.2 Vxlan CLI flow
 TBD
   
+# 4 Example configuration
+### Vnet Configurations
+
+	Vnet 1 
+		□ VNI - 2000
+		□ VMs
+			VM1. CA: 100.100.1.1/32, PA: 10.10.10.1, MAC: 00:00:00:00:01:02
+		□ BM1 
+			Connected on Ethernet1 
+			Ip: 100.100.3.1/24
+			MAC: 00:00:AA:AA:AA:01
+
+	Vnet 2 
+		□ VNI - 3000
+		□ VMs
+			VM2. CA: 100.100.2.1/32, PA: 10.10.10.2, MAC: 00:00:00:00:03:04
+		□ BM2 
+			Connected on Ethernet2
+			Ip: 100.100.4.1/24
+			MAC: 00:00:AA:AA:AA:02
+
+### ConfigDB objects: 
+```
+{ 
+    "VXLAN_TUNNEL|tunnel1": { 
+        "src_ip": "10.10.10.10", 
+    }, 
+
+    "VNET|Vnet_2000": { 
+        "vxlan_tunnel": "tunnel1", 
+        "vni": "2000", 
+        "peer_list": "Vnet_3000", 
+    }, 
+
+    "INTERFACE|Ethernet1": { 
+        "vnet_name": "Vnet_2000", 
+    }, 
+     
+    "INTERFACE|Ethernet1|100.100.3.1/24": { 
+    }, 
+
+    "VNET|Vnet_3000": { 
+        "vxlan_tunnel": "tunnel1", 
+        "vni": "3000", 
+        "peer_list": "Vnet_2000", 
+    },  
+
+    "INTERFACE|Ethernet2": { 
+	"vnet_name": "Vnet_3000",
+    }, 
+
+    "INTERFACE|Ethernet2|100.100.4.1/24": { 
+    }, 
+} 
+```
+### APPDB Objects: 
+```
+{ 
+    "NEIGH_TABLE:Ethernet1:100.100.3.1": { 
+        "neigh": "00:00:AA:AA:AA:01", 
+        "family": "IPv4" 
+    }, 
+
+    "VNET_ROUTE_TABLE:Vnet_2000:100.100.3.0/24": { 
+        "intf_name": "Ethernet1", 
+    }, 
+
+    "NEIGH_TABLE:Ethernet2:100.100.4.1": { 
+        "neigh": "00:00:AA:AA:AA:02", 
+        "family": "IPv4" 
+    }, 
+
+    "VNET_ROUTE_TABLE:Vnet_3000:100.100.4.0/24": { 
+        "intf_name": "Ethernet2", 
+    }, 
+
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_2000:100.100.1.1/32": { 
+        "endpoint": "10.10.10.1", 
+    }, 
+
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3000:100.100.2.1/32": { 
+        "endpoint": "10.10.10.2", 
+        "mac_address": "00:00:00:00:03:04"
+    }, 
+}
+```
