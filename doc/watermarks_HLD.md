@@ -226,16 +226,17 @@ Ethernet128                    0     0     0     0     0     0     0     0
 In addition clear functionality will be added:
 
 ```
-$ clear priority-group [watermark|persistent-watermark] headroom
+# clear priority-group [watermark|persistent-watermark] headroom
 
-$ clear priority-group [watermark|persistent-watermark] shared
+# clear priority-group [watermark|persistent-watermark] shared
 
-$ clear queue [watermark|persistent-watermark] unicast
+# clear queue [watermark|persistent-watermark] unicast
 
-$ clear queue [watermark|persistent-watermark] mutlicast
+# clear queue [watermark|persistent-watermark] mutlicast
 ```
 
-The user can clear the persistent watermark, and the "user" watermark. The user can not clear the periodic(telemetry) watermark.
+The user can clear the persistent watermark, and the "user" watermark. The user can not clear the periodic(telemetry) watermark. The clear command requires sudo, as the watermark is shared for 
+all users, and clear will affect every user(if a number of people are connected through ssh).
 
 #### 3.1.2.3 Show/configure telemetry interval
 
@@ -244,7 +245,7 @@ The telemetry interval will be available for viewing and configuring with the fo
 ```
 $ show watermark telemetry interval
 
-$ config watermark telemetry interval <value>
+# config watermark telemetry interval <value>
 ```
 
 Note: after the new interval is configured, it will be changed only when the current telemetry interval ends.
