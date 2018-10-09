@@ -18,7 +18,7 @@
 - save the appdb and asic db into the files.
   - save applDB db in ```/host/warm-reboot/appl_db.json``` 
   - save configDB db in ```/host/warm-reboot/config_db.json``` 
-  - save stateDB db (only FDB) in ```/host/warm-reboot/state_db.json``` 
+  - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warm-reboot/state_db.json``` 
   - save asic db in ```/host/warm-reboot/asic_db.json```
 - stop database
 - use kexec to reboot, plus one extra kernel argument ```warm-reboot```
