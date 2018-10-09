@@ -10,26 +10,31 @@
   - same as fast-reboot
 - stop swss docker
   - disable mac learning and aging
+  - freeze orchagent
 - stop syncd docker
   - warm shutdown
-  - save the SAI states in ```/host/warmboot/sai```.
+  - save the SAI states in ```/host/warm-reboot/sai```.
+- kill swss and syncd dockers
 - save the appdb and asic db into the files.
-  - save appdb db in ```/host/warmboot/appdb.json``` 
-  - save asic db in ```/host/warmboot/asicdb.json```
+  - save applDB db in ```/host/warm-reboot/appl_db.json``` 
+  - save configDB db in ```/host/warm-reboot/config_db.json``` 
+  - save stateDB db (only FDB) in ```/host/warm-reboot/state_db.json``` 
+  - save asic db in ```/host/warm-reboot/asic_db.json```
 - stop database
-- use kexec to reboot
+- use kexec to reboot, plus one extra kernel argument ```warm-reboot```
 
 Plan to re-use fast-reboot script. Improve the fast-reboot to handle warm-reboot scenario, have a symbol link to warm-reboot. 
 The script detects the name, and call corresponding reboot. 
 
 # going up path
 
+- Use kernel argument ```warm-reboot``` to determine in warm starting mode
 - start database
-  - recover app db and asic from ```/host/warmboot/appdb.json``` and ```/host/warmboot/asicdb.json```
+  - recover redis from ```/host/warm-reboot/*.json```
   - implemented in database system service
 - start syncd docker
   - implemented inside syncd docker
-  - recover SAI state from ```/host/warmboot/sai``` 
+  - recover SAI state from ```/host/warm-reboot/sai``` 
   - the host interface will be also recovered.
 - start swss docker
   - orchagent will wait till syncd has been started to do init view.
