@@ -11,6 +11,7 @@
 - stop swss docker
   - disable mac learning and aging
   - freeze orchagent
+  - set redis flag WARM_RESTART_TABLE:system
 - stop syncd docker
   - warm shutdown
   - save the SAI states in ```/host/warm-reboot/sai```.
@@ -19,7 +20,7 @@
   - save applDB db in ```/host/warm-reboot/appl_db.json``` 
   - save configDB db in ```/host/warm-reboot/config_db.json``` 
   - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warm-reboot/state_db.json``` 
-  - save asic db in ```/host/warm-reboot/asic_db.json```
+  - save asicDB in ```/host/warm-reboot/asic_db.json```
 - stop database
 - use kexec to reboot, plus one extra kernel argument ```warm-reboot```
 
