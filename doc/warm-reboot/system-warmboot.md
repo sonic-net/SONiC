@@ -14,15 +14,15 @@
   - set redis flag WARM_RESTART_TABLE:system
 - stop syncd docker
   - warm shutdown
-  - save the SAI states in ```/host/warm-reboot/sai```.
+  - save the SAI states in ```/host/warmboot/sai-warmboot.bin```.
 - kill swss and syncd dockers
 - save the appdb and asic db into the files.
-  - save applDB db in ```/host/warm-reboot/appl_db.json``` 
-  - save configDB db in ```/host/warm-reboot/config_db.json``` 
-  - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warm-reboot/state_db.json``` 
-  - save asicDB in ```/host/warm-reboot/asic_db.json```
+  - save applDB db in ```/host/warmboot/appl_db.json``` 
+  - save configDB db in ```/host/warmboot/config_db.json``` 
+  - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` 
+  - save asicDB in ```/host/warmboot/asic_db.json```
 - stop database
-- use kexec to reboot, plus one extra kernel argument ```warm-reboot```
+- use kexec to reboot, plus one extra kernel argument ```warmboot```
 
 Plan to re-use fast-reboot script. Improve the fast-reboot to handle warm-reboot scenario, have a symbol link to warm-reboot. 
 The script detects the name, and call corresponding reboot.
@@ -35,13 +35,13 @@ The script detects the name, and call corresponding reboot.
 
 # going up path
 
-- Use kernel argument ```warm-reboot``` to determine in warm starting mode
+- Use kernel argument ```warmboot``` to determine in warm starting mode
 - start database
-  - recover redis from ```/host/warm-reboot/*.json```
+  - recover redis from ```/host/warmboot/*.json```
   - implemented in database system service
 - start syncd docker
   - implemented inside syncd docker
-  - recover SAI state from ```/host/warm-reboot/sai``` 
+  - recover SAI state from ```/host/warmboot/sai-warmboot.bin``` 
   - the host interface will be also recovered.
 - start swss docker
   - orchagent will wait till syncd has been started to do init view.
