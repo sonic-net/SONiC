@@ -25,7 +25,13 @@
 - use kexec to reboot, plus one extra kernel argument ```warm-reboot```
 
 Plan to re-use fast-reboot script. Improve the fast-reboot to handle warm-reboot scenario, have a symbol link to warm-reboot. 
-The script detects the name, and call corresponding reboot. 
+The script detects the name, and call corresponding reboot.
+
+## SAI expectations for warm shutdown
+- Application (e.g. SONiC) sets switch attribute SAI_SWITCH_ATTR_RESTART_WARM to true before calling remove_switch().
+  - Note that this attribute doesn't have to be set at switch_create() time. This is a dynamic decision, setting before calling remove_switch is sufficient.
+- Application sets profile attribute SAI_KEY_WARM_BOOT_WRITE_FILE to a valid path/filename where the SAI data will be saved during upcoming warm shutdown.
+  - Depending on the SAI implementation, this value might have been read by SAI at switch_create() time only. It is recommended to set this value before calling crete_switch().
 
 # going up path
 
@@ -44,3 +50,10 @@ The script detects the name, and call corresponding reboot.
   - at the same time as swss docker. swss will not read teamd app db until it finishes the comparison logic.
 - start bgp docker
   - at the same time as swss docker. swss will not read bgp route table until it finishes the comparison logic.
+
+## SAI expectations for warm recovery
+- Application sets profile value SAI_KEY_BOOT_TYPE to 1 to indicate WARM BOOT. (0: cold boot, 2: fast boot)
+- Application sets profile value SAI_KEY_WARM_BOOT_READ_FILE to the SAI data file from previous warm shutdown.
+- Note: Switch attribute SAI_SWITCH_ATTR_WARM_RECOVER is not required by SAI.
+- Application calls create_switch with 1 attribute: SAI_SWITCH_ATTR_INIT_SWITCH set to true. SAI shall recover other attributes programmed before.
+- Application re-register all callbacks/notificaions. These function points are not retained by SAI across warm boot.
