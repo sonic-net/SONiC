@@ -23,10 +23,18 @@
   - save the SAI states in ```/host/warmboot/sai-warmboot.bin```
   - kill syncd docker
 - stop database
-- use kexec to reboot, plus one extra kernel argument ```warmboot```
+- use kexec to reboot, plus one extra kernel argument
 
 Plan to re-use fast-reboot script. Improve the fast-reboot to handle warm-reboot scenario, have a symbol link to warm-reboot. 
 The script detects the name, and call corresponding reboot.
+
+## Details of kernel arguments
+In fast-reboot or warm-reboot, we will use kernel argument to indicate the whole system reboot type for the next boot up. The argument format is ```SONIC_BOOT_TYPE=[fast-reboot|warm|cold]```. Benefits:
+1. not possible to set both fast and warm
+2. less conflict with vanilla linux kernel arguments
+3. all existing checker for ```*fast-reboot*``` still work
+
+Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this way the production image upgrading process will be smooth (no disruptive change)
 
 ## SAI expectations for warm shutdown
 - Application (e.g. SONiC) sets switch attribute SAI_SWITCH_ATTR_RESTART_WARM to true before calling remove_switch().
