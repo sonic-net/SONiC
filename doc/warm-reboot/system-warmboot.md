@@ -43,7 +43,7 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
 
 # going up path
 
-- Use kernel argument ```warmboot``` to determine in warm starting mode
+- Use kernel argument ```SONIC_BOOT_TYPE=warm``` to determine in warm starting mode
 - start database
   - recover redis from ```/host/warmboot/*.json```
   - implemented in database system service
