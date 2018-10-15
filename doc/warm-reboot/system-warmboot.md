@@ -6,8 +6,7 @@
   - enable bgp graceful restart
   - same as fast-reboot
 - stop teamd docker
-  - just kill
-  - same as fast-reboot
+  - stop teamd gracefully to allow teamd to send last valid update to be sure we'll have 90 seconds reboot time available.
 - stop swss docker
   - disable mac learning and aging
   - freeze orchagent
