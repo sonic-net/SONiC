@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 1.0
+### Rev 1.1
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -18,6 +18,7 @@
     * [1.2 Orchagent requirement](#12-orchagent-requirements)
     * [1.3 CLI requirements](#13-cli-requirements)
     * [1.4 Scalability requirements](#14-scalability-requirements)
+    * [1.5 Warm Restart requirements ](#15-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
     * [2.2 App DB](#22-app-db)
@@ -27,7 +28,6 @@
 	  * [2.5.1 Vxlan utility interface](#251-vxlan-utility-interface)
 	  * [2.5.2 Config CLI command](#252-config-cli-command)
 	  * [2.5.3 Show CLI command](#253-show-cli-command)
-
   * [3 Flows](#3-flows)
 	* [3.1 Functional flow](#31-vxlan-vnet-peering)
 	* [3.2 CLI flow ](#32-vxlan-cli-flow)
@@ -38,6 +38,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 |             |     Prince Sunny   | Initial version                   |
 | 1.0 |             |     Prince Sunny   | Review comments/feedback          |
+| 1.1 |             |     Prince Sunny   | Review comments                   |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
@@ -112,7 +113,7 @@ Configuring VNet peering via CLI is beyond the scope
 
 ## 1.4 Scalability requirements
 
-### 2.1.1 VNet Peering
+### 1.4.1 VNet Peering
 ###### Table 2: VNet peering scalability
 | Vxlan component          | Expected value              |
 |--------------------------|-----------------------------|
@@ -120,6 +121,10 @@ Configuring VNet peering via CLI is beyond the scope
 | Tunnel encaps            | 128k                        |
 | VMs                      | 512k                        |
 | VRFs                     | 128                         |
+| Routes                   | 512k                        |
+
+## 1.5 Warm Restart requirements
+Phase #1 shall not include warm restart capabilities. SAI VR objects are not compliant with warm restart currently. This shall be revisited in Phase #2. 
 
 # 2 Modules Design
 
@@ -206,7 +211,7 @@ Two new tables would be introduced to specify routes and tunnel end points in VN
 ```
 VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}} 
     "nexthop": {{ip_address}} 
-    "intf_name": {{intf_name}} 
+    "ifname": {{intf_name}} 
  
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
     "endpoint": {{ip_address}} 
@@ -237,7 +242,7 @@ VNET_TABLE:{{vnet_name}}
 key                                   = VNET_ROUTE_TABLE:vnet_name:prefix ; Vnet route table with prefix
 ; field                               = value
 NEXTHOP                               = ipv4                          ; Nexthop IP address
-INTF_NAME                             = ifname                        ; Interface name
+IFNAME                                = ifname                        ; Interface name
 ```
 
 ```
@@ -275,16 +280,11 @@ PEER_LIST                             = \*vnet_name                   ; vnet nam
 ## 2.3 Orchestration Agent
 Following orchagents shall be modified with high level decomposition. Flow diagrams are captured in a later section. 
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_1.png)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_7.png)
 
  ### VxlanOrch
  This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
  	
- ### RouterOrch
- Add VrfOrch as a member of RouterOrch. When app-route-table has new updates for the VNet, RouterOrch gets the VRF ID from VRFOrch and programs SAI.  
- 	- ROUTE_TABLE is translated to create route entries  
-	- ROUTE_TUNNEL_TABLE is translated to create Nexthop tunnel
-
  ### VrfMgrD
  VrfMgrD gets the VNET Table config and creates the L3mdev interface in kernel. VrfMgrD updates the APP_DB with VXLAN_TUNNEL_MAP and the VRF_TABLE for later to be used by VxlanOrch and VrfOrch respectively. VrfMgrD also updates the STATE_DB for the status of VRF created. 
  
@@ -292,8 +292,10 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
  VrfOrch creates VRF in SAI from APP_DB updates from VrfMgrD for the regular VRF configurations. RouterOrch fetch this information for programming routes based on VRF.
 
  ### VnetOrch/VnetRouteOrch
- VnetOrch creates ingress/Egress (based on context) VRF in SAI for a VNET and also maintains the peering list. VnetRouterOrch fetch this information for replicating the routes and VxlanOrch uses this for creating encap/decap mappers. 
- 
+ VnetOrch creates ingress/Egress (based on context) VRF in SAI for a VNET and also maintains the peering list. VnetRouterOrch fetch this information for replicating the routes and VxlanOrch uses this for creating encap/decap mappers. When app-route-table has new updates for the VNet, VnetRouteOrch gets the VRF ID from VnetOrch and programs SAI.  
+ 	- VNET_ROUTE_TABLE is translated to create route entries  
+	- VNET_ROUTE_TUNNEL_TABLE is translated to create Nexthop tunnel
+
  ### IntfMgrD
  IntfMgrD creates the kernel routing interface and enslave it to the VRF L3mdev. IntfMgrD waits for VRF creation update in STATE_DB and updates the APP_DB INTF_TABLE with the Vrf name. It is recommended to combine IntfSyncd with IntfMgrd.
  
@@ -305,7 +307,7 @@ Following orchagents shall be modified with high level decomposition. Flow diagr
  
  The overall flow diagram is captured below for all TABLE updates. 
  
- ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_3_2.png)
+ ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_3_3.png)
  
  
 ## 2.4 SAI
@@ -382,7 +384,7 @@ Commands:
 # 3 Flows
 
 ## 3.1 Vxlan VNet peering 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1_2.png)
+![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1_3.png)
 
 ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_2_3.png)
 
@@ -456,7 +458,7 @@ TBD
     }, 
 
     "VNET_ROUTE_TABLE:Vnet_2000:100.100.3.0/24": { 
-        "intf_name": "Ethernet1", 
+        "ifname": "Ethernet1", 
     }, 
 
     "NEIGH_TABLE:Ethernet2:100.100.4.1": { 
@@ -465,7 +467,7 @@ TBD
     }, 
 
     "VNET_ROUTE_TABLE:Vnet_3000:100.100.4.0/24": { 
-        "intf_name": "Ethernet2", 
+        "ifname": "Ethernet2", 
     }, 
 
     "VNET_ROUTE_TUNNEL_TABLE:Vnet_2000:100.100.1.1/32": { 
