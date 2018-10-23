@@ -1,21 +1,26 @@
-# Data Consolidation in ProducerStateTable
+# View Switching in ProducerStateTable
 
 ### Problem Description
 To support warm reboot, 
-ProducerStateTable needs to support two additional APIs: `start_sync()` and `finish_sync()` operation. 
+ProducerStateTable needs to support a feature that producer can create a temporary view for a table, 
+into which write operation will not not be synced to consumers immediately.
+Instead, the producer can explicitly ask to apply the view, 
+upon which all the objects in new view will get synced to consumer.
 
-When `finish_sync()` is called, the database state should be synchornize the state only according to `set()` and `del()` operation called
-in between `start_sync()` and `finish_sync()`, and not related to the previous state before `start_sync()` is called.
+However, the actual operations get passed to consumer should be optimized as best effort, 
+so if an object is present in both old view and new view, 
+it should not be `del()` and `set()` again.
 
-- However, the actual operations get passed to consumer should be optimized as best effort, so if an object was already present before `start_sync()`, 
-we should not `del()` it and `set()` again.
 
-- During the time span in between `start_sync()` and `finish_sync()`, we allow the database to be in a transient state. 
+In order to archieve that, we are going to add two additional APIs: `create_temp_view()` and `apply_temp_view()`,
+as well as modifying existing `del()` and `set()` API.
 
 This design is based on the assumption that there is only one producer writing to a specific table. 
+If there are multiple producer writing to a same table, the changes that 'secondary' producer write to the table
+while 'main' producer was doing view switching might be lost.
 
 
-### Redis Objects
+### Redis Objects and Memory Objects
 To implement this feature we are going to reuse the exiting Redis objects:
 
 | Terminology   | Sample Redis Object  |
@@ -42,8 +47,8 @@ As we don't want `StateHash` to be modified by ConsumerStateTable when data cons
 Current behavior:
 ```
 SADD KeySet key
-for attribute, value do
-    HSET StateHash:key attibute value
+for field, value do
+    HSET StateHash:key field value
 end
 PUBLISH Channel
 ```
@@ -83,7 +88,7 @@ if DATA_CONSOLIDATION_IN_PROGRESS != '1'
 end
 ```
 
-#### `start_sync()`
+#### `create_temp_view()`
 ```
 SET DATA_CONSOLIDATION_IN_PROGRESS '1'
 # Drop all existing pending operations, to make sure StateHash marks target state
@@ -94,7 +99,7 @@ for key in KEYS StateHash:*
 end
 ```
 
-#### `finish_sync()`
+#### `apply_temp_view()`
 ```
 # For all old objects:
 for key in KEYS TableHash:*
@@ -140,5 +145,5 @@ PUBLISH Channel
 
 
 #### `pop()` in ConsumerStateTable
-As `finish_sync()` is translating data consolidation request into a minimal set of `set()` and `del()` operations that has the same contract with normal operations,
+As `apply_temp_view()` is translating data consolidation request into a minimal set of `set()` and `del()` operations that has the same contract with normal operations,
 no change is needed for `pop()` and any other functions in ConsumerStateTable.
