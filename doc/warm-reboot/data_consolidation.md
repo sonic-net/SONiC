@@ -11,7 +11,6 @@ However, the actual operations get passed to consumer should be optimized as bes
 so if an object is present in both old view and new view, 
 it should not be `del()` and `set()` again.
 
-
 In order to archieve that, we are going to add two additional APIs: `create_temp_view()` and `apply_temp_view()`,
 as well as modifying existing `del()` and `set()` API.
 
@@ -21,7 +20,7 @@ while 'main' producer was doing view switching might be lost.
 
 
 ### Redis Objects and Memory Objects
-To implement this feature we are going to reuse the exiting Redis objects:
+As a reference, here are the exiting Redis objects corresponding to a certain table:
 
 | Terminology   | Sample Redis Object  |
 | ------------- | :-----------------:  |
@@ -31,119 +30,145 @@ To implement this feature we are going to reuse the exiting Redis objects:
 | DelKeySet     | `ROUTE_TABLE_DEL_SET`      |
 | Channel       | `ROUTE_TABLE_CHANNEL`      |
 
-Additionally, we are going to create a global `STRING` object `DATA_CONSOLIDATION_IN_PROGRESS` as a flag indicating the consolidation progress.
-
-### Solution Outline
-The basic idea is to let ProducerStateTable keep track of target state during the sync process,
-and calculate the diff between old state and target state to generate a minimal set of `set()` and `del()` message to ConsumerStateTable when `finish_sync()` is called.
-
-`StateHash` will be used to maintain target state. 
-As we don't want `StateHash` to be modified by ConsumerStateTable when data consolidation is in progress, we make sure nothing will be added to `KeySet` or `DelKeySet` during the process.
+We are not going to create additional Redis object to support the temporary view. 
+Instead, an in-memory table `TableDump m_tempViewState` 
+that shares a similar structure with TableHash and StateHash will be created to maintain the target state of the temporary view.
+Additionally, a flag `bool m_tempViewActive` will indicates whether a temporary view is current being worked on or not.
 
 ### Operation Pseudo Code
 
-#### `set()`
+#### `create_temp_view()`
 
-Current behavior:
+Simply mark `m_tempViewActive` flag as active and initialize `m_tempViewState`.
 ```
-SADD KeySet key
-for field, value do
-    HSET StateHash:key field value
-end
-PUBLISH Channel
+m_tempViewActive = true;
+m_tempViewState.clear(); 
 ```
 
-Updated behavior:
+#### `set()` and `del()`
+
+When `m_tempViewActive == false`, current behavior of `set()` and `del()` won't be modified.
+
+When `m_tempViewActive == true`, `set()` and `del()` will only modify temporary view content in `m_tempViewState` instead of writing into DB.
+
+`set()`:
+
 ```
-if DATA_CONSOLIDATION_IN_PROGRESS != '1'
+if (m_tempViewActive)
+{
+    for (const auto& iv: values)
+    {
+        m_tempViewState['key'][fvField(iv)] = fvValue(iv);
+    }
+}
+else 
+{
+    # Current behavior
     SADD KeySet key
-end
-for field, value do
-    HSET StateHash:key field value
-end
-if DATA_CONSOLIDATION_IN_PROGRESS != '1'
+    for field, value do
+        HSET StateHash:key field value
+    end
     PUBLISH Channel
-end
+}
 ```
 
-#### `del()`
+`del()`:
 
-Current behavior:
 ```
-SADD KeySet key
-SADD DelKeySet key
-DEL StateHash:key
-PUBLISH Channel
-```
-
-Updated behavior:
-```
-if DATA_CONSOLIDATION_IN_PROGRESS != '1'
+if (m_tempViewActive)
+{
+    m_tempViewState.erase('key');
+}
+else 
+{
+    # Current behavior
     SADD KeySet key
     SADD DelKeySet key
-end
-DEL StateHash:key
-if DATA_CONSOLIDATION_IN_PROGRESS != '1'
+    DEL StateHash:key
     PUBLISH Channel
-end
+}
 ```
 
-#### `create_temp_view()`
+#### `apply_temp_view()`
+
+To apply temporary view, there are several steps:
+1. Drop all pending operations by clearing KeySet, DelKeySet, and StateHash
+2. Dump content of current view
+3. Compare current view and target view, generate a minimal set of `set()` and `del()` operations
+4. Write to KeySet, DelKeySet, and StateHash accordingly, publish the change to the channel, and unset `m_tempViewActive` flag.
+
 ```
-SET DATA_CONSOLIDATION_IN_PROGRESS '1'
-# Drop all existing pending operations, to make sure StateHash marks target state
+# Drop all pending operations first
 DEL KeySet
 DEL DelKeySet
 for key in KEYS StateHash:*
     DEL StateHash:key
 end
-```
 
-#### `apply_temp_view()`
-```
-# For all old objects:
-for key in KEYS TableHash:*
-    length_old = HLEN TableHash:key
-    length_new = HLEN StateHash:key
-    
-    # DEL is needed if object does not exist in new state, or any field is not presented in new state
-    # SET is almost always needed, unless old state and new state exactly match each other
-    #     (All old fields exists in new state, values match, and there is no additional field in new state)
-    if length_old > length_new
-        need_del = 1
-        need_set = 1
-    else
-        {fields, values} = HGETALL TableHash:key
-        need_del = 0
-        need_set = 0
-        for field, value
-            new_value = HGET StateHash:key field
-            if new_value == nil
-                need_del = 1
-                need_set = 1
-                break
-            if new_value != value
-                need_set = 1
-            end
-        end
-        if length_old != length_new
-            need_set = 1
-        end
-    end
-    
-    if need_del == 1
-       SADD DelKeySet key
-    end
-    if need_set == 1
-       SADD KeySet key
-    end
+TableDump tableDump;
+dump(tableDump);
+
+std::vector<std::string> keysToSet;
+std::vector<std::string> keysToDel;
+
+// For all old objects
+for (auto const& [key, fieldValueMap] : tableDump)
+{
+    // DEL is needed if object does not exist in new state, or any field is not presented in new state
+    // SET is almost always needed, unless old state and new state exactly match each other
+    //     (All old fields exists in new state, values match, and there is no additional field in new state)
+    if (m_tempViewState.find(key) == m_tempViewState.end())         // Key does not exist in new view
+    {
+        keysToDel.emplace_back(key);
+        continue;
+    }
+    newFieldValueMap = m_tempViewState[key];
+    bool needDel = false;
+    bool needSet = false;
+    for (auto const& [field, value] : fieldValueMap)
+    {
+        if (newFieldValueMap.find(field) == newFieldValueMap.end()) // Field does not exist in new view
+        {
+            needDel = true;
+            needSet = true;
+            break;
+        }
+        if (newFieldValueMap[field] != value)                       // Field value changed
+        {
+            needSet = true;
+        }
+    }
+    if (newFieldValueMap.size() > fieldValueMap.size())             // New field added
+    {
+        needSet = true;
+    }
+    if (needDel) keysToDel.emplace_back(key);
+    if (needSet) keysToSet.emplace_back(key);
+    else newFieldValueMap.erase(key);                               // If exactly match, no need to sync new state to StateHash in DB
+}
+
+// Generate a flat arg list from m_tempViewState to be written to m_tempViewActive
+std::vector<std::string> keyFieldValueStates;
+prepareStateHashArgument(keyFieldValueStates, m_tempViewState);
+
+m_tempViewActive = false;
+m_tempViewState.clear() 
+
+for key, field, value in keyFieldValueStates do
+    HSET StateHash:key field value
 end
-
-DEL DATA_CONSOLIDATION_IN_PROGRESS
+for key in keysToSet do
+    SADD KeySet key
+end
+for key in keysToDel do
+    SADD DelKeySet key
+end
 PUBLISH Channel
 ```
 
-
 #### `pop()` in ConsumerStateTable
-As `apply_temp_view()` is translating data consolidation request into a minimal set of `set()` and `del()` operations that has the same contract with normal operations,
+As `apply_temp_view()` is translating data consolidation request into a set of `set()` and `del()` operations that has the same contract with normal operations,
 no change is needed for `pop()` and any other functions in ConsumerStateTable.
+
+
+### Q&A
