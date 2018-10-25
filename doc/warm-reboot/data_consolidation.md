@@ -167,8 +167,13 @@ PUBLISH Channel
 ```
 
 #### `pop()` in ConsumerStateTable
-As `apply_temp_view()` is translating data consolidation request into a set of `set()` and `del()` operations that has the same contract with normal operations,
+As `apply_temp_view()` is translating view switching operation into a set of standard `set()` and `del()` operations,
 no change is needed for `pop()` and any other functions in ConsumerStateTable.
 
 
 ### Q&A
+
+#### How about storing temporary view in DB instead?
+Storing temporary view in DB has the benefit of allowing a second Producer to continue working on the temporary view when previous Producer accidentally crashed. However, it does introduce additional objects in DB which might be confusing, and implementing the complicate comparing logic is against the expected usage of Redis Lua script. 
+
+As we have the assumption of only one producer working on a table at a certain time and recovery-on-the-spot of a Producer crashing during temp view operation is not a priotized requirement, we believe maintaining temporary view in Producer memory will lead to a sufficient but simpler design.
