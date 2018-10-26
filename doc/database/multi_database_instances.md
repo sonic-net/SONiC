@@ -55,3 +55,7 @@
    - [x] restore /etc/sonic/old_config to /etc/sonic/, if any
    - [x] if no folder /etc/sonic/old_config/, generate config_db.json based on xml and etc.
    - [x] config_db.json file, if any, created via database service will be overwritten here
+
+## Next Step After Above Design
+
+If above design is OK, later we will add database table information in DATABASE entry for each redis instances along with the port. For application level, we will create a new API/Class to return corresponding database instance information if input table name/id is given. Then we use this database instance information for all existing database construction codes like DBConnector() for both Python and C++. Will post detail if above design has no problem.
