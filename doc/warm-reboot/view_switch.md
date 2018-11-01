@@ -3,7 +3,7 @@
 ### Problem Description
 To support warm reboot, 
 ProducerStateTable needs to support a feature that producer can create a temporary view for a table, 
-into which write operation will not not be synced to consumers immediately.
+into which write operation will not be synced to consumers immediately.
 Instead, the producer can explicitly ask to apply the view, 
 upon which all the objects in new view will get synced to consumer.
 
@@ -16,7 +16,7 @@ as well as modifying existing `del()` and `set()` API.
 
 This design is based on the assumption that there is only one producer writing to a specific table. 
 If there are multiple producer writing to a same table, the changes that 'secondary' producer write to the table
-while 'main' producer was doing view switching might be lost.
+while 'main' producer was doing view switching might be lost during `apply_temp_view()`.
 
 
 ### Redis Objects and Memory Objects
@@ -177,3 +177,7 @@ no change is needed for `pop()` and any other functions in ConsumerStateTable.
 Storing temporary view in DB has the benefit of allowing a second Producer to continue working on the temporary view when previous Producer accidentally crashed. However, it does introduce additional objects in DB which might be confusing, and implementing the complicate comparing logic is against the expected usage of Redis Lua script. 
 
 As we have the assumption of only one producer working on a table at a certain time and recovery-on-the-spot of a Producer crashing during temp view operation is not a priotized requirement, we believe maintaining temporary view in Producer memory will lead to a sufficient but simpler design.
+
+#### What if two field values are literally different but semantically same? E.g. '10.0.0.1,10.0.0.3' and '10.0.0.3,10.0.0.1' as `nexthop`.
+As it is difficult for ProducerStateTable to understand all semantic meaning of different tables, we are counting on applications to ensure that semantic consistency implicts literal consistency. In the given example, `fpmsyncd` will need to sort addresses of next hops before `SET` to ProducerStateTable so that ProducerStateTable will be able to compare the field correctly.
+
