@@ -1,5 +1,9 @@
 # Support Multiple user-defined redis database instances
 
+## Motivation
+
+Today SONiC only has one redis database instance created and all the tables use this unique database instance, like APP_DB, ASIC_DB, CONF_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very  busy. We tried to create two database instances and separate the huge write into two database instances. The test results shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the database tables based on their operation frequency or their role in the whole SONiC system,  for example, like counter database table and log database table are not key feature, we can avoid them affecting APP_DB or ASIC_DB read and write via multiple database instances.  
+
 ## Current implementation
 
 - Single redis database instance for all database tables
@@ -55,6 +59,10 @@
    - [x] restore /etc/sonic/old_config to /etc/sonic/, if any
    - [x] if no folder /etc/sonic/old_config/, generate config_db.json based on xml and etc.
    - [x] config_db.json file, if any, created via database service will be overwritten here
+
+## Potential Cluster Configuration & Deployment
+
+Redis database support cluster configuration and deployment. The configuration is on instances level, each database instance is independent, it is controlled via  redis.conf file. So multiple database instances design won't affect the logic and ability of cluster feature. 
 
 ## Next Step After Above Design
 
