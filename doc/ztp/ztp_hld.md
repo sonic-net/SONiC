@@ -28,6 +28,7 @@
 
 # Flow
 ![](https://github.com/simone-dell/SONiC/blob/ztp/images/ztp_hld/ztp_flow.jpg)
+
 For ZTP using DHCP, provisioning initially takes place over the management network and is initiated through a DHCP hook. A DHCP option is used to specify a configuration script. This script is then requested from the Web server and executed locally on the switch.
 1.	Simplify installation of switch, the steps involved will be
     - Rack and Stack 
