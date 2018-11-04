@@ -7,13 +7,17 @@
   * [Revision](#revision)
   * [Requirements](#requirements)
   * [Flow](#flow)
+  * [Error Cases](#error-cases)
+  * [ZTP CLI](#ztp-cli)
+  * [Action Items](#action-items)
+  * [Phases](#phases)
 
-###### Revision
+# Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 |   11/3/18   |    Simone Salman   | Initial version                   |
 
-###### Requirements
+# Requirements
 - Build option to have ZTP enabled
 - SNMP should be available through the ZTP service
 - ZTP should verify, download and install SONiC image
@@ -22,7 +26,7 @@
 - ZTP status may be logged through syslog
 - Interruption of ZTP service should disable the service gracefully
 
-###### Flow
+# Flow
 For ZTP using DHCP, provisioning initially takes place over the management network and is initiated through a DHCP hook. A DHCP option is used to specify a configuration script. This script is then requested from the Web server and executed locally on the switch.
 1.	Simplify installation of switch, the steps involved will be
     - Rack and Stack 
