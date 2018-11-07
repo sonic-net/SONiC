@@ -86,6 +86,7 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
      - Observe no port down
      - Observe LAG
      - Observe BGP session
+     - Observe no packet drop
    - Sad Path
      - Neigh port down
      - Neigh LAG remove member
