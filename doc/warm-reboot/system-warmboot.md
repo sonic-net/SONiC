@@ -65,3 +65,35 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
 - Note: Switch attribute SAI_SWITCH_ATTR_WARM_RECOVER is not required by SAI.
 - Application calls create_switch with 1 attribute: SAI_SWITCH_ATTR_INIT_SWITCH set to true. SAI shall recover other attributes programmed before.
 - Application re-register all callbacks/notificaions. These function points are not retained by SAI across warm boot.
+
+# Design of test
+1. Prepare
+   - Enable link state propagation
+2. Before warm reboot
+   - Happy Path
+   - Sad Path
+     - DUT port down
+     - DUT LAG down
+     - DUT LAG member down
+     - DUT BGP session down
+     - Neigh port down
+     - Neigh LAG remove member
+     - Neigh LAG admin down
+     - Neigh LAG member admin down
+     - Neigh BG session admin down
+3. During warm reboot
+   - Happy Path
+     - Observe no port down
+     - Observe LAG
+     - Observe BGP session
+   - Sad Path
+     - Neigh port down
+     - Neigh LAG remove member
+     - Neigh LAG admin down
+     - Neigh LAG member admin down
+     - Neigh BGP session admin down
+4. Post test
+   - CRM is not increasing
+   - Link_flap
+5. Clean-up
+   - Disable link state propagation
