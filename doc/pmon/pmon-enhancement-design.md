@@ -24,6 +24,8 @@ Currently when user try to fetch switch peripheral devices related data with CLI
 
 A common data collection flow for these deamons can be like this: during the boot up of the daemons, it will collect the constant data like serial number, manufature name,.... and for the variable ones (tempreture, voltage, fan speed ....) need to be collected periodically. See below picture.
 
+![](https://github.com/keboliu/SONiC/blob/master/doc/pmon/daemon-flow.svg)
+
 Now we already have a Xcvrd daemon which collect SFP related data periodly from SFP eeprom, we may take Xcvrd as reference and add new deamons(like for PSU, fan, etc.).
 
 PSU daemon need to collect PSU module name, PSU status, and PSU fan speed, etc. PSU deamon will also update the current avalaible PSU numbers and PSU list when there is a PSU change. Fan deamon perform similiar activities as PSU daemon.
