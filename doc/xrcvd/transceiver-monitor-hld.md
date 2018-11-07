@@ -30,7 +30,7 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 #### 1.1.1 Transceiver info Table ####
 
 	; Defines Transceiver information for a port
-	key                     = TRANSCEIVER_INFO|ifname         ; configuration for watchdog on port
+	key                     = TRANSCEIVER_INFO|ifname          ; information for SFP on port
 	; field                 = value
 	type                    = 1*255VCHAR                       ; type of sfp
 	hardwarerev             = 1*255VCHAR                       ; hardware version of sfp
@@ -41,17 +41,17 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 #### 1.1.2 Transceiver DOM sensor Table ####
 
 	; Defines Transceiver DOM sensor information for a port
-	key                     = TRANSCEIVER_DOM_SENSOR|ifname        ; configuration for watchdog on port
-	temperature             = FLOAT                                      ; temperature value in Celsius
-	voltage                 = FLOAT                                      ; voltage value
-	rx1power                = FLOAT                                      ; rx1 power in dbm
-	rx2power                = FLOAT                                      ; rx2 power in dbm
-	rx3power                = FLOAT                                      ; rx3 power in dbm
-	rx4power                = FLOAT                                      ; rx4 power in dbm
-	tx1bias                 = FLOAT                                      ; tx1 bias in mA
-	tx2bias                 = FLOAT                                      ; tx2 bias in mA
-	tx3bias                 = FLOAT                                      ; tx3 bias in mA
-	tx4bias                 = FLOAT                                      ; tx4 bias in mA
+	key                     = TRANSCEIVER_DOM_SENSOR|ifname      ; information SFP DOM sensors on port
+	temperature             = FLOAT                              ; temperature value in Celsius
+	voltage                 = FLOAT                              ; voltage value
+	rx1power                = FLOAT                              ; rx1 power in dbm
+	rx2power                = FLOAT                              ; rx2 power in dbm
+	rx3power                = FLOAT                              ; rx3 power in dbm
+	rx4power                = FLOAT                              ; rx4 power in dbm
+	tx1bias                 = FLOAT                              ; tx1 bias in mA
+	tx2bias                 = FLOAT                              ; tx2 bias in mA
+	tx3bias                 = FLOAT                              ; tx3 bias in mA
+	tx4bias                 = FLOAT                              ; tx4 bias in mA
 
 
 ### 1.2 Access eeprom from platform container ###
