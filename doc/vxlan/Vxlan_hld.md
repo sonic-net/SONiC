@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -39,6 +39,7 @@
 | 0.1 |             |     Prince Sunny   | Initial version                   |
 | 1.0 |             |     Prince Sunny   | Review comments/feedback          |
 | 1.1 |             |     Prince Sunny   | Review comments                   |
+| 1.2 |             |     Prince Sunny   | Design change for VNET Table flow |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
@@ -57,13 +58,13 @@ This document describes the high level design of the Vxlan feature. Kernel VRF (
 
 # 1 Requirements Overview
 ## 1.1 Functional requirements
-This section describes the SONiC requirements for Vxlan feature. 
+This section describes the SONiC requirements for Vxlan feature primarily in the context of VNet. 
 
 At a high level the following should be supported:
 
 Phase #1
 - Should be able to perform the role of Vxlan Tunnel End Point (VTEP)
-- VNet peering between customer VMs and Baremetal servers [VNet Requirements](https://github.com/lguohan/SAI/blob/vni/doc/SAI-Proposal-QinQ-VXLAN.md).
+- VNet peering between customer VMs and Baremetal servers [VNet Requirements](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-Proposal-QinQ-VXLAN.md).
 - Distributed Vxlan routing with Symmetric IRB model (RIOT)
 
 Phase #2
@@ -75,7 +76,7 @@ Phase #2
 
 ## 1.2 Orchagent requirements
 ### Vxlan orchagent:
- - Should be able to create VRF/VLAN to VNI mapping.
+ - Should be able to create VRF/BRIDGE/VLAN to VNI mapping.
  - Should be able to create NH Tunnel and Tunnel termination tables.  
  - Should be able to create tunnels and encap/decap mappers. 
 
@@ -129,33 +130,42 @@ Phase #1 shall not include warm restart capabilities. SAI VR objects are not com
 # 2 Modules Design
 
 ## 2.1 Config DB
-Following new tables will be added to Config DB
+Following new tables will be added to Config DB. Unless otherwise stated, the attributes are mandatory
 
 ### 2.1.1 VXLAN Table
 ```
 VXLAN_TUNNEL|{{tunnel_name}} 
     "src_ip": {{ip_address}} 
-    "dst_ip": {{ip_address}}
+    "dst_ip": {{ip_address}} (OPTIONAL)
 
 VXLAN_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
     "vni": {{ vni_id}}
     "vlan": {{ vlan_id }}
 ```
-### 2.1.2 VNET Table
+### 2.1.2 VNET/Interface Table
 ```
 VNET|{{vnet_name}} 
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
-    "peer_list": {{vnet_name_list}} 
+    "peer_list": {{vnet_name_list}} (OPTIONAL)
 
 INTERFACE|{{intf_name}} 
     "vnet_name": {{vnet_name}} 
     
 INTERFACE|{{intf_name}}|{{prefix}}  
     { }
+    
+VLAN_INTERFACE|{{intf_name}} 
+    "vnet_name": {{vnet_name}} 
+    
+VLAN_INTERFACE|{{intf_name}}|{{prefix}}  
+    { }
+    
+NEIGH_TABLE|{{intf_name}}|{{ip_address}}
+    "family": "IPv4" 
 ```
 
-### 2.1.2 ConfigDB Schemas
+### 2.1.3 ConfigDB Schemas
 ```
 ; Defines schema for VXLAN Tunnel configuration attributes
 key                                   = VXLAN_TUNNEL:name             ; Vxlan tunnel configuration
@@ -201,6 +211,12 @@ VNET_NAME                             = vnet_name                     ; vnet nam
 key                                   = INTERFACE:name:prefix         ; Vnet interface name with IP prefix. No change to 
                                                                         existing schema. 
 ; field                               = value
+
+; Defines schema for VNet Neighbor configuration attributes
+key                                   = NEIGH_TABLE:name:ip_address   ; Vnet neighbor with IP address. Swss shall resolve
+                                                                        the mac addresss for this configuration
+; field                               = value
+family                                = IPv4/IPv6                     ; Address family
 ```
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
@@ -210,7 +226,7 @@ Two new tables would be introduced to specify routes and tunnel end points in VN
 
 ```
 VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}} 
-    "nexthop": {{ip_address}} 
+    "nexthop": {{ip_address}} (OPTIONAL) 
     "ifname": {{intf_name}} 
  
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
@@ -224,14 +240,12 @@ VXLAN_FDB_TABLE::{{tunnel_name}}:{{vni_id}}:{{mac_address}}
     "remote_vtep": {{ip_address}} 
 ```
 
-VRFMgrD creates the VNI-VRF tunnel mapper and the VNET table
+VRFMgrD creates the following VNET Table
 
-```
-VXLAN_TUNNEL_MAP:{{tunnel_name}}:{{tunnel_map}}
-    "vni": {{ vni_id}}
-    "vrf": {{ vrf_name }}
-    
+```    
 VNET_TABLE:{{vnet_name}}
+    "vxlan_tunnel": {{tunnel_name}}
+    "vni": {{vni}} 
     "peer_list": {{ vnet_name_list }}
 ```
 
@@ -269,45 +283,47 @@ VRF                                   = vrf_name                      ; VRF name
 ```
 
 ```
-; Defines schema for VRF Table attributes
-key                                   = VRF_TABLE:name                ; VRF table name
+; Defines schema for VNET Table attributes
+key                                   = VNET_TABLE:name               ; VNet table name
 ; field                               = value
-VNET_NAME                             = vnet_name                     ; Vnet to which the VRF belongs, from VNET Config
+VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
+VNI                                   = DIGITS                        ; 1 to 16 million VNI values
 PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
                                                                              (empty indicates no peering)
 ```
 
 ## 2.3 Orchestration Agent
-Following orchagents shall be modified with high level decomposition. Flow diagrams are captured in a later section. 
+Following orchagents shall be modified. Flow diagrams are captured in a later section. 
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vxlanOrch_7.png)
+
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_orch.png)
 
  ### VxlanOrch
  This is the major subsystem for Vxlan that handles configuration request. Vxlanorch creates the tunnel and attaches encap and decap mappers. Seperate tunnels are created for L2 Vxlan and L3 Vxlan and can attach different VLAN/VNI or VRF/VNI to respective tunnel. 
  	
  ### VrfMgrD
- VrfMgrD gets the VNET Table config and creates the L3mdev interface in kernel. VrfMgrD updates the APP_DB with VXLAN_TUNNEL_MAP and the VRF_TABLE for later to be used by VxlanOrch and VrfOrch respectively. VrfMgrD also updates the STATE_DB for the status of VRF created. 
+ VrfMgrD gets the VNET Table config and creates the L3mdev interface in kernel. VrfMgrD updates the APP_DB with VNET_TABLE later to be used by VnetOrch. VrfMgrD also updates the STATE_DB for the status of VRF created. 
  
  ### VrfOrch
  VrfOrch creates VRF in SAI from APP_DB updates from VrfMgrD for the regular VRF configurations. RouterOrch fetch this information for programming routes based on VRF.
 
  ### VnetOrch/VnetRouteOrch
- VnetOrch creates ingress/Egress (based on context) VRF in SAI for a VNET and also maintains the peering list. VnetRouterOrch fetch this information for replicating the routes and VxlanOrch uses this for creating encap/decap mappers. When app-route-table has new updates for the VNet, VnetRouteOrch gets the VRF ID from VnetOrch and programs SAI.  
- 	- VNET_ROUTE_TABLE is translated to create route entries  
-	- VNET_ROUTE_TUNNEL_TABLE is translated to create Nexthop tunnel
+ VnetOrch is another major component introduced for the VNet usecase. VnetOrch creates ingress/Egress (based on context) VRF or BRIDGE in SAI for a VNet and also maintains the peering list. VnetOrch call VxlanOrch API to create the encap/decap mappers for the VNet. VnetRouterOrch fetch the VRF and peering information for replicating the routes, if applicable. When app-route-table has new updates for the VNet, VnetRouteOrch gets the VNet objects (VRF or BRIDGE) from VnetOrch and programs SAI.  
+ 	- VNET_ROUTE_TABLE is translated to create subnet/local route entries  
+	- VNET_ROUTE_TUNNEL_TABLE is translated to create routes with tunnel nexthop
 
  ### IntfMgrD
- IntfMgrD creates the kernel routing interface and enslave it to the VRF L3mdev. IntfMgrD waits for VRF creation update in STATE_DB and updates the APP_DB INTF_TABLE with the Vrf name. It is recommended to combine IntfSyncd with IntfMgrd.
+ IntfMgrD creates the kernel routing interface and enslave it to the VRF L3mdev. IntfMgrD waits for VRF creation update in STATE_DB and updates the APP_DB INTF_TABLE with the Vrf/VNet name.
  
  ### IntfsOrch
- Add VrfOrch as a member of IntfsOrch. IntfsOrch creates Router Interfaces based on interface table (INTF_TABLE) and the VRF information. IntfsOrch no longer creates the subnet routes but only the ip2me routes in the corresponding VRF. 
+ Add VrfOrch as a member of IntfsOrch. IntfsOrch creates Router Interfaces based on interface table (INTF_TABLE) and the VRF information. For VNet usecase, IntfOrch calls VnetOrch API to handle router interface creation. 
  
  ### FdbOrch
  Add VxlanOrch as a member of FDBOrch. For FDB entries learnt on remote VTEP, app-fdb-table shall be updated and programmed to SAI by getting the BridgeIf/RemoteVTEP mapping from VxlanOrch. (TBD)
  
- The overall flow diagram is captured below for all TABLE updates. 
+ The overall data flow diagram is captured below for all TABLE updates. 
  
- ![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_3_3.png)
+ ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_data_flow.png)
  
  
 ## 2.4 SAI
@@ -384,9 +400,9 @@ Commands:
 # 3 Flows
 
 ## 3.1 Vxlan VNet peering 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_1_3.png)
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_1.png)
 
-![](https://github.com/prsunny/SONiC/blob/prsunny-vxlan/images/vxlan_hld/vnet_peering_2_3.png)
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_2.png)
 
 ## Layer 2 Vxlan 
 TBD 
@@ -403,7 +419,7 @@ TBD
 			VM1. CA: 100.100.1.1/32, PA: 10.10.10.1, MAC: 00:00:00:00:01:02
 		□ BM1 
 			Connected on Ethernet1 
-			Ip: 100.100.3.1/24
+			Ip: 100.100.3.2/24
 			MAC: 00:00:AA:AA:AA:01
 
 	Vnet 2 
@@ -411,8 +427,8 @@ TBD
 		□ VMs
 			VM2. CA: 100.100.2.1/32, PA: 10.10.10.2, MAC: 00:00:00:00:03:04
 		□ BM2 
-			Connected on Ethernet2
-			Ip: 100.100.4.1/24
+			Connected on Ethernet2 in Vlan2000
+			Ip: 100.100.4.2/24
 			MAC: 00:00:AA:AA:AA:02
 
 ### ConfigDB objects: 
@@ -435,39 +451,44 @@ TBD
     "INTERFACE|Ethernet1|100.100.3.1/24": { 
     }, 
 
+    "NEIGH_TABLE|Ethernet1|100.100.3.2": { 
+        "family": "IPv4" 
+    },
+    
     "VNET|Vnet_3000": { 
         "vxlan_tunnel": "tunnel1", 
         "vni": "3000", 
         "peer_list": "Vnet_2000", 
     },  
 
-    "INTERFACE|Ethernet2": { 
-	"vnet_name": "Vnet_3000",
-    }, 
+    "VLAN|Vlan2000": {
+        "vlanid": "2000"
+    },
+    
+    "VLAN_MEMBER|Vlan2000|Ethernet2": {
+        "tagging_mode": "untagged"
+    },
 
-    "INTERFACE|Ethernet2|100.100.4.1/24": { 
-    }, 
-} 
-```
+    "VLAN_INTERFACE|Vlan2000": {
+         "vnet_name": "Vnet_3000",
+    },
+
+    "VLAN_INTERFACE|Vlan2000|100.100.4.1/24": {
+    },
+    
+    "NEIGH_TABLE|Vlan2000|100.100.4.2": { 
+        "family": "IPv4" 
+    },
+ ```
 ### APPDB Objects: 
 ```
-{ 
-    "NEIGH_TABLE:Ethernet1:100.100.3.1": { 
-        "neigh": "00:00:AA:AA:AA:01", 
-        "family": "IPv4" 
-    }, 
-
+{  
     "VNET_ROUTE_TABLE:Vnet_2000:100.100.3.0/24": { 
         "ifname": "Ethernet1", 
     }, 
 
-    "NEIGH_TABLE:Ethernet2:100.100.4.1": { 
-        "neigh": "00:00:AA:AA:AA:02", 
-        "family": "IPv4" 
-    }, 
-
     "VNET_ROUTE_TABLE:Vnet_3000:100.100.4.0/24": { 
-        "ifname": "Ethernet2", 
+        "ifname": "Vlan2000", 
     }, 
 
     "VNET_ROUTE_TUNNEL_TABLE:Vnet_2000:100.100.1.1/32": { 
