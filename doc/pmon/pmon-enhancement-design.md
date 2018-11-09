@@ -8,18 +8,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo/Kevin Wang      | Initial version                   |
  
-## 1. New platform API implememtation
-Old platform base APIs will be replaced by new designed API gradually. New API is well structed in a hierarchy style, a root "Platform" class include all the chassis in it, and each chassis will containe all the peripheral devices: PSUs, FANs, SFPs, etc.
-
-As for the vendors, the way to implement the new API will be very similiar, the difference is that individual plugins will be replaced by a "sonic_platform" python package.
-
-New base APIs were added for platform, chassis, watchdog, FAN and PSU. SFP and eeprom not defined yet, will be in next phase. All the APIs defined in the base classes need to be implemented unless there is a limitation(like hardware not support it, see open questions 3)
-
-Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platfrom API design, not part of the work here.
-
-New platfrom API is defined in this PR: https://github.com/Azure/sonic-platform-common/pull/13
-
-## 2. Export platform related data to DB
+## 1. Export platform related data to DB
 Currently when user try to fetch switch peripheral devices related data with CLI, underneath it will directly access hardware via platfrom plugins, in some case it could be very slow, to improvement the performance of these CLI and also for the SNMP maybe, we can collect these data before hand and store them to the DB, and CLI/SNMP will access cached data(DB) instead, which will be much faster.
 
 A common data collection flow for these deamons can be like this: during the boot up of the daemons, it will collect the constant data like serial number, manufature name,.... and for the variable ones (tempreture, voltage, fan speed ....) need to be collected periodically. See below picture.
@@ -38,11 +27,11 @@ For the platform hwsku, AISC name, reboot cause and other datas from syseeprom w
 
 Detail datas that need to be collected please see the below DB Schema section.
 
-### 2.1 DB Schema
+### 1.1 DB Schema
 
 All the peripheral devices data will be stored in state DB.
 
-#### 2.1.1 Platform Table
+#### 1.1.1 Platform Table
 
     ; Defines information for a platfrom
     key                     = PLATFORM_INFO|platform_name    ; infomation for the chassis
@@ -50,7 +39,7 @@ All the peripheral devices data will be stored in state DB.
     chassis_num             = INT                            ; chassis number in this platform                        
     chassis_list            = STRING_ARRAY                   ; chassis name list
     
-#### 2.1.2 Chassis Table
+#### 1.1.2 Chassis Table
 
     ; Defines information for a chassis
     key                     = CHASSIS_INFO|chassis_name      ; infomation for the chassis
@@ -78,7 +67,7 @@ All the peripheral devices data will be stored in state DB.
 	psu_num                 = INT                            ; psu numbers on the chassis
 	psu_list                = STRING_ARRAY                   ; psu name list
 
-#### 2.1.3 Fan Table
+#### 1.1.3 Fan Table
 
 	; Defines information for a fan
 	key                     = FAN_INFO|fan_name              ; information for the fan
@@ -94,7 +83,7 @@ All the peripheral devices data will be stored in state DB.
 	speed_target            = INT                            ; fan target speed
 	led_status              = STRING                         ; fan led status
 
-#### 2.1.4 Psu Table
+#### 1.1.4 Psu Table
 
 	; Defines information for a psu
 	key                     = PSU_INFO|psu_name              ; information for the psu
@@ -110,7 +99,7 @@ All the peripheral devices data will be stored in state DB.
 	fan_speed_target        = INT                            ; psu fan target speed
 	fan_led_status          = STRING                         ; psu fan led status
 
-#### 2.1.5 Watchdog Table
+#### 1.1.5 Watchdog Table
 
 	; Defines information for a watchdog
 	key                      = WATCHDOG_INFO|watchdog_name   ; information for the watchdog
@@ -118,7 +107,7 @@ All the peripheral devices data will be stored in state DB.
 	arm_status               = BOOLEAN                       ; watchdog arm status
 	remaining_time           = INT                           ; watchdog remaining time
 	
-#### 2.1.6 Transceiver Table
+#### 1.1.6 Transceiver Table
 
 We have a transceiver related information DB schema defined in the Xcvrd daemon design doc: https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema
 
@@ -163,12 +152,12 @@ And also lpmode info need to be added to DB, a separated Transceiver lpmode tabl
 	; field                 = value
 	lpmode                  = 1*255VCHAR                       ; low power mode, on or off
 
-## 3. Platform monitor related CLI refactoring
-### 3.1 change the way that CLI get the data
+## 2. Platform monitor related CLI refactoring
+### 2.1 change the way that CLI get the data
 
 As described previously, we want to change the way that CLI get the data. Take "show platform psustatus" as an example, behind the scene it's calling psu plugin to access the hardware and get the psu status and print out. In the new design, psu daemon will fetch the psu status and update to DB before hand, thus CLI only need to make use of redis DB APIs and get the informations from the related DB entries.
 
-### 3.2 more output for psu show CLI
+### 2.2 more output for psu show CLI
 
 original PSU show CLI only provide PSU work status, we should add PSU fan status as well.
 
@@ -189,7 +178,7 @@ New output:
 	PSU 2  OK       12320 RPM  Exhaust
 	PSU 3  NOT OK   N/A        N/A
 	
-### 3.3 new show CLI for fan status
+### 2.3 new show CLI for fan status
 
 We don't have a CLI for fan status geting yet, new CLI for fan status could be like below, it's adding a new sub command to the "show platform":
 
@@ -215,7 +204,7 @@ The output of the command is like below:
 	FAN 1  12919 RPM  Intake
 	FAN 2  13043 RPM  Exhaust
 	
-### 3.4 new show CLI for watchdog status
+### 2.4 new show CLI for watchdog status
 
 Same as for fan status we add a new sub command to the "show platform":
 
@@ -241,13 +230,24 @@ The output of the command is like below:
 	----------  -----------
 	ARMED       3s
 
-### 3.5 Transceiver related CLI refactoring
+### 2.5 Transceiver related CLI refactoring
 
 Currently Transceiver related CLI is fetching infomation by directly access the SFP eeprom, the output will keep as original, and information will be fetched from state DB.
 
-### 3.6 Utilities for real-time data
+### 2.6 Utilities for real-time data
 
 For the sfputility, psuutility, user may want to keep a way to get real-time data from hardware rather than from DB for debug purpose, so we may keep sfputility, psuutility and only install them in pmon.
+
+## 3. New platform API implememtation
+Old platform base APIs will be replaced by new designed API gradually. New API is well structed in a hierarchy style, a root "Platform" class include all the chassis in it, and each chassis will containe all the peripheral devices: PSUs, FANs, SFPs, etc.
+
+As for the vendors, the way to implement the new API will be very similiar, the difference is that individual plugins will be replaced by a "sonic_platform" python package.
+
+New base APIs were added for platform, chassis, watchdog, FAN and PSU. SFP and eeprom not defined yet, will be in next phase. All the APIs defined in the base classes need to be implemented unless there is a limitation(like hardware not support it, see open questions 3)
+
+Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platfrom API design, not part of the work here.
+
+New platfrom API is defined in this PR: https://github.com/Azure/sonic-platform-common/pull/13
 
 ## 4. Pmon daemons dynamically loading
 We have multi pmon daemons for different peripheral devices, like xcvrd for transceivers, ledd for front panel LEDs, etc. Later on we may add more for PSU, fan.
