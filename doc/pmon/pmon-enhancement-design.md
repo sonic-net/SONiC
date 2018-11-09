@@ -122,7 +122,46 @@ All the peripheral devices data will be stored in state DB.
 
 We have a transceiver related information DB schema defined in the Xcvrd daemon design doc: https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema
 
-Here like to get the comments whether we want to add more SFP related data to the DB, more data added to the DB could make the Xcvrd performance worse. See open question section.
+To align with the output of the current show interface tranceiver we need to extend Transceiver info Table with more informations, as below:
+
+        Connector: No separable connector
+        Encoding: Unspecified
+        Extended Identifier: Power Class 1(1.5W max)
+        Extended RateSelect Compliance: QSFP+ Rate Select Version 1
+        Length Cable Assembly(m): 1
+        Nominal Bit Rate(100Mbs): 255
+        Specification compliance:
+                10/40G Ethernet Compliance Code: 40GBASE-CR4
+        Vendor Date Code(YYYY-MM-DD Lot): 2016-01-19 
+        Vendor OUI: 00-02-c9
+
+New Transceiver info Table schema will be:
+
+	; Defines Transceiver information for a port
+	key                         = TRANSCEIVER_INFO|ifname          ; information for SFP on port
+	; field                     = value
+	type                        = 1*255VCHAR                       ; type of sfp
+	hardwarerev                 = 1*255VCHAR                       ; hardware version of sfp
+	serialnum                   = 1*255VCHAR                       ; serial number of the sfp
+	manufacturename             = 1*255VCHAR                       ; sfp venndor name
+	modelname                   = 1*255VCHAR                       ; sfp model name
+	
+	Connector                   = 1*255VCHAR                       ; connector information
+	encoding                    = 1*255VCHAR                       ; encoding information
+	ext_identifier              = 1*255VCHAR                       ; extend identifier
+	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
+	cable_length                = INT                              ; cable length in m
+	mominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
+	specification_compliance    = 1*255VCHAR                       ; specification compliance
+	vendor_date                 = 1*255VCHAR                       ; vendor date
+	vendor_oui                  = 1*255VCHAR                       ; vendor OUI
+
+And also lpmode info need to be added to DB, a separated Transceiver lpmode table will be added.
+
+	; Defines Transceiver lpmode information for a port
+	key                     = TRANSCEIVER_LPMODE_INFO|ifname   ; lpmode information for SFP on port
+	; field                 = value
+	lpmode                  = 1*255VCHAR                       ; low power mode, on or off
 
 ## 3. Platform monitor related CLI refactoring
 ### 3.1 change the way that CLI get the data
@@ -204,7 +243,7 @@ The output of the command is like below:
 
 ### 3.5 Transceiver related CLI refactoring
 
-Currently Transceiver related CLI is fetching infomation by directly access the SFP eeprom, which provide very rich output, if we want to rewirte these CLI as the previous one, need to expand the tables to store more info for the SFP, which will make the xcvrd performance worse, want to hear from the community here. See open questions section.
+Currently Transceiver related CLI is fetching infomation by directly access the SFP eeprom, the output will keep as original, and information will be fetched from state DB.
 
 ### 3.6 Utilities for real-time data
 
@@ -227,4 +266,4 @@ We can add a customized pmon daemon configuration file in the platform folder, m
 	
 ## 5. Open Questions
 - 1.) Do we need a watchdog daemon?
-- 2.) Do we want to expand the tranceiver table in state DB to provide more information? which will make the xcvrd performance worse.
+- 2.) Make xcvrd collect more information (lpmode) may degrade the performance.
