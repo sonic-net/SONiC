@@ -65,3 +65,46 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
 - Note: Switch attribute SAI_SWITCH_ATTR_WARM_RECOVER is not required by SAI.
 - Application calls create_switch with 1 attribute: SAI_SWITCH_ATTR_INIT_SWITCH set to true. SAI shall recover other attributes programmed before.
 - Application re-register all callbacks/notificaions. These function points are not retained by SAI across warm boot.
+
+# Design of test
+Assumptions:
+1. DUT is T0 topology
+2. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
+
+Steps:
+1. Prepare
+   - Enable link state propagation
+2. Before warm reboot
+   - Happy Path
+   - Sad Path
+     - DUT port down
+     - DUT LAG down
+     - DUT LAG member down
+     - DUT BGP session down
+     - Neigh port down
+     - Neigh LAG remove member
+     - Neigh LAG admin down
+     - Neigh LAG member admin down
+     - Neigh BGP session admin down
+3. During warm reboot
+   - Happy Path
+     - Observe no port down from VM side (all the same below)
+     - Observe LAG, the maximal control plane interval is 90s
+     - Observe BGP session
+     - Observe no packet drop
+   - Sad Path
+     - Neigh port down
+     - Neigh LAG remove member
+     - Neigh LAG admin down
+     - Neigh LAG member admin down
+     - Neigh BGP session admin down
+     - Neigh route change
+     - Neigh MAC change
+     - Neigh VLAN member port admin downn (some or all)
+4. After warm reboot
+   - CRM is not increasing for happy path during warm reboot
+   - Check expected response for sad path during warm reboot
+   - Recheck all observation in Section 3 - Happy Path
+   - Link_flap
+5. Clean-up
+   - Disable link state propagation
