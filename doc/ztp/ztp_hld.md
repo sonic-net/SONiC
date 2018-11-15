@@ -16,8 +16,8 @@
 # Revision
 | Rev |     Date     |       Author       | Change Description                |
 |:---:|:------------:|:------------------:|-----------------------------------|
-| 0.1 |   11/03/18   |    Simone Salman   | Initial version                   |
-| 0.2 |   11/14/18   |    Simone Salman   | Addressing Review comments        |
+| v0.1 |   11/03/18   |    Simone Salman   | Initial version                   |
+| v0.2 |   11/14/18   |    Simone Salman   | Addressing Review comments        |
 
 # Requirements
 - Build option to have ZTP enabled
