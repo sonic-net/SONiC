@@ -17,7 +17,6 @@
 | Rev |     Date     |       Author       | Change Description                |
 |:---:|:------------:|:------------------:|-----------------------------------|
 | 0.1 |   11/03/18   |    Simone Salman   | Initial version                   |
-|:---:|:------------:|:------------------:|-----------------------------------|
 | 0.2 |   11/14/18   |    Simone Salman   | Addressing Review comments        |
 
 # Requirements
@@ -33,7 +32,6 @@
 | DHCP Option |     Information     |       Explanation                                 |
 |:-----------:|:-------------------:|:-------------------------------------------------:|
 |    227      |   ztp_image_url     | URL for the SONiC image for the switch to dowload |
-|:-----------:|:-------------------:|:-------------------------------------------------:|
 |    228      |   validation_url    | URL for the validation script -- a script that runs post config and  collects device info and sends it for processing to a remote location designated within the validation script |
 
 # Flow
