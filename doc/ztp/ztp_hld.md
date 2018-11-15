@@ -6,6 +6,7 @@
 # Table of Contents
   * [Revision](#revision)
   * [Requirements](#requirements)
+  * [DHCP Options](#dhcp-options)
   * [Flow](#flow)
   * [Error Cases](#error-cases)
   * [ZTP CLI](#ztp-cli)
@@ -13,18 +14,27 @@
   * [Phases](#phases)
 
 # Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |   11/3/18   |    Simone Salman   | Initial version                   |
+| Rev |     Date     |       Author       | Change Description                |
+|:---:|:------------:|:------------------:|-----------------------------------|
+| 0.1 |   11/03/18   |    Simone Salman   | Initial version                   |
+|:---:|:------------:|:------------------:|-----------------------------------|
+| 0.2 |   11/14/18   |    Simone Salman   | Addressing Review comments        |
 
 # Requirements
 - Build option to have ZTP enabled
-- SNMP should be available through the ZTP service
+- SNMP should be enabled during the ZTP process (achieved through leveraging updategraph)
 - ZTP should verify, download and install SONiC image
 - Updategraph handles all configuration during ZTP service
 - ZTP should receive post config validation script, that collects switch info and sends it back to a remote location for processing
-- ZTP status may be logged through syslog
-- Interruption of ZTP service should disable the service gracefully
+- ZTP status should be logged through syslog
+- Interruption of ZTP service should set ZTP status as incomplete/interrupted and ZTP should be disabled.
+
+# DHCP Options
+| DHCP Option |     Information     |       Explanation                                 |
+|:-----------:|:-------------------:|:-------------------------------------------------:|
+|    227      |   ztp_image_url     | URL for the SONiC image for the switch to dowload |
+|:-----------:|:-------------------:|:-------------------------------------------------:|
+|    228      |   validation_url    | URL for the validation script -- a script that runs post config and  collects device info and sends it for processing to a remote location designated within the validation script |
 
 # Flow
 ![](https://github.com/simone-dell/SONiC/blob/ztp/images/ztp_hld/ztp_flow.jpg)
@@ -41,15 +51,15 @@ For ZTP using DHCP, provisioning initially takes place over the management netwo
     - ZTP service flag $post_config is false
 3.	The switch now enters ZTP mode and does the following,
     - Obtains an IP address from the DHCP server
-    - Obtains the URL for the SONIC image, provisioning script, and post config validation script 
-4.	At this step, the switch will have information to reach the HTTP / TFTP server information by DHCP option 66 or Option 240.
-5.	ZTP service will relay to updategraph service
+    - Obtains the URL for the SONIC image, minigraph, and post config validation script 
+4.	At this step, the switch will have information to reach the HTTP / TFTP server information.
+5.	ZTP service will enable and start updategraph service
     - Within updategraph, ztp_enabled is true, and post_install is false
     - This triggers updategraph to configure the device with an default config
     - Upon exiting updategraph, SNMP will start
 6.	ZTP service will now download the software image file.
-7.	ZTP service will validate image to be a SONIC image compatible with the current platform.
-8.	ZTP service will check remaining hard disk for space before doing image install.
+7.	sonic_installer will validate image to be a SONIC image compatible with the current platform.
+8.	sonic_installer  will check remaining hard disk for space before doing image install.
 9.	ZTP service will install image using sonic-installer
     - ZTP service flag $post_install is true
 10.	ZTP service will enable updategraph
@@ -108,7 +118,7 @@ Will show the user whether ZTD is enabled, the date of the last execution of the
     show ztp-status
 The ZTP status will show the user the current SONiC image, if the configuration was successful, and if the post-configuration script was run, as well as the time of the last successful completion of the ZTP service
 
-    ztp reload
+    config ztp enable/disable
 The user can re-enable ZTP after a failed state using the CLI.  This puts the switch into “factory setting” and reloads with ZTP enabled, allowing for provisioning restart.
 
     ztp cancel
