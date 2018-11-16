@@ -14,7 +14,7 @@
   * [Phases](#phases)
 
 # Revision
-| Rev |     Date     |       Author       | Change Description                |
+| Rev | Date     |  Author       | Change Description                |
 |:---:|:------------:|:------------------:|-----------------------------------|
 | v0.1 |   11/03/18   |    Simone Salman   | Initial version                   |
 | v0.2 |   11/14/18   |    Simone Salman   | Addressing Review comments        |
@@ -29,10 +29,13 @@
 - Interruption of ZTP service should set ZTP status as incomplete/interrupted and ZTP should be disabled.
 
 # DHCP Options
-| DHCP Option |     Information     |       Explanation                                 |
+| DHCP Option | Information         | Explanation                                       |
 |:-----------:|:-------------------:|:-------------------------------------------------:|
-|    227      |   ztp_image_url     | URL for the SONiC image for the switch to dowload |
-|    228      |   validation_url    | URL for the validation script -- a script that runs post config and  collects device info and sends it for processing to a remote location designated within the validation script |
+|    224      | snmp_community     | usage implemented through updategraph |
+|    225      | minigraph_url     | usage implemented through updategraph |
+|    226      | acl_url           | usage implemented through updategraph |
+|    227      | ztp_image_url     | URL for the SONiC image for the switch to dowload |
+|    228      | validation_url    | URL for the validation script -- a script that runs post config and  collects device info and sends it for processing to a remote location designated within the validation script |
 
 # Flow
 ![](https://github.com/simone-dell/SONiC/blob/ztp/images/ztp_hld/ztp_flow.jpg)
@@ -50,7 +53,7 @@ For ZTP using DHCP, provisioning initially takes place over the management netwo
 3.	The switch now enters ZTP mode and does the following,
     - Obtains an IP address from the DHCP server
     - Obtains the URL for the SONIC image, minigraph, and post config validation script 
-4.	At this step, the switch will have information to reach the HTTP / TFTP server information.
+4.	At this step, the switch will have information to reach the HTTP / TFTP server through URLs given by DHCP server.
 5.	ZTP service will enable and start updategraph service
     - Within updategraph, ztp_enabled is true, and post_install is false
     - This triggers updategraph to configure the device with an default config
@@ -96,8 +99,12 @@ ZTP status should be logged to syslog server and /var/log/syslog
 Need to allow build time option to compile with ZTP enabled
 
 # Error Cases
-- Case: Switch receives invalid URLs from DHCP server
-    - Switch should output error logs to syslog and apply default config.  Kill the ZTP service, and allow other services to come up
+- Case: Switch receives invalid SONiC image URL from DHCP server
+    - Switch should output error logs to syslog and apply default config.  Kill the ZTP service with aborted status, and allow other services to come up
+- Case: Switch receives invalid configuration URL from DHCP server
+    - Switch should output error logs to syslog and apply default config.  Kill the ZTP service with aborted status, and allow other services to come up
+- Case: Switch receives invalid post-config validation URL from DHCP server
+    - Switch should output error logs to syslog.  Disable the ZTP service, and allow other services to come up
 - Case: Switch receives invalid OS image 
     - Switch should output error logs to syslog and apply default config.  Kill the ZTP service, and allow other services to come up
 - Case: Switch does not have enough memory to store the image
