@@ -29,8 +29,9 @@
 - Interruption of ZTP service should set ZTP status as incomplete/interrupted and ZTP should be disabled.
 
 # DHCP Options
+The following are the private DHCP options used during the implementation of updategraph/ZTP
 | DHCP Option | Information         | Explanation                                       |
-|:-----------:|:-------------------:|:-------------------------------------------------:|
+|:-----------:|:-------------------|:-------------------------------------------------|
 |    224      | snmp_community     | usage implemented through updategraph |
 |    225      | minigraph_url     | usage implemented through updategraph |
 |    226      | acl_url           | usage implemented through updategraph |
