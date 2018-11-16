@@ -30,6 +30,7 @@
 
 # DHCP Options
 The following are the private DHCP options used during the implementation of updategraph/ZTP
+
 | DHCP Option | Information         | Explanation                                       |
 |:-----------:|:-------------------|:-------------------------------------------------|
 |    224      | snmp_community     | usage implemented through updategraph |
