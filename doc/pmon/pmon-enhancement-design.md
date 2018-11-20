@@ -7,27 +7,53 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo/Kevin Wang      | Initial version                   |
- 
-## 1. Export platform related data to DB
-Currently when user try to fetch switch peripheral devices related data with CLI, underneath it will directly access hardware via platfrom plugins, in some case it could be very slow, to improvement the performance of these CLI and also for the SNMP maybe, we can collect these data before hand and store them to the DB, and CLI/SNMP will access cached data(DB) instead, which will be much faster.
 
-A common data collection flow for these deamons can be like this: during the boot up of the daemons, it will collect the constant data like serial number, manufature name,.... and for the variable ones (tempreture, voltage, fan speed ....) need to be collected periodically. See below picture.
+
+  
+## 1. Optimize platform related data access
+
+In current implementation when user try to fetch switch peripheral devices related data with CLI, underneath it will directly access hardware via platform plugins, in some case it could be very slow, to improve the performance of these CLI and SNMP, we can collect these data before hand and store them to the DB, CLI/SNMP will access cached data(DB) instead, which will be much faster.
+
+Another benefit of this optimization is that can centralize the platform related data access, DB will be the only source. Direct access to the platform device can only inside the pmon container.
+
+### 1.1 New daemons for PSU and FAN
+
+By now inside pmon container we already have ledd and xcvrd to monitor/control the front panel led and SFP. Similar daemons are needed for PSU and fan. 
+
+#### 1.1.1 Platform device data collection 
+
+One of the main task for these daemons is to post device data to DB. 
+
+PSU daemon need to collect PSU status, PSU fan speed, etc. PSU daemon will also update the current available PSU numbers and PSU list when there is a PSU change. Fan daemon perform similar activities as PSU daemon in terms of data collection.
+
+A common data collection flow for these daemons can be like this: during the boot up of the daemons, it will collect the constant data like serial number, manufacture name, etc. For the variable ones (temperature, voltage, fan speed ....) need to be collected periodically. See below picture.
 
 ![](https://github.com/keboliu/SONiC/blob/master/doc/pmon/daemon-flow.svg)
 
-Now we already have a Xcvrd daemon which collect SFP related data periodly from SFP eeprom, we may take Xcvrd as reference and add new deamons(like for PSU, fan, etc.).
-
-PSU daemon need to collect PSU module name, PSU status, and PSU fan speed, etc. PSU deamon will also update the current avalaible PSU numbers and PSU list when there is a PSU change. Fan deamon perform similiar activities as PSU daemon.
-
-Part of transceiver related data already in the DB which are collected by Xcvrd, compare to the output of current "show interface tranceiver" CLI, we may want to add more transceiver data to DB, but it can introduce performace issue to Xcvrd due to the slow response of access SFP eeprom. See open question section.
-
 These daemons will be based on the current platform plugin, will migrate to the new platform APIs in the future.
 
-For the platform hwsku, AISC name, reboot cause and other datas from syseeprom will be write to DB during the start up, it can be done by one of the daemons inside pmon or a seperate task which will exit after collect all of the datas.
+#### 1.1.2 Business logic handling 
+
+Besides data collection these daemons can do some business logic, only generic business logic can be added to these daemons, platform specific logic should not be covered here.  What kind of common logic can be done here is still open, open for suggestion.(open question 2)
+
+#### 1.1.3 Device set operation handling
+
+To handle a set operation, daemon will subscribe to some DB entries and when these is a change, daemon will response the request and call the platform API accordingly.
+
+for FAN and PSU daemons, possible set operation could be  status led and fan speed. 
+
+### 1.2 Xcvrd daemon extension
+
+Part of transceiver related data already in the DB which are collected by Xcvrd, compare to the output of current "show interface transceiver" CLI which get data directly from hardware, Xcvrd need to post more information from eeprom to DB. Detailed list for the new needed information please check following DB schema section. 
+
+
+### 1.3 Misc platform related data collection
+
+For the platform hwsku, AISC name, reboot cause and other datas from syseeprom will be write to DB during the start up. A new separate task will be added to collect all of the data, since these data will not change over time, so this task doing one shot thing, will exit after post all the data to DB.
 
 Detail datas that need to be collected please see the below DB Schema section.
 
-### 1.1 DB Schema
+### 1.4 DB Schema for Platform related data
 
 All the peripheral devices data will be stored in state DB.
 
@@ -83,7 +109,7 @@ All the peripheral devices data will be stored in state DB.
 	speed_target            = INT                            ; fan target speed
 	led_status              = STRING                         ; fan led status
 
-#### 1.1.4 Psu Table
+#### 1.1.4 PSU Table
 
 	; Defines information for a psu
 	key                     = PSU_INFO|psu_name              ; information for the psu
@@ -99,19 +125,12 @@ All the peripheral devices data will be stored in state DB.
 	fan_speed_target        = INT                            ; psu fan target speed
 	fan_led_status          = STRING                         ; psu fan led status
 
-#### 1.1.5 Watchdog Table
-
-	; Defines information for a watchdog
-	key                      = WATCHDOG_INFO|watchdog_name   ; information for the watchdog
-	; field                  = value
-	arm_status               = BOOLEAN                       ; watchdog arm status
-	remaining_time           = INT                           ; watchdog remaining time
 	
 #### 1.1.6 Transceiver Table
 
 We have a transceiver related information DB schema defined in the Xcvrd daemon design doc: https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema
 
-To align with the output of the current show interface tranceiver we need to extend Transceiver info Table with more informations, as below:
+To align with the output of the current show interface transceiver we need to extend Transceiver info Table with more information, as below:
 
         Connector: No separable connector
         Encoding: Unspecified
@@ -152,10 +171,10 @@ And also lpmode info need to be added to DB, a separated Transceiver lpmode tabl
 	; field                 = value
 	lpmode                  = 1*255VCHAR                       ; low power mode, on or off
 
-## 2. Platform monitor related CLI refactoring
+## 2. Platform monitor related CLI re-factoring
 ### 2.1 change the way that CLI get the data
 
-As described previously, we want to change the way that CLI get the data. Take "show platform psustatus" as an example, behind the scene it's calling psu plugin to access the hardware and get the psu status and print out. In the new design, psu daemon will fetch the psu status and update to DB before hand, thus CLI only need to make use of redis DB APIs and get the informations from the related DB entries.
+As described previously, we want to change the way that CLI get the data. Take "show platform psustatus" as an example, behind the scene it's calling psu plugin to access the hardware and get the psu status and print out. In the new design, psu daemon will fetch the psu status and update to DB before hand, thus CLI only need to connect to state DB get the information from the related DB entries.
 
 ### 2.2 more output for psu show CLI
 
@@ -180,7 +199,7 @@ New output:
 	
 ### 2.3 new show CLI for fan status
 
-We don't have a CLI for fan status geting yet, new CLI for fan status could be like below, it's adding a new sub command to the "show platform":
+We don't have a CLI for fan status getting yet, new CLI for fan status could be like below, it's adding a new sub command to the "show platform":
 
 	admin@sonic# show platform ?
 	Usage: show platform [OPTIONS] COMMAND [ARGS]...
@@ -230,40 +249,49 @@ The output of the command is like below:
 	----------  -----------
 	ARMED       3s
 
-### 2.5 Transceiver related CLI refactoring
+### 2.5 Transceiver related CLI re-factoring
 
-Currently Transceiver related CLI is fetching infomation by directly access the SFP eeprom, the output will keep as original, and information will be fetched from state DB.
+Currently Transceiver related CLI is fetching information by directly access the SFP eeprom, the output will keep as original, and the source will be changed to state DB.
 
 ### 2.6 Utilities for real-time data
 
 For the sfputility, psuutility, user may want to keep a way to get real-time data from hardware rather than from DB for debug purpose, so we may keep sfputility, psuutility and only install them in pmon.
 
-## 3. New platform API implememtation
-Old platform base APIs will be replaced by new designed API gradually. New API is well structed in a hierarchy style, a root "Platform" class include all the chassis in it, and each chassis will containe all the peripheral devices: PSUs, FANs, SFPs, etc.
+## 3. New platform API implementation
 
-As for the vendors, the way to implement the new API will be very similiar, the difference is that individual plugins will be replaced by a "sonic_platform" python package.
+Old platform base APIs will be replaced by new designed API gradually. New API is well structured in a hierarchy style, a root "Platform" class include all the chassis in it, and each chassis will contain all the peripheral devices: PSUs, FANs, SFPs, etc.
+
+As for the vendors, the way to implement the new API will be very similar, the difference is that individual plugins will be replaced by a "sonic_platform" python package.
 
 New base APIs were added for platform, chassis, watchdog, FAN and PSU. SFP and eeprom not defined yet, will be in next phase. All the APIs defined in the base classes need to be implemented unless there is a limitation(like hardware not support it, see open questions 3)
 
-Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platfrom API design, not part of the work here.
+Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platform API design, not part of the work here.
 
-New platfrom API is defined in this PR: https://github.com/Azure/sonic-platform-common/pull/13
+New platform API is defined in this PR: https://github.com/Azure/sonic-platform-common/pull/13
 
 ## 4. Pmon daemons dynamically loading
 We have multi pmon daemons for different peripheral devices, like xcvrd for transceivers, ledd for front panel LEDs, etc. Later on we may add more for PSU, fan.
 
-But not all the platfrom can support all of these daemons due to various reasons, in some case some platform may need some special daemons which are not common.
+But not all the platfrom can support(or needed) all of these daemons due to various reasons. Thus if we arbitrarily load all the pmon daemons in all the platfrom, some platform may encounter into some errors. To avoid this, pmon need a capability to load the daemons dynamically for a specific platfrom.
 
-Thus if we only load the common pmon daemons in all the platfrom without any determination, may encounter into some errors. To avoid this, pmon need a capability to load the daemons dynamically based on specific platfrom.
+The starting of the daemons inside pmon is controlled by supervisord, to have dynamically control on it, an approach is to manipulate supervisord configuration file. For now pmon superviosrd only have a common configuration file which applied to all the platforms by default.
 
-The starting of the daemons inside pmon is controlled by supervisord, to have dynamically control on it, an approach is to manipulate supervisord. For now pmon superviosrd have a common configuration file which applied to all the platforms by default.
+An template file will be added to generate supervisord configuration file for each platform during start up, if on some platform need to skip starting of some daemon, then can add some control code to the template. 
 
-We can add a customized pmon daemon configuration file in the platform folder, make the enhance start script "start.sh" with a parser for this configuration file, and load the daemons conditionally according to the parse result. For example, to control the ledd, we can put a file "leed_not_start" to platform folder, when dectect this file exist, it will not start ledd:
+For example, Mellanox platform don't want ledd to be started, following code can be added to the template:
 
-	if [ ! -e /usr/share/sonic/platform/leed_not_start ]; then
-		supervisorctl start ledd
-	fi
+	{%- if sonic_asic_platform != "mellanox" %}
+		[program:ledd]
+        command=/usr/bin/ledd
+        priority=5
+        autostart=false
+        autorestart=false
+        stdout_logfile=syslog
+        stderr_logfile=syslog
+        startsecs=0
+	{%- endif %}
 	
 ## 5. Open Questions
-- 1.) Do we need a watchdog daemon?
-- 2.) Make xcvrd collect more information (lpmode) may degrade the performance.
+- 1. How to get and organize the watchdog data? do we need a watchdog daemon?
+- 2. Make xcvrd collect more information (lpmode) may degrade the performance.
+- 3. What kind of business logic can be added to the daemons?
