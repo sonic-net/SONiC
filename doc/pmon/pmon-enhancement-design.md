@@ -61,22 +61,29 @@ All the peripheral devices data will be stored in state DB.
 
     ; Defines information for a platfrom
     key                     = PLATFORM_INFO|platform_name    ; infomation for the chassis
-    ; field                 = value
-    chassis_num             = INT                            ; chassis number in this platform                        
+    ; field                 = value                 
     chassis_list            = STRING_ARRAY                   ; chassis name list
     
 #### 1.1.2 Chassis Table
 
-    ; Defines information for a chassis
-    key                     = CHASSIS_INFO|chassis_name      ; infomation for the chassis
-    ; field                 = value
-    product_name            = STRING                         ; product name from syseeprom
-    serial_number           = STRING                         ; serial number from syseeprom
-    device_version          = STRING                         ; device version from syseeprom
+	; Defines information for a chassis
+	key                     = CHASSIS_INFO|chassis_name      ; infomation for the chassis
+	; field                 = value
+	presence                = BOOLEAN                        ; presence of the chassis
+	model                   = STRING                         ; model number from syseeprom
+	serial                  = STRING                         ; serial number from syseeprom
+	status                  = STRING                         ; status of the chassis
+	change_event            = STRING                         ; change event of chassis
 	base_mac_addr           = STRING                         ; base mac address from syseeprom
+	reboot_cause            = STRING                         ; most recent reboot cause
+	module_num              = INT                            ; module numbers on the chassis
+	fan_num                 = INT                            ; fan numbers on the chassis
+	psu_num                 = INT                            ; psu numbers on the chassis
+
+	product_name            = STRING                         ; product name from syseeprom
 	mac_addr_num            = INT                            ; mac address numbers from syseeprom
 	manufacture_date        = STRING                         ; manufature date from syseeprom
-	manufaturer             = STRING                         ; manufaturer from syseeprom
+	manufacture             = STRING                         ; manufaturer from syseeprom
 	platform_name           = STRING                         ; platform name from syseeprom
 	onie_version            = STRING                         ; onie version from syseeprom
 	crc32_checksum          = INT                            ; CRC-32 checksum from syseeprom
@@ -86,28 +93,21 @@ All the peripheral devices data will be stored in state DB.
 	vendor_ext4             = STRING                         ; vendorextension 4 from syseeprom
 	vendor_ext5             = STRING                         ; vendorextension 5 from syseeprom
 
-	reboot_cause            = STRING                         ; most recent reboot cause
-
-	fan_num                 = INT                            ; fan numbers on the chassis
-	fan_list                = STRING_ARRAY                   ; fan name list
-	psu_num                 = INT                            ; psu numbers on the chassis
-	psu_list                = STRING_ARRAY                   ; psu name list
 
 #### 1.1.3 Fan Table
 
-	; Defines information for a fan
-	key                     = FAN_INFO|fan_name              ; information for the fan
+	; Defines information for a module
+	key                     = MODULE_INFO|module_name        ; information for the module
 	; field                 = value
-	presence                = BOOLEAN                        ; presence of the fan
-	model_num               = STRING                         ; model name of the fan
-	serial_num              = STRING                         ; serial number of the fan
-	status                  = BOOLEAN                        ; status of the fan
-	change_event            = STRING                         ; change event of the fan
-	direction               = STRING                         ; direction of the fan 
-	speed                   = INT                            ; fan speed
-	speed_tolerance         = INT                            ; fan speed tolerance
-	speed_target            = INT                            ; fan target speed
-	led_status              = STRING                         ; fan led status
+	presence                = BOOLEAN                        ; presence of the module
+	model                   = STRING                         ; model name of the module
+	serial                  = STRING                         ; serial number of the module
+	status                  = BOOLEAN                        ; status of the module
+	change_event            = STRING                         ; change event of the module
+	base_mac_addr           = STRING                         ; base mac address of the module
+	fan_num                 = INT                            ; fan numbers on the module
+	psu_num                 = INT                            ; psu numbers on the module
+
 
 #### 1.1.4 PSU Table
 
@@ -115,15 +115,13 @@ All the peripheral devices data will be stored in state DB.
 	key                     = PSU_INFO|psu_name              ; information for the psu
 	; field                 = value
 	presence                = BOOLEAN                        ; presence of the psu     
-	model_num               = STRING                         ; model name of the psu
-	serial_num              = STRING                         ; serial number of the psu
+	model                   = STRING                         ; model name of the psu
+	serial                  = STRING                         ; serial number of the psu
 	status                  = BOOLEAN                        ; status of the psu
 	change_event            = STRING                         ; change event of the psu
-	fan_direction           = STRING                         ; direction of the psu fan
-	fan_speed               = INT                            ; psu fan speed
-	fan_speed_tolerance     = INT                            ; psu fan speed tolerance
-	fan_speed_target        = INT                            ; psu fan target speed
-	fan_led_status          = STRING                         ; psu fan led status
+	fan                     = STRING                         ; fan_name of the psu
+	led_status              = STRING                         ; led status of the psu
+
 
 	
 #### 1.1.6 Transceiver Table
