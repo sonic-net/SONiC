@@ -128,7 +128,7 @@ All the peripheral devices data will be stored in state DB.
 	
 #### 1.1.6 Transceiver Table
 
-We have a transceiver related information DB schema defined in the Xcvrd daemon design doc: https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema
+We have a transceiver related information DB schema defined in the [Xcvrd daemon design doc](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema).
 
 To align with the output of the current show interface transceiver we need to extend Transceiver info Table with more information, as below:
 
@@ -171,10 +171,14 @@ And also lpmode info need to be added to DB, a separated Transceiver lpmode tabl
 	; field                 = value
 	lpmode                  = 1*255VCHAR                       ; low power mode, on or off
 
-## 2. Platform monitor related CLI re-factoring
-### 2.1 change the way that CLI get the data
+## 2. Platform monitor related CLI and SNMP Agent re-factoring
+### 2.1 change the way that CLI/SNMP Agent get the data
 
-As described previously, we want to change the way that CLI get the data. Take "show platform psustatus" as an example, behind the scene it's calling psu plugin to access the hardware and get the psu status and print out. In the new design, psu daemon will fetch the psu status and update to DB before hand, thus CLI only need to connect to state DB get the information from the related DB entries.
+As described previously, we want to change the way that CLI/SNMP Agent get the data. Take "show platform psustatus" as an example, behind the scene it's calling psu plugin to access the hardware and get the psu status and print out. In the new design, psu daemon will fetch the psu status and update to DB before hand, thus CLI only need to connect to state DB get the information from the related DB entries.
+
+New CLI/SNMP Agent flow described as below picture:
+![](https://github.com/keboliu/SONiC/blob/master/doc/pmon/CLI-SNMP-flow.svg)
+
 
 ### 2.2 more output for psu show CLI
 
@@ -253,9 +257,15 @@ The output of the command is like below:
 
 Currently Transceiver related CLI is fetching information by directly access the SFP eeprom, the output will keep as original, and the source will be changed to state DB.
 
-### 2.6 Utilities for real-time data
+### 2.6 PSU SNMP Agent re-factoring
+
+After PSU status data post to state DB, SNMP agent will get PSU data from state DB instead of directly call platform psu plugin, related code in class [PowerStatusHandler](https://github.com/Azure/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/vendor/cisco/ciscoEntityFruControlMIB.py#L13) will be changed accordingly. [PhysicalTableMIBUpdater](https://github.com/Azure/sonic-snmpagent/blob/master/src/sonic_ax_impl/mibs/ietf/rfc2737.py#L113) is a good example for updating MIB from state DB.
+
+### 2.7 Utilities for real-time data
 
 For the sfputility, psuutility, user may want to keep a way to get real-time data from hardware rather than from DB for debug purpose, so we may keep sfputility, psuutility and only install them in pmon.
+
+In the future, an approach to get real-time device data from CLI is that when CLI command issued, it will trigger related pmon daemon to fresh the DB data immediately and wait for the pmon daemons to return, then can get the latest device data from DB. This will be considered in the next phase.  
 
 ## 3. New platform API implementation
 
@@ -267,7 +277,7 @@ New base APIs were added for platform, chassis, watchdog, FAN and PSU. SFP and e
 
 Previously we have an issue with the old implementation, when adding a new platform API to the base class, have to implement it in all the platform plugins, or at least add a dummy stub to them, or it will fail on the platform that doesn't have it. This will be addressed in the new platform API design, not part of the work here.
 
-New platform API is defined in this PR: https://github.com/Azure/sonic-platform-common/pull/13
+Design doc for new platform API [design doc](https://github.com/Azure/SONiC/pull/285) and [code implementation PR](https://github.com/Azure/sonic-platform-common/pull/13) are available now. 
 
 ## 4. Pmon daemons dynamically loading
 We have multi pmon daemons for different peripheral devices, like xcvrd for transceivers, ledd for front panel LEDs, etc. Later on we may add more for PSU, fan.
@@ -276,21 +286,29 @@ But not all the platfrom can support(or needed) all of these daemons due to vari
 
 The starting of the daemons inside pmon is controlled by supervisord, to have dynamically control on it, an approach is to manipulate supervisord configuration file. For now pmon superviosrd only have a common configuration file which applied to all the platforms by default.
 
-An template file will be added to generate supervisord configuration file for each platform during start up, if on some platform need to skip starting of some daemon, then can add some control code to the template. 
+An pmon config files will be added to the [platform device folder](https://github.com/keboliu/sonic-buildimage/tree/master/device/mellanox/x86_64-mlnx_msn2700-r0) if it want to skip funning some daemon. If no config file found in the folder, by default all the daemons will be started on this platform.  Combine with a template file with above config file, can generate supervisord configuration file for each platform during start up. 
 
-For example, Mellanox platform don't want ledd to be started, following code can be added to the template:
 
-	{%- if sonic_asic_platform != "mellanox" %}
-		[program:ledd]
-        command=/usr/bin/ledd
-        priority=5
-        autostart=false
-        autorestart=false
-        stdout_logfile=syslog
-        stderr_logfile=syslog
-        startsecs=0
+For example, one platform don't want ledd to be started, can add a config file to the platform,
+The contenet of the platform specific config filelike below:
+           
+	"skipped_daemons": {
+	    ledd
+	}
+	   
+a common template file for the supervisored config can like below(only show the ledd part)  
+
+	{%- if ledd != "skipped" %}
+	    [program:ledd]
+            command=/usr/bin/ledd
+            priority=5
+            autostart=false
+            autorestart=false
+            stdout_logfile=syslog
+            stderr_logfile=syslog
+            startsecs=0
 	{%- endif %}
-	
+
 ## 5. Open Questions
 - 1. How to get and organize the watchdog data? do we need a watchdog daemon?
 - 2. Make xcvrd collect more information (lpmode) may degrade the performance.
