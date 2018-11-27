@@ -125,10 +125,10 @@ Will show the user whether ZTD is enabled, the date of the last execution of the
     show ztp-status
 The ZTP status will show the user the current SONiC image, if the configuration was successful, and if the post-configuration script was run, as well as the time of the last successful completion of the ZTP service
 
-    config ztp enable/disable
+    config ztp enable
 The user can re-enable ZTP after a failed state using the CLI.  This puts the switch into “factory setting” and reloads with ZTP enabled, allowing for provisioning restart.
 
-    ztp cancel
+    config ztp disable
 The user can interrupt the ZTP service:
 - If cancelled before image download, ZTP service will exit
 - If cancelled after image download but before reboot, ZTP service will output sonic_installer list and exit
@@ -150,23 +150,17 @@ The user can interrupt the ZTP service:
 - Exit ZTP 
 - Test to see if Ansible server is reachable for further configuration
 ## Updategraph
-- If ZTP is enabled but post_install is false, apply default configs to the switch and exit
+- If ZTP is enabled and post_install is false, apply default configs to the switch and exit
 - If ZTP is enabled and post_install is true, continue to apply configs based on graph_url
 
-# Phases
+# Check-in Phases
 ## Phase 1
 - Implement image download and install
 - Implement image and config validation
 ## Phase 2
 - Post install script: downloaded after updategraph finishes
-- Dependent on user
-- Implement validation of management port
-- Implement validation of neighbors
-- Implement validation of config based on serial number
-## Phase 3
 - Command line utility
+## Phase 3
 - ZTP interrupt process
-- ZTP test planif [ -n "$new_acl_url" ]; then
-            echo $new_acl_url > /tmp/dhcp_acl_url
-        fi
+- ZTP test plan
 
