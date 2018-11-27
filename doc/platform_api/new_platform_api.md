@@ -53,6 +53,10 @@ Challenge: Attempt to create a standardized, unified API to interface with all c
   - All abstract methods simply raise "NotImplementedError"
     - Adding new methods to the base classes will not break existing implementations
     - To ensure vendors are made aware of new methods, we will add a build-time or run-time test which will output all unimplemented methods
+- New "sonic_platform" package will only be installed in Platform Monitor (pmon) Docker container (not in base image).
+  - Daemons running in pmon container will be responsible for updating Redis State database with current data from platfrom hardware
+  - Command-line utilities in base image will query State DB to retrieve current platform peripheral metrics
+  - For more real-time data, such as transceiver optical data, CLI will notify daemons to retrieve data by writing to DB
 
 ### New Platform API Hierarchy
 
@@ -67,7 +71,7 @@ Challenge: Attempt to create a standardized, unified API to interface with all c
     - Power supply unit[0 .. p-1]
     - Fan[0 .. f-1]
     - SFP cage[0 .. s-1]
-    - Module[0 .. m-1]
+    - Module[0 .. m-1] (Line card, supervisor card, etc.)
       - Environment sensors
       - Front-panel LEDs
       - Status LEDs
