@@ -66,6 +66,10 @@ Options:
   -?, -h, --help     Show this message and exit.
 ```
 
+Note: the 'show interfaces counters' has '-c, --clear' option. From the CLI point of view, this should be available from 'sonic-clear' CLI. (There already is 'sonic-clear interfaces counters')
+
+If we would like to allign the options, I suggest to remove the clear option from the 'show interfaces counters'  command. 
+
 The period option gives the ability to see the counters and RX/TX BPS, PPS and utilization rates.
 
 The rates are calculated the following way:
@@ -219,15 +223,24 @@ They will differ from ports by the ifType and base index.
 
 IANAifType:
 
- 6 - ethernetCsmacd
-
- 136 - 	l3ipvlan
-
- 161 - ieee8023adLag
+| Value | Type |
+| --- | ------ |
+| 6 | ethernetCsmacd |
+| 136 |	l3ipvlan |
+| 161 | ieee8023adLag |
  
 Base index : TBD
 
+Currently defined base indexes: 
+
+| Type | Base index |
+| --- | ------ |
+| ethernet | 1 |
+| portchannel |	1000 |
+| mgmt_port | 10000 |
+
 ### 4 Open questions
 
-What should be the base index (SNMP) for Vlan Interfaces and Portchannels?
+#### 4.1 What should be the base index (SNMP) for Vlan Interfaces?
 
+#### 4.2 Allign the CLi options with 'show interfaces counters' --clear option. Remove existing clear option from the show command? 
