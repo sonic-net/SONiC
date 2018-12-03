@@ -34,7 +34,7 @@ Today SONiC only has one redis database instance created and all the databases u
       "DATABASE": {
           "redis_ins_001":{
               "port": 6380,
-              "databases" : ["LOGLEVEL_DB","SYSMON_DB","COUNTERS_DB""]
+              "databases" : ["LOGLEVEL_DB","SYSMON_DB","COUNTERS_DB"]
           },
           "redis_ins_002":{
               "port": 6381,
