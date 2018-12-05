@@ -71,40 +71,61 @@ Assumptions:
 1. DUT is T0 topology
 2. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
 
+Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/README.testbed.Overview.md#sonic-testbed-overview)
+![Physical topology](https://github.com/Azure/sonic-mgmt/raw/master/ansible/doc/img/testbed.png)
+![Testbed server](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/img/testbed-server.png)
+
+Architect:
+  - Both warm-reboot and fast-reboot are written in ansible playbook advanced-reboot.yml
+  - The playbook will deploy a master python script advanced-reboot.py to PTF docker container and all the steps are running there
+  - The master python script will
+    - ssh into DUT to execute reboot command
+    - ssh into Arist EOS VM to observe and operate port, port channel and BGP sessions
+    - operate VLAN ports
+    - store and analysis data
+
 Steps:
-1. Prepare
+1. Prepare environment
    - Enable link state propagation
-2. Before warm reboot
-   - Happy Path
-   - Sad Path
-     - DUT port down
-     - DUT LAG down
-     - DUT LAG member down
-     - DUT BGP session down
-     - Neigh port down
-     - Neigh LAG remove member
-     - Neigh LAG admin down
-     - Neigh LAG member admin down
-     - Neigh BGP session admin down
-3. During warm reboot
-   - Happy Path
-     - Observe no port down from VM side (all the same below)
-     - Observe LAG, the maximal control plane interval is 90s
-     - Observe BGP session
-     - Observe no packet drop
-   - Sad Path
-     - Neigh port down
-     - Neigh LAG remove member
-     - Neigh LAG admin down
-     - Neigh LAG member admin down
-     - Neigh BGP session admin down
-     - Neigh route change
-     - Neigh MAC change
-     - Neigh VLAN member port admin downn (some or all)
-4. After warm reboot
+     - Propagate VEOS port admin down to Fanout switch
+     - Propagete PTF port down to Fanout switch
+
+2. Prepare DUT with user specified states `pre_reboot_vector`
+   - DUT port down
+   - DUT LAG down
+   - DUT LAG member down
+   - DUT BGP session down
+   - Neigh port down
+   - Neigh LAG remove member
+   - Neigh LAG admin down
+   - Neigh LAG member admin down
+   - Neigh BGP session admin down
+   
+3. Pre-warm-reboot status check
+	 - Port.lastStatusChangeTimestamp
+	 - PortChannel.lastStatusChangeTimestamp
+	 - BGP last status change time???
+	 - Starting pinging threads
+   - Observe no packet drop: current implementation of advanced-reboot waits for ping down, which is not working for warm-reboot
+   - CRM snapshot
+
+4. During-warm-reboot sad vector injection `during_reboot_vector`. Observe no packet drop
+	 - Neigh port down
+	 - Neigh LAG remove member
+	 - Neigh LAG admin down
+	 - Neigh LAG member admin down
+	 - Neigh BGP session admin down
+	 - Neigh route change
+	 - Neigh MAC change
+	 - Neigh VLAN member port admin down (some or all)
+   
+5. Post-warm-reboot status check
+	 - Generate expected_results based on `pre_reboot_vector` + `during_reboot_vector`
+	 - Port.lastStatusChangeTimestamp
+	 - PortChannel.lastStatusChangeTimestamp
+	 - BGP last status change time???
+   - Observe no packet drop: current implementation of advanced-reboot waits for ping recover, which is not working for warm-reboot
    - CRM is not increasing for happy path during warm reboot
-   - Check expected response for sad path during warm reboot
-   - Recheck all observation in Section 3 - Happy Path
-   - Link_flap
+   
 5. Clean-up
    - Disable link state propagation
