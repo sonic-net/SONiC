@@ -102,28 +102,31 @@ Steps:
    - Neigh BGP session admin down
    
 3. Pre-warm-reboot status check
-	 - Port.lastStatusChangeTimestamp
-	 - PortChannel.lastStatusChangeTimestamp
-	 - BGP last status change time???
-	 - Starting pinging threads
-   - Observe no packet drop: current implementation of advanced-reboot waits for ping down, which is not working for warm-reboot
+   - Port.lastStatusChangeTimestamp
+   - PortChannel.lastStatusChangeTimestamp
+   - BGP last status change time???
+   - Starting pinging threads
+   - Observe no packet drop
+     - current implementation of advanced-reboot waits for ping down, which is not working for warm-reboot
+     - if any packet drop, test fails
+     - how to know warm-shutdown and warm-bootup timestamp?
    - CRM snapshot
 
 4. During-warm-reboot sad vector injection `during_reboot_vector`. Observe no packet drop
-	 - Neigh port down
-	 - Neigh LAG remove member
-	 - Neigh LAG admin down
-	 - Neigh LAG member admin down
-	 - Neigh BGP session admin down
-	 - Neigh route change
-	 - Neigh MAC change
-	 - Neigh VLAN member port admin down (some or all)
-   
+   - Neigh port down
+   - Neigh LAG remove member
+   - Neigh LAG admin down
+   - Neigh LAG member admin down
+   - Neigh BGP session admin down
+   - Neigh route change
+   - Neigh MAC change
+   - Neigh VLAN member port admin down (some or all)
+    
 5. Post-warm-reboot status check
-	 - Generate expected_results based on `pre_reboot_vector` + `during_reboot_vector`
-	 - Port.lastStatusChangeTimestamp
-	 - PortChannel.lastStatusChangeTimestamp
-	 - BGP last status change time???
+   - Generate expected_results based on `pre_reboot_vector` + `during_reboot_vector`
+   - Port.lastStatusChangeTimestamp
+   - PortChannel.lastStatusChangeTimestamp
+   - BGP last status change time???
    - Observe no packet drop: current implementation of advanced-reboot waits for ping recover, which is not working for warm-reboot
    - CRM is not increasing for happy path during warm reboot
    
