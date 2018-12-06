@@ -234,13 +234,28 @@ Base index : TBD
 Currently defined base indexes: 
 
 | Type | Base index |
-| --- | ------ |
+| ---- | ---------- |
 | ethernet | 1 |
 | portchannel |	1000 |
 | mgmt_port | 10000 |
+
+Proposed SNMP OIDs to be used:
+
+| OID | SNMP counter | Description | SAI stat | 
+| --- | ------------ | ----------- | -------- |
+| 1.3.6.1.2.1.2.2.1.10 | ifInOctets | The total number of octets received on the interface, including framing characters. | SAI_ROUTER_INTERFACE_STAT_IN_OCTETS |
+| 1.3.6.1.2.1.2.2.1.11 | ifInUcastPkts | The number of packets, delivered by this sub-layer to a higher (sub-)layer, which were not addressed to a multicast or broadcast address at this sub-layer. | SAI_ROUTER_INTERFACE_STAT_IN_PACKETS |
+| 1.3.6.1.2.1.2.2.1.14 | ifInErrors | For packet-oriented interfaces, the number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol. | SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS |
+| 1.3.6.1.2.1.2.2.1.16 | ifOutOctets | The total number of octets transmitted out of the interface, including framing characters. | SAI_ROUTER_INTERFACE_STAT_OUT_OCTETS |
+| 1.3.6.1.2.1.2.2.1.17 | ifOutUcastPkts | The total number of packets that higher-level protocols requested be transmitted, and which were not addressed to a multicast or broadcast address at this sub-layer, including those that were discarded or not sent. | SAI_ROUTER_INTERFACE_STAT_OUT_PACKETS |
+| 1.3.6.1.2.1.2.2.1.20 | ifOutErrors| For packet-oriented interfaces, the number of outbound packets that could not be transmitted because of errors. For character-oriented or fixed-length interfaces, the number of outbound transmission units that could not be transmitted because of errors. | SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS |
+
+It looks like the SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS and SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS include bad packets, error and discard. The MIB has separate OIDs - ifInDiscards, ifInErrors, ifOutDiscards, ifOutErrors. Not sure how to handle this. 
 
 ### 4 Open questions
 
 #### 4.1 What should be the base index (SNMP) for Vlan Interfaces?
 
 #### 4.2 Allign the CLi options with 'show interfaces counters' --clear option. Remove existing clear option from the show command? 
+
+#### 4.3 SNMP support and OIDs to be used.
