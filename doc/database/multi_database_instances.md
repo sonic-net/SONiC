@@ -79,11 +79,55 @@ Today SONiC only has one redis database instance created and all the databases u
    - [x] restore /etc/sonic/old_config to /etc/sonic/, if any
    - [x] if no folder /etc/sonic/old_config/, generate config_db.json based on xml and etc.
 
-## Potential Cluster Configuration & Deployment
+## Potential Redis Cluster Solution
 
-Redis database support cluster configuration and deployment. The configuration is on instances level, each database instance is independent, it is controlled via  redis.conf file. So multiple database instances design won't affect the logic and ability of cluster feature. 
+Could we use cluster feature on single instance to split the databases across different nodes instead of creating multiple single redis instances mentioned in this Design Document ?
 
+**What is the goals of Redis Cluster?** 
 
+Redis Cluster is a distributed implementation of Redis with the following goals, in order of importance in the design:
+
+1. High performance and linear scalability up to 1000 nodes. There are no proxies, asynchronous replication is used, and no merge operations are performed on values.
+2. Acceptable degree of write safety: the system tries (in a best-effort way) to retain all the writes originating from clients connected with the majority of the master nodes. Usually there are small windows where acknowledged writes can be lost. Windows to lose acknowledged writes are larger when clients are in a minority partition.
+3. Availability: Redis Cluster is able to survive partitions where the majority of the master nodes are reachable and there is at least one reachable slave for every master node that is no longer reachable. Moreover using replicas migration, masters no longer replicated by any slave will receive one from a master which is covered by multiple slaves.
+
+**Clients and Servers roles in the Redis Cluster protocol**
+​        In Redis Cluster nodes are responsible for holding the data, and taking the state of the cluster, including mapping keys to the right nodes. Cluster nodes are also able to auto-discover other nodes, detect non-working nodes, and promote slave nodes to master when needed in order to continue to operate when a failure occurs.
+
+​        To perform their tasks all the cluster nodes are connected using a **TCP bus** and a binary protocol, called the Redis Cluster Bus. Every node is connected to every other node in the cluster using the cluster bus. Nodes use a gossip protocol to propagate information about the cluster in order to discover new nodes, to send ping packets to make sure all the other nodes are working properly, and to send cluster messages needed to signal specific conditions. The cluster bus is also used in order to propagate Pub/Sub messages across the cluster and to orchestrate manual failovers when requested by users (manual failovers are failovers which are not initiated by the Redis Cluster failure detector, but by the system administrator directly).
+
+![](/home/dzhang/SONiC_Doc/SONiC/doc/database/img/redis_cluster.jpg)
+
+**Redis Cluster Main Components:**
+
+***KEYs distribution model :***
+
+​	HASH_SLOT = CRC16(key) mod 16384
+
+**Cluster nodes attributes:**
+
+​	Every node has a unique name in the cluster. The node name is the hex representation of a 160 bit random number, obtained the first time a node is started (usually using /dev/urandom).
+
+​	Every node maintains the following information about other nodes that it is aware of in the cluster: The node ID, IP and port of the node, a set of flags, what is the master of the node if it is flagged as slave, last time the node was pinged and the last time the pong was received, the current configuration epoch of the node (explained later in this specification), the link state and finally the set of hash slots served.
+
+```shell
+`$ redis-cli cluster nodes
+d1861060fe6a534d42d8a19aeb36600e18785e04 127.0.0.1:6379 myself - 0 1318428930 1 connected 0-1364
+3886e65cc906bfd9b1f7e7bde468726a052d1dae 127.0.0.1:6380 master - 1318428930 1318428931 2 connected 1365-2729
+d289c575dcbc4bdd2931585fd4339089e461a27d 127.0.0.1:6381 master - 1318428931 1318428931 3 connected 2730-4095`
+```
+
+**The Cluster bus:**
+​	Every Redis Cluster node has an additional TCP port for receiving incoming connections from other Redis Cluster nodes. This port is at a fixed offset from the normal TCP port used to receive incoming connections from clients. To obtain the Redis Cluster port, 10000 should be added to the normal commands port. For example, if a Redis node is listening for client connections on port 6379, the Cluster bus port 16379 will also be opened.
+
+**The Fact we cannot use redis cluster to distribute all databases across different nodes.**
+
+1. TCP + PORT must be used in cluster, we cannot use socket.
+2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to distribute the databases across nodes.
+3. Also, in cluster mode, each redis instance only has one database, we cannot apply two or more databases on the same redis instance.
+4. For warm reboot, we cannot restore the data form current saved backup file to start the redis cluster mode unless we don't want to support it.
+
+**So I don't think redis cluster is a good way to solve the problem of distributing databases into multiple redis instances in SONiC.**
 
 ## New Design of C++ Interface :  DBConnector()
 
