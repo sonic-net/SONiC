@@ -95,17 +95,17 @@ Redis Cluster is a distributed implementation of Redis with the following goals,
 
 ​	In Redis Cluster nodes are responsible for holding the data, and taking the state of the cluster, including mapping keys to the right nodes. Cluster nodes are also able to auto-discover other nodes, detect non-working nodes, and promote slave nodes to master when needed in order to continue to operate when a failure occurs.
 
-​        To perform their tasks all the cluster nodes are connected using a **TCP bus** and a binary protocol, called the Redis Cluster Bus. Every node is connected to every other node in the cluster using the cluster bus. Nodes use a gossip protocol to propagate information about the cluster in order to discover new nodes, to send ping packets to make sure all the other nodes are working properly, and to send cluster messages needed to signal specific conditions. The cluster bus is also used in order to propagate Pub/Sub messages across the cluster and to orchestrate manual failovers when requested by users (manual failovers are failovers which are not initiated by the Redis Cluster failure detector, but by the system administrator directly).
+​        To perform their tasks all the cluster nodes are connected using a TCP bus and a binary protocol, called the Redis Cluster Bus. Every node is connected to every other node in the cluster using the cluster bus. Nodes use a gossip protocol to propagate information about the cluster in order to discover new nodes, to send ping packets to make sure all the other nodes are working properly, and to send cluster messages needed to signal specific conditions. The cluster bus is also used in order to propagate Pub/Sub messages across the cluster and to orchestrate manual failovers when requested by users (manual failovers are failovers which are not initiated by the Redis Cluster failure detector, but by the system administrator directly).
 
 ![](./img/redis_cluster.jpg)
 
-**Redis Cluster Main Components:**
+**Redis Cluster Main Components :**
 
-***KEYs distribution model :***
+**KEYs distribution model :**
 
 ​        HASH_SLOT = CRC16(key) mod 16384
 
-**Cluster nodes attributes:**
+**Cluster nodes attributes :**
 
 ​        Every node has a unique name in the cluster. The node name is the hex representation of a 160 bit random number, obtained the first time a node is started (usually using /dev/urandom).
 
@@ -118,19 +118,19 @@ d1861060fe6a534d42d8a19aeb36600e18785e04 127.0.0.1:6379 myself - 0 1318428930 1 
 d289c575dcbc4bdd2931585fd4339089e461a27d 127.0.0.1:6381 master - 1318428931 1318428931 3 connected 2730-4095
 ```
 
-**The Cluster bus:**
+**The Cluster bus :**
 
 ​        Every Redis Cluster node has an additional TCP port for receiving incoming connections from other Redis Cluster nodes. This port is at a fixed offset from the normal TCP port used to receive incoming connections from clients. To obtain the Redis Cluster port, 10000 should be added to the normal commands port. For example, if a Redis node is listening for client connections on port 6379, the Cluster bus port 16379 will also be opened.
 
-**The Fact we cannot use redis cluster to distribute all databases across different nodes.**
+**The fact we cannot use redis cluster to split all databases across different nodes:**
 
 1. TCP + PORT must be used in cluster, we cannot use socket.
-2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to distribute the databases across nodes.
+2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to split the databases across nodes.
 3. Also, in cluster mode, each redis instance only has one database, we cannot apply two or more databases on the same redis instance.
 4. We need to use new c++/python cluster client library instead of current c/python redis cluster library.
 5. For warm reboot, we cannot restore the data form current saved backup file to start the redis cluster mode unless we don't want to support it.
 
-**So I don't think redis cluster is a good way to solve the problem of distributing databases into multiple redis instances in SONiC.**
+**So I don't think redis cluster is a good way to solve the problem of splitting databases into multiple redis instances in SONiC.**
 
 ## New Design of C++ Interface :  DBConnector()
 
