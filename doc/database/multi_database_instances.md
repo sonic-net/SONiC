@@ -124,11 +124,53 @@ d289c575dcbc4bdd2931585fd4339089e461a27d 127.0.0.1:6381 master - 1318428931 1318
 
 **The fact we cannot use redis cluster to split all databases across different nodes:**
 
-1. TCP + PORT must be used in cluster, we cannot use socket.
+1. TCP + PORT must be used in cluster, we cannot use unix socket.
 2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to split the databases across nodes.
 3. Also, in cluster mode, each redis instance only has one database, we cannot apply two or more databases on the same redis instance.
 4. We need to use new c++/python cluster client library instead of current c/python redis cluster library.
 5. For warm reboot, we cannot restore the data form current saved backup file to start the redis cluster mode unless we don't want to support it.
+
+**TCP + PORT v.s. Unix Socket Benchmark Performance results :**
+
+```bash
+root@ASW5:/# redis-benchmark -q -n 100000 -c 1 -p 6379
+PING_INLINE: 10899.18 requests per second
+PING_BULK: 11138.34 requests per second
+SET: 9280.74 requests per second
+GET: 10922.99 requests per second
+INCR: 9668.37 requests per second
+LPUSH: 9483.17 requests per second
+RPUSH: 9541.07 requests per second
+LPOP: 9373.83 requests per second
+RPOP: 9725.73 requests per second
+SADD: 11249.86 requests per second
+SPOP: 11332.73 requests per second
+LPUSH (needed to benchmark LRANGE): 9508.42 requests per second
+LRANGE_100 (first 100 elements): 4695.06 requests per second
+LRANGE_300 (first 300 elements): 2391.43 requests per second
+LRANGE_500 (first 450 elements): 1740.13 requests per second
+LRANGE_600 (first 600 elements): 1434.54 requests per second
+MSET (10 keys): 4568.50 requests per second
+
+root@ASW5:/# redis-benchmark -q -n 100000 -c 1 -s /var/run/redis/redis.sock
+PING_INLINE: 18076.64 requests per second
+PING_BULK: 18804.06 requests per second
+SET: 14361.63 requests per second
+GET: 18426.39 requests per second
+INCR: 15260.19 requests per second
+LPUSH: 14293.88 requests per second
+RPUSH: 14686.44 requests per second
+LPOP: 14108.35 requests per second
+RPOP: 14427.93 requests per second
+SADD: 17838.03 requests per second
+SPOP: 18008.28 requests per second
+LPUSH (needed to benchmark LRANGE): 14537.00 requests per second
+LRANGE_100 (first 100 elements): 6383.25 requests per second
+LRANGE_300 (first 300 elements): 2669.09 requests per second
+LRANGE_500 (first 450 elements): 1868.22 requests per second
+LRANGE_600 (first 600 elements): 1496.40 requests per second
+MSET (10 keys): 5550.62 requests per second 
+```
 
 **So I don't think redis cluster is a good way to solve the problem of splitting databases into multiple redis instances in SONiC.**
 
