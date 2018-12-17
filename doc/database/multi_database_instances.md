@@ -2,111 +2,112 @@
 
 ## Motivation
 
-Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL_DB, ASIC_DB, CONF_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very  busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL_DB or ASIC_DB  via multiple database instances.  
+​        Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL\_DB, ASIC\_DB, CONF\_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very  busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL\_DB or ASIC\_DB  via multiple database instances.
 
 ## Current implementation
 
-- Single Redis database instance for all databases
-- All database configuration files (supervisord.conf, redis.conf, redis.sock. redis.pid and etc.) are generated at compilation. They cannot be modified at runtime
-- ![](./img/current_DB.png)
+* Single Redis database instance for all databases
+* All database configuration files (supervisord.conf, redis.conf, redis.sock. redis.pid and etc.) are generated at compilation. They cannot be modified at runtime.
 
-1. DUT try to load a new images
-   - [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old_config
+![center](./img/current_DB.png)
+
+DUT try to load a new images
+
+
+1. * [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old\_config
 2. rc.local service
-   - [x] if /host/old_config/ exists, copy /host/old_config/ to /etc/sonic/
-   - [x] if no folder /host/old_config/, copy some default xmls and etc.
+    * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/
+    * [x] if no folder /host/old\_config/, copy some default xmls and etc.
 3. database service
-   - [x] database.sh start and docker start according to the configuration
-   - [x] check if database is running
+    * [x] [database.sh](http://database.sh) start and docker start according to the configuration
+    * [x] check if database is running
 4. updategraph service
-   - [x] depends on rc.local and database
-   - [x] restore /etc/sonic/old_config to /etc/sonic/, if any
-   - [x] if no folder /etc/sonic/old_config/, generate config_db.json based on xml and etc.
+    * [x] depends on rc.local and database
+    * [x] restore selected files in /etc/sonic/old\_config to /etc/sonic/, if any
+    * [x] if no folder /etc/sonic/old\_config/, generate config\_db.json based on xml and etc.
 
-## New Design of Database Startup 
+## New Design of Database Startup
 
-- We introduce a new configuration file at /etc/sonic/database_config.json
+* We introduce a new configuration file at /etc/sonic/database\_config.json
+* This file contains how many database instances and on each instance what the configuration is
 
-- This file contains how may database instances and on each instance what the configuration is
+    ```json
+    {
+        "DATABASE": {
+            "redis_ins_001":{
+                "port": 6380,
+                "databases" : ["LOGLEVEL_DB","SYSMON_DB","COUNTERS_DB"]
+            },
+            "redis_ins_002":{
+                "port": 6381,
+                "databases" : ["APPL_DB"]
+            },
+            "redis_ins_003":{
+                "port": 6382,
+                "databases" : ["STATE_DB","FLEX_COUNTER_DB","PFC_WD_DB"]
+            },
+            "redis_ins_004":{
+                "port": 6383,
+                "databases" : ["ASIC_DB"]
+            },
+            "redis_ins_005":{
+                "port": 6384,
+                "databases" : ["CONFIG_DB"]
+            }
+        }
+    }
+    ```
+* This database\_config.json is pre-designed in SONiC source codes on each version instead of copying/modifying it via users on fly. When loading new images, this file is copied to /etc/sonic/ from images. 
+* DO NOT change the original single redis database instance implementation
+    * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis database instance is there and behaves the same as what it does today
+    * [x] If we have some DATABASE configuration in database\_config.json,  besides the default redis database instance, we create these extra database instances, later the users can choose which database instances they want to use according to their configuration in database\_config.json
+* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) can be decided/generated during compiling/building since we know database\_config.json in source code. 
 
-  ```json
-  {
-      "DATABASE": {
-          "redis_ins_001":{
-              "port": 6380,
-              "databases" : ["LOGLEVEL_DB","SYSMON_DB","COUNTERS_DB"]
-          },
-          "redis_ins_002":{
-              "port": 6381,
-              "databases" : ["APPL_DB","ASIC_DB", "CONFIG_DB"]
-          },
-          "redis_ins_003":{
-              "port": 6382,
-              "databases" : ["STATE_DB","FLEX_COUNTER_DB","PFC_WD_DB"]
-          }
-      }
-  }
-  ```
-
-- DO NOT change the original single redis database instance implementation
-  - [x] If we don't have any DATABASE configuration in database_config.json, the default redis database instance is there and behaves the same as what it does today
-  - [x] If we have some DATABASE configuration in database_config.json,  besides the default redis database instance, we create these extra database instances, later the users can choose which database instances they want to use according to their configuration in database_config.json
-
-- All database related configuration(supervisord.conf, redis.conf, redis.sock, redis.pid and etc.) should be generated at runtime
-
-- ![](./img/newDesign.png)
+![center](./img/current_DB.png)
 
 1. DUT try to load a new images (no changes)
-   - [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old_config as usual
+    * [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old\_config as usual
 2. rc.local service (no changes)
-   - [x] if /host/old_config/ exists, copy /host/old_config/ to /etc/sonic/ as usual
-   - [x] if no folder /host/old_config/, copy some default xmls and etc. as usual
-3. **database service**
-   - [x] **make database service depends on rc.local service since database needs to access old_config/config_db.json to get DATABASE configuration earlier**
-   - [x] **database.sh start**
-     - [x] **access and copy /etc/sonic/old_config/database_config.json into /etc/sonic/**
-     - [x] **If there is no old_config folder or database_config.json file, we take it as no extra DATABASE requirement  and create a empty "{}" database_config.json.**
-     - [x] **generate corresponding runtime ping/PONG check script as well to check if database instances are running later**
-   - [x] **docker ENTRYPOINT : docker_init.sh**
-     - [x] **at this point, we know the DATABASE configuration in database_config.json**
-     - [x] **generate supervisord.conf and all redis.conf before database docker start**
-     - [x] **exec supervisord**
-   - [x] **supervisord**
-     - [x] **start database programs after all runtime configuration are generated**
-   - [x] **check if database instances are running via ping/PONG check script**
+    * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/ as usual
+    * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
+3. __database service__
+    * [x] __database\_config.json is already copied to /etc/sonic/ , at this stage , it is visible to host system__
+    * [x] **database.sh start**
+        * [x] __database\_config.json should always exist __
+    * [x] __supervisord__
+        * [x] **start database programs**
+    * [x] __check if database instances are running via ping/PONG check script__
 4. updategraph service (no changes)
-   - [x] depends on rc.local and database
-   - [x] restore /etc/sonic/old_config to /etc/sonic/, if any
-   - [x] if no folder /etc/sonic/old_config/, generate config_db.json based on xml and etc.
+    * [x] depends on rc.local and database
+    * [x] restore selected files /etc/sonic/old\_config to /etc/sonic/, if any
+    * [x] if no folder /etc/sonic/old\_config/, generate config\_db.json based on xml and etc.
 
 ## Potential Redis Cluster Solution
 
-Could we use cluster feature on single instance to split the databases across different nodes instead of creating multiple single redis instances mentioned in this Design Document ?
+​        Could we use cluster feature on single instance to split the databases across different nodes instead of creating multiple single redis instances mentioned in this Design Document ?
 
-**What is the goals of Redis Cluster?** 
-
-Redis Cluster is a distributed implementation of Redis with the following goals, in order of importance in the design:
+__What is the goals of Redis Cluster?__
+​        Redis Cluster is a distributed implementation of Redis with the following goals, in order of importance in the design:
 
 1. High performance and linear scalability up to 1000 nodes. There are no proxies, asynchronous replication is used, and no merge operations are performed on values.
 2. Acceptable degree of write safety: the system tries (in a best-effort way) to retain all the writes originating from clients connected with the majority of the master nodes. Usually there are small windows where acknowledged writes can be lost. Windows to lose acknowledged writes are larger when clients are in a minority partition.
 3. Availability: Redis Cluster is able to survive partitions where the majority of the master nodes are reachable and there is at least one reachable slave for every master node that is no longer reachable. Moreover using replicas migration, masters no longer replicated by any slave will receive one from a master which is covered by multiple slaves.
 
-**Clients and Servers roles in the Redis Cluster protocol**
-
-​	In Redis Cluster nodes are responsible for holding the data, and taking the state of the cluster, including mapping keys to the right nodes. Cluster nodes are also able to auto-discover other nodes, detect non-working nodes, and promote slave nodes to master when needed in order to continue to operate when a failure occurs.
+__Clients and Servers roles in the Redis Cluster protocol__
+​        In Redis Cluster nodes are responsible for holding the data, and taking the state of the cluster, including mapping keys to the right nodes. Cluster nodes are also able to auto-discover other nodes, detect non-working nodes, and promote slave nodes to master when needed in order to continue to operate when a failure occurs.
 
 ​        To perform their tasks all the cluster nodes are connected using a TCP bus and a binary protocol, called the Redis Cluster Bus. Every node is connected to every other node in the cluster using the cluster bus. Nodes use a gossip protocol to propagate information about the cluster in order to discover new nodes, to send ping packets to make sure all the other nodes are working properly, and to send cluster messages needed to signal specific conditions. The cluster bus is also used in order to propagate Pub/Sub messages across the cluster and to orchestrate manual failovers when requested by users (manual failovers are failovers which are not initiated by the Redis Cluster failure detector, but by the system administrator directly).
 
-![](./img/redis_cluster.jpg)
+![center](./img/redis_cluster.jpg)
 
-**Redis Cluster Main Components :**
 
-**KEYs distribution model :**
+__Redis Cluster Main Components :__
 
-​        HASH_SLOT = CRC16(key) mod 16384
+__KEYs distribution model :__
 
-**Cluster nodes attributes :**
+​        HASH\_SLOT = CRC16(key) mod 16384
 
+__Cluster nodes attributes :__
 ​        Every node has a unique name in the cluster. The node name is the hex representation of a 160 bit random number, obtained the first time a node is started (usually using /dev/urandom).
 
 ​        Every node maintains the following information about other nodes that it is aware of in the cluster: The node ID, IP and port of the node, a set of flags, what is the master of the node if it is flagged as slave, last time the node was pinged and the last time the pong was received, the current configuration epoch of the node (explained later in this specification), the link state and finally the set of hash slots served.
@@ -118,11 +119,11 @@ d1861060fe6a534d42d8a19aeb36600e18785e04 127.0.0.1:6379 myself - 0 1318428930 1 
 d289c575dcbc4bdd2931585fd4339089e461a27d 127.0.0.1:6381 master - 1318428931 1318428931 3 connected 2730-4095
 ```
 
-**The Cluster bus :**
+__The Cluster bus :__
 
 ​        Every Redis Cluster node has an additional TCP port for receiving incoming connections from other Redis Cluster nodes. This port is at a fixed offset from the normal TCP port used to receive incoming connections from clients. To obtain the Redis Cluster port, 10000 should be added to the normal commands port. For example, if a Redis node is listening for client connections on port 6379, the Cluster bus port 16379 will also be opened.
 
-**The fact we cannot use redis cluster to split all databases across different nodes:**
+__The fact we cannot use redis cluster to split all databases across different nodes:__
 
 1. TCP + PORT must be used in cluster, we cannot use unix socket.
 2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to split the databases across nodes.
@@ -130,7 +131,7 @@ d289c575dcbc4bdd2931585fd4339089e461a27d 127.0.0.1:6381 master - 1318428931 1318
 4. We need to use new c++/python cluster client library instead of current c/python redis cluster library.
 5. For warm reboot, we cannot restore the data form current saved backup file to start the redis cluster mode unless we don't want to support it.
 
-**TCP + PORT v.s. Unix Socket Benchmark Performance results :**
+__TCP + PORT v.s. Unix Socket Benchmark Performance results :__
 
 ```bash
 root@ASW5:/# redis-benchmark -q -n 100000 -c 1 -p 6379
@@ -172,7 +173,8 @@ LRANGE_600 (first 600 elements): 1496.40 requests per second
 MSET (10 keys): 5550.62 requests per second 
 ```
 
-**So I don't think redis cluster is a good way to solve the problem of splitting databases into multiple redis instances in SONiC.**
+​        __So I don't think redis cluster is a good way to solve the problem of splitting databases into multiple redis instances
+in SONiC.__
 
 ## New Design of C++ Interface :  DBConnector()
 
@@ -183,7 +185,7 @@ DBConnector(int dbId, const std::string &hostname, int port, unsigned int timeou
 DBConnector(int dbId, const std::string &unixPath, unsigned int timeout);
 ```
 
-The new design introduce a new class DBConnectorDB which is used to read database_config.json file and store the database configuration information once. We declare a static member of DBConnectorDB class in original DBConnector which make sure it is only read the configuration file once.
+The new design introduce a new class DBConnectorDB which is used to read database\_config.json file and store the database configuration information once. We declare a static member of DBConnectorDB class in original DBConnector which make sure it is only read the configuration file once.
 
 Also we introduce a new API to create DBConnector object without socket/port parameter. The socket/port will be decided via lookup using DBConnectorDB static member.
 
@@ -256,7 +258,7 @@ DBConnector::DBConnector(int dbId, unsigned int timeout) :
 
 Python DBConnector() is auto generated via C++ Codes. No need to change.
 
-## New Design of Python Interface: SonicV2Connector() 
+## New Design of Python Interface: SonicV2Connector()
 
 Today the usage is to accept parameter in SonicV2Connector() init and then call connect() to create connection to default redis instance.
 
@@ -265,7 +267,7 @@ Today the usage is to accept parameter in SonicV2Connector() init and then call 
  self.appdb.connect(self.appdb.APPL_DB)
 ```
 
-We first add the codes/API into \_\_init\_\_.py in swsssdk package to read database_config.json file and store the database configuration information at the very beginning. Later when importing swsssdk package, other python modules can use this information which is similar to existing  _connector_map.
+We first add the codes/API into \_\_init\_\_.py in swsssdk package to read database\_config.json file and store the database configuration information at the very beginning. Later when importing swsssdk package, other python modules can use this information which is similar to existing  \_connector\_map.
 
 \_\_init\_\_.py
 
@@ -307,7 +309,8 @@ _load_connector_map()
 _parse_db_inst_mapping()
 ```
 
-Then when connecting database in the connect() function in interface.py , we choose the database instance based on database id instead of using the default redis instance.
+Then when connecting database in the connect() function in [interface.py](http://interface.py) , we choose the database
+instance based on database id instead of using the default redis instance.
 
 interface.py
 
@@ -330,6 +333,7 @@ def _onetime_connect(self, db_name):
     client.config_set('notify-keyspace-events', self.KEYSPACE_EVENTS)
     self.redis_clients[db_name] = client
 ```
+
 For this part, the current code where uses parameters in SonicV2Connector(port/socket) is not necessary anymore. We need to remove them though there is no effect for now.
 
 ```python
@@ -342,7 +346,7 @@ For this part, the current code where uses parameters in SonicV2Connector(port/s
 
 Today we create all database connection at init time using default redis instance and later we just use it.
 
-db_client.go
+db\_client.go
 
 ```go
 // Client package prepare redis clients to all DBs automatically
@@ -365,9 +369,9 @@ func init() {
 } 
 ```
 
-In the new Design, similar to C++ changes, in the init time , we first add function to read database_config.json file and store the database information.   Later we use the API to get the information when we want to use it.
+In the new Design, similar to C++ changes, in the init time , we first add function to read database\_config.json file and store the database information.   Later we use the API to get the information when we want to use it.
 
-db_client.go
+db\_client.go
 
 ```go
 const (
@@ -427,7 +431,7 @@ func db_init() {
 
 The last step is to replace the hard coded socket/port with the API
 
-db_client.go
+db\_client.go
 
 ```go
 // Client package prepare redis clients to all DBs automatically
@@ -456,7 +460,7 @@ For the script, today we just use the default redis instance and there is no -p/
 
 The scripts is used in shell, python, c and c++ system call, we need to change all these places.
 
-we just used the python API we added earlier in \_\_init\_\_.py in swsssdk package to achieve this .  
+we just used the python API we added earlier in \_\_init\_\_.py in swsssdk package to achieve this .
 
 Shell e.g.:
 
@@ -465,26 +469,29 @@ arp_to_host_flag=$(echo $(redis-cli -n 4 hget "ARP|arp2host" enable) | tr [a-z][
 ```
 
 ```shell
- arp_to_host_flag=$(echo $(redis-cli -p `python -c 'from swsssdk import _get_redis_port; print _get_redis_port("CONFIG_DB")'` -n 4 hget "ARP|arp2host" enable) | tr [a-z][A-Z])
+ arp_to_host_flag=$(echo $(redis-cli -p `python -c 'from swsssdk import _get_redis_port; print
+_get_redis_port("CONFIG_DB")'` -n 4 hget "ARP|arp2host" enable) | tr [a-z][A-Z])
 ```
 
 python e.g.:
 
 ```python
-proc = Popen("docker exec -i database redis-cli --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE, shell=True
+proc = Popen("docker exec -i database redis-cli --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE,
+shell=True
 ```
 
 ```python
 from swsssdk import _get_redis_port_
 
-_proc = Popen("docker exec -i database redis-cli -p " + str(_get_redis_port("COUNTERS_DB")) + " --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*    ", stdout=PIPE, stderr=PIPE, shell=True
+_proc = Popen("docker exec -i database redis-cli -p " + str(_get_redis_port("COUNTERS_DB")) + " --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE, shell=True
 ```
 
 C/C++ e.g.:
 
 ```c++
 //string redis_cmd_db = "redis-cli -p -n ";
-string redis_cmd_db = "redis-cli -p `python -c \"from swsssdk import _get_redis_port; print _get_redis_port(\\\"CONFIG_DB\\\")\"` -n ";
+string redis_cmd_db = "redis-cli -p `python -c \"from swsssdk import _get_redis_port; print
+_get_redis_port(\\\"CONFIG_DB\\\")\"` -n ";
 
 redis_cmd_db += std::to_string(CONFIG_DB) + " ";
 
@@ -495,12 +502,29 @@ redis_cmd += redis_cmd_db + "hgetall \"%\" | paste -d '='  - - | sed  's/^/$/'; 
 EXEC_WITH_ERROR_THROW(cmd, res);
 ```
 
+## Warm-reboot
+We know that warm-reboot is supported in SONiC now.
+Today the single database instance is using "redis-cli save" in fast-reboot script to store data as RDB file.
+Then restore it when database instance is up.
+
+![center](./img/db_redis_save.png)
+
+For the new design, the database instances is changed in new version, so after the warm-reboot, it will restore data into the single default database only. We need to do something to move to databases into correct database instances according to the database\_config.json. I am think we can use "redis-cli MIGRATE" to place the database into the correct instance after database restore but before we start to use it. 
+```powershell
+redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
+```
+
+![center](./img/db_restore_new.png)
 
 
-## Platform VS 
+1. we need to only allow warm-reboot/upgrade from one version to another version. In this way,  we know what database\_config.json looks in both old and new image, then in the new image, we can handle the warm-reboot/upgrading accordingly and know where to migrate the database.
+2. other idea is welcome
+
+## Platform VS
 
 platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. For vs test, it is enough to use on database instance.
 
-## Testing 
+## Testing
 
 We apply this changes on our local switches at labs. All the database are assigned to different database instances based on configuration.  So far, for the real traffic things looks great, all the tables , entries work properly. We will keep doing tests and running with traffic and see.
+
