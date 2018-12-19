@@ -1,15 +1,15 @@
-# SONiC vlan status linkage community document
+# SONiC vlan status enhancement
 
 ## Catalogue
 
-- 1.Overview
-- 2.Terminology
-- 3.Vlanmgrd introduction
-- 4.Problem Description
-- 5.Target
-- 6.High-Level Design
-- 7.Detailed Design
-- 8.Unit testing
+- **1.Overview**
+- **2.Terminology**
+- **3.Vlanmgrd introduction**
+- **4.Problem Description**
+- **5.Target**
+- **6.High-Level Design**
+- **7.Detailed Design**
+- **8.Unit testing**
 
 ## 1. Overview
 
@@ -17,14 +17,13 @@ This document points out the problem of VLAN status in SONiC and puts forward a 
 
 ## 2. Terminology
 
-- admin_status：Configuration status of vlan-interface. Set by users through CLI command or config.json. Default value is “up”. This value is stored in CONFIG_DB. Vlan’s field of admin_status in config_db.json will not change.
-- member_status: New status representing the operating status of member ports of vlan-interface. Value is “up” when at least one of the member ports’s oper_status is “up”, and “down” when one of the following condition is match:
+- **admin_status**：Configuration status of vlan-interface. Set by users through CLI command or config.json. Default value is “up”. This value is stored in CONFIG_DB. Vlan’s field of admin_status in config_db.json will not change.
+- **member_status**: New status representing the operating status of member ports of vlan-interface. Value is “up” when at least one of the member ports’s oper_status is “up”, and “down” when one of the following condition is matched:
   - All member port’s oper_status is “down”. 
   - No member port for this vlan-interface.
+    This value is stored in APPL_DB.
 
-
-This value is stored in APPL_DB.
-- oper_status: New status representing the operating status of the vlan-interface. It’s also the status of Vlanxx in Linux kernel, set via Linux command “ip link set Vlanxx <up|down>”. This value is stored in APPL_DB.
+- **oper_status**: New status representing the operating status of the vlan-interface. It’s also the status of Vlanxx in Linux kernel, set via Linux command “ip link set Vlanxx <up|down>”. This value is stored in APPL_DB.
 
 ## 3. Vlanmgrd introduction
 
@@ -66,15 +65,15 @@ if (member_status == “up”) && (admin_status == “up”) {
 
 ### 6.2 Timing when oper_status will be updated
 
-a)	When vlan-interface is created.
-b)	When member ports changed, either member add/remove, or member’s oprt_status changed.
+a)	When vlan-interface is created.<br/>
+b)	When member ports changed, either member add/remove, or member’s oprt_status changed.<br/>
 c)	When admin_status changed, as the result of configuration changed.
 
 ### 6.3 Add CLI command to set admin_status
 
 Add a CLI command for user to  change admin_status of vlan-interface.
 ```
-    config vlan admin_status <up|down>
+    config vlan admin_status [vid] [up|down]
 ```
 This command will set the admin_status stored in CONFIG_DB, and trigger an update of oper_status. Please be advised, this command will not change the value stored in config_db.json.
 
@@ -138,58 +137,35 @@ This command will set the admin_status stored in CONFIG_DB, and trigger an updat
         }
     }
 ```
-2、	Run “config vlan member del 100 Ethernet32”,and then run “show vlan config” to check whether the member Ethernet32 of Vlan100 has been deleted,run “ip link show Vlan100” to check oper_status of Vlan100
-
-3、	Run “config vlan member add 100 Ethernet32”,and then run “show vlan config” to check whether the member Ethernet32 of Vlan100 has been added,run “ip link show Vlan100” to check oper_status of Vlan100
-
-4、	Run Command “ip link set Ethernet32 down”, and then run “ip link show Vlan100” to check oper_status of Vlan100
-
-5、	Run Command “ip link set Ethernet32 up”, and then run “ip link show Vlan100” to check oper_status of Vlan100
-
-6、	Run Command “ip link set Ethernet28 down”,and then run “ip link show Vlan100” to check oper_status of Vlan100
-
-7、	Run Command “ip link set Ethernet28 up”,and then run “ip link show Vlan100” to check oper_status of Vlan100
-
-8、	Run Command “config vlan admin-status 100 down”, and then check  admin_status of VLAN|Vlan100 of CONFIG_DB, then run “ip link show Vlan100” to check oper_status of Vlan100
-
+2、	Run “config vlan member del 100 Ethernet32”,and then run “show vlan config” to check whether the member Ethernet32 of Vlan100 has been deleted,run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+3、	Run “config vlan member add 100 Ethernet32”,and then run “show vlan config” to check whether the member Ethernet32 of Vlan100 has been added,run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+4、	Run Command “ip link set Ethernet32 down”, and then run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+5、	Run Command “ip link set Ethernet32 up”, and then run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+6、	Run Command “ip link set Ethernet28 down”,and then run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+7、	Run Command “ip link set Ethernet28 up”,and then run “ip link show Vlan100” to check oper_status of Vlan100<br/>
+8、	Run Command “config vlan admin-status 100 down”, and then check  admin_status of VLAN|Vlan100 of CONFIG_DB, then run “ip link show Vlan100” to check oper_status of Vlan100<br/>
 9、	Run Command “config vlan admin-status 100 up”, admin_status of VLAN|Vlan100 of CONFIG_DB, then run “ip link show Vlan100” to check oper_status of Vlan100
 
 ### 8.2 Expected results
 
-1、	Result of step 1： oper_status of  Vlan100、Ethernet32、Ethernet36 are up,oper_status of  Vlan200、Ethernet28、Ethernet40  are down
-
-2、	Result of step 2：Vlan100 member Ethernet32 was delete successfully, oper_status of Vlan100 is down
-
-3、	Result of step 3：Vlan100 member Ethernet32 was delete successfully, oper_status of Vlan100 is up
-
-4、	Result of step 4： oper_status of Vlan100 is down
-
-5、	Result of step 5：oper_status of Vlan100 is up
-
-6、	Result of step 6：oper_status of Vlan100 is up
-
-7、	Result of step 7：oper_status of Vlan100 is up
-
-8、	Result of step 8：admin_status of VLAN|Vlan100 of CONFIG_DB is down,oper_status of Vlan100 is down
-
+1、	Result of step 1： oper_status of  Vlan100、Ethernet32、Ethernet36 are up,oper_status of  Vlan200、Ethernet28、Ethernet40  are down<br/>
+2、	Result of step 2：Vlan100 member Ethernet32 was delete successfully, oper_status of Vlan100 is down<br/>
+3、	Result of step 3：Vlan100 member Ethernet32 was delete successfully, oper_status of Vlan100 is up<br/>
+4、	Result of step 4： oper_status of Vlan100 is down<br/>
+5、	Result of step 5：oper_status of Vlan100 is up<br/>
+6、	Result of step 6：oper_status of Vlan100 is up<br/>
+7、	Result of step 7：oper_status of Vlan100 is up<br/>
+8、	Result of step 8：admin_status of VLAN|Vlan100 of CONFIG_DB is down,oper_status of Vlan100 is down<br/>
 9、	Result of   step 9：admin_status of VLAN|Vlan100 of CONFIG_DB is up,oper_status of Vlan100 is up
 
 ### 8.3 Actual results
 
-1、	Result of step 1：Pass
-
-2、	Result of step 2：Pass
-
-3、	Result of step 3：Pass
-
-4、	Result of step 4：Pass
-
-5、	Result of step 5：Pass
-
-6、	Result of step 6：Pass
-
-7、	Result of step 7：Pass
-
-8、	Result of step 8：Pass
-
+1、	Result of step 1：Pass<br/>
+2、	Result of step 2：Pass<br/>
+3、	Result of step 3：Pass<br/>
+4、	Result of step 4：Pass<br/>
+5、	Result of step 5：Pass<br/>
+6、	Result of step 6：Pass<br/>
+7、	Result of step 7：Pass<br/>
+8、	Result of step 8：Pass<br/>
 9、	Result of step 9：Pass
