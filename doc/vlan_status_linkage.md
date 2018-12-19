@@ -18,12 +18,12 @@ This document points out the problem of VLAN status in SONiC and puts forward a 
 ## 2. Terminology
 
 - **admin_status**：Configuration status of vlan-interface. Set by users through CLI command or config.json. Default value is “up”. This value is stored in CONFIG_DB. Vlan’s field of admin_status in config_db.json will not change.
-- **member_status**: New status representing the operating status of member ports of vlan-interface. Value is “up” when at least one of the member ports’s oper_status is “up”, and “down” when one of the following condition is matched:
+- **member_status**: This value is stored in APPL_DB, it's new status representing the operating status of member ports of vlan-interface. Value is “up” when at least one of the member ports’s oper_status is “up”, and “down” when one of the following condition is matched:
   - All member port’s oper_status is “down”. 
   - No member port for this vlan-interface.
-    This value is stored in APPL_DB.
-
-- **oper_status**: New status representing the operating status of the vlan-interface. It’s also the status of Vlanxx in Linux kernel, set via Linux command “ip link set Vlanxx <up|down>”. This value is stored in APPL_DB.
+    
+    
+- **oper_status**: This value is stored in APPL_DB, it's new status representing the operating status of the vlan-interface. It’s also the status of Vlanxx in Linux kernel, set via Linux command “ip link set Vlanxx <up|down>”. 
 
 ## 3. Vlanmgrd introduction
 
