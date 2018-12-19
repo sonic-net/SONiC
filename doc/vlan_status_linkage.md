@@ -37,7 +37,7 @@ Vlanmgrd use “ip link set” command to configure status of vlan in linux kern
       The vlanmgrd structure is as follows：
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_vlanmgrd_structure.png)
 
-<center>                                   Figure 3-1 vlanmgrd structure</center>
+<p align="center"> Figure 3-1 vlanmgrd structure</p>
 
 ## 4. Problem Description
 
@@ -89,12 +89,12 @@ This command will set the admin_status stored in CONFIG_DB, and trigger an updat
 
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_CLI_UML.jpg)
 
-<center>                               Figure 5-1 CLI command sequence diagram</center>
+<p align="center">Figure 5-1 CLI command UML </p>
 
 
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_port_state_change_UML.jpg)
 
-<center>                               Figure 5-2 port state change sequence diagram</center>
+<p align="center">Figure 5-2 port state change UML</p>
 
 ## 8. Unit testing
 
