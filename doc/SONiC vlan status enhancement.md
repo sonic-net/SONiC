@@ -34,6 +34,8 @@ Vlanmgrd implements the functions such as adding, deleting, updating and managin
 Vlanmgrd creates/deletes vlan, adds/deletes vlan member, creates and configures admin_status and mtu of vlan according to VLAN table and the VLAN_MEMBER table in CONFIG_DB, and writse the configuration to  VLAN_TABLE and VLAN_MEMBER_TABLE in APPL_DB. Portsorch subscribes to these two tables in APPL_DB and syncs the configuration to ASIC_DB, which is finally written to ASIC.
 Vlanmgrd uses “ip link set” command to configure status of vlan in linux kernel. In the current implementation, admin_status of CONFIG_DB is directly used, without considering oper_status of member ports.
       The vlanmgrd structure is as follows：
+      
+      
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_vlanmgrd_structure.png)
 
 <p align="center"> Figure 3-1 vlanmgrd structure</p>
@@ -89,6 +91,7 @@ This command will set the admin_status stored in CONFIG_DB, and trigger an updat
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_CLI_UML.jpg)
 
 <p align="center">Figure 5-1 CLI command UML </p>
+
 
 
 ![image](https://github.com/caesarkof97/SONiC/blob/jihaix/images/vlan_status_linkage_port_state_change_UML.jpg)
