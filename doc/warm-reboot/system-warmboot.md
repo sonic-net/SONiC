@@ -125,7 +125,7 @@ Steps:
    - [ ] Neigh VLAN member port admin down (some or all)
    
    And conduct some measurement:
-   - [ ] Ping DUT loopback IP from a downlink port
+   - [x] Ping DUT loopback IP from a downlink port
    - [ ] Ping from one DUT port to another (may choose some pairs or fullmesh)
      - [ ] measure how many times disrupted
        - fastfast reboot will expect once
@@ -140,7 +140,7 @@ Steps:
    - [x] VM: PortChannel.lastStatusChangeTimestamp
    - [x] VM: monitor how many routes received from DUT
    - [ ] DUT: check the image version as expected
-   - [ ] Observe no packet drop: current implementation of advanced-reboot waits for ping recover, which is not working for warm-reboot
+   - [x] Observe no packet drop: current implementation of advanced-reboot waits for ping recover, which is not working for warm-reboot
    - [ ] CRM is not increasing for happy path during warm reboot
    
 5. Clean-up
