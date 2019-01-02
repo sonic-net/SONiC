@@ -69,42 +69,82 @@ Later if we improve the consistency ```SONIC_BOOT_TYPE=[fast|warm|cold]```, this
 # Design of test
 Assumptions:
 1. DUT is T0 topology
-2. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
+2. Focus on whole system reboot, in future will extend it to container level warm restart
+3. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
+
+Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/README.testbed.Overview.md#sonic-testbed-overview)
+![Physical topology](https://github.com/Azure/sonic-mgmt/raw/master/ansible/doc/img/testbed.png)
+![Testbed server](https://raw.githubusercontent.com/Azure/sonic-mgmt/master/ansible/doc/img/testbed-server.png)
+
+Architect:
+  - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)
+  - The playbook will deploy a master python script [advanced-reboot.py](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/files/ptftests/advanced-reboot.py) to PTF docker container and all the steps are running there
+  - The master python script will
+    - ssh into DUT to execute reboot command
+    - ssh into Arist EOS VM to observe and operate port, port channel and BGP sessions
+    - operate VLAN ports
+    - store and analysis data
 
 Steps:
-1. Prepare
+1. Prepare environment
    - Enable link state propagation
-2. Before warm reboot
-   - Happy Path
-   - Sad Path
-     - DUT port down
-     - DUT LAG down
-     - DUT LAG member down
-     - DUT BGP session down
-     - Neigh port down
-     - Neigh LAG remove member
-     - Neigh LAG admin down
-     - Neigh LAG member admin down
-     - Neigh BGP session admin down
-3. During warm reboot
-   - Happy Path
-     - Observe no port down from VM side (all the same below)
-     - Observe LAG, the maximal control plane interval is 90s
-     - Observe BGP session
-     - Observe no packet drop
-   - Sad Path
-     - Neigh port down
-     - Neigh LAG remove member
-     - Neigh LAG admin down
-     - Neigh LAG member admin down
-     - Neigh BGP session admin down
-     - Neigh route change
-     - Neigh MAC change
-     - Neigh VLAN member port admin downn (some or all)
-4. After warm reboot
-   - CRM is not increasing for happy path during warm reboot
-   - Check expected response for sad path during warm reboot
-   - Recheck all observation in Section 3 - Happy Path
-   - Link_flap
+     - [x] Propagate VEOS port admin down to Fanout switch
+     - [ ] Propagete PTF port down to Fanout switch
+   - [ ] Enable NTP service in DUT, Arista EOS VMs, PTF docker
+
+2. Prepare DUT with user specified states `pre_reboot_vector`
+   - [ ] DUT port down
+   - [ ] DUT LAG down
+   - [ ] DUT LAG member down
+   - [ ] DUT BGP session down
+   - [ ] Neigh port down
+   - [ ] Neigh LAG remove member
+   - [ ] Neigh LAG admin down
+   - [ ] Neigh LAG member admin down
+   - [ ] Neigh BGP session admin down
+   
+3. Pre-warm-reboot status check
+   - [ ] VM: Port.lastStatusChangeTimestamp
+   - [x] VM: PortChannel.lastStatusChangeTimestamp
+   - [x] VM: monitor how many routes received from DUT
+   - [ ] DUT: console connect and keep measure meaningful events such as shutdown and bootup
+   - [ ] Observe no packet drop
+     - current implementation of advanced-reboot waits for ping down, which is not working for warm-reboot
+     - if any packet drop, test fails
+     - how to know warm-shutdown and warm-bootup timestamp?
+   - [ ] CRM usage snapshot: the gold here is make sure no usage increase for no sad injected case
+
+4. During-warm-reboot sad vector injection `during_reboot_vector`
+   - [ ] Neigh port down
+   - [ ] Neigh LAG remove member
+   - [ ] Neigh LAG admin down
+   - [ ] Neigh LAG member admin down
+   - [ ] Neigh BGP session admin down
+   - [ ] Neigh route change
+   - [ ] Neigh MAC change
+   - [ ] Neigh VLAN member port admin down (some or all)
+   
+   And conduct some measurement:
+   - [x] Ping DUT loopback IP from a downlink port
+   - [ ] Ping from one DUT port to another (may choose some pairs or fullmesh)
+     - [ ] measure how many times disrupted
+       - fastfast reboot will expect once
+       - normal warm reboot will expect none
+       - fast reboot will expect once
+     - [ ] measure how long the longest dirutpive time
+     
+    
+5. Post-warm-reboot status check
+   - [ ] Generate expected\_results based on `pre_reboot_vector` + `during_reboot_vector`
+   - [ ] VM: Port.lastStatusChangeTimestamp
+   - [x] VM: PortChannel.lastStatusChangeTimestamp
+   - [x] VM: monitor how many routes received from DUT
+   - [ ] DUT: check the image version as expected
+   - [x] Observe no packet drop: current implementation of advanced-reboot waits for ping recover, which is not working for warm-reboot
+   - [ ] CRM is not increasing for happy path during warm reboot
+   
 5. Clean-up
    - Disable link state propagation
+   - Recover environment
+     - [ ] DUT reload minigraph
+     - [ ] Neigh copy startup-config to running-config
