@@ -222,8 +222,8 @@ Example virtual paths
 | DB target	| Virtual Path |	Description |
 | --- | --- | --- |
 | COUNTERS_DB	| "RIF_COUNTERS/<interface_name>" |	All counters on all interfaces |
-| COUNTERS_DB	| "RIF_COUNTERS/*/<counter name>" |	One counter on all interfaces |
-| COUNTERS_DB	| "RIF_COUNTERS/<interface name>/<counter name>" |	One counter on one interface |
+| COUNTERS_DB	| "RIF_COUNTERS/``*``/``<counter name>``" |	One counter on all interfaces |
+| COUNTERS_DB	| "RIF_COUNTERS/``<interface name>``/``<counter name>``" |	One counter on one interface |
 
 ### 4 Open questions
 
