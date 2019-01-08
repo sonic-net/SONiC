@@ -18,7 +18,7 @@
       * [3.1.2 CLI](#312-cli)
       * [3.1.3 Orchestration Agent](#313-orchestration-agent)
       * [3.1.4 Flex Counter](#314-flex-counter)
-      * [3.1.5 SAI](#318-sai)
+      * [3.1.5 SAI](#318-telemetry)
 
   * [4 Open questions](#4-open-questions)
 
@@ -66,11 +66,7 @@ Options:
   -?, -h, --help     Show this message and exit.
 ```
 
-Note: the 'show interfaces counters' has '-c, --clear' option. From the CLI point of view, this should be available from 'sonic-clear' CLI. (There already is 'sonic-clear interfaces counters')
-
-If we would like to allign the options, I suggest to remove the clear option from the 'show interfaces counters'  command. 
-
-The period option gives the ability to see the counters and RX/TX BPS, PPS and utilization rates.
+The period option gives the ability to see the counters and RX/TX BPS and PPS.
 
 The rates are calculated the following way:
 
@@ -215,47 +211,27 @@ typedef enum _sai_router_interface_stat_t
 } sai_router_interface_stat_t;
 ```
 
-### 3.1.5 SNMP
+### 3.1.5 Telemetry
 
-RIF counters can be exposed vie RFC1213 interface MIB.
+We can expose the rif counters via sonic telemetry.
+The telemetry is able to access the data in SONiC databases according to the schema,
+but for more simplicity virtual path can be used. Virtual path allows to querry for counters by interface name, instead of VID. 
 
-They will differ from ports by the ifType and base index.
+Example virtual paths
 
-IANAifType:
-
-| Value | Type |
-| --- | ------ |
-| 6 | ethernetCsmacd |
-| 136 |	l3ipvlan |
-| 161 | ieee8023adLag |
- 
-Base index : TBD
-
-Currently defined base indexes: 
-
-| Type | Base index |
-| ---- | ---------- |
-| ethernet | 1 |
-| portchannel |	1000 |
-| mgmt_port | 10000 |
-
-Proposed SNMP OIDs to be used:
-
-| OID | SNMP counter | Description | SAI stat | 
-| --- | ------------ | ----------- | -------- |
-| 1.3.6.1.2.1.2.2.1.10 | ifInOctets | The total number of octets received on the interface, including framing characters. | SAI_ROUTER_INTERFACE_STAT_IN_OCTETS |
-| 1.3.6.1.2.1.2.2.1.11 | ifInUcastPkts | The number of packets, delivered by this sub-layer to a higher (sub-)layer, which were not addressed to a multicast or broadcast address at this sub-layer. | SAI_ROUTER_INTERFACE_STAT_IN_PACKETS |
-| 1.3.6.1.2.1.2.2.1.14 | ifInErrors | For packet-oriented interfaces, the number of inbound packets that contained errors preventing them from being deliverable to a higher-layer protocol. | SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS |
-| 1.3.6.1.2.1.2.2.1.16 | ifOutOctets | The total number of octets transmitted out of the interface, including framing characters. | SAI_ROUTER_INTERFACE_STAT_OUT_OCTETS |
-| 1.3.6.1.2.1.2.2.1.17 | ifOutUcastPkts | The total number of packets that higher-level protocols requested be transmitted, and which were not addressed to a multicast or broadcast address at this sub-layer, including those that were discarded or not sent. | SAI_ROUTER_INTERFACE_STAT_OUT_PACKETS |
-| 1.3.6.1.2.1.2.2.1.20 | ifOutErrors| For packet-oriented interfaces, the number of outbound packets that could not be transmitted because of errors. For character-oriented or fixed-length interfaces, the number of outbound transmission units that could not be transmitted because of errors. | SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS |
-
-It looks like the SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS and SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS include bad packets, error and discard. The MIB has separate OIDs - ifInDiscards, ifInErrors, ifOutDiscards, ifOutErrors. Not sure how to handle this. 
+| DB target	| Virtual Path |	Description |
+| --- | --- | --- |
+| COUNTERS_DB	| "RIF_COUNTERS/<interface_name>" |	All counters on all interfaces |
+| COUNTERS_DB	| "RIF_COUNTERS/*/<counter name>" |	One counter on all interfaces |
+| COUNTERS_DB	| "RIF_COUNTERS/<interface name>/<counter name>" |	One counter on one interface |
 
 ### 4 Open questions
 
-#### 4.1 What should be the base index (SNMP) for Vlan Interfaces?
+#### 4.1 SNMP support?
 
-#### 4.2 Allign the CLi options with 'show interfaces counters' --clear option. Remove existing clear option from the show command? 
-
-#### 4.3 SNMP support and OIDs to be used.
+ - is SNMP support needed?
+ - Which MIB to use?
+ 
+Inreface MIB (RFC1213) has some issues:
+  - already provides l2 counters for Ethernet*, adding l3 overlaps, no separate iftype
+  - Interface MIB has more specific OIDs. it contains OIDs for InUnicast / InMcast pkts; eroor, drop pkts, while rif counters only have InPkts, error packets. 
