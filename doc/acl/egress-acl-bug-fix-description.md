@@ -3,9 +3,9 @@
 In current implementation most of the egress ACL flow are covered, but still have two issues related to the egress ACL support as I observed. To have a integrated ACL feature support, suggest to fix them, detailed described as below.
 
 
-## 1. Remove the restriction of only support L4 port ACL range in ingress table 
+### 1. Remove the restriction of only support L4 port ACL range in ingress table 
 
-In function `AclTable::create()` there is code to prevent the support of `SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE` and `SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE` in egress ACL table:
+In function `AclTable::create()` there is code preventing support of `SAI_ACL_RANGE_TYPE_L4_DST_PORT_RANGE` and `SAI_ACL_RANGE_TYPE_L4_SRC_PORT_RANGE` in egress ACL table:
 
     if (stage == ACL_STAGE_INGRESS)
     {
@@ -16,9 +16,9 @@ In function `AclTable::create()` there is code to prevent the support of `SAI_AC
         table_attrs.push_back(attr);
     }
 
-This restriction shall be moved so L4 port ACL range can be both supported on both direction. 
+This restriction shall be removed so L4 port ACL range can be both supported on both direction. 
  
-## 2. Have AclRuleMirror to support both ingress and egress mirror action
+### 2. Have AclRuleMirror to support both ingress and egress mirror action
 
 SAI defined two different action for ingress mirror and egress mirror. 
 
@@ -30,45 +30,45 @@ To have both mirror action supported, we need to extend AclRuleMirror and the cr
 
  -  Add a new member to AclRuleMirror class to indicate the stage
  
-			class AclRuleMirror: public AclRule
-			{
-				public:	public:
-			-   AclRuleMirror(AclOrch *m_pAclOrch, MirrorOrch *m_pMirrorOrch, string rule, string table, acl_table_type_t type);	
-			+   AclRuleMirror(AclOrch *m_pAclOrch, acl_stage_type_t stage, MirrorOrch *m_pMirrorOrch, string rule, string table, acl_table_type_t type);
-				bool validateAddAction(string attr_name, string attr_value);
-				bool validateAddMatch(string attr_name, string attr_value);
-				bool validate();
-				@@ -263,6 +263,7 @@ class AclRuleMirror: public AclRule
-				protected:
-				bool m_state;
-				string m_sessionName;
-			+   acl_stage_type_t m_tableStage;
-				AclRuleCounters counters;
-				MirrorOrch *m_pMirrorOrch;
-			};
+		class AclRuleMirror: public AclRule
+		{
+			public:	public:
+		-       AclRuleMirror(AclOrch *m_pAclOrch, MirrorOrch *m_pMirrorOrch, string rule, string table, acl_table_type_t type);	
+		+       AclRuleMirror(AclOrch *m_pAclOrch, acl_stage_type_t stage, MirrorOrch *m_pMirrorOrch, string rule, string table, acl_table_type_t type);
+			bool validateAddAction(string attr_name, string attr_value);
+			bool validateAddMatch(string attr_name, string attr_value);
+			bool validate();
+			@@ -263,6 +263,7 @@ class AclRuleMirror: public AclRule
+			protected:
+			bool m_state;
+			string m_sessionName;
+		+       acl_stage_type_t m_tableStage;
+			AclRuleCounters counters;
+			MirrorOrch *m_pMirrorOrch;
+		};
 
  -  Revise the flow of mirror Acl creation to have proper mirror action assigned.
  
-			-  m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS] = value;
-			+  if (m_tableStage == ACL_STAGE_INGRESS)
-			+  {   
-			+      m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS] = value;
-			+  }
-			+  else if (m_tableStage == ACL_STAGE_EGRESS)
-			+  {
-			+      m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS] = value;
-			+  }
-			+  else
-			+  {
-			+      SWSS_LOG_ERROR("Unknown ACL table stage: %d", m_tableStage);
-			+      return false;
-			+  }
+		-  m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS] = value;
+		+  if (m_tableStage == ACL_STAGE_INGRESS)
+		+  {   
+		+      m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS] = value;
+		+  }
+		+  else if (m_tableStage == ACL_STAGE_EGRESS)
+		+  {
+		+      m_actions[SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS] = value;
+		+  }
+		+  else
+		+  {
+		+      SWSS_LOG_ERROR("Unknown ACL table stage: %d", m_tableStage);
+		+      return false;
+		+  }
  
 - flow chart after add the new flow
 
    ![](https://github.com/Azure/SONiC/blob/master/images/acl_hld/acl_mirror_rule_flow.svg)
 
-## 3. New SWSS virtual test Added to cover the egress ACL support
+### 3. New SWSS virtual test Added to cover the egress ACL support
 
  - Dedicated test cases for egress ACL table creation/deletion and various egress ACL rule verification
  - Dedicated test case for egress ACL mirror verification.
