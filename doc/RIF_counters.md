@@ -226,12 +226,3 @@ Example virtual paths
 | COUNTERS_DB	| "RIF_COUNTERS/``<interface name>``/``<counter name>``" |	One counter on one interface |
 
 ### 4 Open questions
-
-#### 4.1 SNMP support?
-
- - is SNMP support needed?
- - Which MIB to use?
- 
-Inreface MIB (RFC1213) has some issues:
-  - already provides l2 counters for Ethernet*, adding l3 overlaps, no separate iftype
-  - Interface MIB has more specific OIDs. it contains OIDs for InUnicast / InMcast pkts; eroor, drop pkts, while rif counters only have InPkts, error packets. 
