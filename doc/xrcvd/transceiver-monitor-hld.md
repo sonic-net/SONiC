@@ -30,13 +30,22 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 #### 1.1.1 Transceiver info Table ####
 
 	; Defines Transceiver information for a port
-	key                     = TRANSCEIVER_INFO|ifname          ; information for SFP on port
-	; field                 = value
-	type                    = 1*255VCHAR                       ; type of sfp
-	hardwarerev             = 1*255VCHAR                       ; hardware version of sfp
-	serialnum               = 1*255VCHAR                       ; serial number of the sfp
-	manufacturename         = 1*255VCHAR                       ; sfp venndor name
-	modelname               = 1*255VCHAR                       ; sfp model name
+	key                         = TRANSCEIVER_INFO|ifname          ; information for SFP on port
+	; field                     = value
+	type                        = 1*255VCHAR                       ; type of sfp
+	hardwarerev                 = 1*255VCHAR                       ; hardware version of sfp
+	serialnum                   = 1*255VCHAR                       ; serial number of the sfp
+	manufacturename             = 1*255VCHAR                       ; sfp venndor name
+	modelname                   = 1*255VCHAR                       ; sfp model name
+	Connector                   = 1*255VCHAR                       ; connector information
+	encoding                    = 1*255VCHAR                       ; encoding information
+	ext_identifier              = 1*255VCHAR                       ; extend identifier
+	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
+	cable_length                = INT                              ; cable length in m
+	mominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
+	specification_compliance    = 1*255VCHAR                       ; specification compliance
+	vendor_date                 = 1*255VCHAR                       ; vendor date
+	vendor_oui                  = 1*255VCHAR                       ; vendor OUI
 
 #### 1.1.2 Transceiver DOM sensor Table ####
 
