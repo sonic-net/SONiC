@@ -81,7 +81,7 @@ DUT try to load a new images
     * [x]  **otherwise use the default one**
     * [x] **database.sh start**
         * [x] **Entry Point is docker_init.sh**
-        * [x] **database\_config.json should always exist **
+        * [x] **database\_config.json should always exist**
         * [x] **generate all necessary redis conf files and supervisor conf file**
     * [x] **supervisord**
         * [x] **docker_init.sh exec supervisord** 
