@@ -141,7 +141,7 @@ __The fact we cannot use redis cluster to split all databases across different n
 1. TCP + PORT must be used in cluster, we cannot use unix socket.
 2. Mapping KEY to hash slot is not decided by us. It is hard to generate the same hash value/slot for all the different KEYs in one database in order to split the databases across nodes.
 3. Also, in cluster mode, each redis instance only has one database, we cannot apply two or more databases on the same redis instance.
-4. We need to use new c++/python cluster client library instead of current c/python redis cluster library.
+4. We need to use new c++/python cluster client library instead of current c/python redis library.
 5. For warm reboot, we cannot restore the data form current saved backup file to start the redis cluster mode unless we don't want to support it.
 
 __TCP + PORT v.s. Unix Socket Benchmark Performance results :__
