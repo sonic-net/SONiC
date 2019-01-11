@@ -29,6 +29,7 @@ DUT try to load a new images
 ## New Design of Database Startup
 
 * We introduce a new configuration file at /etc/sonic/database\_config.json
+
 * This file contains how many database instances and on each instance what the configuration is
 
     ```json
@@ -57,26 +58,35 @@ DUT try to load a new images
         }
     }
     ```
-* This database\_config.json is pre-designed in SONiC source codes on each version instead of copying/modifying it via users on fly. When loading new images, this file is copied to /etc/sonic/ from images. 
+
+* By default, each image has one database\_config.json file in SONiC file system at /etc/sonic/
+
+* The users is able to modify this config file (e.g. adding a new DB instance) on switch and reload the setup to make it take effect. New image will copy this config file to overwrite the default one on the new image while rebooting. 
+
 * DO NOT change the original single redis database instance implementation
     * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis database instance is there and behaves the same as what it does today
     * [x] If we have some DATABASE configuration in database\_config.json,  besides the default redis database instance, we create these extra database instances, later the users can choose which database instances they want to use according to their configuration in database\_config.json
-* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) can be decided/generated during compiling/building since we know database\_config.json in source code. 
 
-![center](./img/current_DB.png)
+* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated during rebooting just before starting database docker,  we will use database\_config.json to generate necessary config. 
+
+![center](./img/newDesign.png)
 
 1. DUT try to load a new images (no changes)
     * [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old\_config as usual
 2. rc.local service (no changes)
     * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/ as usual
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
-3. __database service__
-    * [x] __database\_config.json is already copied to /etc/sonic/ , at this stage , it is visible to host system__
+3. **database service**
+    * [x] **if database\_config.json is in old_config, then copy it to /etc/sonic/ to overwrite the default one
+    * [x]  **otherwise use the default one**
     * [x] **database.sh start**
-        * [x] __database\_config.json should always exist __
-    * [x] __supervisord__
+        * [x] **Entry Point is docker_init.sh**
+        * [x] **database\_config.json should always exist **
+        * [x] **generate all necessary redis conf files and supervisor conf file**
+    * [x] **supervisord**
+        * [x] **docker_init.sh exec supervisord** 
         * [x] **start database programs**
-    * [x] __check if database instances are running via ping/PONG check script__
+    * [x] **check if database instances are running via ping/PONG check script**
 4. updategraph service (no changes)
     * [x] depends on rc.local and database
     * [x] restore selected files /etc/sonic/old\_config to /etc/sonic/, if any
@@ -505,7 +515,12 @@ redis_cmd += redis_cmd_db + "hgetall \"%\" | paste -d '='  - - | sed  's/^/$/'; 
 EXEC_WITH_ERROR_THROW(cmd, res);
 ```
 
+## Programming Language
+
+One  suggestion during SONiC meeting discussion is to write one DB_ID <-> DB_INST mapping function in C++, and then to generate the codes in Python and Go, which could avoid introduce the same mapping function for all  the programming languages. 
+
 ## Warm-reboot
+
 We know that warm-reboot is supported in SONiC now.
 Today the single database instance is using "redis-cli save" in fast-reboot script to store data as RDB file.
 Then restore it when database instance is up.
@@ -520,14 +535,16 @@ redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1
 ![center](./img/db_restore_new.png)
 
 
-1. we need to only allow warm-reboot/upgrade from one version to another version. In this way,  we know what database\_config.json looks in both old and new image, then in the new image, we can handle the warm-reboot/upgrading accordingly and know where to migrate the database.
+1. we need to only allow warm-reboot/upgrade from one version to another version. In the new image, we can handle the warm-reboot/upgrading accordingly and know where to migrate the database since the "delta" between old and new database_config.json can be calculated. We can write a script to handle this case.
 2. other idea is welcome
 
 ## Platform VS
 
-platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. For vs test, it is enough to use on database instance.
+platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. For vs test, it is enough to use on database instance. 
+
+From the feedback in SONiC meeting, docker platform vs is suggested to have multiple database instances as well.  
 
 ## Testing
 
-We apply this changes on our local switches at labs. All the database are assigned to different database instances based on configuration.  So far, for the real traffic things looks great, all the tables , entries work properly. We will keep doing tests and running with traffic and see.
+We apply this changes on our local switches at labs. All the database are assigned to different database instances based on configuration.  So far, for the real traffic things looks great, all the tables , entries work properly. We will keep doing tests and running with traffic and see. Also all the vs tests passed.
 
