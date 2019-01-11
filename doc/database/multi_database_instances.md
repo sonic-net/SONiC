@@ -77,7 +77,7 @@ DUT try to load a new images
     * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/ as usual
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
-    * [x] **if database\_config.json is in old_config, then copy it to /etc/sonic/ to overwrite the default one
+    * [x] **if database\_config.json is in old_config, then copy it to /etc/sonic/ to overwrite the default one**
     * [x]  **otherwise use the default one**
     * [x] **database.sh start**
         * [x] **Entry Point is docker_init.sh**
