@@ -67,7 +67,9 @@ DUT try to load a new images
     * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis database instance is there and behaves the same as what it does today
     * [x] If we have some DATABASE configuration in database\_config.json,  besides the default redis database instance, we create these extra database instances, later the users can choose which database instances they want to use according to their configuration in database\_config.json
 
-* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated during rebooting just before starting database docker,  we will use database\_config.json to generate necessary config. 
+* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated during rebooting at the very beginning when starting database docker,  we will use database\_config.json to generate necessary config.
+
+* We add two programs in supervisord (create_all_redis_conf and start_all_redis_servers) to handle this.
 
 ![center](./img/newDesign.png)
 
@@ -78,14 +80,12 @@ DUT try to load a new images
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
     * [x] **if database\_config.json is in old_config, then copy it to /etc/sonic/ to overwrite the default one**
-    * [x]  **otherwise use the default one**
+    * [x] **otherwise use the default one**
     * [x] **database.sh start**
-        * [x] **Entry Point is docker_init.sh**
+        * [x] **Entry Point is still supervisord**
         * [x] **database\_config.json should always exist**
-        * [x] **generate all necessary redis conf files and supervisor conf file**
-    * [x] **supervisord**
-        * [x] **docker_init.sh exec supervisord** 
-        * [x] **start database programs**
+        * [x] **generate all necessary redis conf files via script create_all_redis_config**
+        * [x] **start all redis servers via script start_all_redis_servers**
     * [x] **check if database instances are running via ping/PONG check script**
 4. updategraph service (no changes)
     * [x] depends on rc.local and database
