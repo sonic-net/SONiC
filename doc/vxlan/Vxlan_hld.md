@@ -232,7 +232,7 @@ VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}}
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
     "endpoint": {{ip_address}} 
     "mac_address":{{mac_address}} (OPTIONAL) 
-    "vxlanid": {{vni}}(OPTIONAL) 
+    "vni": {{vni}}(OPTIONAL) 
 ```
 
 ```
@@ -265,7 +265,7 @@ key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix
 ; field                               = value
 ENDPOINT                              = ipv4                          ; Host VM IP address
 MAC_ADDRESS                           = 12HEXDIG                      ; Inner dest mac in encapsulated packet (Optional)
-VXLANID                               = DIGITS                        ; VNI value in encapsulated packet (Optional)
+VNI                                   = DIGITS                        ; VNI value in encapsulated packet (Optional)
 ```
 
 ```
@@ -403,6 +403,10 @@ Commands:
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_1.png)
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_2.png)
+
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_route_delete.png)
+
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_vnet_delete.png)
 
 ## Layer 2 Vxlan 
 TBD 
