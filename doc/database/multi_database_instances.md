@@ -61,15 +61,22 @@ DUT try to load a new images
 
 * By default, each image has one database\_config.json file in SONiC file system at /etc/sonic/
 
-* The users is able to modify this config file (e.g. adding a new DB instance) on switch and reload the setup to make it take effect. New image will copy this config file to overwrite the default one on the new image while rebooting. 
+* The users is able to modify this config file (e.g. adding a new DB instance) on switch and reload the setup to make it take effect. New image will copy this database config file to overwrite the default one on the new image while rebooting.
 
-* DO NOT change the original single redis database instance implementation
-    * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis database instance is there and behaves the same as what it does today
-    * [x] If we have some DATABASE configuration in database\_config.json,  besides the default redis database instance, we create these extra database instances, later the users can choose which database instances they want to use according to their configuration in database\_config.json
+* At least one database instance will run
+    * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis instance with port 6379 will start and behaves the same as what it does today.
+    * [x] If we have some DATABASE configuration in database\_config.json, we create these redis database instances.
+    * [x] So the user needs to remember : DON'T delete database_config.json file
 
-* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated during rebooting at the very beginning when starting database docker,  we will use database\_config.json to generate necessary config.
+* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated at the very beginning when starting database docker,  we will use database\_config.json to generate necessary config and start database instances.
 
-* We add two programs in supervisord (create_all_redis_conf and start_all_redis_servers) to handle this.
+* We add one start.sh  programs in supervisord.conf , and the supervisord will run it.
+
+* in start.sh, we call "create_all_redis_conf" script to generate all redis conf files
+
+* still in start.sh, we generate another supervisord_database.conf based on the database_config.json file
+
+* finally, we supervisorctl reread and update to make this  new added supervisord_database.conf take effect. At this point, all the redis servers are running. Supervisord manage all redis servers.
 
 ![center](./img/newDesign.png)
 
@@ -84,8 +91,8 @@ DUT try to load a new images
     * [x] **database.sh start**
         * [x] **Entry Point is still supervisord**
         * [x] **database\_config.json should always exist**
-        * [x] **generate all necessary redis conf files via script create_all_redis_config**
-        * [x] **start all redis servers via script start_all_redis_servers**
+        * [x] **generate all necessary redis conf files and supervisord_database.conf file**
+        * [x] **supervisorctl reread and update to start all redis servers**
     * [x] **check if database instances are running via ping/PONG check script**
 4. updategraph service (no changes)
     * [x] depends on rc.local and database
