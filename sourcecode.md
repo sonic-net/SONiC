@@ -1,4 +1,9 @@
 # SONiC Source Repositories
+
+## Imaging and Building tools
+- https://github.com/Azure/sonic-buildimage
+	- Source to build an ONIE installable image 
+
 ## SAI, Switch State Service
 - https://github.com/Azure/sonic-swss
 	- Switch State Service - Core component of SONiC which processes network switch data    
@@ -22,10 +27,6 @@
 	- Various command line utilities used in SONiC
 - https://github.com/Azure/sonic-snmpagent
 	- a net-snmpd agentx subagent 
-
-## Imaging and Building tools
-- https://github.com/Azure/sonic-buildimage
-	- Source to build an ONIE installable image 
 
 ## Switch hardware drivers
 - https://github.com/Azure/sonic-linux-kernel
