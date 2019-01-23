@@ -1,6 +1,6 @@
 ﻿MC-LAG high level design for SONiC
 
-# Document History
+# 1 Document History
 
 | Version | Date       | Author                 | Description                                      |
 |---------|------------|------------------------|--------------------------------------------------|
@@ -8,7 +8,7 @@
 | v.02    | 10/19/2018 |jian/shine/jeffrey      | Revised per review meeting with SONIC community  |
 | v.03    | 09/18/2018 |jeffrey                 | Minor update to clarify the behavior.            |
 
-# Abbreviations
+# 2 Abbreviations
 
 |**Term** |**Definition**                                    |
 |---------|--------------------------------------------------|
