@@ -133,7 +133,7 @@ When peer link is down, as shown above, no action is taken. Data forwarding cont
 
 The MC-LAG code will run in a separate container. The following chart is with added ICCPd container. The blocks below are just illustrating the concept flow. 
 
-![](https://github.com/Azure/SONiC/blob/a3ee33a73c4f58f0ad32c9df893ed477843335a4/images/mclag_hld/MCLAG_HLD_8.png)
+![](https://github.com/Azure/SONiC/blob/6577edb5dba96d9d25c988b7aafe565063966af6/images/mclag_hld/MCLAG_HLD_8.png)
 
 Flow 1: ICCPd reads MCLAG related configuration from CONFIG_DB
 
