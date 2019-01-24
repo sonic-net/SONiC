@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 1.2
+### Rev 1.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -40,6 +40,7 @@
 | 1.0 |             |     Prince Sunny   | Review comments/feedback          |
 | 1.1 |             |     Prince Sunny   | Review comments                   |
 | 1.2 |             |     Prince Sunny   | Design change for VNET Table flow |
+| 1.3 |             |     Prince Sunny   | VNet and Route Delete flow        |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
