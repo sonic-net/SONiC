@@ -20,6 +20,8 @@ This restriction shall be removed so L4 port ACL range can be both supported on 
  
 ### 2. Have AclRuleMirror to support both ingress and egress mirror action
 
+#### this part need to be revised due to insufficient design consideration
+
 SAI defined two different action for ingress mirror and egress mirror. 
 
 For ingress mirror it's `SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS`, for egress it's `SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS`
