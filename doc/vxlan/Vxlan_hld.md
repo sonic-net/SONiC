@@ -1,6 +1,6 @@
 # Vxlan SONiC
 # High Level Design Document
-### Rev 1.2
+### Rev 1.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -40,6 +40,7 @@
 | 1.0 |             |     Prince Sunny   | Review comments/feedback          |
 | 1.1 |             |     Prince Sunny   | Review comments                   |
 | 1.2 |             |     Prince Sunny   | Design change for VNET Table flow |
+| 1.3 |             |     Prince Sunny   | VNet and Route Delete flow        |
 
 # About this Manual
 This document provides general information about the Vxlan feature implementation in SONiC.
@@ -232,7 +233,7 @@ VNET_ROUTE_TABLE:{{vnet_name}}:{{prefix}}
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
     "endpoint": {{ip_address}} 
     "mac_address":{{mac_address}} (OPTIONAL) 
-    "vxlanid": {{vni}}(OPTIONAL) 
+    "vni": {{vni}}(OPTIONAL) 
 ```
 
 ```
@@ -265,7 +266,7 @@ key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix
 ; field                               = value
 ENDPOINT                              = ipv4                          ; Host VM IP address
 MAC_ADDRESS                           = 12HEXDIG                      ; Inner dest mac in encapsulated packet (Optional)
-VXLANID                               = DIGITS                        ; VNI value in encapsulated packet (Optional)
+VNI                                   = DIGITS                        ; VNI value in encapsulated packet (Optional)
 ```
 
 ```
@@ -403,6 +404,10 @@ Commands:
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_1.png)
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_cntrl_flow_2.png)
+
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_route_delete.png)
+
+![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/vnet_vxlan_vnet_delete.png)
 
 ## Layer 2 Vxlan 
 TBD 
