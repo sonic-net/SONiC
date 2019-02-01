@@ -439,51 +439,70 @@ TBD
 ### ConfigDB objects: 
 ```
 { 
-    "VXLAN_TUNNEL|tunnel1": { 
-        "src_ip": "10.10.10.10", 
-    }, 
+    "VXLAN_TUNNEL": {
+        "tunnel1": {
+            "src_ip": "10.10.10.10"
+        }
+    },
 
-    "VNET|Vnet_2000": { 
-        "vxlan_tunnel": "tunnel1", 
-        "vni": "2000", 
-        "peer_list": "Vnet_3000", 
-    }, 
+    "VNET": {
+        "Vnet_2000": {
+            "vxlan_tunnel": "tunnel1",
+            "vni": "2000",
+            "peer_list": ""
+        }
+    },
 
-    "INTERFACE|Ethernet1": { 
-        "vnet_name": "Vnet_2000", 
-    }, 
+    "INTERFACE": {
+        "Ethernet1": { 
+            "vnet_name": "Vnet_2000"
+        }
+    },
      
-    "INTERFACE|Ethernet1|100.100.3.1/24": { 
-    }, 
-
-    "NEIGH_TABLE|Ethernet1|100.100.3.2": { 
-        "family": "IPv4" 
+    "INTERFACE": {
+        "Ethernet1|100.100.3.1/24": {}
+    }
+   
+    "NEIGH": {
+        "Ethernet1|100.100.3.2": {
+            "family": "IPv4"
+     },
+     
+    "VNET": {
+        "Vnet_3000": { 
+            "vxlan_tunnel": "tunnel1", 
+            "vni": "3000", 
+            "peer_list": "Vnet_2000"
+        }
+    },
+   
+    "VLAN": {
+        "Vlan2000": {
+            "vlanid": 2000
+        }
     },
     
-    "VNET|Vnet_3000": { 
-        "vxlan_tunnel": "tunnel1", 
-        "vni": "3000", 
-        "peer_list": "Vnet_2000", 
-    },  
-
-    "VLAN|Vlan2000": {
-        "vlanid": "2000"
-    },
-    
-    "VLAN_MEMBER|Vlan2000|Ethernet2": {
-        "tagging_mode": "untagged"
+    "VLAN_MEMBER": {
+        "Vlan2000|Ethernet2": {
+            "tagging_mode": "tagged"
+         }
     },
 
-    "VLAN_INTERFACE|Vlan2000": {
-         "vnet_name": "Vnet_3000",
+    "VLAN_INTERFACE": {
+        "Vlan2000": {
+             "vnet_name": "Vnet_3000"
+	 }
+    },
+  
+    "VLAN_INTERFACE": {
+        "Vlan2000|100.100.4.1/24": {}
     },
 
-    "VLAN_INTERFACE|Vlan2000|100.100.4.1/24": {
-    },
-    
-    "NEIGH_TABLE|Vlan2000|100.100.4.2": { 
-        "family": "IPv4" 
-    },
+    "NEIGH": {
+        "Vlan2000|100.100.4.2": {
+            "family": "IPv4"
+     },
+
  ```
 ### APPDB Objects: 
 ```
