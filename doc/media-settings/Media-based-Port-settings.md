@@ -36,61 +36,61 @@ Media settings file:
 
         "Ethernet20": {
 
-            "Default": {
+            "Default": {
 
                 "Default": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                         "0x1201",
+                         "Lane0": "0x1201",
 
-                          "0x1234"
+                          "Lane1": "0x1234"
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x1",
+                        "Lane0": "0x1",
 
-                        "0x1"
+                        "Lane1": "0x1"
 
-                     ],
+                     },
 
-                     "ipredriver": [
+                     "ipredriver": {
 
-                        "0x1",
+                        "Lane0": "0x1",
 
-                        "0x1"
+                        "Lane1": "0x1"
 
-                     ]
+                     }
 
                 },
 
                 "DELL": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                        "0x1205",
+                        "Lane0": "0x1205",
 
-                        "0x5055"
+                        "Lane1": "0x5055"
 
-                    ],
+                    },
 
-                    "idriver": [
-
-                        "0x2",
-
-                        "0x2"
-
-                    ],
-
-                    "ipredriver": [
+                    "idriver": {
 
                         "0x2",
 
                         "0x2"
 
-                    ]
+                    },
+
+                    "ipredriver": {
+
+                        "Lane0": "0x2",
+
+                        "Lane1": "0x2"
+
+                    }
 
                 }
 
@@ -100,57 +100,57 @@ Media settings file:
 
                 "Default": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                        "0x4321",
+                        "Lane0": "0x4321",
 
-                        "0x4321"
+                        "Lane1": "0x4321"
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x2",
+                        "Lane0": "0x2",
 
-                        "0x3"
+                        "Lane1": "0x3"
 
-                    ],
+                    },
 
-                    "ipredriver": [
+                    "ipredriver": {
 
-                         "0x3",
+                         "Lane0": "0x3",
 
-                         "0x1"
+                         "Lane1": "0x1"
 
-                    ]
+                    }
 
                 },
 
                 "DELL-00-11-22": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                        "0x1311",
+                        "Lane0": "0x1311",
 
-                        "0x321c",
+                        "Lane1": "0x321c",
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x1",
+                        "Lane0": "0x1",
 
-                        "0x2",
+                        "Lane1": "0x2",
 
-                    ],
+                    },
 
-                    "ipredriver": [
+                    "ipredriver": {
 
-                        "0x2",
+                        "Lane0": "0x2",
 
-                        "0x1",
+                        "Lane1": "0x1",
 
-                    ]
+                    }
 
                 }
 
@@ -160,57 +160,57 @@ Media settings file:
 
                 "Default": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                        "0x1021",
+                        "Lane0": "0x1021",
 
-                        "0x3021",
+                        "Lane1": "0x3021",
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x4",
+                        "Lane0": "0x4",
 
-                        "0x4"
+                        "Lane1": "0x4"
 
-                    ],
+                    },
 
-                    "ipredriver": [
+                    "ipredriver": {
 
-                        "0x4",
+                        "Lane0": "0x4",
 
-                        "0x4"
+                        "Lane1": "0x4"
 
-                    ]
+                    }
 
                 },
 
                 "DELL": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                        "0x1311",
+                        "Lane0": "0x1311",
 
-                        "0x1312
+                        "Lane1": "0x1312
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x2",
+                        "Lane0": "0x2",
 
-                        "0x2"
+                        "Lane1": "0x2"
 
-                    ],
+                    },
 
-                    "ipredriver": [
+                    "ipredriver": {
 
-                        "0x2",
+                        "Lane0": "0x2",
 
-                        "0x2"
+                        "Lane1": "0x2"
 
-                    ]
+                    }
 
                 }
 
@@ -224,33 +224,33 @@ Media settings file:
 
         "Ethernet0-Ethernet120": {
 
-            "40GBASE-CR4-1M": {
+            "40GBASE-CR4-1M": {
 
                 "Default": {
 
-                    "preemphasis": [
+                    "preemphasis": {
 
-                         "0x1111",
+                         "Lane0": "0x1111",
 
-                          "0x1274"
+                         "Lane1": "0x1274"
 
-                    ],
+                    },
 
-                    "idriver": [
+                    "idriver": {
 
-                        "0x1",
+                         "Lane0": "0x1",
 
-                        "0x1"
+                         "Lane1": "0x1"
 
-                     ],
+                     },
 
-                     "ipredriver": [
+                     "ipredriver": {
 
-                        "0x1",
+                         "Lane0": "0x1",
 
-                        "0x1"
+                         "Lane1": "0x1"
 
-                     ]
+                     }
 
                 }
 
@@ -274,6 +274,20 @@ Flow:
               This mechanism is also very helpful in supporting new media types without upgrading the Operating system. If a new media type need to be supported the only change that needs to be done is modify media_settings.json to add the new media type.
               
 ![](https://github.com/dgsudharsan/SONiC/blob/hld_media/doc/media-settings/key_selection_flow.png)
+
+Breakout Scenario:
+==================
+
+              The media_settings.json file is defined based on logical ports and for each logical ports, the settings are defined per lane. When a port is breakout, it is split into multiple logical ports. For example let us assume the port before breakout is Ethernet0 and has four lanes, after breakout the logical ports would be Ethernet0, Ethernet1, Ethernet2, Ethernet3 with each one lane. When a media is detected, the xcvrd daemon will read media_settings.json file for the first logical port (Ethernet0) and will fetch the values for all four lanes and notify portsorch. Portsorch on receiving the message with four lanes will figure out that Ethernet0 is now in one lane mode and thus invoke the SAI API for the first port (Ethernet0) and additional three ports(Ethernet1,Ethernet2,Ethernet3) each with one lane. The data from xcvrd will be cached in a new table as below so that when breakout command is executed dynamically, the settings can be reapplied without any re-notification from xcvrd.
+
+PHY_MEDIA:LOGICAL_PORT_NAME:LANE_NUM:
+
+1)PRE-EMPHASIS:
+
+2)I_DRIVER:
+
+3)IPRE-DRIVER
+
 
 SAI Attributes:
 ===============
