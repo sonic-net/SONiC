@@ -168,6 +168,7 @@ New Transceiver info Table schema will be:
 	encoding                    = 1*255VCHAR                       ; encoding information
 	ext_identifier              = 1*255VCHAR                       ; extend identifier
 	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
+	cable_type                  = 1*255VCHAR                       ; cable type
 	cable_length                = INT                              ; cable length in m
 	mominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
 	specification_compliance    = 1*255VCHAR                       ; specification compliance
@@ -299,8 +300,9 @@ An pmon config files will be added to the [platform device folder](https://githu
 For example, one platform don't want ledd to be started, can add a config file to the platform,
 The contenet of the platform specific config filelike below:
            
-	"skipped_daemons": {
-	    ledd
+	{
+	    "ledd": "skipped",
+	    "xcvrd": "skipped"
 	}
 	   
 a common template file for the supervisored config can like below(only show the ledd part)  
