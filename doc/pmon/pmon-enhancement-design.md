@@ -301,13 +301,14 @@ For example, one platform don't want ledd to be started, can add a config file t
 The contenet of the platform specific config filelike below:
            
 	{
-	    "ledd": "skipped",
-	    "xcvrd": "skipped"
+	    "skip_ledd": 1,
+	    "skip_xcvrd": 0,
+	    "skip_psud": 0
 	}
 	   
 a common template file for the supervisored config can like below(only show the ledd part)  
 
-	{%- if ledd != "skipped" %}
+	{%- if skip_ledd != 1 %}
             [program:ledd]
             command=/usr/bin/ledd
             priority=5
