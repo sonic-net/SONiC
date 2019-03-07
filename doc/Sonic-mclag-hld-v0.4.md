@@ -6,14 +6,15 @@
 |---------|------------|------------------------|--------------------------------------------------|
 | v.01    | 07/30/2018 |jian                    | Initial version from nephos                      |
 | v.02    | 10/19/2018 |jian/shine/jeffrey      | Revised per review meeting with SONIC community  |
-| v.03    | 09/18/2018 |jeffrey                 | Minor update to clarify the behavior.            |
+| v.03    | 10/27/2018 |jeffrey                 | Minor update to clarify the behavior.            |
+| v.04    | 03/01/2019 |jian/shine/jeffrey      | Revised per review meeting with SONIC community  |
 
 # 2 Abbreviations
 
 |**Term** |**Definition**                                    |
 |---------|--------------------------------------------------|
 |MCLAG	  |Multi-Chassis Link Aggregation Group              |
-|ICCP	  |Inter-Chassis Communication Protocol                |
+|ICCP	  |Inter-Chassis Communication Protocol              |
 
 # 3	Terminologies
 ![](https://github.com/Azure/SONiC/blob/a3ee33a73c4f58f0ad32c9df893ed477843335a4/images/mclag_hld/MCLAG_HLD_terminology.png)
@@ -108,6 +109,7 @@ RFC7275 does not specify how to do the heartbeat check, but just suggest to use 
 This lite version does consistence check for the following contents:
 1	Peer IP, local IP will be checked against with message contents.
 2	Enable MC-LAG portchannel interface check: if it is L3 interface, then the IP address assigned must be the same. If they join a vlan, then the vlan must be the same etc.
+3	Peer-link in both devices must be the same type.
 
 # 6	Typical configurations
 
@@ -120,24 +122,31 @@ Combination of both cases in one system are supported.
 # 7	Typical Data diagram for MCLAG
 
 ![](https://github.com/Azure/SONiC/blob/a3ee33a73c4f58f0ad32c9df893ed477843335a4/images/mclag_hld/MCLAG_HLD_7.1.png)                           
-In the above diagram, PortChannel0001 and PortChannel0002 are mclag enabled interfaces, PortChannel0003 is peer-link. Peer-link forwarding is disabled for mclag enabled interfaces, and MAC learning of peer-link is disabled. Generally, all portchannels in each PE are in up state, and the data flow path is presented by the red line.
-                        
+<center>Diagram 7.1</center>
+
+In the diagram 7.1, PortChannel0001 and PortChannel0002 are mclag enabled interfaces, PortChannel0003 is peer-link. Peer-link forwarding is disabled for mclag enabled interfaces, and MAC learning of peer-link is disabled. Generally, all portchannels in each PE are in up state, and the data flow path is presented by the red line.
+We use acl rule to filter the traffic flow from peer-link to mclag enabled interfaces in ASIC. For example in the diagram 7.1 , in PE1 the traffic which is from PortChannel0003 and the out interface is PortChannel0001 will be dropped. No SAI API changes is required. In linux kernel, ebtable module is used to do the same thing, command is as 'ebtables -A FORWARD -i PortChannel0003 -o PortChannel0001 -j DROP'.
+
 ![](https://github.com/Azure/SONiC/blob/a3ee33a73c4f58f0ad32c9df893ed477843335a4/images/mclag_hld/MCLAG_HLD_7.2.png)
-In the above diagram, if PortChannel0001 in PE1 is down, the data flow from CE2 to CE1 through PE1 is changed to the path presented by the blue line. A shorter prefix is installed in PE1 with nexthop points to the peer link. the data flow from CE1 to CE2 is unchanged. When PE2 is notified that PortChannel0001 in PE1 is down, it remove the isolation from peer-link to PortChannel0001.
+<center>Diagram 7.2</center>
+
+In the diagram 7.2, if PortChannel0001 in PE1 is down, the data flow from CE2 to CE1 through PE1 is changed to the path presented by the blue line. A shorter prefix is installed in PE1 with nexthop points to the peer link. the data flow from CE1 to CE2 is unchanged. When PE2 is notified that PortChannel0001 in PE1 is down, it remove the isolation from peer-link to PortChannel0001.
 
 ![](https://github.com/Azure/SONiC/blob/a3ee33a73c4f58f0ad32c9df893ed477843335a4/images/mclag_hld/MCLAG_HLD_7.3.png)
-When peer link is down, as shown above, no action is taken. Data forwarding continues as usual, but eventually the system will become instable since information cannot be exchanged between the two peers.
+<center>Diagram 7.3</center>
+
+In the diagram 7.3, when peer link is down, as shown above, no action is taken. Data forwarding continues as usual, but eventually the system will become unstable since information cannot be exchanged between the two peers.
+When peer link is down, we can provide another link between peers to converge the MCLAG system, this may be supported in the future.
 
 # 8	SONiC system diagram for MCLAG
-
-
 The MC-LAG code will run in a separate container. The following chart is with added ICCPd container. The blocks below are just illustrating the concept flow. 
+Note: ICCPd docker container doesn't start by default, it could be started on demand. Linux command 'systemctl start iccpd' can be used to start ICCPd docker container, 'systemctl enable iccpd' will start ICCPd docker automatic after rebooting.
 
 ![](https://github.com/Azure/SONiC/blob/6577edb5dba96d9d25c988b7aafe565063966af6/images/mclag_hld/MCLAG_HLD_8.png)
 
 Flow 1: ICCPd reads MCLAG related configuration from CONFIG_DB
 
-Flow 2: Updating kernel with ARP learned. Syncing up kernel with changed MAC to update LACP with system ID for the portchannel  also, in this stage, the static route using peer link is also updated.
+Flow 2: Updating kernel with ARP learned. Syncing up kernel with changed MAC to update LACP with system ID for the portchannel also, in this stage, the static route using peer link is also updated.
 
 Flow 3: ICCPd learns events such as L2 interface creation, L3 interface creation, MAC of local interfaces and its modification, IP address and its modification, ARP learning, VLAN creation and its member’s association/de-association, interface admin/link state.
 
@@ -155,7 +164,7 @@ Flow 8: After configure/update APP_DB, OrchAgent monitory and process the relate
 
 
 ## 9.1	The schema changes
-1.	Adding MCLAG configuration
+ ### Adding MCLAG configuration
 ```
   "MC_LAG": {
         "1": {
@@ -166,35 +175,58 @@ Flow 8: After configure/update APP_DB, OrchAgent monitory and process the relate
         }
     },
 ```
-2.	Adding a new mclagsyncd process
-Mclagsyncd will work with APP_DB to take care of following actions:
-Disable L2 learning for peer-link port for those VLANs that there is no need of flooding. Flash FDB table contents for MCLAG vlans. Isolate peer-link from portchannel、updating MAC association with its L3 interface.
 
-3.	Adding mclagctld process
+###  Adding mclagsyncd process
+Mclagsyncd will work with APP_DB to take care of following actions:
+- Disable L2 learning for peer-link port for those VLANs that there is no need of flooding.
+- Flush FDB table contents for MCLAG vlans. 
+- Update MAC association with its L3 interface.
+
+Mclagsyncd will work with CFG_DB to take care of following actions:
+- Isolate peer-link from MCLAG enabled port-channel.
+
+### Adding mclagctld process
 Mclagctld supports some new defined CLIs so that some ICCPd related information can be displayed. 
+
 The new CLIs are:
 ```
-1.	mclagdctl -i <mclag-id> dump arp
-This command to display the local ARP entries learned from the port-channels that mclag is enabled.
-2.	mclagdctl -i <mclag-id> dump mac
-This command to display the local MAC entries learned from the port-channels that mclag is enabled.
-3.	mclagdctl -i <mclag-id> dump portlist local
-This command to display the local portlist, include the port-channels and their member ports.
-4.	mclagdctl -i <mclag-id> dump portlist peer
-This command to display the peer portlist, include the port-channels and their member ports.
-5.mclagdctl -i <mclag-id> dump state
-This command to display the local configuration and state.
+ - mclagdctl -i <mclag-id> dump arp
+Display the local ARP entries learned from the port-channels that mclag is enabled.
+
+ - mclagdctl -i <mclag-id> dump mac
+Display the local MAC entries learned from the port-channels that mclag is enabled.
+
+ - mclagdctl -i <mclag-id> dump portlist local
+Display the local portlist, include the port-channels and their member ports.
+
+ - mclagdctl -i <mclag-id> dump portlist peer
+Display the peer portlist, include the port-channels and their member ports.
+
+ - mclagdctl -i <mclag-id> dump state
+Display the local configuration and state.
 ```
-## 9.2	portsorch changes
-Adding the following logic:
-Listening new APP_DB events，isolating peer-link ports,  learn interface MACs.
-
-## 9.3	intfsorch changes
+## 9.2	aclorch changes
 Adding the following logics:
-Listening MAC modification of L3 interfaces,  updating it to ASIC
-Removing adding/delete direct connected network FIB update triggered by creation of L3 interface in orchAgent. (Such direct connected network FIB does not respond to the state change which is wrong, it only responds to the ip address addition or deletion）
 
-## 9.4	routeorch changes
-From this version, the direct connect network is not created by intfsorch. Like other types of route, the direct connect network is informed by Zebra. This is a common issue, not only for MC-LAG support.
-rocess
+ - ACL rule can be binded in LAG or VLAN port.  
+ - ACL table can matched OUT_PORTS.
+
+## 9.3	portsorch changes
+Adding the following logics:
+- Listening new APP_DB events, enable or disable mac-learning on interface.
+- Add LAG name map to counter table.
+
+## 9.4	intfsorch changes
+Adding the following logics:
+- Listening MAC modification of L3 interfaces,  updating it to ASIC.
+- Removing adding/delete direct connected route update triggered by creation of L3 interface in orchAgent. (Such direct connected network FIB does not respond to the state change of L3 interface , it only responds to the ip address addition or deletion. It is wrong.）
+
+## 9.5	routeorch changes
+Adding the following logics:
+- Remove the logical that the direct connect route is created by intfsorch. Like other types of route, the direct connect route is informed by Zebra and created by routeorch. This is a common issue, not just for MC-LAG support.
+
+## 9.6	fdborch changes
+Adding the following logics:
+- received SAI_FDB_EVENT_MOVE event, only report warning message.
+- When add new FDB , if the FDB entry already exists first remove the entry, then add the entry.
 
