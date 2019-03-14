@@ -1,0 +1,244 @@
+/*=======================================
+Template Design By MarkUps.
+Author URI : http://www.markups.io/
+========================================*/
+.scrollToTop {
+  background-color: #c762cb;
+  border: 2px solid #c762cb;
+}
+
+.mu-read-more-btn:hover, .mu-read-more-btn:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+
+.mu-post-btn:hover, .mu-post-btn:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+
+#mu-header .mu-header-area .mu-header-top-right .mu-top-social-nav li a:hover, #mu-header .mu-header-area .mu-header-top-right .mu-top-social-nav li a:focus {
+  color: #c762cb;
+}
+
+#mu-menu .navbar-header .navbar-brand i {
+  color: #c762cb;
+}
+#mu-menu .navbar-default .navbar-nav li > a:hover, #mu-menu .navbar-default .navbar-nav li > a:focus {
+  border-color: #c762cb;
+  color: #c762cb;
+}
+#mu-menu .navbar-default .navbar-nav li .dropdown-menu {
+  border-top: 2px solid #c762cb;
+}
+#mu-menu .navbar-default .navbar-nav li .dropdown-menu li a:hover, #mu-menu .navbar-default .navbar-nav li .dropdown-menu li a:focus {
+  background-color: #c762cb;
+}
+#mu-menu .navbar-default .navbar-nav .open a:hover, #mu-menu .navbar-default .navbar-nav .open a:focus {
+  background-color: #c762cb;
+}
+
+#mu-menu .navbar-default .navbar-nav > .active > a, #mu-menu .navbar-default .navbar-nav > .active > a:hover, #mu-menu .navbar-default .navbar-nav > .active > a:focus {
+  color: #c762cb;
+  border-bottom: 2px solid #c762cb;
+  background-color: transparent;
+}
+
+#mu-search .mu-search-area .mu-search-close {
+  background-color: #c762cb;
+}
+
+#mu-slider .mu-slider-single .mu-slider-content span {
+  background-color: #c762cb;
+}
+#mu-slider .slick-prev,
+#mu-slider .slick-next {
+  background-color: #c762cb;
+}
+
+#mu-features .mu-features-area .mu-features-content .mu-single-feature span {
+  color: #c762cb;
+  border: 1px solid #c762cb;
+}
+#mu-features .mu-features-area .mu-features-content .mu-single-feature a:hover, #mu-features .mu-features-area .mu-features-content .mu-single-feature a:focus {
+  color: #c762cb;
+  border-color: #c762cb;
+}
+
+#mu-latest-courses .mu-latest-courses-area .mu-latest-courses-content .slick-dots .slick-active {
+  background-color: #c762cb;
+}
+
+.mu-latest-course-single .mu-latest-course-img .mu-latest-course-imgcaption a:hover, .mu-latest-course-single .mu-latest-course-img .mu-latest-course-imgcaption a:focus {
+  color: #c762cb;
+}
+.mu-latest-course-single .mu-latest-course-single-content h4 a:hover, .mu-latest-course-single .mu-latest-course-single-content h4 a:focus {
+  color: #c762cb;
+}
+.mu-latest-course-single .mu-latest-course-single-content .mu-latest-course-single-contbottom .mu-course-details {
+  color: #c762cb;
+}
+
+#mu-our-teacher .mu-our-teacher-area .mu-our-teacher-content .mu-our-teacher-single .mu-our-teacher-img .mu-our-teacher-social {
+  background-color: #c762cb;
+}
+#mu-our-teacher .mu-our-teacher-area .mu-our-teacher-content .mu-our-teacher-single .mu-our-teacher-img .mu-our-teacher-social a:hover, #mu-our-teacher .mu-our-teacher-area .mu-our-teacher-content .mu-our-teacher-single .mu-our-teacher-img .mu-our-teacher-social a:focus {
+  color: #c762cb;
+}
+
+#mu-testimonial .mu-testimonial-area .mu-testimonial-content .mu-testimonial-item .mu-testimonial-info span {
+  color: #c762cb;
+}
+#mu-testimonial .mu-testimonial-area .mu-testimonial-content .slick-dots .slick-active {
+  background-color: #c762cb;
+}
+
+.mu-blog-single-item .mu-blog-single-img .mu-blog-caption h3 a:hover {
+  color: #c762cb;
+}
+.mu-blog-single-item .mu-blog-meta a:hover, .mu-blog-single-item .mu-blog-meta a:focus {
+  color: #c762cb;
+}
+.mu-blog-single-item .mu-blog-description a:hover, .mu-blog-single-item .mu-blog-description a:focus {
+  border-color: #c762cb;
+}
+
+#mu-page-breadcrumb .mu-page-breadcrumb-area .breadcrumb .active {
+  color: #c762cb;
+}
+
+#mu-course-content {
+  background-color: #f8f8f8;
+  display: inline;
+  float: left;
+  padding: 100px 0;
+  width: 100%;
+}
+#mu-course-content .mu-course-content-area {
+  display: inline;
+  float: left;
+  width: 100%;
+}
+#mu-course-content .mu-course-content-area .mu-course-container {
+  display: inline;
+  float: left;
+  width: 100%;
+}
+#mu-course-content .mu-course-content-area .mu-course-container .mu-latest-course-single {
+  border: 1px solid #ccc;
+  margin-bottom: 30px;
+}
+#mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .mu-sidebar-catg li a:hover, #mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .mu-sidebar-catg li a:focus {
+  color: #c762cb;
+}
+#mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .mu-sidebar-popular-courses .media .media-body .media-heading a:hover, #mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .mu-sidebar-popular-courses .media .media-body .media-heading a:focus {
+  color: #c762cb;
+}
+#mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .tag-cloud a:hover, #mu-course-content .mu-course-content-area .mu-sidebar .mu-single-sidebar .tag-cloud a:focus {
+  color: #c762cb;
+  border-color: #c762cb;
+}
+
+.mu-pagination .pagination li a:hover, .mu-pagination .pagination li a:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+.mu-pagination .pagination .active a {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+
+.mu-related-item {
+  display: inline;
+  float: left;
+  margin-top: 30px;
+  width: 100%;
+}
+.mu-related-item .mu-related-item-area #mu-related-item-slide .slick-prev,
+.mu-related-item .mu-related-item-area #mu-related-item-slide .slick-next {
+  background-color: #c762cb;
+}
+
+.mu-blog-single .mu-blog-single-item .mu-blog-tags .mu-news-single-tagnav li a:hover, .mu-blog-single .mu-blog-single-item .mu-blog-tags .mu-news-single-tagnav li a:focus {
+  color: #c762cb;
+}
+.mu-blog-single .mu-blog-single-item .mu-blog-social .mu-news-social-nav li a:hover, .mu-blog-single .mu-blog-single-item .mu-blog-social .mu-news-social-nav li a:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+
+.mu-blog-single-navigation a:hover, .mu-blog-single-navigation a:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+
+.mu-comments-area {
+  display: inline;
+  float: left;
+  width: 100%;
+  margin-top: 20px;
+}
+.mu-comments-area h3 {
+  margin-bottom: 20px;
+  padding: 20px;
+  border-bottom: 1px solid #ccc;
+  padding-left: 0;
+}
+.mu-comments-area .comments .commentlist li .reply-btn:hover, .mu-comments-area .comments .commentlist li .reply-btn:focus {
+  background-color: #c762cb;
+  border-color: #c762cb;
+}
+.mu-comments-area .comments .commentlist li .author-tag {
+  background-color: #c762cb;
+}
+.mu-comments-area .comments .comments-pagination li a:hover, .mu-comments-area .comments .comments-pagination li a:focus {
+  color: #c762cb;
+}
+
+#mu-gallery .mu-gallery-area .mu-gallery-content {
+  width: 100%;
+}
+#mu-gallery .mu-gallery-area .mu-gallery-content .mu-gallery-top ul li {
+  background-color: #c762cb;
+  border: 1px solid #c762cb;
+}
+#mu-gallery .mu-gallery-area .mu-gallery-content .mu-gallery-top ul li:hover, #mu-gallery .mu-gallery-area .mu-gallery-content .mu-gallery-top ul li:focus {
+  color: #c762cb;
+  border-color: #c762cb;
+}
+#mu-gallery .mu-gallery-area .mu-gallery-content .mu-gallery-top ul .active {
+  color: #c762cb;
+  border-color: #c762cb;
+}
+#mu-gallery .mu-gallery-area .mu-gallery-content .mu-gallery-body ul li .mu-single-gallery .mu-single-gallery-item .mu-single-gallery-info .mu-single-gallery-info-inner a {
+  background-color: #c762cb;
+}
+
+#mu-contact .mu-contact-area .mu-contact-content .mu-contact-left .contactform input[type="text"]:focus,
+#mu-contact .mu-contact-area .mu-contact-content .mu-contact-left .contactform input[type="email"]:focus,
+#mu-contact .mu-contact-area .mu-contact-content .mu-contact-left .contactform input[type="url"]:focus {
+  border-color: #c762cb;
+}
+#mu-contact .mu-contact-area .mu-contact-content .mu-contact-left .contactform textarea:focus {
+  border-color: #c762cb;
+}
+
+#mu-error .mu-error-area h2 {
+  color: #c762cb;
+}
+
+#mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget ul li a:hover, #mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget ul li a:focus {
+  color: #c762cb;
+}
+#mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget .mu-subscribe-form input[type="email"]:focus {
+  border-color: #c762cb;
+}
+#mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget .mu-subscribe-form .mu-subscribe-btn {
+  background-color: #c762cb;
+}
+
+
+/*=======================================
+Template Design By MarkUps.
+Author URI : http://www.markups.io/
+========================================*/
