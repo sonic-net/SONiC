@@ -697,7 +697,8 @@ Use this ZTP JSON file which performs following steps on first boot
       }
     }
   }
-}```
+}
+```
 
 ## 11. Future
 
