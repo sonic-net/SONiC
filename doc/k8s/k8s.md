@@ -13,6 +13,31 @@ One example is rolling update. By using k8s, the operator can upgrade all contai
 running in SONiC image with a simple instruction. Stopping the current container and
 starting the new updated container can be done automatically in parallel in the fleet of SONiC switches.
 
+## Glossary
+
+Based on [k8s glossary](https://kubernetes.io/docs/reference/glossary/?fundamental=true)
+
+- Cluster
+    - A set of machines, called nodes, that run containerized applications managed by Kubernetes
+    - In SONiC use-case, each machine is SONiC switch
+- Pod
+    - The smallest and simplest Kubernetes object. A Pod represents a set of running containers on your cluster
+    - In SONiC use-case, swss container can be deployed as one pod ( as well as syncd, database container etc..)
+- Service
+    - In k8s, 'service' means a specific feature (API object) of k8s and it is not used as a generic term
+    - An API object that describes how to access applications, such as a set of Pods , and can describe ports and load-balancers
+    - In SONiC use-case, we won't use this feature at least for the first phase since most of the Pods will be deployed with 'hostNetwork: true' which doesn't work with 'service'
+        - https://kubernetes.io/docs/concepts/configuration/overview/#services
+- Deployment
+    - In k8s, 'deployment' means a specific feature (API object) of k8s and it is not used as a generic term
+    - An API object that manages a replicated application
+    - By using deployment, you can maintain a stable set of replica Pods running at any given time. Also it enables rolling update and changing the number of the replica
+    - In SONiC use-case, we won't use this feature at least for the first phase since most of the Pods needs to run on every nodes in the cluster. Also the node can't run the same image more than one (e.g We must not deploy more than 1 syncd container in one SONiC switch). To meet this requirement, we can use DaemonSet.
+- DaemonSet
+    - Ensures a copy of a Pod is running across a set of nodes in a cluster
+    - Used to deploy system daemons such as log collectors and monitoring agents that typically must run on every Node
+    - In SONiC use-case, most of the containers can be deployed as DaemonSet. By using this feature, k8s will automatically deploy configured Pods to newly added SONiC switches.
+
 ## Requirments
 
 - support following two modes
@@ -21,6 +46,7 @@ starting the new updated container can be done automatically in parallel in the 
 - support switching between standalone mode and cluser mode in runtime
     - at least switching from standalone to cluster mode
 - support cluster joining mechanism for newly added switch
+    - ideally this should be done automatically when a new switch boots up
 - support cluster leaving mechanism
 - support rolling update and rollbacking of containers runnning inside SONiC
 - support various SONiC versions in the cluster
@@ -31,8 +57,11 @@ starting the new updated container can be done automatically in parallel in the 
 - Use [k3s](https://k3s.io/) for k8s package
     - lightweight
         - network devices typically have less compute resources compared to server. We should reduce the resource comsumption of k8s as much as possible
+        - it is said that k3s binary is less than 40MB and needs 512MB of RAM to run
     - [offline support](https://github.com/rancher/k3s/issues/166) is under development
         - in standaone mode, SONiC should work without the Internet access
+        - https://github.com/rancher/k3s/issues/166
+        - https://github.com/rancher/k3s/pull/241
     - Other alternatives
         - [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/) : the most popular way to install vanilla k8s cluster
 
