@@ -37,6 +37,8 @@ Based on [k8s glossary](https://kubernetes.io/docs/reference/glossary/?fundament
     - Ensures a copy of a Pod is running across a set of nodes in a cluster
     - Used to deploy system daemons such as log collectors and monitoring agents that typically must run on every Node
     - In SONiC use-case, most of the containers can be deployed as DaemonSet. By using this feature, k8s will automatically deploy configured Pods to newly added SONiC switches.
+- kubelet
+    - An agent that runs on each node in the cluster. It makes sure that containers are running in a pod.
 
 ## Requirments
 
@@ -70,30 +72,106 @@ Based on [k8s glossary](https://kubernetes.io/docs/reference/glossary/?fundament
 
 ### standalone mode
 
-We have several options to implement standalone mode.
+We have 3 options to implement standalone mode.
 
-1. keep using the current implementation based on systemd
-    - PROS:
-        - no need for new development
-    - CONS:
-        - the container manegement methods is totally diffent in cluster mode
-            - we need to support two mechanism to manage the containers
-2. use kubelet manifest feature
-    - https://kubernetes.io/docs/tasks/administer-cluster/static-pod/
-    - PROS:
-        - no need to think about changing master node to remote node if moving to cluster mode
-        - no need to run k8s controller on switch
-    - CONS:
-        - k3s doesn't support running kubelet only without joining to the cluster
-3. build single node cluster
-    - PROS
-        - can reuse many things which we use in cluster mode
-    - CONS:
-        - needs to figure out how to switch the master node when moving to cluster mode
-            - we need to switch from the master running inside the switch to the remote master
-            - not sure k3s/k8s has a built-in graceful way to do this
+#### 1. keep using the current implementation based on systemd
+- PROS:
+    - no need for new development
+- CONS:
+    - the container manegement methods is totally diffent in cluster mode
+        - we need to support two mechanism to manage the containers
+
+```
+                 ┌───────┐   ┌──────┐ 
+                 │       │   │      │ 
+                 │systemd│──▶│docker│ 
+┌────────────────┤       ├───┤      ├┐
+│                └───────┘   └──────┘│
+│            SONiC switch            │
+│               (node)               │
+└────────────────────────────────────┘
+```
+
+#### 2. use kubelet manifest feature
+- https://kubernetes.io/docs/tasks/administer-cluster/static-pod/
+- PROS:
+    - no need to think about changing master node to remote node if moving to cluster mode
+    - no need to run k8s controller on switch
+- CONS:
+    - k3s doesn't support running kubelet only without joining to the cluster
+
+```
+  ┌──────────┐   ┌───────┐   ┌──────┐ 
+  │  static  │   │       │   │      │ 
+  │   pod    │──▷│kubelet│──▶│docker│ 
+┌─┤definition├───┤       ├───┤      ├┐
+│ └──────────┘   └───────┘   └──────┘│
+│            SONiC switch            │
+│               (node)               │
+└────────────────────────────────────┘
+```
+
+#### 3. build single node cluster
+- PROS
+    - can reuse many things which we use in cluster mode
+- CONS:
+    - needs to figure out how to switch the controller when moving to cluster mode
+        - we need to switch from the controller running inside the switch to the remote controller
+        - not sure k3s/k8s has a built-in graceful way to do this
+
+```
+ ┌─────────────┐                      
+ │  resource   │                      
+ │ definition  │                      
+ │ (YAML file) │                      
+ └─────────────┘                      
+        │                             
+        ▽                             
+   ┌─────────┐                        
+   │ kubectl │                        
+   └─────────┘                        
+        │                             
+        ▼                             
+  ┌──────────┐   ┌───────┐   ┌──────┐ 
+  │          │   │       │   │      │ 
+  │controller│──▶│kubelet│──▶│docker│ 
+┌─┤          ├───┤       ├───┤      ├┐
+│ └──────────┘   └───────┘   └──────┘│
+│            SONiC switch            │
+│               (node)               │
+└────────────────────────────────────┘
+```
 
 ### cluster mode
+
+```
+                                                          ┌───────┐   ┌──────┐ 
+                                                          │       │   │      │ 
+                                              ┌──────────▶│kubelet│──▶│docker│ 
+                                              │          ┌┤       ├───┤      ├┐
+                                              │          │└───────┘   └──────┘│
+                                              │          │    SONiC switch    │
+                                              │          │       (node)       │
+                                              │          └────────────────────┘
+                  ┌───────────────┐           │                                
+                  │               │      ┌────┴───┐       ┌───────┐   ┌──────┐ 
+  ┌─────────┐     │  controller   │      │   L3   │       │       │   │      │ 
+  │ kubectl │────▶│   (master)    │──────┤network ├──────▶│kubelet│──▶│docker│ 
+  └─────────┘     │               │      │        │      ┌┤       ├───┤      ├┐
+       △          └───────────────┘      └────┬───┘      │└───────┘   └──────┘│
+       │                                      │          │    SONiC switch    │
+       │                                      │          │       (node)       │
+┌─────────────┐                               │          └────────────────────┘
+│  resource   │                               │                                
+│ definition  │                               │           ┌───────┐   ┌──────┐ 
+│ (YAML file) │                               │           │       │   │      │ 
+└─────────────┘                               └──────────▶│kubelet│──▶│docker│ 
+                                                         ┌┤       ├───┤      ├┐
+                                                         │└───────┘   └──────┘│
+                                                         │    SONiC switch    │
+                                                         │       (node)       │
+                                                         └────────────────────┘
+```
 
 #### deploy master node
 - the master node needs to be deployed in a remote server.
