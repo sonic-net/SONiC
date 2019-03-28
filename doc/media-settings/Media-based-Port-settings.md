@@ -24,241 +24,159 @@ Media settings file:
 
               The file comprises of two blocks. The first block is for global level settings, where all or multiple ports can be presented as keys. The multiple ports can be represented as a range (Ethernet0-Ethern120) or a list(Ethernet0,Ethernet4,Ethernet8) or a list of ranges(Ethernet0-Ethernet20,Ethernet40-Ethernet60) of logical ports. The second block is port level settings where the key comprises of a single logical port.
 
-              When a media is detected, the logical port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the media key (compliance + length) is constructed and looked up at the next level. If there is an exact match then those values are fetched and returned. Unlike individual port level block below where a default value is specified, there will be no default value specified for the media-key. A  no-match will make the search fall back to individual port based block from global block.
+              When a media is detected, the logical port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) is constructed and looked up at the next level. If there is an exact match then those values are fetched and returned. Unlike individual port level block below where a default value is specified, there will be no default value specified. A  no-match will make the search fall back to individual port based block from global block.
 
-              In the port based settings block, the port on which it is detected is identified at the first level. At the second level, the media type key is constructed based on compliance code and length. If compliance code -- length key is not found in the media types listed for the port, then the key is reduced to include only compliance code. For instance, if the initial media type key constructed from the EEPROM fields is '40GBASE-CR4-2M' and the specific port does not list such an entry then key is reduced to '40GBASE-CR4' and the port entry is searched if the reduced key exists. If there is still no match, then the 'Default' value listed under the port is selected.
-
-              At the third level, the Vendor key is derived by concatenating vendor name and vendor part number (e.g. DELL-00-11-22).  If there is no exact match for vendor name -- vendor part number key, then the vendor key is reduced to vendor name alone (e.g. DELL) and the media type entry is looked up for such a key. If there is no match, then the default value listed under the media type is chosen. Below is an example for json file for a specific port. For the port Ethernet20 two specific media types (40GBASE-SR4 and 40GBASE-CR4-3M) and a 'Default' media type is defined. For 40GBASE-SR4 a DELL vendor name- vendor PN specific setting is listed along with a 'Default' value which is chosen for all other 40GBASE-SR4 optics apart from the listed key (DELL-00-11-22). For 40GBASE-CR4-3M media key a DELL vendor name alone key word is listed along with a 'Default' key word. This would imply that any 40GBASE-CR4-3M DAC manufactured by DELL will pick the values listed in the vendor name key whereas everything else will pick the default values.
+              In the port based settings block, the port on which it is detected is identified at the first level. At second level, the Vendor key is derived by concatenating vendor name and vendor part number (e.g. DELL-0123).  If there is no exact match for vendor name -- vendor part number key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port Ethernet0 a Vendor specific media type and a 'Default' media type is defined. 
 
 {
 
-    "PORT_MEDIA_SETTINGS": {
+    "GLOBAL_MEDIA_SETTINGS": {
 
-        "Ethernet20": {
+        "Ethernet0-Ethernet124": {
 
-            "Default": {
+            "AMPHENOL-1234": {
 
-                "Default": {
+                "preemphasis": {
 
-                    "preemphasis": {
+                    "lane0":"0x001234",
 
-                         "Lane0": "0x1201",
+                    "lane1":"0x001234",
 
-                          "Lane1": "0x1234"
+                    "lane2":"0x001234",
 
-                    },
+                    "lane3":"0x001234"
 
-                    "idriver": {
+                },
 
-                        "Lane0": "0x1",
+                "idriver": {
 
-                        "Lane1": "0x1"
+                    "lane0":"0x2",
 
-                     },
+                    "lane1":"0x2",
 
-                     "ipredriver": {
+                    "lane2":"0x2",
 
-                        "Lane0": "0x1",
+                    "lane3":"0x2"
 
-                        "Lane1": "0x1"
+                }
 
-                     }
+            },
 
-                },
+            "MOLEX-5678": {
 
-                "DELL": {
+                "preemphasis": {
 
-                    "preemphasis": {
+                    "lane0":"0x005678",
 
-                        "Lane0": "0x1205",
+                    "lane1":"0x005678",
 
-                        "Lane1": "0x5055"
+                    "lane2":"0x005678",
 
-                    },
+                    "lane3":"0x005678"
 
-                    "idriver": {
+                },
 
-                        "0x2",
+                "idriver": {
 
-                        "0x2"
+                    "lane0":"0x1",
 
-                    },
+                    "lane1":"0x1",
 
-                    "ipredriver": {
+                    "lane2":"0x1",
 
-                        "Lane0": "0x2",
+                    "lane3":"0x1"
 
-                        "Lane1": "0x2"
+                }
 
-                    }
+            },
 
-                }
+            "DELL-1111": {
 
-            },
+                "preemphasis": {
 
-            "40GBASE-SR4": {
+                    "lane0":"0x005678",
 
-                "Default": {
+                    "lane1":"0x005678"
 
-                    "preemphasis": {
+                },
 
-                        "Lane0": "0x4321",
+                "idriver": {
 
-                        "Lane1": "0x4321"
+                    "lane0":"0x1",
 
-                    },
+                    "lane1":"0x1"
 
-                    "idriver": {
+                }
 
-                        "Lane0": "0x2",
+            }
 
-                        "Lane1": "0x3"
+        }
 
-                    },
+    },
 
-                    "ipredriver": {
+    "PORT_MEDIA_SETTINGS": {
 
-                         "Lane0": "0x3",
+        "Ethernet0": {
 
-                         "Lane1": "0x1"
+            "Default": {
 
-                    }
+                "preemphasis": {
 
-                },
+                    "lane0":"0x112233",
 
-                "DELL-00-11-22": {
+                    "lane1":"0x112233",
 
-                    "preemphasis": {
+                    "lane2":"0x112244",
 
-                        "Lane0": "0x1311",
+                    "lane3":"0x443322"
 
-                        "Lane1": "0x321c",
+                },
 
-                    },
+                "idriver": {
 
-                    "idriver": {
+                    "lane0":"0xb",
 
-                        "Lane0": "0x1",
+                    "lane1":"0xc",
 
-                        "Lane1": "0x2",
+                    "lane2":"0xd",
 
-                    },
+                    "lane3":"0xa"
 
-                    "ipredriver": {
+                }
 
-                        "Lane0": "0x2",
+            },
 
-                        "Lane1": "0x1",
+            "DELL-5678": {
 
-                    }
+                "preemphasis": {
 
-                }
+                    "lane0":"0x102233",
 
-            },
+                    "lane1":"0x132233",
 
-            "40GBASE-CR4-3M": {
+                    "lane2":"0x152244",
 
-                "Default": {
+                    "lane3":"0x413322"
 
-                    "preemphasis": {
+                },
 
-                        "Lane0": "0x1021",
+                "idriver": {
 
-                        "Lane1": "0x3021",
+                    "lane0":"0xc",
 
-                    },
+                    "lane1":"0xc",
 
-                    "idriver": {
+                    "lane2":"0xd",
 
-                        "Lane0": "0x4",
+                    "lane3":"0xb"
 
-                        "Lane1": "0x4"
+                }
 
-                    },
+            }
 
-                    "ipredriver": {
+        }
 
-                        "Lane0": "0x4",
-
-                        "Lane1": "0x4"
-
-                    }
-
-                },
-
-                "DELL": {
-
-                    "preemphasis": {
-
-                        "Lane0": "0x1311",
-
-                        "Lane1": "0x1312
-
-                    },
-
-                    "idriver": {
-
-                        "Lane0": "0x2",
-
-                        "Lane1": "0x2"
-
-                    },
-
-                    "ipredriver": {
-
-                        "Lane0": "0x2",
-
-                        "Lane1": "0x2"
-
-                    }
-
-                }
-
-            }
-
-        }
-
-    }
-
-    "GLOBAL_MEDIA_SETTINGS": {
-
-        "Ethernet0-Ethernet120": {
-
-            "40GBASE-CR4-1M": {
-
-                "Default": {
-
-                    "preemphasis": {
-
-                         "Lane0": "0x1111",
-
-                         "Lane1": "0x1274"
-
-                    },
-
-                    "idriver": {
-
-                         "Lane0": "0x1",
-
-                         "Lane1": "0x1"
-
-                     },
-
-                     "ipredriver": {
-
-                         "Lane0": "0x1",
-
-                         "Lane1": "0x1"
-
-                     }
-
-                }
-
-            }
-
-        }
-
-    }
+    }
 
 }
 
@@ -267,7 +185,7 @@ Media settings file:
 Flow:
 =====
 
-              When a media is detected in xcvrd daemon, it constructs the media key identifier string as discussed above and searches the media_settings.json file. On finding a matching media key entry the vendor key is constructed and if found the key value pairs are fetched. The xcvrd daemon notifies these key value pairs along with the alias port to portsorch. The portsorch task will convert the alias to SAI object Id and notifies the syncd by doing port attribute set of corresponding settings. Syncd invokes the SAI port set those attribute with specified values. The SAI implementation then programs the attribute into the hardware.
+              When a media is detected in xcvrd daemon, it constructs the key identifier string as discussed above and searches the media_settings.json file. If found the key value pairs are fetched. The xcvrd daemon notifies these key value pairs along with the alias port to portsorch. The portsorch task will convert the alias to SAI object Id and notifies the syncd by doing port attribute set of corresponding settings. Syncd invokes the SAI port set those attribute with specified values. The SAI implementation then programs the attribute into the hardware.
 
               The notification of hardware profile from xcvrd to portsorch task will be done during initialization and during media detect event. This is not required during media removal event. Since the media settings are required only for the proper functioning of the optics or DAC, the handling can be restricted to media insert event alone and no action needs to be taken during media removal.
 
@@ -278,15 +196,7 @@ Flow:
 Breakout Scenario:
 ==================
 
-              The media_settings.json file is defined based on logical ports and for each logical ports, the settings are defined per lane. When a port is breakout, it is split into multiple logical ports. For example let us assume the port before breakout is Ethernet0 and has four lanes, after breakout the logical ports would be Ethernet0, Ethernet1, Ethernet2, Ethernet3 with each one lane. When a media is detected, the xcvrd daemon will read media_settings.json file for the first logical port (Ethernet0) and will fetch the values for all four lanes and notify portsorch. Portsorch on receiving the message with four lanes will figure out that Ethernet0 is now in one lane mode and thus invoke the SAI API for the first port (Ethernet0) and additional three ports(Ethernet1,Ethernet2,Ethernet3) each with one lane. The data from xcvrd will be cached in a new table as below so that when breakout command is executed dynamically, the settings can be reapplied without any re-notification from xcvrd.
-
-PHY_MEDIA:LOGICAL_PORT_NAME:LANE_NUM:
-
-1)PRE-EMPHASIS:
-
-2)I_DRIVER:
-
-3)IPRE-DRIVER
+              For breakout the particular media, if it has a global value is listed in the media_settings.json with appropriate lane values. If the values are specific to a port, then the entry is listed under the port. If the logical port is going to be created after breakout (E.g Ethernet0 is modified to Ethernet0,Ethernet1,Ethernet2,Ethernet3) those corresponding ports are listed in the ports section in media_settings.json. In the current breakout scenario, when port_config.ini is modified and a config reload is done, the flow will be similar to bootup sequence and thus all the media settings will be pushed from xcvrd to portsorch on restart during config apply.
 
 
 SAI Attributes:
