@@ -5,14 +5,14 @@
             "deployment_id": "1", 
             "hostname": "switch2", 
             "type": "ToRRouter", 
-            "hwsku": "Force10-S6000"
+            "hwsku": "XYZ9000"
         }
     }, 
     "BGP_PEER_RANGE": {
         "PeerGroup": {
             "name": "PeerGroup", 
             "ip_range": [
-                "192.168.0.0/27"
+                "192.0.0.0/26"
             ]
         } 
     }, 
@@ -146,59 +146,59 @@
         }
     }, 
     "SYSLOG_SERVER": {
-        "10.0.10.5": {}, 
-        "10.0.10.6": {}
+        "1.1.1.1": {}, 
+        "1.1.1.2": {}
     }, 
     "VLAN_INTERFACE": {
-        "Vlan1000|192.168.0.1/27": {}
+        "Vlan1000|192.0.0.1/27": {}
     }, 
     "BGP_NEIGHBOR": {
         "10.0.0.59": {
             "rrclient": "0", 
-            "local_addr": "10.0.0.58", 
-            "asn": "64600", 
-            "name": "ARISTA02T1"
+            "local_addr": "1.1.1.3", 
+            "asn": "11111", 
+            "name": "ABC1000"
         }, 
         "10.0.0.61": {
             "rrclient": "0", 
             "local_addr": "10.0.0.60", 
-            "asn": "64600", 
-            "name": "ARISTA03T1"
+            "asn": "11111", 
+            "name": "ABC1001"
         }, 
         "10.0.0.63": {
             "rrclient": "0", 
             "local_addr": "10.0.0.62", 
-            "asn": "64600", 
-            "name": "ARISTA04T1"
+            "asn": "11111", 
+            "name": "ABC1002"
         }, 
         "FC00::7E": {
             "rrclient": "0", 
             "local_addr": "FC00::7D", 
-            "asn": "64600", 
-            "name": "ARISTA04T1"
+            "asn": "11111", 
+            "name": "ABC1003"
         }, 
         "FC00::7A": {
             "rrclient": "0", 
             "local_addr": "FC00::79", 
-            "asn": "64600", 
-            "name": "ARISTA03T1"
+            "asn": "11111", 
+            "name": "ABC1004"
         }, 
         "10.0.0.57": {
             "rrclient": "0", 
             "local_addr": "10.0.0.56", 
-            "asn": "64600", 
-            "name": "ARISTA01T1"
+            "asn": "11111", 
+            "name": "ABC1005"
         }, 
         "FC00::76": {
             "rrclient": "0", 
             "local_addr": "FC00::75", 
-            "asn": "64600", 
-            "name": "ARISTA02T1"
+            "asn": "11111", 
+            "name": "ABC1006"
         }, 
         "FC00::72": {
             "rrclient": "0", 
             "local_addr": "FC00::71", 
-            "asn": "64600", 
+            "asn": "11111", 
             "name": "ARISTA01T1"
         }
     }, 
@@ -236,15 +236,15 @@
         }
     }, 
     "MGMT_INTERFACE": {
-        "eth0|10.3.100.3/23": {
+        "eth0|10.1.1.1/23": {
             "forced_mgmt_routes": [
-                "10.0.10.0/29", 
-                "10.0.20.5" 
+                "10.1.1.0/29", 
+                "10.1.1.5" 
             ], 
-            "gwaddr": "10.3.100.1"
+            "gwaddr": "10.2.1.1"
         }
     }, 
-    "platform": "x86_64-dell_s6000_s1220-r0", 
+    "platform": "x86_64-def_s1220-r0", 
     "onie_partition_type": "gpt", 
     "DHCP_SERVER": {
         "192.0.0.33": {}, 
@@ -297,8 +297,8 @@
         "192.0.0.48": {}
     }, 
     "NTP_SERVER": {
-        "10.0.10.5": {}, 
-        "10.0.10.6": {}
+        "2.2.2.1": {}, 
+        "2.2.2.3": {}
     }, 
     "DEVICE_NEIGHBOR": {
         "ARISTA04T1": {
@@ -341,8 +341,8 @@
     "ACL_TABLE": {}, 
     "MIRROR_SESSION": {
         "everflow0": {
-            "src_ip": "10.1.0.32", 
-            "dst_ip": "10.20.6.16"
+            "src_ip": "3.3.3.1", 
+            "dst_ip": "3.3.3.2"
         }
     }, 
     "INTERFACE": {}
