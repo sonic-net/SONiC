@@ -24,9 +24,9 @@ Media settings file:
 
               The file comprises of two blocks. The first block is for global level settings, where all or multiple ports can be presented as keys. The multiple ports can be represented as a range (Ethernet0-Ethern120) or a list(Ethernet0,Ethernet4,Ethernet8) or a list of ranges(Ethernet0-Ethernet20,Ethernet40-Ethernet60) of logical ports. The second block is port level settings where the key comprises of a single logical port.
 
-              When a media is detected, the logical port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) is constructed and looked up at the next level. If there is an exact match then those values are fetched and returned. Unlike individual port level block below where a default value is specified, there will be no default value specified. A  no-match will make the search fall back to individual port based block from global block.
+              When a media is detected, the logical port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) as well as media_key (media type + specification compliance + length) is constructed and looked up at the next level. First Vendor key (eg. AMPHENOL-1234) is looked and If there is an exact match then those values are fetched and returned. If vendor key doesn't match, then media key (eg. QSFP28-40GBASE-CR4-1M) is looked and if there is a match then those values are fetched and returned.  The purpose of having a media key is to have default values for a media type across vendors.  A no-match on vendor and media keys will make the search fall back to individual port based block from global block.
 
-              In the port based settings block, the port on which it is detected is identified at the first level. At second level, the Vendor key is derived by concatenating vendor name and vendor part number (e.g. DELL-0123).  If there is no exact match for vendor name -- vendor part number key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port Ethernet0 a Vendor specific media type and a 'Default' media type is defined. 
+              In the port based settings block, the port on which it is detected is identified at the first level. At second level, the Vendor key is and media key are derived as earlier (e.g. DELL-0123, QSFP28-40GBASE-SR4).  If there is no exact match for vendor key or media key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port Ethernet0 a Vendor specific media type and a 'Default' media type is defined apart from global section containing vendor key as well as media key
 
 {
 
@@ -90,7 +90,7 @@ Media settings file:
 
             },
 
-            "DELL-1111": {
+            "QSFP28-40GBASE-CR4-1M":{
 
                 "preemphasis": {
 
