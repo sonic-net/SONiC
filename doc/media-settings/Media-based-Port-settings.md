@@ -16,24 +16,26 @@
 ## Media settings file:
 
 
-              Each vendor need to define the media settings file under device/vendor-name/ONIE_PLATFORM_STRING/media_settings.json. This file contains the list of optics and DAC media-based settings for each port in the device. Each media setting for a media type comprises of key-value pairs per lane that is expected to be programmed when an optics or DAC is used. Examples of key value pairs include pre-emphasis, idriver and ipredriver.
+              The media settings file device/vendor-name/ONIE_PLATFORM_STRING/media_settings.json needs to be defined by each vendor who want to use this mechanism.  All the SKUs of the platform share this media_settings.json file. If there is no such file, then this mechanism will not be used. Thus if some vendors want to disable this mechanism, not defining a media_settings.json file should be sufficient.
+	      
+              This file contains the list of optics and DAC media-based settings for each port in the device. Each media setting for a media type comprises of key-value pairs per lane that is expected to be programmed when an optics or DAC is used. Examples of key value pairs include pre-emphasis, idriver and ipredriver.
 	
               Below example shows the media-based settings for a device on a Broadcom based platform.  For each port the list of supported optics and DAC types are defined (uniquely identified by media type key). For each media type the list of supported vendors (uniquely identified by vendor key) is defined. Each vendor key which will in turn contain the key value pairs per lane that needs to be programmed.
 	
               The media type key defined in the file will be comprised of compliance code and length string or simply compliance code if length does not apply (e.g. 40GBASE-CR4-3M or 40GBASE-SR4).
 	
-              The file comprises of two blocks. The first block is for global level settings, where all or multiple ports can be presented as keys. The multiple ports can be represented as a range (Ethernet0-Ethern120) or a list(Ethernet0,Ethernet4,Ethernet8) or a list of ranges(Ethernet0-Ethernet20,Ethernet40-Ethernet60) of logical ports. The second block is port level settings where the key comprises of a single logical port.
+              The file comprises of two blocks. The first block is for global level settings, where all or multiple ports can be presented as keys. The multiple ports can be represented as a range (1-32) or a list(1,2,3) or a list of ranges(1-10,20-30) of front panel port number. The second block is port level settings where the key comprises of a single port number.
 	
-              When a media is detected, the logical port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) as well as media_key (media type + specification compliance + length) is constructed and looked up at the next level. First Vendor key (eg. AMPHENOL-1234) is looked and If there is an exact match then those values are fetched and returned. If vendor key doesn't match, then media key (eg. QSFP28-40GBASE-CR4-1M) is looked and if there is a match then those values are fetched and returned.  The purpose of having a media key is to have default values for a media type across vendors.  A no-match on vendor and media keys will make the search fall back to individual port based block from global block.
+              When a media is detected, the front panel port is identified. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) as well as media_key (media type + specification compliance + length) is constructed and looked up at the next level. First Vendor key (eg. AMPHENOL-1234) is looked and If there is an exact match then those values are fetched and returned. If vendor key doesn't match, then media key (eg. QSFP28-40GBASE-CR4-1M) is looked and if there is a match then those values are fetched and returned.  The purpose of having a media key is to have default values for a media type across vendors.  A no-match on vendor and media keys will make the search fall back to individual port based block from global block.
 
-              In the port based settings block, the port on which it is detected is identified at the first level. At second level, the Vendor key is and media key are derived as earlier (e.g. DELL-0123, QSFP28-40GBASE-SR4).  If there is no exact match for vendor key or media key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port Ethernet0 a Vendor specific media type and a 'Default' media type is defined apart from global section containing vendor key as well as media key
+              In the port based settings block, the port on which it is detected is identified at the first level. At second level, the Vendor key is and media key are derived as earlier (e.g. DELL-0123, QSFP28-40GBASE-SR4).  If there is no exact match for vendor key or media key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port 1 a Vendor specific media type and a 'Default' media type is defined apart from global section containing vendor key as well as media key
 
 
 ### Sample Media settings file:
 ```
 {
     "GLOBAL_MEDIA_SETTINGS": {
-        "Ethernet0-Ethernet124": {
+        "1-32": {
             "AMPHENOL-1234": {
                 "preemphasis": {
                     "lane0":"0x001234",
@@ -75,7 +77,7 @@
         }
     },
     "PORT_MEDIA_SETTINGS": {
-        "Ethernet0": {
+        "1": {
             "Default": {
                 "preemphasis": {
                     "lane0":"0x112233",
@@ -112,7 +114,7 @@
 ## Flow:
 
 
-              When a media is detected in xcvrd daemon, it constructs the key identifier string as discussed above and searches the media_settings.json file. If found the key value pairs are fetched. The xcvrd daemon notifies these key value pairs along with the alias port to portsorch. The portsorch task will convert the alias to SAI object Id and notifies the syncd by doing port attribute set of corresponding settings. Syncd invokes the SAI port set those attribute with specified values. The SAI implementation then programs the attribute into the hardware.
+              When a media is detected in xcvrd daemon, it constructs the key identifier string as discussed above and searches the media_settings.json file. If found the key value pairs are fetched. The xcvrd daemon notifies these key value pairs along with the logical port to portsorch. The logical ports are derived from the physical port in the xcvrd daemon. The portsorch task will convert the logical port to SAI object Id and notifies the syncd by doing port attribute set of corresponding settings. Syncd invokes the SAI port set those attribute with specified values. The SAI implementation then programs the attribute into the hardware.
 
               The notification of hardware profile from xcvrd to portsorch task will be done during initialization and during media detect event. This is not required during media removal event. Since the media settings are required only for the proper functioning of the optics or DAC, the handling can be restricted to media insert event alone and no action needs to be taken during media removal.
 
@@ -124,10 +126,50 @@
 
 ## Breakout Scenario:
 
+              For breakout scenario, there is no special handling or modification that needs to be done to media_settings.json. Currently breakout in SONiC is done by modifying port_config.ini and platform related files and doing a config reload. This config reload will stop and restart most of the daemons. Thus this sequence will be similar to the normal reboot sequence. When xcvrd is stopped and restarted it notifies portsorch about all media just as in normal reboot scenario.
+	      
+              The breakout media is listed either in global or port level section with appropriate number of lanes corresponding to the type. On media detection, the number of lanes per logical port and number of lanes listed in the media_settings.json file would match and thus this will be a normal scenario. For example if a 2X50G DAC media is detected on a port, each logical port would have two lanes and the media settings file would have two lanes defined as below and those those would be fetched and communicated to portsorch task.
 
-              For breakout the particular media, if it has a global value is listed in the media_settings.json with appropriate lane values. If the values are specific to a port, then the entry is listed under the port. If the logical port is going to be created after breakout (E.g Ethernet0 is modified to Ethernet0,Ethernet1,Ethernet2,Ethernet3) those corresponding ports are listed in the ports section in media_settings.json. In the current breakout scenario, when port_config.ini is modified and a config reload is done, the flow will be similar to bootup sequence and thus all the media settings will be pushed from xcvrd to portsorch on restart during config apply.
 
+```
+{
+    "GLOBAL_MEDIA_SETTINGS": {
+        "1-32": {
+            "AMPHENOL-2250": {
+                "preemphasis": {
+                    "lane0":"0x001234",
+                    "lane1":"0x001234"
+                },
+                "idriver": {
+                    "lane0":"0x2",
+                    "lane1":"0x2"
+                }
+            }
+	}
+    }
+}
+```
 
+              If there is no match for the media type or vendor PN detected, the media will be programmed with the default values listed in the port section for the particular physical port. However the values listed in media_settings.json for the physical port will be in four lane format. Thus for 2X50 breakout mode where there are two logical ports, the first two lanes in the key value pairs are associated with the first logical port and the next two lanes are associated with the next logical port. xcvrd will take care of these mapping and communicate the final logical ports with key value pairs and appropriate number of lanes to portsorch
+
+```
+{
+    "PORT_MEDIA_SETTINGS": {
+        "1": {
+            "Default": {
+                "preemphasis": {
+                    "lane0":"0x001231",
+                    "lane1":"0x001232",
+		    "lane2":"0x001233",
+		    "lane3":"0x001234",
+                }
+            }
+	}
+    }
+}
+```
+              In the above case if the port 1 is in 2X50 mode with the logical ports Ethernet0 and Ethernet2 and the detected media type is unknown, xcvrd assigns pre-emphasis values 0x001231, 0x001232 to Ethernet0 and 0x001233, 0x001234 to Ethernet4 and communicates to portsorch	      
+	      
 ## SAI Attributes:
 
 
