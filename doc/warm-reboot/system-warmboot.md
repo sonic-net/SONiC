@@ -88,8 +88,8 @@ Architect:
 Steps:
 1. Prepare environment
    - Enable link state propagation
-     - [x] Propagate VEOS port admin down to Fanout switch
-     - [ ] Propagete PTF port down to Fanout switch
+     - [ ] Propagate VEOS port oper down to Fanout switch
+     - [x] Propagete Fanout switch port oper down to VEOS
    - [ ] Enable NTP service in DUT, Arista EOS VMs, PTF docker
 
 2. Prepare DUT with user specified states `pre_reboot_vector`
