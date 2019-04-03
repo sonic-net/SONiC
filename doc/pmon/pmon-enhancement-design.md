@@ -308,7 +308,7 @@ The contenet of the platform specific config filelike below:
 	   
 a common template file for the supervisored config can like below(only show the ledd part)  
 
-	{\%- if not skip_ledd \%}
+	{% if not skip_ledd %}
             [program:ledd]
             command=/usr/bin/ledd
             priority=5
@@ -317,7 +317,7 @@ a common template file for the supervisored config can like below(only show the 
             stdout_logfile=syslog
             stderr_logfile=syslog
             startsecs=0
-	{\%- endif \%}
+	{% endif %}
 
 ## 5. Open Questions
 - 1. How to get and organize the watchdog data? do we need a watchdog daemon?
