@@ -593,36 +593,36 @@ Because these scripts need to be upstreamed, community definitely will have lots
 
 ## Scripts to be implemented in phase1
 
-Test Case | Script | Common for all vendors?
-----------|--------|-----
-1. Ensure that the hw-management service is running properly | ansible/roles/test/tasks/platform/test_hw_mgmt_service.yml | No
-2. Check platform information | ansible/roles/test/tasks/platform/test_platform_info.yml | Yes
-4. Configure SFP and check SFP status | ansible/roles/test/tasks/platform/test_sfp.yml | Yes
-5. Check xcvrd information in DB | ansible/roles/test/tasks/platform/test_xcvr_info_in_db.yml | Yes
-6. Check SYSFS | ansible/roles/test/tasks/platform/test_sysfs.yml | No
-7. Verify that `/var/run/hw-management` is mapped to docker pmon | ansible/roles/test/tasks/platform/test_sysfs.yml | No
+| Test Case                                                             | Script                                                     | Common for all vendors? |
+| --------------------------------------------------------------------- | ---------------------------------------------------------- | ----------------------- |
+| Case 1. Ensure that the hw-management service is running properly     | ansible/roles/test/tasks/platform/test_hw_mgmt_service.yml | No                      |
+| Case 2. Check platform information                                    | ansible/roles/test/tasks/platform/test_platform_info.yml   | Yes                     |
+| Case 4. Configure SFP and check SFP status                            | ansible/roles/test/tasks/platform/test_sfp.yml             | Yes                     |
+| Case 5. Check xcvrd information in DB                                 | ansible/roles/test/tasks/platform/test_xcvr_info_in_db.yml | Yes                     |
+| Case 6. Check SYSFS                                                   | ansible/roles/test/tasks/platform/test_sysfs.yml           | No                      |
+| Case 7. Verify that `/var/run/hw-management` is mapped to docker pmon | ansible/roles/test/tasks/platform/test_sysfs.yml           | No                      |
 
 The scripts for testing sensors `ansible/roles/test/tasks/sensors_check.yml` simply calls `ansible/roles/sonic-common/tasks/sensors_check.yml`. In the entry script, we also can call this script to cover sensors testing. No new test case script is required.
 
 ## Scripts to be implemented in phase 2
 
-Test Case | Script | Common for all vendors?
-----------|--------|-----
-8. Sequential syncd/swss restart | ansible/roles/test/tasks/platform/test_restart_swss_syncd.yml | Yes
-9. Reload configuration | ansible/roles/test/tasks/platform/test_reload_config.yml | Yes
-10.  COLD/WARM/FAST reboot | Extend the existing scripts: <ul><li>ansible/roles/test/tasks/reboot.yml</li><li>ansible/roles/test/tasks/warm-reboot.yml</li><li>ansible/roles/test/tasks/fast-reboot.yml</li></ul>  | Yes
+| Test Case                             | Script                                                                                                                                                                               | Common for all vendors? |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| Case 8. Sequential syncd/swss restart | ansible/roles/test/tasks/platform/test_restart_swss_syncd.yml                                                                                                                        | Yes                     |
+| Case 9. Reload configuration          | ansible/roles/test/tasks/platform/test_reload_config.yml                                                                                                                             | Yes                     |
+| Case 10.  COLD/WARM/FAST reboot       | Extend the existing scripts: <ul><li>ansible/roles/test/tasks/reboot.yml</li><li>ansible/roles/test/tasks/warm-reboot.yml</li><li>ansible/roles/test/tasks/fast-reboot.yml</li></ul> | Yes                     |
 
 ## Reusable scripts
 
 For the tasks that can be reused in testing, they are organnized in separate script files and are put under the same folder `ansible/roles/test/tasks/platform`. The test cases scripts can include the files to use them.
 
-Reusable script | Purpose
---------------|--------------
-check_critical_services.yml | Check status of critical services for eg: wss, syncd, bgp, etc. Used by the test cases testing restart/reload/reboot.
-check_hw_mgmt_service.yml | Check status of hw-management, thermal control process, fan speed, PWM setting. Used by the test cases testing restart/reload/reboot.
-check_interface_status.yml | Check status of interfaces. Used by the test cases testing restart/reload/reboot.
-check_sysfs.yml | Check the symbolic links under /var/run/hw-management. Used by the test case testing SYSFS.
-check_transceiver_status.yml | Check the status of xcvrd information in DB. Used by the test case testing xcvrd and restart/reload/reboot.
+| Reusable script              | Purpose                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| check_critical_services.yml  | Check status of critical services for eg: wss, syncd, bgp, etc. Used by the test cases testing restart/reload/reboot.                 |
+| check_hw_mgmt_service.yml    | Check status of hw-management, thermal control process, fan speed, PWM setting. Used by the test cases testing restart/reload/reboot. |
+| check_interface_status.yml   | Check status of interfaces. Used by the test cases testing restart/reload/reboot.                                                     |
+| check_sysfs.yml              | Check the symbolic links under /var/run/hw-management. Used by the test case testing SYSFS.                                           |
+| check_transceiver_status.yml | Check the status of xcvrd information in DB. Used by the test case testing xcvrd and restart/reload/reboot.                           |
 
 ## Upstream strategy
 
