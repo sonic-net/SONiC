@@ -185,7 +185,7 @@ key = VRF_TABLE:VRF_NAME ;
 fallback = "true"/"false"
 ```
 
-3. **3.	Add 2-segment key entry** support in APP-intf-table
+3. **Add 2-segment key entry** support in APP-intf-table
 
 There is two reason why add 2-segment key entry in interface table.
 1. Multiple ip addresses can be configured on one interface. So we put interface common attribute 
