@@ -10,7 +10,8 @@ Document History
 | v.01    | 06/07/2018 | Shine/Andrew | Initial version from nephos                      |
 | v.02    | 06/08/2018 | Shine        | Revised per Guohan/prince(MSFT) opinion          |
 | v.03    | 09/18/2018 | Guohan       | Format document                                  |
-| v.04    | 01/17/20189| shine/jeffrey| Update after Sonic community review              |
+| v.04    | 01/17/2019 | shine/jeffrey| Update after Sonic community review              |
+| v.05    | 04/17/2019 | Xin/Prince   | Update the status                                |
 
 Abbreviations
 =============
@@ -344,3 +345,5 @@ be modified or restarted for VRF binding event.
 For layer 3 apps such as snmpd or ntpd they are using vrf-global socket too.
 So they are vrf-transparent too.
 
+### Progress 
+In the diagram, fpmsyncd, VRFMgrd, IntfsMgrd, IntfsOrch are checked into the master branch. All the other components are open. 
