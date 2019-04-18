@@ -21,7 +21,7 @@
 - [9. Debug](#9-debug)
 - [10. Examples](#10-examples)
 - [11. Future](#11-future)
-- [12. ZTP Test Suite](#12-ztp-test-suite)
+- [12. ZTP Test Suite](#12-ztp-feature-test-suite)
 
 ## 1. Revision
 | Rev | Date     |  Author       | Change Description                |
@@ -944,7 +944,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #5
 
-**Objective**: Verify support for reboot and resume in the middle of execution of a configuration section in the middle of ZTP process.
+**Objective:** Verify support for reboot and resume in the middle of execution of a configuration section in the middle of ZTP process.
 
 **Test Steps:**
 
@@ -1013,7 +1013,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #8
 
-**Objective:**Verify that a configuration section can be suspended and retried by exiting with a specific program exit code.
+**Objective:** Verify that a configuration section can be suspended and retried by exiting with a specific program exit code.
 
 **Test Steps:**
 
@@ -1188,7 +1188,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #11
 
-**Objective:**Verify installation of new SONiC firmware image using pre-defined firmware plugin
+**Objective:** Verify installation of new SONiC firmware image using pre-defined firmware plugin
 
 **Test Steps:**
 
@@ -1226,7 +1226,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #12
 
-**Objective:**Verify uninstalling an installed SONiC firmware from a switch using pre-defined firmware plugin
+**Objective:** Verify uninstalling an installed SONiC firmware from a switch using pre-defined firmware plugin
 
 **Test Steps:**
 
@@ -1258,7 +1258,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #13
 
-**Objective:**Verify installation of a docker package using pre-defined firmware plugin
+**Objective:** Verify installation of a docker package using pre-defined firmware plugin
 
 **Test Steps:**
 
@@ -1303,7 +1303,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #14
 
-**Objective:**Verify deployment of a config_db.json file using pre-defined config-db-json plugin
+**Objective:** Verify deployment of a config_db.json file using pre-defined config-db-json plugin
 
 **Test Steps:**
 
@@ -1332,7 +1332,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #15
 
-**Objective:**Verify deployment of minigraph.xml and acl.json using pre-defined graphservice plugin
+**Objective:** Verify deployment of minigraph.xml and acl.json using pre-defined graphservice plugin
 
 **Test Steps:**.
 
@@ -1635,7 +1635,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #28
 
-**Objective:**Verify that all files downloaded and created by ztp service in */var/lib/ztp* directory cannot be read by regular users. Only root privileged users can read them.
+**Objective:** Verify that all files downloaded and created by ztp service in */var/lib/ztp* directory cannot be read by regular users. Only root privileged users can read them.
 
 **Test Steps:**
 
