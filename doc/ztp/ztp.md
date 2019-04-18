@@ -533,7 +533,7 @@ DHCP hook script */etc/dhcp/dhclient-exit-hooks.d/ztp*  is used to process DHCP 
 
 
 
-![ZTP Block Diagram](images\ZTP_Block_Diagram.png)
+![ZTP_Block_Diagram.png](images/ZTP_Block_Diagram.png)
 
 
 
