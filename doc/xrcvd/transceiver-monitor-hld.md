@@ -10,7 +10,7 @@
 ## About This Manual ##
 
 This document is intend to provide general information about the Transceiver and Sensor Monitoring implementation.
-The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD)
+The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/master/doc/OIDsforSensorandTransciver.MD)
 
 
 ## 1. Xcvrd design ##
@@ -30,28 +30,37 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 #### 1.1.1 Transceiver info Table ####
 
 	; Defines Transceiver information for a port
-	key                     = TRANSCEIVER_INFO|ifname         ; configuration for watchdog on port
-	; field                 = value
-	type                    = 1*255VCHAR                       ; type of sfp
-	hardwarerev             = 1*255VCHAR                       ; hardware version of sfp
-	serialnum               = 1*255VCHAR                       ; serial number of the sfp
-	manufacturename         = 1*255VCHAR                       ; sfp venndor name
-	modelname               = 1*255VCHAR                       ; sfp model name
+	key                         = TRANSCEIVER_INFO|ifname          ; information for SFP on port
+	; field                     = value
+	type                        = 1*255VCHAR                       ; type of sfp
+	hardwarerev                 = 1*255VCHAR                       ; hardware version of sfp
+	serialnum                   = 1*255VCHAR                       ; serial number of the sfp
+	manufacturename             = 1*255VCHAR                       ; sfp venndor name
+	modelname                   = 1*255VCHAR                       ; sfp model name
+	Connector                   = 1*255VCHAR                       ; connector information
+	encoding                    = 1*255VCHAR                       ; encoding information
+	ext_identifier              = 1*255VCHAR                       ; extend identifier
+	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
+	cable_length                = INT                              ; cable length in m
+	nominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
+	specification_compliance    = 1*255VCHAR                       ; specification compliance
+	vendor_date                 = 1*255VCHAR                       ; vendor date
+	vendor_oui                  = 1*255VCHAR                       ; vendor OUI
 
 #### 1.1.2 Transceiver DOM sensor Table ####
 
 	; Defines Transceiver DOM sensor information for a port
-	key                     = TRANSCEIVER_DOM_SENSOR|ifname        ; configuration for watchdog on port
-	temperature             = FLOAT                                      ; temperature value in Celsius
-	voltage                 = FLOAT                                      ; voltage value
-	rx1power                = FLOAT                                      ; rx1 power in dbm
-	rx2power                = FLOAT                                      ; rx2 power in dbm
-	rx3power                = FLOAT                                      ; rx3 power in dbm
-	rx4power                = FLOAT                                      ; rx4 power in dbm
-	tx1bias                 = FLOAT                                      ; tx1 bias in mA
-	tx2bias                 = FLOAT                                      ; tx2 bias in mA
-	tx3bias                 = FLOAT                                      ; tx3 bias in mA
-	tx4bias                 = FLOAT                                      ; tx4 bias in mA
+	key                     = TRANSCEIVER_DOM_SENSOR|ifname      ; information SFP DOM sensors on port
+	temperature             = FLOAT                              ; temperature value in Celsius
+	voltage                 = FLOAT                              ; voltage value
+	rx1power                = FLOAT                              ; rx1 power in dbm
+	rx2power                = FLOAT                              ; rx2 power in dbm
+	rx3power                = FLOAT                              ; rx3 power in dbm
+	rx4power                = FLOAT                              ; rx4 power in dbm
+	tx1bias                 = FLOAT                              ; tx1 bias in mA
+	tx2bias                 = FLOAT                              ; tx2 bias in mA
+	tx3bias                 = FLOAT                              ; tx3 bias in mA
+	tx4bias                 = FLOAT                              ; tx4 bias in mA
 
 
 ### 1.2 Access eeprom from platform container ###
@@ -120,7 +129,7 @@ A timer will be started to periodically refresh the DOM sensor information .
 
 Detailed flow as showed in below chart: 
 
-![](https://github.com/Azure/SONiC/blob/gh-pages/images/transceiver_monitoring_hld/xcvrd_flow.svg)
+![](https://github.com/Azure/SONiC/blob/master/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
 ## 2. SNMP Agent Change ##
 
@@ -155,7 +164,7 @@ Another entPhySensorTable which is defined in [Entity Sensor MIB(RFC3433)](https
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | Show interfaces alias | DOM RX Power Sensor for DOM RX Power Sensor for Ethernet29/1 |
 
 
-More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
+More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/master/doc/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
 
 ### 2.2 New connection to STATE_DB ###
 

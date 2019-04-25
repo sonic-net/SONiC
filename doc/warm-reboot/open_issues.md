@@ -92,7 +92,7 @@ Both approaches have been under development and testing. Current status:
 
 ## Idempotent libsairedis API
 ### Design doc:
-[SONiC libsairedis API idempotence support](https://github.com/Azure/SONiC/blob/gh-pages/doc/warm-reboot/sai_redis_api_idempotence.md)
+[SONiC libsairedis API idempotence support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/sai_redis_api_idempotence.md)
 ### Draft code changes:
 [libsairedis code changes](https://github.com/Azure/sonic-sairedis/compare/master...jipanyang:idempotent)
 ### Current status:
