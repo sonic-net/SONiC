@@ -108,7 +108,7 @@ CRC-32               0xFE   4 0x371DD10F
 
 (checksum valid)
 ```
-* The syseeprom info output from cmd `show platform syseeprom` should comply with the info decoded from `/bsp/eeprom/vpd_info`.
+* The syseeprom info output from cmd `show platform syseeprom` should comply with the info decoded using platform specific eeprom.py utility.
 
 ### Automation
 New automation required.
