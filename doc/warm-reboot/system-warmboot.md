@@ -148,3 +148,63 @@ Steps:
    - Recover environment
      - [ ] DUT reload minigraph
      - [ ] Neigh copy startup-config to running-config
+
+# Manual test cases
+
+| DUT | Description |
+| ------------ | ------------- |
+| Platform | x86_64-arista_7060_cx32s |
+| HwSKU | Arista-7060CX-32S-D48C8 |
+| ASIC | broadcom |
+| Topology | T0 (4 LAG up, one port per LAG) |
+
+Steps:
+1. Enable link state propagation (Propagete Fanout switch port oper down to VEOS)
+```
+ansible-playbook -i linkstate/testbed_inv.py -e target_host=<VMS> --vault-password-file=password.txt linkstate/up.yml
+```
+
+2. Run warm-reboot playbook once so PTF server will have latest code and data files
+```
+ansible-playbook test_sonic.yml -i str --limit <DUT> --vault-password-file password.txt -e testbed_name=<VMS> -e testcase_name=warm-reboot
+```
+
+3. Before warm-reboot happen, create one of the below sad situation on DUT
+
+   - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json (if the post reboot status should keep down, below are the same)
+   - Shutdown a up link port. Remove the LAG node from /tmp/portchannel_interfaces.json
+   - Shutdown a up link LAG. Remove the LAG node from /tmp/portchannel_interfaces.json
+
+   Before warm-reboot happen, create one of the below sad situation on EOS VM (T1). All the up/down are relative to DUT.
+   
+   - Shutdown a up link LAG. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+
+   Before warm-reboot happen, create one of the below sad situation on fanout switch. All the up/down are relative to DUT.
+   
+   - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json
+   - Shutdown a up link port. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+
+6. Run the PTF command line on PTF server. You can find the command in playbook output in Step 2.
+```
+ptf --test-dir ptftests advanced-reboot.ReloadTest  --qlen=1000   --platform-dir ptftests  --platform remote  -t "verbose=True;dut_username=\"admin\";dut_hostname=\"<DUTIP>\";reboot_limit_in_seconds=30;reboot_type=\"warm-reboot\";portchannel_ports_file=\"/tmp/portchannel_interfaces.json\";vlan_ports_file=\"/tmp/vlan_interfaces.json\";ports_file=\"/tmp/ports.json\";dut_mac='<MAC>';dut_vlan_ip='192.168.0.1';default_ip_range='192.168.0.0/16';vlan_ip_range=\"192.168.0.0/21\";lo_v6_prefix=\"fc00:1::/64\";arista_vms=\"['10.64.247.135','10.64.247.134','10.64.247.132']\""
+```
+
+7. Carefully observe command output and seek for message like "Dut reboots: reboot start", switch to DUT ssh connection immediately and try hit enter keys several times. The ssh connnection will be no response after about 5 seconds. That's the time of shutdown.
+
+8. During reboot happen, create one of the transition situations. You should do it quickly after above step.
+    - Shutdown a downlink port.
+    - Shutdown a up link port.
+    - Shutdown a up link LAG.
+    - Startup a downlink port. 
+    - Startup a up link port.
+    - Startup a up link LAG.
+
+9. Keep observe 'ptf' command until it finish with 'OK' result
+10. After warm-reboot, create one of the below sad situation on EOS VM (T1). All the up/down are relative to DUT.
+
+    - Shutdown a up link LAG. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
+     
+    After warm-reboot, create one of the below sad situation on fanout switch. All the up/down are relative to DUT.
+    
+    - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json
+    - Shutdown a up link port. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
