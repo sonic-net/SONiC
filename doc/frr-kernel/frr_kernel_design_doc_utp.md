@@ -284,7 +284,7 @@ Approach 3 : Zebra RIB Calculation is chosen to address FRR-Kernel Reconciliatio
 
 ### 5.1 Before Fix:
 
-![](https://github.com/praveen-li/SONiC/tree/master/doc/frr-kernel/img/Before%20frr_kernel%20fix.png)
+![](https://github.com/praveen-li/SONiC/blob/frr_kernel_design_utp_doc/doc/frr-kernel/img/Before%20frr_kernel%20fix.png)
 
 Above image explains the Zebra behavior right now on startup with -k (keep_kernel_mode option.
 ```
@@ -323,7 +323,7 @@ Current behavior will result in:
 
 ### 5.2 After Fix:
 
-![](https://github.com/praveen-li/SONiC/tree/master/doc/frr-kernel/img/After%20frr_kernel%20fix.png)
+![](https://github.com/praveen-li/SONiC/blob/frr_kernel_design_utp_doc/doc/frr-kernel/img/After%20frr_kernel%20fix.png)
 
 ```
 1.) Zebra reads kernel routes including previous instance of Zebra routes and mark them with ZEBRA_FLAG_KERNEL_STALE_RT.
