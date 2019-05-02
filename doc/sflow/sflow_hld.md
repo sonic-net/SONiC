@@ -173,6 +173,7 @@ The following figure shows the sFlow sample packet path flow:
 #### ConfigDB Table & Schema
 
 A new SFLOW_COLLECTOR ConfigDB table entry would be added. 
+
 ```
 SFLOW_COLLECTOR|{{collector_name}}
     "collector_ip": {{ip_address}}
@@ -190,6 +191,7 @@ datagram_size                         = 1*4DIGIT                         ; MTU o
 ;value annotations
 collector_name                        = 1*16VCHAR
 ```
+
 A new SFLOW_AGENT ConfigDB table entry would be added. 
 ```
 SFLOW_AGENT
