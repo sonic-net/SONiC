@@ -425,19 +425,7 @@ VLAN delete range operation takes significantly longer (though not as much if th
 35. Remove few VLANs randomly after executing the command to create a range of VLANs. Check for the existence of the rest of the VLANs.
 
 
-# 9 Internal Design Information
-FDB Flush options:
-1. Send bulk flush from Orchagent to SAI. Delete of MAC in Orchagent DB, STATE_DB and ASIC_DB to be done in the individual MAC delete callback from SAI.
-	- The approach causes issues with reference count in sai_redis. sai_redis maintains a MAC reference count on the bridge port. When we send a bulk flush request, this reference count is not decremented. Its decremented only when AGE event is received from SAI. So, we need to wait until response it received for all MAC before issuing a bridge port delete from portsorch. For this we need to maintain a reference count in portsorch also and prevent any other configuration on the port to go to sai_redis until reference count is 0. This can also open up other race conditions.
 
-
-2. Send bulk flush from Orchagent to SAI. SAI responds with a bulk flush response, which is used to delete MAC from ASIC_DB, Orchagent DB and STATE_DB.
-	- With this approach, syncd notification thread can get stuck for significant time doing inefficient traversal and retrieval of individual entries from ASIC_DB, as the DB does not support any bulk operation.
-
-
-3. Delete MAC one by one.
-	- With this approach HW MAC flush will be slower than bulk flush in Hardware. But, there are no issues with reference count and all opearations like removing port from vlan, flushign FDB and deleting bridge port happen in same thread context. 
-	- We are going with approach in 2.0 release.
 <!--stackedit_data:
 eyJoaXN0b3J5IjpbLTYxODMyMjgsMTcwMzYwNjE4LDUzNTg0NT
 MwMiwtOTg2NjM0Mjk0LDQ4MDAzODgsLTE3MDI2MTQzMDksMTgz
