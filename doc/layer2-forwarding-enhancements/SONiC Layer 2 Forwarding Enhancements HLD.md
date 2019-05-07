@@ -9,28 +9,28 @@
   * [Definition/Abbreviation](#definitionabbreviation)
   * [Requirements Overview](#1-requirement-overview)
 	  * [Functional Requirements](#11-functional-requirements)
-	  * [Configuration and Management Requirements](#configuration-and-management-requirements)
-	  * [Scalability Requirements](#scalability-requirements)
-	  * [Warm Boot Requirements](#warm-boot-requirements)
-  * [Functionality](#-functionality)
-	  * [Functional Description](#functional-description)
-  * [Design](#design)
-	  * [Overview](#overview)
-	  * [DB Changes](#db-changes)
-		  * [CONFIG DB](#config-db)
-	  * [Switch State Service Design](#switch-state-service-design)
-		  * [Orchestration Agent](#orchestration-agent)
-		  * [Other Process](#other-process)
-	  * [Syncd](#syncd)
-	  * [SAI](#sai)
-	  * [CLI](#cli)
-		  * [Configuration Commands](#configuration-commands)
-		  * [Show Commands](#show-commands)
-  * [Flow Diagrams](#flow-diagrams)
-  * [Serviceability and Debug](#serviceability-and-debug)
-  * [Warm Boot Support](#warm-boot-support)
-  * [Scalability](#scalability)
-  * [Unit Test](#unit-test)
+	  * [Configuration and Management Requirements](#12-configuration-and-management-requirements)
+	  * [Scalability Requirements](#13-scalability-requirements)
+	  * [Warm Boot Requirements](#14-warm-boot-requirements)
+  * [Functionality](#2-functionality)
+	  * [Functional Description](#21-functional-description)
+  * [Design](#3-design)
+	  * [Overview](#31-overview)
+	  * [DB Changes](#32-db-changes)
+		  * [CONFIG DB](#321-config-db)
+	  * [Switch State Service Design](#33-switch-state-service-design)
+		  * [Orchestration Agent](#331-orchestration-agent)
+		  * [Other Process](#332-other-process)
+	  * [Syncd](#34-syncd)
+	  * [SAI](#35-sai)
+	  * [CLI](#36-cli)
+		  * [Configuration Commands](#361-configuration-commands)
+		  * [Show Commands](#362-show-commands)
+  * [Flow Diagrams](#4-flow-diagrams)
+  * [Serviceability and Debug](#5-serviceability-and-debug)
+  * [Warm Boot Support](#6-warm-boot-support)
+  * [Scalability](#7-scalability)
+  * [Unit Test](#8-unit-test)
 	  
  
 # List of Tables
@@ -278,7 +278,7 @@ No change
 
 
 ## 3.6 CLI
-### 3.6.2 Configuration Commands
+### 3.6.1 Configuration Commands
 **FDB Aging time configuration**
 root@sonic:/# config mac aging-time <value>
 - To set the mac aging time to a value.
@@ -308,7 +308,7 @@ root@sonic:/# config mac del 00:10:3a:2b:05:67 100
 
 
 
-### 3.6.3 Show Commands
+### 3.6.2 Show Commands
 
 
 root@sonic:/# show mac aging-time
