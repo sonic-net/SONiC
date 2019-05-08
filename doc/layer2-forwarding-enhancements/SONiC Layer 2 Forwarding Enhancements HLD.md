@@ -233,7 +233,7 @@ When Spanning tree state changes, protocol component within orchagent will call 
 	**FDB Flush due to spanning tree state change:**
 
 
-<img src="https://lh3.googleusercontent.com/tV8XJ9GMC2-c-ZZWG0Q9fB5W6Wxc0a26ZDKJJUXEs9TJi-utTluYEisnpm3ls_0uF7vYLfxOWxUB" width="800" height="500">
+<img src="images/Presentation2-14.jpg" width="800" height="500">
 
 
 **Changes for handling MAC move events.**
