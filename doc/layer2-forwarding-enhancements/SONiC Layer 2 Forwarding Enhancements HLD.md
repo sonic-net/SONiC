@@ -136,7 +136,7 @@ None
 
  **6. VLAN Range CLI.**
 - In current SONiC release, support for VLAN commands through CLI is limited to creating and deleting a single VLAN and adding/removing a port to/from a single VLAN. Support for VLAN range will be added in CLI to enable administrator to create and delete a range of VLANs and add/remove a port to/from a range of VLANs.
-- When a large number of interfaces are made members of a huge set of VLANs, deletion of VLANs takes significant time due to the reason mentioned in [Scalability](#scalability) section.
+- When a large number of interfaces are made members of a huge set of VLANs, deletion of VLANs takes significant time due to the reason mentioned in [Scalability](#7-scalability) section.
 -  In SONiC, VLAN operations are performed either through config_db.json file or through CLI commands. In config_db.json file, administrator is required to update the desired VLAN and/or member port in each VLAN as per the JSON file format. This process is overburdening when it is required to manually add/delete VLANs in bulk and add/delete ports to/from VLANs in bulk. Administrator can perform the same operations through CLI commands which, though, is easy, becomes extremely taxing when multiple commands need to be executed to perform bulk operations, like creating/deleting 4094 VLANs and associating/removing ports from each of these VLANs through CLI commands that provide an option to enter only one VLAN.
  - Administrator's task is greatly simplified with provision for VLAN range configuration. And time taken to perform the operations is drastically reduced.
 
