@@ -81,7 +81,7 @@ This document describes the high level design of Layer 2 Forwarding Enhancements
 	- A Static FDB entry should be configurable in hardware from CLI.
 	- Static FDB entry should be set in CONFIG_DB and APP_DB even if the port is not member of VLAN.
 	- Static FDB entry should be added in saved FDB in Orchagent if port is not member of VLAN.
-	- Static FDB entry should be added in saved FDB in Orchagent after the entry is deleted from hardware due to FDB flush.
+	- Static FDB entry should be added in saved FDB in Orchagent after the entry is deleted from hardware due to FDB flush when port is removed from VLAN.
 	- Static FDB entry should be added in STATE_DB.
 	
 5. Should have per Port and per VLAN FDB clear options in CLI command "sonic-clear fdb".
