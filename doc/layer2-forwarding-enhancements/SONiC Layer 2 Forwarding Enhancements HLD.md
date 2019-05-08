@@ -149,7 +149,7 @@ Code changes are confined to the components marked in RED.
 	**Overview of components involved:**
 
 
-<img src="https://lh3.googleusercontent.com/2kqDVi5IhOlbxZZK8CZzU_sR66fE8_FVHckF-9Sr0YP8-5G9XNY8N5J-N_4t_GU5WeixgdrZU-tw" width="800" height="500">
+<img src="images/overall.jpg" width="800" height="500">
 
 
 For FDB flush and FDB aging and Static FDB commands, the design is described in details in the SWSS section.
@@ -191,7 +191,7 @@ Port and type are needed to support FDB flush per port or per port per VLAN.
 	**FDB Data structure in Orchagent:**
 
 
-<img src="https://lh3.googleusercontent.com/XzZumvNc-jgb52WPhtawBaR0GusNYDkkhPCegptiXg56vITxvq4dlMqzFJhNNymdAN1Axmiuv8_g" width="800" height="500">
+<img src="images/fdbDataStructure.jpg" width="800" height="500">
 
 In current Sonic implementation, when a FDB event is received with VLAN SAI object ID, the VLAN ID is retrieved by traversing through all the ports and VLANs in the orchagent DB and finding the one that matches the object ID. Also, the Port details are retrieved by traversing all the port and VLANs. This approach is inefficient as it may traverse through the number of VLANs configured for each FDB learn event.
 
@@ -202,7 +202,7 @@ A new  unordered_map containing a mapping between SAI object ID (can be either P
 	**Object ID to alias mapping.**
 
 
-<img src="https://lh3.googleusercontent.com/KUpLCp0spwyuWWdmj8VBeCeXHfPBUWnBwWNuV4XIpfFnQbDgwbs01n7CMwJnby2dKjK_suvoU179" width="800" height="500">
+<img src="images/oidToName.jpg" width="800" height="500">
 
 
 **Changes for FDB flush.**
@@ -221,19 +221,19 @@ When Spanning tree state changes, protocol component within orchagent will call 
 	**FDB Flush due to Port operational state down:**
 
 
-<img src="https://lh3.googleusercontent.com/7dJf0DHhD4KL42thICB1MxWv1uc1HwxyEzekFMkc2ecAyXO_gH8-CZL8RedyIwbMtDOTnPQbfiMs" width="800" height="500">
+<img src="images/portDownFlush.jpg" width="800" height="500">
 
 
 	**FDB Flush due to Port removal from VLAN:**
 
 
-<img src="https://lh3.googleusercontent.com/AQgFuugJ5JqBJQaECb0umyS23DLSTRSea5ta6vbv1rHe5qbZdp0ejyrW_sK2vThneqpW_Ca-AR4b" width="800" height="500">
+<img src="images/portVlanRemoveFlush.jpg" width="800" height="500">
 
 
 	**FDB Flush due to spanning tree state change:**
 
 
-<img src="images/Presentation2-14.jpg" width="800" height="500">
+<img src="images/stpFlush.jpg" width="800" height="500">
 
 
 **Changes for handling MAC move events.**
