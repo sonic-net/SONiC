@@ -265,6 +265,7 @@ If a dynamic FDB is already learnt and a static FDB is configured with same (MAC
 
 ### 3.3.2 Other Process 
 **Vlanmgr changes**
+
 Vlanmgr will handle Aging time configuration changes from SWITCH table in CONFIG_DB. It will set the new aging time in SWITCH_TABLE in APP_DB, which will be processed by SwitchOrch.
 
 
