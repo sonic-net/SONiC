@@ -239,7 +239,7 @@ When Spanning tree state changes, protocol component within orchagent will call 
 
 
 **Changes for handling MAC move events.**
-Hardware can generate a single MAC move event instead of generating 2 events (del-old mac and add-new mac). SAI and SONiC changes will be done to replace the existing FDB entry with the new port in internal data structure and STATE_DB. 
+Hardware can generate a single MAC move event instead of generating 2 events (del-old mac and add-new mac). Orchagent code changes will be done to replace the existing FDB entry with the new port in internal data structure and STATE_DB. 
 
 
 **Changes for FDB aging time configuration.**
