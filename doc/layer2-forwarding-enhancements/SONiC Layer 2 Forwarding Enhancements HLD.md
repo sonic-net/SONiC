@@ -245,7 +245,7 @@ A new CLI commands to be added for configuring the FDB aging time.
 FDB aging time configuration will be configured in the SWITCH table in CONFIG_DB. Vlanmgr will populate it in the APP_DB. Orchagent will get notified and handling will be SwitchOrch. SwitchOrch will call API from FdbOrch, which will in turn call sai_redis API to send request to syncd via ASIC_DB.
 
 
-<img src="https://lh3.googleusercontent.com/vew2JLd8SiDMtnkL8ogNcZhVzZfuF1fcWYD9i2l7b8EG_Te8VKVeFgDENZmVEIShs_y14W9AG9hi" width="800" height="500">
+<img src="images/agingTimeConfig.jpg" width="800" height="500">
 
 
 **Changes for Static FDB configuration.**
@@ -256,7 +256,7 @@ If a dynamic FDB is already learnt and a static FDB is configured with same (MAC
 
 
 
-<img src="https://lh3.googleusercontent.com/AjenSSVry3IrbPgQS64Z8LcUREX7Y8_mAZ0dfiZQ4t4qNTozqt5p6cQFhEOQctkZaHIgxDiXlg7M" width="800" height="500">
+<img src="images/staticMacConfig.jpg" width="800" height="500">
 
 
 
