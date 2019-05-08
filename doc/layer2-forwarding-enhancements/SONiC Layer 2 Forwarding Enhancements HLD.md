@@ -173,11 +173,11 @@ VLAN and port identifier validation are added as part of the logic added in the 
 ### 3.2.1 CONFIG DB
 **FDB table for Static MAC**
 
-FDB table will be set in CONFIG_DB to store static MAC configuration.
+FDB_TABLE will be set in CONFIG_DB to store static MAC configuration.
 
 **SWITCH table for Aging time configuration**
 
-SWITCH table will be set in CONFIG_DB to store FDB aging time configuration.
+SWITCH_TABLE will be set in CONFIG_DB to store FDB aging time configuration.
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
