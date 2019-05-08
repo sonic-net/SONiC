@@ -243,15 +243,15 @@ Hardware can generate a single MAC move event instead of generating 2 events (de
 
 
 **Changes for FDB aging time configuration.**
-A new CLI commands to be added for configuring the FDB aging time.
-FDB aging time configuration will be configured in the SWITCH table in CONFIG_DB. Vlanmgr will populate it in the APP_DB. Orchagent will get notified and handling will be SwitchOrch. SwitchOrch will call API from FdbOrch, which will in turn call sai_redis API to send request to syncd via ASIC_DB.
+A new CLI commands will be added for configuring the FDB aging time.
+FDB aging time configuration will be set in the SWITCH table in CONFIG_DB. Vlanmgr will populate it in the APP_DB. Orchagent will get notified and handling will be SwitchOrch. SwitchOrch will call sai_redis API to send request to syncd via ASIC_DB.
 
 
 <img src="images/agingTimeConfig.jpg" width="800" height="500">
 
 
 **Changes for Static FDB configuration.**
-New CLI to be added for configuring Static FDB entry. It will be configured in the FDB table in CONFIG_DB. Vlanmgr will handle the CONIG_DB changes, do necessary validations and then populate in APP_DB. FdbOrch already has all the necessary handling for Static FDB changes from APP_DB.
+New CLI will be added for configuring Static FDB entry. It will be set in the FDB_TABLE in CONFIG_DB. Vlanmgr will handle the CONIG_DB changes, do necessary validations and then populate in APP_DB. FdbOrch already has all the necessary handling for Static FDB changes from APP_DB.
 When a port is removed from VLAN, the corresponding Static FDB entries will also be flushed from all databases except APP_DB and CONFIG_DB.  Flushed static FDB will be stored in the saved FDB in orchagent for retrieval and programming later when port is added back to VLAN.
 If a dynamic FDB is already learnt and a static FDB is configured with same (MAC, VLAN), the existing dynamic FDB entry will be replaced with the static entry.
 
