@@ -186,8 +186,8 @@ SWITCH_TABLE will be set in CONFIG_DB to store FDB aging time configuration.
 **Data Structure changes**
 
 
-The internal FDB data structure  will be enhanced to store port and FDB type information. Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is (port, type).
-Port and type are needed to support FDB flush per port or per port per VLAN.
+The internal FDB data structure  will be enhanced to store Bridge Port OID and FDB type information. Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is (bridge_port_oid, type).
+Bridge Port OID and type are needed to support FDB flush per port or per port per VLAN.
 
 
 	**FDB Data structure in Orchagent:**
