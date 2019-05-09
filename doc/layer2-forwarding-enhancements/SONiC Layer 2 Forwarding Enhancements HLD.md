@@ -283,6 +283,7 @@ No change
 ## 3.6 CLI
 ### 3.6.1 Configuration Commands
 **FDB Aging time configuration**
+
 root@sonic:/# config mac aging-time <value>
 - To set the mac aging time to a value.
 
@@ -319,7 +320,7 @@ root@sonic:/# show mac aging-time
 
 
 # 4 Flow Diagrams
-Flow diagrams are provided in the [Design](#design) section.
+Flow diagrams are provided in the [Design](#3-design) section.
 
 # 5 Serviceability and Debug
 Debug counters will be added for all operations and events related to L2 forwarding like the following:
@@ -329,7 +330,7 @@ In Orchagent:
 - Number vlan add/delete received from APP_DB.
 - Number of FDB entries inserted in the saved FDB database.
 - Number of FDB add/delete requests sent to syncd.
-- Failure counters for various failure conditions.
+- Counters for various failure conditions.
 
 
 NOTICE/INFO level logs will be added for major operations and events in vlanmgr and orchagent.
