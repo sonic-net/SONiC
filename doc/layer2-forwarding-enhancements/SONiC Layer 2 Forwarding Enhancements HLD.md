@@ -117,7 +117,7 @@ None
 
 ## 2.2 Functional Description
 **1. FDB Flush suport**
-- When a port operational state goes down, all dynamic FDB entries  will be flushed on the port.  The entries will be removed from FDB_TABLE in ASIC_DB, STATE_DB and Hardware and Orchagent data structures. Portchannel admin and oper state will also be handled similarly.
+- When a port operational state goes down, all dynamic FDB entries  will be flushed on the port.  The entries will be removed from FDB_TABLE in ASIC_DB, STATE_DB and Hardware and Orchagent data structures. Portchannel admin or oper state down will also be handled similarly.
 - When a port is removed from VLAN, all static and dynamic FDB entries  will be flushed on the (port,VLAN). Static FDB entries will still be preserved in the FDB_TABLE in CONFIG_DB and APP_DB. When port is added back to VLAN, Orchagent will reprogram the FDB entries. 
 - Spanning Tree Protocol  to flush dynamic FDB entries either on a Port or on (Port,VLAN) when topology change occurs. API will be provided in Orchagent for L2 protocol component to flush FDB entries accordingly.
   
