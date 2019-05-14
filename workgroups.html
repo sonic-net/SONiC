@@ -93,6 +93,7 @@
 				<li><a style="color: black" href="https://github.com/Azure/SONiC/wiki/Building-Guide">Building Guide</a></li>  				
 				<li><a style="color: black" href="https://github.com/Azure/SONiC/wiki/Testing-Guide">Testing Guide</a></li>  								
 				<li><a style="color: black" href="https://github.com/Azure/SONiC/wiki/Becoming-a-contributor">How To Contribute</a></li>  
+				<li><a style="color: black" href="workgroups.html">Workgroups</a></li> 								
 				<li><a style="color: black" href="https://github.com/Azure/SONiC/blob/master/governance.md">Governance</a></li>  				
               </ul>
             </li>            
@@ -142,6 +143,42 @@
 				  <h3 style="color: #01BAFD; margin-top: 70px; font-weight: bold"> Testing Workgroup</h3>
                     <p>Join the mailing list <font color="#0000FF" size="3">sonic-test-workgroup@gmail.com </font></p>
                     <p> Workgroup <a href="https://groups.google.com/forum/#!forum/sonic-test-workgroup"><font color="#0000FF" size="3">link</font></a></p>	
+					<h4 style="color: #01BAFD; margin-top: 70px; font-weight: bold"> Testing Workgroup Charter</h4>
+					<p> 1. Testbed improvement. 
+						<ul style="list-style-type:disc;padding-left: 20px;">
+						  <li> support sonic device as a neighbor. </li>
+						  <li> include pdu/console information.  </li>
+						  <li> using exabgp to build bgp routes.  </li>
+						</ul>
+
+						2. Pytest framework enhancement 
+						<ul style="list-style-type:disc;padding-left: 20px;">
+						   <li> How to execute commands on arista devices? </li>
+						   <li> How to improve the DUT reboot? Add console connection support so that we can see the console log while rebooting. </li>
+						   <li> Loganalyzer improvement can be implemented as a pytest fixture now. </li>
+						</ul>
+						3. Pytest conversion from ansible test. 
+						<ul style="list-style-type:disc;padding-left: 20px;">
+						   <li> strategy to conversion and deprecating the existing ansible test one-by-one. once a pytest has been developed, then we can deprecate the ansible test by calling the pytest in ansible playbook so that there is no change on the user side. Meanwhile, if there will be further improvement the improvement will go to pytest, and community does not need to maintain both versions. </li>
+						</ul>
+						4. Specific/new tests: 
+						<ul style="list-style-type:disc;padding-left: 20px;">
+						   <li> Platform related tests. () </li>
+						   <li> Qos/RDMA tests. </li>
+						   <li> image upgrades testing. </li>
+						   <li> acl tests improvement. </li>
+						   <li> scalability tests on all the tables (l3/acl/fdb), error handling. for example, l3 route exceeds the asic capability. </li>
+						   <li> validation checks, error scenario. for example, port-channel configuration sequence. </li>
+						   <li> scenario, flap the link while sending the traffic. </li>
+						   <li> test categorization: functional/scalability/negative tests/control plane performance/stress </li>
+						   <li> test creation based on current outstanding issues (prevent regression) </li>
+						</ul>
+						5. Visualized DUT with data plane capabilities 
+						<ul style="list-style-type:disc;padding-left: 20px;">
+						   <li> adding specific data plane functions to the virtual switch. </li>
+						</ul>
+						6. One(AKA, Crystalnet) integration (open source) 
+					</p>
 			  </div>					  
             </div>
         </div>
