@@ -18,8 +18,8 @@
 - [14. Show handling](#14-show-handling)
 
 ##  1. Problem Statement:
-> While s/w upgrade to FRR docker or while maintenence FRR docker restart, minimum disturbance to Control Plane Route (i.e Kernel Route) should happen. For some organisation, it is critical to keep control plane unreachability less than ~1 secs for critical services to work with switch while FRR docker restart.
-> 
+> While s/w upgrade to FRR docker or while maintenance FRR docker restart, minimum disturbance to Control Plane Route (i.e Kernel Route) should happen. For some organization, it is critical to keep control plane unreachability less than ~1 secs for critical services to work with switch while FRR docker restart.
+>
 >Today Zebra can run with -r flag to retain routes in kernel. But during startup:
 i.) Without -k flag: Zebra cleans all kernel routes and insert them back if learned via BGPD/OSPF or any other protocol again. This may take 10-15 secs. [Data copied below.]
 >
@@ -111,7 +111,7 @@ APP_DB before Kernel Static Route:
 ```
 After adding kernel Static Routes:
 ```
-127.0.0.1:6379> HGETALL "ROUTE_TABLE:172.16.16.4"
+127.0.0.1:6379> HGETALL "ROUTE_TABLE:172.16.16.2"
 1) "nexthop"
 2) "10.0.0.63"
 3) "ifname"
@@ -180,7 +180,7 @@ Kernel routes:
 ```
 
 Zebra Route:
-[Zebra does not learn about ARP, In Sonic NeighSyncd listens to netlink and populates APP_DB. So Sonic and Linux kernel both keep route table and Neighbour table seperately. Which suggests if a zebra route has same prefix as ARP\NDP Entry then Conflict happens only in H/W, and it depends on H/W which one will be preferered.]
+[Zebra does not learn about ARP, In Sonic NeighSyncd listens to netlink and populates APP_DB. So Sonic and Linux kernel both keep route table and Neighbour table seperately. Which suggests if a zebra route has same prefix as ARP\NDP Entry then Conflict happens only in H/W, and it depends on H/W which one will be preferred.]
 ```
 C>* 172.16.16.0/24 is directly connected, Ethernet120
 B>* 172.16.16.0/32 [20/0] via 10.0.0.63, Ethernet124, 00:15:13
@@ -214,7 +214,7 @@ admin@falco-test-dut01:~$ sudo bcmcmd "l3 defip show" | grep 172.16.16.4
 admin@falco-test-dut01:~$ sudo bcmcmd "l3 egress show" | grep 100015
 100015  52:54:00:92:6c:c0 4087    8   130    0        -1   no   no    6   no
 ```
-Restart ZEbra\FRR will have no impact on Neigh_Table.
+Restart Zebra\FRR will have no impact on Neigh_Table.
 
 ----
 
@@ -292,7 +292,7 @@ Above image explains the Zebra behavior right now on startup with -k (keep_kerne
 
 2.) Zebra pushes these routes in RIB Table as per family of route.
 
-3.) Rnode creation and route_entry creation of old kernel route is done and route_entry is inserted in Rnode of the destprefix. 
+3.) Rnode creation and route_entry creation of old kernel route is done and route_entry is inserted in Rnode of the destprefix.
     Next-hops for this route will be markes as active, since this route is learned from Kernel.
     Note: This will result in call to rib_process, but since Rnode contains only one route which is already in FIB, so rib_process will result in NO_OP.
 
@@ -300,14 +300,14 @@ Above image explains the Zebra behavior right now on startup with -k (keep_kerne
 
 5.) Zebra will process new routes and call rib_add() for this route.
 
-6.) A new route_entry will be created and will be inserted in correct Rnode. There may be 2 scenarios here, 
-    a.) Rnode already contains other routes including old kernel routes or 
+6.) A new route_entry will be created and will be inserted in correct Rnode. There may be 2 scenarios here,
+    a.) Rnode already contains other routes including old kernel routes or
     b.) new Rnode is created for this route_entry.
 
-7.) Updated Rnode will be queued for rib processing. During rib processing, Zebra will run best route selection, 
+7.) Updated Rnode will be queued for rib processing. During rib processing, Zebra will run best route selection,
     which on most of the FRR version will select old kernel route which is already marked as active in FIB.
 
-8.) No update will be sent to Kernel and FPM, which may result in route deletion from APP_DB as per current Fpmsyncd DB reconciliation code. 
+8.) No update will be sent to Kernel and FPM, which may result in route deletion from APP_DB as per current Fpmsyncd DB reconciliation code.
     Update will be sent only for those route for which stale kernel route is not present.
 ```
 
@@ -465,7 +465,7 @@ File: zebra/main.c
 int main(int argc, char **argv)
 /*
  * Initialize NS( and implicitly the VRF module), and make kernel
- * routing socket. 
+ * routing socket.
  */
 
 zebra_ns_init((const char *)vrf_default_name_configured);
@@ -492,7 +492,7 @@ int rib_add_multipath(afi_t afi, safi_t safi, struct prefix *p,
 +  * and FPM are updated while rib_process. This will result in no
 +  * traffic loss, if same route->NH is learned after startup.
 + */
-+ 
++
 +  if (kernel_gr && !kernel_stale_rt
 +   && (same->uptime < zrouter.startup_time)) {
 +   ++zrouter->zebra_stale_rt_del;
@@ -577,6 +577,14 @@ Unit Test Plan includes below 3 test cases: [All 3 test cases will be repeated f
     - Change all published prefixes from 1 BGP peer which publishes 10-15 routes.  [ADD and DELETE case]
     - Start FRR.
     - Observe Zebra logs, ip monitor, kernel routes and Zebra routes.
+
+#### Test case 4.) Add 12 k routes from sharpd and then restart zebra with -K 35 option. After restart,  enter new routes.
+
+#### Test case 5.) Add 14 k routes from sharpd and then restart zebra with -K 55 option secs. After restart add no routes.
+
+#### Test 6: Test with  900 K routes,  with -K 25. Install same 900K routes after restart.
+
+#### Test 7: Test with  900 K routes,  with -K 20.  Do not install any routes after restart.
 
 ### 7.2 Details of Test Cases:
 
@@ -776,33 +784,33 @@ admin@dut01:~$ sudo service bgp start
 **Zebra logs:
 Note: All logs may not be part of final diff**
 ```
-Apr 23 22:05:59.589030 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 1 P 0.0.0.0/0 rn 0x556d54234ca0
-Apr 23 22:05:59.589301 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 2 P 192.168.0.1/32 rn 0x556d5423d780
-Apr 23 22:05:59.589378 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 3 P 192.168.0.2/32 rn 0x556d5423da00
-Apr 23 22:05:59.589691 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 4 P 192.168.0.3/32 rn 0x556d5423dc80
-Apr 23 22:05:59.589788 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 5 P 192.168.0.4/32 rn 0x556d5423df80
-Apr 23 22:05:59.589859 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 6 P 192.168.0.5/32 rn 0x556d5423e280
-Apr 23 22:05:59.589931 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 7 P 192.168.0.8/32 rn 0x556d5423ea00
-Apr 23 22:05:59.590001 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 8 P 100.1.0.1/32 rn 0x556d5423d280
-Apr 23 22:05:59.590072 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 9 P 192.168.0.6/32 rn 0x556d5423e500
-Apr 23 22:05:59.590142 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: match, A 11 D 10 P 100.1.0.2/32 rn 0x556d5423d500
-Apr 23 22:05:59.599051 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d54234ca0
-Apr 23 22:05:59.599334 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423d780
-Apr 23 22:05:59.599462 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423da00
-Apr 23 22:05:59.599533 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423dc80
-Apr 23 22:05:59.599665 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423df80
-Apr 23 22:05:59.600987 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423e280
-Apr 23 22:05:59.600987 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423ea00
-Apr 23 22:05:59.600987 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d54334390
-Apr 23 22:05:59.600987 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423d280
-Apr 23 22:05:59.601044 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423e500
-Apr 23 22:05:59.601044 dut01 NOTICE bgp#zebra[85]: Send Update to kernel rn 0x556d5423d500
+Apr 23 22:05:59.589030 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 1 P 0.0.0.0/0 rn 0x556d54234ca0
+Apr 23 22:05:59.589301 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 2 P 192.168.0.1/32 rn 0x556d5423d780
+Apr 23 22:05:59.589378 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 3 P 192.168.0.2/32 rn 0x556d5423da00
+Apr 23 22:05:59.589691 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 4 P 192.168.0.3/32 rn 0x556d5423dc80
+Apr 23 22:05:59.589788 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 5 P 192.168.0.4/32 rn 0x556d5423df80
+Apr 23 22:05:59.589859 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 6 P 192.168.0.5/32 rn 0x556d5423e280
+Apr 23 22:05:59.589931 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 7 P 192.168.0.8/32 rn 0x556d5423ea00
+Apr 23 22:05:59.590001 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 8 P 100.1.0.1/32 rn 0x556d5423d280
+Apr 23 22:05:59.590072 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 9 P 192.168.0.6/32 rn 0x556d5423e500
+Apr 23 22:05:59.590142 dut01 DEBUG bgp#zebra[85]: kernel_gr: match, A 11 D 10 P 100.1.0.2/32 rn 0x556d5423d500
+Apr 23 22:05:59.599051 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d54234ca0
+Apr 23 22:05:59.599334 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423d780
+Apr 23 22:05:59.599462 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423da00
+Apr 23 22:05:59.599533 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423dc80
+Apr 23 22:05:59.599665 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423df80
+Apr 23 22:05:59.600987 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423e280
+Apr 23 22:05:59.600987 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423ea00
+Apr 23 22:05:59.600987 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d54334390
+Apr 23 22:05:59.600987 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423d280
+Apr 23 22:05:59.601044 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423e500
+Apr 23 22:05:59.601044 dut01 DEBUG bgp#zebra[85]: Send Update to kernel rn 0x556d5423d500
 
-Apr 23 22:06:12.615442 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: timer_expire stats before flush: add 11, del 10
-Apr 23 22:06:12.615442 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: sweep, A 11 D 11 P 192.168.0.7/32 rn 0x556d5423e780
-Apr 23 22:06:12.615741 dut01 NOTICE bgp#zebra[85]: Send Delete to kernel rn 0x556d5423e780
-Apr 23 22:06:12.615824 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: timer_expire stats after flush: add 11, del 11
-Apr 23 22:06:12.615896 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: Reset kernel_reconcile = 0
+Apr 23 22:06:12.615442 dut01 NOTICE bgp#zebra[85]: kernel_gr: timer_expire stats before flush: add 11, del 10
+Apr 23 22:06:12.615442 dut01 NOTICE bgp#zebra[85]: kernel_gr: sweep, A 11 D 11 P 192.168.0.7/32 rn 0x556d5423e780
+Apr 23 22:06:12.615741 dut01 DEBUG bgp#zebra[85]: Send Delete to kernel rn 0x556d5423e780
+Apr 23 22:06:12.615824 dut01 NOTICE bgp#zebra[85]: kernel_gr: timer_expire stats after flush: add 11, del 11
+Apr 23 22:06:12.615896 dut01 NOTICE bgp#zebra[85]: kernel_gr: Reset kernel_gr = 0
 ```
 
 **Ip monitor:**
@@ -868,6 +876,234 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 #### Test Case 3.) Scaled testing: Perform FRR restart with  > 6 K routes published from at least 4 peers. [6500 routes with 32 peers, as per T1 topology], [6k routes and 4 BGP peers as per T0]
 Steps will be similar to Test case 2.
 
+#### Test case 4.) Add 12 k routes from sharpd and then restart zebra with -K 35 option. After restart,  enter new routes as shown below.
+
+Routes before restart:
+——————
+sharp install route 10.0.0.0 nexthop 172.25.11.53 6000
+sharp install route 20.0.0.0 nexthop 172.25.11.53 6000
+
+Routes after restart:
+——————
+sharp install route 10.0.0.0 nexthop 172.25.11.43 6000
+sharp install route 20.0.0.0 nexthop 172.25.11.53 5000
+sharp install route 30.0.0.0 nexthop 172.25.11.53 3000
+
+Expectation:
+——————
+Prefix 10.0.0.0:   should be update to kernel immediately with new next-hop.
+Prefix 20.0..0.0:  5k routes should be updated to kernel with same NH. Extra 1 k routes must be deleted later after around 35 secs.
+Prefix 30.0.0.0: routes must be update to kernel immediately.
+Zebra log must show that 12k routes were added with Stale flag and 1 were swept after timer expire.
+
+Restart options:
+——————
+zebra_options="  -r -A 127.0.0.1 -K 35 -s 90000000"
+
+Results:
+```
+Kernel routes before restart:
+——————
+Every 5.0s: ./route.sh                                                                                  Fri May  3 22:01:29 2019
+
+Fri May  3 22:01:29 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6002
+sudo route -n | grep 20.0 | wc -l
+6001
+sudo route -n | grep 30.0 | wc -l
+0
+
+pchaudha@server05:/home/pchaudha/srcCode/pc_frr$ systemctl restart frr
+——————
+
+Zebra Logs  and Kernel Routes with timestamp:
+——————
+May  3 22:01:55 server05 watchfrr[13520]: all daemons up, doing startup-complete notify
+May  3 22:01:55 server05 frrinit.sh[13508]:  * Started watchfrr
+May  3 22:01:55 server05 systemd[1]: Started FRRouting.…
+...
+
+Every 5.0s: ./route.sh                                                                                  Fri May  3 22:02:27 2019
+
+Fri May  3 22:02:11 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6003
+sudo route -n | grep 20.0 | wc -l
+6001
+sudo route -n | grep 30.0 | wc -l
+3000
+…..
+Every 5.0s: ./route.sh                                                                                  Fri May  3 22:02:27 2019
+
+Fri May  3 22:02:27 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6003
+sudo route -n | grep 20.0 | wc -l
+6001
+sudo route -n | grep 30.0 | wc -l
+3000
+…..
+May  3 22:02:29 server05 zebra[13541]: kernel_gr: timer_expire before sweep: add 12000, del 11000
+May  3 22:02:29 server05 zebra[13541]: kernel_gr: timer_expire after sweep: add 12000, del 12000
+May  3 22:02:29 server05 zebra[13541]: kernel_gr: Reset kernel_gr = 0
+….
+[** Stale Flag was added to 12K routes, 11K were learned before timer expires.]
+….
+
+Every 5.0s: ./route.sh                                                                                  Fri May  3 22:02:43 2019
+
+Fri May  3 22:02:32 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6003
+sudo route -n | grep 20.0 | wc -l
+5001
+sudo route -n | grep 30.0 | wc -l
+3000
+——————
+```
+
+#### Test case 5.) Add 14 k routes from sharpd and then restart zebra with -K 55 option secs. After restart add no routes.
+
+Expectation:
+——————
+Should delete all routes  from kernel after kernel_gr time expire. Zebra notice level logs must show time and count for routes.
+Zebra log must show that 14k routes were added with Stale flag and all 14k were swept after timer expire.
+
+Routes before restart
+——————
+sharp install route 10.0.0.0 nexthop 172.25.11.43 6000
+sharp install route 20.0.0.0 nexthop 172.25.11.53 5000
+sharp install route 30.0.0.0 nexthop 172.25.11.53 3000
+
+Restart options:
+——————
+40 zebra_options="  -r -A 127.0.0.1 -K 55 -s 90000000"
+
+```
+pchaudha@server05:/home/pchaudha/srcCode/pc_frr$ systemctl restart frr
+——————
+Zebra Logs and kernel routes with timestamp:
+—————
+Fri May  3 22:09:03 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6003
+sudo route -n | grep 20.0 | wc -l
+5001
+sudo route -n | grep 30.0 | wc -l
+3000
+………..
+May  3 22:09:04 server05 watchfrr[14963]: all daemons up, doing startup-complete notify
+May  3 22:09:04 server05 frrinit.sh[14948]:  * Started watchfrr
+May  3 22:09:04 server05 systemd[1]: Started FRRouting.
+.....….
+Fri May  3 22:09:19 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+6003
+sudo route -n | grep 20.0 | wc -l
+5001
+sudo route -n | grep 30.0 | wc -l
+3000
+…………….
+May  3 22:09:59 server05 zebra[14985]: kernel_gr: timer_expire before sweep: add 14000, del 0
+May  3 22:09:59 server05 NetworkManager[1141]: <info>  [1556946599.5236] platform-linux: netlink: read: too many netlink events. Need to resynchronize platform cache
+May  3 22:09:59 server05 NetworkManager[1141]: <info>  [1556946599.5308] platform-linux: netlink: read: too many netlink events. Need to resynchronize platform cache
+May  3 22:09:59 server05 NetworkManager[1141]: <info>  [1556946599.5371] platform-linux: netlink: read: too many netlink events. Need to resynchronize platform cache
+May  3 22:09:59 server05 NetworkManager[1141]: <info>  [1556946599.5436] platform-linux: netlink: read: too many netlink events. Need to resynchronize platform cache
+May  3 22:09:59 server05 zebra[14985]: kernel_gr: timer_expire after sweep: add 14000, del 14000
+May  3 22:09:59 server05 zebra[14985]: kernel_gr: Reset kernel_gr = 0
+………………
+Fri May  3 22:10:02 PDT 2019
+sudo route -n | grep 10.0 | wc -l
+1
+sudo route -n | grep 20.0 | wc -l
+0
+sudo route -n | grep 30.0 | wc -l
+0
+```
+
+
+
+
+
+#### Test 6: Test with  900 K routes,  with -K 25. Install same 900K routes after restart.
+
+Routes before and after restart:
+——————
+sharp install route 10.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 20.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 30.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 40.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 50.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 60.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 70.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 80.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 90.0.0.0 nexthop 172.25.11.43 100000
+
+Expectation:
+——————
+Zebra log must show that 900k routes were added with Stale flag and 0 were swept after timer expire, I.e. all 900K were learned back before timer expire.
+
+
+ZEbra logs and kernel Routes:
+——————
+```
+Every 3.0s: route -n | wc -l
+Fri May  3 22:25:01 2019
+
+900007
+…………
+May  3 22:25:11 server05 systemd[1]: Started FRRouting.
+May  3 22:25:13 server05 systemd[1]: Started CUPS Scheduler.
+May  3 22:25:36 server05 zebra[17253]: kernel_gr: timer_expire before sweep: add 900000, del 900000
+May  3 22:25:36 server05 zebra[17253]: kernel_gr: timer_expire after sweep: add 900000, del 900000
+May  3 22:25:36 server05 zebra[17253]: kernel_gr: Reset kernel_gr = 0
+………….
+Every 3.0s: route -n | wc -l
+
+Fri May  3 22:25:40 2019
+
+900007
+```
+
+
+#### Test 7: Test with  900 K routes,  with -K 20.  Do not install any routes after restart.
+
+Routes before restart:
+——————
+sharp install route 10.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 20.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 30.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 40.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 50.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 60.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 70.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 80.0.0.0 nexthop 172.25.11.43 100000
+sharp install route 90.0.0.0 nexthop 172.25.11.43 100000
+
+Expectation:
+——————
+Zebra log must show that 900k routes were added with Stale flag and all 900k were swept after timer expire, I.e. all 0 were learned back before timer expire.
+
+ZEbra logs and kernel Routes:
+——————
+```
+Fri May  3 22:27:07 2019
+
+900007
+………
+May  3 22:27:10 server05 systemd[1]: Started FRRouting.
+May  3 22:27:30 server05 zebra[17459]: kernel_gr: timer_expire before sweep: add 900000, del 0
+May  3 22:27:31 server05 zebra[17459]: kernel_gr: timer_expire after sweep: add 900000, del 900000
+May  3 22:27:31 server05 zebra[17459]: kernel_gr: Reset kernel_gr = 0
+………….
+Every 3.0s: route -n | wc -l
+Fri May  3 22:27:34 2019
+
+7
+—————
+```
+
 ##   8. DB schema
     No Change.
 ##   9. Flows and SAI APIs
@@ -902,7 +1138,7 @@ Apr 23 22:06:12.615824 dut01 NOTICE bgp#zebra[85]: kernel_reconcile: timer_expir
 
 ##   Should call out if any platform specific code will be introduced and why. Need to avoid platform specific code from the design phase
     N/A
-    
+
 ##   13. Error flows handling
     Statistics are added to counts all routes for which new flag will be added\removed with -K option. This will be used for verification if Zebra contains any stale kernel routes.
 
