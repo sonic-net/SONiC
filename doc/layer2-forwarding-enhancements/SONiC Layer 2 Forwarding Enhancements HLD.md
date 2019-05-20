@@ -110,7 +110,7 @@ This document describes the high level design of Layer 2 Forwarding Enhancements
 
 
 ## 1.4 Warm Boot Requirements
-None
+Warm boot support already exists.
 
 
 # 2 Functionality
@@ -187,8 +187,8 @@ SWITCH_TABLE will be set in CONFIG_DB to store FDB aging time configuration.
 **Data Structure changes**
 
 
-The internal FDB data structure  will be enhanced to store Bridge Port OID and FDB type information. Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is (bridge_port_oid, type).
-Bridge Port OID and type are needed to add Static FDB to saved FDB after flush.
+The internal FDB data structure  will be enhanced to store the FDB type (static/dynamic). Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is (bridge_port_oid, type).
+FDB type is needed to add Static FDB to saved FDB after flush.
 
 
 	**FDB Data structure in Orchagent:**
@@ -196,7 +196,7 @@ Bridge Port OID and type are needed to add Static FDB to saved FDB after flush.
 
 <img src="images/fdbDataStructure.jpg" width="800" height="500">
 
-In current Sonic implementation, when a FDB event is received with VLAN SAI object ID, the VLAN ID is retrieved by traversing through all the ports and VLANs in the orchagent DB and finding the one that matches the object ID. Also, the Port details are retrieved by traversing all the port and VLANs. This approach is inefficient as it may traverse through the number of VLANs configured for each FDB learn event.
+In current Sonic implementation, when a FDB event is received with VLAN SAI object ID, the VLAN ID is retrieved by traversing through all the ports and VLANs in the orchagent DB and finding the one that matches the object ID. Also, the Port details are retrieved by traversing all the port and VLANs. This approach is inefficient as it may traverse through the number of VLANs configured for each FDB learn event. Worst case time is O(M*N) where M is the number of MAC events and N is the number of entries in port data structure.
 
 
 A new  unordered_map containing a mapping between SAI object ID (can be either Port object ID or Bridge Port object ID or VLAN object ID) and Name (port or VLAN alias) will be added which can be looked up in O(1) time. The Port or VLAN alias retrieved from this will be looked up in the Port data structure.
