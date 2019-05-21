@@ -1,3 +1,29 @@
+- [Introduction](#introduction)
+- [Common Test Cases](#common-test-cases)
+  - [1.1 Check platform information](#11-check-platform-information)
+  - [1.2 Run the Sensors automation](#12-run-the-sensors-automation)
+  - [1.3 Check SFP status and configure SFP](#13-check-sfp-status-and-configure-sfp)
+  - [1.4 Check xcvrd information in DB](#14-check-xcvrd-information-in-db)
+  - [1.5 Sequential syncd/swss restart](#15-sequential-syncdswss-restart)
+  - [1.6 Reload configuration](#16-reload-configuration)
+  - [1.7 COLD/WARM/FAST reboot](#17-coldwarmfast-reboot)
+  - [1.8 Check thermal sensors output using new OPTIC cables](#18-check-thermal-sensors-output-using-new-optic-cables)
+  - [1.9 Manually plug in and pull out PSU modules](#19-manually-plug-in-and-pull-out-psu-modules)
+  - [1.10 Manually plug in and pull out PSU power cord](#110-manually-plug-in-and-pull-out-psu-power-cord)
+  - [1.11 Manually plug in and pull out FAN modules](#111-manually-plug-in-and-pull-out-fan-modules)
+  - [1.12 Manually plug in and pull out optical cables](#112-manually-plug-in-and-pull-out-optical-cables)
+- [Mellanox Specific Test Cases](#mellanox-specific-test-cases)
+  - [2.1 Ensure that the hw-management service is running properly](#21-ensure-that-the-hw-management-service-is-running-properly)
+  - [2.2 Check SFP using ethtool](#22-check-sfp-using-ethtool)
+  - [2.3 Check SYSFS](#23-check-sysfs)
+  - [2.4 Verify that `/var/run/hw-management` is mapped to docker pmon](#24-verify-that-varrunhw-management-is-mapped-to-docker-pmon)
+- [Automation Design](#automation-design)
+  - [Folder Structure and Script Files](#folder-structure-and-script-files)
+  - [Scripts to be implemented in phase1](#scripts-to-be-implemented-in-phase1)
+  - [Scripts to be implemented in phase 2](#scripts-to-be-implemented-in-phase-2)
+  - [Helper scripts](#helper-scripts)
+  - [Vendor specific steps](#vendor-specific-steps)
+
 # Introduction
 
 This test plan is to check the functionalities of platform related software components. These software components are for managing platform hardware, including FANs, thermal sensors, SFP, transceivers, pmon, etc.
@@ -678,6 +704,7 @@ sonic-mgmt
 |-- ansible
 |-- tests
     |-- platform
+        |-- psu_controller.py
         |-- test_platform_info.py
         |-- test_sfp.py
         |-- test_xcvr_info_in_db.py
@@ -686,44 +713,56 @@ sonic-mgmt
         |-- test_cold_reboot.py
         |-- test_warm_reboot.py
         |-- test_fast_reboot.py
-        |-- mellanox_hw_mgmt_service.py
-        |-- mellanox_check_sfp_using_ethtool.py
-        |-- mellanox_check_sysfs.py
         |-- check_critical_services.py
-        |-- check_hw_mgmt_service.py
         |-- check_interface_status.py
-        |-- check_sysfs.py
         |-- check_transceiver_status.py
+        |--mellanox
+           |-- test_hw_management_service.py
+           |-- test_check_sfp_using_ethtool.py
+           |-- test_check_sysfs.py
+           |-- check_hw_mgmt_service.py
+           |-- mellanox_psu_controller.py
 ```
 Filename of scripts should follow this pattern:
-* Scripts for common test cases should start with `test_`.
-* Scripts for vendor specific test cases should start with vendor name, for example, scripts for Mellanox specific test cases should start with `mellanox_`.
+* All scripts for test cases should start with `test_`.
+* Put vendor specific test cases in dedicated folder. For example, all Mellanox specific scripts are put under subfolder "mellanox".
 * Scripts hold helper functions or classes should start with `check_`, or other prefix as long as it does not conflict with above two patterns.
+* The `sonic-mgmt/tests/platform/psu_controller.py` script has the definition of psu_controller fixture that is used in `test_platform_info.py`. The psu_controller fixture returns a PSU controller object for controlling the power on/off to PSUs of DUT. This script also defines the interface of PSU controller object in PsuControllerBase class. Vendor specific PSU controller must be implemented as a sublcass of PsuControllerBase and put under vendor subfolder. For example, Mellanox specific PSU controller is impelemented in `sonic-mgmt/tests/platform/mellanox/mellanox_psu_controller.py`.
 
- With this convention:
-* `pytest tests/platform` can just run common test cases
-* `pytest tests/platform/test_* tests/platform/mellanox_*` can run common and Mellanox specific test cases..
+With this convention, to run just the common test cases, use below commands:
+* `py.test tests/platform/test_* <extra arguments>`
+
+To run common and mellanox specific test cases:
+* `py.test tests/platform/test_* tests/platform/mellanox/test_* <extra arguments>`
+
+Please DO NOT use below commands to run tests:
+* `py.test tests/platform <extra arguments>`
+The reason is that this pattern will recursively collect all the test cases in test_*.py files under tests/platform, including vendor specific subfolders. If there are multiple vendor specific subfolders under this folder, this pattern will try to run all the common and all vendor specific test cases.
 
 Because these scripts need to be upstreamed, community definitely will have lots of comments. To get feedback early, we can implement the scripts in two phases.
 
 ## Scripts to be implemented in phase1
 
-| Test Case                                                              | Script                                             | Common for all vendors? |
-| ---------------------------------------------------------------------- | -------------------------------------------------- | ----------------------- |
-| Case 1.1 Check platform information                                    | tests/platform/test_platform_info.py               | Yes                     |
-| Case 1.3 Check SFP status and configure SFP                            | tests/platform/test_sfp.py                         | Yes                     |
-| Case 1.4 Check xcvrd information in DB                                 | tests/platform/test_xcvr_info_in_db.py             | Yes                     |
-| Case 2.1 Ensure that the hw-management service is running properly     | tests/platform/mellanox_hw_mgmt_service.py         | No                      |
-| Case 2.2 Check SFP using ethtool                                       | tests/platform/mellanox_check_sfp_using_ethtool.py | No                      |
-| Case 2.3 Check SYSFS                                                   | tests/platform/mellanox_check_sysfs.py             | No                      |
-| Case 2.4 Verify that `/var/run/hw-management` is mapped to docker pmon | tests/platform/mellanox_check_sysfs.py             | No                      |
+| Test Case                                                              | Script                                                  | Common for all vendors? |
+|------------------------------------------------------------------------|---------------------------------------------------------|-------------------------|
+| Case 1.1 Check platform information                                    | tests/platform/test_platform_info.py                    | Yes                     |
+| Case 1.3 Check SFP status and configure SFP                            | tests/platform/test_sfp.py                              | Yes                     |
+| Case 1.4 Check xcvrd information in DB                                 | tests/platform/test_xcvr_info_in_db.py                  | Yes                     |
+| Case 2.1 Ensure that the hw-management service is running properly     | tests/platform/mellanox/test_hw_management_service.py   | No                      |
+| Case 2.2 Check SFP using ethtool                                       | tests/platform/mellanox/test_check_sfp_using_ethtool.py | No                      |
+| Case 2.3 Check SYSFS                                                   | tests/platform/mellanox/test_check_sysfs.py             | No                      |
+| Case 2.4 Verify that `/var/run/hw-management` is mapped to docker pmon | tests/platform/mellanox/check_sysfs.py                  | No                      |
+
+The psu_controller fixture will also be implemented in phase 1:
+* `tests/platform/psu_controller.py`
+* `tests/platform/mellanox/mellanox_psu_controller.py`
 
 The scripts for testing sensors `ansible/roles/test/tasks/sensors_check.yml` simply calls `ansible/roles/sonic-common/tasks/sensors_check.yml`. We can conver it to pytest in the future.
 
 ## Scripts to be implemented in phase 2
 
 | Test Case                              | Script                                                                                                                                     | Common for all vendors? |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+|----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
 | Case 1.5 Sequential syncd/swss restart | tests/platform/test_sequential_restart.py                                                                                                  | Yes                     |
 | Case 1.6 Reload configuration          | tests/platform/test_reload_config.py                                                                                                       | Yes                     |
 | Case 1.7  COLD/WARM/FAST reboot        | <ul><li>tests/platform/test_cold_reboot.py</li><li>tests/platform/test_warm_reboot.py</li><li>tests/platform/test_fast_reboot.py</li></ul> | Yes                     |
