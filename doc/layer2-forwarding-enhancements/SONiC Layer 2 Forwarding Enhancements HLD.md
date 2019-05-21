@@ -163,7 +163,7 @@ Range command issued takes only two VLAN identifiers as arguments. List of VLANs
 
 For VLAN range creation, VLAN existence for each VLAN identifier is checked in CONFIG_DB through GET operation prior to invoking SET operation. If few VLANs are already created and 'range create' command issued involves such VLANs, a message of severity 'info' is logged and rest of the VLANs are created. 
 
-For VLAN range deletion, GET operation is performed for each member in the VLAN on VLAN_MEMBER table and then is deleted from the table. Upon removing all the members from a VLAN, VLAN is deleted through a single SET operation on the database. If a VLAN being deleted has members, a message of severity 'warning' is logged and the VLAN is deleted. If a non-existent VLAN is part of the range command, a warning message is logged, but processing continues for the rest of the VLANs.
+For VLAN range deletion, GET operation is performed for each member in the VLAN on VLAN_MEMBER table and then is deleted from the table. Upon removing all the members from a VLAN, VLAN is deleted through a single SET operation on the database. If a non-existent VLAN is part of the range command, a warning message is logged, but processing continues for the rest of the VLANs.
 
 For VLAN member range creation and deletion, GET and SET operations are performed on VLAN and VLAN_MEMBER tables in CONFIG_DB.
 
@@ -240,7 +240,7 @@ When Spanning tree state changes, protocol component within orchagent will call 
 
 
 **Changes for handling MAC move events.**
-Hardware can generate a single MAC move event instead of generating 2 events (del-old mac and add-new mac). Orchagent code changes will be done to replace the existing FDB entry with the new port in internal data structure and STATE_DB. 
+Hardware can generate a single MAC move event instead of generating 2 events (del-old mac and add-new mac). Orchagent code changes will be done to replace the existing FDB entry with the new port in STATE_DB. 
 
 
 **Changes for FDB aging time configuration.**
@@ -359,7 +359,7 @@ VLAN delete range operation takes significantly longer (though not as much if th
 
 3. Verify that dynamic fdb entries are flushed in hardware, orchagent data structure and other DBs when a port/portchannel operational state goes down.
 
-4. Verify that dynamic fdb entries are flushed in hardware, orchagent data structure and other DBs when a port/portchannel operational state goes down.
+4. Verify that dynamic fdb entries are flushed in hardware, orchagent data structure and other DBs when a port/portchannel admin state goes down.
 
 5. Verify that FDB entries are added back properly when the port comes back operationally up.
 
