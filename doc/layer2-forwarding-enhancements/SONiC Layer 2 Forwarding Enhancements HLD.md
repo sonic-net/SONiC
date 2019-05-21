@@ -187,7 +187,7 @@ SWITCH_TABLE will be set in CONFIG_DB to store FDB aging time configuration.
 **Data Structure changes**
 
 
-The internal FDB data structure  will be enhanced to store the FDB type (static/dynamic). Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is (bridge_port_oid, type).
+The internal FDB data structure  will be enhanced to store the FDB type (static/dynamic). Currently, FDB is stored as c++ set. It will be changed to c++ map to store (key, value), where key is (MAC, bv_id) and value is FDB type.
 FDB type is needed to add Static FDB to saved FDB after flush.
 
 
