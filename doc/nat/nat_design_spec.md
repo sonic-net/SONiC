@@ -6,20 +6,20 @@
   * [Revision](#revision)
   * [About this Manual](#about-this-manual)
   * [Scope](#scope)
-  * [Definitions/Abbreviation](#definitions-abbreviation)
+  * [Definitions/Abbreviations](#definitionsabbreviations)
   * [1 Requirements Overview](#1-requirements-overview)
     * [1.1 Functional Requirements](#11-functional-requirements)
-    * [1.2 Configuration and Management Requirement](#12-configuration-and-management-requirement)
+    * [1.2 Configuration and Management Requirement](#12-configuration-and-management-requirements)
     * [1.3 Scalability Requirements](#13-scalability-requirements)
   * [2 Functionality](#2-functionality)
     * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
     * [2.2 Functional Description](#22-functional-description)
       * [2.2.1 SNAT and DNAT](#221-snat-and-dnat)
-      * [2.2.2 Static NAT/NAPT](#222-static-nat-napt)
-      * [2.2.3 Dynamic NAT/NAPT](#223-dynamic-nat-napt)
+      * [2.2.2 Static NAT/NAPT](#222-static-nat-and-napt)
+      * [2.2.3 Dynamic NAT/NAPT](#223-dynamic-nat-and-napt)
       * [2.2.4 NAT zones](#224-nat-zones)
-      * [2.2.5 Twice NAT/NAPT](#225-twice-nat-napt)
-      * [2.2.6 VRF support](#227-vrf-support)
+      * [2.2.5 Twice NAT/NAPT](#225-twice-nat-and-napt)
+      * [2.2.6 VRF support](#226-vrf-support)
   * [3 Design](#3-design)
     * [3.1 Design overview](#31-design-overview)
     * [3.2 DB Changes](#32-db-changes)
@@ -71,7 +71,7 @@ NAT router enables private IP networks to communicate to the public networks (in
 # Scope
 This document describes the high level design details about how NAT works.
 
-# Definitions/Abbreviation
+# Definitions/Abbreviations
 ###### Table 1: Abbreviations
 | Abbreviation             | Full form                        |
 |--------------------------|----------------------------------|
@@ -182,12 +182,12 @@ In Enterprise deployments, the Customer Edge switch or other Customer premises e
 ### 2.2.1 SNAT and DNAT
 Source NAT translation involves translating the Source IP address (optionally along with L4 port) in the IP packets crossing from inside the private network to public network. Destination NAT translation involves translating the Destination IP address (optionally along with L4 port) in the IP packets crossing from public network to private network. The IP header checksum and the L4 header checksum are recalculated as the header contents are changed due to the NAT translation.
 
-### 2.2.2 Static NAT/NAPT
+### 2.2.2 Static NAT and NAPT
 User can configure a static binding of IP address + optional L4 port between different zones (like for eg., binding from a [Public IP address + optional L4 port] to a designated [Private host IP address + optional L4 port]). With no optional L4 port configuration, the translation is only from private IP to public IP and vice versa, which is referred as basic NAT. Any conflicts should be avoided  between the IP addresses in the Static NAT config and the Static NAPT config as there is no order or priority ensured in the processing of the conflicting rules. 
 
 Static NAT/NAPT entries are not timed out from the translation table.
 
-### 2.2.3 Dynamic NAT/NAPT
+### 2.2.3 Dynamic NAT and NAPT
 On the NAT router, when the public addresses are limited and less in number than the internal network addresses, the many-to-one mapping is needed from the [Private IP address + L4 port] to a [Public IP address + L4 port]. This is where  multiple internal IPs map to a single public IP by overloading with different L4 ports. When the internally originated outbound traffic hits the NAT router, if a matching SNAT entry exists it is translated. Else the packet is trapped to CPU so that a new SNAT mapping is allocated for the [Private IP address + L4 port].
 
 NAT pool is configured by the user to specify the public IP address (optionally an IP address range) and the L4 port range to overload the private IP address + L4 port to.
@@ -222,7 +222,7 @@ The public IP address of the interface deemed to be outside interface, is referr
 
 The allowed range of configurable zone values is 0 to 3.
 
-### 2.2.5 Twice NAT/NAPT
+### 2.2.5 Twice NAT and NAPT
 Twice NAT or Double NAT is a NAT variation where both the Source IP and the Destination IP addresses are modified as a packet crosses the address zones. It is typically used in  the communication between networks with overlapping private addresses.
 
 The configuration for Twice NAT/NAPT is achieved in 2 ways:
@@ -1242,7 +1242,7 @@ The Unit test case one-liners are as below:
 | 13 | Verify that the NAT misses are reported by the hardware by sending new source outbound traffic and check the hardware counters.                                                                                                       |
 | 14 | Verify that a dynamic SNAT entry creation is notified via netlink to natsyncd when a new source outbound traffic                                                                                                                      |
 | 15 | Verify that IP protocol type is matched in translation. For eg only the tcp traffic is port translated in the inbound direction by sending both udp and tcp flows when only static tcp nat is configured.                             |
-| 16 | Verify that inactive NAT entry is timed out and Orchagent is removing the iptable entry and ASIC_DB entry correspondingly.                                                                                                            |
+| 16 | Verify that an inactive dynamic NAT entry is timed out and Orchagent is removing the corresponding conntrack entry. Eventually the entry gets removed from APP_DB and ASIC_DB.                                                                                                            |
 | 17 | Verify that the active NAT entries are not timed out by the Orchagent.                                                                                                                                                                |
 | 18 | Verify that the static NAT entries are not timed out though they are inactive.                                                                                                                                                        |
 | 19 | Verify the inactivity timeout with different configured timeouts.                                                                                                                                                                     |
