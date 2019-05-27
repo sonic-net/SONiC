@@ -140,9 +140,11 @@ The requirements for NAT are:
 
 3.2 Provide configuration of zones on L3 interfaces.
 
-4.0 Provide configurable age timeout interval for the inactive dynamic UDP NAT entries (in seconds). Default is 300 secs. Range is from 120 sec to 600 secs.
+4.0 Provide configurable age timeout interval for the inactive dynamic UDP NAPT entries (in seconds). Default is 300 secs. Range is from 120 sec to 600 secs.
 
-4.1 Provide configurable age timeout interval for the inactive dynamic TCP NAT entries (in seconds). Default is 86400 secs. Range is 300 sec to 432000 secs (5 days).
+4.1 Provide configurable age timeout interval for the inactive dynamic TCP NAPT entries (in seconds). Default is 86400 secs. Range is 300 sec to 432000 secs (5 days).
+
+4.2 Provide configurable age timeout interval for the inactive dynamic NAT entries (in seconds). Default is 600 secs. Range is 300 sec to 432000 secs (5 days).
 
 5.0 Should be able to ping from internal host to an outside host via NAPT.
 
@@ -194,7 +196,8 @@ NAT pool is configured by the user to specify the public IP address (optionally 
 
 ACL is configured to classify a set of hosts to apply the NAT translation on. ACL is bound to a NAT pool to NAT translate the ACL allowed hosts to the public IP + L4 port defined by the pool. Packets not matching the ACL are L3 forwarded in the regular fashion.
 
-Dynamically created NAPT entries are timed out after a period of inactivity in the hardware. The inactivity timeout periods are independently configurable for TCP and UDP NAT entries.
+Dynamically created NAT/NAPT entries are timed out after a period of inactivity in the hardware. The inactivity timeout periods are independently configurable for TCP and UDP NAPT entries.
+The inactivity timeout period is configurable for the basic NAT entries.
 
 The dynamic port allocation from the pool is done in a random manner. When the pool is exhausted, new incoming connections are no longer NAT'ted. Only when the inactive entries are released are the new connections dynamically mapped to the freed up ports.
 
@@ -289,6 +292,7 @@ This config tells to do:
 #### 3.2.1.3 NAT_GLOBAL Table
 ```
 NAT_GLOBAL|Timeouts
+    "nat_timeout"    : {{timeout_in_secs}}
     "nat_tcp_timeout": {{timeout_in_secs}}
     "nat_udp_timeout": {{timeout_in_secs}}
 ```
@@ -371,6 +375,7 @@ twice_nat_id  = 1*4DIGIT   ; a number between 1 and 9999
 ; Defines schema for NAT_GLOBAL configuration attributes               ; Global attributes for NAT
 key                            = Timeouts
 ; field                        = value
+NAT_TIMEOUT                    = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
 NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
 NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
 ```
@@ -439,6 +444,7 @@ NAPT_TWICE_TABLE:{{ip_protocol}}:{{src_ip}}:{{src_l4_port}}:{{dst_ip}}:{{dst_l4_
     "entry_type"            : {{static_or_dynamic}}
      
 NAT_GLOBAL_TABLE:Timeouts
+    "nat_timeout"    : {{timeout_in_secs}}
     "nat_tcp_timeout": {{timeout_in_secs}}
     "nat_udp_timeout": {{timeout_in_secs}}
 ```
@@ -482,6 +488,7 @@ ENTRY_TYPE                            = "static" / "dynamic" 
 ; Defines schema for the NAT global table
 key                                   = NAT_GLOBAL:Timeouts        ; NAT global table
 ; field                               = value
+NAT_TIMEOUT                    = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
 NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
 NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
 ```
@@ -1000,7 +1007,7 @@ get_nat_entry_attributes(snat_entry, attr_count, nat_entry_attr);
 ## 3.7 Statistics
 The following NAT counters are provided per zone:
 
-DNAT_DISACARDS/SNAT_DISCARDS – If Packet is not TCP/UDP and/or is a fragmentated IP packet. 
+DNAT_DISCARDS/SNAT_DISCARDS – If Packet is not TCP/UDP and/or is a fragmentated IP packet. 
 DNAT_TRANSLATION_NEEDED/SNAT_TRANSLATION_NEEDED – If there is NAT table lookup miss for TCP/UDP packets..
 DNAT_TRANSLATIONS/SNAT_TRANSLATIONS – If NAT table lookup is hit.
 
@@ -1014,16 +1021,17 @@ N/A
 ### 3.8.2 Config CLI commands
 |                                      Command                                                    |                     Description                                    |
 |:------------------------------------------------------------------------------------------------|:-------------------------------------------------------------------|
-| config nat add static basic {local-ip} {global-ip} -nat_type {snat/dnat} -twice_nat_id {value}                                      | Use this command to add basic static NAT entry                     |
-| config nat remove static basic {local-ip} {global-ip}                                   | Use this command to remove basic static NAT entry                  |
-| config nat add static {tcp \| udp} {local-ip} {local-port}  {global-ip} {global-port} -nat_type {snat/dnat} -twice_nat_id {value}    | Use this command to add a static NAPT entry                        |
-| config nat remove static {tcp \| udp} {local-ip} {local-port}  {global-ip} {global-port} | Use this command to remove a static NAPT entry                     |
+| config nat add static basic {global-ip} {local-ip} -nat_type {snat/dnat} -twice_nat_id {value}                                      | Use this command to add basic static NAT entry                     |
+| config nat remove static basic {global-ip} {local-ip}                                   | Use this command to remove basic static NAT entry                  |
+| config nat add static {tcp \| udp} {global-ip} {global-port}  {local-ip} {local-port} -nat_type {snat/dnat} -twice_nat_id {value}    | Use this command to add a static NAPT entry                        |
+| config nat remove static {tcp \| udp} {global-ip} {global-port}  {local-ip} {local-port} | Use this command to remove a static NAPT entry                     |
 | config nat add pool {pool-name} {global-ip-range} {global-port-range}                          | Use this command to create a NAT pool                              |
 | config nat remove pool {pool-name}                                                             | Use this command to remove a NAT pool                              |
 | config nat add binding {binding-name} {pool-name} {acl-name} -nat_type {snat/dnat} -twice_nat_id {value}                                           | Create a binding between an ACL and a NAT pool                     |
 | config nat remove binding {binding-name}                                        | Remove a binding between an ACL and a NAT pool                     |
 | config nat add interface {interface-name} {-nat_zone {zone-value}}                      | Use this command to configure the NAT zone value on an interface   |
 | config nat remove interface {interface-name}                                            | Use this command to remove the NAT configuration on the interface  |
+| config nat timeout {secs}                                                                  | Use this command to configure the Basic NAT entry aging timeout in seconds.    |
 | config nat udp-timeout {secs}                                                                  | Use this command to configure the UDP NAT entry aging timeout in seconds.    |
 | config nat tcp-timeout {secs}                                                                  | Use this command to configure the TCP NAT entry aging timeout in seconds.    |
 
@@ -1046,6 +1054,19 @@ Dynamic  udp      20.0.0.1:4000    ---               65.55.42.1:1030    ---
 Dynamic  tcp      20.0.0.1:6000    ---               65.55.42.1:1024    ---
 Dynamic  tcp      20.0.0.1:5000    65.55.42.1:2000   65.55.42.1:1025    20.0.0.1:4500
 Dynamic  tcp      20.0.0.1:5500    65.55.42.1:2000   65.55.42.1:1026    20.0.0.1:4500
+
+
+Router#show nat statistics
+
+Protocol Source IP        Destination IP  DNAT_DISCARDS    SNAT_DISCARDS    DNAT_MISSES    SNAT_MISSES   DNAT_TRANSLATIONS   SNAT_TRANSLATIONS
+-------- ---------        --------------  -------------    -------------    ------------   -----------   -----------------   -----------------
+all      10.0.0.1         ---                         0                0               0             0                   0                   0
+all      10.0.0.2         ---                         0                0               0             0                   0                   0         
+tcp      20.0.0.1:4500    ---                        10               20               2             2                1010                 980    
+udp      20.0.0.1:4000    ---                         0                0               3             2                 330                 223    
+tcp      20.0.0.1:6000    ---                         0                0               2             1                 108                  66    
+tcp      20.0.0.1:5000    65.55.42.1:2000            10               11               1             1                 987                1033
+tcp      20.0.0.1:5500    65.55.42.1:2000            10               20               2             2                1010                 980
 ```
 ### 3.8.4 Clear commands
 
@@ -1074,7 +1095,7 @@ N/A
 ```
 {
     "STATIC_NAPT": {
-        "65.55.42.2:1024": {
+        "65.55.42.2:TCP:1024": {
             "local_ip": "20.0.0.1"
             "local_port": 6000
             "nat_type": "dnat"
@@ -1125,6 +1146,7 @@ N/A
 
     "NAT_GLOBAL": {
         "Timeouts": { 
+            "nat_timeout"    : 600
             "nat_tcp_timeout": 1200
             "nat_udp_timeout": 300
         }
@@ -1137,7 +1159,7 @@ N/A
 For single NAT entries
 ```
 { 
-    "NAT_TABLE:TCP:65.55.42.3": { 
+    "NAT_TABLE:65.55.42.3": { 
         "translated_ip": "20.0.0.3"
         "nat_type"     : "dnat"
         "entry_type"   : "static"
