@@ -11,6 +11,7 @@ Table of Contents
   - [SONiC system diagram for VRF](#sonic-system-diagram-for-vrf)
   - [The schema changes](#the-schema-changes)
     - [Add VRF related configuration in config_db.json](#add-vrf-related-configuration-in-configdbjson)
+    - [Change redirect syntax in acl_rule_table of configdb](#change-redirect-syntax-in-aclruletable-of-configdb)
     - [Add a VRF_TABLE in APP_DB](#add-a-vrftable-in-appdb)
     - [Add 2-segment key entry support in APP-intf-table](#add-2-segment-key-entry-support-in-app-intf-table)
     - [Add VRF key to app-route-table key list](#add-vrf-key-to-app-route-table-key-list)
@@ -18,21 +19,27 @@ Table of Contents
   - [Agent changes](#agent-changes)
     - [vrfmgrd changes](#vrfmgrd-changes)
     - [intfsmgrd changes](#intfsmgrd-changes)
+    - [nbrmgrd changes](#nbrmgrd-changes)
     - [fpmsyncd changes](#fpmsyncd-changes)
     - [vrforch changes](#vrforch-changes)
     - [intfsorch changes](#intfsorch-changes)
     - [routeorch changes](#routeorch-changes)
     - [neighorch changes](#neighorch-changes)
+    - [aclorch changes](#aclorch-changes)
+    - [warm-reboot consideration](#warm-reboot-consideration)
     - [TODO](#todo)
   - [CLI](#cli)
   - [user scenarios](#user-scenarios)
     - [Configure ip address without vrf feature](#configure-ip-address-without-vrf-feature)
     - [Add VRF and bind/unbind interfaces to this VRF](#add-vrf-and-bindunbind-interfaces-to-this-vrf)
     - [Delete vrf](#delete-vrf)
-    - [Another CLI implementation proposal](#another-cli-implementation-proposal)
   - [Impact to other service after import VRF feature](#impact-to-other-service-after-import-vrf-feature)
   - [Progress](#progress)
   - [Test plan](#test-plan)
+  - [Appendix - An alternative proposal](#appendix---an-alternative-proposal)
+    - [vrf as key](#vrf-as-key)
+    - [intfsmgrd changes](#intfsmgrd-changes-1)
+    - [intfsorch changes](#intfsorch-changes-1)
 
 <!-- /TOC -->
 
@@ -40,12 +47,13 @@ Table of Contents
 
 | Version | Date       | Author       | Description                                      |
 |---------|------------|--------------|--------------------------------------------------|
-| v.01    | 06/07/2018 | Shine/Andrew | Initial version from nephos                      |
-| v.02    | 06/08/2018 | Shine        | Revised per Guohan/prince(MSFT) opinion          |
-| v.03    | 09/18/2018 | Guohan       | Format document                                  |
-| v.04    | 01/17/2019 | shine/jeffrey| Update after Sonic community review              |
-| v.05    | 04/17/2019 | Xin/Prince   | Update the status                                |
-| v.06    | 05/09/2019 | Shine/Jeffrey/Tyler  | Add Some description and format adjustment |
+| v.01    | 06/07/2018 | Shine Chen, Andrew Xu  | Initial version from Nephos                      |
+| v.02    | 06/08/2018 | Shine Chen       | Revised per Guohan/Prince(MSFT)           |
+| v.03    | 09/18/2018 | Guohan Lu (MSFT)      | Format document                                  |
+| v.04    | 01/17/2019 | Shine Chen, Jeffrey Zeng| Update after Sonic community review              |
+| v.05    | 04/17/2019 | Xin Liu, Prince Sunny (MSFT)  | Update the status                                |
+| v.06    | 05/09/2019 | Shine Chen, Jeffrey Zeng, Tyler Li | Add Some description and format adjustment |
+| v1.0    | 05/26/2019 | Shine Chen, Jeffrey Zeng, Tyler Li, Ryan Guo | After review, move proposal-2 in v0.6 to Appendix
 
 ## Abbreviations
 
@@ -70,6 +78,8 @@ Table of Contents
 The fallback feature which defined by RFC4364 is very useful for specified VRF user to access internet through global/main route. Some enterprise users still use this to access internet on vpn environment.
 
 6. VRF route leaking between VRFs.
+
+7. VRF Scalability: Currently VRF number can be supported up to 1000 after fixing a bug in FRR.
 
 In this release, supporting requirement 5) and 6) are not supported. See next section for details.
 
@@ -186,7 +196,6 @@ Add vrf-table in config_db.json file.
 ```
 
 Add vrf-binding information in config_db.json file.
-There are two proposals for vrf-binding schema. Nephos’ VRF implementation is based on proposal 2. 
 
 ```jason
 
@@ -197,7 +206,7 @@ There are two proposals for vrf-binding schema. Nephos’ VRF implementation is ba
     "Ethernet1":{
         "vrf_name":"Vrf-red"
     },
-    "Ethernet2":{}, // it means this interface belongs to global vrf
+    "Ethernet2":{}, // it means this interface belongs to global vrf. It is necessary even user doesnt use vrf.
     "Ethernet0|11.11.11.1/24": {},
     "Ethernet0|12.12.12.1/24": {},
     "Ethernet1|12.12.12.1/24": {},
@@ -227,35 +236,41 @@ There are two proposals for vrf-binding schema. Nephos’ VRF implementation is ba
 
 ```
 
-
-With this approach, there is no redundant vrf info configured with an interface where multiple IP addresses are configured. 
+With this approach, there is no redundant vrf info configured with an interface where multiple IP addresses are configured.
 
 Logically IP address configuration must be processed after interface binding to vrf is processed. In intfmgrd/intfOrch process intf-bind-vrf event must be handled before IP address event. So interface-name entry in config_db.json is necessary even user doesn't use VRF feature. e.g. `"Ethernet2":{}` in the above example configuration. For version upgrade compatibility we need to add a script, this script will convert old config_db.json to new config_db.json at bootup, then the new config_db.json would contain the interface-name entry for interfaces associated in the global VRF table.
 
-The second proposal to solve the above dependency is to provide this syntax in the config_db.json:
+### Change redirect syntax in acl_rule_table of configdb
+
+The existing acl_rule_table definition is the following.
 
 ```jason
-"INTERFACE":{
-    "Ethernet2|Vrf-blue|12.12.12.1/24": {}
-    "Ethernet2|Vrf-blue|13.13.13.1/24": {}
-    "Ethernet3|14.14.14.1/24": {}  // global vrf
-},
 
-....
+    "table1|rule1": {
+        "L4_SRC_PORT": "99",
+        "PACKET_ACTION": "REDIRECT:20.1.1.93,30.1.1.93"
+    },
+    "table1|rule2": {
+        "L4_SRC_PORT": "100",
+        "PACKET_ACTION": "REDIRECT:20.1.1.93"
+    },
 
 ```
 
-Here "Vrf-blue" is part of the IP address configuration of the interface. 
+To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. So new acl_rule_table should like the following.
 
-Since it is very complicated to carry IP addresses when an interface moves from one VRF to another VRF, the current implementation is when interface moves from one VRF to another VRF, the IP address will be deleted. Because of this, we can treat VRF as part of the key of interface entry, but not an attribute. This solution has following advantage:
+```jason
 
+    "table1|rule1": {
+        "L4_SRC_PORT": "99",
+        "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet10,30.1.1.93|Ethernet11"
+    },
+    "table1|rule2": {
+        "L4_SRC_PORT": "100",
+        "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet11"
+    },
 
-- It can eliminate intf-bind-vrf event and ip-address event sequence dependency, intfMgrd/intfsorch implemetation is much easier. Simple is better.
-- It is fully compatible with both old config file and existing ansible testcases.
-
-Nephos's current implementation is based on this proposal.
-
-
+```
 
 ### Add a VRF_TABLE in APP_DB
 
@@ -287,9 +302,8 @@ mtu = 1\*4DIGIT ; MTU for the interface
 VRF_NAME = 1\*64VCHAR ;
 ```
 
-app-intf-prefix-table has two proposals corresponding to config_db definition too. It is defined as the following:
+app-intf-prefix-table is defined as the following corresponding to config_db definition.
 
-Proposal 1 is the following:
 
 ```json
 ;defines logical network interfaces with IP-prefix, an attachment to a PORT and
@@ -302,22 +316,6 @@ scope = "global" / "local" ; local is an interface visible on this localhost onl
 mtu = 1\*4DIGIT ; MTU for the interface  (move to INTF_TABLE:ifname table)
 family = "IPv4" / "IPv6" ; address family
 ```
-
-Proposal 2 is the following:
-
-```json
-;defines logical network interfaces with IP-prefix, an attachment to a PORT and
-list of 0 or more ip prefixes;
-
-;Status: stable
-key = INTF_TABLE:ifname:Vrf_name:IPprefix ; an instance of this key will be repeated for each prefix
-IPprefix = IPv4prefix / IPv6prefix ; an instance of this key/value pair will be repeated for each prefix
-scope = "global" / "local" ; local is an interface visible on this localhost only
-mtu = 1\*4DIGIT ; MTU for the interface  (move to INTF_TABLE:ifname table)
-family = "IPv4" / "IPv6" ; address family
-```
-
-Since global vrf name is null character string, the key of the interface belonging to global vrf will collapse to INTF_TABLE:ifname:IPprefix.
 
 ### Add VRF key to app-route-table key list
 
@@ -442,9 +440,6 @@ sequenceDiagram
 
 ```
 
-
-The above flow diagramss are based on proposal 1. As you can see, there are many places where the code have to wait. With proposal 2, most of the wait states can be removed.
-
 ## Agent changes
 
 ### vrfmgrd changes
@@ -456,40 +451,29 @@ update kernel using iproute2 CLIs and write VRF information to app-VRF-table.
 
 ### intfsmgrd changes
 
-According to proposal 1 ip address event and vrf binding event need to be handled seperately.And two event has sequency dependency.
+Ip address event and vrf binding event need to be handled seperately. These two events has sequency dependency.
 
 - Listening to interface binding to specific VRF configuration in config_db.
   - bind to vrf event:
     - bind kernel device to master vrf
     - add interface entry with vrf attribute to app-intf-table.
-    - set vrf-binding flag on statedb
+    - set intf-bind-vrf flag on statedb
   - unbind from vrf event:
     - wait until all ip addresses associated with the interface is removed. Ip address infomation can be retrieved from kernel.
     - bind kernel device to global vrf
     - del interface entry with vrf attribute from app-intf-table
     - unset vrf-binding flag on statedb
 - Listening to interface ip address configuration in config_db.
-  - add ip address event: wait until vrf-binding flag is set, set ip address on kernel device and add {interface_name:ip address} entry to app-intf-prefix-table
+  - add ip address event: wait until intf-bind-vrf flag is set, set ip address on kernel device and add {interface_name:ip address} entry to app-intf-prefix-table
   - del ip address event:
     - unset ip address on kernel device
     - del {interface_name:ip address} entry from app-intf-prefix-table.
 
-Note: Since vrf-binding event is triggered by cfg-intf-table, cfg-intf-table is necessary even user doesn't use VRF feature. It breaks compatible with old config_db.json.
-
-With the second proposal ip address event is arrived with vrf information. It eliminates sequency dependency between ip address event and vrf binding event.
-
-- Listening to interface binding event in config_db. It is almost same as proposal 1 except no need to set vrf-binding flag
-- listening to interface ip address configuration in config_db.
-  - add ip address event:
-    - if vrf_name is not global vrf, bind kernel device to master vrf
-    - set ip address on kernel device
-    - add {interface_name:vrf:ip address} entry to app-intf-vrf-prefix-table.
-  - del ip address:
-    - unset ip address on kernel device
-    - del {interface_name:vrf:ip address} entry from app-intf-vrf-prefix-table.
-
-
 An ideal approach is to handle the two events similar to what Linux kernel is doing. e.g. if the IP address is configured in an interface first, it will be accepted. Later on when the interface is enslaved to a VRF, the IP address from the master FIB will be removed, and reprogrammed to the VRF table. But this approach is very complicated to support. e.g. it may have IP address conflict in the destination VRF, and the current SONiC infrastructure cannot detect and protect it. So this approach is not supported in this VRF release.
+
+### nbrmgrd changes
+
+- Listening to neighhor configuration on configdb, add neighbor entry to kernel only after the corresponding intf-bind-vrf event is processed. In the current implementation neighbor may be added to kernel before intf-bind-vrf event. After intf-bind-vrf event kernel will flush all neighbors associated with this interface, the neighbor configuration get lost.
 
 ### fpmsyncd changes
 
@@ -507,8 +491,6 @@ sai_remove_virtual_router_fn defined in saivirtualrouter.h to track (VR, VRF) cr
 
 ### intfsorch changes
 
-According to proposal 1 the following is changed:
-
 - add vrforch as a member of intfsorch
 - intfsorch monitors app-intf-table and app-intf-prefix-table.
   - When app-intf-table change
@@ -517,17 +499,9 @@ According to proposal 1 the following is changed:
   - When app-intf-prefix-table change
     - add ip address event: wait until route interface is created ,then set ip address on existing router interface.
     - del ip address event: unset ip address on existing router interface.
+- Move add/del subnet-route code to routeorch. In existing implementation when route interface is down, subnet routes associated with the interface still exist. It could result in a stale state and correct route configured from fpmsyncd will be rejected by routeorch. It makes sense that fpmsyncd/routeorch handles all route configurations except ip2me route. Nephos has submit this PR to swss community(<https://github.com/Azure/sonic-swss/pull/878>). To support vrf these code will be refined to support vrf feature.
 
-According to proposal 2 the following is changed:
-
-- add vrforch as a member of intfsorch
-- intfsorch monitors app-intf-table and app-intf-vrf-prefix-table.
-  - When app-intf-table change
-    - bind to vrf event: if router interface is not existed, create router interface with vrf attribute and increase refcnt of vrforch.
-    - unbind from vrf event: wait until all ip addresses on interface is removed, then remove router interface with vrf attribute and decrease refcnt of vrforch
-  - When app-intf-vrf-prefix-table change.
-    - add ip address event: If router interface is not existed , create router interface with vrf attribute and increase refcnt of vrforch. Then set ip address on existing router interface.
-    - del ip address event: unset ip address on existing router interface. If all ip addresses is removed from interface and vrf_name is global vrf, remove router interface.
+  This change is necessary for vrf route-leak scenarios too. For example, interface Ethernet1 currently belongs to Vrf_blue , its ip address is 10.1.1.1/24. Another vrf domain Vrf_red imports all Vrf_blue route. Then there is a route like "Vrf_red:10.1.1.0/24 Ethernet1" in BGP route. When fpmsyncd pushes this route to routeorch, routeorch will drop it silently.
 
 ### routeorch changes
 
@@ -537,12 +511,23 @@ According to proposal 2 the following is changed:
 - The key of Nexthop group is the set of nexthop key.
 - The value of routetable is changed to the set of ``(ipaddress, intf_name)`` pair from ``ipaddresses``
 - Expand single routetable to mutiple routetables with vrf ID as the key
-- update refcnt of vrforch
+- Update refcnt of vrforch
+- handle the adding/deling of subnet-route
 
 ### neighorch changes
 
 - the Key of Nexthop now is changed from only ipaddress to a pair of
     ``(ipaddress, intf_name)``.
+
+### aclorch changes
+
+- the Key of redirect-nexthop is changed from only ip address to a pair of
+    ``(ipaddress, intf_name)``.
+
+### warm-reboot consideration
+
+- During warm-reboot, the syncd-docker uses heuristic algorithm to find vrf object in apply-view process. In some circumstance wrong vrf object may be chosen due to the algorithm imperfection. Then all routes and route interfaces belong to the vrf will been deleted and added in SAI. This will lead to traffic disrruption for quite a while. The improvement for heuristic algorithm is beyond this document scope.
+- vrfmgrd process will be placed in swss docker. In case of swss docker warm reboot, since VRF device is still retained in kernel, when vrfmgrd starts up it will recover the VRF system state from kernel.
 
 ### TODO
 
@@ -554,16 +539,10 @@ VRF configuration can be done via SONiC Click CLIs framework In this release, ne
 
 ```bash
 //create a VRF:
-$ config vrf add [OPTIONS] <vrf_name>
+$ config vrf add <vrf_name>
 
 //remove a VRF
 $ config vrf del <vrf_name>
-
-//create a router interface, optional
-$ config interface <interface_name> router-interface add
-
-//remove a router interface, optional
-$ config interface <interface_name> router-interface del
 
 //bind an interface to a VRF
 $ config interface <interface_name> vrf bind <vrf_name>
@@ -575,13 +554,13 @@ $ config interface <interface_name> vrf unbind
 $ show vrf [<vrf_name>]
 
 // show the list of router interfaces
-$ show router-interface
+$ show router-interface [vrf <vrf_name>]
 
 //add IP address to an interface.  The command already exists in SONiC, but will be enhanced
 $ config interface <interface_name> ip add <ip_addr/mask>
 
 //remove an IP address from an interface. The command already exists in SONiC, but will be enhanced.
-$ config interface <interface_name> ip remove <ip_addr/mask>
+$ config interface <interface_name> ip del <ip_addr/mask>
 
 //add a prefix to a VRF
 $ config route add [vrf <vrf_name>] prefix <route_prefix/mask> nexthop <[vrf <vrf_name>] <ip> | dev <dev_name>>
@@ -594,7 +573,7 @@ $ show ip route [vrf < all | vrf_name>]
 
 ```
 
-## user scenarios
+## User scenarios
 
 Here are some of the use cases and configuration steps.
 
@@ -613,8 +592,8 @@ $ config interface Ethernet0 ip add 1.1.1.1/24
 This command is enhanced to do the following:
 
 - Read info from config_db
-- Check if interface Ethernet0 exists in the db.
-  - If not, create Ethernet0 router interface, and attach to global VRF. Then, add the corresponding IP address to config_db.
+- Check if ```INTERFACE|Ethernet0``` entry exists in the db.
+  - If not, create ```INTERFACE|Ethernet0``` entry with global vrf attribute on configdb. Then, add the corresponding IP address to config_db.
   - If yes, add the corresponding IP address to config_db.
 
 To remove IP address from an interface:
@@ -631,7 +610,7 @@ This command is enhanced to do the following:
 - Remove IP address from config_db.
 - Check other IP address(es) on Ethernet0.
   - If other IP addresses exist in db, no further action is taken.
-  - If no other IP address exists, remove Ethernet0 router interface.
+  - If no other IP address exists and interface is belonging to global vrf, remove ```INTERFACE|Ethernet0``` entry on configdb.
 
 ### Add VRF and bind/unbind interfaces to this VRF
 
@@ -644,10 +623,10 @@ $ config interface Ethernet0 vrf bind Vrf-blue
 
 ```
 
-Bind command will do the following:
+The Bind command will do the following:
 
 - Read info from config_db
-- Check if IP address exists for Ethernet0. If yes, delete the IP from interface
+- Check if IP addresses exists for Ethernet0. If yes, delete all IP addresses from the interface
 - Bind the interface to Vrf-blue (it will eventually create Ethernet0 router interface)
 
 ```bash
@@ -658,10 +637,7 @@ $ config interface Ethernet0 ip add 1.1.1.1/24
 
 This command will do the following:
 
-- Read config_db
-- check if interface Ethernet0 exists in db.
-  - If no, create Ethernet0 router interface, attach to the VRF. Then, add IP address to config_db.
-  - If yes, just add IP address to config_db
+- add IP address to config_db
 
 To unbind an interface from VRF:
 
@@ -674,7 +650,7 @@ $ config interface Ethernet0 vrf unbind
 This command will do the following:
 
 - Read config_db
-- check if IP address exists. If yes, delete all IP addresses from interface
+- check if IP addresses exists. If yes, delete all IP addresses from the interface
 - Delete all attributes, delete router interface(Ethernet0)
 
 ### Delete vrf
@@ -711,33 +687,6 @@ This command will do the following:
 - unbind interfaces(s) from Vrf-blue
 - del Vrf-blue
 
-### Another CLI implementation proposal
-
-For the VRF configuration steps, another proposal is discussed as well. That is for each operational step, user must execute a CLI to trigger the operation, there is no implicit extra operation taken inside each CLI command.
-
-For example, to configure an IP address in an interface, it takes those steps:
-
-```bash
-
-//create a router interface. This will create a router interface object,
-//indicating a global VRF used for this interface
-$ config interface Ethernet36 router-interface add
-// add IP address to the interface
-$ config interface Ethernet36 ip add 1.1.1.1/24
-Now this command will only add IP address to the config_db, it will not
-implicitly create a router interface object.
-
-```
-
-With this proposal, here is the map between the CLI command and the corresponding function:
-
-CLIs | corresponding table entry on config-db
----------|----------
- config vrf | "VRF\|Vrf-blue"
- config interface router-interface | "INTERFACE\|Ethernet0"
- config interface vrf | "INTERFACE\|Ethernet0" attribute "vrf_name"
- config interface ip | "INTERFACE\|Ethernet0\|1.1.1.1/24" or "INTERFACE\|Ethernet0\|Vrf_name\|1.1.1.1/24"
-
 ## Impact to other service after import VRF feature
 
 For apps that don't care VRF they don't need to modify after sonic import VRF.
@@ -772,8 +721,86 @@ So they are vrf-transparent too.
 
 ## Progress
 
-In the diagram, fpmsyncd, vrfmgrd, intfsmgrd, intfsorch are checked into the master branch. All the other components are open.
+In the diagram, fpmsyncd, vrfmgrd, intfsmgrd, intfsorch are checked into the master branch. There may need changes to support VRF. Other components are working in progress, will be committed as planned.
 
 ## Test plan
 
 A separate test plan document will be uploaded and reviewed by the community
+
+## Appendix - An alternative proposal
+
+The VRF binding and IP address configuration dependency can be solved in a different way. There are other areas to be considered as well to make the VRF feature support solid. A different proposal is also considered, discussed but rejected by the community. It's listed here for future reference.
+
+Major areas to be addressed in the above chosen proposal are: 
+
+1)	VRF bind and IP config message sequence dependency
+2)	Need INTERFACE|Ethernet0:{}, even if user does not use VRF config. Not compatible with JSON file.
+3)	Not compatible with the existing JSON file, need a script to convert
+4)	Warm reboot implementation become complicated
+5)	Unit test cases (swss and Ansible) are not compatible, need test case modification
+6)	Add more wait states in each daemon, may have performance impact
+
+### vrf as key
+
+Using this syntax in the config_db.json can also solve the sequence dependency:
+
+```jason
+"INTERFACE":{
+    "Ethernet2|Vrf-blue|12.12.12.1/24": {}
+    "Ethernet2|Vrf-blue|13.13.13.1/24": {}
+    "Ethernet3|14.14.14.1/24": {}  // global vrf
+},
+
+....
+
+```
+
+Here "Vrf-blue" is part of the IP address configuration of the interface. 
+
+Since it is very complicated to carry IP addresses when an interface moves from one VRF to another VRF, the current implementation is when interface moves from one VRF to another VRF, the IP address will be deleted. Because of this, we can treat VRF as part of the key of interface entry, but not an attribute. This solution has following advantage:
+
+- It can eliminate intf-bind-vrf event and ip-address event sequence dependency, intfMgrd/intfsorch implemetation is much easier. Simple is better.
+- It is fully compatible with both old config file and existing ansible testcases.
+
+app-intf-prefix-table can be defined as following. Vrf_name is part of the key.
+
+```json
+;defines logical network interfaces with IP-prefix, an attachment to a PORT and
+list of 0 or more ip prefixes;
+
+;Status: stable
+key = INTF_TABLE:ifname:Vrf_name:IPprefix ; an instance of this key will be repeated for each prefix
+IPprefix = IPv4prefix / IPv6prefix ; an instance of this key/value pair will be repeated for each prefix
+scope = "global" / "local" ; local is an interface visible on this localhost only
+mtu = 1\*4DIGIT ; MTU for the interface  (move to INTF_TABLE:ifname table)
+family = "IPv4" / "IPv6" ; address family
+```
+
+Since global vrf name is null character string, the key of the interface belonging to global vrf will collapse to INTF_TABLE:ifname:IPprefix.
+
+### intfsmgrd changes
+
+With this proposal IP address event is arrived with vrf information. It eliminates sequency dependency between ip address event and vrf binding event.
+
+- Listening to interface binding event in config_db. It is almost same as proposal 1 except no need to set vrf-binding flag
+- listening to interface ip address configuration in config_db.
+  - add ip address event:
+    - if vrf_name is not global vrf, bind kernel device to master vrf
+    - set ip address on kernel device
+    - add {interface_name:vrf:ip address} entry to app-intf-vrf-prefix-table.
+  - del ip address:
+    - unset ip address on kernel device
+    - del {interface_name:vrf:ip address} entry from app-intf-vrf-prefix-table.
+
+### intfsorch changes
+
+With this proposal, the following will be changed:
+
+- add vrforch as a member of intfsorch
+- intfsorch monitors app-intf-table and app-intf-vrf-prefix-table.
+  - When app-intf-table change
+    - bind to vrf event: if router interface is not existed, create router interface with vrf attribute and increase refcnt of vrforch.
+    - unbind from vrf event: wait until all ip addresses on interface is removed, then remove router interface with vrf attribute and decrease refcnt of vrforch
+  - When app-intf-vrf-prefix-table change.
+    - add ip address event: If router interface is not existed , create router interface with vrf attribute and increase refcnt of vrforch. Then set ip address on existing router interface.
+    - del ip address event: unset ip address on existing router interface. If all ip addresses is removed from interface and vrf_name is global vrf, remove router interface.
