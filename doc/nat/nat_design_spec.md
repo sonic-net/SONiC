@@ -681,6 +681,7 @@ In order to query the translation activity status for each NAT entry from the ha
 NatOrch queries the translation activity status of each of the dynamic entries every sampling period. Static entries are not monitored for inactivity. If the dynamic entry is not active for 2 consecutive sampling periods, the entry is removed from the connection tracking table in the Kernel. Entries are removed from the kernel to keep the connections in the kernel in sync with the entries in the hardware. That will trigger the removal of the entries from APP_DB and ASIC_DB. 
 
 ### 3.3.3.3 Handling the failed NAT entries
+Once the error handling framework is in place, the following changes handle the failed NAT entries from SAI:
 NatOrch listens on the notifications of the failed NAT entries from the Syncd.
 For the failed NAT entries, NatOrch removes the corresponding entries from the internal cache and from the conntrack table. That will remove the entry from the APP_DB.
  
@@ -698,11 +699,11 @@ Connections when added, deleted or updated in the connection tracking system are
 In SONiC, the core NAT logic which involves the (IP + port) translation dynamically is the iptables module in the kernel.
 The iptables uses the Netfilter hooks in the kernel to execute its NAT'ting rules at different points in the packet forwarding path.
 
-The important hooks that Iptables registers with Netfilter are the ones for PREROUTING and POSTROUTING. The DNAT rules if available are applied in the PREROUTING chain and SNAT rules if available are applied in the POSTROUTING chain.
+The important hooks that iptables registers with Netfilter are the ones for PREROUTING and POSTROUTING. The DNAT rules if available are applied in the PREROUTING chain and SNAT rules if available are applied in the POSTROUTING chain.
 
 The packets that are going from one zone to another zone in the hardware are trapped to CPU as NAT miss packets if there are no matching NAT entries in the hardware. Such packets are received by the KNET kernel module and passed on to the netdev interface (corresponding to the interface the packet came on) in the Network stack.
 
-Before the L3 forwarding is done in the Kernel, the iptables rules in PREROUTING chain are applied. If there are any DNAT rules that the packets match against, translate the DIP and L4 port to the internal IP and L4 port as applicable. In this process, the DNAT state and DIP of the connection entry in the connection tracking table are updated.
+Before the L3 forwarding is done in the Kernel, the iptables rules in PREROUTING chain are applied. If there are any DNAT rules that the packets match against, they translate the DIP and L4 port to the IP and L4 port as applicable. In this process, the DNAT state and DIP of the connection entry in the connection tracking table are updated.
 
 After the L3 forwarding is done and before the packet is about to be sent out on the NAT outside interface, the rules in the POSTROUTING chain are applied which do the SNAT (translate the SIP + L4 port to the public IP + L4 port). In this process, the SNAT state and SIP of the connection entry in the connection tracking table are updated.
 
@@ -1010,13 +1011,13 @@ get_nat_entry_attributes(snat_entry, attr_count, nat_entry_attr);
 The following NAT counters are provided per zone:
 
 DNAT_DISCARDS/SNAT_DISCARDS – If Packet is not TCP/UDP and/or is a fragmentated IP packet. 
-DNAT_TRANSLATION_NEEDED/SNAT_TRANSLATION_NEEDED – If there is NAT table lookup miss for TCP/UDP packets..
+DNAT_TRANSLATION_NEEDED/SNAT_TRANSLATION_NEEDED – If there is NAT table lookup miss for TCP/UDP packets.
 DNAT_TRANSLATIONS/SNAT_TRANSLATIONS – If NAT table lookup is hit.
 
 The following counters are provided per NAT entry:
 
-Translated packets - Number of packets translated using the NAT entry 
-Translated bytes   - Number of bytes translated using the NAT entry
+Translated packets - Number of packets translated using the NAT entry. 
+Translated bytes   - Number of bytes translated using the NAT entry.
 
 ## 3.8 CLI
 
@@ -1232,9 +1233,10 @@ Logging enables dumping the traces for different events like:
 # 6 Warm Boot Support
 The traffic corresponding to the NAT translation sessions should not be disturbed during the warm reboot process. 
 When a planned warm restart is initiated:
+- The NAT entries in the conntrack table in the kernel are saved into a nat.json file.
 - All the dynamic NAT entries in the APP_DB are saved and restored in the APP_DB as part of warm reboot's Redis DB restore process.
-- A python script 'restore_nat_entries.py' is started by the supervisord in the 'nat' docker startup after warm reboot. This script restores all the valid NAT entries (interface valid and other checks) from APP_DB into the Linux Kernel's conntrack table and sets the 'restored' flag in the NAT_RESTORE_TABLE of STATE_DB.
-- Once the NAT_RESTORE_TABLE 'restored' flag is set, the Natsyncd repopulates the APP_DB from the netlink dump of the conntrack table into the internal cache map.
+- A python script 'restore_nat_entries.py' is started by the supervisord in the 'nat' docker startup after warm reboot. This script restores all the NAT entries from the nat.json file into the Linux Kernel's conntrack table and sets the 'restored' flag in the NAT_RESTORE_TABLE of STATE_DB.
+- Once the NAT_RESTORE_TABLE 'restored' flag is set, the Natsyncd repopulates from the netlink dump of the conntrack table into the internal cache map that has the entries read from APP_DB .
 - Natsyncd starts the reconciliation (deleting stale NAT entries and adding new NAT entries) into the APP_DB.
 
 Only if the L3 Route/Neighbor/Nexthop entries are restored properly during the warm restart, does the NAT warm restart work properly without traffic loss.
