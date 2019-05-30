@@ -195,6 +195,8 @@ ansible-playbook test_sonic.yml -i str --limit <DUT> --vault-password-file passw
    - You can also find the PTF server IP one section below
    ```
    TASK [test : command]
+   Thursday 30 May 2019  12:45:19 +0000 (0:00:00.172)       0:00:21.280 ********** 
+   changed: [<DUT> -> <PTF_IP>]   
    ```
 
 
