@@ -749,7 +749,7 @@ The NAT translation for the ICMP error messages is based on RFC 5508, Section 4.
 The ICMP NAT session timeout is 30 seconds as maintained by the Kernel.
 
 ## 3.5 Docker for NAT
-NatSyncd and NatMgrd daemons run in a separate docker named 'nat'. It can be stopped/started/restarted independently. When the NAT docker is stopped, all the iptables rules and the NAT/NAPT entries are removed from the APP_DB and ultimately from the hardware.
+NatSyncd and NatMgrd daemons run in a separate docker named 'nat'. It can be stopped/started/restarted independently.
 
 ```
 root@sonic:/home/admin# docker ps
@@ -1233,9 +1233,9 @@ Logging enables dumping the traces for different events like:
 # 6 Warm Boot Support
 The traffic corresponding to the NAT translation sessions should not be disturbed during the warm reboot process. 
 When a planned warm restart is initiated:
-- The NAT entries in the conntrack table in the kernel are saved into a nat.json file.
+- The NAT entries in the conntrack table in the kernel are saved into a nat_entries.dump file.
 - All the dynamic NAT entries in the APP_DB are saved and restored in the APP_DB as part of warm reboot's Redis DB restore process.
-- A python script 'restore_nat_entries.py' is started by the supervisord in the 'nat' docker startup after warm reboot. This script restores all the NAT entries from the nat.json file into the Linux Kernel's conntrack table and sets the 'restored' flag in the NAT_RESTORE_TABLE of STATE_DB.
+- A python script 'restore_nat_entries.py' is started by the supervisord in the 'nat' docker startup after warm reboot. This script restores all the NAT entries from the nat_entries.dump file into the Linux Kernel's conntrack table and sets the 'restored' flag in the NAT_RESTORE_TABLE of STATE_DB.
 - Once the NAT_RESTORE_TABLE 'restored' flag is set, the Natsyncd repopulates from the netlink dump of the conntrack table into the internal cache map that has the entries read from APP_DB .
 - Natsyncd starts the reconciliation (deleting stale NAT entries and adding new NAT entries) into the APP_DB.
 
@@ -1287,27 +1287,26 @@ The Unit test case one-liners are as below:
 | 30 | Verify that the statistics are displaying the NAT translations and                                                                                                                                                                    |
 | 31 | Verify that the statistics are displaying the NAT translations and                                                                                                                                                                    |
 | 32 | Verify that the statistics are cleared on issuing the 'sonic-clear nat statistics' command.                                                                                                                                           |
-| 33 | Stop NAT docker and verify that the NAT entries are removed from the kernel APP_DB ASIC_DB.                                                                                                                                           |
-| 34 | Start NAT docker and verify that the static NAT entries from CONFIG_DB are added in the kernel APP_DB ASIC_DB.                                                                                                                        |
-| 35 | After the docker is restarted the dynamic entries (that used to exist before docker stop) are relearned when the traffic is reported as NAT misses again.                                                                             |
-| 36 | Verify that the traffic flows that are NAT translated are not affected during warm restart. Zero packet loss and succesful reconcilation.                                                                                             |
-| 37 | Verify that the dynamic NAT translations are restored to APP_DB and the kernel after warm reboot.                                                                                                                                     |
-| 38 | Send upto 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
-| 39 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are failing as reported by SYNCD (with max resource usage reason). TD3 will scale to 16K.                                       |
-| 40 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries. TD3 will scale to 8K.                                                                                                 |
-| 41 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
-| 42 | Any dynamic memory allocation failures are handled gracefully (Return value of malloc() are checked and no crash happens). But if such an error happens the system is already in a problematic state                                  |
-| 43 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
-| 44 | Error log when errors are seen in receiving netlink messages from conntrack by NatSyncd (for the dynamic NAPT entry notifications from the kernel).                                                                                   |
-| 45 | Error messages are logged if NatMrgd gets errors writing to APP_DB                                                                                                                                                                    |
-| 46 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB                                                                                                                                                              |
-| 47 | Error messages are logged if Syncd gets errors when writing to COUNTERS_DB                                                                                                                                                            |
-| 48 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3?). The queue assignment should be lower than protocol queues and higher than broadcast packets             |
-| 49 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps?)                                                                                                                                      |
-| 50 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
-| 51 | Verify the tracing of natmgrd at different log levels                                                                                                                                                                                 |
-| 52 | Verify the tracing of natorch at different log levels                                                                                                                                                                                 |
-| 53 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
+| 33 | Stop NAT docker and verify that new dynamic NAT/NAPT entries are no longer added to hardware.                                                                                                                                           |
+| 34 | Start NAT docker and verify that the static NAT entries from CONFIG_DB are added in the kernel APP_DB ASIC_DB and new dynamic entries are added to hardware.                                                                                                                        |
+| 35 | Verify that the traffic flows that are NAT translated are not affected during warm restart. Zero packet loss and succesful reconcilation.                                                                                             |
+| 36 | Verify that the dynamic NAT translations are restored to APP_DB and the kernel after warm reboot.                                                                                                                                     |
+| 37 | Send upto 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
+| 38 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are failing as reported by SYNCD (with max resource usage reason). TD3 will scale to 16K.                                       |
+| 39 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries. TD3 will scale to 8K.                                                                                                 |
+| 40 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
+| 41 | Any dynamic memory allocation failures are handled gracefully (Return value of malloc() are checked and no crash happens). But if such an error happens the system is already in a problematic state                                  |
+| 42 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
+| 43 | Error log when errors are seen in receiving netlink messages from conntrack by NatSyncd (for the dynamic NAPT entry notifications from the kernel).                                                                                   |
+| 44 | Error messages are logged if NatMrgd gets errors writing to APP_DB                                                                                                                                                                    |
+| 45 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB                                                                                                                                                              |
+| 46 | Error messages are logged if Syncd gets errors when writing to COUNTERS_DB                                                                                                                                                            |
+| 47 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3?). The queue assignment should be lower than protocol queues and higher than broadcast packets             |
+| 48 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps?)                                                                                                                                      |
+| 49 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
+| 50 | Verify the tracing of natmgrd at different log levels                                                                                                                                                                                 |
+| 51 | Verify the tracing of natorch at different log levels                                                                                                                                                                                 |
+| 52 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
 
 # 9 Unsupported features
 Following features are not supported:
