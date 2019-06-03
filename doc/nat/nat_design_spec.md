@@ -1046,6 +1046,10 @@ N/A
 |:----------------------|:-----------------------------------------------------------|
 | show nat translations | Use this command to show the NAT translations table        |
 | show nat statistics   | Use this command to display the NAT translation statistics |
+| show nat config static| Use this command to display the Static NAT/NAPT configuration   |
+| show nat config pool  | Use this command to display the NAT pools configuration    |
+| show nat config bindings | Use this command to display the NAT bindings configuration |
+| show nat config timeouts | Use this command to display the NAT timeouts configuration |
 
 Example:
 ```
@@ -1056,10 +1060,15 @@ Protocol Source           Destination       Translated Source  Translated Destin
 all      10.0.0.1         ---               65.55.42.2         ---
 all      10.0.0.2         ---               65.55.42.3         ---
 tcp      20.0.0.1:4500    ---               65.55.42.1:2000    ---
+tcp      ---              65.55.42.1:2000   ---                20.0.0.1:4500
 udp      20.0.0.1:4000    ---               65.55.42.1:1030    ---
+udp      ---              65.55.42.1:1030   ---                20.0.0.1:4000
 tcp      20.0.0.1:6000    ---               65.55.42.1:1024    ---
+tcp      ---              65.55.42.1:1024   ---                20.0.0.1:6000
 tcp      20.0.0.1:5000    65.55.42.1:2000   65.55.42.1:1025    20.0.0.1:4500
+tcp      20.0.0.1:4500    65.55.42.1:1025   65.55.42.1:2000    20.0.0.1:5000
 tcp      20.0.0.1:5500    65.55.42.1:2000   65.55.42.1:1026    20.0.0.1:4500
+tcp      20.0.0.1:4500    65.55.42.1:1026   65.55.42.1:2000    20.0.0.1:5500
 
 Router#show nat statistics
 
@@ -1071,7 +1080,41 @@ tcp      20.0.0.1:4500    ---                            110            12460
 udp      20.0.0.1:4000    ---                           1156           789028            
 tcp      20.0.0.1:6000    ---                             30            34800         
 tcp      20.0.0.1:5000    65.55.42.1:2000                128           110204     
-tcp      20.0.0.1:5500    65.55.42.1:2000                  8             3806     
+tcp      20.0.0.1:5500    65.55.42.1:2000                  8             3806
+
+
+Router#show nat config static
+
+Nat Type  IP Protocol Global IP      Global L4 Port  Local IP       Local L4 Port  Twice-Nat Id
+--------  ----------- ------------   --------------  -------------  -------------  ------------
+dnat      all         65.55.45.5     ---             10.0.0.1       ---            ---
+dnat      all         65.55.45.6     ---             10.0.0.2       ---            ---
+dnat      tcp         65.55.45.7     2000            20.0.0.1       4500           1
+snat      tcp         20.0.0.2       4000            65.55.45.8     1030           1
+
+Router#show nat config pool
+
+Pool Name      Global IP Range             Global L4 Port Range
+------------   -------------------------   --------------------
+Pool1          65.55.45.5                  1024-65535
+Pool2          65.55.45.6-65.55.45.8       ---
+Pool3          65.55.45.10-65.55.45.15     500-1000
+
+Router#show nat config binding
+
+Binding Name   Pool Name      Access-List    Nat Type  Twice-Nat Id
+------------   ------------   ------------   --------  ------------
+Bind1          Pool1          ---            snat      ---
+Bind2          Pool2          1              snat      1
+Bind3          Pool3          1,2            snat      --
+
+
+Router#show nat config timeouts
+
+   Global Timeout : 600 secs
+   TCP Timeout    : 86400 secs
+   UDP Timeout    : 300 secs
+
 ```
 ### 3.8.4 Clear commands
 
