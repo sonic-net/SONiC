@@ -28,7 +28,7 @@
 	
               When a media is detected, the front panel port is identified and index number is derived. First the global level is looked up and if there is a range or list that the port false within is found, then the vendor key (vendor name + vendor PN) as well as media_key (media type + specification compliance + length) is constructed and looked up at the next level. First Vendor key (eg. AMPHENOL-1234) is looked and If there is an exact match then those values are fetched and returned. If vendor key doesn't match, then media key (eg. QSFP28-40GBASE-CR4-1M) is looked and if there is a match then those values are fetched and returned.  The purpose of having a media key is to have default values for a media type across vendors.  A no-match on vendor and media keys will make the search fall back to individual port based block from global block.
 
-              In the port based settings block, the index number of the port on which it is detected is identified at the first level. At second level, the Vendor key is and media key are derived as earlier (e.g. DELL-0123, QSFP28-40GBASE-SR4).  If there is no exact match for vendor key or media key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port 1 a Vendor specific media type and a 'Default' media type is defined apart from global section containing vendor key as well as media key.
+              In the port based settings block, the index number of the port on which it is detected is identified at the first level. At second level, the Vendor key is and media key are derived as earlier (e.g. DELL-0123, QSFP28-40GBASE-SR4).  If there is no exact match for vendor key or media key, then the default value listed is chosen. Below is an example for json file for a specific port. For the port 1 a Vendor specific media type and a 'Default' media type is defined apart from global section containing vendor key as well as media key. The 'Default' media type can also be defined at a global section for a range of ports, if multiple ports have same default values.
 
 
 ### Sample Media settings file:
@@ -74,7 +74,23 @@
                     "lane1":"0x1"
                 }
             }
-        }
+        },
+	"2,4,6,8": {
+	    "Default": {
+                "preemphasis": {
+                    "lane0":"0x612233",
+                    "lane1":"0x512233",
+                    "lane2":"0x412244",
+                    "lane3":"0x343322"
+                },
+                "idriver": {
+                    "lane0":"0x1",
+                    "lane1":"0x2",
+                    "lane2":"0xd",
+                    "lane3":"0x1"
+                }
+	    }
+	}
     },
     "PORT_MEDIA_SETTINGS": {
         "1": {
