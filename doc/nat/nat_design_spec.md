@@ -201,7 +201,8 @@ ACL is configured to classify a set of hosts to apply the NAT translation on. AC
 Dynamically created NAT/NAPT entries are timed out after a period of inactivity in the hardware. The inactivity timeout periods are independently configurable for TCP and UDP NAPT entries.
 The inactivity timeout period is configurable for the basic NAT entries.
 
-The dynamic port allocation from the pool is done in a random manner. When the pool is exhausted, new incoming connections are no longer NAT'ted. Only when the inactive entries are released are the new connections dynamically mapped to the freed up ports.
+The dynamic port allocation from the pool is done in a random manner.
+When the pool is exhausted, new incoming connections are no longer NAT'ted. In such scenario, the new incoming traffic are reported as NAT miss and dropped in the kernel. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
 
 #### 2.2.3.1 Full Cone NAT
 When the first connection from a particular internal IP + L4 port is dynamically SNAT mapped to an external IP + L4 port, the SNAT and the corresponding DNAT entries are added for that mapping in the hardware.
@@ -438,6 +439,11 @@ NAT_TABLE:{{ip}}
     "nat_type"      :((snat-or-dnat}} 
     "entry_type"    :{{static_or_dynamic}}
 
+NAT_TWICE_TABLE:{{src_ip}}:{{dst_ip}}
+    "translated_src_ip"     : {{ip-address}}
+    "translated_dst_ip"     : {{ip-address}}
+    "entry_type"            : {{static_or_dynamic}}
+
 NAPT_TWICE_TABLE:{{ip_protocol}}:{{src_ip}}:{{src_l4_port}}:{{dst_ip}}:{{dst_l4_port}}
     "translated_src_ip"     : {{ip-address}}
     "translated_src_l4_port": {{l4_port}}
@@ -476,6 +482,15 @@ ENTRY_TYPE                            = "static" / "dynamic"
 ```
 
 ```
+; Defines schema for the Twice NAT translation entries
+
+key                                   = NAT_TWICE_TABLE:src_ip:dst_ip
+TRANSLATED_SRC_IP                     = ipv4
+TRANSLATED_DST_IP                     = ipv4
+ENTRY_TYPE                            = "static" / "dynamic" 
+```
+
+```
 ; Defines schema for the Twice NAPT translation entries
 
 key                                   = NAPT_TWICE_TABLE:ip_protocol:src_ip:src_l4_port:dst_ip:dst_l4_port
@@ -496,9 +511,9 @@ NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 300 
 ```
 
 ### 3.2.5 COUNTERS DB
-The following new counters are available per zone and per NAT entry:
+The following new counters are available per zone:
 ```
-"COUNTERS:oid:<nat_stats_oid>"
+COUNTERS:NAT_ZONE:<zone-id>
     SAI_NAT_DNAT_DISCARDS
     SAI_NAT_SNAT_DISCARDS
     SAI_NAT_DNAT_TRANSLATION_NEEDED
@@ -506,8 +521,26 @@ The following new counters are available per zone and per NAT entry:
     SAI_NAT_DNAT_TRANSLATIONS
     SAI_NAT_SNAT_TRANSLATIONS
 
-COUNTERS_NAT_STATS_NAME_MAP does the mapping from oid:<nat_stats_oid> to the zone or NAT entry name.
+```
+The following new counters are available per entry:
+```
+The counters in the COUNTERS DB are updated every 10 seconds.
 
+COUNTERS:NAT_TABLE:ip
+Packets : <packets_counter_value>
+Bytes   : <bytes_counter_value>
+
+COUNTERS:NAPT_TABLE:ip_protocol:ip:l4_port
+Packets : <packets_counter_value>
+Bytes   : <bytes_counter_value>
+
+COUNTERS:NAT_TWICE_TABLE:src_ip:dst_ip
+Packets : <packets_counter_value>
+Bytes   : <bytes_counter_value> 
+
+COUNTERS:NAPT_TWICE_TABLE:ip_protocol:src_ip:src_l4_port:dst_ip:dst_l4_port
+Packets : <packets_counter_value>
+Bytes   : <bytes_counter_value> 
 ```
 
 ## 3.3 Switch State Service Design
@@ -992,7 +1025,7 @@ attr_count = 5;
 nat_zone100_counter_id = 
 create_nat_zone_counter(switch_id, attr_count, nat_zone_counter_attr);
 ```
-To read the hit-bit status for a given NAT entry, the following SAI API is called.
+To read the hit-bit status and counters for a given NAT entry, the following SAI API is called.
 ```
 /* Step 1: Read SNAT entry hit bit:
 * ----------------------------------------------------------- */
@@ -1001,7 +1034,11 @@ sai_attribute_t nat_entry_attr[10];
 
 nat_entry_attr[0].id = SAI_NAT_ENTRY_ATTR_HIT_BIT;
 
-attr_count = 1;
+nat_entry_attr[1].id = SAI_NAT_ENTRY_ATTR_BYTE_COUNT;
+
+nat_entry_attr[2].id = SAI_NAT_ENTRY_ATTR_PACKET_COUNT;
+
+attr_count = 3;
 
 get_nat_entry_attributes(snat_entry, attr_count, nat_entry_attr);
 
@@ -1014,10 +1051,10 @@ DNAT_DISCARDS/SNAT_DISCARDS – If Packet is not TCP/UDP and/or is a fragmentate
 DNAT_TRANSLATION_NEEDED/SNAT_TRANSLATION_NEEDED – If there is NAT table lookup miss for TCP/UDP packets.
 DNAT_TRANSLATIONS/SNAT_TRANSLATIONS – If NAT table lookup is hit.
 
-The following counters are provided per NAT entry:
+The following counters are provided per NAT/NAPT entry:
 
-Translated packets - Number of packets translated using the NAT entry. 
-Translated bytes   - Number of bytes translated using the NAT entry.
+Translated packets - Number of packets translated using the NAT/NAPT entry. 
+Translated bytes   - Number of bytes translated using the NAT/NAPT entry.
 
 ## 3.8 CLI
 
