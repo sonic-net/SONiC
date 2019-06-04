@@ -688,7 +688,7 @@ This is done for the reasons below:
 	  the NAT outside interface is link down for more than the timeout period.
 
 #### 3.3.1.4 Clear command
-Natmgrd handles the clear command issued by the administrator to clear the dynamic entries in the NAT translation table. Natmgrd flushes the conntrack table that in turn result in deleting the entries in the APP_DB by the Natsyncd daemon. 
+When the administrator issues the clear command the conntrack table is flushed, that in turn results in deleting the entries in the APP_DB by the Natsyncd daemon. 
 
 ### 3.3.2 Natsync daemon
 
