@@ -303,7 +303,8 @@ SONiC does not provide a CLI to configure the static IP for the management inter
    ```
    admin@sonic:~$ /sbin/ifconfig eth0 10.11.12.13/24
    ```   
-   
+Note that SONiC does not support management VRF and hence it is not possible to differentiate data traffic and management traffic. Work is in progress to support the mgmtVRF in Aug2019 release. 
+
    2) use config_db.json and configure the MGMT_INTERFACE key with the appropriate values. Refer [here](https://github.com/Azure/SONiC/wiki/Configuration#Management-Interface) 
    
    
