@@ -7,7 +7,7 @@ Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 v0.1	 |05/01/2019	|Padmanabhan Narayanan	| Initial version
 v0.2    |05/20/2019  |Padmanabhan Narayanan      | Updated based on internal review comments
-v0.3    |06/11/2019  |Padmanabhan Narayanan      | Update CLIs, remove sflowcfgd, 
+v0.3    |06/11/2019  |Padmanabhan Narayanan      | Update CLIs, remove sflowcfgd 
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -99,7 +99,7 @@ The sflow container and changes to the existing components to support sflow are 
 ### 6.2 **Configuration and control flow**
 The following figure shows the configuration and control flows for sFlow:
 
-![alt text](../../images/sflow/SFLOW_and_control.png "SONiC sFlow Configuration and Control")
+![alt text](../../images/sflow/sflow_config_and_control.png "SONiC sFlow Configuration and Control")
 
 1. The user configures the sflow collector, agent, sampling related parameters (rate), genetlink parameters (genetlink family and multicast group) and these configurations are added to the CONFIG DB.
 2. The sflowmgrd watches the configDB's SFLOW_GENETLINK table and creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd. Once the genetlink group is created, the sflowmgrd initializes the SFLOW_GENETLINK_TABLE in the APP Db that contains the trap type (SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET) and the genetlink channel and group.
