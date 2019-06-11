@@ -154,7 +154,7 @@ The following figure shows the sFlow sample packet path flow:
   
   Where
   * value is the average number of packets skipped before the sample is taken. As per SAI samplepacket definition : *"The sampling rate specifies random sampling probability as the ratio of packets observed to samples generated. For example a sampling rate of 100 specifies that, on average, 1 sample will be generated for every 100 packets observed."*
-  * The value of 0 is used to disable sFlow.
+  * The value of 0 is used to disable sFlow. Valid range 1:8388608
 
 * sflow genetlink \<add|del> \<name> \<multicast-group-id>
 
@@ -206,7 +206,7 @@ A new SFLOW table would be added.
 ; Defines schema for SFLOW table which holds global configurations
 key                                   = SFLOW:Config
 ; field                               = value
-sampling_rate       = 1*5DIGIT      ; 1 / (sflow sampling rate as a percentage of bandwidth)
+sampling_rate       = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 
 #### AppDB & Schema
@@ -227,7 +227,7 @@ A new SFLOW_TABLE is added to the AppDB:
 ; Defines schema for SFLOW_TABLE table which contains parameters that need to be set for sFlow
 key                 = SFLOW_TABLE:sflow
 ; field             = value
-sampling_rate       = 1*5DIGIT           ; 1 / (sflow sampling rate as a percentage of bandwidth)
+sampling_rate       = 1*7DIGIT           ; average number of packets skipped before the sample is taken
 ```
 
 #### StateDB & Schema
