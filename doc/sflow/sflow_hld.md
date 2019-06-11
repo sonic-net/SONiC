@@ -1,5 +1,5 @@
 # sFlow High Level Design
-### Rev 0.2
+### Rev 0.3
 ## Table of Contents
 
 ## 1. Revision 
@@ -7,6 +7,7 @@ Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 v0.1	 |05/01/2019	|Padmanabhan Narayanan	| Initial version
 v0.2    |05/20/2019  |Padmanabhan Narayanan      | Updated based on internal review comments
+v0.3    |06/11/2019  |Padmanabhan Narayanan      | Update CLIs, remove sflowcfgd, 
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -80,10 +81,11 @@ The CLI is enhanced to provide configuring and display of sFlow parameters inclu
 
 The newly introduced sflow container consists of:
 * An instantiation of the InMon's hsflowd daemon (https://github.com/sflow/host-sflow described in https://sflow.net/documentation.php). The hsflowd is launched as a systemctl service. The host-sflow is customised to interact with SONiC subsystems by introducing a host-sflow/src/Linux/mod_sonic.c (descripted later)
-* sflowcfgd : which is a python script that consumes sflow configurations from the CONFIG DB and updates the hsflowd.conf
+* sflowmgrd : which is a python script that consumes sflow configurations from the CONFIG DB and:
+       * configure the genetlink family and multicast group for sflow use
+       * updates the hsflowd.conf
 
-The swss container is enhanced to add the following components:
-* sflowmgrd : which subscribes to STATE DB to register and configure the genetlink family and multicast group for sflow use
+The swss container is enhanced to add the following component:
 * sfloworch : which subscribes to the APP DB and acts as southbound interface to SAI for programming the SAI_SAMPLEPACKET sessions, genetlink channel, multicast group and sampling parameters.
 
 The syncd container is enhanced to support the SAI SAMPLEPACKET APIs.
@@ -97,14 +99,14 @@ The sflow container and changes to the existing components to support sflow are 
 ### 6.2 **Configuration and control flow**
 The following figure shows the configuration and control flows for sFlow:
 
-![alt text](../../images/sflow/sflow_config_and_control.png "SONiC sFlow Configuration and Control")
+![alt text](../../images/sflow/SFLOW_and_control.png "SONiC sFlow Configuration and Control")
 
 1. The user configures the sflow collector, agent, sampling related parameters (rate), genetlink parameters (genetlink family and multicast group) and these configurations are added to the CONFIG DB.
-2. The sflowmgrd watches the configDB's SFLOW_GENETLINK table and creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd. Once the genetlink group is created, the sflowmgrd initializes the TRAP_GENETLINK table in the APP Db that contains the trap type (SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET) and the genetlink channel and group.
-3. The sfloworch processes the TRAP_GENETLINK changes and calls a SAI API that enables the ASIC driver to map the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the specific genetlink channel and group.
-4. The sflowcfgd configuration daemon watches the CONFIG DB's SFLOW_COLLECTOR table and is responsible for updating the /etc/sonic/hsflowd.conf which is the configuration file for hsflowd. Based on the nature of changes, the sflowcfgd may restart the hsflowd service. The hsflowd service uses the collector, UDP port and agent IP information to open sockets to reach the sFlow collectors.
+2. The sflowmgrd watches the configDB's SFLOW_GENETLINK table and creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd. Once the genetlink group is created, the sflowmgrd initializes the SFLOW_GENETLINK_TABLE in the APP Db that contains the trap type (SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET) and the genetlink channel and group.
+3. The sfloworch processes the SFLOW_GENETLINK_TABLE changes and calls a SAI API that enables the ASIC driver to map the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the specific genetlink channel and group.
+4. The sflowmgrd daemon watches the CONFIG DB's SFLOW_COLLECTOR table and updates the /etc/hsflowd.conf which is the configuration file for hsflowd. Based on the nature of changes, the sflowmgrd may restart the hsflowd service. The hsflowd service uses the collector, UDP port and agent IP information to open sockets to reach the sFlow collectors.
 5. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
-6. Sampling rate changes are updated in the SFLOW_CONFIG table. The sflowcfgd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs. The sfloworch subagent will query the PORT table in STATE DB to determine the link speeds in order to map the user configured sampling rate (expressed as a percentage) to the port speed specific rate (expressed as 1-in-N samples).
+6. Sampling rate changes are updated in the SFLOW table. The sflowmgrd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs.
 
 
 ### 6.3 **sFlow sample path**
@@ -127,15 +129,15 @@ The following figure shows the sFlow sample packet path flow:
   Also, the **config** and **show** commands would be extended to include the sflow option.
 
 #### Config commands
-* sflow collector \<name> <ipv4-address | ipv6-address> [agent-addr {ipv4-address | ipv6-address}] [port \<number>] [max-datagram-size \<size>]
+* sflow collector \<add|del> \<name> <ipv4-address | ipv6-address> [agent-addr {ipv4-address | ipv6-address}] [port \<number>] [max-datagram-size \<size>]
 
   Where:
   * name is the unique name of the sFlow collector
   * ipv4-address : IP address of the collector in dotted decimal format for IPv4
-  * ipv6-address :  x:x:x:x::x format for IPv6 address of the collector (where :: notation specifies successive hexadecimal fields of zeros)
+  * ipv6-address : x: x: x: x::x format for IPv6 address of the collector (where :: notation specifies successive hexadecimal fields of zeros)
   * agent-addr : 
        * ipv4-address : IP address of the agent in dotted decimal format for IPv4
-       * ipv6-address :  x:x:x:x::x format for IPv6 address of the agent (where :: notation specifies successive hexadecimal fields of zeros)
+       * ipv6-address :  x: x: x: x::x format for IPv6 address of the agent (where :: notation specifies successive hexadecimal fields of zeros)
   * port : specifies the UDP port of the collector (the range is from 0 to 65535. The default is 6343.)
   * max-datagram-size : in bytes (from 400 to 1500 : defaults to 1400)
 
@@ -151,18 +153,10 @@ The following figure shows the sFlow sample packet path flow:
 * sflow sample-rate value
   
   Where
-  * value is a percentage of the bandwidth of the port expressed in bits per second. The value of 0 is used to disable sFlow.
-  * A value of .0001 would yield the following sampling rates:
+  * value is the average number of packets skipped before the sample is taken. As per SAI samplepacket definition : *"The sampling rate specifies random sampling probability as the ratio of packets observed to samples generated. For example a sampling rate of 100 specifies that, on average, 1 sample will be generated for every 100 packets observed."*
+  * The value of 0 is used to disable sFlow.
 
-       sampling.1G = 1 in 1,000
-
-       sampling.10G = 1 in 10,000
-       
-       sampling.40G = 1 in 40,000
-       
-       sampling.100G = 1 in 100,000
-
-* sflow genetlink \<name> \<multicast-group-id>
+* sflow genetlink \<add|del> \<name> \<multicast-group-id>
 
   Where
   * name is the Generic Netlink family name (defaults to psample)
@@ -207,21 +201,21 @@ max_datagram_size                     = 1*4DIGIT                         ; MTU o
 collector_name                        = 1*16VCHAR
 ```
 
-A new SFLOW_CONFIG table would be added.
+A new SFLOW table would be added.
 ```
-; Defines schema for SFLOW_CONFIG table which holds global configurations
-key                                   = SFLOW_CONFIG:Config
+; Defines schema for SFLOW table which holds global configurations
+key                                   = SFLOW:Config
 ; field                               = value
 sampling_rate       = 1*5DIGIT      ; 1 / (sflow sampling rate as a percentage of bandwidth)
 ```
 
 #### AppDB & Schema
 
-A new TRAP_GENETLINK table entry would be added:
+A new SFLOW_GENETLINK_TABLE table entry would be added:
 
 ```
-; Defines schema for TRAP_GENETLINK table which maps trap types that need to be punted to a genetlink channel
-key                                   = TRAP_GENETLINK:trap_id             ; TRAP ID
+; Defines schema for SFLOW_GENETLINK_TABLE table which maps trap types that need to be punted to a genetlink channel
+key                                   = SFLOW_GENETLINK_TABLE:trap_id             ; TRAP ID
 ; field                               = value
 genetlink_name                        = 1*16VCHAR                          ; name of the genetlink family
 genetlink_group                       = 1*4DIGIT                           ; genetlink multicast group id
@@ -253,11 +247,13 @@ hsflowd_state                         = "" / "started" / "stopped" / "listening"
 
 hsflowd (https://github.com/sflow/host-sflow) is the most popular open source implementation of the sFlow agent and provides support for DNS-SD (http://www.dns-sd.org/) and can be dockerised. hsflowd supports sFlow version 5 (https://sflow.org/sflow_version_5.txt which supersedes RFC 3176). hsflowd will run as a systemd service within the sflow docker.
 
-CLI configurations will be saved to the ConfigDB. Once the genetlink channel has been initialised and the sFlow traps mapped to the genetlink group, the hsflowd service is started. The service startup script will derive the /etc/sonic/hsflowd.conf from the ConfigDB. Config changes will necessitate restart of hsflowd. hsflowd provides the necessary statistics for the "show" commands. CLI "config" commands will retrieve the entries in the config DB.
+CLI configurations will be saved to the ConfigDB. Once the genetlink channel has been initialised and the sFlow traps mapped to the genetlink group, the hsflowd service is started. The service startup script will derive the /etc/hsflowd.conf from the ConfigDB. Config changes will necessitate restart of hsflowd. hsflowd provides the necessary statistics for the "show" commands. CLI "config" commands will retrieve the entries in the config DB.
 
-#### sflowcfgd
+#### sflowmgrd
 
-the sflowcfgd daemon listens to SFLOW_COLLECTOR to construct the hsflowd.conf and start the hsflowd service.
+The sflowmgrd reads the SFLOW_GENETLINK table to create program genetlink groups that will be used by the SAI driver to lift packets to the hsflowd. Once the genetlink group is created, updates the SFLOW_GENETLINK_TABLE table for sFlowOrch to process. A multicast group is typically created which enables multiple applications (e.g. even a local netlink sniffer tools) to additionally inspect the samples that are lifted to hsflowd.
+
+the sflowmgrd daemon listens to SFLOW_COLLECTOR to construct the hsflowd.conf and start the hsflowd service.
 The mapping between the SONiC sflow CLI parameters and the host-sflow is given below:
 
 SONIC CLI parameter| hsflowd.conf equivalent
@@ -272,23 +268,23 @@ The master list of supported host-sflow tokens are found in host-sflow/src/Linux
 
 Example SONiC CLI configuration:
 
-&#35; sflow collector sflow-a 10.100.12.13 agent-addr 10.0.0.10 max-datagramsize 1500
+&#35; sflow collector add sflow-a 10.100.12.13 agent-addr 10.0.0.10 max-datagramsize 1500
 
-&#35; sflow collector sflow-b 10.144.1.2 pot 6344
+&#35; sflow collector add sflow-b 10.144.1.2 pot 6344
 
-&#35; sflow sample-rate .0001
+&#35; sflow sample-rate 32768
 
 ```
 sflow {
   agentIP = 10.0.0.10
-  sampling = 40000
+  sampling = 32748
   collector { ip = 10.100.12.13 }
   collector { ip = 10.144.1.2 UDPPort=6344 }
   datagramBytes = 1500
 }
 ```
 
-sflowcfgd also listens to SFLOW_CONFIG to propogate the sampling rate changes to App DB SFLOW_TABLE.
+sflowmgrd also listens to SFLOW to propogate the sampling rate changes to App DB SFLOW_TABLE.
 
 #### hsflowd service
 
@@ -306,13 +302,9 @@ Refer to host-sflow/src/Linux/hsflowd.h for a list of events.
 
 ### 6.7 **SWSS and syncd changes**
 
-### sflowmgrd
-
-The sflowmgrd reads the SFLOW_GENETLINK table to create program genetlink groups that will be used by the SAI driver to lift packets to the hsflowd. Once the genetlink group is created, updates the TRAP_GENETLINK table for sFlowOrch to process. A multicast group is typically created which enables multiple applications (e.g. even a local netlink sniffer tools) to additionally inspect the samples that are lifted to hsflowd.
-
 ### sFlowOrch
 
-An sFlowOrch is introduced in the Orchagent to handle configuration requests. The sFlowOrch essentially facilitates the creation/deletion of samplepacket sessions as well as get/set of session specific attributes. sFlowOrch tracks the TRAP_GENETLINK table to set the genetlink host interface that is to be used by the SAI driver to deliver the samples.
+An sFlowOrch is introduced in the Orchagent to handle configuration requests. The sFlowOrch essentially facilitates the creation/deletion of samplepacket sessions as well as get/set of session specific attributes. sFlowOrch tracks the SFLOW_GENETLINK_TABLE table to set the genetlink host interface that is to be used by the SAI driver to deliver the samples.
 
 Also, it monitors the SFLOW_TABLE and PORT state to determine sampling rate / speed changes to derive and set the sampling rate for all the interfaces. It uses the SAI samplepacket APIs to set each ports's sampling rate.
 
@@ -447,13 +439,18 @@ sai_create_hostif_table_entry_fn(&host_table_entry, 4, sai_host_table_attr);
 
 It is assumed that the trap group and the trap itself have been defined using sai_create_hostif_trap_group_fn() and sai_create_hostif_trap_fn().
 
-## 7 **Build**
+## 7 **sFlow in Virtual Switch**
+
+On the SONiC VS, SAI calls would map to the tc_sample commands on the switchport interfaces (http://man7.org/linux/man-pages/man8/tc-sample.8.html).
+
+## 8 **Build**
 
 * The host-sflow package will be built with the mod_sonic callback implementations using the FEATURES="SONIC" option
 
-## 8 **Restrictions**
-* /etc/sonic/hsflowd.conf should not be modified manually. While it should be possible to change /etc/sonic/hsflowd.conf manually and restart the sflow container, it is not recommended.
+## 9 **Restrictions**
+* /etc/hsflowd.conf should not be modified manually. While it should be possible to change /etc/hsflowd.conf manually and restart the sflow container, it is not recommended.
 * Management VRF support: TBD
 * configuration updates will necessitate hsflowd service restart
 
-## 9 **Action items**
+## 10 **Action items**
+* Unit Test cases
