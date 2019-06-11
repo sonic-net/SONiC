@@ -730,10 +730,11 @@ Once the error handling framework is in place, the following changes handle the 
 NatOrch listens on the notifications of the failed NAT entries from the Syncd.
 For the failed NAT entries, NatOrch removes the corresponding entries from the internal cache and from the conntrack table. That will remove the entry from the APP_DB.
 
-#### 3.3.3.4 Clear command
+### 3.3.3.4 Clear command
 When the administrator issues the clear command, NatOrch flushes the conntrack table, which in turn results in deleting the entries in the APP_DB by the Natsyncd daemon.
  
-The overall data block diagram for NAT in SONiC is captured below.
+### 3.3.3.5 Block diagram
+The high level block diagram for NAT in SONiC is captured below.
  
 ![NAT block diagram](images/Nat_block_diagram.png)
  
@@ -1406,6 +1407,9 @@ The Unit test case one-liners are as below:
 | 51 | Verify the tracing of natmgrd at different log levels.                                                                                                                                                                                 |
 | 52 | Verify the tracing of natorch at different log levels.                                                                                                                                                                                |
 | 53 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
+| 54 | Verify NAT happens on ICMP traffic like ping, traceroute traffic.                                                                                                                               |
+| 55 | Verify NAT happens on TCP traffic like ssh, http, sftp and UDP traffic like TFTP.                                                                                                                               |
+
 
 # 9 Unsupported features
 Following features are not supported:
