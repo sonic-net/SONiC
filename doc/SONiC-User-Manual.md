@@ -33,7 +33,7 @@ Table of Contents
    * [6 Troubleshooting](#6-troubleshooting)
       * [6.1 Basic Troubleshooting Commands](#61-basic-troubleshooting-commands)
       * [6.2 Port up/down Troubleshooting](#62-port-updown-troubleshooting)
-      * [<200b>6.3 Investigating Packet Drops](#63-investigating-packet-drops)
+      * [6.3 Investigating Packet Drops](#63-investigating-packet-drops)
       * [6.4 Physical Link Signal](#64-physical-link-signal)
       * [6.5 Isolate SONiC Device from the Network](#65-isolate-sonic-device-from-the-network)
 
