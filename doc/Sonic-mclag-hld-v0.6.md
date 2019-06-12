@@ -242,8 +242,9 @@ Diagram 7.1.2
 
 ### 7.1.3. Link between peers
 
+- In L3 scenario user needn't configure peer-link. Peer-link is chosen by routing protocol or static configured route.
 - The peer-link can be either Ethernet , PortChannel or a Vxlan tunnel. The peer-link can be used to carry data traffic when one of the MC-LAG member link is down.
-- In L3 scenario, routing protocol or static route configured manually  provides backup path to reach MC-LAG enabled subnet via peer link.
+- routing protocol or static route configured manually provides backup path to reach MC-LAG enabled subnet via peer link.
 - In this scenario, the direct-connected L3 peer link connecting the two peer devices is not required. When the MC-LAG member link is up, the direct route has the highest priority. If one of the MC-LAG member link is down, the direct route will be deleted, and the backup route will take effect.
 
 ### 7.1.4. ARP sync-up between MC-LAG peers
@@ -283,6 +284,7 @@ Diagram 7.2.2
 
 ### 7.2.3. Link between peers
 
+- In L2 scenario user must configure peer link
 - The peer link can be either Ethernet, a PortChannel or a Vxlan tunnel. The peer link is used to carry data traffic when one of the MC-LAG member link is down and MAC forwarding reroute is needed.
 - Although data traffic and ICCP control traffic can take different path between the two peers, the suggestion is to use the same physical link to prevent loop.
 
@@ -506,11 +508,11 @@ Adding the following logics:
 ## 9.14. warm-reboot consideration
 
 - Teamd saves the last LACP PDU received from LAG peer in one file per port in directory '/var/warmboot/teamd/'. During warm-reboot, the routes or MACs in ASIC are not changed.
-- In MC-LAG scenario, two peer devices form one end point of a LAG, these two devices must have the same MAC address since it’s used for LACP. During warm-reboot, this MAC must not be changed. For this reason, if the last reboot is warm-reboot, when some ports are added to MC-LAG, before the first LACP PDU is sent out via those newly added ports, ICCPD read the saved LACP PDU to get the MAC and then set the port MAC to the saved MAC.
+- In MC-LAG scenario, two peer devices form one end point of a LAG, these two devices must have the same MAC address since it’s used for LACP. During warm-reboot, this MAC must not be changed. For this reason, if the last reboot is warm-reboot, when some ports are added to the existing portchannel, before the first LACP PDU is sent out via those newly added ports, teamd gets the MAC from the saved LACP PDU and updates the port MAC accordingly.
 
 ## 9.15. teammgr changes
 
 Adding the following logics:
 
-- If the PortChannel has the attribute ‘learn_mode’ in CFG_DB, read the attribute and set this attribute in APP_DB. If ‘learn_mode’ is set to ‘disabled’, the MAC learning of LAG port is disbled.
-- Attribute ‘fast_rate’ can be set for LAG port.
+- If the PortChannel has the attribute 'learn_mode' in CFG_DB, read the attribute and set this attribute in APP_DB. If 'learn_mode' is set to 'disabled', the MAC learning of LAG port is disbled.
+- Attribute 'fast_rate' can be set for LAG port.
