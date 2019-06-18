@@ -5,10 +5,10 @@
 ## 1. Revision 
 Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
-v0.1 |05/01/2019  |Padmanabhan Narayanan | Initial version
-v0.2 |05/20/2019  |Padmanabhan Narayanan | Updated based on internal review comments
-v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
-v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
+|v0.1 |05/01/2019  |Padmanabhan Narayanan | Initial version
+|v0.2 |05/20/2019  |Padmanabhan Narayanan | Updated based on internal review comments
+|v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
+|v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -507,31 +507,32 @@ On the SONiC VS, SAI calls would map to the tc_sample commands on the switchport
 
 ## 11 **Unit Test cases**
 Unit test case one-liners are given below:
- S.No| Test case synopsis
------|-------------------
-1|Verify that the SFLOW_COLLECTOR configuration additions from CONFIG_DB are processed by hsflowd.
-2|Verify that the SFLOW_COLLECTOR configuration deletions from CONFIG_DB are processed by hsflowd.
-3|Verify that sFlowOrch creates "psample" multicast group 270 if there is not psample driver inserted.
-4|Verify that sFlowOrch maps SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the "psample" family and multicast group 270.
-5|Verify that it is possible to enable and disable sflow using the SFLOW_SESSION global admin_state field in CONFIG_DB
-6|Verify that interfaces can be enabled/disabled using additions/deletions in SFLOW_SESSION table in CONFIG_DB
-7|Verify that it is possible to change the default global sampling rate using SFLOW_SESSION global sample_rate field in CONFIG_DB
-8|Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field in CONFIG_DB
-9|Verify that changes to SFLOW_SESSION CONFIG_DB entry is pushed to the corresponding table in APP_DB and to ASIC_DB by sFlowOrch
-10|Verify that collector and per-interface changes get reflected using the "show sflow" and "show sflow interface" commands
-11|Verify that packet samples are coming into hsflowd agent as per the global and per-interface configuration
-12|Verify that the hsflowd generated UDP datagrams are generated as expected and contain all the PSAMPLE_ATTR* attributes in the meta data.
-13|Verify that samples are received when either 1 or 2 collectors are configured.
-14|Verify the sample collection for both IPv4 and IPv6 collectors.
-15|Verify that sample collection works on all ports or on a subset of ports (using lowest possible sampling rate).
-16|Verify that counter samples are updated every 20 seconds
-17|Verify that packet & counter samples stop for a disabled interface.
-18|Verify that sampling changes based on interface speed and per-interface sampling rate change.
-19|Verify that if sFlow is not enabled in the build, the sflow docker is not started
-20|Verify that sFlow docker can be stopped and restarted and check that packet and counter sampling restarts.
-21|Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.
-22|Verify sFlow functionality with valid startup configuration and after a normal reboot, fast-boot and warm-boot.
-23|Verify that the sFlow hsflowd logs are emitted to the syslog file for various severities.
+
+| S.No | Test case synopsis                                                                                                                      |
+|------|-----------------------------------------------------------------------------------------------------------------------------------------|
+|  1   | Verify that the SFLOW_COLLECTOR configuration additions from CONFIG_DB are processed by hsflowd.                                        |
+|  2   | Verify that the SFLOW_COLLECTOR configuration deletions from CONFIG_DB are processed by hsflowd.                                        |
+|  3   | Verify that sFlowOrch creates "psample" multicast group 270 if there is not psample driver inserted.                                    |
+|  4   | Verify that sFlowOrch maps SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the "psample" family and multicast group 270.                      |
+|  5   | Verify that it is possible to enable and disable sflow using the SFLOW_SESSION global admin_state field in CONFIG_DB                    |
+|  6   | Verify that interfaces can be enabled/disabled using additions/deletions in SFLOW_SESSION table in CONFIG_DB                            |
+|  7   | Verify that it is possible to change the default global sampling rate using SFLOW_SESSION global sample_rate field in CONFIG_DB         |
+|  8   | Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field in CONFIG_DB       |
+|  9   | Verify that changes to SFLOW_SESSION CONFIG_DB entry is pushed to the corresponding table in APP_DB and to ASIC_DB by sFlowOrch         |
+| 10   | Verify that collector and per-interface changes get reflected using the "show sflow" and "show sflow interface" commands                |
+| 11   | Verify that packet samples are coming into hsflowd agent as per the global and per-interface configuration                              |
+| 12   | Verify that the hsflowd generated UDP datagrams are generated as expected and contain all the PSAMPLE_ATTR* attributes in the meta data |
+| 13   | Verify that samples are received when either 1 or 2 collectors are configured.                                                          |
+| 14   | Verify the sample collection for both IPv4 and IPv6 collectors.                                                                         |
+| 15   | Verify that sample collection works on all ports or on a subset of ports (using lowest possible sampling rate).                         |
+| 16   | Verify that counter samples are updated every 20 seconds                                                                                |
+| 17   | Verify that packet & counter samples stop for a disabled interface.                                                                     |
+| 18   | Verify that sampling changes based on interface speed and per-interface sampling rate change.                                           |
+| 19   | Verify that if sFlow is not enabled in the build, the sflow docker is not started                                                       |
+| 20   | Verify that sFlow docker can be stopped and restarted and check that packet and counter sampling restarts.                              |
+| 21   | Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.     |
+| 22   | Verify sFlow functionality with valid startup configuration and after a normal reboot, fast-boot and warm-boot.                         |
+| 23   | Verify that the sFlow hsflowd logs are emitted to the syslog file for various severities.                                               |
 
 ## 12 **Action items**
 * Determine if it is possible to change configuration without restarting hsflowd
