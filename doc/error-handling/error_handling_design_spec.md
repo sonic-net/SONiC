@@ -112,7 +112,7 @@ The framework can be extended for other tables depending on application requirem
 
 BGP application relies on RIB failure status to withdraw or advertise the routes. The error handling framework notifies the BGP application about route programming failures. This helps BGP application to withdraw the failed routes that are advertised to the neighbors.
 
-Following diagram describes a high level overview of the BGP use case: 
+Following diagram describes a high level overview of the BGP use case:
 
 ![BGP use case](images/bgp_use_case.png)
 
@@ -203,12 +203,14 @@ The following table describes how framework handles some of the notifications:
 
 ### 3.3.2 Application registration
 ```
-fpm_route_error = new ErrorListener(ROUTE_TABLE_NAME, CREATE|DELETE|UPDATE, SUCCESS|FAILURE);
-fpm_route_error.registerCallback(fpm_route_error_handler);
+ErrorListener fpmErrorListener(APP_ROUTE_TABLE_NAME, (ERR_NOTIFY_FAIL | ERR_NOTIFY_POSITIVE_ACK));
+
+Select s;
+s.addSelectable(&fpmErrorListener);
 ```
 
 ### 3.3.3 Clearing ERROR_DB
-ERROR_DB contents can be cleared using CLI command. The clear command can be invoked for all objects in a table or all tables. OrchAgent gets notified about clear operation via the notification channel and it deletes the corresponding objects from ERROR_DB without notifying the registered applications. 
+ERROR_DB contents can be cleared using CLI command. The clear command can be invoked for all objects in a table or all tables. OrchAgent gets notified about clear operation via the notification channel and it deletes the corresponding objects from ERROR_DB without notifying the registered applications.
 
 ## 3.4 DB Changes
 ### 3.4.1 Config DB
@@ -301,7 +303,7 @@ Router#show error-database route
 Route            Nexthop               Operation  Failure
 --------------   --------------------- ---------  --------------
 2.2.2.0/24       10.10.10.2            Create     TABLE FULL
-192.168.10.12/24 12.12.10.2,11,11,11,2 Update     PARAM 
+192.168.10.12/24 12.12.10.2,11,11,11,2 Update     PARAM
 ...
 ```
 
@@ -346,7 +348,7 @@ key:"SAI_OBJECT_TYPE_ROUTE_ENTRY:{"dest":"20.20.20.0/24","vr":"oid:0x30000000000
 6) "SAI_STATUS_TABLE_FULL"
 ```
 
-The framework records the following entry into ERROR_ROUTE_TABLE, which gets notified to the registered applications. 
+The framework records the following entry into ERROR_ROUTE_TABLE, which gets notified to the registered applications.
 
 ```
 "ERROR_ROUTE_TABLE:20.20.20.0/24"
@@ -392,7 +394,7 @@ The unit test plan for error handling framework is documented below:
 |                | 1.4  | Verify multiple applications de-register for ROUTE table notifications. Generate failure event and verify only de-registered application is NO LONGER notified. Other registered applications continue to get notified. |
 |                | 1.5  | Verify that the notification for IPv4/IPv6 ROUTE entry contains all the required parameters as defined by the schema - Prefix/Nexthops/Opcode/Failure code. |
 |                | 1.6  | Verify error is notified incase of IPv4/IPv6 ROUTE add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Table Full. |
-|                | 1.7  | Verify error is notified incase of IPv4/IPv6 ROUTE add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Table Full. |
+|                | 1.7  | Verify error is notified incase of IPv4/IPv6 ROUTE add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed route with Opcode=Add and Error=Entry Exists. |
 |                | 1.8  | Verify application is notified even in case of IPv4/IPv6 ROUTE is successfully programmed (NO_ERROR). Verify that there is NO entry for the route in ERROR_DB. |
 |                | 1.9  | Verify error is notified in case of IPv4/IPv6 ROUTE deletion failure due to NOT_FOUND. Verify that there is NO entry for the failed route in ERROR_DB. |
 |                | 1.10 | Verify that the failed IPv4/IPv6 ROUTE entry in ERROR_DB is cleared, when application deletes that entry. Verify other failed entries in ERROR_DB are retained. |
@@ -403,7 +405,7 @@ The unit test plan for error handling framework is documented below:
 |                | 2.4  | Verify multiple applications de-register for Neighbor table notifications. Generate failure event and verify only de-registered application is NO LONGER notified. Other registered applications continue to get notified. |
 |                | 2.5  | Verify that the notification for IPv4/IPv6 Neighbor entry contains all the required parameters as defined by the schema -  Ifname/Prefix/Opcode/Failure code. |
 |                | 2.6  | Verify error is notified incase of IPv4/IPv6 NEIGHBOR add failure due to TABLE full condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Table Full. |
-|                | 2.7  | Verify error is notified incase of IPv4/IPv6 NEIGHBOR add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Table Full. |
+|                | 2.7  | Verify error is notified incase of IPv4/IPv6 NEIGHBOR add failure due to ENTRY_EXISTS condition. Verify entry exists in ERROR_DB for failed neighbor with Opcode=Add and Error=Entry Exists. |
 |                | 2.8  | Verify application is notified even in case of IPv4/IPv6 NEIGHBOR is successfully programmed (NO_ERROR). Verify that there is NO entry for the neighbor in ERROR_DB in this case. |
 |                | 2.9  | Verify error is notified in case of IPv4/IPv6 NEIGHBOR deletion failure due to NOT_FOUND. Verify that there is NO entry in ERROR_DB in this case. |
 |                | 2.10 | Verify that the failed IPv4/IPv6 NEIGHBOR entry in ERROR_DB is cleared, when application deletes that entry. Verify other failed entries in ERROR_DB are retained. |
@@ -414,15 +416,14 @@ The unit test plan for error handling framework is documented below:
 # 9 Unsupported features
 
 - Add transaction ID support to track the notifications back to application. This helps applications to correlate when multiple operations fail on the same object.
-	
+
   Typically, the following steps are required to handle the request that includes transaction ID:
-  
+
   - Application adds transaction ID (Tid) to APP_DB entry
   - OrchAgent pass Tid to ASIC_DB
   - Syncd includes Tid in the notification after invoking SAI API
   - OrchAgent pass the Tid to the applications that includes other error details.
-  
-  If Tid is included in the application request, framework includes the same in the notification. Otherwise, the notification is still sent, but without Tid. This enables migration of applications to start using Tid on a need basis.
-  
-- Extend error handling to other tables in the sytem (VLAN/LAG/Mirror/FDB etc).
 
+  If Tid is included in the application request, framework includes the same in the notification. Otherwise, the notification is still sent, but without Tid. This enables migration of applications to start using Tid on a need basis.
+
+- Extend error handling to other tables in the sytem (VLAN/LAG/Mirror/FDB etc).
