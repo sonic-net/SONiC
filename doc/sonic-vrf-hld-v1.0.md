@@ -94,7 +94,7 @@ Note: linux kernel use VRF master device to support VRF and it supports admin up
 ### Target Deployment Use Cases
 Virtual Routing and Forwarding is used to achieve network virtualization and traffic separation over on a shared network infrastructure in Enterprise and DC delpoyments.
 
-![Deployment use case](images/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
+![Deployment use case](https://github.com/preetham-singh/SONiC-1/blob/master/images/vrf_hld/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
 __Figure 1: Multi VRF Deployment use case__
 
 Above figure depicts typical customer deployment where multiple Customer facing devices are connected to Provider edge routers.
