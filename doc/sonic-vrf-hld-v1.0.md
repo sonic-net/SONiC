@@ -7,6 +7,10 @@ Table of Contents
   - [Document History](#document-history)
   - [Abbreviations](#abbreviations)
   - [VRF feature Requirement](#vrf-feature-requirement)
+  - [Functionality](#functionality)
+    - [Target Deployment Use Case](#target-deployment-use-case)
+    - [Functionality Description](#functionality-description)
+    - [VRF Route Leak Support](#vrf-route-leak-support)
   - [Dependencies](#dependencies)
   - [SONiC system diagram for VRF](#sonic-system-diagram-for-vrf)
   - [The schema changes](#the-schema-changes)
@@ -54,6 +58,7 @@ Table of Contents
 | v.05    | 04/17/2019 | Xin Liu, Prince Sunny (MSFT)  | Update the status                                |
 | v.06    | 05/09/2019 | Shine Chen, Jeffrey Zeng, Tyler Li | Add Some description and format adjustment |
 | v1.0    | 05/26/2019 | Shine Chen, Jeffrey Zeng, Tyler Li, Ryan Guo | After review, move proposal-2 in v0.6 to Appendix
+| v1.1    | 06/04/2019 | Preetham Singh, Nikhil Kelapure, Utpal Kant Pintoo | Update on VRF Leak feature support |
 
 ## Abbreviations
 
@@ -81,9 +86,47 @@ The fallback feature which defined by RFC4364 is very useful for specified VRF u
 
 7. VRF Scalability: Currently VRF number can be supported up to 1000 after fixing a bug in FRR.
 
-In this release, supporting requirement 5) and 6) are not supported. See next section for details.
+In this release, requirement 5) is not supported. See next section for details.
 
 Note: linux kernel use VRF master device to support VRF and it supports admin up/down on VRF master device. But we don't plan to support VRF level up/down state on SONIC.
+
+## Functionality
+### Target Deployment Use Cases
+Virtual Routing and Forwarding is used to achieve network virtualization and traffic separation over on a shared network infrastructure in Enterprise and DC delpoyments.
+
+![Deployment use case](images/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
+__Figure 1: Multi VRF Deployment use case__
+
+Above figure depicts typical customer deployment where multiple Customer facing devices are connected to Provider edge routers.
+With such deployment Provider Edge routers associate each input interface with one VRF instance.
+Note that multiple input interfaces can be associated to a VRF instance. This input interface can be Physical interface, Port-channel or Ve interface.
+
+### Functional Description
+
+Multi-VRF is the ability to maintain multiple "Virtual Routing and Forwarding"(VRF) tables on the same Provider Edge router.
+Multi-VRF uses multiple instances of a routing protocol such as BGP to exchange routing information among peer provider edge routers.
+The Multi-VRF capable Provider Edge router maps an input customer interface to a unique VRF instance. Provider Edge router maintains unique VRF table for each VRF instance on that Provider Edge router.
+
+Multi-VRF routers communicate with one another by exchanging route information in the VRF table with the neighboring Provider Edge router.
+This exchange of information among the Provider Edge routers is done using routing protocol like BGP.
+Customers connect to Provider Edge routers in the network using Customer Edge routers as shown in Figure 1. 
+
+Due to this overlapping address spaces can be maintained among the different VRF instances.
+
+FRR's BGP implementation is capable of running multiple autonomous systems (AS) at once. Each configured AS is associated with a VRF instance. The  SONiC VRF implementation will enable this capability of FRR BGP in SONiC.
+
+#### VRF route leak support:
+
+VRF route leak is a case where route and nexthops are in different VRF.
+
+VRF route leak can be achieved via both Static or Dynamic approach.
+
+In Static VRF route leak, FRR cli can be used where user can specify nexthop IP along with nexthop VRF, where the nexthop is reachable.
+
+In Dynamic VRF route leak, Route maps can be used to import routes between VRFs. Prefix lists are used to match route prefixes.
+Leaked routes will be deleted when source route is deleted.
+
+Note: Since static leak route requires nexthop vrf name, VRF route leak from user-defined-vrf to Global vrf will not be supported.
 
 ## Dependencies
 
@@ -545,22 +588,19 @@ $ config vrf add <vrf_name>
 $ config vrf del <vrf_name>
 
 //bind an interface to a VRF
-$ config interface <interface_name> vrf bind <vrf_name>
+$ config interface bind <interface_name> <vrf_name>
 
 //unbind an interface from a VRF
-$ config interface <interface_name> vrf unbind
+$ config interface unbind <interface_name> <vrf_name>
 
 // show attributes for a given vrf
 $ show vrf [<vrf_name>]
 
-// show the list of router interfaces
-$ show router-interface [vrf <vrf_name>]
-
 //add IP address to an interface.  The command already exists in SONiC, but will be enhanced
-$ config interface <interface_name> ip add <ip_addr/mask>
+$ config interface ip add <interface_name> <ip_addr/mask>
 
 //remove an IP address from an interface. The command already exists in SONiC, but will be enhanced.
-$ config interface <interface_name> ip del <ip_addr/mask>
+$ config interface ip del <interface_name> <ip_addr/mask>
 
 //add a prefix to a VRF
 $ config route add [vrf <vrf_name>] prefix <route_prefix/mask> nexthop <[vrf <vrf_name>] <ip> | dev <dev_name>>
@@ -571,6 +611,27 @@ $ config route del [vrf <vrf_name>] prefix <route_prefix/mask> nexthop <[vrf <vr
 //show prefixes in a given VRF. The existing command is enhanced to take VRF as the key
 $ show ip route [vrf < all | vrf_name>]
 
+//show ip interface command updated to show VRF name to which interface is bound to
+$ show ip interface 
+
+//show ipv6 interface command updated to show VRF name to which interface is bound to
+$ show ipv6 interface 
+
+```
+
+## Other Linux utilities
+
+Standard linux ping, ping6 and traceroute commands can be used on VRF by explicitly specifying kernel VRF device.
+Since Kernel device name is same as user configured VRF name, VRF name itself can be used as interface in below commands.
+
+```bash
+Ping/ping6:
+ping [-I <vrf_name>] destination
+ping6 [-I <vrf_name>] destination
+
+traceroute:
+traceroute [-i <vrf_name>] destination
+traceroute6 [-i <vrf_name>] destination
 ```
 
 ## User scenarios
@@ -585,7 +646,7 @@ Lets use Ethernet0 as an example in this document.
 
 ```bash
 
-$ config interface Ethernet0 ip add 1.1.1.1/24
+$ config interface ip add Ethernet0 1.1.1.1/24
 
 ```
 
@@ -600,7 +661,7 @@ To remove IP address from an interface:
 
 ```bash
 
-$ config interface Ethernet0 ip remove 1.1.1.1/24
+$ config interface ip remove Ethernet0 1.1.1.1/24
 
 ```
 
@@ -619,7 +680,7 @@ In this case, user wants to configure a VRF "Vrf-blue", with interfaces attached
 ```bash
 
 $ config vrf add Vrf-blue
-$ config interface Ethernet0 vrf bind Vrf-blue
+$ config interface bind Ethernet0 Vrf-blue
 
 ```
 
@@ -631,7 +692,7 @@ The Bind command will do the following:
 
 ```bash
 
-$ config interface Ethernet0 ip add 1.1.1.1/24
+$ config interface ip add Ethernet0 1.1.1.1/24
 
 ```
 
@@ -643,7 +704,7 @@ To unbind an interface from VRF:
 
 ```bash
 
-$ config interface Ethernet0 vrf unbind
+$ config interface unbind Ethernet0 Vrf-blue 
 
 ```
 
@@ -662,7 +723,7 @@ This set of commands will perform the work:
 
 $ show vrf Vrf-blue
 This will to get interface list belonging to Vrf-blue from app_db
-$ config interface Ethernet0 ip remove 1.1.1.1/24
+$ config interface ip remove Ethernet0 1.1.1.1/24
 This will remove all IP addresses from the interfaces belonging to the VRF.
 $ config interface Ethernet0 vrf unbind
 This will unbind all interfaces from this VRF
@@ -725,7 +786,62 @@ In the diagram, fpmsyncd, vrfmgrd, intfsmgrd, intfsorch are checked into the mas
 
 ## Test plan
 
-A separate test plan document will be uploaded and reviewed by the community
+```
+- Configure user defined VRFs and check if VRFs are created in Kernel and APP_DB
+- Bind interface to VRF and check if kernel has updated interface master with appropriate l3mdev and APP_DB interface DB is updated
+- Configure IP address on interface bound to user defined VRF and check if IP address is configured on the interface in kernel. Also check if interface prefix table is updated with VRF key in APP_DB
+- Check if connected route corresponding to interface IP is installed  into FIB table associated with the VRF in kernel and APP_DB ROUTE_TABLE
+- send traffic to host from one of the interface which is in same VRF and check if arp & nd resolve happens to this host in corresponding VRF. Check if ARP & ND is learnt pointing to correct interface in Kernel
+- Perform ping to another host in user vrf and check if arp & nd resolution for this host happens in corresponding vrf
+- Configure static route in user defined vrf and check if this static route is selected as best and installed in kernel in corresponding table ID. Also check if this route is installed in APP_DB route table with corresponding vrf as key
+- Send traffic to host in this static route prefix and check if traffic forwarding happens in corresponding vrf
+- Configure static leak route with nhop vrf in different vrf and check if route is installed in kernel in appropriate table. Also check in APP_DB ROUTE_TABLE to ensure route with vrf key is installed correctly
+- Send unidirectional traffic in above vrf and check if traffic gets forwarded to nhop vrf
+- Using FRR cli, configure BGP instance within a VRF. Verify the BGP session come up operational and the routes are learnt in correct VRF in kernel and in APP_DB with the correct VRF key
+- Verify ping to such destination learnt via BGP within the VRF
+- Repeat with overlapping ip destinations between different VRFs
+- Using FRR cli import <vrf> configure routes to be imported into BGP instance in one vrf from BGP instance in another VRF. Verify the routes are learnt and are installed into the APP_DB with correct VRF key
+
+- Verify that the default VRF is created
+- Verify that user VRF gets created when configured
+- Verify that user VRF gets removed when unconfigured
+- Verify that if a VRF deletion is received, it waits for associated interfaces and routes to be deleted first
+- Verify that default IPv4 and IPv6 routes are created for all user-configured VRFs
+- Verify that user can create up to 1K VRFs
+
+- Verify that router interface gets created with default VRF if no VRF binding to interface exists
+- Verify that router interface gets created with user-configured VRF
+- Verify the subnet routes and IP2ME routes are created in user-configured VRF
+- Verify that same IP address can be configured on two interfaces bound to different VRFs
+- Verify that 1K router interface can be bound to 1K VRFs
+
+- Verify that multiple nexthop entries can be created with same address but with different interfaces
+- Verify that when queried with nexthop address and interface, appropriate entry is returned
+- Verify that nexthop entries can be queried for even without any interface
+- Verify that when a neighbor goes down, only appropriate nexthop entry is deleted
+- Repeat testcases 1-4 for IPv6 nexthops
+- Verify that query for IPv6 link-local nexthop without associated interface fails
+
+- Verify that route add without VRF name is processed correctly
+- Verify that route add with VRF name is processed correctly
+- Verify that if a route add with VRF name is received, but the VRF does not exist, the add message is processed once VRF is added
+- Verify that same destination prefix can be added for multiple VRFs in route table
+- Verify that in presence of same prefix with multiple VRFs, only the specific route matching {VRF, Prefix} is deleted
+- Verify that if route add fails, the update is processed later
+- Verify that if route delete fails, the update is processed later
+- Distribute 10k IPV4 routes on MAX non-default VRF through BGP
+- Check deletion of routes when BGP config is removed and check re-addition of routes
+- Test L3 forwarding for set of selected routes
+- Repeat testcases 1-10 for IPv6 routes
+- Verify that multiple nexthop group entries can be created with same addresses but with different interfaces
+- Verify that a nexthop group entry can be created with just addresses i.e. without  interfaces
+- Verify that when queried with nexthop group addresses and interfaces, appropriate entry is returned
+- Verify that nexthop group entries can be queried for even without any interfaces
+- Verify that when a neighbor goes down, the nexthop is removed from all the groups it is a member of
+- Verify that when a neighbor comes up, the nexthop is added back in all the groups it was previously member of
+- Repeat testcases 12-17 for IPv6 nexthop groups
+- Verify that add/query for IPv6 link-local nexthop group without associated set of interfaces fails
+```
 
 ## Appendix - An alternative proposal
 
