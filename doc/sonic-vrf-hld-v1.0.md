@@ -786,62 +786,7 @@ In the diagram, fpmsyncd, vrfmgrd, intfsmgrd, intfsorch are checked into the mas
 
 ## Test plan
 
-```
-- Configure user defined VRFs and check if VRFs are created in Kernel and APP_DB
-- Bind interface to VRF and check if kernel has updated interface master with appropriate l3mdev and APP_DB interface DB is updated
-- Configure IP address on interface bound to user defined VRF and check if IP address is configured on the interface in kernel. Also check if interface prefix table is updated with VRF key in APP_DB
-- Check if connected route corresponding to interface IP is installed  into FIB table associated with the VRF in kernel and APP_DB ROUTE_TABLE
-- send traffic to host from one of the interface which is in same VRF and check if arp & nd resolve happens to this host in corresponding VRF. Check if ARP & ND is learnt pointing to correct interface in Kernel
-- Perform ping to another host in user vrf and check if arp & nd resolution for this host happens in corresponding vrf
-- Configure static route in user defined vrf and check if this static route is selected as best and installed in kernel in corresponding table ID. Also check if this route is installed in APP_DB route table with corresponding vrf as key
-- Send traffic to host in this static route prefix and check if traffic forwarding happens in corresponding vrf
-- Configure static leak route with nhop vrf in different vrf and check if route is installed in kernel in appropriate table. Also check in APP_DB ROUTE_TABLE to ensure route with vrf key is installed correctly
-- Send unidirectional traffic in above vrf and check if traffic gets forwarded to nhop vrf
-- Using FRR cli, configure BGP instance within a VRF. Verify the BGP session come up operational and the routes are learnt in correct VRF in kernel and in APP_DB with the correct VRF key
-- Verify ping to such destination learnt via BGP within the VRF
-- Repeat with overlapping ip destinations between different VRFs
-- Using FRR cli import <vrf> configure routes to be imported into BGP instance in one vrf from BGP instance in another VRF. Verify the routes are learnt and are installed into the APP_DB with correct VRF key
-
-- Verify that the default VRF is created
-- Verify that user VRF gets created when configured
-- Verify that user VRF gets removed when unconfigured
-- Verify that if a VRF deletion is received, it waits for associated interfaces and routes to be deleted first
-- Verify that default IPv4 and IPv6 routes are created for all user-configured VRFs
-- Verify that user can create up to 1K VRFs
-
-- Verify that router interface gets created with default VRF if no VRF binding to interface exists
-- Verify that router interface gets created with user-configured VRF
-- Verify the subnet routes and IP2ME routes are created in user-configured VRF
-- Verify that same IP address can be configured on two interfaces bound to different VRFs
-- Verify that 1K router interface can be bound to 1K VRFs
-
-- Verify that multiple nexthop entries can be created with same address but with different interfaces
-- Verify that when queried with nexthop address and interface, appropriate entry is returned
-- Verify that nexthop entries can be queried for even without any interface
-- Verify that when a neighbor goes down, only appropriate nexthop entry is deleted
-- Repeat testcases 1-4 for IPv6 nexthops
-- Verify that query for IPv6 link-local nexthop without associated interface fails
-
-- Verify that route add without VRF name is processed correctly
-- Verify that route add with VRF name is processed correctly
-- Verify that if a route add with VRF name is received, but the VRF does not exist, the add message is processed once VRF is added
-- Verify that same destination prefix can be added for multiple VRFs in route table
-- Verify that in presence of same prefix with multiple VRFs, only the specific route matching {VRF, Prefix} is deleted
-- Verify that if route add fails, the update is processed later
-- Verify that if route delete fails, the update is processed later
-- Distribute 10k IPV4 routes on MAX non-default VRF through BGP
-- Check deletion of routes when BGP config is removed and check re-addition of routes
-- Test L3 forwarding for set of selected routes
-- Repeat testcases 1-10 for IPv6 routes
-- Verify that multiple nexthop group entries can be created with same addresses but with different interfaces
-- Verify that a nexthop group entry can be created with just addresses i.e. without  interfaces
-- Verify that when queried with nexthop group addresses and interfaces, appropriate entry is returned
-- Verify that nexthop group entries can be queried for even without any interfaces
-- Verify that when a neighbor goes down, the nexthop is removed from all the groups it is a member of
-- Verify that when a neighbor comes up, the nexthop is added back in all the groups it was previously member of
-- Repeat testcases 12-17 for IPv6 nexthop groups
-- Verify that add/query for IPv6 link-local nexthop group without associated set of interfaces fails
-```
+A separate test plan document will be uploaded and reviewed by the community
 
 ## Appendix - An alternative proposal
 
