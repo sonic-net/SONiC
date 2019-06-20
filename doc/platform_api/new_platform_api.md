@@ -42,6 +42,8 @@ Challenge: Attempt to create a standardized, unified API to interface with all c
 
 ### New Solution
 
+#### Concept
+
 - Combine all plugin base classes into an object-oriented hierarchy
   - Hierarchy based on physical connection of devices
   - Object-orientation allows for definition of a generic "DeviceBase" class
@@ -53,16 +55,27 @@ Challenge: Attempt to create a standardized, unified API to interface with all c
   - All abstract methods simply raise "NotImplementedError"
     - Adding new methods to the base classes will not break existing implementations
     - To ensure vendors are made aware of new methods, we will add a build-time or run-time test which will output all unimplemented methods
-- New "sonic_platform" package will only be installed in Platform Monitor (pmon) Docker container (not in base image).
-  - Daemons running in pmon container will be responsible for updating Redis State database with current data from platfrom hardware
-  - Command-line utilities in base image will query State DB to retrieve current platform peripheral metrics
-  - For more real-time data, such as transceiver optical data, CLI will notify daemons to retrieve data by writing to DB
 
-### New Platform API Hierarchy
+#### Implementation
+
+- Source for new "sonic_platform" package will reside along with vendor's platform module source under the platform/... directory structure
+- At build time, vendor ensures sonic_platform source is compiled into a Python wheel file
+- Upon first boot after image installation, at the time the appropriate platform modules are installed, the following must also be done:
+  1. Install the sonic_platform package in the host system
+  2. Copy the sonic_platform Python wheel to the appropriate /usr/share/sonic/device/<PLATFORM>/ directory, which gets mounted in the Docker containers
+- When the Platform Monitor (PMon) container starts, it will check whether a "sonic_platform" package is installed. If not, it will attempt to install a "sonic_platform\*.whl" file in the mounted directory as mentioned above.
+- In the host system, applications will interact with the platform API for things like watchdog and reboot cause
+- Daemons running in pmon container will be responsible for updating Redis State database with current metrics/status from platfrom hardware
+- Command-line utilities in host image will query State DB to retrieve current platform peripheral metrics
+- For more real-time data, such as transceiver optical data, a mechanism can be implemented CLI can notify daemons to retrieve data by writing to DB
+
+#### New Platform API Hierarchy
 
 - Platform
   - Chassis
     - Base MAC address
+    - Serial number
+    - System EEPROM info
     - Reboot cause
     - Hardware watchdog
     - Environment sensors
@@ -181,6 +194,6 @@ presence = psu1.get_presence()
 print("PSU 1 presence: {}".format(presence))
 ```
 
-### Pull Request for New API Framework
+### New Platform API Framework location
 
-https://github.com/Azure/sonic-platform-common/pull/13
+https://github.com/Azure/sonic-platform-common/tree/master/sonic_platform_base
