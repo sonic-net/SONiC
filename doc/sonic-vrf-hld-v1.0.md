@@ -38,7 +38,6 @@ Table of Contents
     - [Add VRF and bind/unbind interfaces to this VRF](#add-vrf-and-bindunbind-interfaces-to-this-vrf)
     - [Delete vrf](#delete-vrf)
   - [Impact to other service after import VRF feature](#impact-to-other-service-after-import-vrf-feature)
-  - [Progress](#progress)
   - [Test plan](#test-plan)
   - [Appendix - An alternative proposal](#appendix---an-alternative-proposal)
     - [vrf as key](#vrf-as-key)
@@ -97,14 +96,22 @@ Virtual Routing and Forwarding is used to achieve network virtualization and tra
 ![Deployment use case](https://github.com/preetham-singh/SONiC-1/blob/master/images/vrf_hld/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
 __Figure 1: Multi VRF Deployment use case__
 
+In above customer deployment:
+Customer A and Customer B in Site 1 or Site 2 are customer facing devices referred as Customer Edge routers.
+Router-1 and Router-2 are routers which provide interconnectivity between customers across sites referred as Provider Edge Routers.
+
 Above figure depicts typical customer deployment where multiple Customer facing devices are connected to Provider edge routers.
 With such deployment Provider Edge routers associate each input interface with one VRF instance.
-Note that multiple input interfaces can be associated to a VRF instance. This input interface can be Physical interface, Port-channel or Ve interface.
+
+In Figure 1, All cutomer facing devices belonging to Customer-A irrespective of the site, will belong to VRF Green and those in Customer-B will belong to VRF Red.
+With this deployment, isolation of traffic is achieved across customers maintaining connectivity within same customer sites.
+
+Note that multiple input interfaces can be associated to a VRF instance. This input interface can be Physical interface, Port-channel or L3 Vlan interface.
 
 ### Functional Description
 
 Multi-VRF is the ability to maintain multiple "Virtual Routing and Forwarding"(VRF) tables on the same Provider Edge router.
-Multi-VRF uses multiple instances of a routing protocol such as BGP to exchange routing information among peer provider edge routers.
+Multi-VRF aware routing protocol such as BGP is used to exchange routing information among peer Provider Edge routers.
 The Multi-VRF capable Provider Edge router maps an input customer interface to a unique VRF instance. Provider Edge router maintains unique VRF table for each VRF instance on that Provider Edge router.
 
 Multi-VRF routers communicate with one another by exchanging route information in the VRF table with the neighboring Provider Edge router.
@@ -121,12 +128,13 @@ VRF route leak is a case where route and nexthops are in different VRF.
 
 VRF route leak can be achieved via both Static or Dynamic approach.
 
-In Static VRF route leak, FRR cli can be used where user can specify nexthop IP along with nexthop VRF, where the nexthop is reachable.
+In Static VRF route leak, FRR CLI can be used where user can specify nexthop IP along with nexthop VRF, where the nexthop IP is reachable through a nexthop VRF.
 
-In Dynamic VRF route leak, Route maps can be used to import routes between VRFs. Prefix lists are used to match route prefixes.
-Leaked routes will be deleted when source route is deleted.
+In Dynamic VRF route leak, Route maps can be used to import routes from other VRFs.
+Prefix lists within route maps are used to match route prefixes in source VRF and various action can be applied on these matching prefixes.
+If route map action is permit, these routes will be installed into destination VRF.
 
-Note: Since static leak route requires nexthop vrf name, VRF route leak from user-defined-vrf to Global vrf will not be supported.
+Leaked routes will be automatically deleted when corresponding routes are deleted in source VRF.
 
 ## Dependencies
 
@@ -142,9 +150,9 @@ the master net device.
 Application can get creation or deletion event of VRF master device via RTNETLINK,
 as well as information about slave net device joining a VRF.
 
-Linux kernel supports VRF forwarding using PBR scheme. It will fall to main
-routing table to check do IP lookup. VRF also can have its own default network
-instruction in case VRF lookup fails.
+Linux kernel supports VRF forwarding using PBR scheme. All route lookups will be performed on
+main routing table associated with the VRF. VRF also can have its own default network
+instruction in case route lookup fails.
 
 2. FRRouting is needed to support BGP VRF aware routing.
 
@@ -173,20 +181,8 @@ ip [-6] rule add pref 32765 table local && ip [-6] rule del pref 0
 
 SAI right now does not seem to have VRF concept, it does have VR.
 
-We propose to implement VR as "virtual router" and VRF as "virtual router
-forwarding"
+Hence in this implementation release we use VR object as VRF object.
 
-VR is defined as a logical routing system. VRF is defined as forwarding
-domain within a VR.
-
-As this stage, we assume one VR per system. Only implement VRFs within this VR.
-
-Accordingly, we need to add vrf_id to sai_Route_entry and add vrf attribute
-to sai_routeInterface object.
-
-An alternative method is using VR as VRF, this requires to add two attribution
-to VR object to support Requirement 5) (fallback lookup). SAI community has
-decided to take VR as VRF. So in this implementation release we use VR object as VRF object.
 Here are the new flags we propose to add in the SAI interface:
 
 ```jason
@@ -281,7 +277,7 @@ Add vrf-binding information in config_db.json file.
 
 With this approach, there is no redundant vrf info configured with an interface where multiple IP addresses are configured.
 
-Logically IP address configuration must be processed after interface binding to vrf is processed. In intfmgrd/intfOrch process intf-bind-vrf event must be handled before IP address event. So interface-name entry in config_db.json is necessary even user doesn't use VRF feature. e.g. `"Ethernet2":{}` in the above example configuration. For version upgrade compatibility we need to add a script, this script will convert old config_db.json to new config_db.json at bootup, then the new config_db.json would contain the interface-name entry for interfaces associated in the global VRF table.
+Logically IP address configuration must be processed after interface binding to vrf is processed. In intfmgrd/intfOrch process intf-bind-vrf event must be handled before IP address event. So interface-name entry in config_db.json is necessary even though user doesn't use VRF feature. e.g. `"Ethernet2":{}` in the above example configuration. For version upgrade compatibility we need to add a script, this script will convert old config_db.json to new config_db.json at bootup automatically, then the new config_db.json would contain the interface-name entry for interfaces associated in the global VRF table.
 
 ### Change redirect syntax in acl_rule_table of configdb
 
@@ -494,20 +490,21 @@ update kernel using iproute2 CLIs and write VRF information to app-VRF-table.
 
 ### intfsmgrd changes
 
-Ip address event and vrf binding event need to be handled seperately. These two events has sequency dependency.
+IP address event and VRF binding event need to be handled seperately. These two events has sequence dependency.
 
 - Listening to interface binding to specific VRF configuration in config_db.
-  - bind to vrf event:
-    - bind kernel device to master vrf
-    - add interface entry with vrf attribute to app-intf-table.
-    - set intf-bind-vrf flag on statedb
-  - unbind from vrf event:
+  - bind to VRF event:
+    - bind kernel device to master VRF
+    - add interface entry with VRF attribute to app-intf-table.
+    - set intf-bind-vrf flag on STATE_DB
+  - unbind from VRF event:
     - wait until all ip addresses associated with the interface is removed. Ip address infomation can be retrieved from kernel.
-    - bind kernel device to global vrf
-    - del interface entry with vrf attribute from app-intf-table
-    - unset vrf-binding flag on statedb
+    - bind kernel device to global VRF
+    - del interface entry with VRF attribute from app-intf-table
+    - unset vrf-binding flag on STATE_DB
 - Listening to interface ip address configuration in config_db.
-  - add ip address event: wait until intf-bind-vrf flag is set, set ip address on kernel device and add {interface_name:ip address} entry to app-intf-prefix-table
+  - add ip address event: 
+    - wait until intf-bind-vrf flag is set, set ip address on kernel device and add {interface_name:ip address} entry to app-intf-prefix-table
   - del ip address event:
     - unset ip address on kernel device
     - del {interface_name:ip address} entry from app-intf-prefix-table.
@@ -779,10 +776,6 @@ be modified or restarted for VRF binding event.
 
 For layer 3 apps such as snmpd or ntpd they are using vrf-global socket too.
 So they are vrf-transparent too.
-
-## Progress
-
-In the diagram, fpmsyncd, vrfmgrd, intfsmgrd, intfsorch are checked into the master branch. There may need changes to support VRF. Other components are working in progress, will be committed as planned.
 
 ## Test plan
 
