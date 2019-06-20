@@ -745,6 +745,22 @@ This command will do the following:
 - unbind interfaces(s) from Vrf-blue
 - del Vrf-blue
 
+### Route Leak Configuration
+
+User can configure static leak routes using below CLIs:
+
+```bash
+
+$ config route add vrf Vrf-red prefix 10.1.1.1/32 nexthop vrf Vrf-green 100.1.1.2
+This installs route 10.1.1.1/32 in Vrf-red and with nexthop pointing to 100.1.1.2 in Vrf-green, provided below conditions are met:
+  - Vrf-green is configured in kernel
+  - 100.1.1.2 is reachable in Vrf-green
+
+$ config route del vrf Vrf-red prefix 10.1.1.1/32 nexthop vrf Vrf-green 100.1.1.2
+This deletes route 10.1.1.1/32 in Vrf-red.
+
+```
+
 ## Impact to other service after import VRF feature
 
 For apps that don't care VRF they don't need to modify after sonic import VRF.
