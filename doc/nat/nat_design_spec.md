@@ -33,8 +33,8 @@
       * [3.3.2 Natsync daemon](#332-natsync-daemon)
       * [3.3.3 NatOrch Agent](#333-natorch-agent)
     * [3.4 Linux Integration](#34-linux-integration)
-      * [3.4.1 Connection tracking](#341-connection-tracking)
-      * [3.4.2 IPtables](#342-iptables)
+      * [3.4.1 IPtables](#341-iptables)
+      * [3.4.2 Connection tracking](#342-connection-tracking)
       * [3.4.3 Interactions between Kernel and Natsyncd](#343-interactions-between-kernel-and-natsyncd)
     * [3.5 Docker for NAT](#35-docker-for-nat)
     * [3.6 SAI](#35-sai)
@@ -203,7 +203,7 @@ Dynamically created NAT/NAPT entries are timed out after a period of inactivity 
 The inactivity timeout period is configurable for the basic NAT entries.
 
 The dynamic port allocation from the pool is done in a random manner.
-When the pool is exhausted, new incoming connections are no longer NAT'ted. In such scenario, the new incoming traffic are reported as NAT miss and dropped in the kernel. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
+When the pool is exhausted, new incoming connections are no longer NAT'ted in the hardware. In such scenario, the new incoming traffic are reported as NAT miss and dropped. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
 
 #### 2.2.3.1 Full Cone NAT
 When the first connection from a particular internal IP + L4 port is dynamically SNAT mapped to an external IP + L4 port, the SNAT and the corresponding DNAT entries are added for that mapping in the hardware.
@@ -383,8 +383,8 @@ key                            = Values
 ; field                        = value
 ADMIN_MODE                     = ENABLE/DISABLE   ; If the NAT feature is enabled or disabled 
 NAT_TIMEOUT                    = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
-NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
-NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
+NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
+NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
 ```
 
 ```
@@ -512,14 +512,14 @@ key                                   = NAT_GLOBAL_TABLE:Values        ; NAT glo
 ; field                               = value
 ADMIN_MODE                     = "enable" / "disable" ; If the NAT feature is enabled or disabled globally
 NAT_TIMEOUT                    = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
-NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
-NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
+NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
+NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 120 sec - 600 sec)
 ```
 
 ### 3.2.5 COUNTERS DB
 The following new counters are available per zone:
 ```
-COUNTERS:NAT_ZONE:<zone-id>
+COUNTERS_NAT_ZONE:<zone-id>
     SAI_NAT_DNAT_DISCARDS
     SAI_NAT_SNAT_DISCARDS
     SAI_NAT_DNAT_TRANSLATION_NEEDED
@@ -532,25 +532,25 @@ The following new counters are available per entry:
 ```
 The counters in the COUNTERS_DB are updated every 10 seconds. The key for the entry in the COUNTERS_DB is same as the key in the APP_DB.
 
-COUNTERS:NAT:ip
+COUNTERS_NAT:ip
     DNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     DNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
     SNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     SNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
 
-COUNTERS:NAPT:ip_protocol:ip:l4_port
+COUNTERS_NAPT:ip_protocol:ip:l4_port
     DNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     DNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
     SNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     SNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
 
-COUNTERS:NAT_TWICE:src_ip:dst_ip
+COUNTERS_NAT_TWICE:src_ip:dst_ip
     DNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     DNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
     SNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     SNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
 
-COUNTERS:NAPT_TWICE:ip_protocol:src_ip:src_l4_port:dst_ip:dst_l4_port
+COUNTERS_NAPT_TWICE:ip_protocol:src_ip:src_l4_port:dst_ip:dst_l4_port
     DNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
     DNAT_TRANSLATIONS_BYTES  : <bytes_counter_value>
     SNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
@@ -564,7 +564,7 @@ Following changes are done in the orchagent.
  NatMgrd gets the STATIC_NAPT, STATIC_NAT, NAT_POOL, NAT_GLOBAL, NAT_BINDINGS config changes from CONFIG_DB.
  NatMgr is responsible for pushing the Static NAT/NAPT entries and the NAT_GLOBAL configuration into the APP_DB. It also programs the Static NAT/NAPT entries and the NAT_POOL to ACL binding configuration as iptable rules in the kernel.
 
-Before acting upon the Static NAPT configuration, NatMgrd checks with the STATE_DB that the matching IP interface is configured in the system (state == ok). 
+Before acting upon the Static NAPT configuration, NatMgrd checks with the STATE_DB that the matching global IP interface is configured in the system (state == ok). 
 
 For a STATIC_NAPT entry and the interface configuration as below: 
 ```
@@ -631,9 +631,9 @@ iptables -t nat -A POSTROUTING -p tcp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p udp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p icmp -s 20.0.1.0/24 -j RETURN
 
-iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random
-iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random
-iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random
+iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
+iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
+iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
 ```
 They tell the kernel to do the dynamic SNAT L4 port mapping or icmp query-id mapping dynamically for any incoming packets permitted by the ACL (20.0.0.0/16 subnet hosts excepting 20.0.1.0/24 subnet hosts), that are routed and before being sent out on the interface Ethernet15.
 
@@ -716,14 +716,15 @@ NatOrch is responsible for the following activities:
    - Listens on the notifications in the NAT, NAPT, NAPT_TWICE tables in the APP_DB, picks the notifications, translates them to SAI objects and pushes them to ASIC_DB to be consumed by Syncd. For every single NAT/NAPT entry, NatOrch pushes 1 SNAT entry and 1 DNAT entry (for inbound and outbound directions) to the ASIC_DB via sairedis.
    - Monitors the translation activity status every sampling period for each of the NAT/NAPT entries in the hardware. Sampling period is chosen to be a optimal value of 60 seconds. If the NAPT entry is inactive for the duration of the NAT timeout period, the entry is removed. Static NAT/NAPT entries are not monitored for the inactivity. They have to be unconfigured explicitly to be removed from the hardware.
 
-### 3.3.3.1 Interaction with NeighOrch
-NatOrch registers as observer with the NeighOrch so that the DNAT entry and the corresponding SNAT entry can be pushed to ASIC_DB by NatOrch, only if the corresponding inside zone neighbor's entry is created in NeighOrch.
-When the Neighbor entry is deleted in NeighOrch, the corresponding DNAT and SNAT entries are removed from the hardware.
+### 3.3.3.1 Interaction with NeighOrch and RouteOrch
+NatOrch registers as observer with the NeighOrch and RouteOrch, so that the DNAT/DNAPT entries can be pushed to ASIC_DB by NatOrch, only if the corresponding translated IP is reachable via a neighbor entry or a route entry.
+
+When the neighbor or route are no longer resolving the translated IP, all the corresponding DNAT/DNAPT entries are removed from the hardware.
  
 ### 3.3.3.2 Aging inactive entries
 Since the active data traffic for the TCP/UDP connections are not flowing through the kernel, the timing out of the connection tracking entries is the responsibility of the application.
-In order to query the translation activity status for each NAT entry from the hardware, NatOrch agent maintains the internal cache of all the NAT entries that are received from the APP_DB.
-NatOrch queries the translation activity status of each of the dynamic entries every sampling period. Static entries are not monitored for inactivity. If the dynamic entry is not active for 2 consecutive sampling periods, the entry is removed from the connection tracking table in the Kernel. Entries are removed from the kernel to keep the connections in the kernel in sync with the entries in the hardware. That will trigger the removal of the entries from APP_DB and ASIC_DB. 
+NatOrch agent maintains the internal cache of all the NAT entries that are received from the APP_DB.
+NatOrch queries the translation activity status of each of the dynamic entries every sampling period. Static entries are not monitored for inactivity. The timeout of the active entries are reset every sampling period. If the dynamic entry is not active for the configured timeout, the entry is timed out from the connection tracking table in the Kernel. That in turn triggers the removal of the inactive dynamic entries from the APP_DB and the ASIC_DB. 
 
 ### 3.3.3.3 Handling the failed NAT entries
 Once the error handling framework is in place, the following changes handle the failed NAT entries from SAI:
@@ -732,6 +733,9 @@ For the failed NAT entries, NatOrch removes the corresponding entries from the i
 
 ### 3.3.3.4 Clear command
 When the administrator issues the clear command, NatOrch flushes the conntrack table, which in turn results in deleting the entries in the APP_DB by the Natsyncd daemon.
+
+### 3.3.3.5 Max limit on the NAT entries
+NatOrch keeps track of the number of static + dynamic entries created and limits the NAT'ted conntrack entries in the kernel to the supported max limit in the hardware. This is done by removing any new conntrack connections that are being created beyond the maximum limit.
  
 ### 3.3.3.5 Block diagram
 The high level block diagram for NAT in SONiC is captured below.
@@ -739,12 +743,7 @@ The high level block diagram for NAT in SONiC is captured below.
 ![NAT block diagram](images/Nat_block_diagram.png)
  
 ## 3.4 Linux Integration
-### 3.4.1 Connection tracking
-Connection tracking module in the kernel creates the connection entries and maintains their states as and when the packet traverses the forwarding path in the kernel. It keeps track of all the connections created in the system. IPtables module consults the connections tuples tracked in the system during NAT process and updates the connections.
-
-Connections when added, deleted or updated in the connection tracking system are notified via netlink interface to interested listeners (natsyncd in our case).
-
-### 3.4.2 IPtables
+### 3.4.1 IPtables
 In SONiC, the core NAT logic which involves the (IP + port) translation dynamically is the iptables module in the kernel.
 The iptables uses the Netfilter hooks in the kernel to execute its NAT'ting rules at different points in the packet forwarding path.
 
@@ -754,9 +753,27 @@ The packets that are going from one zone to another zone in the hardware are tra
 
 Before the L3 forwarding is done in the Kernel, the iptables rules in PREROUTING chain are applied. If there are any DNAT rules that the packets match against, they translate the DIP and L4 port to the IP and L4 port as applicable. In this process, the DNAT state and DIP of the connection entry in the connection tracking table are updated.
 
-After the L3 forwarding is done and before the packet is about to be sent out on the NAT outside interface, the rules in the POSTROUTING chain are applied which do the SNAT (translate the SIP + L4 port to the public IP + L4 port). In this process, the SNAT state and SIP of the connection entry in the connection tracking table are updated.
+After the L3 forwarding is done and before the packet is about to be sent out, the rules in the POSTROUTING chain are applied which do the SNAT (translate the SIP + L4 port to the public IP + L4 port). In this process, the SNAT state and SIP of the connection entry in the connection tracking table are updated.
 
 As long as the hardware entry is not installed, the NAT translation and forwarding is done in the Linux kernel.
+
+### 3.4.2 Connection tracking
+Connection tracking module in the kernel creates the connection entries and maintains their states as and when the packet traverses the forwarding path in the kernel. It keeps track of all the connections created in the system. IPtables module consults the connections tuples tracked in the system during NAT process and updates the connections.
+
+Connections when added, deleted or updated in the connection tracking system are notified via netlink interface to interested listeners (natsyncd in our case).
+
+Connections are tracked as 5-tuple entries (based on Protocol, SIP, SPORT, DIP, DPORT) in the kernel, but the NAT entries in the hardware are to be tracked as 3-tuple entries (based on Protocol, SIP, SPORT (or) Protocol, DIP, DPORT).
+By default the kernel SNATs to the same translated SIP+SPORT, traffic flows from different sources to different destinations.
+For eg.,
+The traffic
+[SIP=1.0.0.1, SPORT=100 => DIP=2.0.0.2, DPORT=200] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 => DIP=2.0.0.2, DPORT=200] as well as the traffic
+[SIP=1.0.0.2, SPORT=120 => DIP=2.0.0.3, DPORT=300] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 => DIP=2.0.0.3, DPORT=300]
+as the translated 5-tuples are unique in each case.
+Due to the reuse of the mapped SIP+SPORT, the 65.55.45.1:600 cannot be mapped back to the original source uniquely when the traffic comes back in the reverse direction.
+
+To achieve the 1-1 mapping from the 5-tuple conntrack entries in the kernel to the 3-tuple NAT entries in the hardware, the iptables are programmed in the kernel to do translated port mapping in a random manner from the given port range.
+
+Even with the random port allocation, if a different source is mapped to reuse an existing translated SIP+SPORT, the corresponding conntrack entry is deleted in the kernel.   
 
 ### 3.4.3 Interactions between Kernel and Natsyncd
 Following sections explain how the NAT entries corresponding to the connections originated from the private networks are created in the hardware.
@@ -771,11 +788,11 @@ Only the TCP connection entries that are marked as ASSURED in the conntrack tabl
 2. So that the kernel does not timeout the unidirectional SYN-SENT connection state entries early (if only SYN packet is software forwarded in the kernel and the SYN+ACK packet is hardware forwarded).
 3. To have the conntrack TCP entries and the hardware entries in sync.
 
-NatSyncd checks that the TCP connection's parameters reported by the conntrack netlink event have the SNAT status and the ASSURED status set, before pushing the entry to the APP_DB.
+NatSyncd checks that the TCP connection's parameters reported by the conntrack netlink event have the ASSURED status set, before pushing the entry to the APP_DB.
 
-The conntrack entry notified by the kernel has the SIP and DIP fields in both directions of the flow. If only SIP or DIP is different in both directions, it is a case of Single NAT/NAPT. If both the SIP and DIP are different in both directions, it is a case of Twice NAT/NAPT.
+The conntrack entry notified by the kernel has the SIP and DIP fields in both directions of the flow. If only SIP or DIP is modified in any direction, it is a case of Single NAT/NAPT. If both the SIP and DIP are modified in any direction, it is a case of Twice NAT/NAPT.
 
-The conntrack netlink DESTROY events result in the deletion of the NAT entry from the APP_DB. The DESTROY events are received on the timeouts of the TCP connections (for eg., SYN-SENT state timeout) in the connection tracking table.
+The conntrack netlink DESTROY events result in the deletion of the NAT entry from the APP_DB. The DESTROY events are received on the timeouts of the TCP connections in the connection tracking table.
 
 The TCP FIN flagged packets are not trapped to CPU. Hence the NAT entries for the closed TCP connections are not removed immediately from the hardware. They are timed out eventually based on the translation inactivity and removed.
 
@@ -1103,7 +1120,7 @@ N/A
 | show nat config static| Use this command to display the Static NAT/NAPT configuration   |
 | show nat config pool  | Use this command to display the NAT pools configuration    |
 | show nat config bindings | Use this command to display the NAT bindings configuration |
-| show nat config       | Use this command to display the global NAT configuration |
+| show nat config global-values       | Use this command to display the global NAT configuration |
 
 Example:
 ```
@@ -1126,7 +1143,7 @@ tcp      20.0.0.1:4500    65.55.42.1:1026   65.55.42.1:2000    20.0.0.1:5500
 
 Router#show nat statistics
 
-Protocol Source IP        Destination IP       Packets          Bytes
+Protocol Source           Destination          Packets          Bytes
 -------- ---------        --------------       -------------    -------------
 all      10.0.0.1         ---                            802          1009280     
 all      10.0.0.2         ---                             23             5590            
@@ -1154,18 +1171,18 @@ Pool1          65.55.45.5                  1024-65535
 Pool2          65.55.45.6-65.55.45.8       ---
 Pool3          65.55.45.10-65.55.45.15     500-1000
 
-Router#show nat config binding
+Router#show nat config bindings
 
 Binding Name   Pool Name      Access-List    Nat Type  Twice-Nat Id
 ------------   ------------   ------------   --------  ------------
 Bind1          Pool1          ---            snat      ---
 Bind2          Pool2          1              snat      1
-Bind3          Pool3          1,2            snat      --
+Bind3          Pool3          2              snat      --
 
 
-Router#show nat config
+Router#show nat config global-values
 
-   Admin Mode     : Enabled
+   Admin Mode     : enabled
    Global Timeout : 600 secs
    TCP Timeout    : 86400 secs
    UDP Timeout    : 300 secs
@@ -1268,16 +1285,21 @@ For single NAT entries
         "nat_type"     : "dnat"
         "entry_type"   : "static"
     }, 
-    "NAPT_TABLE:TCP:65.55.42.1:1024": { 
-        "translated_ip": "20.0.0.1"
-        "translated_l4_port": "6000"
-        "nat_type"     : "dnat"
+    "NAT_TABLE:20.0.0.3": { 
+        "translated_ip": "65.55.42.3"
+        "nat_type"     : "snat"
         "entry_type"   : "static"
     }, 
     "NAPT_TABLE:TCP:20.0.0.4:6003": { 
         "translated_ip" : "65.55.42.1"
         "translated_l4_port" : "1026"
         "nat_type"     : "snat"
+        "entry_type"   : "dynamic" 
+    }
+    "NAPT_TABLE:TCP:65.55.42.1:1026": { 
+        "translated_ip" : "20.0.0.4"
+        "translated_l4_port" : "6003"
+        "nat_type"     : "dnat"
         "entry_type"   : "dynamic" 
     }
 }
@@ -1299,7 +1321,6 @@ For twice NAT entries
         "translated_dst_l4_port": "6006"
         "entry_type": "static"
     }
-
 }
 
 ```
@@ -1339,6 +1360,8 @@ When a planned warm restart is initiated:
 - Natsyncd starts the reconciliation (deleting stale NAT entries and adding new NAT entries) into the APP_DB.
 
 Only if the L3 Route/Neighbor/Nexthop entries are restored properly during the warm restart, does the NAT warm restart work properly without traffic loss.
+
+Warm boot is supported for the NAT feature at the docker level and at the system level.
 
 # 7 Scalability
 
@@ -1420,3 +1443,4 @@ Following features are not supported:
 - VRF aware NAT
 - NAT on fragmented IP packets arriving at the NAT router
 - Error handling of the failed NAT entries in the hardware.
+- ALG support
