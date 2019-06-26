@@ -765,7 +765,7 @@ The scripts for testing sensors `ansible/roles/test/tasks/sensors_check.yml` sim
 |----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
 | Case 1.5 Sequential syncd/swss restart | tests/platform/test_sequential_restart.py                                                                                                  | Yes                     |
 | Case 1.6 Reload configuration          | tests/platform/test_reload_config.py                                                                                                       | Yes                     |
-| Case 1.7  COLD/WARM/FAST reboot        | <ul><li>tests/platform/test_cold_reboot.py</li><li>tests/platform/test_warm_reboot.py</li><li>tests/platform/test_fast_reboot.py</li></ul> | Yes                     |
+| Case 1.7  COLD/WARM/FAST reboot        | tests/platform/test_reboot.py | Yes                     |
 
 ## Helper scripts
 
