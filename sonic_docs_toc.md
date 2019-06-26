@@ -1,5 +1,5 @@
 - doc
-  - [config_db.j](config_db.j)
+  - [config_db.json](config_db.json)
   - [Sonic_workshop_config_model.](Sonic_workshop_config_model.)
   - [Self-Healing Network Linkedin Keynote.](Self-Healing Network Linkedin Keynote.)
   - [Barefoot-SAI-Workshop-03-21-2018-v4.](Barefoot-SAI-Workshop-03-21-2018-v4.)
