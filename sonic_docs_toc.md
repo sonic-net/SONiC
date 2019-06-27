@@ -1,7 +1,7 @@
 - doc
   - [config_db.json](doc/config_db.json)
   - [Sonic_workshop_config_model.pdf](doc/Sonic_workshop_config_model.pdf)
-  - [Self-Healing Network Linkedin Keynote.pdf](doc/Self-Healing Network Linkedin Keynote.pdf)
+  - [Self-Healing Network Linkedin Keynote.pdf](doc/Self-Healing-Network-Linkedin-Keynote.pdf)
   - [Barefoot-SAI-Workshop-03-21-2018-v4.pdf](doc/Barefoot-SAI-Workshop-03-21-2018-v4.pdf)
   - [SONiC Architect adn Platform Management Service - MSFT.pdf](doc/SONiC Architect adn Platform Management Service - MSFT.pdf)
   - [_Sidebar.md](doc/_Sidebar.md)
