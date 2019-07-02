@@ -312,7 +312,7 @@ Diagram 7.2.2
 ## 7.3. Peer connection down
 
 ### 7.3.1 Keepalive link failure
-![Diagram 7.3.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.png)
+![Diagram 7.3.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.1.png)
 Diagram 7.3.1
 -	When the keepalive link is down, it causes the peer connection is lost. But both peers are healthy.
 -	Irrespective of the status of peer link, both devices are considering the peer device is down. 
@@ -320,7 +320,7 @@ Diagram 7.3.1
 -	If keepalive link is restored, peer connection will be established again, information will be sync’ed up between ICCP peers. When the ICCP connection is active, the standby will change local system ID to the peer system’s ID (MAC), hence the MC-LAG enabled links connected to standby will become active again.
 
 ### 7.3.2 Peer device failure
-![Diagram 7.3.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.png)
+![Diagram 7.3.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.2.png)
 Diagram 7.3.2
 -	Peer device failure will cause ICCP connection to go down. 
 -	If the master is down, the MC-LAG enabled ports connected CE are down, and the event is detected by the CE device. When the standby peer changes its LACP system ID to the local default, the CE device accepts the new LACP system ID of the links connected to the standby device. The result is all data traffic from CE are sent to the standby device.
