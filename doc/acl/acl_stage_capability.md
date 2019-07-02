@@ -20,7 +20,9 @@ The proposed new schema:
 
 ### ACL_RULE_TABLE
 ```
-mirror_action = "ingress"/"egress":1*255VCHAR                 ; refer to the mirror session
+mirror_action = 1*255VCHAR                         ; refer to the mirror session (implicitely ingress for backward compatibility)
+mirror_ingress_action = 1*255VCHAR                 ; refer to the mirror session
+mirror_egress_action = 1*255VCHAR                  ; refer to the mirror session
 ```
 
 e.g.:
@@ -28,7 +30,7 @@ e.g.:
 {
   "ACL_RULE": {
         "EVERFLOW|RULE_1": {
-            "MIRROR_ACTION": "EGRESS:everflow0",
+            "MIRROR_EGRESS_ACTION": "everflow0",
             "PRIORITY": "9999",
             "SRC_IP": "20.0.0.10/32"
         }
@@ -40,7 +42,7 @@ mirror_action should be implicitly set to "ingress" by default to be backward co
 
 ### orchagent
 
-- AclRuleMirror adds processing of new schema and convert to SAI_ACL_ACTION_TYPE_MIRROR_INGRESS/EGRESS based on "ingress"/"egress" value;
+- AclRuleMirror adds processing of new schema and convert to SAI_ACL_ACTION_TYPE_MIRROR_INGRESS/EGRESS based on action key;
 - By default mirror action is considered "ingress" to be backward compatible;
 
 ### acl-loader
@@ -53,7 +55,6 @@ e.g.:
 ```
 admin@sonic:~$ acl-loader update incremental --session_name=everflow0 --mirror_stage=egress rules.json
 ```
-
 
 ## 2. ACL action capability check
 
@@ -137,16 +138,23 @@ SWITCH_CAPABILITY|switch
 e.g:
 ```
 127.0.0.1:6379[6]> hgetall "SWITCH_CAPABILITY|switch"
-1) "ACL_ACTIONS|INGRESS|PACKET_ACTION"
-2) "DROP,FORWARD,REDIRECT"
+1) "ACL_ACTIONS|INGRESS"
+2) "PACKET_ACTION,REDIRECT_ACTION,MIRROR_ACTION_INGRESS"
 3) "ACL_ACTIONS|INGRESS|MIRROR_ACTION"
-4) "INGRESS"
-5) "ACL_ACTIONS|EGRESS|PACKET_ACTION"
-6) "DROP,FORWARD"
-7) "ACL_ACTIONS|EGRESS|MIRROR_ACTION"
-8) "EGRESS"
+4) "PACKET_ACTION,MIRROR_ACTION_EGRESS"
 ...
 ```
+
+#### NOTE
+
+To be consistent with SAI data type 'redirect:<param>' will be moved out from PACKET_ACTION key to own REDIRECT_ACTION key.
+Old config like ```"PACKET_ACTION": "redirect:Ethernet8"``` should still work for backward compatibility.
+
+##### ACL_RULE_TABLE
+```
+redirect_action = 1*255VCHAR                         ; refer to the redirect object
+```
+
 
 ### libsairedis
 
