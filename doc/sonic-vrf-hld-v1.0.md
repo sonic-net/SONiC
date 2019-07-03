@@ -585,10 +585,10 @@ $ config vrf add <vrf_name>
 $ config vrf del <vrf_name>
 
 //bind an interface to a VRF
-$ config interface bind <interface_name> <vrf_name>
+$ config interface vrf bind <interface_name> <vrf_name>
 
 //unbind an interface from a VRF
-$ config interface unbind <interface_name> <vrf_name>
+$ config interface vrf unbind <interface_name> <vrf_name>
 
 // show attributes for a given vrf
 $ show vrf [<vrf_name>]
