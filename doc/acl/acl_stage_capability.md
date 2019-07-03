@@ -68,6 +68,26 @@ AclOrch on initialization will query ACL stage capabilities and store them in in
 |SAI_SWITCH_ATTR_ACL_STAGE_INGRESS                      | list of action types supported on ingress stage |
 |SAI_SWITCH_ATTR_ACL_STAGE_EGRESS                       | list of action types supported on egress stage  |
 
+For those ACL entry attributes which have isenum == true set in sai_attr_metadata_t we will query supported list of actions using ``` sai_query_attribute_enum_values_capability ```
+
+E.g for SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION:
+
+```c++
+status = sai_query_attribute_enum_values_capability(gSwitchId,
+                                                   SAI_OBJECT_TYPE_SWITCH,
+                                                   SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION,
+                                                   &enum_values_capability);
+if (status != SAI_STATUS_SUCCESS)
+{
+    SWSS_LOG_THROW("sai_query_attribute_enum_values_capability failed");
+}
+```
+
+The above query will return a list of supported actions from ```sai_packet_action_t``` (DROP/FORWARD/COPY/TRAP etc.)
+
+**NOTE**: sai_query_attribute_enum_values_capability does not return values supported per stage
+
+**TODO**: sai_query_attribute_enum_values_capability not yet supported by libsairedis implementation
 
 #### aclorch.cpp
 
@@ -86,6 +106,7 @@ private:
    void queryAclCapabilities();
 
    std::map<sai_acl_stage_t, std::set<sai_acl_action_type_t>> m_aclStageCapabilities;
+   std::map<sai_acl_entry_attr_t, std::set<int32_t>> m_aclEnumActionCapabilities;
 ...
 };
 ```
@@ -98,6 +119,8 @@ class AclRule
 public:
   ...
   // generic validation of ACL action based on m_aclStageCapabilities
+  // if some of sai_acl_entry_attr_t values in m_actions keys are enums (isenum == true)
+  // validate based on m_aclEnumActionCapabilities
   virtual bool validateAddAction(string attr_name, string attr_value);
   ...
 };
@@ -127,7 +150,7 @@ VS test cases update to check for differnt combinations ingress/egress table and
 
 TBD
 
-### Switch ACL capability table
+### Switch capability table
 
 We will put ACL capabilities in state DB table:
 
@@ -144,6 +167,15 @@ e.g:
 4) "PACKET_ACTION,MIRROR_ACTION_EGRESS"
 ...
 ```
+
+For those action keys which are enums we will put queried supported enum values in DB
+```
+5) "ACL_ACTION|PACKET_ACTION"
+6) "DROP,FORWARD,COPY,TRAP"
+```
+
+Producer for ACL_RULE table like acl-loader will look at "ACL_ACTIONS|table-stage" to get a list of supported action keys.
+If key is in the list of supported, it will look if "ACL_ACTION|action-key" exists, if it doesn't exist we cannot validate action value (e.g value is not an enum but object like in redirect or mirror key), otherwise acl-loader gets a list of supported values and checks if value is in the list.
 
 #### NOTE
 
