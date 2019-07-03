@@ -1,67 +1,39 @@
-# VRF feature ansible test plan
+# VRF feature ansible test plan <!-- omit in toc -->
 
 <!-- TOC -->
 
-- [VRF feature ansible test plan](#VRF-feature-ansible-test-plan)
-  - [overview](#overview)
-    - [Scope](#Scope)
-    - [Testbed](#Testbed)
-  - [Setup configuration](#Setup-configuration)
-    - [vrf config in t0 topo](#vrf-config-in-t0-topo)
-    - [Scripts for generating configuration on SONIC](#Scripts-for-generating-configuration-on-SONIC)
-    - [Pytest scripts to setup and run test](#Pytest-scripts-to-setup-and-run-test)
-    - [Setup of DUT switch](#Setup-of-DUT-switch)
-      - [vrf configuration](#vrf-configuration)
-      - [bgp vrf configuration](#bgp-vrf-configuration)
-      - [acl vrf configuration](#acl-vrf-configuration)
-      - [teardown operation after each test case](#teardown-operation-after-each-test-case)
-  - [PTF Test](#PTF-Test)
-    - [Input files for PTF test](#Input-files-for-PTF-test)
-    - [Traffic validation in PTF](#Traffic-validation-in-PTF)
-  - [Test cases](#Test-cases)
-    - [Test case #1 - vrf creat and bind](#Test-case-1---vrf-creat-and-bind)
-      - [Test objective](#Test-objective)
-      - [Test steps](#Test-steps)
-    - [Test case #2 - neighbor learning in vrf](#Test-case-2---neighbor-learning-in-vrf)
-      - [Test objective](#Test-objective-1)
-      - [Test steps](#Test-steps-1)
-    - [Test case #3 - route learning in vrf](#Test-case-3---route-learning-in-vrf)
-      - [Test objective](#Test-objective-2)
-      - [Test steps](#Test-steps-2)
-    - [Test case #4 - unbind intf from vrf](#Test-case-4---unbind-intf-from-vrf)
-      - [Test objective](#Test-objective-3)
-      - [Test steps](#Test-steps-3)
-    - [Test case #5 - remove vrf when intfs is bound to vrf](#Test-case-5---remove-vrf-when-intfs-is-bound-to-vrf)
-      - [Test objective](#Test-objective-4)
-      - [Test steps](#Test-steps-4)
-    - [Test case #6 - isolation among different vrfs](#Test-case-6---isolation-among-different-vrfs)
-      - [Test objective](#Test-objective-5)
-      - [Test steps](#Test-steps-5)
-    - [Test case #7 - vrf table attributes 'src_mac' test](#Test-case-7---vrf-table-attributes-srcmac-test)
-      - [Test objective](#Test-objective-6)
-      - [Test steps](#Test-steps-6)
-    - [Test case #8 - vrf table attributes 'ttl_action' test](#Test-case-8---vrf-table-attributes-ttlaction-test)
-      - [Test objective](#Test-objective-7)
-      - [Test steps](#Test-steps-7)
-    - [Test case #9 - vrf table attributes 'ip_opt_action' test](#Test-case-9---vrf-table-attributes-ipoptaction-test)
-      - [Test objective](#Test-objective-8)
-      - [Test steps](#Test-steps-8)
-    - [Test case #10 - vrf table attributes 'v4/v6' test](#Test-case-10---vrf-table-attributes-v4v6-test)
-      - [Test objective](#Test-objective-9)
-      - [Test steps](#Test-steps-9)
-    - [Test case #11 - acl redirect in vrf](#Test-case-11---acl-redirect-in-vrf)
-      - [Test objective](#Test-objective-10)
-      - [Test steps](#Test-steps-10)
-    - [Test case #12 - everflow in vrf](#Test-case-12---everflow-in-vrf)
-      - [Test objective](#Test-objective-11)
-      - [Test steps](#Test-steps-11)
-    - [Test case #13 - loopback interface](#Test-case-13---loopback-interface)
-      - [Test objective](#Test-objective-12)
-      - [Test steps](#Test-steps-12)
-    - [Test case #14 - Vrf capacity](#Test-case-14---Vrf-capacity)
-      - [Test objective](#Test-objective-13)
-      - [Test steps](#Test-steps-13)
-  - [TODO](#TODO)
+- [overview](#overview)
+  - [Scope](#Scope)
+  - [Testbed](#Testbed)
+- [Setup configuration](#Setup-configuration)
+  - [vrf config in t0 topo](#vrf-config-in-t0-topo)
+  - [Scripts for generating configuration on SONIC](#Scripts-for-generating-configuration-on-SONIC)
+  - [Pytest scripts to setup and run test](#Pytest-scripts-to-setup-and-run-test)
+  - [Setup of DUT switch](#Setup-of-DUT-switch)
+    - [vrf configuration](#vrf-configuration)
+    - [bgp vrf configuration](#bgp-vrf-configuration)
+    - [acl vrf configuration](#acl-vrf-configuration)
+    - [teardown operation after each test case](#teardown-operation-after-each-test-case)
+- [PTF Test](#PTF-Test)
+  - [Input files for PTF test](#Input-files-for-PTF-test)
+  - [Traffic validation in PTF](#Traffic-validation-in-PTF)
+- [Test cases](#Test-cases)
+  - [Test case #1 - vrf creat and bind](#Test-case-1---vrf-creat-and-bind)
+  - [Test case #2 - neighbor learning in vrf](#Test-case-2---neighbor-learning-in-vrf)
+  - [Test case #3 - route learning in vrf](#Test-case-3---route-learning-in-vrf)
+  - [Test case #4 - unbind intf from vrf](#Test-case-4---unbind-intf-from-vrf)
+  - [Test case #5 - remove vrf when intfs is bound to vrf](#Test-case-5---remove-vrf-when-intfs-is-bound-to-vrf)
+  - [Test case #6 - isolation among different vrfs](#Test-case-6---isolation-among-different-vrfs)
+  - [Test case #7 - vrf table attributes 'src_mac' test](#Test-case-7---vrf-table-attributes-srcmac-test)
+  - [Test case #8 - vrf table attributes 'ttl_action' test](#Test-case-8---vrf-table-attributes-ttlaction-test)
+  - [Test case #9 - vrf table attributes 'ip_opt_action' test](#Test-case-9---vrf-table-attributes-ipoptaction-test)
+  - [Test case #10 - vrf table attributes 'v4/v6' test](#Test-case-10---vrf-table-attributes-v4v6-test)
+  - [Test case #11 - acl redirect in vrf](#Test-case-11---acl-redirect-in-vrf)
+  - [Test case #12 - everflow in vrf](#Test-case-12---everflow-in-vrf)
+  - [Test case #13 - loopback interface](#Test-case-13---loopback-interface)
+  - [Test case #14 - Vrf capacity](#Test-case-14---Vrf-capacity)
+  - [Test case #15 - Vrf WarmReboot](#Test-case-15---Vrf-WarmReboot)
+- [TODO](#TODO)
 
 <!-- /TOC -->
 ## overview
@@ -100,13 +72,8 @@ Setup of SONIC DUT will be done by Ansible script. During the setup process Ansi
 {
     "VRF": {
         "Vrf1": {
-            "src_mac": "00:10:94:00:00:01",
-            "ttl_action": "drop",
-            "ip_opt_action": "drop"
         },
         "Vrf2": {
-            "ttl_action": "forward",
-            "ip_opt_action": "forward"
         }
     },
     "PORTCHANNEL_INTERFACE": {
@@ -125,7 +92,9 @@ Setup of SONIC DUT will be done by Ansible script. During the setup process Ansi
     },
     "VLAN_INTERFACE": {
         "Vlan1000": {"vrf_name": "Vrf1},
-        "Vlan1000|192.168.0.1/21": {}
+        "Vlan1000|192.168.0.1/21": {},
+        "Vlan2000": {"vrf_name": "Vrf2},
+        "Vlan2000|192.168.0.1/21": {}
     }
 }
 ```
@@ -405,18 +374,18 @@ Acl redirect action supports vrf, so we need specify the outgoing interface of t
 ```jason
 {
     "ACL_TABLE": {
-        "table1": {
-            "policy_desc": "ACL REDIRECT",
+        "VRF_ACL_REDIRECT": {
+            "policy_desc": "Redirect traffic to nexthop in different vrfs",
             "type": "L3",
             "ports": ["Ethernet0"],
             "stage": "INGRESS"
         }
     },
     "ACL_RULE": {
-        "table1|rule1": {
-            "PRIORITY": "100",
-            "L4_SRC_PORT": "100",
-            "PACKET_ACTION": "REDIRECT:10.0.0.57|PortChannel0001,10.0.0.61|PortChannel0003"
+        "VRF_ACL_REDIRECT|rule1": {
+            "priority": "55",
+            "ip_type": "tcp",
+            "packet_action": "redirect:10.0.0.59|PortChannel0002,fc00::76|PortChannel0002,10.0.0.61|PortChannel0003,fc00::7a|PortChannel0003,10.0.0.63|PortChannel0004,                    fc00::73|PortChannel0004,192.168.0.2|Vlan2000"
         }
     }
 }
@@ -440,11 +409,11 @@ Depending on the test cases PTF will verify the packet is arrived or dropped. Fo
 
 ### Test case #1 - vrf creat and bind
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 verify vrf creat and bind intf to vrf
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - config load vrf configuration
 - verify vrf and ip configuration in kernel
@@ -452,22 +421,22 @@ verify vrf creat and bind intf to vrf
 
 ### Test case #2 - neighbor learning in vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 verify arp/neighbor learning in vrf
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - from DUT ping vms successfully
 - verify neighbor entries by traffic
 
 ### Test case #3 - route learning in vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Verify v4/v6 route learning in vrf
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - bgp load new frr.conf
 - DUT exchange routes information with peer VMs
@@ -476,11 +445,11 @@ Verify v4/v6 route learning in vrf
 
 ### Test case #4 - unbind intf from vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 When the interface is unbound from the vrf all neighbors and routes associated with the interface should be removed. The other interfaces still bound to vrf should not be effected.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - unbind some intfs from vrf
 - verify neighbor and route entries removed by traffic
@@ -489,11 +458,11 @@ When the interface is unbound from the vrf all neighbors and routes associated w
 
 ### Test case #5 - remove vrf when intfs is bound to vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Use CLI to remove vrf when intfs is bound to the vrf, all ip addresses of the intfs belonging to the vrf should be deleted and all neighbor and route entries related to this vrf should be removed. The entries in other vrf should not be effected.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - load vrf configuration and frr.conf
 - verify route and neigh status is okay
@@ -505,27 +474,25 @@ Use CLI to remove vrf when intfs is bound to the vrf, all ip addresses of the in
 
 ### Test case #6 - isolation among different vrfs
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 The neighbor and route entries should be isolated among different vrfs.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - load vrf configuration and frr.conf
-- from DUT ping vms successfully
 - both vms and DUT exchange routes via bgp
   - route prefix overlaps in different vrfs.
-- verify vms can learn route from DUT
 - verify traffic matched neighbor entry isolation in different vrf
 - verify traffic matched route entry isolation in different vrf
 
 ### Test case #7 - vrf table attributes 'src_mac' test
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 In ingress stage, the ip packet whose dst_mac matches the vrf configured src_mac can be L3 forwarded. If not match, the packet will be L2 fowarded. In egress stage ip packet src_mac must be modified to the vrf configured src_mac. The vrf without src_mac attribute will use the default router mac.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - verify packet whose dst_mac matched the 'src_mac' of Vrf1 will be L3 forwarded in Vrf1
 - verify packet whose dst_mac don't match the 'src_mac' of Vrf1 will be L2 forwarded in Vrf1. In our environment these packets will be droped.
@@ -535,11 +502,11 @@ In ingress stage, the ip packet whose dst_mac matches the vrf configured src_mac
 
 ### Test case #8 - vrf table attributes 'ttl_action' test
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Action for Packets with TTL 0 or 1. When set to 'drop',the packets with TTL 0 or 1 will be dropped.This attribute is vrf based, different vrf may have different 'ttl_action'.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - verify packets with TTL 0 or 1 will be dropped in Vrf1
 - verify packets with TTL more than 1 will be forwarded in Vrf1
@@ -547,11 +514,11 @@ Action for Packets with TTL 0 or 1. When set to 'drop',the packets with TTL 0 or
 
 ### Test case #9 - vrf table attributes 'ip_opt_action' test
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Action for Packets with IP options. When set to 'drop',the packets with IP options will be dropped. This attribute is vrf based, different vrf may have different 'ip_opt_action'.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - verify packets with IP options will be dropped in Vrf1
 - verify packets without IP options will be forwarded in Vrf1
@@ -559,11 +526,11 @@ Action for Packets with IP options. When set to 'drop',the packets with IP optio
 
 ### Test case #10 - vrf table attributes 'v4/v6' test
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 When 'v4' atrribute is setted to 'false', it will prevent ipv4 L3 forwarding, ipv6 L3 fowarding is not effected. This attribute is vrf based, different vrf may have different 'v4/v6' state.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - set 'v4' state to 'false' in Vrf1
 - verify ipv4 L3 forwarding is prevented in Vrf1
@@ -576,24 +543,25 @@ When 'v4' atrribute is setted to 'false', it will prevent ipv4 L3 forwarding, ip
 
 ### Test case #11 - acl redirect in vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 ACL redirection can redirect packets to the nexthop with specified interface bound to the vrf.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - load acl_redirect configuration file
-- PTF sends pkts with incremental UDP dport,sport is 100
-- verify PTF ports can receive pkt from PortChannel0001 and PortChannel0002
+- PTF send pkts
+- verify PTF ports can receive pkt from configured nexthop group member
+- verify load balance between nexthop group members
 - Restore configuration
 
 ### Test case #12 - everflow in vrf
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Everflow will mirror traffic to destination found in specific VRF. When route nexthop change, traffic will be mirrored to valid ports.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - load everflow_vrf configuration
 - send packets which match everflow rules
@@ -603,32 +571,48 @@ Everflow will mirror traffic to destination found in specific VRF. When route ne
 
 ### Test case #13 - loopback interface
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 User can configurate multiple loopback interfaces. Each interface can belong to different vrf.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - load loopback configuration file
-- On Vms in different vrf ping DUT loopback interface ip address
+- On ptf in different vrf ping DUT loopback interface ip address
 - Verify if ping operation is successful
 - Restore configuration
 
 ### Test case #14 - Vrf capacity
 
-#### Test objective
+#### Test objective <!-- omit in toc -->
 
 Current sonic can support up to 1000 Vrf.
 
-#### Test steps
+#### Test steps <!-- omit in toc -->
 
 - create 1000 vlans and Vrfs using CLI
 - configure Ethernet0 to 1000 vlans
 - bind 1000 vlan interfaces to 1000 vrfs
 - configure ip addresses on 1000 vlan interfaces
 - Verify if any error log occur
-- Verify 1000 vlan interfaces connection with vm by traffic
+- Verify 1000 vlan interfaces connection with ptf by traffic
 
+### Test case #15 - Vrf WarmReboot
+
+#### Test objective <!-- omit in toc -->
+
+During system/swss warm-reboot, traffic should not be dropped.
+
+#### Test steps <!-- omit in toc -->
+
+- execute ptf background traffic test
+- do system warm-reboot
+- after system warm-reboot, stop ptf background traffic test
+- verify traffic should not be dropped
+- execute ptf background traffic test
+- do swss warm-reboot
+- after swss warm-reboot, stop ptf background traffic test
+- verify traffic should not be dropped
 ## TODO
 
 - vrf table attributes 'l3_mc_action' test
