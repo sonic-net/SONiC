@@ -176,7 +176,13 @@ Ability to support the scale of up to 40K Bi-directional NAT entries, but this i
 ## 2.1 Target Deployment Use Cases
 NAT feature is targeted for DC and Enterprise deployments.
 
-In DC deployments, the ToR switch can enable NAT feature to translate the traffic from/to the attached Servers running in the private network and the public domain.
+In DC deployments, we can have the following different use-cases:
+1. Traffic between the Server connected to the ToR and the Internet. ToR enabled for NAT does the DNAT for the south bound traffic from Internet to the Server and does the SNAT for the north bound traffic to the Internet.
+ 
+2. Intra-DC traffic between the nodes connected to different ToRs in the same DC. This is the case of internal communication with private IP addresses between the nodes in the DC that do not need to be NAT'ted at the ToRs, thereby saving the ASIC NAT table resources. In such scenarios, ACLs are used (see section 3.3 for more details) to avoid NAT actions on selected traffic flows.
+  
+3. Traffic between 2 Servers/hosts connected to the same ToR (also referred to as hairpinning traffic). Administrator may want to either do or not do the NAT on the hairpinning traffic. To avoid NAT in this case, ACLs can be used. Support for NAT on the hairpinning traffic is a future enhancement.
+
 ![DC deployment use case](images/nat_dc_deployment_usecase.png)
 
 In Enterprise deployments, the Customer Edge switch or other Customer premises equipment implements the NAT firewall functionality for translating the traffic between the internal enterprise hosts and the public domain.
@@ -211,7 +217,7 @@ Subsequently any new connections from the same internal IP + L4 port to new dest
 
 ### 2.2.4 NAT zones
 NAT zones refer to different network domains between which the NAT translation happens when the packet crosses between them. NAT zones are also referred to as NAT realms.
-NAT zones are created by configuring zone-id per L3 interface. The L3 interface referred to for NAT purposes can be an Ethernet, VLAN or PortChannel interface that are configured with IP address(es).
+NAT zones are created by configuring zone-id per L3 interface. The L3 interface referred to for NAT purposes can be an Ethernet, VLAN or PortChannel or Loopback interface that are configured with IP address(es).
 
 In this document, the interface that is towards the private networks (private realm) on the NAT router is referred to as an inside interface.
 And the interface that is towards the public network (public realm) on the NAT router is referred to as outside interface.
@@ -220,7 +226,7 @@ By default, L3 interface is in NAT zone 0 which we refer to as an inside interfa
 NAT/NAPT is performed when packets matching the configured NAT ACLs cross between different zones.
 The source zone of a packet is determined by the zone of the interface on which the packet came on. And the destination zone of the packet is determined by the zone of the L3 next-hop interface from the L3 route lookup of the destination.
 
-Currently only 2 zones are supported, which correspond to the inside interface and the outside interface.
+Currently only 2 zones are supported, which correspond to the inside interfaces and the outside interfaces.
 
 Any inbound traffic ingressing on the outside interface that is L3 forwarded on to the inside interface, is configured by user via Static NAT/NAPT entries to be DNAT translated.
 Any outbound traffic ingressing on the inside interface is configured to be dynamically SNAT translated.
@@ -228,6 +234,10 @@ Any outbound traffic ingressing on the inside interface is configured to be dyna
 The public IP address of the interface deemed to be outside interface, is referred to in the NAT pool configuration.
 
 The allowed range of configurable zone values is 0 to 3.
+
+In typical DC deployments, the Loopback interface IP address can be used as the public IP address in the static or dynamic NAT configurations. In such a case, Loopback interface as well should be assigned a zone value that is same as the zone assigned to the physical outside interfaces. Though the zone value is not configured for the Loopback interface in the hardware, it is required by the application layer for the NAT functionality.
+
+More details on the configuration of the Loopback IP as public IP is in the section 3.4 below.
 
 ### 2.2.5 Twice NAT and NAPT
 Twice NAT or Double NAT is a NAT variation where both the Source IP and the Destination IP addresses are modified as a packet crosses the address zones. It is typically used in  the communication between networks with overlapping private addresses.
@@ -329,13 +339,16 @@ This config tells to do:
 
 #### 3.2.1.6 Zone configuration
 ```
-VLAN|{{vlan-name}} 
+VLAN_INTERFACE|{{vlan-name}} 
     "nat_zone": {{zone-value}}
 
-PORT|{{ethernet-name}} 
+INTERFACE|{{ethernet-name}} 
     "nat_zone": {{zone-value}}
 
-PORTCHANNEL|{{portchannel-name}} 
+PORTCHANNEL_INTERFACE|{{portchannel-name}} 
+    "nat_zone": {{zone-value}}
+
+LOOPBACK_INTERFACE|{{loopback-name}} 
     "nat_zone": {{zone-value}}
 ```
 
@@ -413,15 +426,19 @@ TWICE_NAT_ID                 = 1*4DIGIT           ; a number between 1 and 9999
 ```
 ```
 ; Defines schema for NAT zone configuration
-key                          = VLAN:vlan-name
+key                          = VLAN_INTERFACE:vlan-name
 ; field                      = value
 NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
 
-key                          = PORT:port-name
+key                          = INTERFACE:port-name
 ; field                      = value
 NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
 
-key                          = PORTCHANNEL:portchannel-name
+key                          = PORTCHANNEL_INTERFACE:portchannel-name
+; field                      = value
+NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
+
+key                          = LOOPBACK_INTERFACE:loopback-name
 ; field                      = value
 NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
 ```
@@ -508,8 +525,8 @@ ENTRY_TYPE                            = "static" / "dynamic" 
 
 ```
 ; Defines schema for the NAT global table
-key                                   = NAT_GLOBAL_TABLE:Values        ; NAT global table
-; field                               = value
+key                            = NAT_GLOBAL_TABLE:Values        ; NAT global table
+; field                        = value
 ADMIN_MODE                     = "enable" / "disable" ; If the NAT feature is enabled or disabled globally
 NAT_TIMEOUT                    = 1*6DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
 NAT_TCP_TIMEOUT                = 1*3DIGIT         ; Timeout in secs (Range: 300 sec - 432000 sec)
@@ -528,7 +545,7 @@ COUNTERS_NAT_ZONE:<zone-id>
     SAI_NAT_SNAT_TRANSLATIONS
 
 ```
-The following new counters are available per entry:
+The following new counters are available per NAT/NAPT entry:
 ```
 The counters in the COUNTERS_DB are updated every 10 seconds. The key for the entry in the COUNTERS_DB is same as the key in the APP_DB.
 
@@ -558,7 +575,7 @@ COUNTERS_NAPT_TWICE:ip_protocol:src_ip:src_l4_port:dst_ip:dst_l4_port
 ```
 
 ## 3.3 Switch State Service Design
-Following changes are done in the orchagent. 
+Following changes are done in the orchagent.
 
 ### 3.3.1 NatMgr daemon
  NatMgrd gets the STATIC_NAPT, STATIC_NAT, NAT_POOL, NAT_GLOBAL, NAT_BINDINGS config changes from CONFIG_DB.
@@ -576,7 +593,7 @@ STATIC_NAPT|65.55.42.1|TCP|1024
 INTERFACE|Ethernet15|65.55.42.1/24
 ...
 
-PORT|Ethernet15
+INTERFACE|Ethernet15
     "nat_zone": 1
 
 ```
@@ -585,7 +602,7 @@ the following iptable rules are added for inbound and outbound directions in the
 iptables -t nat -A PREROUTING -i Ethernet15 -p tcp -j DNAT -d 65.55.42.1 --dport 1024 --to-destination 20.0.0.1:6000
 iptables -t nat -A POSTROUTING -o Ethernet15 -p tcp -j SNAT -s 20.0.0.1 --sport 6000 --to-source 65.55.42.1:1024
 ```
-They essentially tells the kernel to do the DNAT port translation for any incoming packets, and the SNAT port translation for the outgoing packets.
+They essentially tell the kernel to do the DNAT port translation for any incoming packets, and the SNAT port translation for the outgoing packets.
 
 If there are any ACL to NAT pool bindings configured, the NatMgrd listens to the notifications from the ACL tables and the ACL Rule configuration tables. On start-up, the NatMgrd queries the ACL Configuration for the ACLs bound to NAT pools. Once the ACL rules are retrieved, they are updated as iptables filtering options for the SNAT configuration.
 
@@ -621,7 +638,7 @@ NAT_BINDINGS|nat1
     "nat_pool": "pool1
     "nat_type": "snat"
 
-PORT|Ethernet15
+INTERFACE|Ethernet15
     "nat_zone": 1
   
 ```
@@ -675,7 +692,7 @@ Corresponding to the ACL, the equivalent deny and permit rules are added in the 
 
 When the ACL that is bound to the NAT pool is deleted, the corresponding iptables SNAT rules are deleted in the kernel.
 When the ACL rules are created or modified, the corresponding iptables SNAT rules are updated in the kernel.
-Multiple ACLs can be bound to a single NAT pool. 1 ACL can be bound atmost to a single NAT pool.
+Multiple ACLs can be bound to a single NAT pool. 1 ACL can be bound at most to a single NAT pool.
 
 If there is no matching ACL configured, it is treated as 'implicit permit all' and hence the corresponding NAT pool in the binding is applied on all the traffic.
 
@@ -704,17 +721,17 @@ This is done for the reasons below:
 ### 3.3.2 Natsync daemon
 
 NatSyncd listens to the conntrack netlink notification events from the kernel for the creation, update and removal events of the connections in the conntrack table.
-Once the notifications for SNAT and DNAT entries are received, they are pushed into the NAT_TABLE/NAPT_TABLE/NAPT_TWICE_TABLE in the APP_DB to be consumed by the NatOrch Agent. More details in the section 3.4.
+Once the SNAT/DNAT notifications are received, they are pushed into the NAT_TABLE/NAPT_TABLE/NAPT_TWICE_TABLE in the APP_DB to be consumed by the NatOrch Agent. More details in the section 3.4 below.
 
 ### 3.3.3 NatOrch Agent
 NAT feature is disabled by default.
-When the NAT feature is enabled, NatOrch enables the feature and the NAT miss trap actions in the hardware.
-The SNAT or DNAT miss packets are rate limited to CPU @ 600pps.
+When the NAT feature is enabled in the configuration, NatOrch enables the feature in the hardware.
+The SNAT or DNAT miss packets are by default rate limited to CPU @ 600pps. The NAT miss trap action and the rate limiting, queuing policies on the NAT miss packets are managed via the CoPP configuration.
 
 NatOrch is responsible for the following activities:
 
    - Listens on the notifications in the NAT, NAPT, NAPT_TWICE tables in the APP_DB, picks the notifications, translates them to SAI objects and pushes them to ASIC_DB to be consumed by Syncd. For every single NAT/NAPT entry, NatOrch pushes 1 SNAT entry and 1 DNAT entry (for inbound and outbound directions) to the ASIC_DB via sairedis.
-   - Monitors the translation activity status every sampling period for each of the NAT/NAPT entries in the hardware. Sampling period is chosen to be a optimal value of 60 seconds. If the NAPT entry is inactive for the duration of the NAT timeout period, the entry is removed. Static NAT/NAPT entries are not monitored for the inactivity. They have to be unconfigured explicitly to be removed from the hardware.
+   - Monitors the translation activity status every sampling period for each of the NAT/NAPT entries in the hardware. Sampling period is chosen to be a optimal value of 30 seconds. If the NAPT entry is inactive for the duration of the NAT timeout period, the entry is removed. Static NAT/NAPT entries are not monitored for the inactivity. They have to be unconfigured explicitly to be removed from the hardware.
 
 ### 3.3.3.1 Interaction with NeighOrch and RouteOrch
 NatOrch registers as observer with the NeighOrch and RouteOrch, so that the DNAT/DNAPT entries can be pushed to ASIC_DB by NatOrch, only if the corresponding translated IP is reachable via a neighbor entry or a route entry.
@@ -735,7 +752,7 @@ For the failed NAT entries, NatOrch removes the corresponding entries from the i
 When the administrator issues the clear command, NatOrch flushes the conntrack table, which in turn results in deleting the entries in the APP_DB by the Natsyncd daemon.
 
 ### 3.3.3.5 Max limit on the NAT entries
-NatOrch keeps track of the number of static + dynamic entries created and limits the NAT'ted conntrack entries in the kernel to the supported max limit in the hardware. This is done by removing any new conntrack connections that are being created beyond the maximum limit.
+NatOrch keeps track of the total number of static + dynamic entries created and limits the NAT'ted conntrack entries in the kernel to the supported max limit in the hardware. When a new translation notification is received beyond the maximum limit (due to new traffic that is being NAT'ted), the conntrack entry is removed in the kernel.
  
 ### 3.3.3.5 Block diagram
 The high level block diagram for NAT in SONiC is captured below.
@@ -755,25 +772,71 @@ Before the L3 forwarding is done in the Kernel, the iptables rules in PREROUTING
 
 After the L3 forwarding is done and before the packet is about to be sent out, the rules in the POSTROUTING chain are applied which do the SNAT (translate the SIP + L4 port to the public IP + L4 port). In this process, the SNAT state and SIP of the connection entry in the connection tracking table are updated.
 
-As long as the hardware entry is not installed, the NAT translation and forwarding is done in the Linux kernel.
+As long as the hardware entry is not installed, the NAT translation and forwarding is done in the Linux kernel using the iptables and conntrack entries.
+
+#### 3.4.1.1 No NAT Zones in the Kernel
+Similar to the zone per L3 interface that is programmed in the hardware, there is no concept of NAT zone on the interface in the Kernel. As a result, no zone checks can be done in the kernel when doing NAT. Matching is done against the outbound interface for the POSTROUTING/SNAT traffic and matching against the inbound interface for the PREROUTING/DNAT traffic. The outgoing interface parameter should be passed to the iptables rules to ensure that the NAT is done for the software routed traffic in the kernel only when the packet is sent on the interface corresponding to the outside zone. Without the interface parameter, any software routed packet can get NAT'ted.
+
+For the static NAT/NAPT configurations, the iptables rules do the SNAT by matching against the outgoing interface and do the DNAT by matching against the incoming interface.
+For the dynamic SNAT/SNAPT configuration, the iptables rules do the SNAT by matching against the outgoing interface.
+
+#### 3.4.1.2 Loopback IP as Public IP
+In typical DC deployments, the Loopback interface IP addresses can be used as public IP in the static NAT/NAPT and dynamic Pool binding configurations. Reason being that the Loopback IP is always UP and reachable through one of the uplink physical interfaces and does not go down unlike the physical interfaces. If used as the public IP, the Loopback interface should be configured with a zone value that is same as the zone value configured on the outside physical interfaces. Loopback interface zone configuration is not propagated to the hardware, but NatMgr uses the zone value of the Loopback interface to configure the iptables rules to match with the outgoing physical interfaces having the same zone value.
+
+For example, if user configures the Loopback0 interface with the public IP to be source translated to, with 2 uplink outside interfaces Ethernet28, Vlan100 as below: 
+
+```
+LOOPBACK_INTERFACE|Loopback0|65.55.42.1/24
+
+LOOPBACK_INTERFACE|Loopback
+    "nat_zone": 1
+
+INTERFACE|Ethernet28
+    "nat_zone": 1
+
+VLAN_INTERFACE|Vlan100
+    "nat_zone": 1
+
+NAT_POOL|pool1
+    "nat_ip": 65.55.42.1 
+    "nat_port": 1024-65535 
+
+NAT_BINDINGS|nat1    
+    "nat_pool": "pool1
+    "nat_type": "snat"
+```
+
+The following iptables rules are added in the kernel for each protocol type traffic for SNAT purpose:
+```
+iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Ethernet28 --to-source 65.55.42.1:1024-65535 --random-fully
+iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Vlan100 --to-source 65.55.42.1:1024-65535 --random-fully
+```
 
 ### 3.4.2 Connection tracking
 Connection tracking module in the kernel creates the connection entries and maintains their states as and when the packet traverses the forwarding path in the kernel. It keeps track of all the connections created in the system. IPtables module consults the connections tuples tracked in the system during NAT process and updates the connections.
 
 Connections when added, deleted or updated in the connection tracking system are notified via netlink interface to interested listeners (natsyncd in our case).
 
-Connections are tracked as 5-tuple entries (based on Protocol, SIP, SPORT, DIP, DPORT) in the kernel, but the NAT entries in the hardware are to be tracked as 3-tuple entries (based on Protocol, SIP, SPORT (or) Protocol, DIP, DPORT).
-By default the kernel SNATs to the same translated SIP+SPORT, traffic flows from different sources to different destinations.
-For eg.,
-The traffic
-[SIP=1.0.0.1, SPORT=100 => DIP=2.0.0.2, DPORT=200] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 => DIP=2.0.0.2, DPORT=200] as well as the traffic
-[SIP=1.0.0.2, SPORT=120 => DIP=2.0.0.3, DPORT=300] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 => DIP=2.0.0.3, DPORT=300]
-as the translated 5-tuples are unique in each case.
-Due to the reuse of the mapped SIP+SPORT, the 65.55.45.1:600 cannot be mapped back to the original source uniquely when the traffic comes back in the reverse direction.
+#### 3.4.2.1 Handling NAT model mismatch between the ASIC and the Kernel
+The kernel's conntrack subsystem is the source for creating the NAT translation mappings from a dynamic Pool binding configuration.
 
-To achieve the 1-1 mapping from the 5-tuple conntrack entries in the kernel to the 3-tuple NAT entries in the hardware, the iptables are programmed in the kernel to do translated port mapping in a random manner from the given port range.
+The NAT model in the ASIC does SNAT/DNAT translations by doing 3-tuple match (matching against Protocol, SIP, SPORT (or) Protocol, DIP, DPORT) in the packet. Unlike in the ASIC, the traditional Linux iptables/conntrack model for NAT does the translations by 5-tuple match (matching against Protocol, SIP, SPORT, DIP, DPORT) in the kernel.
 
-Even with the random port allocation, if a different source is mapped to reuse an existing translated SIP+SPORT, the corresponding conntrack entry is deleted in the kernel.   
+By default the kernel SNATs to the same translated SIP+SPORT from the given pool range, for the traffic flows from different sources to different destinations. As a result the conntrack NAT 5-tuple cannot be mapped directly to the ASIC NAT 3-tuple.
+
+For example., the traffic flow
+[SIP=1.0.0.1, SPORT=100 ==> DIP=2.0.0.2, DPORT=200] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 ==> DIP=2.0.0.2, DPORT=200] as well as the traffic flow
+[SIP=1.0.0.2, SPORT=120 ==> DIP=2.0.0.3, DPORT=300] is SNAT'ted as [SIP=65.55.45.1, SPORT=600 ==> DIP=2.0.0.3, DPORT=300]
+since the translated 5-tuples are unique in each case.
+
+For the first traffic flow above, the 3-tuple entry is added in the hardware to
+[SIP=1.0.0.1, SPORT=100] SNAT to [SIP=65.55.45.1, SPORT=600]
+
+The second traffic flow [SIP=1.0.0.2, SPORT=120] cannot be added in the hardware to translate to the same IP/PORT [SIP=65.55.45.1, SPORT=600], since the reverse traffic flows cannot be uniquely translated to the original Source endpoints.
+
+This mismatch in the NAT models between the ASIC and the Kernel is addressed by the following design approach in SONiC.
+- To minimize the overlap/re-use of the translated SIP/SPORT in the 5-tuple conntrack entries, the iptables are programmed in the kernel to do translated port mapping in a random manner from the given port range.
+- Even with the random allocation, if a different Source endpoint is mapped to reuse an existing translated SIP+SPORT, the corresponding conntrack entry is deleted in the kernel. This results in retries by the Source endpoint till the translated SIP+SPORT is not overlapping with the existing entry.
 
 ### 3.4.3 Interactions between Kernel and Natsyncd
 Following sections explain how the NAT entries corresponding to the connections originated from the private networks are created in the hardware.
@@ -781,14 +844,12 @@ Following sections explain how the NAT entries corresponding to the connections 
 #### 3.4.4.1 NAT entries for TCP traffic
 For the TCP traffic initiated by the hosts in the private zone, when the TCP SYN packet reaches the NAT router, if there is no matching NAT entry, the NAT miss is reported and the packet is trapped to CPU. The connection entry is created in the conntrack table with NEW conntrack state. The packet is L3 forwarded if a matching route and the nexthop are found. Once the packet is forwarded and ready to be sent out on the NAT outside interface, the packet's SIP and L4 port are translated and the connection entry is updated. As well the connection's state is updated with SNAT and/or DNAT status flag.
 
-Since the dynamic NAPT entry creation logic is driven by the kernel's iptables rules, we allow at least the first 2 TCP packets (SYN, SYN+ACK) to be NAT translated and software forwarded in the Linux kernel. Once the SYN+ACK packet is also received in the reverse direction, the conntrack status of the connection is set to ASSURED flag (meaning the connection entry will not be aged out).
+Since the dynamic NAPT entry creation logic is driven by the kernel's iptables rules, we allow the 3-way handshake  TCP SYN/ACK packets to be NAT translated and software forwarded in the Linux kernel. After the 3-way handshake, the conntrack status of the connection is set to ASSURED.
 
 Only the TCP connection entries that are marked as ASSURED in the conntrack table are considered by Natsyncd to be added in the APP_DB.This is done for the below reasons:
 1. Since we do not want to use the NAT table space in the hardware to be filled up with any uni-directional SYN flood traffic.
-2. So that the kernel does not timeout the unidirectional SYN-SENT connection state entries early (if only SYN packet is software forwarded in the kernel and the SYN+ACK packet is hardware forwarded).
+2. So that the kernel does not timeout the unidirectional SYN-SENT connection state entries early (if only SYN packet is software forwarded in the kernel and the SYN+ACK/ACK packets are hardware forwarded).
 3. To have the conntrack TCP entries and the hardware entries in sync.
-
-NatSyncd checks that the TCP connection's parameters reported by the conntrack netlink event have the ASSURED status set, before pushing the entry to the APP_DB.
 
 The conntrack entry notified by the kernel has the SIP and DIP fields in both directions of the flow. If only SIP or DIP is modified in any direction, it is a case of Single NAT/NAPT. If both the SIP and DIP are modified in any direction, it is a case of Twice NAT/NAPT.
 
@@ -798,14 +859,14 @@ The TCP FIN flagged packets are not trapped to CPU. Hence the NAT entries for th
 
 #### 3.4.4.2 NAT entries for UDP traffic
 Unlike TCP traffic, UDP traffic has no connection establishment phase.
-The first UDP packet in a session originated in the private zone raises a NAT miss on reaching the NAT router. The UDP connection entry is created in the tracking table and SNAT translation is applied on the connection.
+The first UDP packet in a session originated in the private zone raises a NAT miss on reaching the NAT router. The UDP connection entry is created in the tracking table and the SNAT translation is applied on the connection.
 NatSyncd considers the UDP connections that have the conntrack entry state as SNAT and adds them to the APP_DB.
 The timing out of the UDP connections in the conntrack table is the responsibility of the NatOrch.
 
 #### 3.4.4.3 NAT entries for ICMP traffic
-ICMP query messages and responses (like echo requests/responses) resulting in the NAT miss are also subjected to dynamic SNAT with a mapping to the overloaded ICMP identifier on the public IP from the local ICMP identifier and private IP.
+ICMP query messages and responses (like echo requests/responses) resulting in the NAT miss are also subjected to dynamic SNAT with a translation from the local ICMP identifier and private IP to the overloaded ICMP identifier on the public IP .
 
-ICMP traffic that needs to be NAT translated (crossing across different zones) is software forwarded in the Linux kernel. ICMP NAT/NAPT entries hence are not added to hardware.
+NAT translation of the ICMP traffic is always done in the Linux kernel. ICMP traffic crossing the zones is trapped to the CPU. ICMP NAT/NAPT entries hence are not added to hardware.
 
 Using tools like Ping and Traceroute from internal hosts destined to external public IP addresses should work with NAT translations.
 
@@ -1120,16 +1181,26 @@ N/A
 | show nat config static| Use this command to display the Static NAT/NAPT configuration   |
 | show nat config pool  | Use this command to display the NAT pools configuration    |
 | show nat config bindings | Use this command to display the NAT bindings configuration |
-| show nat config global-values       | Use this command to display the global NAT configuration |
+| show nat config globalvalues       | Use this command to display the global NAT configuration |
 
 Example:
 ```
 Router#show nat translations
 
+Static NAT Entries        ................. 4
+Static NAPT Entries       ................. 2
+Dynamic NAT Entries       ................. 0
+Dynamic NAPT Entries      ................. 4
+Static Twice NAT Entries  ................. 0
+Static Twice NAPT Entries ................. 2
+Total Entries             ................. 12
+
 Protocol Source           Destination       Translated Source  Translated Destination
 -------- ---------        --------------    -----------------  ----------------------
 all      10.0.0.1         ---               65.55.42.2         ---
+all      ---              65.55.42.2        ---                10.0.0.1
 all      10.0.0.2         ---               65.55.42.3         ---
+all      ---              65.55.42.3        ---                10.0.0.2
 tcp      20.0.0.1:4500    ---               65.55.42.1:2000    ---
 tcp      ---              65.55.42.1:2000   ---                20.0.0.1:4500
 udp      20.0.0.1:4000    ---               65.55.42.1:1030    ---
@@ -1180,7 +1251,7 @@ Bind2          Pool2          1              snat      1
 Bind3          Pool3          2              snat      --
 
 
-Router#show nat config global-values
+Router#show nat config globalvalues
 
    Admin Mode     : enabled
    Global Timeout : 600 secs
@@ -1414,9 +1485,9 @@ The Unit test case one-liners are as below:
 | 35 | Start NAT docker and verify that the static NAT entries from CONFIG_DB are added in the kernel APP_DB ASIC_DB and any new dynamic entries are added to hardware.                                                                                                                        |
 | 36 | Verify that the traffic flows that are NAT translated are not affected during warm restart. Zero packet loss and succesful reconcilation.                                                                                             |
 | 37 | Verify that the dynamic NAT translations are restored to APP_DB and the kernel after warm reboot.                                                                                                                                     |
-| 38 | Send upto 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
-| 39 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are failing as reported by SYNCD (with max resource usage reason). TD3 will scale to 16K.                                       |
-| 40 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries. TD3 will scale to 8K.                                                                                                 |
+| 38 | Send up to 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
+| 39 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are not created.                                       |
+| 40 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries.                                                                                                 |
 | 41 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
 | 42 | Any dynamic memory allocation failures are handled gracefully.                                  |
 | 43 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
