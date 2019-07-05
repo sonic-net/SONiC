@@ -1,0 +1,132 @@
+Thermal design
+
+Terms
+thermal category: stands for the device category the thermal monitors for, including cpu core, cpu pack, asic, module and psu.
+switch model: stands for a set of SKUs that share the same PCB, port portfolios
+
+The purpose of thermal design is to represent:
+    1. the logic in which data in thermal sensor, which is required by each api, are accessed. In other words, how the set of APIs defined in thermal_base are implemented.
+    2. how thermals are managed by chassis, that is, how the diversity of thermal hierarchy regarding SKU be handled.
+
+5 apis are defined in thermal_base.py. get_temperature and get_high_threshold will be supported and detailed below. The other three interfaces will not be implemented for all categories of devices due to the following reason:
+1. get_low_threshold and set_low_threshold, currently we don't have interface regarding that. For SONiC which is mainly deployed in data center, low temperature threshold is less likely to be a concern. 
+2. set_high_threshold, currently it's read only. I think each device's high threshold, exceeding which a cool action should be triggered, should be designated by the device vendor since configuring it to a very high value might damage the device.
+
+Typically, a file in /var/run/hw-management/thermal represents the data each api required for each thermal device. Filename conventions regarding device categories and SKUs are similar but there is still minor difference that should be well handled, like:
+    1. All SKUs can have thermals in different type of devices, including cpu core, cpu pack, asic and each sfp modules.
+    2. The filename conventions containing data for each API differ on a thermal category basis.
+    3. Different SKUs have different number for each category of devices, like number of cpu cores, sfp modules, therefore their thermals differing.
+
+The files that contain data for each api/thermal category are listed below (n is index of the device):
+1. cpu_core:
+    cpu_core<n>, contains the temperature of the core, for api "get_temperature".
+    cpu_core_alarm<n>, contains the threshold when temperature exceeds some cooling action is recommended. it can be used for api "get_high_threshold".
+2. cpu_pack: the files prefixed with cpu_pack have the same meaning as those with cpu_core.
+3. sfp module:
+    temp_input_module<n>, contains the temperature of the sfp module, for api "get_temperature"
+    temp_crit_module<n>, contains the critical threshold, for api "get_high_threshold"
+4. psu module:
+    psu<n>, contains the temperature of the psu module, for api "get_temperature"
+    no support for "get_high_threshold"
+5. asic:
+    asic, contains the temperature of the asic, for api "get_temperature"
+    no support for "get_high_threshold"
+
+To handle the mapping from the SKU to the thermal hierarchy and from each (thermal device, api) pair to a certain file that contains the data the api required, the following data structures are introduced, representing the mapping from SKU to hierarchy of the files, including:
+    1. a dictionary representing mapping from SKU to profile
+        sku_to_profile = {"sku name":profile-number},
+        where the profile-number is the index of thermal_profiles, namely thermal_profiles[sku_to_profile["SKU"]] represents the profile of SKU.
+    2. maintain profile for each switch model, since we have a set of SKUs that maps to a unique model
+        profile = {
+            "cpu core":(start, number),//start number of cpu core, number of cpu core
+            "module number":(start, number),
+            "psu number":(start, number)
+        }
+        thermal_profiles is a list of profile.
+    3. prototype of api_handler: a set of dictionaries mapping api to the file representing it.
+        this dictionary has the following "prototype":
+        api_handler = {
+            "get_temperature":"name convention of the file",
+            "get_high_threshold":"name convention of the file",
+            "get_low_threshold":...
+            "set_high_threshold":...
+            "set_low_threshold":...
+            ...
+        }
+        there are four dictionaries, one for each category of thermal
+        api_handler_cpu_core = {
+            "get_temperature":"cpu_core{}",
+            "get_high_threshold":"cpu_core{}_alarm"
+        }
+        api_handler_cpu_pack = {
+            "get_temperature":"cpu_pack",
+            "get_high_threshold":"cpu_pack_alarm"
+        }
+        api_handler_asic = {
+            "get_temperature":"asic",
+            "get_high_threshold":None
+        }
+        api_handler_module = {
+            "get_temperature":"temp_input_module{}",
+            "get_high_threshold":"temp_crit_module{}"
+        }
+        api_handler_psu = {
+            "get_temperature":"psu{}",
+            "get_high_threshold":"psu2_max{}"
+        }
+        api_handler = {
+            "cpu_core" : api_handler_cpu_core, 
+            "cpu_pack" : api_handler_cpu_pack,
+            "asic" : api_handler_asic,
+            "module" : api_handler_module,
+            "psu" : api_handler_psu
+        }
+        device_categories = ["cpu_core", "cpu_pack", "asic", "module"]
+        api_names = ["get_temperature", "get_high_threshold"]
+
+high level working flow:
+    1. On pmon docker startup:
+        [chassis] 
+            fetch all the thermal devices on the device according to the sku_to_profile;
+            create all thermal devices, passing category and index as argument.
+        [thermal] initialize the thermal object according to the category and index.
+
+    2. On api called:
+        [thermal] fetch the file in sysfs according to api name, device category and index
+
+the logic of each api:
+__init__(self, category, index):
+    """
+    category should be in device_categories
+    """
+    self.category = category
+    self.index = index
+
+_get_api_handler(self, api_name):
+    """
+    api_name should be in api_names
+    """
+    return api_handler[self.category][api_name]
+
+get_temperature(self):
+    handler = api_handler[self.category]["get_temperature"]
+    read the file handler and return the content which should be the temperature
+
+get_high_threshold(self):
+    handler = api_handler[self.category]["get_high_threshold"]
+    read the file handler and return the content which should be the temperature
+
+PSU design
+The logic that represent PSUs in the switch is similar with that of thermals but simpler since PSU hierarchies differ in each SKU only in number of PSUs. To handle this following data structure are introduced:
+sku-profile mapping, which represents the mapping from SKU to PSU hierarchies.
+api mapping, which represents the mapping from API to files containing the data the API requires.
+
+9 APIs are defined for PSU as following:
+get_voltage, power/psu{}_volt contains the voltage of the psu in unit of mV.
+get_current, power/psu{}_curr contains the current of the psu in unit of mA.
+get_power, power/psu{}_power contains the power of the psu in unit of uW.
+get_powergood_status, thermal/psu{}_status contains the status of the psu.
+set_status_led, not implemented.
+get_status_led, not implemented.
+every PSU have only one fan, only get_speed is supported:
+fan.get_speed, psu{psu_index}_fan{fan_index}_speed_get contains the speed of the fan.
