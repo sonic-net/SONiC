@@ -17,6 +17,7 @@ Bidirectional Forwarding Detection
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 05/15/2019  |   Sumit Agarwal    | Initial version                   |
+| 1.0 | 18/06/2019  |   Sumit Agarwal    | Updated community review comments |
 
 # About this Manual
 This document provides general information about the BFD feature implementation in SONiC.
@@ -144,9 +145,9 @@ This command is available in FRR vtysh shell.
 
 ``` 
 Session count: 1
-OurAddr                  NeighAddr                        State    
-=======                  =========                        =====          
-192.168.0.1              192.168.0.2                       UP    
+SessionId      LocalAddr                NeighAddr                        State    
+=========      =========                =========                        =====          
+1              192.168.0.1              192.168.0.2                       UP    
 ```
 ### 3.2.4 Debug Commands
 Debug commands as  in FRR BGP container is described at below link.  
@@ -223,7 +224,7 @@ sonic# show bfd peer 192.168.0.1 counters
 # 6 Warm Boot Support
 Planned/unplanned warm-boot of a BGP container can be achieved by running BGP in GR mode.
 
-When BGP container is rebooted, remote BGP neighbour enters GR helper mode when BFD indicate timeout and GR helper mode is enabled. In GR helper mode remote BGP neighbor will not delete the routes learnt through BGP neighbour and keep the forwarding plane intact until GR timeout.
+When BGP container is rebooted, remote BGP neighbour enters GR helper mode when BFD indicate timeout and GR helper mode is enabled. If the flag in BFD control packet indicate that the BFD in remote neighbour is not control plane independent, BFD session down event can be a trigger to BGP to enter helper mode. In GR helper mode remote BGP neighbor should not delete the routes learnt through BGP neighbour and keep the forwarding plane intact until GR timeout.
 After warm-boot is completed BGP will re-establish all the sessions and trigger BFD to establish corresponding BFD sessions.
 
 # 7 BFD packet trapping to CPU
@@ -261,7 +262,38 @@ BFD related control plane QoS can be configured by user via 00-copp.config.json 
 Goal is to support 64 BFD session with timer of 100 * 3 milliseconds, i.e. minimum detection time of 300 milliseconds.
 These timer values are subject to revision based on the BFD sessiom stability observed during multi-dimensional scale test.
 
-# 8 Unit Test
+# 8 Enable/Disable BFD daemon
+BFD daemon can be enabled and disabled at compile time as well as in the switch.  
+
+**Enable/Disable at Compile time**  
+
+To enable BFD add the below text in corresponding files as below:  
+
+**../dockers/docker-fpm-frr/supervisord.conf**  
+```
+[program:bfdd]  
+command=/usr/lib/frr/bfdd -A 127.0.0.1  
+priority=4  
+stopsignal=KILL  
+autostart=false  
+autorestart=false  
+startsecs=0  
+stdout_logfile=syslog  
+stderr_logfile=syslog
+```
+
+**../dockers/docker-fpm-frr/start.sh**  
+```
+supervisorctl start bfdd
+```
+
+**Enable/Disable in the switch**  
+BFD daemon can be enabled/disabled in the same way as done during compile time. The file path on the switch are as below. After modifying these files BGP container should be restarted.  
+
+./etc/supervisor/conf.d/supervisord.conf    
+./usr/bin/start.sh  
+
+# 9 Unit Test
 Unit test cases for this specification are as listed below:
 
 |**Test-Case ID**|**Test Title**|**Test Scenario**|  
