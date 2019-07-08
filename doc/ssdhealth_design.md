@@ -88,7 +88,7 @@ It will import device plugin `ssdutil.py` and print the output returned by diffe
 
 #### Plugins design
 ##### Class SsdBase
-Location: `sonic-buildimage/src/sonic-platform-common/build/lib/sonic_psu/ssd_base.py`  
+Location: `sonic-buildimage/src/sonic-platform-common/sonic_platform_base/sonic_ssd/ssd_base.py`  
 Generic implementation of the API. Will use specific utilities for known disks or the `systemctl` utility for others. Since not all disk models are in smartctl's database, some information can be unavailable or incomplete.
 
     class SsdBase:
