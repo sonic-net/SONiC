@@ -1,7 +1,7 @@
 # Feature Name
 PVST
 # High Level Design Document
-#### Rev 0.2
+#### Rev 0.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -44,6 +44,7 @@ PVST
 |:---:|:-----------:|:-------------------------:|-----------------------------------|
 | 0.1 | 05/02/2019  |     Sandeep, Praveen       | Initial version  |                
 | 0.2 | 05/02/2019  |     Sandeep, Praveen       | Incorporated Review comments  |                
+| 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments  |                
                                               
 
 # About this Manual
@@ -90,7 +91,10 @@ The scaling limit might differ depending on the platform and the CPU used, which
 
 ## 1.4 Warm Boot Requirements
 
-Warm boot will not be supported
+Warm boot is not supported in this release. User is expected to do cold reboot when PVST is running so that topology will reconverge and traffic will be redirected via alternate paths.
+
+If PVST is enabled and user tries to perform warm reboot a warning will be displayed indicating PVST doesnt support warm reboot.
+
 
 # 2 Functionality
 
@@ -139,7 +143,7 @@ Following config DB schemas are defined for supporting this feature.
 ### STP_GLOBAL_TABLE
     ;Stores STP Global configuration
     ;Status: work in progress
-    key                    = STP:global				; Global STP table key
+    key                    = STP|GLOBAL				; Global STP table key
     mode                   = "pvst"			                ; spanning-tree mode pvst
     rootguard_timeout      = 3*DIGIT				; root-guard timeout value (5 to 600 sec, DEF:30 sec)
     forward_delay          = 2*DIGIT			        ; forward delay in secs (4 to 30 sec, DEF:15 sec)
@@ -150,29 +154,32 @@ Following config DB schemas are defined for supporting this feature.
 ### STP_VLAN_TABLE
     ;Stores STP configuration per VLAN
     ;Status: work in progress
-    key             = STP_VLAN:"Vlan"vlanid		                ; VLAN with prefix "STP_VLAN"
+    key             = STP_VLAN|"Vlan"vlanid		                ; VLAN with prefix "STP_VLAN"
     forward_delay   = 2*DIGIT					; forward delay in secs (4 to 30 sec, DEF:15 sec)
     hello_time      = 2*DIGIT					; hello time in secs (1 to 10 sec, DEF:2sec)
     max_age         = 2*DIGIT					; maximum age time in secs (6 to 40 sec, DEF:20sec)
     priority        = 5*DIGIT					; bridge priority (0 to 61440, DEF:32768)
+    enabled         = "true"/"false"            ; spanning-tree is enabled or not
 
 ### STP_VLAN_INTF_TABLE
     ;Stores STP interface details per VLAN
     ;Status: work in progress
-    key             = STP_VLAN_INTF:"Vlan"vlanid:ifname         ; VLAN+Intf with prefix "STP_VLAN_INTF" ifname can be physical or port-channel name
+    key             = STP_VLAN_INTF|"Vlan"vlanid|ifname         ; VLAN+Intf with prefix "STP_VLAN_INTF" ifname can be physical or port-channel name
     path_cost       = 9*DIGIT                                   ; port path cost (1 to 200000000) 
     priority        = 3*DIGIT                                   ; port priority (0 to 240, DEF:128)
 
 ### STP_INTF_TABLE
     ;Stores STP interface details
     ;Status: work in progress
-    key                    = STP_INTF:ifname			; ifname with prefix STP_INTF, ifname can be physical or port-channel name
+    key                    = STP_INTF|ifname			; ifname with prefix STP_INTF, ifname can be physical or port-channel name
     enabled                = BIT			                ; is the STP on port enabled (1) or disabled (0)
     root_guard             = BIT		        	        ; is the root guard on port enabled (1) or disabled (0)
     bpdu_guard             = BIT				        ; is the bpdu guard on port enabled (1) or disabled (0)
     bpdu_guard_do_disable  = BIT		         	        ; port to be disabled when it receives a BPDU; enabled (1) or disabled (0)
     path_cost              = 9*DIGIT			        ; port path cost (2 to 200000000)
-    priority               = 3*DIGIT				; port priority (8 to 252, DEF:128)
+    priority               = 3*DIGIT				; port priority (0 to 240, DEF:128)
+    portfast               = BIT                    ; Portfast is enabled or not
+    uplink_fast            = BIT                    ; Uplink fast is enabled or not
 
 ### 3.2.2 APP DB
   
@@ -185,7 +192,7 @@ Following config DB schemas are defined for supporting this feature.
     hello_time            = 2*DIGIT			            ; hello time in secs (1 to 10 sec, DEF:2sec)
     forward_delay         = 2*DIGIT			            ; forward delay in secs (4 to 30 sec, DEF:15 sec)
     hold_time             = 1*DIGIT			            ; hold time in secs (1 sec) 
-    last_topology_change  = 1*10DIGIT			        ; last time stamp of when topology occured TODO
+    last_topology_change  = 1*10DIGIT			        ; time in secs since last topology change occured 
     topology_change_count = 1*10DIGIT			        ; Number of times topology change occured
     root_bridge_id        = 16HEXDIG			        ; root bridge id
     root_path_cost        = 1*9DIGIT			        ; port path cost 
@@ -201,10 +208,9 @@ Following config DB schemas are defined for supporting this feature.
     ;Status: work in progress
     key                 = STP_VLAN_INTF:"Vlan"vlanid:ifname     ; VLAN+Intf with prefix "STP_VLAN_INTF"
     port_num            = 1*3DIGIT                              ; port number of bridge port
-    port_role           = 1DIGIT                                ; port role 1-root, 2-designated, 3-alternate, 4-backup
     path_cost           = 1*9DIGIT                              ; port path cost (1 to 200000000)
     priority            = 3*DIGIT                               ; port priority (0 to 240, DEF:128)
-    port_state          = 1DIGIT                                ; 0-listen, 1-learn, 2-block, 3-forward, 4-disabled
+    port_state          = "state"                               ; STP state - disabled, block, listen, learn, forward
     desig_cost          = 1*9DIGIT                              ; designated cost
     desig_root          = 16HEXDIG                              ; designated root
     desig_bridge        = 16HEXDIG                              ; designated bridge
@@ -212,15 +218,23 @@ Following config DB schemas are defined for supporting this feature.
     fwd_transitions     = 1*5DIGIT                              ; number of forward transitions
     bpdu_sent           = 1*10DIGIT                             ; bpdu transmitted
     bpdu_received       = 1*10DIGIT                             ; bpdu received
-    tc_sent             = 1*10DIGIT                             ; tc transmitted
-    tc_received         = 1*10DIGIT                             ; tc received
-    bpdu_guard          = "yes" / "no"                          ; port disabled due to bpdu-guard
+    tcn_sent            = 1*10DIGIT                             ; tcn transmitted
+    tcn_received        = 1*10DIGIT                             ; tcn received
+    root_guard_timer    = 1*3DIGIT                              ; root guard current timer value
+
+### STP_INTF_TABLE
+    ;Stores STP interface details
+    ;Status: work in progress
+    key                    = STP_INTF:ifname			           ; ifname with prefix STP_INTF, ifname can be physical or port-channel name
+    bpdu_guard_shutdown    = "yes" / "no"                          ; port disabled due to bpdu-guard
+    port_fast              = "yes" / "no"                          ; port fast is enabled or not
+
 
 ### STP_PORT_STATE_TABLE
     ;Stores STP port state per instance
     ;Status: work in progress
     key                 = STP_PORT_STATE:ifname:instance        ; ifname and the STP instance
-    state               = 1DIGIT                                ; 0-listen, 1-learn, 2-block, 3-forward, 4-disabled 
+    state               = 1DIGIT                                ; 0-disabled, 1-block, 2-listen, 3-learn, 4-forward 
 
 
 ### STP_VLAN_INSTANCE_TABLE 
@@ -229,18 +243,12 @@ Following config DB schemas are defined for supporting this feature.
     key                 = STP_VLAN_INSTANCE_TABLE:"Vlan"vlanid  ; DIGIT 1-4095 with prefix "Vlan"
     stp_instance        = 1*4DIGIT                              ; STP instance associated with this VLAN
 
-### VLAN_MEMBER_TABLE
-    ;Defines interfaces which are members of a vlan
-    ;Status: work in progress
-    key                 = VLAN_MEMBER_TABLE:"Vlan"vlanid:ifname         ; physical port "ifname" is a member of a VLAN "VlanX"
-    tagging_mode        = "untagged" / "tagged" / "priority_tagged"     ; default value as untagged
-    stp_state           = 1DIGIT                                        ; 0-listen, 1-learn, 2-block, 3-forward, 4-disabled 
 
 ### STP_FASTAGEING_FLUSH_TABLE
     ;Defines vlans for which fastageing is enabled
     ;Status: work in progress
     key                 = STP_FASTAGEING_FLUSH_TABLE:"Vlan"vlanid       ; vlan id for which flush needs to be done
-    state               = true                                          ; true perform flush  
+    state               = "true"                                          ; true perform flush  
  
 
 ## 3.3 Switch State Service Design
@@ -277,6 +285,7 @@ STPd process will handle following interactions. STPd will use libevent for proc
 3) Timers handling - Timer events are generated every 100ms for handling STP protocol timers
 4) Port events - Netlink socket interface for processing create/delete of port, lag interface, lag member add/delete, link state changes and port speed
 5) Operational updates - STPsync is part of STPd and handles all the updates to APP DB. All DB interactions are detailed in the Section 4.
+6) STP Port state sync to linux kernel - Currently the vlan aware bridge doesnt support programming the STP state into linux bridge. As a workaround, when STP state is not forwarding, corresponding VLAN membership on that port will be removed to filter the packets on blocking port.
 
 ### Interface DB:
 
@@ -325,6 +334,10 @@ STP SAI interface APIs are already defined and is available at below location -
 
 https://github.com/opencomputeproject/SAI/blob/master/inc/saistp.h
 
+Control packet traps required for STP (SAI_HOSTIF_TRAP_TYPE_STP) and PVST (SAI_HOSTIF_TRAP_TYPE_PVRST) are defined in below SAI spec -
+
+https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h 
+
 ## 3.6 CLI
 ### 3.6.1 Data Models
 Openconfig STP yang model will be extended to support PVST.
@@ -333,7 +346,7 @@ Openconfig STP yang model will be extended to support PVST.
  
 ### 3.6.2.1 Global level 
 
-### 3.6.2.1.1 Global spanning-tree mode
+### 3.6.2.1.1 Enabling or Disabling of PVST feature - Global spanning-tree mode
 This command allows enabling the spanning tree mode for the device. 
 
 **config spanning_tree {enable|disable} {pvst}**
@@ -415,7 +428,9 @@ This command allow enabling or disabling of root guard on an interface.
 **config spanning_tree interface root_guard {enable|disable} <ifname\>**
 
 Following syslogs will be generated when entering and exiting root guard condition respectively - 
+
 STP: Root Guard interface Ethernet4, VLAN 100 inconsistent (Received superior BPDU)
+
 STP: Root Guard interface Ethernet4, VLAN 100 consistent (Timeout)
 
  ### 3.6.2.4.3 BPDU Guard
@@ -426,11 +441,12 @@ Below command allows enabling or disabling of bpdu guard on an interface.
 **config spanning_tree interface bpdu_guard {enable|disable} <ifname\>**
 
 
-By default, BPDU guard will only generate a syslog indicating the condition, for taking an action like disabling the port below command can be used.
+By default, BPDU guard will only generate a syslog indicating the condition, for taking an action like disabling the port below command can be used with shutdown option
 
-**config spanning_tree interface bpdu_guard [do_disable] {enable|disable} <ifname\>**
+**config spanning_tree interface bpdu_guard {enable|disable} <ifname\> [--shutdown | -s]**
 
 Following syslog will be generated when BPDU guard condition is entered -
+
 STP: Tagged BPDU(100) received, interface Ethernet4 disabled due to BPDU guard trigger
 
 STPd will update the config DB for shutting down the interface, user can enable the interface back once it has stopped receiving the BPDUs.
@@ -464,7 +480,7 @@ This command allows to configure the port level cost value, range 1 - 200000000
 ### 3.6.3 Show Commands
 - show spanning_tree
 - show spanning_tree vlan <vlanid\>
-- show spanning_tree vlan interface <vlanid\> <ifname\>
+- show spanning_tree vlan <vlanid\> interface <ifname\>
 
 ``` 
 Spanning-tree Mode: PVST
@@ -484,56 +500,76 @@ hex                        hex                    sec sec sec
 
 STP Port Parameters:
 
-Port        Prio Path Root  BPDU     State      Designat- Designated       Designated
-Num         rity Cost Guard Guard               ed Cost   Root             Bridge
-Ethernet13  128  4    Y     N        FORWARDING 0         8000002438eefbc3 8000002438eefbc3 
+Port        Prio Path Port Uplink   State      Designated  Designated       Designated
+Num         rity Cost Fast Fast                Cost        Root             Bridge
+Ethernet13  128  4    Y    N        FORWARDING 0           8000002438eefbc3 8000002438eefbc3 
 ```
 
 - show spanning_tree bpdu_guard
 This command displays the interfaces which are BPDU guard enabled and also the state if the interface is disabled due to BPDU guard.
 ```
 show spanning_tree bpdu_guard
-PortNum                Disabled due to BPDU guard
+PortNum            Shutdown      Port shut
+                   Configured    due to BPDU guard
 -------------------------------------------------
-Ethernet1              Yes
-Port-Channel2          No
+Ethernet1            Yes          Yes
+Ethernet2            Yes          No
+Port-Channel2        No           NA
+```
+
+-show spanning_tree root_guard
+This command displays the interfaces where root guard is active and the pending time for root guard timer expiry
+```
+Root guard timeout: 120 secs
+
+Port         VLAN    Current State
+-------------------------------------------------
+Ethernet1    1       Inconsistent state (102 seconds left on timer)
+Ethernet8    100     Consistent state
 ```
 
 - show spanning_tree statistics 
 - show spanning_tree statistics vlan <vlanid\> 
-
+This command displays the spanning-tree bpdu statistics. Statistics will be synced to APP DB every 10 seconds.
 ```
 VLAN 100 - STP instance 3
 --------------------------------------------------------------------
-PortNum           BPDU Tx     BPDU Rx     TC Tx      TC Rx             
+PortNum           BPDU Tx     BPDU Rx     TCN Tx      TCN Rx             
 Ethernet13        10	      4           3          4
 PortChannel15     20	      6           4          1
 ```
 
 
 ### 3.6.4 Debug Commands
-Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/stplog
+Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/syslog and packet logs can be viewed in /var/log/stp_dbg.log(in STP container)
 - debug spanning_tree config_bpdu
 - debug spanning_tree tcn_bpdu
 - debug spanning_tree event
 - debug spanning_tree interface <ifname\>
 - debug spanning_tree verbose
 - debug spanning_tree vlan <id\>
+
+To disable the debugging controls enabled '-d' or '--disable' option can be used, an example of disabling config_bpdu debugging is shown below -
+- debug spanning_tree config_bpdu -d
+
+Follow commands can be used to reset and display the debugging controls enabled respectively
 - debug spanning_tree reset
 - debug spanning_tree show
 
 Following debug commands will be supported for displaying internal data structures
 - debug spanning_tree dump global
-- debug spanning_tree dump vlan <id\>
-- debug spanning_tree dump vlan interface <id\> <ifname\>
+- debug spanning_tree dump vlan <vid\>
+- debug spanning_tree dump interface <vid\> <ifname\>
 
 ### 3.6.5 Clear Commands
 Following clear commands will be supported 
-- clear spanning_tree statistics
-- clear spanning_tree statistics interface <ifname\>
+- sonic-clear spanning_tree statistics
+- sonic-clear spanning_tree statistics vlan <vid\>
+- sonic-clear spanning_tree statistics vlan-interface <vid\> <ifname\>
+- sonic-clear spanning_tree statistics interface <ifname\>
 
 ### 3.6.6 REST API Support
-REST APIs will be supported
+REST APIs is not supported in this release
 
 # 4 Flow Diagrams
 
@@ -672,7 +708,7 @@ Scaling
 2) Verify 16k vlan,port scaling
 
 Logging and debugging
-1) Verify debug messages are logged in /var/log/stplog
+1) Verify debug messages are logged in /var/log/syslog
 2) Verify changing log level
 3) Verify Pkt Tx/Rx Debug
 4) Verify STP debug commands
