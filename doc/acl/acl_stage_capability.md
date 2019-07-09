@@ -20,7 +20,7 @@ The proposed new schema:
 
 ### ACL_RULE_TABLE
 ```
-mirror_action = 1*255VCHAR                         ; refer to the mirror session (implicitely ingress for backward compatibility)
+mirror_action = 1*255VCHAR                         ; refer to the mirror session (implicitly ingress for backward compatibility)
 mirror_ingress_action = 1*255VCHAR                 ; refer to the mirror session
 mirror_egress_action = 1*255VCHAR                  ; refer to the mirror session
 ```
