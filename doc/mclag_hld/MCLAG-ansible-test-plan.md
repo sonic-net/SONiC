@@ -63,7 +63,7 @@ The test is running on real SONIC switch with testbed's basic configuration. The
 
 ### Testbed
 
-The test will run on the following testbed (docker ptf must support teamd):
+The test will run on the following testbed (**docker ptf must support teamd**):
 
 - t0-mclag
 
@@ -161,7 +161,7 @@ Setup of SONIC DUT will be done by Ansible script. During setup Ansible will cop
 
 - ./testbed-cli.sh add-topo vms-t0-mclag ~/.password
 
-#### Deploy the initial configuration for both devices separately (with an extra parameter dut_no)
+#### Deploy the initial configuration for both devices separately (**with an extra parameter dut_no**)
 
 - ansible-playbook -i lab config_sonic_basedon_testbed.yml -l "dut1_name" -e vm_base="VM0300" -e topo=t0-mclag -e deploy=True -e save=True -e testbed_name=vms-t0-mclag -e dut_no=1
 - ansible-playbook -i lab config_sonic_basedon_testbed.yml -l "dut2_name" -e vm_base="VM0300" -e topo=t0-mclag -e deploy=True -e save=True -e testbed_name=vms-t0-mclag-dut2 -e dut_no=2
@@ -196,49 +196,78 @@ Depending on the test PTF test will verify the packet arrived or dropped.
 ### Summary
 
 | NO. | Test case info |
+
 | -: | - | - |
+
 [L2 scenario test cases](#L2-scenario-test-cases) |
+
 | 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L2#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+
 | 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L2#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+
 | 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-L2#3---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
+
 | 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L2#4---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
+
 | 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-L2#5---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
+
 | 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L2#6---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+
 | 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L2#7---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+
 | 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L2#8---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+
 | 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L2#9---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
+
 [L3 scenario test cases](#L3-scenario-test-cases) |
+
 | 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L3#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+
 | 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L3#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+
 | 3 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L3#3---Verify-data-forwarding-is-correct-when-keepalive-link-status-change) |
+
 | 4 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L3#4---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+
 | 5 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L3#5---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+
 | 6 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L3#6---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+
 | 7 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L3#7---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
+
 [VXLAN scenario test cases](#VXLAN-scenario-test-cases) |
+
 | 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-VXLAN#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+
 | 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-VXLAN#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+
 | 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-VXLAN#3---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
+
 | 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-VXLAN#4---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
+
 | 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-VXLAN#5---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
+
 | 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-VXLAN#6---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+
 | 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-VXLAN#7---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+
 | 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-VXLAN#8---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+
 | 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-VXLAN#9---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
 
 ### L2 scenario test cases
 
-**SetUp: Load mclag L2 configuration files to dut and load it**
+#### SetUp: Load mclag L2 configuration files to dut and load it  <!-- omit in toc -->
 
 #### Test case L2#1 - mclag info check and verify data forwarding is correct through mclag
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify that mclag info is correct when mclag build ok.
 
 Verify data forwarding is correct through mclag when mclag build ok.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Verify ping succeed between mclag peers.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive is ok.
@@ -247,15 +276,15 @@ Verify data forwarding is correct through mclag when mclag build ok.
 5. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 6. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#2 - Verify data forwarding is correct when mclag enabled interface status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when mclag enabled interface status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. mclag enabled interface status change to down.
 2. Servers(exclude down ports) will send packets to others Servers and VMs(send L2 packets to servers that belong to the same vlan, and send L3 packets to VMs and servers belonging to other vlans). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
@@ -266,15 +295,15 @@ Verify data forwarding is correct when mclag enabled interface status change.
 7. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 8. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#3 - Verify data forwarding is correct when peer-link status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when peer-link status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Peer-link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive is still ok.
@@ -286,15 +315,15 @@ Verify data forwarding is correct when peer-link status change.
 8. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 9. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#4 - Verify data forwarding is correct when keepalive link status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when keepalive link status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Keepalive link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
@@ -308,15 +337,15 @@ Verify data forwarding is correct when keepalive link status change.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 11. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#5 - Verify data forwarding is correct when peer-link and keepalive link status both change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when peer-link and keepalive link status both change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Peer-link and keepalive link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
@@ -330,15 +359,15 @@ Verify data forwarding is correct when peer-link and keepalive link status both 
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 11. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#6 - Verify data forwarding is correct when active device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on standby device verify mclag keepalive change to error.
@@ -351,15 +380,15 @@ Verify data forwarding is correct when active device of mclag status change.
 9. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 10. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#7 - Verify data forwarding is correct when standby device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on active device verify mclag keepalive change to error.
@@ -372,15 +401,15 @@ Verify data forwarding is correct when standby device of mclag status change.
 9. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 10. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#8 - Verify data forwarding is correct when active devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on standby device.
@@ -388,15 +417,15 @@ Verify data forwarding is correct when active devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L2#9 - Verify data forwarding is correct when standby devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on active device.
@@ -404,23 +433,23 @@ Verify data forwarding is correct when standby devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
-**TearDown: Set default configuration**
+#### TearDown: Set default configuration <!-- omit in toc -->
 
 ### L3 scenario test cases
 
-**SetUp: Load mclag L3 configuration files to dut and load it**
+#### SetUp: Load mclag L3 configuration files to dut and load it <!-- omit in toc -->
 
 #### Test case L3#1 - mclag info check and verify data forwarding is correct through mclag
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify that mclag info is correct when mclag build ok.
 
 Verify data forwarding is correct through mclag when mclag build ok.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Verify ping succeed between mclag peers.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive is ok.
@@ -428,30 +457,30 @@ Verify data forwarding is correct through mclag when mclag build ok.
 4. Servers(including orphan ports) will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reach to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device(Services on orphan ports forwarding support by routing protocol or static route).
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#2 - Verify data forwarding is correct when mclag enabled interface status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when mclag enabled interface status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. mclag enabled interface status change to down.
 2. Servers(exclude down ports) will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 3. mclag enabled interface status recover to up.
 4. Servers will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#3 - Verify data forwarding is correct when keepalive link status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when keepalive link status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Keepalive link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
@@ -461,15 +490,15 @@ Verify data forwarding is correct when keepalive link status change.
 6. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 7. Servers will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#4 - Verify data forwarding is correct when active device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on standby device verify mclag keepalive change to error.
@@ -478,15 +507,15 @@ Verify data forwarding is correct when active device of mclag status change.
 5. "mclagdctl -i \<mclag-id\> dump state" command on standby device verify mclag keepalive change to ok.
 6. Servers will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#5 - Verify data forwarding is correct when standby device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on active device verify mclag keepalive change to error.
@@ -495,15 +524,15 @@ Verify data forwarding is correct when standby device of mclag status change.
 5. "mclagdctl -i \<mclag-id\> dump state" command on active device verify mclag keepalive change to ok.
 6. Servers will send packets to others Servers and VMs(send L3 packets to other servers and VMs). When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#6 - Verify data forwarding is correct when active devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on standby device.
@@ -511,15 +540,15 @@ Verify data forwarding is correct when active devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case L3#7 - Verify data forwarding is correct when standby devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on active device.
@@ -527,23 +556,23 @@ Verify data forwarding is correct when standby devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
-**TearDown: Set default configuration**
+#### TearDown: Set default configuration <!-- omit in toc -->
 
 ### VXLAN scenario test cases
 
-**SetUp: Load mclag VXLAN configuration files to dut and load it**
+#### SetUp: Load mclag VXLAN configuration files to dut and load it  <!-- omit in toc -->
 
 #### Test case VXLAN#1 - mclag info check and verify data forwarding is correct through mclag
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify that mclag info is correct when mclag build ok.
 
 Verify data forwarding is correct through mclag when mclag build ok.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Verify ping succeed between mclag peers.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive is ok.
@@ -552,15 +581,15 @@ Verify data forwarding is correct through mclag when mclag build ok.
 5. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 6. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#2 - Verify data forwarding is correct when mclag enabled interface status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when mclag enabled interface status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. mclag enabled interface status change to down.
 2. Servers(exclude down ports) will send packets to others Servers. When packet reaches to SONIC DUT, it will forward to the correct destination. PTF will receive a copy of the packet and perform validations described in validation of Traffic.
@@ -571,15 +600,15 @@ Verify data forwarding is correct when mclag enabled interface status change.
 7. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 8. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#3 - Verify data forwarding is correct when peer-link status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when peer-link status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Peer-link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive is still ok.
@@ -595,11 +624,11 @@ Verify data forwarding is correct when peer-link status change.
 
 #### Test case VXLAN#4 - Verify data forwarding is correct when keepalive link status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when keepalive link status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Keepalive link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
@@ -613,15 +642,15 @@ Verify data forwarding is correct when keepalive link status change.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 11. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#5 - Verify data forwarding is correct when peer-link and keepalive link status both change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when peer-link and keepalive link status both change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Peer-link and keepalive link status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
@@ -639,11 +668,11 @@ Verify data forwarding is correct when peer-link and keepalive link status both 
 
 #### Test case VXLAN#6 - Verify data forwarding is correct when active device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on standby device verify mclag keepalive change to error.
@@ -656,15 +685,15 @@ Verify data forwarding is correct when active device of mclag status change.
 9. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 10. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#7 - Verify data forwarding is correct when standby device of mclag status change
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby device of mclag status change.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag status change to down.
 2. "mclagdctl -i \<mclag-id\> dump state" command on active device verify mclag keepalive change to error.
@@ -677,15 +706,15 @@ Verify data forwarding is correct when standby device of mclag status change.
 9. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 10. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#8 - Verify data forwarding is correct when active devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when active devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Active device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on standby device.
@@ -693,15 +722,15 @@ Verify data forwarding is correct when active devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
 #### Test case VXLAN#9 - Verify data forwarding is correct when standby devices of mclag warm-reboot
 
-**Test objective**
+##### Test objective <!-- omit in toc -->
 
 Verify data forwarding is correct when standby devices of mclag warm-reboot.
 
-**Test steps**
+##### Test steps <!-- omit in toc -->
 
 1. Standby device of mclag warm-reboot.
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive keep ok on active device.
@@ -709,9 +738,9 @@ Verify data forwarding is correct when standby devices of mclag warm-reboot.
 4. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
 5. "show arp" command verify the arps learned on mclag enabled interface are the same on both mclag device. The arps learned on orphan ports will point to the peer-link on another device.
 
-**Expected test result: Pass**
+##### Expected test result: Pass <!-- omit in toc -->
 
-**TearDown: Set default configuration**
+#### TearDown: Set default configuration <!-- omit in toc -->
 
 ## TODO
 
