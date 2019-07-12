@@ -201,59 +201,59 @@ Depending on the test PTF test will verify the packet arrived or dropped.
 
 [L2 scenario test cases](#L2-scenario-test-cases) |
 
-| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L2#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L21---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
 
-| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L2#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L22---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
 
-| 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-L2#3---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
+| 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-L23---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
 
-| 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L2#4---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
+| 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L24---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
 
-| 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-L2#5---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
+| 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-L25---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
 
-| 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L2#6---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+| 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L26---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
 
-| 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L2#7---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+| 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L27---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
 
-| 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L2#8---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+| 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L28---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
 
-| 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L2#9---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
+| 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L29---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
 
 [L3 scenario test cases](#L3-scenario-test-cases) |
 
-| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L3#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-L31---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
 
-| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L3#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-L32---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
 
-| 3 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L3#3---Verify-data-forwarding-is-correct-when-keepalive-link-status-change) |
+| 3 | [Verify data forwarding is correct when keepalive link status change](#Test-case-L33---Verify-data-forwarding-is-correct-when-keepalive-link-status-change) |
 
-| 4 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L3#4---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+| 4 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-L34---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
 
-| 5 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L3#5---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+| 5 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-L35---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
 
-| 6 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L3#6---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+| 6 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-L36---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
 
-| 7 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L3#7---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
+| 7 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-L37---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
 
 [VXLAN scenario test cases](#VXLAN-scenario-test-cases) |
 
-| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-VXLAN#1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
+| 1 | [mclag info check and verify data forwarding is correct through mclag](#Test-case-VXLAN1---mclag-info-check-and-verify-data-forwarding-is-correct-through-mclag) |
 
-| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-VXLAN#2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
+| 2 | [Verify data forwarding is correct when mclag enabled interface status change](#Test-case-VXLAN2---Verify-data-forwarding-is-correct-when-mclag-enabled-interface-status-change) |
 
-| 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-VXLAN#3---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
+| 3 | [Verify data forwarding is correct when peer-link status change](#Test-case-VXLAN3---Verify-data-forwarding-is-correct-when-peer-link-status-change) |
 
-| 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-VXLAN#4---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
+| 4 | [Verify data forwarding is correct when keepalive link status change](#Test-case-VXLAN4---Verify-data-forwarding-is-correct-when-Keepalive-link-status-change) |
 
-| 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-VXLAN#5---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
+| 5 | [Verify data forwarding is correct when peer-link and keepalive link status both change](#Test-case-VXLAN5---Verify-data-forwarding-is-correct-when-peer-link-and-Keepalive-link-status-both-change) |
 
-| 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-VXLAN#6---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
+| 6 | [Verify data forwarding is correct when active device of mclag status change](#Test-case-VXLAN6---Verify-data-forwarding-is-correct-when-active-device-of-mclag-status-change) |
 
-| 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-VXLAN#7---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
+| 7 | [Verify data forwarding is correct when standby device of mclag status change](#Test-case-VXLAN7---Verify-data-forwarding-is-correct-when-standby-device-of-mclag-status-change) |
 
-| 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-VXLAN#8---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
+| 8 | [Verify data forwarding is correct when active devices of mclag warm-reboot](#Test-case-VXLAN8---Verify-data-forwarding-is-correct-when-active-devices-of-mclag-warm-reboot) |
 
-| 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-VXLAN#9---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
+| 9 | [Verify data forwarding is correct when standby devices of mclag warm-reboot](#Test-case-VXLAN9---Verify-data-forwarding-is-correct-when-standby-devices-of-mclag-warm-reboot) |
 
 ### L2 scenario test cases
 
