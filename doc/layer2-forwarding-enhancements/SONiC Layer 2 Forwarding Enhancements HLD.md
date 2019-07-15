@@ -76,7 +76,7 @@ This document describes the high level design of Layer 2 Forwarding Enhancements
 3. Configuration CLI for FDB aging time.
 	- The FDB aging time should be configurable in hardware to a desired value from CLI.
 	- There should be an option to disable aging by setting the aging time to 0.
-	- The default FDB aging time should be set to 0. User has option to set desired value in default config file.
+	- The default FDB aging time should be set to 600 seconds. 
 	
 4. Configuration CLI for Static FDB entry.
 	- A Static FDB entry should be configurable in hardware from CLI.
@@ -126,7 +126,7 @@ Warm boot support already exists.
   
 
 **3. Configuration for FDB aging time.**
-- CLI configuration  to be added to change the FDB aging time. By default, the aging time in hardware is 0. It can be changed to a desired value if CLI is available. Currently, it can be done only by setting in APP_DB. The configuration range will be  0-1,000,000 seconds. Setting aging time to 0 will disable aging.
+- CLI configuration  to be added to change the FDB aging time. By default, the aging time in hardware is 0 and set to 600 seconds in SONiC. It can be changed to a desired value if CLI is available. Currently, it can be done only by setting in APP_DB. The configuration range will be  0-1,000,000 seconds. Setting aging time to 0 will disable aging.
   
 
 **4. Configuration for static FDB entry.**
