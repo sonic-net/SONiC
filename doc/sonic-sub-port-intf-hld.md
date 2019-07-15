@@ -40,6 +40,7 @@
         * [6.3.3 Remove a sub port interface](#633-remove-a-sub-port-interface)
   * [7 Scalability](#7-scalability)
   * [8 Port channel renaming](#8-port-channel-renaming)
+  * [9 References](#9-references)
 
 <!-- /TOC -->
 
@@ -114,7 +115,8 @@ Example configuration:
     "Ethernet64.10": {
         "mtu" : "9100"
     },
-    "Ethernet64.10|192.168.0.1/21": {}
+    "Ethernet64.10|192.168.0.1/21": {},
+    "Ethernet64.10|fc00::/7": {}
 },
 
 "VLAN": {
@@ -178,6 +180,9 @@ DOT1Q_INTERFACE|Ethernet64.10
     "mtu" : "9100"
 
 DOT1Q_INTERFACE|Ethernet64.10|192.168.0.1/21
+    "NULL" : "NULL"
+
+DOT1Q_INTERFACE|Ethernet64.10|fc00::/7
     "NULL" : "NULL"
 ```
 
@@ -405,7 +410,7 @@ There is no special runtime state that needs to be kept for sub port interfaces.
 This said, current warm reboot infrastructure shall support sub port interfaces naturally without the need for additional extension.
 This is confirmed by preliminary trials on a Mellanox device.
 
-# 6 Uinit test
+# 6 Unit test
 ## 6.1 Sub port interface creation
 Test shall cover the parent interface being a physical port or a port channel.
 
@@ -467,9 +472,12 @@ We enforce a minimum scalability requirement on the number of sub port interface
 
 | Name                                                              | Scaling value             |
 |-------------------------------------------------------------------|---------------------------|
-| Number of sub port interfaces per phyical port or port channel    | 250                       |
+| Number of sub port interfaces per physical port or port channel   | 250                       |
 | Number of sub port interfaces per switch                          | 750                       |
 
 # 8 Port channel renaming
 Linux has the limitation of 16 characters on an interface name.
 For sub port interface use cases on port channels, we need to redesign the current naming convention for port channels (PortChannelXXXX, 15 characters) to take shorter names (such as, PoXXXX, 6 characters).
+
+# 9 References
+[1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
