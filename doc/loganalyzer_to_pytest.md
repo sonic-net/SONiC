@@ -40,6 +40,7 @@ Attributes:
 
 Usage example of loganalyzer functionality just to show how to use loganalyzer interface.
 
+```
 def some_function(x, y=10, z=0):
     return x + y
 
@@ -47,6 +48,7 @@ def test_loganalyzer_functionality(localhost, ansible_adhoc, testbed):
     """
     @summary: Example of loganalyzer usage
     """
+
     hostname = testbed['dut']
     ans_host = ansible_host(ansible_adhoc, hostname)
 
@@ -98,3 +100,4 @@ def test_loganalyzer_functionality(localhost, ansible_adhoc, testbed):
     if not result:
         pytest.fail("Log analyzer failed.")
     assert result["total"]["match"] == 1, "Found errors: {}".format(result)
+```
