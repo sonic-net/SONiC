@@ -16,11 +16,11 @@ https://github.com/Azure/SONiC/wiki/LogAnalyzer
 Module "loganalyzer.py" with class "Loganalyzer".
 
 "Loganalyzer" class interface:
-- __init__(ansible_host: ansible_host, run_dir="/tmp")
+- __init__(ansible_host: ansible_host, marker_prefix, dut_run_dir="/tmp")
 - load_common_config() - Clear previous configured match, expect and ignore. Load regular expressions from common configuration files: match, expect and ignore which are located in some configuration directory or with current module. Save loaded configuration to the self.match_regex, self.expect_regex and self.ignore_regex attributes.
 - parse_regexp_file(file_path) - Read and parse regular expressions from specified file. Return list of strings of defined regular expressions.
-- run_cmd(callable, *args, **kwargs) - Call function and analyze DUT syslog during function execution. Return the same result as "analyze" function.
-- init(marker_prefix: string) - Add start marker to the DUT syslog. Generated marker format: marker_prefix + "%Y-%m-%d-%H:%M:%S"
+- run_cmd(callback, *args, **kwargs) - Call function and analyze DUT syslog during function execution. Return the same result as "analyze" function.
+- init() - Add start marker to the DUT syslog. Generated marker format: marker_prefix + "%Y-%m-%d-%H:%M:%S"
 - analyze() - Extract syslog based on the start marker and copy it to ansible host. Analyze extracted syslog file localy. Return python dictionary object.
 Return example:
 {"counters": {"match": 1, "expected_match": 0, "expected_missing_match": 0},
@@ -31,43 +31,70 @@ Return example:
 						 "/tmp/syslog2": ["Message 1", "Message 2", "Message n"]
 						 }
 }
-- save_full_log(dest_path) - Download extracted DUT syslog (/tmp/syslog) to the Ansible host folder specified in 'dest_path' input parameter.
+- save_full_log(dest) - Download extracted DUT syslog (/tmp/syslog) to the Ansible host folder specified in 'dest' input parameter.
 
 Attributes:
 - match_regex - list of regular expression strings to match
 - expect_regex - list of regular expression strings to expect
 - ignore_regex - list of regular expression strings to ignore
 
-Usage example:
+Usage example of loganalyzer functionality just to show how to use loganalyzer interface.
 
-	from ansible_host import ansible_host
-	from loganalyzer import Loganalyzer
+def some_function(x, y=10, z=0):
+    return x + y
 
-	def test(localhost, ansible_adhoc, testbed):
-		hostname = testbed['dut']
-		ans_host = ansible_host(ansible_adhoc, hostname)
+def test_loganalyzer_functionality(localhost, ansible_adhoc, testbed):
+    """
+    @summary: Example of loganalyzer usage
+    """
+    hostname = testbed['dut']
+    ans_host = ansible_host(ansible_adhoc, hostname)
 
-		loganalyzer = Loganalyzer(ans_host)
+    log = LogAnalyzer(ansible_host=ans_host, marker_prefix="test_loganalyzer")
 
-		# If it is a need to load common search regular expressions. It will load regexp from common files and store values in the match_regex, expect_regex and ignore_regex attributes.
-		loganalyzer.load_common_config()
+    # Read existed common regular expressions located with legacy loganalyzer module
+    log.load_common_config()
 
-		# Add start marker to DUT syslog
-		loganalyzer.init("acl_test")
+    # Add start marker to the DUT syslog
+    log.init()
 
-		# Example: If test need specific search marker it can be added
-		loganalyzer.match.append("Runtime error: can't parse mac address 'None'")
+    # Emulate that new error messages appears in the syslog
+    time.sleep(1)
+    ans_host.command("echo '---------- ERR: error text --------------' >> /var/log/syslog")
+    ans_host.command("echo '---------- Kernel Error: error text --------------' >> /var/log/syslog")
+    time.sleep(2)
+    ans_host.command("echo '---------- Interface Error: error text --------------' >> /var/log/syslog")
 
-		# Example: Get current match regular expressions
-		print(loganalyzer.match_regex)
+    # Perform syslog analysis based on added messages
+    result = log.analyze()
+    if not result:
+        pytest.fail("Log analyzer failed.")
+    assert result["total"]["match"] == 2, "Found errors: {}".format(result)
 
-		# Example: Remove specific match regular expression
-		loganalyzer.match_regex.remove("Runtime error: can't parse mac address 'None'")
-		
-		# Example: read test specific match file and add read strings to the existed match list
-		loganalyzer.match_regex.extend(loganalyzer.parse_regexp_file("PATH_TO_THE_FILE/FILE.txt"))
+    # Download extracted syslog file from DUT to the local host
+    res_save_log = log.save_extracted_log(dest=os.getcwd() + "/../log/syslog")
 
-		# Execute test steps here...
+    # Example: update previously configured marker
+    # Now start marker will have new prefix
+    log.update_marker_prefix("log")
 
-		result = loganalyzer.analyze()
-		assert result["counters"]["match"] == 0, "Failure message\n{}\n{}".format(result["counters"], result["match_messages"])
+    # Execute function and analyze logs during function execution
+    # Return tuple of (FUNCTION_RESULT, LOGANALYZER_RESULT)
+    run_cmd_result = log.run_cmd(some_function, 5, y=5, z=11)
+
+    # Clear current regexp match list
+    log.match_regex = []
+
+    # Load regular expressions from the specified file
+    reg_exp = log.parse_regexp_file(src=COMMON_MATCH)
+
+    # Extend existed match regular expresiions with previously read
+    log.match_regex.extend(reg_exp)
+
+    # Verify that new regular expressions are found by log analyzer
+    log.init()
+    ans_host.command("echo '---------- Kernel Error: error text --------------' >> /var/log/syslog")
+    result = log.analyze()
+    if not result:
+        pytest.fail("Log analyzer failed.")
+    assert result["total"]["match"] == 1, "Found errors: {}".format(result)
