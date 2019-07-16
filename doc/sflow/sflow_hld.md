@@ -1,5 +1,5 @@
 # sFlow High Level Design
-### Rev 0.4
+### Rev 0.5
 ## Table of Contents
 
 ## 1. Revision 
@@ -9,6 +9,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.2 |05/20/2019  |Padmanabhan Narayanan | Updated based on internal review comments
 |v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
+|v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -47,18 +48,17 @@ sFlow will be implemented in multiple phases:
 4. sFlow collector can be reachable via
 	1. 	Front end port
 	2. 	Management port
-5. Set the default sampling rate to 0, configuring non-default value should enable sFlow and start sampling.
 6. Default sFlow sample size should be set to 128 bytes.
 7. Support sFlow related
 	1. CLI show/config commands
 	2. syslogs
-8. sFlow counter support needed.
+8. sFlow counter support needed and config to change polling interval.
 
 ### **Phase II:**
-1. sFlow should be supported on portchannel interfaces.
+1. Speed based sample rate setting (config sflow sample-rate speed...)
+2. sFlow should be supported on portchannel interfaces.
 2. Enhance CLI with session support (i.e create sessions add interfaces to specific sessions)
 3. SNMP support for sFlow.
-4. Polling interval for sFlow counter.
 
 ### **Phase III:**
 1. sFlow extended switch support.
@@ -101,7 +101,7 @@ The following figure shows the configuration and control flows for sFlow:
 ![alt text](../../images/sflow/sflow_config_and_control.png "SONiC sFlow Configuration and Control")
 
 1. The user configures the sflow collector, agent, sampling related parameters (interfaces to be sampled and rate) and these configurations are added to the CONFIG DB.
-2. The sflowmgrd checks if the genetlink family "psample" and multicast group for sflow samples exists and if not, creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd.
+2. The sflowmgrd checks if the genetlink family "psample" and multicast group "packets" for sflow samples exists and if not, creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd. Note that the psample kernel driver ((https://github.com/torvalds/linux/blob/master/net/psample/psample.c) typically creates these.
 3. The sfloworch calls a SAI API that enables the ASIC driver to map the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the specific genetlink channel and group.
 4. The sflowmgrd daemon watches the CONFIG DB's SFLOW_COLLECTOR table and updates the /etc/hsflowd.conf which is the configuration file for hsflowd. Based on the nature of changes, the sflowmgrd may restart the hsflowd service. The hsflowd service uses the collector, UDP port and agent IP information to open sockets to reach the sFlow collectors.
 5. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
@@ -132,42 +132,77 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
 
 #### Config commands
 
-* **sflow collector add** *{collector-name {ipv4-address | ipv6-address}}* **agent-addr** *{ipv4-address | ipv6-address} [**port** {number}] [**max-datagram-size** {size}]*
+* **sflow collector add** *{collector-name {ipv4-address | ipv6-address}} [**port** {number}]*
 
   Where:
   * name is the unique name of the sFlow collector
   * ipv4-address : IP address of the collector in dotted decimal format for IPv4
   * ipv6-address : x: x: x: x::x format for IPv6 address of the collector (where :: notation specifies successive hexadecimal fields of zeros)
-  * agent-addr : 
-    * ipv4-address : IP address of the agent in dotted decimal format for IPv4
-    * ipv6-address : x: x: x: x::x format for IPv6 address of the agent (where :: notation specifies successive hexadecimal fields of zeros)
   * port (OPTIONAL): specifies the UDP port of the collector (the range is from 0 to 65535. The default is 6343.)
-  * max-datagram-size (OPTIONAL): in bytes (from 400 to 1500 : defaults to 1400)
 
   Note:
   * A maximum of 2 collectors is allowed.
-  * Only a single agent IP is allowed across collectors
-  * Only a single value for max-datagram-size is allowed across collectors
 
  * **sflow collector del** *{collector-name}*
 
     Delete the sflow collector with the given name
  
-* **sflow sample-rate** *value*
-  
-   Configure the global default sample-rate
-    
-   * value is the average number of packets skipped before the sample is taken. As per SAI samplepacket definition : "The sampling rate specifies random sampling probability as the ratio of packets observed to samples generated. For example a sampling rate of 100 specifies that, on average, 1 sample will be generated for every 100 packets observed."
-   * Valid range 256:8388608. Global default sample-rate is 32768
-   * When this value is changed, only interfaces that are subsequently configured for sampling inherit this value.
+* **sflow agent-id <add | del>** *{interface-name}*
 
-* **sflow interface <enable|disable>** *{interface-name}*
+  Where:
+  * agent-id: specify the interface name whose ipv4 or ipv6 address will be used as the agent-id in sFlow datagrams. 
 
-   Enable/disable sflow on an interface
+  Note:
+  * This setting is global (applicable to both collectors) and optional. Only a single agent-id is allowed. If agent-id is not specified (with this CLI),  an appropriate IP that belongs to the switch is used as the agent-id based on some simple heuristics.
+
+* **sflow <enable|disable>**
+
+  Globally, sFlow is disabled by default. When sFlow is enabled globally, the sflow deamon is started and sampling will start on all interfaces which have sFlow enabled at the interface level (see “config sflow interface…”). 
+When sflow is disabled globally, sampling is stopped on all relevant interfaces and sflow daemon is stopped.
+
+* **sflow interface <enable|disable>** *<{interface-name}|**all**>*
+
+  Enable/disable sflow at an interface level. By default, sflow is enabled on all interfaces at the interface level.  Use this command to explicitly disable sFlow for a specific interface. An interface is sampled if sflow is enabled globally as well as at the interface level.
+
+  The “all” keyword is used as a convenience to enable/disable sflow at the interface level for all the interfaces.
 
 * **sflow interface sample-rate** *{interface-name} {value}*
 
-  Enable sample-rate for the specific interface : this value overrides the global default setting. Valid range 256:8388608.
+  Configure the sample-rate for a specific interface. 
+
+  The default sample rate for any interface is (ifSpeed / 1e6) where ifSpeed is in bits/sec.  So, the default sample rate based on interface speed is:
+
+  * 1-in-1000 for a 1G link
+  * 1-in-10,000  for a 10G link
+  * 1-in-40,000  for a 40G link
+  * 1-in-50,000  for a 50G link
+  * 1-in-100,000  for a 100G link
+
+  This default is chosen to allow the detection of a new flow of 10% link bandwidth in under 1 second. It is recommended not to change the defaults. This CLI is to be used only in case of exceptions (e.g., to set the sample-rate to the nearest power-of-2 if there are hardware restrictions in using the defaults)
+
+  * value is the average number of packets skipped before the sample is taken. As per SAI samplepacket definition : "The sampling rate specifies random sampling probability as the ratio of packets observed to samples generated. For example a sampling rate of 256 specifies that, on average, 1 sample will be generated for every 256 packets observed."
+  * Valid range 256:8388608.
+
+* **sflow polling-interval** *{value}*
+
+  The counter polling interval for all interfaces.
+
+  * Valid range 0:300 seconds
+  * Set polling-interval to 0 to disable
+
+* **sflow sample-rate speed <100M|1G|10G|25G|40G|50G|100G>** *{value}*
+
+  Set the sampling-rate for interfaces based on speed:
+  e.g.
+  ```
+  config sflow sample-rate speed 100M 250
+  config sflow sample-rate speed 1G 500
+  config sflow sample-rate speed 40G 5000
+  ```
+  * This will override the default speed based setting (which is ifSpeed / 1e6 where ifSpeed is in bits/sec.)
+  * If port speed changes, this setting will be used to determine the updated sample-rate for the interface.
+  * The config sflow interface sample-rate {interface-name} {value} setting can still be used to override the speed based setting for specific interfaces.
+
 
 #### Show commands
 
@@ -178,15 +213,17 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
 
 #### Example SONiC CLI configuration ####
 
-&#35; sflow collector add sflow-a 10.100.12.13 agent-addr 10.0.0.10 max-datagramsize 1500
+&#35; sflow collector add sflow-a 10.100.12.13
 
-&#35; sflow collector add sflow-b 10.144.1.2 pot 6344
+&#35; sflow collector add sflow-b 10.144.1.2 port 6344
 
-&#35; sflow interface enable Ethernet0
+&#35; sflow agent-id add loopback0
 
-&#35; sflow interface enable Ethernet16
+&#35; sflow enable
 
-&#35; sflow interface sample-rate Ethernet16 65536
+&#35; sflow interface disable Ethernet0
+
+&#35; sflow interface sample-rate Ethernet16 32768
 
 The configDB objects for the above CLI is given below:
 
@@ -195,54 +232,99 @@ The configDB objects for the above CLI is given below:
     "SFLOW_COLLECTOR": {
         "collector1": {
             "collector_ip": "10.100.12.13",
-            "agent_addr": "10.0.0.10",
             "collector_port": "6343"
-            "max_datagram_size": "1500"
         },
         "collector2": {
             "collector_ip": "10.144.1.2",
-            "agent_addr": "10.0.0.10",
             "collector_port": "6344"
-            "max_datagram_size": "1400"
         }
     },
 
+    "SFLOW": {
+       “global”: {
+           "admin_state": "enable"
+           “polling_interval”: “20”
+           "agent_id": "loopback0",
+         }
+    }
+
     "SFLOW_SESSION": {
-        "global": {
-           "admin_state": "enable"
-           "sample_rate": "32768"
+        "Ethernet0": {
+           "admin_state": "disable"
+           "sample_rate": "40000"
         },
-        "global|Ethernet0": {
+        "Ethernet16": {
            "admin_state": "enable"
            "sample_rate": "32768"
-        }
-        "global|Ethernet16": {
-           "admin_state": "enable"
-           "sample_rate": "65536"
         }
     }
 
 ```
 
+If user issues a “config sflow interface disable all”, the SFLOW_SESSION will have the following:
+```
+    "SFLOW_SESSION": {
+        “all”:{
+            “admin_state”:”disable”
+        },
+        …
+     }
+```
+
 &#35; show sflow 
+
+Displays the current configuration, global defaults as well as user configured values including collectors.
+
 ```
 sFlow services are enabled
-Global default sampling rate: 32768
-Global default counter polling interval: 20
-Global default extended maximum header size: 128 bytes
+Counter polling interval: 20
 2 collectors configured:
-Collector IP addr: 10.100.12.13, Agent IP addr: 10.0.0.10, UDP port: 6343 max datagram size 1500
-Collector IP addr: 10.144.1.2, Agent IP addr: 10.0.0.10, UDP port: 6344 max datagram size 1400
+Collector IP addr: 10.100.12.13, UDP port: 6343
+Collector IP addr: 10.144.1.2, UDP port: 6344
+Agent ID: loopback0 (10.0.0.10)
+
 ```
 
 &#35; show sflow interface
 
+Displays the current running configuration of sflow interfaces.
+
 ```
 Interface     Admin Status   Sampling rate 
 ---------     ------------   -------------
-Ethernet0     Enabled        32768
+Ethernet0     Disabled            40000
+Ethernet1     Enabled             40000
+Ethernet2     Enabled             40000
+Ethernet3     Enabled             40000
+Ethernet4     Enabled             40000
+Ethernet5     Enabled             40000
+Ethernet6     Enabled             40000
+Ethernet7     Enabled             40000
+Ethernet8     Enabled             40000
+Ethernet9     Enabled             40000
+Ethernet10    Enabled             40000
+Ethernet11    Enabled             40000
+Ethernet12    Enabled             40000
+Ethernet13    Enabled             40000
+Ethernet14    Enabled             40000
+Ethernet15    Enabled             40000
+Ethernet16    Enabled             32768
+Ethernet17    Enabled             40000
+Ethernet18    Enabled             40000
+Ethernet19    Enabled             40000
+Ethernet20    Enabled             40000
+Ethernet21    Enabled             40000
+Ethernet22    Enabled             40000
+Ethernet23    Enabled             40000
+Ethernet24    Enabled             40000
+Ethernet25    Enabled             40000
+Ethernet26    Enabled             40000
+Ethernet27    Enabled             40000
+Ethernet28    Enabled             40000
+Ethernet29    Enabled             40000
+Ethernet30    Enabled             40000
+Ethernet31    Enabled             40000
 
-Ethernet16    Enabled        65536
 ```
 
 ### 6.6 **DB and Schema changes**
@@ -253,43 +335,33 @@ A new SFLOW_COLLECTOR ConfigDB table entry would be added.
 ```
 SFLOW_COLLECTOR|{{collector_name}}
     "collector_ip": {{ip_address}}
-    "agent_addr": {{ip_address}}
     "collector_port": {{ uint32 }} (OPTIONAL)
-    "max_datagram_size": {{ uint32 }} (OPTIONAL)
 
 ; Defines schema for sFlow collector configuration attributes
-key                         = SFLOW_COLLECTOR:collector_name   ; sFlow collector configuration
-; field                     = value
-COLLECTOR_IP                = IPv4address / IPv6address  ; Ipv4 or IpV6 collector address
-AGENT_IP                    = IPv4address / IPv6address  ; Ipv4 or IpV6 agent address
-COLLECTOR_PORT              = 1*5DIGIT      ; destination L4 port : a number between 0 and 65535
-MAX_DATAGRAM_SIZE           = 1*4DIGIT      ; MTU of the sflow datagram
+key                    = SFLOW_COLLECTOR:collector_name   ; sFlow collector configuration
+; field                = value
+COLLECTOR_IP           = IPv4address / IPv6address        ; Ipv4 or IpV6 collector address
+COLLECTOR_PORT         = 1*5DIGIT                         ; destination L4 port : a number between 0 and 65535
 
 ;value annotations
-collector_name              = 1*16VCHAR
+collector_name         = 1*16VCHAR
+```
+
+A new SFLOW table will be added which holds global configurations
+```
+; Defines schema for SFLOW table which holds global configurations
+key                 = SFLOW
+ADMIN_STATE         = "enable" / "disable"
+POLLING_INTERVAL    = 1*3DIGIT      ; counter polling interval
+AGENT_ID            = ifname        ; Interface name
 ```
 
 A new SFLOW_SESSION table would be added.
 ```
-SFLOW_SESSION|{{session_name}}
-    "admin_state": "enable" / "disable"
-    "sample_rate": 1*7DIGIT   ; average number of packets skipped before the sample is taken
-
-SFLOW_SESSION|{{session_name}}|{{interface_name}}
-    "admin_state": "enable" / "disable"
-    "sample_rate": 1*7DIGIT   ; average number of packets skipped before the sample is taken
-
-; Defines schema for SFLOW_SESSION table which holds global configurations
-key 			= SFLOW_SESSION:session_name
-ADMIN_STATE	    	= "enable" / "disable"
-SAMPLE_RATE 		= 1*7DIGIT      ; average number of packets skipped before the sample is taken
-
-key                     = SFLOW_SESSION:session_name:interface_name
-ADMIN_STATE		= "enable" / "disable"
-SAMPLE_RATE 		= 1*7DIGIT   ; average number of packets skipped before the sample is taken
+key SFLOW_SESSION:interface_name
+ADMIN_STATE     = "enable" / "disable"
+SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
-
-In Phase I, the default session would be "global".
 
 #### AppDB & Schema
 
@@ -297,14 +369,18 @@ A new SFLOW_SESSION_TABLE is added to the AppDB:
 
 ```
 ; Defines schema for SFLOW_SESSION_TABLE which holds global configurations
-key 			= SFLOW_SESSION_TABLE:session_name
+key 			= SFLOW_SESSION_TABLE:interface_name
 ADMIN_STATE	    	= "enable" / "disable"
 SAMPLE_RATE 		= 1*7DIGIT      ; average number of packets skipped before the sample is taken
-
-key                     = SFLOW_SESSION_TABLE:session_name:interface_name
-ADMIN_STATE		= "enable" / "disable"
-SAMPLE_RATE 		= 1*7DIGIT   ; average number of packets skipped before the sample is taken
 ```
+
+A new SFLOW_SAMPLE_RATE_TABLE table which maps interface speed to the sample rate for that speed is added to the AppDB
+```
+; Defines schema for SFLOW_SAMPLE_RATE which maps interface speed to sampling rate
+key                 = SFLOW_SAMPLE_RATE_TABLE:speed
+SAMPLE_RATE         = 1*7DIGIT      ; average number of packets skipped before the sample is taken
+```
+Where speed         = 1*6DIGIT      ; port line speed in Mbps
 
 ### 6.7 **sflow container**
 
@@ -314,7 +390,7 @@ CLI configurations will be saved to the ConfigDB. Once the genetlink channel has
 
 #### sflowmgrd
 
-The sflowmgrd queries if the genetlink family "psample" and the multicast groun #270 exists and if not creates it so that that will be used by the SAI driver to lift packets to the hsflowd. A multicast group is typically created which enables multiple applications (e.g. even a local netlink sniffer tools) to additionally inspect the samples that are lifted to hsflowd.
+The sflowmgrd queries if the genetlink family "psample" and the multicast groun "packets" exists and if not creates it so that that will be used by the SAI driver to lift packets to the hsflowd. A multicast group is typically created which enables multiple applications (e.g. even a local netlink sniffer tools) to additionally inspect the samples that are lifted to hsflowd.
 
 The sflowmgrd daemon listens to SFLOW_COLLECTOR to construct the hsflowd.conf and start the hsflowd service.
 The mapping between the SONiC sflow CLI parameters and the host-sflow is given below:
@@ -512,27 +588,28 @@ Unit test case one-liners are given below:
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
 |  1   | Verify that the SFLOW_COLLECTOR configuration additions from CONFIG_DB are processed by hsflowd.                                        |
 |  2   | Verify that the SFLOW_COLLECTOR configuration deletions from CONFIG_DB are processed by hsflowd.                                        |
-|  3   | Verify that sFlowOrch creates "psample" multicast group 270 if there is not psample driver inserted.                                    |
-|  4   | Verify that sFlowOrch maps SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the "psample" family and multicast group 270.                      |
-|  5   | Verify that it is possible to enable and disable sflow using the SFLOW_SESSION global admin_state field in CONFIG_DB                    |
+|  3   | Verify that sFlowOrch creates "psample" multicast group "packets" if there is not psample driver inserted.                              |
+|  4   | Verify that sFlowOrch maps SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the "psample" family and multicast group "packets".                |
+|  5   | Verify that it is possible to enable and disable sflow using the SFLOW table's admin_state field in CONFIG_DB                           |
 |  6   | Verify that interfaces can be enabled/disabled using additions/deletions in SFLOW_SESSION table in CONFIG_DB                            |
-|  7   | Verify that it is possible to change the default global sampling rate using SFLOW_SESSION global sample_rate field in CONFIG_DB         |
-|  8   | Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field in CONFIG_DB       |
-|  9   | Verify that changes to SFLOW_SESSION CONFIG_DB entry is pushed to the corresponding table in APP_DB and to ASIC_DB by sFlowOrch         |
-| 10   | Verify that collector and per-interface changes get reflected using the "show sflow" and "show sflow interface" commands                |
-| 11   | Verify that packet samples are coming into hsflowd agent as per the global and per-interface configuration                              |
-| 12   | Verify that the hsflowd generated UDP datagrams are generated as expected and contain all the PSAMPLE_ATTR* attributes in the meta data |
-| 13   | Verify that samples are received when either 1 or 2 collectors are configured.                                                          |
-| 14   | Verify the sample collection for both IPv4 and IPv6 collectors.                                                                         |
-| 15   | Verify that sample collection works on all ports or on a subset of ports (using lowest possible sampling rate).                         |
-| 16   | Verify that counter samples are updated every 20 seconds                                                                                |
-| 17   | Verify that packet & counter samples stop for a disabled interface.                                                                     |
-| 18   | Verify that sampling changes based on interface speed and per-interface sampling rate change.                                           |
-| 19   | Verify that if sFlow is not enabled in the build, the sflow docker is not started                                                       |
-| 20   | Verify that sFlow docker can be stopped and restarted and check that packet and counter sampling restarts.                              |
-| 21   | Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.     |
-| 22   | Verify sFlow functionality with valid startup configuration and after a normal reboot, fast-boot and warm-boot.                         |
-| 23   | Verify that the sFlow hsflowd logs are emitted to the syslog file for various severities.                                               |
+|  7   | Verify that it is possible to change the counter polling interval using the SFLOW table in CONFIG_DB                                    |
+|  8   | Verify that it is possible to change the agent-id using the SFLOW table in CONFIG_DB     
+|  9   | Verify that it is possible to change the sampling rate per interface using SFLOW_SESSION interface sample_rate field in CONFIG_DB       |
+| 10   | Verify that changes to SFLOW_SESSION CONFIG_DB entry is pushed to the corresponding table in APP_DB and to ASIC_DB by sFlowOrch         |
+| 11   | Verify that collector and per-interface changes get reflected using the "show sflow" and "show sflow interface" commands                |
+| 12   | Verify that packet samples are coming into hsflowd agent as per the global and per-interface configuration                              |
+| 13   | Verify that the hsflowd generated UDP datagrams are generated as expected and contain all the PSAMPLE_ATTR* attributes in the meta data |
+| 14   | Verify that samples are received when either 1 or 2 collectors are configured.                                                          |
+| 15   | Verify the sample collection for both IPv4 and IPv6 collectors.                                                                         |
+| 16   | Verify that sample collection works on all ports or on a subset of ports (using lowest possible sampling rate).                         |
+| 17   | Verify that counter samples are updated every 20 seconds                                                                                |
+| 18   | Verify that packet & counter samples stop for a disabled interface.                                                                     |
+| 19   | Verify that sampling changes based on interface speed and per-interface sampling rate change.                                           |
+| 20   | Verify that if sFlow is not enabled in the build, the sflow docker is not started                                                       |
+| 21   | Verify that sFlow docker can be stopped and restarted and check that packet and counter sampling restarts.                              |
+| 22   | Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.     |
+| 23   | Verify sFlow functionality with valid startup configuration and after a normal reboot, fast-boot and warm-boot.                         |
+| 24   | Verify that the sFlow hsflowd logs are emitted to the syslog file for various severities.                                               |
 
 ## 12 **Action items**
 * Determine if it is possible to change configuration without restarting hsflowd
