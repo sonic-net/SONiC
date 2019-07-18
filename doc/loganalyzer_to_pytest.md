@@ -12,33 +12,193 @@ Functionality will give possibility to:
 Current loganalyzer implementation description:
 https://github.com/Azure/SONiC/wiki/LogAnalyzer
 
+##### When to use loganalyzer feature
+Below are shown three stages when it is useful to use loganalyzer:
+- setup - Before test case start, during some preconfigurations
+- loganalyzer fixture - During the test case execution (before test start to test end)
+- test case - Between specific commands executed during test case
+
+Below
+```"Init loganalyzer"``` and ```"Loganalyzer perform analysis"``` - reprezentation of loganalyzers init and analyze commands.
+
+**Usage templates**
+##### setup:
+	- Init loganalyzer
+	- Perform DUT preconfigurations before test case/cases run
+	- Loganalyzer perform analysis. Don't run tests if error(s) was found.
+
+##### loganalyzer_fixture:
+	- Init loganalyzer
+
+	- Yield loganalyzer object
+	- Start test case
+	- Finish test case
+
+	- Loganalyzer perform analysis. Fail test case if error(s) was found.
+
+##### test case:
+	- Perform test steps...
+
+	- Init loganalyzer
+	- Perform test steps/commands...
+	- Loganalyzer perform analysis. Fail test if error(s) was found.
+
+	- Perform test steps...
+	- Perform test steps...
+
+	- Init loganalyzer
+	- Perform test steps/commands...
+	- Loganalyzer perform analysis. Fail test if error(s) was found.
+
+	- Perform test steps...
+	- Perform test steps...
+
+#### Loganalyzer usage example on setup, fixture and test case stages
+
+##### Setup (Before test case start)
+```
+marker = loganalyzer.init()
+loganalyzer.load_common_config()
+# Setup steps, configurations here...
+loganalyzer.analyze(marker)
+# Verify analysis result
+# Skip all following tests if analisys contain errors
+```
+
+
+##### Fixture (During full test case execution)
+```
+marker = loganalyzer.init()
+loganalyzer.load_common_config()
+# Some fixture code, steps here...
+yield loganalyzer
+loganalyzer.analyze(marker)
+# Verify analysis result
+# Fail test if analisys contain errors
+```
+
+##### Test case (Between specific commands executed during test case)
+```
+# Test steps here...
+# Load regular expressions from the test specific file
+# Or define string of regular expressions to search
+reg_exp = loganalyzer.parse_regexp_file(src=TEST_SPECIFIC_MATCH)
+# Apply read reguar expressions
+loganalyzer.match_regex.extend(reg_exp)
+
+marker = loganalyzer.init()
+# Perform some test steps here...
+# Verify that added regular expressions were found by log analyzer
+result = loganalyzer.analyze(marker)
+# Verify analysis result
+# Fail test if analisys contain errors
+```
+
+#### Stages when loganalyzer fixture can be used
+
+setup stage | test case stage
+------------- | -------------
+loganalyzer fixture  | loganalyzer fixture
+directly import loganalyzer module  | loganalyzer fixture
+
+##### Setup stage:
+- Can be implemented in some pytest hooks probably in some of:
+	- pytest_runtest_setup
+	- pytest_runtest_call
+
+- Can be implemented as pytest fixture
+----------------------------
+#### Loganalyzer item definition in test framework
+For end user loganalyzer item can be defined as:
+- ```Autouse Pytest fixture```
+- ```"LogAnayzer" class object```
+
+```Autouse Pytest fixture```
+- Will perform syslog analysis **during test case execution** (will start before test case start and finish after test case finish or fail).
+- Provide interface to use during test case execution to verify DUT syslog **during specific commands execution** by the test case.
+- Fixture use autouse flag, to have fixture get invoked automatically without declaring a function argument explicitly or a usefixtures decorator.
+It gives flexibility:
+	- no need to pass loganalyzer fixture to the test case parameter, unless user want to analyze syslog in test case during specific commands execution.
+- Fixture can handle availability of "--disable_loganalyzer" pytest option. If passed to the console, will not analyze logs during test cases run. But loganalyzer interface still will be available to use inside the test case if so was defined.
+
+```LogAnayzer class object``` - Directly imported loganalyzer class with similar interface that is provided by the "Autouse Pytest fixture". Can be used in pytest hooks.  Proposal is to avoid direct usage.
+
+#### How to disable loganalyzer for all run or for specific test case
+- For all tests run use ```--disable_loganalyzer``` option in the console.
+- For specific test case use @disable_loganalyzer decorator
+
+#### disable_loganalyzer decorator
+Its role is to somehove indicate loganalyzer fixture to skip log analysis for specific test case. Proposed simple approach to create attribute in the pytest module and use it as global variable beatween all test modules.
+
+#### Example how to skip specific test case
+tests/conftest.py
+```
+import pytest
+from ansible_host import ansible_host
+
+pytest.disable_log_analyzer = False # Log analyzer will be turned on for all test cases
+
+@pytest.fixture(autouse=True)
+def loganalyzer(ansible_adhoc, testbed):
+    loganalyzer = LogAnalyzer(ansible_host=ansible_host(ansible_adhoc, testbed['dut']), marker_prefix="loganalyzer")
+    if not pytest.disable_loganalyzer:
+	    marker = loganalyzer.init()
+	yield loganalyzer
+	if not pytest.disable_loganalyzer:
+	    result = loganalyzer.analyze(marker)
+		if not result:
+			pytest.fail("Log analyzer failed.")
+		assert result["total"]["match"] == 0, "Found errors: {}".format(result)
+```
+
+tests/lib/helpers.py
+```
+import pytest
+def disable_loganalyzer(func):
+    def wrapper(*args, **kwargs):
+        pytest.disable_loganalyzer = True
+        try:
+            func(*args, **kwargs)
+        finally:
+            pytest.disable_loganalyzer = False
+    return wrapper
+```
+
+Any test case which requires disabled loganalyzer should use ```disable_loganalyzer``` decorator:
+```
+@disable_loganalyzer
+def test(x, y):
+    assert x == y
+```
+
 #### Development
 Module "loganalyzer.py" with class "Loganalyzer".
 
 "Loganalyzer" class interface:
-- __init__(ansible_host: ansible_host, marker_prefix, dut_run_dir="/tmp")
-- load_common_config() - Clear previous configured match, expect and ignore. Load regular expressions from common configuration files: match, expect and ignore which are located in some configuration directory or with current module. Save loaded configuration to the self.match_regex, self.expect_regex and self.ignore_regex attributes.
-- parse_regexp_file(file_path) - Read and parse regular expressions from specified file. Return list of strings of defined regular expressions.
-- run_cmd(callback, *args, **kwargs) - Call function and analyze DUT syslog during function execution. Return the same result as "analyze" function.
-- init() - Add start marker to the DUT syslog. Generated marker format: marker_prefix + "%Y-%m-%d-%H:%M:%S"
-- analyze() - Extract syslog based on the start marker and copy it to ansible host. Analyze extracted syslog file localy. Return python dictionary object.
+- **__init__**(ansible_host: ansible_host, marker_prefix, dut_run_dir="/tmp")
+- **load_common_config()** - Clear previous configured match, expect and ignore. Load regular expressions from common configuration files: match, expect and ignore which are located in some configuration directory or with current module. Save loaded configuration to the self.match_regex, self.expect_regex and self.ignore_regex attributes.
+- **parse_regexp_file(file_path)** - Read and parse regular expressions from specified file. Return list of strings of defined regular expressions.
+- **run_cmd(callback, *args, **kwargs)** - Call function and analyze DUT syslog during function execution. Return the same result as "analyze" function.
+- **init()** - Add start marker to the DUT syslog. Generated marker format: marker_prefix + "%Y-%m-%d-%H:%M:%S". Return generated prefix.
+- **analyze(search_marker)** - Extract syslog based on the specified search marker and copy it to ansible host. Analyze extracted syslog file localy. Return python dictionary object.
 Return example:
-{"counters": {"match": 1, "expected_match": 0, "expected_missing_match": 0},
- "match_files": {"/tmp/syslog": {"match": 0, "expected_match": 32},
-					"/tmp/syslog1": {"match": 0, "expected_match": 15}
-						},
- "match_messages": {"/tmp/syslog1": ["Message 1", "Message 2", "Message n"],
-						 "/tmp/syslog2": ["Message 1", "Message 2", "Message n"]
-						 }
-}
-- save_full_log(dest) - Download extracted DUT syslog (/tmp/syslog) to the Ansible host folder specified in 'dest' input parameter.
+
+```html
+{"match_messages": {"/tmp/pytest-run/syslog.DATE(%Y-%m-%d-%H:%M:%S)": ["Msg1", "Msg2"]},
+"total": {"expected_match": 0, "expected_missing_match": 0, "match": 2},
+"match_files": {"/tmp/pytest-run/syslog.DATE(%Y-%m-%d-%H:%M:%S)": {"expected_match": 0, "match": 2}},
+"expect_messages": {"/tmp/pytest-run/syslog.DATE(%Y-%m-%d-%H:%M:%S)": []},
+"unused_expected_regexp": []}
+```
+
+- **save_full_log(dest)** - Download extracted DUT syslog (/tmp/syslog) to the Ansible host folder specified in 'dest' input parameter.
 
 Attributes:
 - match_regex - list of regular expression strings to match
 - expect_regex - list of regular expression strings to expect
 - ignore_regex - list of regular expression strings to ignore
 
-Usage example of loganalyzer functionality just to show how to use loganalyzer interface.
+Usage example of loganalyzer API just to show how to use loganalyzer interface.
 
 ```
 def some_function(x, y=10, z=0):
