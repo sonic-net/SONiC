@@ -318,7 +318,7 @@ N/A
 
 ## 3.5 SAI
 
-The SAI TAM API spec defines all TAM APIs supported in SAI. Please refer to SAI-Proposal-TAM2.0-v2.0.docx in [https://github.com/opencomputeproject/SAI/pull/959/files](https://github.com/opencomputeproject/SAI/pull/959/files) for more details.
+The SAI TAM API spec defines all TAM APIs supported in SAI. Please refer to SAI-Proposal-TAM2.0-v2.0.docx in [https://github.com/opencomputeproject/SAI/tree/master/doc/TAM](https://github.com/opencomputeproject/SAI/tree/master/doc/TAM) for more details.
 
 ***Below diagram provides details about various TAM objects needed to support IFA and their correlation***
 
