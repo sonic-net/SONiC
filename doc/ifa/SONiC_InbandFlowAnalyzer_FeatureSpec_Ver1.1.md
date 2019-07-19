@@ -133,7 +133,7 @@ No new containers are added for Inband Flow Analyzer (IFA) feature.
 
 ### 1.2.3 SAI Overview
 
-The SAI TAM spec specifies the TAM APIs to be used to configure the IFA functionality. Please refer to SAI-Proposal-TAM2.0-v2.0.docx in [https://github.com/opencomputeproject/SAI/pull/959/files](https://github.com/opencomputeproject/SAI/pull/959/files) for more details.
+The SAI TAM spec specifies the TAM APIs to be used to configure the IFA functionality. Please refer to SAI-Proposal-TAM2.0-v2.0.docx in [https://github.com/opencomputeproject/SAI/tree/master/doc/TAM](https://github.com/opencomputeproject/SAI/tree/master/doc/TAM) for more details.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
@@ -477,6 +477,3 @@ N/A
 12. Verify if error is logged when IFA collector is not reachable or collector is not running on UDP port.
 13. Verify that crash is not seen when IFA is configured on a platform that does not support IFA.
 14. Verify that IFA telemetry packet is dropped when packet length exceeds the limit defined by platform. 
-
-# 10 Internal Design Information
-Internal BRCM information to be removed before sharing with the community.
