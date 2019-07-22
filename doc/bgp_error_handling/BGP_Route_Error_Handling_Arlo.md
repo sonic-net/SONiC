@@ -1,4 +1,5 @@
 
+
   
 # BGP Route Install Error Handling
 # High Level Design Document
@@ -36,18 +37,18 @@ This document describes the high level design of BGP route install error handlin
 | FPM               |  Forwarding Plane Manager        |
 | SwSS              |  SONiC Switch State Service      |
 # 1 Requirement Overview
- When BGP learns a prefix, it advertises the route to its peers and sends it to route table manager(Zebra). The routes are installed in kernel and sent to APP_DB via fpmsyncd. 
+ When BGP learns a prefix, it sends it to route table manager(Zebra). The routes are installed in kernel and sent to APP_DB via fpmsyncd. 
 The Orchagent reads the route from APP_DB, creates new resources like nexthop or nexthop group Id and installs the route in ASIC_DB. The syncd triggers the appropriate SAI API and route is installed in hardware. The CRM manages the count of critical resources allocated by orchagent through SAI API.
-Due to resource allocations failures in hardware, SAI API calls can fail and these failures should be notified to Zebra and BGP to withdraw failed routes from kernel and BGP peers.
+Due to resource allocations failures in hardware, SAI API calls can fail and these failures should be notified to Zebra and BGP.
+On learning the prefix, BGP can immediately advertise the prefix to its neighbors. However, if the error-handling feature is enabled, BGP waits for success notification from hardware before advertising the same to its peers. If the hardware returns error, the routes are not advertised to the peers. 
 
 ## 1.1 Functional Requirements
 
  
 
- 1. BGP should withdraw the routes from its peers which have failed to be installed in hardware.
- 1. BGP should mark the routes which are not installed in hardware as  failed routes in its RIB-IN table.
+ 1. BGP should not advertise the routes which have failed to be installed in hardware.
+ 1. BGP should mark the routes which are not installed in hardware as  "FIB-install pending" routes in its RIB-IN table.
  1. Zebra should mark the routes which are not successfully installed in hardware as failed routes.
- 1. Zebra should withdraw the failed routes from kernel.
 
 ## 1.2 Configuration and Management Requirements
 ## 1.3 Scalability Requirements
@@ -63,15 +64,14 @@ Refer to section 1.1
 
 # 3 Design
 ## 3.1 Overview
-fpmsyncd subscribes to the changes in the ERROR_ROUTE_TABLE entries. Whenever the error status in ERROR_ROUTE_TABLE is updated, fpmsyncd is notified. It then sends a message to Zebra's routing table to take appropriate action.
+On enabling the error-handling feature, fpmsyncd subscribes to the changes in the ERROR_ROUTE_TABLE entries. Whenever the error status in ERROR_ROUTE_TABLE is updated, fpmsyncd is notified. It then sends a message to Zebra's routing table to take appropriate action.
 Zebra should lookup the route and mark it as not installed in hardware. It should create a route-netlink message to withdraw this state in kernel. Also, it sends message to the source protocol for the route (BGP). 
-BGP marks the route as not installed in hardware and will withdraw the route from its peer. It should mark the route in RIB-IN as not installed in hardware and remove it from RIB-OUT list, if any. 
+BGP marks the route as not installed in hardware and does not advertise the route to its peers. It should mark the route in RIB-IN as not installed in hardware and remove it from RIB-OUT list, if any. 
 For ECMP case, BGP sends route with list of nexthops to Zebra for programming. In fpmsyncd, as per the route table schema, the route is received with a list of nexthops. If the nexthop group programming fails, it is treated as route add failure in BGP.
-For ADD-PATH feature, if the route-add failure notification comes to BGP, it will not switch to route of next best rank.
-
+If the error-handling feature is disabled, fpmsyncd does not receive any notification from ERROR_ROUTE_TABLE.
 ## 3.2 DB Changes
-There are no DB changes associated with this feature.
 ### 3.2.1 CONFIG DB
+A new table BGP_ERROR_CFG_TABLE has been introduced in CONFIG DB (refer section 3.7).
 ### 3.2.2 APP DB
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
@@ -79,18 +79,20 @@ There are no DB changes associated with this feature.
 
 ## 3.3 FRRouting Design
 ### 3.3.1 Zebra changes
-Zebra, on receiving the message containing failed route notification, will withdraw the route from kernel. It will also mark the route with flag as "Not installed in hardware" and store the route. It will not send the next best route to fpmsyncd. At this stage, route is present in Zebra. It will also notify BGP of the route add failure.
+Zebra, on receiving the message containing route install success, will notify BGP so that it can advertise the route to its peers.
+Zebra, on receiving the message containing failed route notification, will withdraw the route from kernel. It will also mark the route with flag as "Not installed in hardware" and store the route. It will not send the next best route to fpmsyncd. At this stage, route is present in Zebra. It will NOT notify BGP of the route add failure.
 
 ### 3.3.2 BGP changes
-When BGP learns a route, it immediately sends its best route to its peers without waiting for notification from the hardware. However, the route may or may not be successfully installed in hardware.  On receiving route add failed notification message, BGP will remove the route from RIB-OUT list and place in RIB-IN with a flag marking the route as not installed in hardware. It will also withdraw the route from its peers.
-In case user wants to retry the installation of failed routes, he/she can issue the command in Zebra. The command will notify BGP. If BGP has the route with flag marked as not installed in hardware, it will remove the flag and send the route to its peers.
+When BGP learns a route, it marks the route as "pending FIB install" and sends the route to Zebra. The route may or may not be successfully installed in hardware.  On receiving route add sucess notification message, BGP will remove the "pending FIB install" flag and advertise the route to its peers. 
+
+In case user wants to retry the installation of failed routes, he/she can issue the command in Zebra. The command will reprogram the failed route in kernel and send that route to hardware.  If the route is successfully programmed in hardware, it will notify Zebra. Zebra will, in turn, notify BGP and route will be advertised to its neighbors.
 
 ## 3.4 SwSS Design
 
 ### 3.4.1 fpmsyncd changes
 A new class is added in fpmsyncd to subscribe to ERROR_ROUTE_TABLE present inside the ERROR_DB.  Subscription to this table is sufficient to handle the errors in route installation.
 Currently, fpmsyncd has a TCP socket with Zebra listening on FPM_DEFAULT_PORT. This socket is used by Zebra to send route add/delete related messages to fpmsyncd. We will reuse the same socket to send information back to Zebra. 
-fpmsyncd will convert the ERROR_ROUTE_TABLE entry to Zebra common header format and send the message. It will also send a delete route message to clean the route from APP_DB so that OrchAgent can process it. If processing this results in a further error, then fpmsyncd silently ignores this.
+fpmsyncd will convert the ERROR_ROUTE_TABLE entry to Zebra common header format and send the message. Zebra will send a delete route message to clean the route from APP_DB so that OrchAgent can process it. If processing this results in a further error, then fpmsyncd silently ignores this.
 
 ## 3.5 SyncD
 
@@ -99,12 +101,35 @@ fpmsyncd will convert the ERROR_ROUTE_TABLE entry to Zebra common header format 
 
 ## 3.7 CLI
 ### 3.7.1 Data Models
+A new table is added in CONFIG_DB to enable and disable error_handling feature.
+BGP_ERROR_CFG_TABLE
+```
+key  					= BGP_ERROR_CFG_TABLE:config
+```
+The above key has field-value pair as {"enable", "true"/"false"} based on configuration.
 ### 3.7.2 Configuration Commands
+A command is provided in SONIC to enable or disable this feature. 
+
+```
+root@sonic:~# config bgp error-handling --help
+Usage: config bgp error-handling [OPTIONS] COMMAND [ARGS]...
+
+  Handle BGP route install errors
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  disable  Administratively Disable BGP error-handling
+  enable   Administratively Enable BGP error handling
+  ```
+  When the error-handling is disabled, fpmsyncd will not subcribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. 
+  
 ### 3.7.3 Show Commands
 ```
 sonic(config-router-af)# do show bgp ipv4 unicast 
 BGP table version is 1, local router ID is 10.1.0.1, vrf id 0
-Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,# not installed in hardware
+Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,# FIB install pending.
                i internal, r RIB-failure, S Stale, R Removed
 Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self 
 Origin codes:  i - IGP, e - EGP, ? - incomplete
@@ -163,8 +188,7 @@ sonic# clear ip route not-installed
   A.B.C.D/M   ipv4 prefix with mask
   X:X::X:X/M  ipv6 prefix with mask
 ```
-The above command will send route add message for the failed route from Zebra to fpmsyncd. The same message is also sent to BGP so that BGP can advertise the route.
-
+The above command will send route add message for the failed route from Zebra to fpmsyncd. 
 
 ### 3.7.5 REST API Support
 
