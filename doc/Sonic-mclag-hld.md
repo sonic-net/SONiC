@@ -135,7 +135,8 @@ In the scenario of figure 4, the PEs within an RG (Redundancy Group) are located
 In the scenario of figure 5, the PEs of an RG (Redundancy Group) are located in different physical locations and the interconnect for ICCP is provided over the PSN network to which the PEs are connected. This interconnect option is more likely to be the one used for geo-redundancy, as it is more economically appealing compared to the geo-redundant dedicated interconnect option.
 
 RFC7275 says that information sync and heartbeat checking can take a path that is different from the one for carrying data traffic. Running data traffic and control traffic on disjoint network paths is supported in this implementation.
-Will MC-LAG work if there is no physical connection between the peers? In theory, if the peer IP address is reachable, there is no requirement to have physical connection between the peers. For example, the peer-link can be ais Vxlan tunnel. ICCP may use this VXLAN tunnel if user configured the system properly.
+
+Will MC-LAG work if there is no physical connection between the peers? In theory, if the peer IP address is reachable, there is no requirement to have physical connection between the peers. For example, the peer-link can be a Vxlan tunnel. ICCP may use this VXLAN tunnel if user configured the system properly.
 
 ## 5.2. ICCPd State machines
 
