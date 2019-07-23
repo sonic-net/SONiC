@@ -464,14 +464,10 @@ There will be j2 template files for generating ACL tables and ACL rules configur
 
 Different sets of configuration files will be generated for different test scenarios:
 * IPv4
-  * ACL table: MIRROR, implicit ingress; ACL rules, MIRROR_INGRESS_ACTION
-  * ACL table: MIRROR, implicit ingress; ACL rules, MIRROR_EGRESS_ACTION
   * ACL table: MIRROR, ingress; ACL rules, MIRROR_INGRESS_ACTION
   * ACL table: MIRROR, ingress; ACL rules, MIRROR_EGRESS_ACTION
   * ACL table: MIRROR, egress; ACL rules, MIRROR_EGRESS_ACTION
 * IPv6
-  * ACL table: MIRRORV6, implicit ingress; ACL rules, MIRROR_INGRESS_ACTION
-  * ACL table: MIRRORV6, implicit ingress; ACL rules, MIRROR_EGRESS_ACTION
   * ACL table: MIRRORV6, ingress; ACL rules, MIRROR_INGRESS_ACTION
   * ACL table: MIRRORV6, ingress; ACL rules, MIRROR_EGRESS_ACTION
   * ACL table: MIRRORV6, egress; ACL rules, MIRROR_EGRESS_ACTION
@@ -481,20 +477,6 @@ Different sets of configuration files will be generated for different test scena
 For each test scenario, an ACL table configuration need to be created and loaded to DUT. Command `sonic-cfggen` can be used to load the ACL table configuration into config_db. Command syntax:  `sonic-cfggen -j <acl_table_configuration_filename> --write-to-db`.
 
 Example ACL table configuration files to be generated for each scenario:
-* ACL table: MIRROR, implicit ingress
-```
-{
-    "ACL_TABLE": {
-        "EF_INGRESS1": {
-            "policy_desc": "EVERFLOW implicit ingress",
-            "ports": [
-                "Ethernet100", "Ethernet104", "Ethernet92", "Ethernet96", "Ethernet84", "Ethernet88", "Ethernet76", "Ethernet80", "Ethernet108", "Ethernet112", "Ethernet64", "Ethernet60", "Ethernet52", "Ethernet48", "Ethernet44", "Ethernet40", "Ethernet36", "Ethernet120", "Ethernet116", "Ethernet56", "Ethernet124", "Ethernet72", "Ethernet68", "Ethernet24", "Ethernet20", "Ethernet16", "Ethernet12", "Ethernet8", "Ethernet4", "Ethernet0", "Ethernet32", "Ethernet28"
-            ],
-            "type": "MIRROR"
-        }
-    }
-}
-```
 * ACL table: MIRROR, ingress
 ```
 {
@@ -521,20 +503,6 @@ Example ACL table configuration files to be generated for each scenario:
             ],
             "type": "MIRROR",
             "stage": "egress"
-        }
-    }
-}
-```
-* ACL table: MIRRORV6, implicit ingress
-```
-{
-    "ACL_TABLE": {
-        "EFV6_INGRESS1": {
-            "policy_desc": "EVERFLOW IPv6 implicit ingress",
-            "ports": [
-                "Ethernet100", "Ethernet104", "Ethernet92", "Ethernet96", "Ethernet84", "Ethernet88", "Ethernet76", "Ethernet80", "Ethernet108", "Ethernet112", "Ethernet64", "Ethernet60", "Ethernet52", "Ethernet48", "Ethernet44", "Ethernet40", "Ethernet36", "Ethernet120", "Ethernet116", "Ethernet56", "Ethernet124", "Ethernet72", "Ethernet68", "Ethernet24", "Ethernet20", "Ethernet16", "Ethernet12", "Ethernet8", "Ethernet4", "Ethernet0", "Ethernet32", "Ethernet28"
-            ],
-            "type": "MIRRORV6"
         }
     }
 }
