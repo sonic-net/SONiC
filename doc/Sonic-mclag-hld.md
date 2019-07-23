@@ -2,48 +2,48 @@
 
 <!-- TOC -->
 
-- [MC-LAG high level design for SONiC](#mc-lag-high-level-design-for-sonic)
-- [1. Document History](#1-document-history)
-- [2. Abbreviations](#2-abbreviations)
-- [3. Terminologies](#3-terminologies)
-- [4. Design considerations](#4-design-considerations)
-- [5. Brief introduction of ICCPd](#5-brief-introduction-of-iccpd)
-  - [5.1. Use-cases supported by ICCP lite](#51-use-cases-supported-by-iccp-lite)
-  - [5.2. ICCPd State machines](#52-iccpd-state-machines)
-  - [5.3. Role election](#53-role-election)
-  - [5.4. Information sync up with ICCP](#54-information-sync-up-with-iccp)
-  - [5.5. ICCP Heartbeat sanity check](#55-iccp-heartbeat-sanity-check)
-  - [5.6. ICCP consistence check](#56-iccp-consistence-check)
-- [6. Typical configurations](#6-typical-configurations)
-  - [6.1. Syntax of configuration](#61-syntax-of-configuration)
-  - [6.2. MC-LAG L3 scenario configuration](#62-mc-lag-l3-scenario-configuration)
-  - [6.3. MC-LAG L2 scenario configuration](#63-mc-lag-l2-scenario-configuration)
-- [7. Typical Data diagram for MCLAG](#7-typical-data-diagram-for-mclag)
-  - [7.1. MC-LAG L3 scenario](#71-mc-lag-l3-scenario)
-    - [7.1.1. MC-LAG enabled interface up](#711-mc-lag-enabled-interface-up)
-    - [7.1.2. MC-LAG enabled interface down](#712-mc-lag-enabled-interface-down)
-    - [7.1.3. Link between peers](#713-link-between-peers)
-    - [7.1.4. ARP sync-up between MC-LAG peers](#714-arp-sync-up-between-mc-lag-peers)
-    - [7.1.5. L3 multicast](#715-l3-multicast)
-  - [7.2. MC-LAG L2 scenario](#72-mc-lag-l2-scenario)
-    - [7.2.1. MC-LAG enabled interface up](#721-mc-lag-enabled-interface-up)
-    - [7.2.2. MC-LAG enabled interface down](#722-mc-lag-enabled-interface-down)
-    - [7.2.3. Link between peers](#723-link-between-peers)
-    - [7.2.4. MAC sync-up between MC-LAG peers](#724-mac-sync-up-between-mc-lag-peers)
-    - [7.2.5. Peer link MAC learning](#725-peer-link-mac-learning)
-    - [7.2.6. L2 BUM flooding and port isolation](#726-l2-bum-flooding-and-port-isolation)
-  - [7.3. Peer connection down](#73-peer-connection-down)
-    - [7.3.1. Keepalive link failure](#731-keepalive-link-failure)
-    - [7.3.2. Peer device failure](#732-peer-device-failure)
-  - [7.4. Peer link down](#74-peer-link-down)
-  - [7.5. Peer link is Vxlan tunnel](#75-peer-link-is-vxlan-tunnel)
-- [8. SONiC system diagram for MCLAG](#8-sonic-system-diagram-for-mclag)
-- [9. Design changes](#9-design-changes)
-  - [9.1. The schema changes](#91-the-schema-changes)
-    - [9.1.1. Add MCLAG configuration](#911-add-mclag-configuration)
-    - [9.1.2. Add Acl_table and Acl_rule_table in app-db](#912-add-acltable-and-aclruletable-in-app-db)
-  - [9.2. Add mclagsyncd process](#92-add-mclagsyncd-process)
-  - [9.3. CLI design](#93-cli-design)
+- [MC-LAG high level design for SONiC](#MC-LAG-high-level-design-for-SONiC)
+- [1. Document History](#1-Document-History)
+- [2. Abbreviations](#2-Abbreviations)
+- [3. Terminologies](#3-Terminologies)
+- [4. Design considerations](#4-Design-considerations)
+- [5. Brief introduction of ICCPd](#5-Brief-introduction-of-ICCPd)
+  - [5.1. Use-cases supported by ICCP lite](#51-Use-cases-supported-by-ICCP-lite)
+  - [5.2. ICCPd State machines](#52-ICCPd-State-machines)
+  - [5.3. Role election](#53-Role-election)
+  - [5.4. Information sync up with ICCP](#54-Information-sync-up-with-ICCP)
+  - [5.5. ICCP Heartbeat sanity check](#55-ICCP-Heartbeat-sanity-check)
+  - [5.6. ICCP consistence check](#56-ICCP-consistence-check)
+- [6. Typical configurations](#6-Typical-configurations)
+  - [6.1. Syntax of configuration](#61-Syntax-of-configuration)
+  - [6.2. MC-LAG L3 scenario configuration](#62-MC-LAG-L3-scenario-configuration)
+  - [6.3. MC-LAG L2 scenario configuration](#63-MC-LAG-L2-scenario-configuration)
+- [7. Typical Data diagram for MCLAG](#7-Typical-Data-diagram-for-MCLAG)
+  - [7.1. MC-LAG L3 scenario](#71-MC-LAG-L3-scenario)
+    - [7.1.1. MC-LAG enabled interface up](#711-MC-LAG-enabled-interface-up)
+    - [7.1.2. MC-LAG enabled interface down](#712-MC-LAG-enabled-interface-down)
+    - [7.1.3. Link between peers](#713-Link-between-peers)
+    - [7.1.4. ARP sync-up between MC-LAG peers](#714-ARP-sync-up-between-MC-LAG-peers)
+    - [7.1.5. L3 multicast](#715-L3-multicast)
+  - [7.2. MC-LAG L2 scenario](#72-MC-LAG-L2-scenario)
+    - [7.2.1. MC-LAG enabled interface up](#721-MC-LAG-enabled-interface-up)
+    - [7.2.2. MC-LAG enabled interface down](#722-MC-LAG-enabled-interface-down)
+    - [7.2.3. Link between peers](#723-Link-between-peers)
+    - [7.2.4. MAC sync-up between MC-LAG peers](#724-MAC-sync-up-between-MC-LAG-peers)
+    - [7.2.5. Peer link MAC learning](#725-Peer-link-MAC-learning)
+    - [7.2.6. L2 BUM flooding and port isolation](#726-L2-BUM-flooding-and-port-isolation)
+  - [7.3. Peer connection down](#73-Peer-connection-down)
+    - [7.3.1. Keepalive link failure](#731-Keepalive-link-failure)
+    - [7.3.2. Peer device failure](#732-Peer-device-failure)
+  - [7.4. Peer link down](#74-Peer-link-down)
+  - [7.5. Peer link is Vxlan tunnel](#75-Peer-link-is-Vxlan-tunnel)
+- [8. SONiC system diagram for MCLAG](#8-SONiC-system-diagram-for-MCLAG)
+- [9. Design changes](#9-Design-changes)
+  - [9.1. The schema changes](#91-The-schema-changes)
+    - [9.1.1. Add MCLAG configuration](#911-Add-MCLAG-configuration)
+    - [9.1.2. Add Acl_table and Acl_rule_table in app-db](#912-Add-Acltable-and-Aclruletable-in-app-db)
+  - [9.2. Add mclagsyncd process](#92-Add-mclagsyncd-process)
+  - [9.3. CLI design](#93-CLI-design)
   - [9.4. aclorch changes](#94-aclorch-changes)
   - [9.5. portmgr changes](#95-portmgr-changes)
   - [9.6. portsorch changes](#96-portsorch-changes)
@@ -70,6 +70,7 @@
 | v.05    | 04/26/2019 |jian                    | Add pull request on chapter 9                    |
 | v.06    | 06/10/2019 |jian,jeffrey,shine      | Add L2 forwarding description and more use cases |
 | v.07    | 06/19/2019 |jian,jeffrey,shine      | Revised per review meeting with SONIC community  |
+| v1.0    | 07/23/2019 |jian,jeffrey,shine      | Revised per review meeting with SONIC community  |
 
 # 2. Abbreviations
 
@@ -92,11 +93,20 @@ Diagram 3
 - L3 interface on MLAG ports will have vMAC generated from VRRP algorithm using the same IP address assigned to the L3 LIF (logical interface)；(Not supported currently)
 - ARP resolution and ARP response packet sync-up between MC-LAG peers
 - FDB sync-up between MC-LAG peers
-- Support MC-LAG routed port or MC-LAG L2 port joining L3 vlan interface
+- Support pure L2 MC-LAG port and MC-LAG L3 routed port or MC-LAG L2 port joining L3 vlan interface
 
 > [caveat: vlan interface does not go down when the last port in the
 > vlan goes down, need further discussion in the community with
 > regarding the 1Q or 1D model]
+
+The features below are not supported currently, may provide solutions in future releases.
+
+- More consistency checking, both between peer switches and MLAG port channels configured on the switches, e.g. port speed configuration
+- Peer-link with a detection mechanism, and with robust "split brain" detection
+- Configurable peer master/slave roles for the peer switches
+- VRRP/VARP for active/active gateway redundency
+- Add feature support across MLAGs (e.g. STP, IGMP snooping, DHCP Relay)
+- Make sure isolation ACL is installed in the ASIC table before MCLAG enabled portchannel is active
 
 # 5. Brief introduction of ICCPd
 
@@ -109,32 +119,36 @@ Diagram 3
 RFC7275 describes 4 use-cases, this ICCPd or ICCP lite support all of these use-cases:
 
 ![Diagram 5.1.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.1.png)
+
 In the scenario of figure 2, the PEs within an RG (Redundancy Group) are co-located in the same physical location, e.g., point of presence (POP) or central office (CO). Furthermore, dedicated links provide the interconnect for ICCP among the PEs.
 
 ![Diagram 5.1.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.2.png)
+
 In the scenario of figure 3, the PEs within an RG (Redundancy Group) are co-located in the same physical location (POP, CO). However, unlike the previous scenario, there are no dedicated links between the PEs. The interconnect for ICCP is provided through the core network to which the PEs are connected. Figure 3 depicts this model.
 
 ![Diagram 5.1.3](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.3.png)
+
 In the scenario of figure 4, the PEs within an RG (Redundancy Group) are located in different physical locations to provide geographic redundancy. A dedicated interconnect is provided to link the PEs. The resiliency mechanisms for the interconnect are similar to those highlighted in the co-located interconnect counterpart.
 
 ![Diagram 5.1.4](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.4.png)
+
 In the scenario of figure 5, the PEs of an RG (Redundancy Group) are located in different physical locations and the interconnect for ICCP is provided over the PSN network to which the PEs are connected. This interconnect option is more likely to be the one used for geo-redundancy, as it is more economically appealing compared to the geo-redundant dedicated interconnect option.
 
-RFC7275 says that information sync and heartbeat checking can take a path that is different from the one for carrying data traffic.
+RFC7275 says that information sync and heartbeat checking can take a path that is different from the one for carrying data traffic. Running data traffic and control traffic on disjoint network paths is supported in this implementation.
 Will MC-LAG work if there is no physical connection between the peers? In theory, if the peer IP address is reachable, there is no requirement to have physical connection between the peers. For example, the peer-link can be ais Vxlan tunnel. ICCP may use this VXLAN tunnel if user configured the system properly.
 
 ## 5.2. ICCPd State machines
 
-Lite version support complete “ICCP Connection State Machine”，shown as followings:
-The ICCP Connection state machine is defined to have six states, as below. Please note although LDP is mentioned in the below section, it’s not used for ICCPd.
+Lite version support “ICCP Connection State Machine”，shown as followings:
+The ICCP Connection state machine is defined to have six states in RFC 7275 section 4.2.1, as below.
 
-- NONEXISTENT: This state is the starting point for the state machine. It indicates that no ICCP connection exists and that there’s no LDP session established between the PEs.
+- NONEXISTENT: This state is the starting point for the state machine. It indicates that no ICCP connection exists between the PEs.
 
-- INITIALIZED: This state indicates that an LDP session exists between the PEs but LDP ICCP capability information has not yet been exchanged between them.
+- INITIALIZED: This state indicates that an ICCP connection exists between the PEs but ICCP capability information has not yet been exchanged between them.
 
-- CAPSENT: This state indicates that an LDP session exists between the PEs and that the local PE has advertised LDP ICCP capability to its peer.
+- CAPSENT: This state indicates that an ICCP connection exists between the PEs and that the local PE has advertised ICCP capability to its peer.
 
-- CAPREC: This state indicates that an LDP session exists between the PEs and that the local PE has both received and advertised LDP ICCP capability from/to its peer.
+- CAPREC: This state indicates that an ICCP connection exists between the PEs and that the local PE has both received and advertised ICCP capability from/to its peer.
 
 - CONNECTING: This state indicates that the local PE has initiated an ICCP connection to its peer and is awaiting its response.
 
@@ -145,9 +159,9 @@ Diagram 5.2
 
 RFC7275 also describes so called “Application Connection State Machine”, which are designed for application exclusively, and each application maintains its own state machines.
 
-In this version, when ICCP state machine becomes OPERATIONAL, application state machine will be OPERATIONAL immediately.
+In this version, when ICCP state machine becomes OPERATIONAL, application state machine will be OPERATIONAL immediately. All application state machines will become OPERATIONAL.
 
-In RFC7275 original requirements, ICCP will sync up many kinds of information with LACP protocol etc. This lite version does not implement the connection between ICCP and teamd to avoid the modification in teamd, there is no information exchange between ICCPd and teamd neither. ICCP work with teamd indirectly, for example, when ICCPd detects the change of MAC address for any MLAG member portchannel, ICCPd will inform Linux kernel and teamd will be hence notified by kernel.  In this way, teamd can notify LACP so that LACP in the server will form teamd interface.
+In RFC7275 original requirements, ICCP will sync up many kinds of information with LACP protocol etc. This lite version does not implement the connection between ICCP and teamd to avoid the modification in teamd, there is no information exchange between ICCPd and teamd neither. ICCP work with teamd indirectly, for example, when ICCPd detects the change of MAC address for any MLAG member portchannel, ICCPd will inform Linux kernel and teamd will be hence notified by kernel.  In this way, teamd can notify LACP so that LACP in the server will form teamd interface. For not synced info, please check section 7.2 in the RFC 7275.
 
 ## 5.3. Role election
 
@@ -169,7 +183,7 @@ Following information are sync'ed up between ICCP lite peers.
 
 4 ARP information: ARP entries learned from kernel will be synced up with peer. The peer will update kernel as dynamically learned ARP once the ARP is synced via ICCP.
 
-5 FDB information: FDB entries learned from MC-LAG enabled port-channel will be synced up with peer.
+5 FDB information: FDB entries will be synced up with peer.
 
 ICCP lite only supports port-configuration/state sync up for MC-LAG enabled ports. We don’t sync the static IP address, if a static IP address is configured on MC-LAG enabled PortChannel in one peer, the same IP address must be configured on the same PortChannel in another peer.
 
@@ -184,11 +198,16 @@ This lite version does consistence check for the following contents:
 2 Enable MC-LAG portchannel interface check: if it is L3 interface, then the IP address assigned must be the same. If they join a vlan, then the vlan must be the same etc.
 3 Peer-link in both devices must be the same type.
 
+There are other info to be checked, and will be supported in future releases. e.g.
+
+- Physical layer: Port speed, Duplex, Flow control
+- L2: VLAN mode and VID, STP config, etc
+
 # 6. Typical configurations
 
 ## 6.1. Syntax of configuration
 
-```bash
+```json
 "MC_LAG": {
     "{{MC-LAG_domain_id}}": {
         "local_ip": {{ipv4_address}},
@@ -201,7 +220,7 @@ This lite version does consistence check for the following contents:
 MC-LAG domain ID, must be from 1 to 65535.
 "local_ip" is the ip address of this device to set TCP connection.
 "peer_ip" is the ip address of peer device to set TCP connection.
-"peer_link" is the name of interface that act as interconnection. For L3 scenario, this is optional.
+"peer_link" is the name of interface that act as interconnection. For L3 scenario, the data forwarding depends on routing information, this is unnecessary.
 "mclag_interface" is the name of PortChannel interfaces that has MC-LAG enabled, it can be a list of portChannel interfaces separated by commas ','.
 ```
 
@@ -210,7 +229,7 @@ MC-LAG domain ID, must be from 1 to 65535.
 ![Diagram 6.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_6.2.png)
 Diagram 6.2
 
-In the L3 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortChannel0001 are both L3 interface.
+In the L3 scenario, peer-link is unnecessary and MC-LAG enabled interface PortChannel0001 is L3 interface.
 
 ## 6.3. MC-LAG L2 scenario configuration
 
@@ -228,7 +247,7 @@ In the L2 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortC
 ![Diagram 7.1.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.1.1.png)
 Diagram 7.1.1
 
-- In the above diagram, PortChannel0001 and PortChannel0002 areis mclag MC-LAG enabled interfaces, status is up,  PortChannel00032 is peer -link.
+- In the above diagram, PortChannel0001 and PortChannel0002 areis mclag MC-LAG enabled interfaces, status is up.
 - The data flow path is presented by the red line.
 - The data flow path from PA to CE1: When the traffic reach PEER1, it will match the direct route, such as 10.1.1.0/24, and forwarded through PortChannel0001.
 - The data flow path from CE1 to PA: CE1 may send the traffic to PEER1 or PEER2. PEER2 must has route entry that can reach PA. This route entry is installed by routing protocol.
@@ -238,22 +257,21 @@ Diagram 7.1.1
 ![Diagram 7.1.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.1.2.png)
 Diagram 7.1.2
 
-- In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down, PortChannel0002 is peer-link.
+- In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down.
 - The data flow path is presented by the yellow line for traffic from PA to CE1.
-- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, the direct route 10.1.1.0/24 will be deleted, the routing protocol (or a static route configuration) will make sure there is a backup route reach CE1 via peer -link. When the traffic reach PEER1, it will match the backup route, and forwarded through PortChannel0002.
+- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, the direct route 10.1.1.0/24 will be deleted, the routing protocol (or a static route configuration) will make sure there is a backup route reach CE1. When the traffic reach PEER1, it will match the backup route, and forwarded through PortChannel0002.
 - The data flow path from CE1 to PA: CE1 will detect the interface connecting to PEER1 is down, the data will send to PA via PEER2. The routing protocol will make sure there is a path to reach PA.
 
 ### 7.1.3. Link between peers
 
-- In L3 scenario user needn't configure peer-link. Peer-link is chosen by routing protocol or static configured route.
-- The peer-link can be either Ethernet, PortChannel or a Vxlan tunnel. The peer-link can be used to carry data traffic when one of the MC-LAG member link is down.
-- routing protocol or static route configured manually provides backup path to reach MC-LAG enabled subnet via peer link.
+- In L3 scenario, routing protocol or static route configured manually provides backup path to reach MC-LAG enabled subnet.
 - In this scenario, the direct-connected L3 peer link connecting the two peer devices is not required. When the MC-LAG member link is up, the direct route has the highest priority. If one of the MC-LAG member link is down, the direct route will be deleted, and the backup route will take effect.
+- In L3 scenario, IP reachability is controlled by routing protocol, peer link configuration is unnecessary.
 
 ### 7.1.4. ARP sync-up between MC-LAG peers
 
-- If one peer learned an ARP entry, it will send the ARP entry to the other peer via ICCP. For example, PEER1 learned ARP entry of CE1 from PortChannel0001, it will send this ARP to PEER2 via ICCP. PEER2 receives this ARP entry, and install it into Linux kernel, the learned interface name is PortChannel0001. This means the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
-- Unlike with OSPF, ICCP don’t flood ARP entry to peer periodically. To prevent the ARP entry from aging, ICCP uses Netlink Socket to monitor ARP reply received by Linux kernel. For example, when an ARP entry in PEER2 is aged, the Linux kernel will send an ARP request via PortChannel0001. CE1 receives the ARP request, and send back one ARP reply. For CE1, PEER1 and PEER2 are viewed as the same device, the ARP reply may send to PEER2 or PEER1. If PEER2 receives the ARP reply, the ARP entry is learned again and information is updated in the kernel. At the same time, PEER2 will notify PEER1 via ICCP sync message. If PEER1 receives the ARP reply, since the ARP entry already exists in the kernel, kernel will use Netlink to send the ARP packet to its applications, ICCP will collect the ARP information from the ARP reply packet and send to PEER2, so PEER2 can update the ARP entry in the Linux kernel.
+- If one peer learns an ARP entry, it will send the ARP entry to the other peer via ICCP. For example, PEER1 learns ARP entry of CE1 from PortChannel0001, it will send this ARP to PEER2 via ICCP. PEER2 receives this ARP entry, and install it into Linux kernel, the learned interface name is PortChannel0001. This requires the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
+- ICCP don’t flood ARP entry to peer periodically. To prevent the ARP entry from aging, ICCP uses netlink socket to monitor ARP reply received by Linux kernel. For example, when an ARP entry in PEER2 is aged, the Linux kernel will send an ARP request via PortChannel0001. CE1 receives the ARP request, and send back one ARP reply. For CE1, PEER1 and PEER2 are viewed as the same device, the ARP reply may send to PEER2 or PEER1. If PEER2 receives the ARP reply, the ARP entry is learned again and information is updated in the kernel. At the same time, PEER2 will notify PEER1 via ICCP sync message. If PEER1 receives the ARP reply, since the ARP entry already exists in the kernel, kernel will use Netlink to send the ARP packet to its applications, ICCP will collect the ARP information from the ARP reply packet and send to PEER2, so PEER2 can update the ARP entry in the Linux kernel.
 
 ### 7.1.5. L3 multicast
 
@@ -267,9 +285,9 @@ Diagram 7.1.2
 Diagram 7.2.1
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled port, status is up, PortChannel0002 is peer link. PortChannel0001 and PortChannel0002 are in same VLAN. Just like portChannel0001, PortChannel0002 uses L2 forwarding. Assume PA to PEER1 connection is part of the same VLAN as PortChannel0001.
-- The data flow path is presented by the red line.
+- The data flow path is presented by the red or yellow line.
 - The data flow path from PA to CE1: When the traffic reach PEER1, it will match the MAC of CE1, and forwarded through PortChannel0001. If the MAC of CE1 is not learned in PEER1 yet, the traffic will be flooded in the VLAN. PEER2 will also receive the flooded packet, but it will not forward the packet to MC-LAG enabled ports.
-- The data flow path from CE1 to PA: CE1 may send the traffic to PEER1 or PEER2. PEER2 must has PA’s MAC entry for unicast forwarding, but ICCPD does not sync up PA’s MAC address because PA to PEER1 connection is not part of the MC-LAG port, so the packet from CE1 to PA will be flooded by PEER2 to PEER1 first, then PEER1 will unicast to PA. In this path, if packet flooding is not desired, PA must connect to PEER2 to form another LAG.
+- The data flow path from CE1 to PA: CE1 may send the traffic to PEER1 or PEER2. PEER2 may have PA’s MAC entry synced up from PEER1. If PEER2 does not have PA’s MAC entry, the packet from CE1 to PA will be flooded by PEER2 to PEER1 first, then PEER1 will unicast to PA.
 - Peer link data forwarding is disabled for MC-LAG enabled interfaces. In the above diagram, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will not be forwarded to PortChannel0001 since port isolation logic is applied.
 - MAC learning in peer link is disabled. In the above diagram, MAC learning in PortChannel0002 is disabled in both PEER1 and PEER2.
 
@@ -283,24 +301,24 @@ Diagram 7.2.2
 - The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, ICCP reprograms the nexthop of MAC entry to point to peer link PortChannel0002 and make the MAC entry in the ASIC table. When the traffic reaches PEER1, it will match the updated MAC entry, and forwarded through PortChannel0002.
 - When PortChannel0001 in PEER1 is down, the portChannel state is synced to PEER2. ICCP in PEER2 enables the peer link forwarding for MC-LAG enabled interfaces corresponding to portChannel0001. In the above diagram, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will be forwarded to CE1 via PortChannel0001.
 - MAC learning of peer link is disabled. In the above diagram, MAC learning of PortChannel0002 is disabled in both PEER1 and PEER2.
-- The data flow path from CE1 to PA: CE1 will detect the interface connecting to PEER1 is down, the data will send to PA via PEER2. PEER2 will do L2 flooding and sends the packet to PEER1 where L2 bridging is performed to reach PA.
+- The data flow path from CE1 to PA: CE1 will detect the interface connecting to PEER1 is down, the data will send to PA via PEER2. PEER2 will bridge the packet to PEER1 where L2 bridging is performed to reach PA.
 
 ### 7.2.3. Link between peers
 
-- In L2 scenario user must configure peer link
+- In MC-LAG L2 scenario, peer link must be configured.
 - The peer link can be either Ethernet, a PortChannel or a Vxlan tunnel. The peer link is used to carry data traffic when one of the MC-LAG member link is down and MAC forwarding reroute is needed.
-- Although data traffic and ICCP control traffic can take different path between the two peers, the suggestion is to use the same physical link to prevent loop.
+- The ICCP control link and peer link can be different links. But if peer link is configured with a vlan IP interface, and ICCP local IP address or peer IP address is the IP address of this vlan interface, then ICCP control link and L2 peer link can be the same interface. We suggest to use different link for ICCP control and peer link in order to handle different fail scenarios efficiently.
 
 ### 7.2.4. MAC sync-up between MC-LAG peers
 
-- If one peer learned an MAC entry from a MC-LAG enabled PortChannel, it will send this MAC to other peer via ICCP. For example, PEER1 learned MAC entry of CE1 from PortChannel0001, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and install the MAC into Linux kernel, the learned interface is also PortChannel0001. This means the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
-- If one peer learned an MAC entry from an orphan port, it will also send this MAC to other peer via ICCP. For example, PEER1 learned MAC entry of CE2 from Eth4, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and install the MAC into Linux kernel, the learned interface is peer link interface PortChannel0002.
-- Unlike with OSPF, ICCP don’t flood MAC entry to peer periodically. To prevent the MAC entry from aging, ICCP defines two flags for each MAC entry, MAC_AGE_LOCAL and MAC_AGE_PEER. MAC_AGE_LOCAL indicates the MAC entry in my device is aged, and MAC_AGE_PEER indicates the same MAC entry in peer device is aged. The MAC entry will be deleted from my FDB only when the two flags are both set for this MAC. For example, if the MAC of CE1 aged in PEER2, it will be set MAC_AGE_LOCAL. If this MAC is not set MAC_AGE_PEER flag at the same time (because PEER1 did not aging the MAC entry, hence did not tell PEER2 to set the flag), it will be installed back to the ASIC. Then PEER2 notifies the MAC age event to PEER1, PEER1 will set MAC_AGE_PEER for the same MAC.
+- If one peer learns an MAC entry from a MC-LAG enabled PortChannel, it will send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE1 from PortChannel0001, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is also PortChannel0001. This means the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
+- If one peer learns an MAC entry from an orphan port, it will also send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE2 from Eth4, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is peer link interface PortChannel0002.
+- ICCP don't flood MAC entry to peer periodically. To prevent the MAC entry from aging, ICCP defines two flags for each MAC entry, MAC_AGE_LOCAL and MAC_AGE_PEER. MAC_AGE_LOCAL indicates the MAC entry in my device is aged, and MAC_AGE_PEER indicates the same MAC entry in peer device is aged. The MAC entry will be deleted from my FDB only when the two flags are both set for this MAC. For example, if the MAC of CE1 ages out in PEER2, it will be set MAC_AGE_LOCAL. If this MAC is not set MAC_AGE_PEER flag at the same time (because the MAC entry on PEER1 isn't aged, hence it don't tell PEER2 to set the flag), it will be installed back to the ASIC. Then PEER2 notifies the MAC age event to PEER1, PEER1 will set MAC_AGE_PEER for the same MAC.
 
 ### 7.2.5. Peer link MAC learning
 
 - When the MC-LAG enabled interface is up, peer link is the backup link for data traffic. MAC learning must be disabled on peer link to prevent data traffic from forwarding. If the learning is enabled, the same MAC (e.g. MAC of CE1) may be learned via MC-LAG port or peer link, and the output port of this MAC will keep toggling.
-- When the MC-LAG enabled interface is down, MAC learning is also disabled in peer link, dynamic MAC entries will be installed to FDB pointing to peer link as the next hop, so traffic destined to those dynamic MAC entries will take the peer link path.
+- When all local member links in an MC-LAG interface on one peer are down, MAC learning is also disabled in peer link, dynamic MAC entries will be installed to FDB pointing to peer link as the next hop, so traffic destined to those dynamic MAC entries will take the peer link path.
 
 ### 7.2.6. L2 BUM flooding and port isolation
 
@@ -308,37 +326,43 @@ Diagram 7.2.2
 - To prevent CE from receiving duplicated traffic, peer link port must be isolated from MC-LAG enabled port. In the diagram of 7.2.1, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will not be forwarded to PortChannel0001. The following ASIC functions achieve this goal.
 - In Linux kernel, ebtable is used to isolate peer link port and from MC-LAG port. The Linux command is like ‘ebtables –A FORWARD -i PortChannel0002 -o PortChannel0001 -j DROP’. PortChannel0002 is the peer-link input interface, and PortChannel0001 is the output interface.
 - In ASIC, ACL rule is used to isolate peer link from MC-LAG port. The rule is when the traffic is received from peer link and the output port is MC-LAG member port, the traffic must be dropped. It’s suggested to use isolation group, although isolation group is defined in SAI, but orchagent does not support it currently. Also isolation group may not be supported by all ASIC vendors. Using ACL is a more generic way to support the isolation function. We will refine this function to isolation group later if it’s required.
+- In theory a scenario may happen when the ACL installation process is slower than the port operation event. When the port is up in one peer, but the ACL is not installed in the other peer yet, the packet may be flooded over the peer link and the CE may receive the duplicated packet. Handling this scenario will be enhanced in future release.
 
 ## 7.3. Peer connection down
 
-### 7.3.1 Keepalive link failure
+### 7.3.1. Keepalive link failure
+
 ![Diagram 7.3.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.1.png)
 Diagram 7.3.1
--	When the keepalive link is down, it causes the peer connection is lost. But both peers are healthy.
--	Irrespective of the status of peer link, both devices are considering the peer device is down. 
--	This situation may be look as a split-brain scenario (Both peers are healthy but there is no more real time synchronization between the peer devices), the standby peer changes its LACP system ID to the local default. Because the standby peer changed the LACP system ID, the CE device brings down the links connected to the standby. The result is all data traffic from CE are sent to the master. 
--	If keepalive link is restored, peer connection will be established again, information will be sync’ed up between ICCP peers. When the ICCP connection is active, the standby will change local system ID to the peer system’s ID (MAC), hence the MC-LAG enabled links connected to standby will become active again.
 
-### 7.3.2 Peer device failure
+- The peer keepalive is the MLAG control channel in current implementation.
+- When the keepalive link is down, it causes the peer connection is lost. But both peers are healthy.
+- Irrespective of the status of peer link, both devices are considering the peer device is down.
+- This situation may be look as a split-brain scenario (Both peers are healthy but there is no more real time synchronization between the peer devices), the standby peer changes its LACP system ID to the local default. Because the standby peer changed the LACP system ID, the CE device brings down the links connected to the standby. The result is all data traffic from CE are sent to the master.
+- If keepalive link is restored, peer connection will be established again, information will be sync’ed up between ICCP peers. When the ICCP connection is active, the standby will change local system ID to the peer system’s ID (MAC), hence the MC-LAG enabled links connected to standby will become active again.
+
+### 7.3.2. Peer device failure
+
 ![Diagram 7.3.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.2.png)
 Diagram 7.3.2
--	Peer device failure will cause ICCP connection to go down. 
--	If the master is down, the MC-LAG enabled ports connected CE are down, and the event is detected by the CE device. When the standby peer changes its LACP system ID to the local default, the CE device accepts the new LACP system ID of the links connected to the standby device. The result is all data traffic from CE are sent to the standby device.
--	If the standby is down, no action is taken by ICCP in master. In this scenario, the CE device brings down the links to the standby. The result is all data traffic from CE are sent to the master. 
--	If the peer device comes up online, peer connection will be established again, information will be sync’ed up between ICCP peers.
+
+- Peer device failure will cause ICCP connection to go down.
+- If the master is down, the MC-LAG enabled ports connected CE are down, and the event is detected by the CE device. When the standby peer changes its LACP system ID to the local default, the CE device accepts the new LACP system ID of the links connected to the standby device. The result is all data traffic from CE are sent to the standby device. Since in current implementation it cannot distinguish this case and the case in the above section, the code implement the same way for both cases to change the standby’s LACP system ID. Otherwise the standby can keep the current system ID.
+- If the standby is down, no action is taken by ICCP in master. In this scenario, the CE device brings down the links to the standby. The result is all data traffic from CE are sent to the master.
+- If the peer device comes up online, peer connection will be established again, information will be sync’ed up between ICCP peers.
 
 ## 7.4. Peer link down
 
 ![Diagram 7.4](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.4.png)
 Diagram 7.4
 
--	In this scenario, peers may be directly connected, or use other tools such as BFD to detect the status of peer-link.
--	If peer link and peer keepalive link is the same link, peer link down may cause peer connection down. In the case when keepalive connection is down, please see the above section.
--	When peer link is down, as shown above, all the MACs that point to the peer-link will be removed in both peers. Data forwarding for CE continues as usual. If ICCP connection uses this peer link interface, the action is the same as ‘peer connection down’. If ICCP connection doesn’t use this peer link interface, this is not a split-brain scenario because the state can still be synchronized by keepalive link. If one MC-LAG enabled port is down, data traffic may get lost since the peer link as a backup path is down.
+- In this scenario, peers may be directly connected, or use other tools such as BFD to detect the status of peer-link(Not supported currently).
+- If peer link and peer keepalive link is the same link, peer link down may cause peer connection down. In the case when keepalive connection is down, please see the above section. User should not design the network in this way.
+- When peer link is down, as shown above, all the MACs that point to the peer-link will be removed in both peers. Data forwarding for CE continues as usual. If ICCP connection uses this peer link interface, the action is the same as ‘peer connection down’. If ICCP connection doesn’t use this peer link interface, this is not a split-brain scenario because the state can still be synchronized by keepalive link. If one MC-LAG enabled port is down, data traffic may get lost since the peer link as a backup path is down.
 
 ## 7.5. Peer link is Vxlan tunnel
 
-- The peer link can be Vxlan tunnel. This scenario is test in progress.
+- The peer link can be Vxlan tunnel. This scenario is test in progress, it will be supported in next release.
 
 # 8. SONiC system diagram for MCLAG
 
@@ -442,19 +466,102 @@ Add mclagctld process to support new defined CLIs so that the ICCPd related info
 The new CLIs are:
 
 - `mclagdctl -i <mclag-id> dump arp`
-Display the local ARP entries learned from the port-channels that mclag is enabled.
+
+    Display the local ARP entries learned from the port-channels that mclag is enabled.
+
+```shell
+
+admin@sonic:~$ mclagdctl -i 100 dump arp
+No.   IP                  MAC               DEV
+1     10.1.1.1    00:1B:21:BA:DF:A8   PortChannel0001
+
+```
 
 - `mclagdctl -i <mclag-id> dump mac`
-Display the local MAC entries learned from the port-channels that mclag is enabled.
+
+    Display the local MAC entries.
+
+```shell
+
+admin@sonic:~$ mclagdctl -i 100 dump mac
+TYPE: S-STATIC, D-DYNAMIC; AGE: L-Local age, P-Peer age
+No. TYPE MAC               VID  DEV        ORIGIN-DEV         AGE
+1   D    00:1B:21:BA:DF:A8 1000 Ethernet4  PortChannel0001     L
+2   D    00:1B:21:BB:2F:DC 1000 Ethernet4  PortChannel0002     L
+TYPE: The MAC type, 'S' indicates STATIC, 'D' indicates DYNAMIC.
+DEV: The port that this MAC is set currently.
+ORIGIN-DEV: The origin port that this MAC is learned. In this sample, MAC 00:1B:21:BA:DF:A8 is learned from PortChannel0001. When PortChannel0001 is down, this MAC is reroute to Ethernet4.
+AGE: The age flag of this MAC. 'L' flag indicates this MAC in local switch is aged, 'P' flag indicates this MAC in peer switch is aged. When both of 'L' and 'P' flags are set, this MAC is deleted.
+
+```
 
 - `mclagdctl -i <mclag-id> dump portlist local`
-Display the local portlist, include the port-channels and their member ports.
+
+    Display the local port-list, include the port-channels and their member ports.
+
+```shell
+
+admin@sonic:~$ mclagdctl -i 100 dump portlist local
+------------------------------------------------------------
+Ifindex: 7
+Type: PortChannel
+PortName: PortChannel0002
+MAC: 6c:ec:5a:08:31:49
+IPv4Address: 2.2.2.1
+Prefixlen: 24
+State: Down
+IsL3Interface: Yes
+IsPeerlink: No
+MemberPorts: Ethernet10
+IsIsolateWithPeerlink: No
+VlanList: Vlan10
+------------------------------------------------------------
+IsL3Interface: If one interface is configured one ip address, this interface is called L3 interface.
+IsPeerlink: 'Yes' indicates this port is configured as peer-link port.
+MemberPorts: The member ports in one PortChannel.
+IsIsolateWithPeerlink: 'Yes' indicates this port is isolated with peer-link port. If the MCLAG enabled PortChannel is up, it is isolated with peer-link port.
+VlanList: The vlan list that this port is joined.
+
+```
 
 - `mclagdctl -i <mclag-id> dump portlist peer`
-Display the peer portlist, include the port-channels and their member ports.
+
+    Display the peer portlist, include the port-channels that mclag enabled.
+
+```shell
+
+admin@sonic:~$ mclagdctl -i 100 dump portlist peer
+------------------------------------------------------------
+Ifindex: 1
+Type: PortChannel
+PortName: PortChannel0001
+MAC: 6c:ec:5a:08:31:49
+State: Up
+------------------------------------------------------------
+
+```
 
 - `mclagdctl -i <mclag-id> dump state`
-Display the local configuration and state.
+
+    Display the local configuration and state.
+
+```shell
+
+admin@sonic:~$ mclagdctl dump state –i 100
+The MCLAG's keepalive is: OK
+Domain id: 100
+Local Ip: 10.100.1.1
+Peer Ip: 10.100.1.2
+Peer Link Interface: Ethernet4
+Peer Link Mac: 6c:ec:5a:08:31:94
+Role: Active
+MCLAG Interface: PortChannel0002,PortChannel0001
+
+The MCLAG's keepalive is: 'OK' indicates the peer connection is established.
+Role: System compares local ip and peer ip to determine the role of the switch, the one with large IP address is the standby, and the lower is active.
+MCLAG Interface: The name of PortChannel interfaces that MCLAG enabled.
+
+```
 
 ## 9.4. aclorch changes
 
@@ -535,4 +642,4 @@ Adding the following logics:
 Adding the following logics:
 
 - If the PortChannel has the attribute 'learn_mode' in CFG_DB, read the attribute and set this attribute in APP_DB. If 'learn_mode' is set to 'disabled', the MAC learning of LAG port is disbled.
-- Attribute 'fast_rate' can be set for LAG port.
+- When warm-reboot teammgr gets mac from saved LACP PDU and update port-channel's mac before port-channel member port send any LACP PDU.
