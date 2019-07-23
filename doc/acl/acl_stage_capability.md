@@ -16,6 +16,10 @@ E.g.: Egress mirror action on ingress stage or vice versa might be not supported
 
 ## 1. Egress mirroring support
 
+SAI API has two mirror action types - SAI_ACL_ACTION_TYPE_MIRROR_INGRESS, SAI_ACL_ACTION_TYPE_MIRROR_EGRESS which can be set on ingress or egress table.
+So SONiC will not restrict setting egress mirror rule on ingress table or vice versa.
+To check wheter such combination is supported by the ASIC application should look into SWITCH_CAPABILITY table which is described in part 2 of this document.
+
 The proposed new schema:
 
 ### ACL_RULE_TABLE
@@ -29,13 +33,15 @@ e.g.:
 ```
 {
   "ACL_RULE": {
-        "EVERFLOW|RULE_1": {
+        "EVERFLOW_INGRESS|RULE_1": {
             "MIRROR_EGRESS_ACTION": "everflow0",
             "PRIORITY": "9999",
             "SRC_IP": "20.0.0.10/32"
         }
 }
 ```
+
+The above example shows setting an egress mirror action on ingress everflow table.
 
 mirror_action should be implicitly set to "ingress" by default to be backward compatible
 
