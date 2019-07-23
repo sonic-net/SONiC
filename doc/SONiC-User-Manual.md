@@ -33,9 +33,9 @@ Table of Contents
    * [6 Troubleshooting](#6-troubleshooting)
       * [6.1 Basic Troubleshooting Commands](#61-basic-troubleshooting-commands)
       * [6.2 Port up/down Troubleshooting](#62-port-updown-troubleshooting)
-      * [<200b>6.3 Investigating Packet Drops](#63-investigating-packet-drops)
-      * [6.4 Physical Link Signa<200b><200b>l](#64-physical-link-signal)
-      * [6.5 Isolate SONiC Device from the Ne<200b>twork](#65-isolate-sonic-device-from-the-network)
+      * [6.3 Investigating Packet Drops](#63-investigating-packet-drops)
+      * [6.4 Physical Link Signal](#64-physical-link-signal)
+      * [6.5 Isolate SONiC Device from the Network](#65-isolate-sonic-device-from-the-network)
 
 
  
@@ -303,7 +303,8 @@ SONiC does not provide a CLI to configure the static IP for the management inter
    ```
    admin@sonic:~$ /sbin/ifconfig eth0 10.11.12.13/24
    ```   
-   
+Note that SONiC does not support management VRF and hence it is not possible to differentiate data traffic and management traffic. Work is in progress to support the mgmtVRF in Aug2019 release. 
+
    2) use config_db.json and configure the MGMT_INTERFACE key with the appropriate values. Refer [here](https://github.com/Azure/SONiC/wiki/Configuration#Management-Interface) 
    
    
