@@ -66,7 +66,7 @@
 | v.01    | 07/30/2018 |Jianjun Dong            | Initial version from nephos                      |
 | v.02    | 10/19/2018 |Jianjun Dong, Shine Chen, Jeffrey Zeng | Revised per review meeting with SONIC community  |
 | v.03    | 10/27/2018 |Jeffrey Zeng                 | Minor update to clarify the behavior.            |
-| v.04    | 03/01/2019 |Jianjun Dong, Shine Chenc, Jeffrey Zeng | Revised per review meeting with SONIC community  |
+| v.04    | 03/01/2019 |Jianjun Dong, Shine Chen, Jeffrey Zeng | Revised per review meeting with SONIC community  |
 | v.05    | 04/26/2019 |Jianjun Dong                    | Add pull request on chapter 9                    |
 | v.06    | 06/10/2019 |Jianjun Dong, Jeffrey Zeng, Shine Chen | Add L2 forwarding description and more use cases |
 | v.07    | 06/19/2019 |Jianjun Dong, Jeffrey Zeng, Shine Chen | Revised per review meeting with SONIC community  |
