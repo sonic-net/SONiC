@@ -1,55 +1,53 @@
 
-- [Overview](#Overview)
-  - [Scope](#Scope)
-  - [Summary of the existing everflow test plan](#Summary-of-the-existing-everflow-test-plan)
-  - [Extend the test plan to cover both ingress and egress mirroring](#Extend-the-test-plan-to-cover-both-ingress-and-egress-mirroring)
-    - [What new enhancements need to be covered?](#What-new-enhancements-need-to-be-covered)
-      - [Egress ACL table](#Egress-ACL-table)
-      - [Egress mirroring](#Egress-mirroring)
-    - [Some existing areas not covered by the existing scripts](#Some-existing-areas-not-covered-by-the-existing-scripts)
-      - [ACL rule for matching "IN_PORTS"](#ACL-rule-for-matching-IN_PORTS)
-      - [IPv6 everflow](#IPv6-everflow)
-    - [How to extend the testing](#How-to-extend-the-testing)
-  - [Test configurations](#Test-configurations)
-    - [ACL table configurations](#ACL-table-configurations)
-  - [Related **DUT** CLI commands](#Related-DUT-CLI-commands)
-    - [`sonic-cfggen`](#sonic-cfggen)
+- [Overview](#overview)
+  - [Scope](#scope)
+  - [Summary of the existing everflow test plan](#summary-of-the-existing-everflow-test-plan)
+  - [Extend the test plan to cover both ingress and egress mirroring](#extend-the-test-plan-to-cover-both-ingress-and-egress-mirroring)
+    - [What new enhancements need to be covered?](#what-new-enhancements-need-to-be-covered)
+      - [Egress ACL table](#egress-acl-table)
+      - [Egress mirroring](#egress-mirroring)
+    - [Some existing areas not covered by the existing scripts](#some-existing-areas-not-covered-by-the-existing-scripts)
+      - [ACL rule for matching "IN_PORTS"](#acl-rule-for-matching-in_ports)
+      - [IPv6 everflow](#ipv6-everflow)
+    - [How to extend the testing](#how-to-extend-the-testing)
+    - [Combine the existing test cases](#combine-the-existing-test-cases)
+  - [Test configurations](#test-configurations)
+    - [ACL table configurations](#acl-table-configurations)
+  - [Related **DUT** CLI commands](#related-dut-cli-commands)
+    - [`sonic-cfggen` Advanced config_db updating tool](#sonic-cfggen-advanced-config_db-updating-tool)
+    - [`config acl add table <table_name> <table_size>`](#config-acl-add-table-table_name-table_size)
+    - [`config acl remove table <table_name>`](#config-acl-remove-table-table_name)
+    - [`config acl update` For configuring ACL rules](#config-acl-update-for-configuring-acl-rules)
     - [`acl-loader`](#acl-loader)
     - [`aclshow`](#aclshow)
     - [`config mirror_session`](#config-mirror_session)
-- [Test structure](#Test-structure)
-  - [Overall structure](#Overall-structure)
-  - [Prepare some variables for testing](#Prepare-some-variables-for-testing)
-  - [Add everflow configuration](#Add-everflow-configuration)
-    - [ACL tables](#ACL-tables)
-    - [Mirror sessions](#Mirror-sessions)
-    - [ACL rules](#ACL-rules)
-  - [Run test](#Run-test)
-    - [PTF Test](#PTF-Test)
-- [Test cases](#Test-cases)
-  - [Test case \#1 - Resolved route](#Test-case-1---Resolved-route)
-    - [Test objective](#Test-objective)
-    - [Test steps](#Test-steps)
-  - [Test case \#2 - Longer prefix route with resolved next hop](#Test-case-2---Longer-prefix-route-with-resolved-next-hop)
-    - [Test objective](#Test-objective-1)
-    - [Test steps](#Test-steps-1)
-  - [Test case \#3 - Remove longer prefix route.](#Test-case-3---Remove-longer-prefix-route)
-    - [Test objective](#Test-objective-2)
-    - [Test steps](#Test-steps-2)
-  - [Test case \#4 - Change neighbor MAC address.](#Test-case-4---Change-neighbor-MAC-address)
-    - [Test objective](#Test-objective-3)
-    - [Test steps](#Test-steps-3)
-  - [Test case \#5 - Resolved ECMP route.](#Test-case-5---Resolved-ECMP-route)
-    - [Test objective](#Test-objective-4)
-    - [Test steps](#Test-steps-4)
-  - [Test case \#7 - ECMP route change (remove next hop not used by session).](#Test-case-7---ECMP-route-change-remove-next-hop-not-used-by-session)
-    - [Test objective](#Test-objective-5)
-    - [Test steps](#Test-steps-5)
-  - [Test case \#8 - Policer enforced DSCP value/mask test.](#Test-case-8---Policer-enforced-DSCP-valuemask-test)
-    - [Test objective](#Test-objective-6)
-    - [Test steps](#Test-steps-6)
-- [TODO](#TODO)
-- [Open Questions](#Open-Questions)
+- [Test structure](#test-structure)
+  - [Overall structure](#overall-structure)
+  - [Prepare some variables for testing](#prepare-some-variables-for-testing)
+  - [Add everflow configuration](#add-everflow-configuration)
+    - [ACL tables](#acl-tables)
+    - [Mirror sessions](#mirror-sessions)
+    - [ACL rules](#acl-rules)
+  - [Run test](#run-test)
+    - [PTF Test](#ptf-test)
+- [Test cases](#test-cases)
+  - [Test case \#1 - Packets mirrored to best match resolved route](#test-case-1---packets-mirrored-to-best-match-resolved-route)
+    - [Test objective](#test-objective)
+    - [Test steps](#test-steps)
+  - [Test case \#2 - Change neighbor MAC address.](#test-case-2---change-neighbor-mac-address)
+    - [Test objective](#test-objective-1)
+    - [Test steps](#test-steps-1)
+  - [Test case \#3 - ECMP route change (remove next hop not used by session).](#test-case-3---ecmp-route-change-remove-next-hop-not-used-by-session)
+    - [Test objective](#test-objective-2)
+    - [Test steps](#test-steps-2)
+  - [Test case \#4 - ECMP route change (remove next hop used by session).](#test-case-4---ecmp-route-change-remove-next-hop-used-by-session)
+    - [Test objective](#test-objective-3)
+    - [Test steps](#test-steps-3)
+  - [Test case \#5 - Policer enforced DSCP value/mask test.](#test-case-5---policer-enforced-dscp-valuemask-test)
+    - [Test objective](#test-objective-4)
+    - [Test steps](#test-steps-4)
+- [TODO](#todo)
+- [Open Questions](#open-questions)
 
 ## Overview
 
@@ -296,10 +294,10 @@ Combining these two enhancements, there are 4 scenarios for everflow.
 
 Expected behaviors for the combinations:
 
-- | ACL table stage: ingress | ACL table stage: egress
--|-|-
-Action type: MIRROR_INGRESS_ACTION | Ingress packets hit ACL rules, mirrored at ingress stage    | Not applicable
-Action type: MIRROR_EGRESS_ACTION | Ingress packets hit ACL rules, mirrored at egress stage | Egress packets hit ACL rules, mirrored at egress stage
+| -                                  | ACL table stage: ingress                                 | ACL table stage: egress                                |
+| ---------------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| Action type: MIRROR_INGRESS_ACTION | Ingress packets hit ACL rules, mirrored at ingress stage | Not applicable                                         |
+| Action type: MIRROR_EGRESS_ACTION  | Ingress packets hit ACL rules, mirrored at egress stage  | Egress packets hit ACL rules, mirrored at egress stage |
 
 Since not all the combinations are supported by all vendors, the enhancement also added ACL capability detection. The supported ACL action types at different stage are detected and stored in redis. The below is an example of showing detected capabilities:
 ```
@@ -352,10 +350,10 @@ In a summary, the extended scripts need to do below work:
 
 Summary of the possible combinations:
 
-Combinations | ACL table stage: ingress | ACL table stage: egress
--|-|-
-ACL Rule MIRROR_INGRESS_ACTION | [x] | N/A
-ACL Rule MIRROR_EGRESS_ACTION | [x] | [x]
+| Combinations                   | ACL table stage: ingress | ACL table stage: egress |
+| ------------------------------ | ------------------------ | ----------------------- |
+| ACL Rule MIRROR_INGRESS_ACTION | [x]                      | N/A                     |
+| ACL Rule MIRROR_EGRESS_ACTION  | [x]                      | [x]                     |
 
 Totally there are 3 possible combinations. Not all the combinations are supported by all platforms. The actual combinations to be tested are determined the actual DUT platform.
 
@@ -376,6 +374,13 @@ Then the platform only supports two combinations:
 
 The third combination would be skipped on this platform.
 
+#### Combine the existing test cases
+
+Some of the existing test cases are similar and doing repetitive testing. We remove and combine them to have a shorter list of test cases:
+* Test case #1 is covered in #2, #3 and #4. It can be removed.
+* Test case #2 and #3 can be combined to one case.
+* Test case #5 is covered in #6. It can be removed.
+
 ### Test configurations
 
 #### ACL table configurations
@@ -386,19 +391,46 @@ New ACL tables of type MIRROR and MIRRORv6 need to be created in testing. The ne
 
 Summary of the CLI commands that will be used for configuring DUT.
 
-#### `sonic-cfggen`
+#### `sonic-cfggen` Advanced config_db updating tool
 
-It is for adding configuration for ACL tables. For example:
+This is the advanced tool for updating the config_db. It can be used for adding/removing ACL tables, ACL rules, mirror sessions and many more other configurations.
+
+Some example usages:
+
 * `sonic-cfggen -j <configuration_json_file> --write-to-db`: Load configuration in json format to config_db. The json file could be ACL table configuration.
 * `sonic-cfggen -d -v ACL_TABLE`: Dump current ACL_TABLE configuration from config_db.
 * `sonic-cfggen -d -v ACL_RULE`: Dump current ACL_RULE configuration from config_db.
 
+#### `config acl add table <table_name> <table_size>`
+
+Usage: `config acl add table [OPTIONS] <table_name> <table_type>`
+
+This is the formal command for adding ACL table. ACL table added using this command is associated with all interfaces. If ACL table associated with a fraction of the interfaces is needed, the above `sonic-cfggen` method can be used. On versions that this formal command is not supported yet, the `sonic-cfggen` tool can be used.
+
+#### `config acl remove table <table_name>`
+
+Usage: `config acl remove table [OPTIONS] <table_name>`
+
+This is the formal command for removing ACL table.
+
+#### `config acl update` For configuring ACL rules
+
+Usages:
+* `config acl update full [OPTIONS] FILE_NAME`
+* `config acl update incremental [OPTIONS] FILE_NAME`
+
+This is the formal command for loading ACL rules configuration from file specified by the FILE_NAME.
+
 #### `acl-loader`
 
-It is for configuring ACL rules. For example:
+Under the hood, the `config acl update` command called this `acl-loader` tool to load ACL rules configurations. For example:
 * `acl-loader update full <acl_rule_configuration_json_file> [--session_name=<session_name> --mirror_stage=<ingress|egress>]`: Load acl rules specified in a json file to config_db.
 
+On versions that the formal `config acl update` is not supported yet, this `acl-loader` tool or the `sonic-cfggen` tool can be used.
+
+
 #### `aclshow`
+
 This tool is for collecting ACL rule counters. For example:
 * `aclshow -a`
 
@@ -1027,69 +1059,39 @@ Each test case will run traffic for persistent and dynamic Everflow ACL rules.
 
 Each test case will analyze Everflow packet header and payload (if mirrored packet is equal to original). In case of egress mirroring, verify that TTL of the mirrored packet in GRE tunnel is decremented comparing with the injected packet.
 
-### Test case \#1 - Resolved route
+### Test case \#1 - Packets mirrored to best match resolved route
 
 #### Test objective
 
-Verify that session with resolved route has active state.
+Verify that mirrored packets are forwarded to the best match route for the session destination IP.
 
 #### Test steps
 
-- Create route that matches session destination IP with unresolved next hop.
-- Resolve route next hop.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packet mirrored to appropriate port.
-- Analyze mirrored packet header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packet payload is equal to sent packet.
-- Verify that counters value of each Everflow ACL rule is correct.
+- Create route with next hop on port dst_port_1.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
 
-### Test case \#2 - Longer prefix route with resolved next hop
+- Create another route with unresolved next hop.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
 
-#### Test objective
+- Remove the route with unresolved next hop. Create another route with best match prefix and resolved next hop on dst_port_2
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_2 with correct Everflow header.
 
-Verify that session destination port and MAC address are changed after best match route insertion.
+- Remove the best match route
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
 
-#### Test steps
+- Cleanup all the added routes
 
-- Create route that matches session destination IP with unresolved next hop.
-- Resolve route next hop.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets mirrored to appropriate port.
-- Analyze mirrored packet header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packet payload is equal to sent packet.
-- Create best match route that matches session destination IP with unresolved next hop.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets are mirrored to the same port.
-- Resolve best match route next hop (neighbor should be on different port).
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets are mirrored and destination port changed accordingly.
+While checking mirrored packets:
+- Verify that packets are mirrored to appropriate port.
+- Verify that mirrored packets payload is equal sent packets.
+- Analyze mirrored packets header.
+- In case of egress mirroring, verify that TTL of the mirrored packets is decremented comparing with the injected packets.
 
-### Test case \#3 - Remove longer prefix route.
-
-#### Test objective
-
-Verify that session destination port and MAC address are changed after best match route removal.
-
-#### Test steps
-
-- Create route that matches session destination IP with unresolved next hop.
-- Resolve route next hop.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets mirrored to appropriate port.
-- Analyze mirrored packet header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packet payload is equal to sent packet.
-- Create best match route that matches session destination IP with unresolved next hop.
-- Resolve best match route next hop (neighbor should be on different port).
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets are mirrored and destination port changed accordingly.
-- Remove best match route.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets are mirrored and destination port changed accordingly.
-
-### Test case \#4 - Change neighbor MAC address.
+### Test case \#2 - Change neighbor MAC address.
 
 #### Test objective
 
@@ -1097,53 +1099,84 @@ Verify that session destination MAC address is changed after neighbor MAC addres
 
 #### Test steps
 
-- Create route that matches session destination IP with unresolved next hop.
-- Resolve route next hop.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets mirrored to appropriate port.
-- Analyze mirrored packet header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packet payload is equal to sent packet.
-- Change neighbor MAC address.
-- Send packets that matches each Everflow ACL rule.
+- Create route with next hop on port dst_port_1.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
+
+- Change neighbor MAC address of the next hop on dst_port_1.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are still mirrored to dst_port_1 with correct Everflow header.
 - Verify that DST MAC address in mirrored packet header is changed accordingly.
 
-### Test case \#5 - Resolved ECMP route.
+- Cleanup all the added routes
 
-#### Test objective
-
-Verify that session with resolved ECMP route has active state.
-
-#### Test steps
-
-- Create ECMP route that matches session destination IP with two unresolved next hops.
-- Resolve route next hops.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets mirrored to appropriate port.
+While checking mirrored packets:
+- Verify that packets are mirrored to appropriate port.
+- Verify that mirrored packets payload is equal sent packets.
 - Analyze mirrored packets header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packets payload is equal to sent packet.
+- In case of egress mirroring, verify that TTL of the mirrored packets is decremented comparing with the injected packets.
 
-### Test case \#7 - ECMP route change (remove next hop not used by session).
+### Test case \#3 - ECMP route change (remove next hop not used by session).
 
 #### Test objective
 
-Verify that after removal of next hop that was used by session from ECMP route session state is active.
+Verify that mirror session is still active after removal of next hop that was not used by mirror session.
 
 #### Test steps
 
-- Create ECMP route that matches session destination IP with two unresolved next hops.
-- Resolve route next hops.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets mirrored to appropriate port.
-- Analyze mirrored packet header.
-- In case of egress mirroring, verify that TTL of the mirrored packet is decremented comparing with the injected packet.
-- Verify that mirrored packets payload is equal to sent packets.
-- Remove next hop that is used by session.
-- Send packets that matches each Everflow ACL rule.
-- Verify that packets are mirrored and destination port changed accordingly.
+- Create ECMP route with next hops on dst_port_1 and dst_port_2.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 or dst_port_2 with correct Everflow header.
 
-### Test case \#8 - Policer enforced DSCP value/mask test.
+- Add next hop on dst_port_3 to ECMP route
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 or dst_port_2 with correct Everflow header.
+- Verify that the packets are not mirrored to dst_port_3
+
+- Remove the added ECMP next hop on dst_port_3.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 or dst_port_2 with correct Everflow header.
+- Verify that the packets are not mirrored to dst_port_3
+
+- Cleanup all the added routes
+
+While checking mirrored packets:
+- Verify that packets are mirrored to appropriate port.
+- Verify that mirrored packets payload is equal sent packets.
+- Analyze mirrored packets header.
+- In case of egress mirroring, verify that TTL of the mirrored packets is decremented comparing with the injected packets.
+
+### Test case \#4 - ECMP route change (remove next hop used by session).
+
+#### Test objective
+
+Verify that mirror session is still active after removal of next hop that was used by mirror session when there are other ECMP next hops available.
+
+#### Test steps
+
+- Create route with next hop on dst_port_1.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
+
+- Add next hops on dst_port_2 and dst_port_3 to route.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are mirrored to dst_port_1 with correct Everflow header.
+- Verify that the packets are not mirrored to dst_port_2 or dst_port_3.
+
+- Remove the ECMP next hop on dst_port_1.
+- Send packets that hit each Everflow ACL rule.
+- Verify that the packets are not mirrored to dst_port_1.
+- Verify that the packets are mirrored to dst_port_2 or dst_port_3 with correct Everflow header.
+
+- Cleanup all the added routes
+
+While checking mirrored packets:
+- Verify that packets are mirrored to appropriate port.
+- Verify that mirrored packets payload is equal sent packets.
+- Analyze mirrored packets header.
+- In case of egress mirroring, verify that TTL of the mirrored packets is decremented comparing with the injected packets.
+
+### Test case \#5 - Policer enforced DSCP value/mask test.
 
 #### Test objective
 
