@@ -312,9 +312,9 @@ Diagram 7.2.2
 
 ### 7.2.4. MAC sync-up between MC-LAG peers
 
-- If one peer learns an MAC entry from a MC-LAG enabled PortChannel, it will send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE1 from PortChannel0001, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is also PortChannel0001. This means the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
-- If one peer learns an MAC entry from an orphan port, it will also send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE2 from Eth4, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is peer link interface PortChannel0002.
-- ICCP don't flood MAC entry to peer periodically. To prevent the MAC entry from aging, ICCP defines two flags for each MAC entry, MAC_AGE_LOCAL and MAC_AGE_PEER. MAC_AGE_LOCAL indicates the MAC entry in my device is aged, and MAC_AGE_PEER indicates the same MAC entry in peer device is aged. The MAC entry will be deleted from my FDB only when the two flags are both set for this MAC. For example, if the MAC of CE1 ages out in PEER2, it will be set MAC_AGE_LOCAL. If this MAC is not set MAC_AGE_PEER flag at the same time (because the MAC entry on PEER1 isn't aged, hence it don't tell PEER2 to set the flag), it will be installed back to the ASIC. Then PEER2 notifies the MAC age event to PEER1, PEER1 will set MAC_AGE_PEER for the same MAC.
+- If one peer learns a MAC entry from a MC-LAG enabled PortChannel, it will send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE1 from PortChannel0001, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is also PortChannel0001. This means the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
+- If one peer learns a MAC entry from an orphan port, it will also send this MAC to other peer via ICCP. For example, PEER1 learns MAC entry of CE2 from Eth4, it will send this MAC to PEER2 via ICCP. PEER2 receives this MAC, and installs the MAC into Linux kernel, the learned interface is peer link interface PortChannel0002.
+- ICCP don't flood MAC entry to peer periodically. To prevent the MAC entry from aging, ICCP defines two flags for each MAC entry, MAC_AGE_LOCAL and MAC_AGE_PEER. MAC_AGE_LOCAL indicates the MAC entry in my device is aged, and MAC_AGE_PEER indicates the same MAC entry in peer device is aged. The MAC entry will be deleted from my FDB only when the two flags are both set for this MAC. For example, if the MAC of CE1 ages out in PEER2, the MAC entry will set MAC_AGE_LOCAL. If this MAC entry is not set MAC_AGE_PEER flag at the same time (because the MAC entry on PEER1 isn't aged, hence it doesn't tell PEER2 to set the flag), it will be installed back to the ASIC. Then PEER2 notifies the MAC age event to PEER1, PEER1 will set MAC_AGE_PEER for the same MAC.
 
 ### 7.2.5. Peer link MAC learning
 
@@ -323,11 +323,11 @@ Diagram 7.2.2
 
 ### 7.2.6. L2 BUM flooding and port isolation
 
-- In the L2 scenario, MC-LAG enabled port and peer link are in same VLAN. When both ports are up, BUM may be flooded before the MAC is learned.
+- In the L2 scenario, MC-LAG enabled port and peer link are in the same VLAN. When both ports are up, BUM may be flooded before the MAC is learned.
 - To prevent CE from receiving duplicated traffic, peer link port must be isolated from MC-LAG enabled port. In the diagram of 7.2.1, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will not be forwarded to PortChannel0001. The following ASIC functions achieve this goal.
-- In Linux kernel, ebtable is used to isolate peer link port and from MC-LAG port. The Linux command is like ‘ebtables –A FORWARD -i PortChannel0002 -o PortChannel0001 -j DROP’. PortChannel0002 is the peer-link input interface, and PortChannel0001 is the output interface.
-- In ASIC, ACL rule is used to isolate peer link from MC-LAG port. The rule is when the traffic is received from peer link and the output port is MC-LAG member port, the traffic must be dropped. It’s suggested to use isolation group, although isolation group is defined in SAI, but orchagent does not support it currently. Also isolation group may not be supported by all ASIC vendors. Using ACL is a more generic way to support the isolation function. We will refine this function to isolation group later if it’s required.
-- In theory a scenario may happen when the ACL installation process is slower than the port operation event. When the port is up in one peer, but the ACL is not installed in the other peer yet, the packet may be flooded over the peer link and the CE may receive the duplicated packet. Handling this scenario will be enhanced in future release.
+- In Linux kernel, ebtable is used to isolate peer link port from MC-LAG port. The Linux command is like ‘ebtables –A FORWARD -i PortChannel0002 -o PortChannel0001 -j DROP’. PortChannel0002 is the peer-link input interface, and PortChannel0001 is the output interface.
+- In ASIC, ACL rule is used to isolate peer link from MC-LAG port. The rule is when the traffic is received from peer link and the output port is MC-LAG member port, the traffic must be dropped. It’s suggested to use isolation group, although isolation group is defined in SAI, but Orchagent does not support it currently. Also isolation group may not be supported by all ASIC vendors. Using ACL is a more generic way to support the isolation function. We will refine this function to isolation group later if it’s required.
+- In theory a scenario may happen when the ACL installation process is slower than the port operation event notification. When the port is up in one peer, but the ACL is not installed in the other peer yet, the packet may be flooded over the peer link and the CE may receive the duplicated packet. Handling this scenario will be enhanced in future release.
 
 ## 7.3. Peer connection down
 
@@ -337,9 +337,9 @@ Diagram 7.2.2
 Diagram 7.3.1
 
 - The peer keepalive is the MLAG control channel in current implementation.
-- When the keepalive link is down, it causes the peer connection is lost. But both peers are healthy.
+- When the keepalive link is down, it causes the peer connection getting lost. But both peers are healthy in this case.
 - Irrespective of the status of peer link, both devices are considering the peer device is down.
-- This situation may be look as a split-brain scenario (Both peers are healthy but there is no more real time synchronization between the peer devices), the standby peer changes its LACP system ID to the local default. Because the standby peer changed the LACP system ID, the CE device brings down the links connected to the standby. The result is all data traffic from CE are sent to the master.
+- This situation may look as a split-brain scenario (Both peers are healthy but there is no more real time synchronization between the peer devices), the standby peer changes its LACP system ID to the local default. Because the standby peer changed the LACP system ID, the CE device brings down the links connected to the standby. The result is all data traffic from CE are sent to the master.
 - If keepalive link is restored, peer connection will be established again, information will be sync’ed up between ICCP peers. When the ICCP connection is active, the standby will change local system ID to the peer system’s ID (MAC), hence the MC-LAG enabled links connected to standby will become active again.
 
 ### 7.3.2. Peer device failure
@@ -359,7 +359,7 @@ Diagram 7.4
 
 - In this scenario, peers may be directly connected, or use other tools such as BFD to detect the status of peer-link(Not supported currently).
 - If peer link and peer keepalive link is the same link, peer link down may cause peer connection down. In the case when keepalive connection is down, please see the above section. User should not design the network in this way.
-- When peer link is down, as shown above, all the MACs that point to the peer-link will be removed in both peers. Data forwarding for CE continues as usual. If ICCP connection uses this peer link interface, the action is the same as ‘peer connection down’. If ICCP connection doesn’t use this peer link interface, this is not a split-brain scenario because the state can still be synchronized by keepalive link. If one MC-LAG enabled port is down, data traffic may get lost since the peer link as a backup path is down.
+- When peer link is down, as shown above, all the MACs that point to the peer-link will be removed in both peers. Data forwarding for CE continues as usual. If ICCP connection uses this peer link interface, the action is the same as described in "peer connection down". If ICCP connection doesn’t use this peer link interface, this is not a split-brain scenario because the state can still be synchronized by keepalive link. If one MC-LAG enabled port is down, data traffic may get lost since the peer link as a backup path is down.
 
 ## 7.5. Peer link is Vxlan tunnel
 
