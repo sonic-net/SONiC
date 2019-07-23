@@ -367,7 +367,7 @@ Diagram 7.4
 
 # 8. SONiC system diagram for MCLAG
 
-The MC-LAG code will run in a separate container. The following chart is with added ICCPd container. The blocks below are just illustrating the concept flow.
+The MC-LAG code will run in a separate container. The following chart is with added ICCPd container. The blocks below are just for  illustrating the concept flow.
 
 Note: ICCPd docker container doesn't start by default, it could be started on demand. Linux command `sudo systemctl start iccpd` can be used to start ICCPd docker container, `sudo systemctl enable iccpd` will start ICCPd docker automatic after rebooting.
 
@@ -380,13 +380,13 @@ Flow 2: Updating kernel with ARP learned. Syncing up kernel with changed MAC to 
 
 Flow 3: ICCPd learns events such as L2 interface creation, L3 interface creation, MAC of local interfaces and its modification, IP address and its modification, ARP learning, VLAN creation and its member’s association/de-association, interface admin/link state.
 
-Flow 4: ICCPd update teamd with system ID to help LACP to form the portchannel for the MLAG ports. Please note teamds in the two peers are independent.
+Flow 4: ICCPd update teamd with system ID to help LACP to form the portchannel for the MLAG ports. Please note teamds in the two peers are running independently.
 
 Flow 5: mclagctld receives CLIs, pass it on to ICCPd, MC-LAG information is returned by ICCPd so that it can be displayed.
 
-Flow 6: ICCPd exchange information with APP_DB via mclagsyncd, for example, the information to stop L2 learning on peer-link, flush software FDB table of MC-LAG vlans、isolate peer link from port-channel in the flood domain, associate MAC to its L3 interface.
+Flow 6: ICCPd exchanges information with APP_DB via mclagsyncd, for example, the information to stop L2 learning on peer-link, flush software FDB table of MC-LAG vlans、isolate peer link from port-channel in the flood domain, associate MAC to its L3 interface.
 
-Flow 7: same as 6
+Flow 7: same as step 6.
 
 Flow 8: After configure/update APP_DB, OrchAgent monitors and procesess the related information, then update ASIC_DB.
 
@@ -410,7 +410,7 @@ Flow 8: After configure/update APP_DB, OrchAgent monitors and procesess the rela
   "local_ip" is the ip address of this device to set TCP connection.
   "peer_ip" is the ip address of peer device to set TCP connection.
   "peer_link" is the name of interface that act as interconnection.
-  "mclag_interface" is the name of PortChannel interfaces that MC-LAG enabled, can be multiple  interfaces separated by commas ‘,’.
+  "mclag_interface" is the name of PortChannel interfaces that MC-LAG enabled, can be multiple interfaces separated by commas ‘,’.
   The example configuration is:
 
   "MC_LAG": {
@@ -425,8 +425,9 @@ Flow 8: After configure/update APP_DB, OrchAgent monitors and procesess the rela
 
 ### 9.1.2. Add Acl_table and Acl_rule_table in app-db
 
-Jason definition is exactly same as acl_table and acl_rule_table in config-db. MCLAG uses acl to isolate peer-link from mclag-enabled port-channel. so We add acl_table and acl_rule_table in app-db. Other apps which need to configure acl dynamicly can reuse this mechanism.
-The acl hld has defined app_acl_table and app_acl_rule_table but don't implement it. Please refer [acl_hld](https://github.com/Azure/SONiC/blob/master/doc/acl/ACL-High-Level-Design.md#31211-acl-tables-table) for detail.
+Jason definition is exactly the same as acl_table and acl_rule_table in config-db. MCLAG uses acl to isolate peer-link from mclag-enabled port-channel. so We add acl_table and acl_rule_table in app-db. Other apps which need to configure acl dynamically can reuse this mechanism.
+
+The acl hld has defined app_acl_table and app_acl_rule_table but did not implement it. Please refer [acl_hld](https://github.com/Azure/SONiC/blob/master/doc/acl/ACL-High-Level-Design.md#31211-acl-tables-table) for detail.
 
 ```jason
     "ACL_TABLE": {
@@ -454,9 +455,10 @@ Mclagsyncd will work with APP_DB to take care of following actions:
 
 - Disable L2 MAC learning for peer-link ports.
 - Flush FDB table contents before disable L2 MAC learning.
-- Updating MAC association with its L3 interface. For example, PortChannel0001 is configured ip address, it is L3 interface. When changing the MAC of L2 port PortChannel0001, the MAC of L3 interface must be change to the same MAC at the same time. If not, data forwarding is blocked via L3 interface.
+- Updating MAC association with its L3 interface. For example, PortChannel0001 is configured with ip address, it is L3 interface. When changing the MAC of L2 port PortChannel0001, the MAC of L3 interface must be changed to the same MAC at the same time. If not, data forwarding is blocked via L3 interface.
 - When the MC-LAG enabled port-channel is down, update the nexthop of MAC entries learned from this PortChannel to point to peer link.
 - Isolate peer-link from MC-LAG enabled port-channel.
+
 Mclagsyncd will work with ASIC_DB to take care of following actions:
 - Read MACs from ASIC_DB, and notify the MAC changes to ICCPd. FDB entries learned from MC-LAG enabled port-channel will be synced up with peer.
 
@@ -634,13 +636,18 @@ Adding the following logics:
 
 - Teamd saves the last LACP PDU received from LAG peer in one file per port in directory '/var/warmboot/teamd/'. During warm-reboot, the routes or MACs in ASIC are not changed.
 - In MC-LAG scenario, two peer devices form one end point of a LAG, these two devices must have the same MAC address since it’s used for LACP. During warm-reboot, this MAC must not be changed. For this reason, if the last reboot is warm-reboot, when some ports are added to the existing portchannel, before the first LACP PDU is sent out via those newly added ports, teamd gets the MAC from the saved LACP PDU and updates the port MAC accordingly.
-- During warm-reboot, a USR1 signal is sent to ICCP. Then ICCP send one message to the peer to notify that this device will be warm-rebooted.
+- During warm-reboot, a USR1 signal is sent to ICCP. Then ICCP send a message to the peer to notify that this device will be warm-rebooted.
 - During warm-reboot, ICCP is also rebooted. During ICCP warm-reboot, ICCP doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual in the rebooting device.
-- During warm-reboot, the peer connection may be lost because of the keepalive timeout. In this scenario, the helper peer doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual.
+- During warm-reboot, the peer connection may be lost because of the keepalive timeout. In this scenario, during a defined time window, the remote peer doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual.
 
 ## 9.15. teammgr changes
 
 Adding the following logics:
 
 - If the PortChannel has the attribute 'learn_mode' in CFG_DB, read the attribute and set this attribute in APP_DB. If 'learn_mode' is set to 'disabled', the MAC learning of LAG port is disbled.
-- When warm-reboot teammgr gets mac from saved LACP PDU and update port-channel's mac before port-channel member port send any LACP PDU.
+- When warm-reboot teammgr gets MAC from saved LACP PDU and update port-channel's MAC before port-channel member port sending any LACP PDU.
+
+# 10. Test
+
+A separete test spec is provided for community to review.
+
