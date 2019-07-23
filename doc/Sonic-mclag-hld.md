@@ -206,7 +206,7 @@ There are other info to be checked, and will be supported in future releases. e.
 
 # 6. Typical configurations
 
-## 6.1. Syntax of configuration
+## 6.1. Configuration syntax
 
 ```json
 "MC_LAG": {
@@ -230,14 +230,14 @@ MC-LAG domain ID, must be from 1 to 65535.
 ![Diagram 6.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_6.2.png)
 Diagram 6.2
 
-In the L3 scenario, peer-link is unnecessary and MC-LAG enabled interface PortChannel0001 is L3 interface.
+In the L3 scenario, peer-link configuration is unnecessary. MC-LAG enabled interface PortChannel0001 is L3 interface.
 
 ## 6.3. MC-LAG L2 scenario configuration
 
 ![Diagram 6.3](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_6.3.png)
 Diagram 6.3
 
-In the L2 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortChannel0001 are both the member of vlan100. PortChannel0002 uses L2 forwarding.
+In the L2 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortChannel0001 are both the member of vlan100. PortChannel0001 and PortChannel0002 use L2 forwarding.
 
 # 7. Typical Data diagram for MCLAG
 
@@ -260,19 +260,19 @@ Diagram 7.1.2
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down.
 - The data flow path is presented by the yellow line for traffic from PA to CE1.
-- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, the direct route 10.1.1.0/24 will be deleted, the routing protocol (or a static route configuration) will make sure there is a backup route reach CE1. When the traffic reach PEER1, it will match the backup route, and forwarded through PortChannel0002.
+- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, the direct route 10.1.1.0/24 will be deleted, the routing protocol (or a static route configuration) will make sure there is a backup route to reach CE1. When the traffic reaches PEER1, it will match the backup route, and forwarded through PortChannel0002.
 - The data flow path from CE1 to PA: CE1 will detect the interface connecting to PEER1 is down, the data will send to PA via PEER2. The routing protocol will make sure there is a path to reach PA.
 
 ### 7.1.3. Link between peers
 
 - In L3 scenario, routing protocol or static route configured manually provides backup path to reach MC-LAG enabled subnet.
-- In this scenario, the direct-connected L3 peer link connecting the two peer devices is not required. When the MC-LAG member link is up, the direct route has the highest priority. If one of the MC-LAG member link is down, the direct route will be deleted, and the backup route will take effect.
+- In this scenario, the direct-connected L3 peer link connecting the two peer devices is not required. When the MC-LAG member link is up, the direct route has the highest priority (e.g. longest prefix). If one of the MC-LAG member link is down, the direct route will be deleted, and the backup route will take effect.
 - In L3 scenario, IP reachability is controlled by routing protocol, peer link configuration is unnecessary.
 
 ### 7.1.4. ARP sync-up between MC-LAG peers
 
 - If one peer learns an ARP entry, it will send the ARP entry to the other peer via ICCP. For example, PEER1 learns ARP entry of CE1 from PortChannel0001, it will send this ARP to PEER2 via ICCP. PEER2 receives this ARP entry, and install it into Linux kernel, the learned interface name is PortChannel0001. This requires the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
-- ICCP don’t flood ARP entry to peer periodically. To prevent the ARP entry from aging, ICCP uses netlink socket to monitor ARP reply received by Linux kernel. For example, when an ARP entry in PEER2 is aged, the Linux kernel will send an ARP request via PortChannel0001. CE1 receives the ARP request, and send back one ARP reply. For CE1, PEER1 and PEER2 are viewed as the same device, the ARP reply may send to PEER2 or PEER1. If PEER2 receives the ARP reply, the ARP entry is learned again and information is updated in the kernel. At the same time, PEER2 will notify PEER1 via ICCP sync message. If PEER1 receives the ARP reply, since the ARP entry already exists in the kernel, kernel will use Netlink to send the ARP packet to its applications, ICCP will collect the ARP information from the ARP reply packet and send to PEER2, so PEER2 can update the ARP entry in the Linux kernel.
+- ICCP don’t flood ARP entry to peer periodically. To prevent the ARP entry from aging, ICCP uses Netlink socket to monitor ARP reply received by Linux kernel. For example, when an ARP entry in PEER2 is aged, the Linux kernel will send an ARP request via PortChannel0001. CE1 receives the ARP request, and send back one ARP reply. For CE1, PEER1 and PEER2 are viewed as the same device, the ARP reply may send to PEER2 or PEER1. If PEER2 receives the ARP reply, the ARP entry is learned again and information is updated in the kernel. At the same time, PEER2 will notify PEER1 via ICCP sync message. If PEER1 receives the ARP reply, since the ARP entry already exists in the kernel, kernel will use Netlink to send the ARP packet to its applications, ICCP will collect the ARP information from the ARP reply packet and send to PEER2, so PEER2 can update the ARP entry in the Linux kernel.
 
 ### 7.1.5. L3 multicast
 
@@ -299,7 +299,7 @@ Diagram 7.2.2
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down, PortChannel0002 is the peer link. Assume PA to PEER1 connection is part of the same VLAN as PortChannel0001.
 - The data flow path is presented by the yellow line.
-- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, ICCP reprograms the nexthop of MAC entry to point to peer link PortChannel0002 and make the MAC entry in the ASIC table. When the traffic reaches PEER1, it will match the updated MAC entry, and forwarded through PortChannel0002.
+- The data flow path from PA to CE1: When PortChannel0001 in PEER1 is down, ICCP reprograms the nexthop of MAC entry to point to peer link PortChannel0002 and update the MAC entry in the ASIC table. When the traffic reaches PEER1, it will match the updated MAC entry, and forwarded through PortChannel0002.
 - When PortChannel0001 in PEER1 is down, the portChannel state is synced to PEER2. ICCP in PEER2 enables the peer link forwarding for MC-LAG enabled interfaces corresponding to portChannel0001. In the above diagram, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will be forwarded to CE1 via PortChannel0001.
 - MAC learning of peer link is disabled. In the above diagram, MAC learning of PortChannel0002 is disabled in both PEER1 and PEER2.
 - The data flow path from CE1 to PA: CE1 will detect the interface connecting to PEER1 is down, the data will send to PA via PEER2. PEER2 will bridge the packet to PEER1 where L2 bridging is performed to reach PA.
