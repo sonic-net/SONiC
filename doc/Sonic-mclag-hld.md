@@ -166,7 +166,7 @@ In RFC7275 original requirements, ICCP will sync up many kinds of information wi
 
 ## 5.3. Role election
 
-ICCP peer must be in active mode or standby mode. The ipv4 address is used to determine which role the peer has Local ip and remote ip is configured manually, system compares these two ip addresses to determine its role, the one with large IP address is the standby, and the other one is active. Active is the client, standby is the server. The client connect to the server actively.
+ICCP peer must be in active mode or standby mode. The ipv4 address is used to determine which role the peer has. Local ip and remote ip is configured manually, system compares these two ip addresses to determine its role, the one with large IP address is the standby, and the other one is active. Active is the client, standby is the server. The client connect to the server actively.
 
 The role of active or standby is the concept of control plane. In the data plane, each peer determines the data forward path individually, no matter the role it is.
 
@@ -186,7 +186,7 @@ Following information are sync'ed up between ICCP lite peers.
 
 5 FDB information: FDB entries will be synced up with peer.
 
-ICCP lite only supports port-configuration/state sync up for MC-LAG enabled ports. We don’t sync the static IP address, if a static IP address is configured on MC-LAG enabled PortChannel in one peer, the same IP address must be configured on the same PortChannel in another peer.
+ICCP lite only supports port-configuration/state sync up for MC-LAG enabled ports. We don’t sync the static IP address, if a static IP address is configured on MC-LAG enabled PortChannel in one peer, the same IP address must be configured on the same PortChannel in the other peer.
 
 ## 5.5. ICCP Heartbeat sanity check
 
@@ -194,7 +194,7 @@ RFC7275 does not specify how to do the heartbeat check, but just suggest to use 
 
 ## 5.6. ICCP consistence check
 
-This lite version does consistence check for the following contents:
+This lite version does consistency check for the following contents:
 1 Peer IP, local IP will be checked against with message contents.
 2 Enable MC-LAG portchannel interface check: if it is L3 interface, then the IP address assigned must be the same. If they join a vlan, then the vlan must be the same etc.
 3 Peer-link in both devices must be the same type.
