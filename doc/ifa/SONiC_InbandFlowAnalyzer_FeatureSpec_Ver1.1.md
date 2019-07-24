@@ -43,7 +43,7 @@ Inband flow analyzer feature.
           * [3.6.5 Debug Commands](#365-debug-commands)
           * [3.6.6 REST API Support](#366-rest-api-support)
   * [4 Flow Diagrams](#4-flow-diagrams)
-      * [4.1 IFA Config Call Flow](#41-ifa-call-flow)
+      * [4.1 IFA Config Call Flow](#41-config-call-flow)
   * [5 Error Handling](#5-error-handling)
   * [6 Serviceability And Debug](#6-serviceability-and-debug)
   * [7 Warm Boot Support](#7-warm-boot-support)
