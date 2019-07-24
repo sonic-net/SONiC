@@ -11,9 +11,9 @@ Inband flow analyzer feature.
   * [Scope](#scope)
   * [Definition/Abbreviation](#definition-abbreviation)
   * [1 Feature Overview](#1-feature-overview)
-      * [1.1 Requirements](#11-requirements)
-          * [1.1.1 Functional Requirements](#111-functional-requirements)
-          * [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
+      * [1.1 Requirements](#1.1-requirements)
+          * [1.1.1 Functional Requirements](#1.1.1-functional-requirements)
+          * [1.1.2 Configuration and Management Requirements](#1.1.2-configuration-and-management-requirements)
           * [1.1.3 Scalability Requirements](#1-1-3-scalability-requirements)
       * [1.2 Design Overview](#1-2-design-overview)
           * [1.2.1 Basic Approach](#1-2-1-basic-approach)
@@ -75,8 +75,8 @@ This document describes the high level design of Inband flow analyzer feature.
 # 1 Feature Overview
 The Inband Flow Analyzer (IFA) feature allows configuration of an IFA session that could provide Inband-telemetry over sampled live traffic to collectors. A network monitoring application can analyze the telemetry information provided by IFA feature and provide full visibility of a network by providing metrics such as latency, packet loss and full network path that packet travels. IFA feature in SONiC will be compliant to RFC [https://datatracker.ietf.org/doc/draft-kumar-ippm-ifa](https://datatracker.ietf.org/doc/draft-kumar-ippm-ifa).
 
-## 1.1 Requirements
-### 1.1.1 Functional Requirements
+## 1\.1 Requirements
+### 1\.1\.1 Functional Requirements
 
 1.0 IFA feature allows user to configure IFA session in a given network and provide Inband-telemetry data to collectors. IFA session is defined by flow classifiers that are used to identify a flow that should be monitored for inband telemetry.   
 
