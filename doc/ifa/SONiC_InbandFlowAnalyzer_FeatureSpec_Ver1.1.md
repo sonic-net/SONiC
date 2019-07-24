@@ -11,7 +11,7 @@ Inband flow analyzer feature.
   * [Scope](#scope)
   * [Definition/Abbreviation](#definition-abbreviation)
   * [1 Feature Overview](#1-feature-overview)
-      * [1.1 Requirements](#1-1-requirements)
+      * [1.1 Requirements](#1.1-requirements)
           * [1.1.1 Functional Requirements](#1-1-1-functional-requirements)
           * [1.1.2 Configuration and Management Requirements](#1-1-2-configuration-and-management-requirements)
           * [1.1.3 Scalability Requirements](#1-1-3-scalability-requirements)
@@ -49,7 +49,6 @@ Inband flow analyzer feature.
   * [7 Warm Boot Support](#7-warm-boot-support)
   * [8 Scalability](#8-scalability)
   * [9 Unit Test](#9-unit-test)
-  * [10 Internal Design Information](#10-internal-design-information)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
