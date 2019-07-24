@@ -11,47 +11,46 @@ Threshold feature.
   * [Scope](#scope)
   * [Definition/Abbreviation](#definition-abbreviation)
   * [1 Feature Overview](#1-feature-overview)
-	  *	[1.1 Requirements](#1_1-requirements)
-		  *	[1.1.1 Functional Requirements](#1_1_1-functional-requirements)
-		  *	[1.1.2 Configuration and Management Requirements](#1_1_2-configuration-and-management-requirements)
-		  *	[1.1.3 Scalability Requirements](#1_1_3-scalability-requirements)
-	  * [1.2 Design Overview](#1_2-design-overview)
-		  * [1.2.1 Basic Approach](#1_2_1-basic-approach)
-		  * [1.2.2 Container](#1_2_2-container)
-		  * [1.2.3 SAI Overview](#1_2_3-sai-overview)
+	  * [1.1 Requirements](#1_1-requirements)
+		  * [1.1.1 Functional Requirements](#111-functional-requirements)
+		  * [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
+		  * [1.1.3 Scalability Requirements](#113-scalability-requirements)
+	  * [1.2 Design Overview](#12-design-overview)
+		  * [1.2.1 Basic Approach](#121-basic-approach)
+		  * [1.2.2 Container](#122-container)
+		  * [1.2.3 SAI Overview](#123-sai-overview)
   * [2 Functionality](#2-functionality)
-	  * [2.1 Target Deployment Use Cases](#2_1-target-deployment-use-cases)
-	  * [2.2 Functional Description](#2_2-functional-description)
+	  * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
+	  * [2.2 Functional Description](#22-functional-description)
   * [3 Design](#3-design)
-	  * [3.1 Overview](#3_1-overview)
-		  * [3.1.1 ThresholdMgr](#3_1_1-thresholdmgr)	
-	  * [3.2 DB Changes](#3_2_db-changes)  
-		  * [3.2.1 CONFIG DB](#3_2_1-config-db)
-		  * [3.2.2 APP DB](#3_2_2-app-db)
-		  * [3.2.3 STATE DB](#3_2_3-state-db)
-		  * [3.2.4 ASIC DB](#3_2_4-asic-db)
-		  * [3.2.5 COUNTER DB](#3_2_5-counter-db)
-	  * [3.3 Switch State Service Design](#3_3-switch-state-service-design)
-		  * [3.3.1 Orchestration Agent](#3_3_1-orchestration-agent)
-		  * [3.3.2 Other Process](#3_3_2-other-process)
-	  * [3.4 Syncd](#3_4-syncd)
-	  * [3.5 SAI](#3_5-sai)
-	  * [3.6 CLI](#3_6-cli)
-		  * [3.6.1 Data Models](#3_6_1-data-models)
-		  * [3.6.2 Configuration Commands](#3_6_2-configuration-commands)
-		  * [3.6.3 Show Commands](#3_6_3-show-commands)
-		  * [3.6.4 Clear Commands](#3_6_4-clear-commands)
-		  * [3.6.5 Debug Commands](#3_6_5-debug-commands)
-		  * [3.6.6 REST API Support](#3_6_6-rest-api-support)  
+	  * [3.1 Overview](#31-overview)
+		  * [3.1.1 ThresholdMgr](#311-thresholdmgr)	
+	  * [3.2 DB Changes](#32_db-changes)  
+		  * [3.2.1 CONFIG DB](#321-config-db)
+		  * [3.2.2 APP DB](#322-app-db)
+		  * [3.2.3 STATE DB](#323-state-db)
+		  * [3.2.4 ASIC DB](#324-asic-db)
+		  * [3.2.5 COUNTER DB](#325-counter-db)
+	  * [3.3 Switch State Service Design](#33-switch-state-service-design)
+		  * [3.3.1 Orchestration Agent](#331-orchestration-agent)
+		  * [3.3.2 Other Process](#332-other-process)
+	  * [3.4 Syncd](#34-syncd)
+	  * [3.5 SAI](#35-sai)
+	  * [3.6 CLI](#36-cli)
+		  * [3.6.1 Data Models](#361-data-models)
+		  * [3.6.2 Configuration Commands](#362-configuration-commands)
+		  * [3.6.3 Show Commands](#363-show-commands)
+		  * [3.6.4 Clear Commands](#364-clear-commands)
+		  * [3.6.5 Debug Commands](#365-debug-commands)
+		  * [3.6.6 REST API Support](#366-rest-api-support)  
   * [4 Flow Diagrams](#4-flow-diagrams)
-	  * [4.1 Config Call Flow](#4_1-config-call-flow)
-	  * [4.2 Breach Event Call Flow](#4_2-breach-event-call-flow)
+	  * [4.1 Config Call Flow](#41-config-call-flow)
+	  * [4.2 Breach Event Call Flow](#42-breach-event-call-flow)
   * [5 Error Handling](#5-error-handling)
   * [6 Serviceability And Debug](#6-serviceability-and-debug)
   * [7 Warm Boot Support](#7-warm-boot-support)
   * [8 Scalability](#8-scalability)
   * [9 Unit Test](#9-unit-test)
-  * [10 Internal Design Information](#10-internal-design-information)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -118,11 +117,11 @@ The threshold feature allows configuration of a threshold on supported buffers i
 
 2.0.6.3 The breach entry must indicate the counter index of the port (ref 2.0.4, 2.0.5) on which the breach occurred i.e the priority-group index for 2.0.2.1, 2.0.2.2 and queue index and type for 2.0.2.3. 
 
-2.0.6.5 The breach entry must contain the buffer usage in terms of percentage at the time of breach.
+2.0.6.4 The breach entry must contain the buffer usage in terms of percentage at the time of breach.
 
-2.0.6. The breach entry must contain the absolute buffer usage in bytes at the time of breach.
+2.0.6.5 The breach entry must contain the absolute buffer usage in bytes at the time of breach.
 
-2.0.6.4 The breach entry must contain the time stamp of the breach event. The ASIC provides the time stamp of breach event via the breach event protobuf.
+2.0.6.6 The breach entry must contain the time stamp of the breach event. The ASIC provides the time stamp of breach event via the breach event protobuf.
 
 2.0.7 The threshold feature must be a part of the TAM container along with other TAM features.
 
@@ -451,23 +450,23 @@ This command shows the threshold breaches recorded by the system.
 
 ### 3.6.4 Clear commands
 
-1) clear priority-group threshold {port_alias} {PGindex} {shared \| headroom}
+1) sonic-clear priority-group threshold {port_alias} {PGindex} {shared \| headroom}
 
 This command can be used to clear a previously configured threshold on shared/headroom priority-group buffer of a port.
 
-2) clear priority-group threshold 
+2) sonic-clear priority-group threshold 
 
 This command can be used to clear all currently configured priority-group thresholds. 
 	
-3) clear queue threshold {port_alias} {queueindex} {unicast \| multicast}
+3) sonic-clear queue threshold {port_alias} {queueindex} {unicast \| multicast}
 
 This command can be used to clear a previously configured threshold on unicast/multicast queue buffer of a port.
 
-4) clear queue threshold 
+4) sonic-clear queue threshold 
 
 This command can be used to clear all currently configured priority-group thresholds.
 
-5) clear threshold breach {eventid}
+5) sonic-clear threshold breach {eventid}
 
 This command can be used to clear all/particular threshold breaches recorded by the system. The event-id when provided specifies the breach event index (index is indicated in the output of show threshold breaches).
 
@@ -584,6 +583,9 @@ There is no limit enforced on the threshold configuration and breach event entri
 10. Verify if ThresholdMgr logs an error and drops a protobuf received with invalid queue oid.
 11. Verify if ThresholdMgr logs an error and drops a protobuf received with invalid buffer stats report.
 12. Verify if ThresholdMgr logs an error if the incoming protobuf cannot be decoded into the breach proto format.
+<<<<<<< HEAD
 
 # 10 Internal Design Information
 This document does not contain any internal design information.
+=======
+>>>>>>> Threshold feature spec.
