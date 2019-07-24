@@ -58,7 +58,7 @@ Inband flow analyzer feature.
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 06/14/2019  | Naveen Kumar Aketi | Initial version                   |
 
-# About this Manual
+# About This Manual
 This document provides general information about the Inband Flow Analyzer (IFA) feature implementation in SONiC.
 
 # Scope
