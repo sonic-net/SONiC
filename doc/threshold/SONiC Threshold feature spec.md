@@ -30,7 +30,7 @@ Threshold feature.
 		  * [3.2.2 APP DB](#322-app-db)
 		  * [3.2.3 STATE DB](#323-state-db)
 		  * [3.2.4 ASIC DB](#324-asic-db)
-		  * [3.2.5 COUNTER DB](#325-counter-db)
+		  * [3.2.5 COUNTERS DB](#325-counters-db)
 	  * [3.3 Switch State Service Design](#33-switch-state-service-design)
 		  * [3.3.1 Orchestration Agent](#331-orchestration-agent)
 		  * [3.3.2 Other Process](#332-other-process)
