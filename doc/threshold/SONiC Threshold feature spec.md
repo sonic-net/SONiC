@@ -583,9 +583,3 @@ There is no limit enforced on the threshold configuration and breach event entri
 10. Verify if ThresholdMgr logs an error and drops a protobuf received with invalid queue oid.
 11. Verify if ThresholdMgr logs an error and drops a protobuf received with invalid buffer stats report.
 12. Verify if ThresholdMgr logs an error if the incoming protobuf cannot be decoded into the breach proto format.
-<<<<<<< HEAD
-
-# 10 Internal Design Information
-This document does not contain any internal design information.
-=======
->>>>>>> Threshold feature spec.
