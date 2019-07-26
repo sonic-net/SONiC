@@ -40,11 +40,14 @@ The goal of this feature is to provide better packet drop visibility in SONiC by
 
 # 2 Requirements
 
-## 2.1 Functional Requirements (WIP)
-1. Users must be able to configure debug counters to track one or more drop reason(s).
+## 2.1 Functional Requirements
+1. Users can configure debug counters to track one or more drop reason(s).
     1. Supported ingress drop reasons are specified in sai_port_in_drop_reason_t.
     2. Supported egress drop reasons are specified in sai_port_out_drop_reason_t.
-2. Users must be able to access debug counter information via a CLI command
+2. Users can access debug counter information via a CLI command
+    1. Users can see what types of drops each counter contains
+    2. Users can assign aliases to counters
+    3. Users can clear counters
 
 ## 2.2 Configuration and Management Requirements
 Configuration of the drop counters can be done via:
@@ -54,4 +57,47 @@ Configuration of the drop counters can be done via:
 ## 2.3 Scalability Requirements
 Users must be able to use all counters and drop reasons provided by the underlying hardware.
 
-# 3 Functionality (WIP)
+# 3 Design
+
+## 3.1 Counters DB
+The contents of the drop counters will be added to Counters DB by the port stat flex counters.
+
+## 3.2 Config DB
+We'll add a new table to Config DB to save counters that have been configured by the user.
+
+### 3.2.1 DROP_COUNTER Table
+Example:
+```
+{
+    "DROP_COUNTER": {
+        "LEGAL_RX_DROPS": {
+            "offset": "0",
+            "type": "ingress",
+            "reasons": [
+                SAI_PORT_IN_DROP_REASON_SMAC_EQUALS_DMAC,
+                SAI_PORT_IN_DROP_REASON_INGRESS_VLAN_FILTER
+            ]
+        },
+        "LEGAL_TX_DROPS": {
+            "offset": "1",
+            "type": "egress",
+            "reasons": [
+                SAI_PORT_IN_DROP_REASON_EGRESS_VLAN_FILTER
+            ]
+        }
+    }
+}
+```
+
+## 3.3 State DB
+State DB will store information about:
+* Whether drop counters are available on this device
+* How many drop counters are available on this device
+* What drop reasons are supported on this device
+
+## 3.4 SWSS (WIP)
+Drop counter orch should be implemented with following functionality:
+* Handle drop counter configuration
+* Handle requests to clear drop counters
+
+## 3.5 CLI (WIP)
