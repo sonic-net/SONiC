@@ -211,6 +211,8 @@ The inactivity timeout period is configurable for the basic NAT entries.
 The dynamic port allocation from the pool is done in a random manner.
 When the pool is exhausted, new incoming connections are no longer NAT'ted in the hardware. In such scenario, the new incoming traffic are reported as NAT miss and dropped. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
 
+Dynamic NAT/NAPT is supported only for the traffic of IP protocol types TCP/UDP/ICMP. Other IP protocol type traffic are not dynamically NAT'ted but are dropped in the hardware.
+
 #### 2.2.3.1 Full Cone NAT
 When the first connection from a particular internal IP + L4 port is dynamically SNAT mapped to an external IP + L4 port, the SNAT and the corresponding DNAT entries are added for that mapping in the hardware.
 Subsequently any new connections from the same internal IP + L4 port to new destination end points use the same mapping. As well, traffic sent by any external host to this external IP + L4 port is NAT'ted back to the same internal IP + L4 port. This behavior model is referred to as Full Cone NAT.
@@ -1162,16 +1164,23 @@ N/A
 | config nat remove static basic {global-ip} {local-ip}                                   | Use this command to remove basic static NAT entry                  |
 | config nat add static {tcp \| udp} {global-ip} {global-port}  {local-ip} {local-port} -nat_type {snat/dnat} -twice_nat_id {value}    | Use this command to add a static NAPT entry                        |
 | config nat remove static {tcp \| udp} {global-ip} {global-port}  {local-ip} {local-port} | Use this command to remove a static NAPT entry                     |
+| config nat remove static all                                                             | Use this command to remove all the static NAT/NAPT configuration |
 | config nat add pool {pool-name} {global-ip-range} {global-port-range}                          | Use this command to create a NAT pool                              |
 | config nat remove pool {pool-name}                                                             | Use this command to remove a NAT pool                              |
+| config nat remove pools                                                             | Use this command to remove all the NAT pool configuration                              |
 | config nat add binding {binding-name} {pool-name} {acl-name} -nat_type {snat/dnat} -twice_nat_id {value}                                           | Create a binding between an ACL and a NAT pool                     |
 | config nat remove binding {binding-name}                                        | Remove a binding between an ACL and a NAT pool                     |
+| config nat remove bindings                                        | Use this command to remove all the NAT binding configuration                     |
 | config nat add interface {interface-name} {-nat_zone {zone-value}}                      | Use this command to configure the NAT zone value on an interface   |
 | config nat remove interface {interface-name}                                            | Use this command to remove the NAT configuration on the interface  |
-| config nat timeout {secs}                                                                  | Use this command to configure the Basic NAT entry aging timeout in seconds.    |
+| config nat remove interfaces                                             | Use this command to remove the NAT configuration on all the L3 interfaces  |
+| config nat set timeout {secs}                                                                  | Use this command to configure the Basic NAT entry aging timeout in seconds.    |
+| config nat reset timeout                                                                   | Use this command to reset the Basic NAT entry aging timeout to default value.    |
 | config nat feature {enable/disable}                                                            | Use this command to enable or disable the NAT feature.    |
-| config nat udp-timeout {secs}                                                                  | Use this command to configure the UDP NAT entry aging timeout in seconds.    |
-| config nat tcp-timeout {secs}                                                                  | Use this command to configure the TCP NAT entry aging timeout in seconds.    |
+| config nat set udp-timeout {secs}                                                                  | Use this command to configure the UDP NAT entry aging timeout in seconds.    |
+| config nat reset udp-timeout                                                                   | Use this command to reset the UDP NAT entry aging timeout to default value.    |
+| config nat set tcp-timeout {secs}                                                                  | Use this command to configure the TCP NAT entry aging timeout in seconds.    |
+| config nat reset tcp-timeout                                                                   | Use this command to reset the TCP NAT entry aging timeout to default value.    |
 
 ### 3.8.3 Show CLI commands
 |     Command           |                Description                                 |
@@ -1182,6 +1191,7 @@ N/A
 | show nat config pool  | Use this command to display the NAT pools configuration    |
 | show nat config bindings | Use this command to display the NAT bindings configuration |
 | show nat config globalvalues       | Use this command to display the global NAT configuration |
+| show nat config zones      | Use this command to display the L3 interface zone values |
 
 Example:
 ```
