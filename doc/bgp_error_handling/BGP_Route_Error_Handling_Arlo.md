@@ -123,7 +123,7 @@ Commands:
   disable  Administratively Disable BGP error-handling
   enable   Administratively Enable BGP error handling
   ```
-  When the error-handling is disabled, fpmsyncd will not subcribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. During system reload, config replay for this feature is possible when the docker routing config mode is unified and/or split.
+  When the error-handling is disabled, fpmsyncd will not subcribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. During system reload, config replay for this feature is possible when the docker routing config mode is unified or split.
   
 ### 3.7.3 Show Commands
 ```
