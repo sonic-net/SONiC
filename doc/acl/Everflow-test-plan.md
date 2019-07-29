@@ -8,6 +8,7 @@
       - [Egress mirroring](#egress-mirroring)
     - [Some existing areas not covered by the existing scripts](#some-existing-areas-not-covered-by-the-existing-scripts)
       - [ACL rule for matching "IN_PORTS"](#acl-rule-for-matching-in_ports)
+    - [ACL rule for matching ICMP type and code](#acl-rule-for-matching-icmp-type-and-code)
       - [IPv6 everflow](#ipv6-everflow)
     - [How to extend the testing](#how-to-extend-the-testing)
     - [Combine the existing test cases](#combine-the-existing-test-cases)
@@ -15,12 +16,12 @@
     - [ACL table configurations](#acl-table-configurations)
   - [Related **DUT** CLI commands](#related-dut-cli-commands)
     - [`sonic-cfggen` Advanced config_db updating tool](#sonic-cfggen-advanced-config_db-updating-tool)
-    - [`config acl add table <table_name> <table_size>`](#config-acl-add-table-table_name-table_size)
-    - [`config acl remove table <table_name>`](#config-acl-remove-table-table_name)
-    - [`config acl update` For configuring ACL rules](#config-acl-update-for-configuring-acl-rules)
-    - [`acl-loader`](#acl-loader)
-    - [`aclshow`](#aclshow)
-    - [`config mirror_session`](#config-mirror_session)
+    - [`config acl add table <table_name> <table_type>` Add ACL table](#config-acl-add-table-table_name-table_type-add-acl-table)
+    - [`config acl remove table <table_name>` Remove ACL table](#config-acl-remove-table-table_name-remove-acl-table)
+    - [`config acl update` Update ACL rules](#config-acl-update-update-acl-rules)
+    - [`acl-loader` Update ACL rules](#acl-loader-update-acl-rules)
+    - [`aclshow` Show ACL rule counters](#aclshow-show-acl-rule-counters)
+    - [`config mirror_session` Configure everflow mirror session](#config-mirror_session-configure-everflow-mirror-session)
 - [Test structure](#test-structure)
   - [Overall structure](#overall-structure)
   - [Prepare some variables for testing](#prepare-some-variables-for-testing)
@@ -324,6 +325,9 @@ This test plan needs to be extended to cover both the existing everflow function
 ##### ACL rule for matching "IN_PORTS"
 Now the SONiC ACL rules support matching "IN_PORTS". New ACL rule for matching "IN_PORTS" need to be added and covered.
 
+#### ACL rule for matching ICMP type and code
+The SONiC ACL rules also support matching ICMP type and code. New ACL rules for matching ICMP type and code need to be added and covered. The acl-loader utility does not support ICMP type and code yet. The sonic-cfggen tool will be used for directly loading such ACL rules to config_db.
+
 ##### IPv6 everflow
 The existing scripts only covered IPv6. IPv6 is also supported by SONiC now. The scripts need to be extended to cover IPv6 everflow too. To cover IPv6:
 * Everflow ACL table of type "MIRRORV6" needs to be defined and loaded during testing.
@@ -401,19 +405,19 @@ Some example usages:
 * `sonic-cfggen -d -v ACL_TABLE`: Dump current ACL_TABLE configuration from config_db.
 * `sonic-cfggen -d -v ACL_RULE`: Dump current ACL_RULE configuration from config_db.
 
-#### `config acl add table <table_name> <table_size>`
+#### `config acl add table <table_name> <table_type>` Add ACL table
 
 Usage: `config acl add table [OPTIONS] <table_name> <table_type>`
 
 This is the formal command for adding ACL table. ACL table added using this command is associated with all interfaces. If ACL table associated with a fraction of the interfaces is needed, the above `sonic-cfggen` method can be used. On versions that this formal command is not supported yet, the `sonic-cfggen` tool can be used.
 
-#### `config acl remove table <table_name>`
+#### `config acl remove table <table_name>` Remove ACL table
 
 Usage: `config acl remove table [OPTIONS] <table_name>`
 
 This is the formal command for removing ACL table.
 
-#### `config acl update` For configuring ACL rules
+#### `config acl update` Update ACL rules
 
 Usages:
 * `config acl update full [OPTIONS] FILE_NAME`
@@ -421,20 +425,22 @@ Usages:
 
 This is the formal command for loading ACL rules configuration from file specified by the FILE_NAME.
 
-#### `acl-loader`
+#### `acl-loader` Update ACL rules
 
 Under the hood, the `config acl update` command called this `acl-loader` tool to load ACL rules configurations. For example:
 * `acl-loader update full <acl_rule_configuration_json_file> [--session_name=<session_name> --mirror_stage=<ingress|egress>]`: Load acl rules specified in a json file to config_db.
 
 On versions that the formal `config acl update` is not supported yet, this `acl-loader` tool or the `sonic-cfggen` tool can be used.
 
+The acl-loader utility does not support load ACL rules matching ICMP type and code yet as the time of writing. The `sonic-cfggen` tool  will be used for loading ACL rules matching ICMP type&code.
 
-#### `aclshow`
+
+#### `aclshow` Show ACL rule counters
 
 This tool is for collecting ACL rule counters. For example:
 * `aclshow -a`
 
-#### `config mirror_session`
+#### `config mirror_session` Configure everflow mirror session
 
 This tool is for configuring everflow mirror session. For example:
 * `config mirror_session add <session_name> <src_ip> <dst_ip> <dscp> <ttl> [gre_type] [queue]`
@@ -463,14 +469,24 @@ Before run the sub-tests for each scenario, the scripts need to setup by loading
 There will be j2 template files for generating ACL tables and ACL rules configurations. Ansible playbook will generate ACL tables and ACL rules json configuration files to DUT based on these templates, switch capability and running topology. Then commands `sonic-cfggen` and `acl-loader` can be used for loading the configurations.
 
 Different sets of configuration files will be generated for different test scenarios:
-* IPv4
-  * ACL table: MIRROR, ingress; ACL rules, MIRROR_INGRESS_ACTION
-  * ACL table: MIRROR, ingress; ACL rules, MIRROR_EGRESS_ACTION
-  * ACL table: MIRROR, egress; ACL rules, MIRROR_EGRESS_ACTION
-* IPv6
-  * ACL table: MIRRORV6, ingress; ACL rules, MIRROR_INGRESS_ACTION
-  * ACL table: MIRRORV6, ingress; ACL rules, MIRROR_EGRESS_ACTION
-  * ACL table: MIRRORV6, egress; ACL rules, MIRROR_EGRESS_ACTION
+* IPv4 in IPv4
+  * ACL table: MIRROR, ingress; IPv4 ACL rules, MIRROR_INGRESS_ACTION; Mirror session IPv4 src & dst IP address
+  * ACL table: MIRROR, ingress; IPv4 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv4 src & dst IP address
+  * ACL table: MIRROR, egress; IPv4 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv4 src & dst IP address
+* IPv4 in IPv6
+  * ACL table: MIRROR, ingress; IPv4 ACL rules, MIRROR_INGRESS_ACTION; Mirror session IPv6 src & dst IP address
+  * ACL table: MIRROR, ingress; IPv4 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv6 src & dst IP address
+  * ACL table: MIRROR, egress; IPv4 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv6 src & dst IP address
+* IPv6 in IPv4
+  * ACL table: MIRRORV6, ingress; IPv6 ACL rules, MIRROR_INGRESS_ACTION; Mirror session IPv4 src & dst IP address
+  * ACL table: MIRRORV6, ingress; IPv6 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv4 src & dst IP address
+  * ACL table: MIRRORV6, egress; IPv6 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv4 src & dst IP address
+* IPv6 in IPv6
+  * ACL table: MIRRORV6, ingress; IPv6 ACL rules, MIRROR_INGRESS_ACTION; Mirror session IPv6 src & dst IP address
+  * ACL table: MIRRORV6, ingress; IPv6 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv6 src & dst IP address
+  * ACL table: MIRRORV6, egress; IPv6 ACL rules, MIRROR_EGRESS_ACTION; Mirror session IPv6 src & dst IP address
+
+Totally there are 12 scenarios to cover. To make the scripts flexible, command line options should be added for selecting which scenarios to run.
 
 #### ACL tables
 
@@ -481,7 +497,7 @@ Example ACL table configuration files to be generated for each scenario:
 ```
 {
     "ACL_TABLE": {
-        "EF_INGRESS2": {
+        "EF_INGRESS": {
             "policy_desc": "EVERFLOW ingress",
             "ports": [
                 "Ethernet100", "Ethernet104", "Ethernet92", "Ethernet96", "Ethernet84", "Ethernet88", "Ethernet76", "Ethernet80", "Ethernet108", "Ethernet112", "Ethernet64", "Ethernet60", "Ethernet52", "Ethernet48", "Ethernet44", "Ethernet40", "Ethernet36", "Ethernet120", "Ethernet116", "Ethernet56", "Ethernet124", "Ethernet72", "Ethernet68", "Ethernet24", "Ethernet20", "Ethernet16", "Ethernet12", "Ethernet8", "Ethernet4", "Ethernet0", "Ethernet32", "Ethernet28"
@@ -511,7 +527,7 @@ Example ACL table configuration files to be generated for each scenario:
 ```
 {
     "ACL_TABLE": {
-        "EFV6_INGRESS2": {
+        "EFV6_INGRESS": {
             "policy_desc": "EVERFLOW IPv6 ingress",
             "ports": [
                 "Ethernet100", "Ethernet104", "Ethernet92", "Ethernet96", "Ethernet84", "Ethernet88", "Ethernet76", "Ethernet80", "Ethernet108", "Ethernet112", "Ethernet64", "Ethernet60", "Ethernet52", "Ethernet48", "Ethernet44", "Ethernet40", "Ethernet36", "Ethernet120", "Ethernet116", "Ethernet56", "Ethernet124", "Ethernet72", "Ethernet68", "Ethernet24", "Ethernet20", "Ethernet16", "Ethernet12", "Ethernet8", "Ethernet4", "Ethernet0", "Ethernet32", "Ethernet28"
@@ -540,31 +556,34 @@ Example ACL table configuration files to be generated for each scenario:
 
 #### Mirror sessions
 
-The script will configure mirror session using `config mirror_session`.
+For each scenario, a mirror session is required. Totally two types of mirror sessions are required for all the scenarios:
+* Mirror session using IPv4 source and destination IP addresses.
+* Mirror session using IPv6 source and destination IP addresses.
 
-Add mirror_session for IPv4 testing:
+The script will configure appropriate mirror session using `config mirror_session` while testing each of the scenario.
+
+Add mirror_session using IPv4 source and destination IP addresses:
 ```
-$ config mirror_session add session_1 1.1.1.1 2.2.2.2 8 64 0x6558 0
+$ config mirror_session add session_v4 1.1.1.1 2.2.2.2 8 64 0x6558 0
 $ acl-loader show session
-Name       Status    SRC IP     DST IP    GRE     DSCP    TTL    Queue
----------  --------  ---------  --------  ------  ------  -----  -------
-session_1  inactive  1.1.1.1    2.2.2.2   0x6558  8       64     0
+Name        Status    SRC IP     DST IP    GRE     DSCP    TTL    Queue
+----------  --------  ---------  --------  ------  ------  -----  -------
+session_v4  inactive  1.1.1.1    2.2.2.2   0x6558  8       64     0
 ```
 
-Add mirror_session for IPv6 testing:
+Add mirror_session using IPv6 source and destination IP addresses:
 ```
-$ config mirror_session add session_2 2000::1:1:1:1 2000::2:2:2:2 8 64 0x6558 0
+$ config mirror_session add session_v6 2000::1:1:1:1 2000::2:2:2:2 8 64 0x6558 0
 $ acl-loader show session
-Name       Status    SRC IP          DST IP          GRE     DSCP    TTL    Queue
----------  --------  -------------   -------------   ------  ------  -----  -------
-session_2  inactive  2000::1:1:1:1   2000::2:2:2:2   0x6558  8       64     0
+Name        Status    SRC IP          DST IP          GRE     DSCP    TTL    Queue
+----------  --------  -------------   -------------   ------  ------  -----  -------
+session_v6  inactive  2000::1:1:1:1   2000::2:2:2:2   0x6558  8       64     0
 ```
 
 #### ACL rules
 
 Generate different sets of ACL rules from template. Load the ACL rules using below command:
 `acl-loader update full <acl_rule_configuration_json_file> --session_name=<mirror_session_name> --mirror_stage=<ingress|egress>`
-
 
 For IPv4 testing, the ACL rules template:
 ```
@@ -936,68 +955,104 @@ For IPv6 testing, the ACL rules template:
 }
 ```
 
-For example, if load ACL rules for IPv4 everflow egress and MIRROR_EGRESS_ACTION, they should like below in config_db:
+For example, if loaded IPv4 ACL rules into ACL table EF_EGRESS, used MIRROR_EGRESS_ACTION, used mirror session session_v4, they should be like below in config_db:
 ```
 {
     "ACL_RULE": {
         "EF_EGRESS|RULE_1": {
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9999",
             "SRC_IP": "20.0.0.10/32"
         },
         "EF_EGRESS|RULE_2": {
             "DST_IP": "30.0.0.10/32",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9998"
         },
         "EF_EGRESS|RULE_3": {
             "L4_SRC_PORT": "4661",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9997"
         },
         "EF_EGRESS|RULE_4": {
             "L4_DST_PORT": "4661",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9996"
         },
         "EF_EGRESS|RULE_5": {
             "ETHER_TYPE": "4660",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9995"
         },
         "EF_EGRESS|RULE_6": {
             "IP_PROTOCOL": "126",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9994"
         },
         "EF_EGRESS|RULE_7": {
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9993",
             "TCP_FLAGS": "0x12/0x12"
         },
         "EF_EGRESS|RULE_8": {
             "L4_SRC_PORT_RANGE": "4672-4681",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9992"
         },
         "EF_EGRESS|RULE_9": {
             "L4_DST_PORT_RANGE": "4672-4681",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9991"
         },
         "EF_EGRESS|RULE_10": {
             "DSCP": "51",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9990"
         },
         "EF_EGRESS|RULE_11": {
             "IN_PORTS": "Ethernet4,Ethernet8",
-            "MIRROR_EGRESS_ACTION": "session_1",
+            "MIRROR_EGRESS_ACTION": "session_v4",
             "PRIORITY": "9989"
         }
     }
 }
 ```
+
+To cover ACL rule matching ICMP type and code, additional ACL configuration is required. Since the acl-loader utility does not support parsing and loading ACL rules matching ICMP type&code, the advanced configuration tool `sonic-cfggen` will be used.
+
+Firstly, scripts need to prepare json file for ACL rules matching ICMP type&code from j2 template. To cover ICMPv4 and ICMPv6, two templates are required.
+
+For matching ICMPv4:
+```
+{
+    "ACL_RULE": {
+        "{{ ACL_TABLE_NAME }}|RULE_12": {
+            "MIRROR_EGRESS_ACTION": "{{ MIRROR_SESSION_NAME }}",
+            "PRIORITY": "9988",
+            "ICMP_TYPE": "8",
+            "ICMP_CODE": "0"
+        }
+}
+```
+
+For matching ICMPv6:
+```
+{
+    "ACL_RULE": {
+        "{{ ACL_TABLE_NAME }}|RULE_12": {
+            "MIRROR_EGRESS_ACTION": "{{ MIRROR_SESSION_NAME }}",
+            "PRIORITY": "9988",
+            "ICMPV6_TYPE": "128",
+            "ICMPV6_CODE": "0"
+        }
+}
+```
+
+Then use the `sonic-cfggen` tool to dump the current ACL rules configuration from config_db:
+`$ sonic-cfggen -d -v ACL_RULE`.
+
+Generate appropriate ICMP ACL rule configuration json file from j2 templates according to current testing scenario. Combine the dumped ACL rules with the ICMP ACL rules. Load the combined ACL rules into config_db using `sonic-cfggen` again:
+`$ sonic-cfggen -j <combined_acl_rules_json_file> --write-to-db`
 
 ### Run test
 
