@@ -153,7 +153,7 @@ The requirements for NAT are:
 
 5.1 Should be able to traceroute from internal host to an outside host via NAPT.
 
-5.2 Provide support for translation statistics per zone and per NAT flow.
+5.2 Provide support for NAT translation statistics.
 
 5.3 Ability to clear the NAT translation table entries.
 
@@ -1469,7 +1469,7 @@ The Unit test case one-liners are as below:
 | 9  | Verify that Orchagent is removing the inactive dynamic entries from the connection tracking table in the kernel.                                                                                                                      |
 | 10 | Verify that the NAT entries are programmed in the hardware.                                                                                                                                                             |
 | 11 | Verify that the translation is happening the hardware for the entries programmed by sending the traffic.                                                                                                                              |
-| 12 | Verify in the hardware that the NAT translation counters for translations and discards are incrementing properly.                                                                                                                           |
+| 12 | Verify in the hardware that the NAT translation statistics for packets and bytes are incrementing properly.                                                                                                                           |
 | 13 | Verify that the NAT misses are reported by the hardware by sending new source outbound traffic and check the hardware counters.                                                                                                       |
 | 14 | Verify that a dynamic SNAT entry creation is notified via netlink to natsyncd when a new source outbound traffic is notified as NAT miss by hardware.                                                                                                                      |
 | 15 | Verify that IP protocol type is matched in translation. For eg only the tcp traffic is port translated in the inbound direction by sending both udp and tcp flows when only static tcp nat is configured.                             |
@@ -1477,7 +1477,7 @@ The Unit test case one-liners are as below:
 | 17 | Verify that the active NAT entries are not timed out by the Orchagent.                                                                                                                                                                |
 | 18 | Verify that the static NAT entries are not timed out though they are inactive.                                                                                                                                                        |
 | 19 | Verify the inactivity timeout with different configured timeouts.                                                                                                                                                                     |
-| 20 | Verify that the NAT zone configuration (on Port and VLAN tables) on the outbound interfaces are picked up by NatMgrd and propagated to APP_DB.                                                                          |
+| 20 | Verify that the NAT zone configuration (on L3 interface) are picked up by NatMgrd and propagated to APP_DB.                                                                          |
 | 21 | Verify the outbound NAT translations to be working with traffic on VLAN or Ethernet or Port Channel L3 interfaces.                                                                                                                          |
 | 22 | Verify that the dynamic NAPT translations are applied only on the traffic permitted by the ACL in the binding and not applied on the traffic that are 'do-no-nat'.                                                                    |
 | 23 | Verify that the static NAPT entries are successfuly created in CONFIG_DB.                                                                                                                                                              |
@@ -1488,31 +1488,30 @@ The Unit test case one-liners are as below:
 | 28 | Verify that the NAT translations and functionality works only if the NAT feature is enabled globally.                                                                                                                                                       |
 | 29 | Verify the NAT entries are displayed in 'show nat translations' command output.                                                                                                                                                       |
 | 30 | Verify that the dynamic NAT entries are cleared in APP_DB conntrack tables in kernel and in ASIC_DB after clear command using 'sonic-clear nat translations'.                                                                                                                                 |
-| 31 | Verify that the statistics are displaying the NAT translations packets and bytes per entry.                                                                                                                                                                    |
-| 32 | Verify that the statistics are displaying the NAT translations and discards per zone.                                                                                                                                                                   |
-| 33 | Verify that the statistics are cleared on issuing the 'sonic-clear nat statistics' command.                                                                                                                                           |
-| 34 | Stop NAT docker and verify that any new dynamic NAT/NAPT entries are no longer added to hardware.                                                                                                                                           |
-| 35 | Start NAT docker and verify that the static NAT entries from CONFIG_DB are added in the kernel APP_DB ASIC_DB and any new dynamic entries are added to hardware.                                                                                                                        |
-| 36 | Verify that the traffic flows that are NAT translated are not affected during warm restart. Zero packet loss and succesful reconcilation.                                                                                             |
-| 37 | Verify that the dynamic NAT translations are restored to APP_DB and the kernel after warm reboot.                                                                                                                                     |
-| 38 | Send up to 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
-| 39 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are not created.                                       |
-| 40 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries.                                                                                                 |
-| 41 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
-| 42 | Any dynamic memory allocation failures are handled gracefully.                                  |
-| 43 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
-| 44 | Error log when errors are seen in receiving netlink messages from conntrack by NatSyncd (for the dynamic NAPT entry notifications from the kernel).                                                                                   |
-| 45 | Error messages are logged if NatMrgd gets errors writing to APP_DB.                                                                                                                                                                    |
-| 46 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB.                                                                                                                                                              |
-| 47 | Error messages are logged if Syncd gets errors when writing to COUNTERS_DB.                                                                                                                                                            |
-| 48 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3). The queue assignment should be lower than protocol queues and higher than broadcast packets.             |
-| 49 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps).                                                                                                                                      |
-| 50 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
-| 51 | Verify the tracing of natmgrd at different log levels.                                                                                                                                                                                 |
-| 52 | Verify the tracing of natorch at different log levels.                                                                                                                                                                                |
-| 53 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
-| 54 | Verify NAT happens on ICMP traffic like ping, traceroute traffic.                                                                                                                               |
-| 55 | Verify NAT happens on TCP traffic like ssh, http, sftp and UDP traffic like TFTP.                                                                                                                               |
+| 31 | Verify that the statistics are displaying the NAT translations packets and bytes for all entries.                                                                                                                                                                    |
+| 32 | Verify that the statistics are cleared on issuing the 'sonic-clear nat statistics' command.                                                                                                                                           |
+| 33 | Stop NAT docker and verify that any new dynamic NAT/NAPT entries are no longer added to hardware.                                                                                                                                           |
+| 34 | Start NAT docker and verify that the static NAT entries from CONFIG_DB are added in the kernel APP_DB ASIC_DB and any new dynamic entries are added to hardware.                                                                                                                        |
+| 35 | Verify that the traffic flows that are NAT translated are not affected during warm restart. Zero packet loss and succesful reconcilation.                                                                                             |
+| 36 | Verify that the dynamic NAT translations are restored to APP_DB and the kernel after warm reboot.                                                                                                                                     |
+| 37 | Send up to 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
+| 38 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are not created.                                       |
+| 39 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries.                                                                                                 |
+| 40 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
+| 41 | Any dynamic memory allocation failures are handled gracefully.                                  |
+| 42 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
+| 43 | Error log when errors are seen in receiving netlink messages from conntrack by NatSyncd (for the dynamic NAPT entry notifications from the kernel).                                                                                   |
+| 44 | Error messages are logged if NatMrgd gets errors writing to APP_DB.                                                                                                                                                                    |
+| 45 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB.                                                                                                                                                              |
+| 46 | Error messages are logged if Syncd gets errors when writing to COUNTERS_DB.                                                                                                                                                            |
+| 47 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3). The queue assignment should be lower than protocol queues and higher than broadcast packets.             |
+| 48 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps).                                                                                                                                      |
+| 49 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
+| 50 | Verify the tracing of natmgrd at different log levels.                                                                                                                                                                                 |
+| 51 | Verify the tracing of natorch at different log levels.                                                                                                                                                                                |
+| 52 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
+| 53 | Verify NAT happens on ICMP traffic like ping, traceroute traffic.                                                                                                                               |
+| 54 | Verify NAT happens on TCP traffic like ssh, telnet and UDP traffic like TFTP.                                                                                                                               |
 
 
 # 9 Unsupported features
