@@ -63,15 +63,42 @@ Users must be able to use all counters and drop reasons provided by the underlyi
 The contents of the drop counters will be added to Counters DB by flex counters.
 
 ## 3.2 Config DB
-We'll add a new table to Config DB to save counters that have been configured by the user.
+We'll add two new tables to Config DB:
+* DEBUG_COUNTERS to track which counters have been configured and for what purpose
+    * At this point the only supported type is PACKET_DROP
+* PACKET_DROP_COUNTER to save drop counters that have been configured by the user
 
-### 3.2.1 DROP_COUNTER Table
+### 3.2.1 DEBUG_COUNTER Table
 Example:
 ```
 {
-    "DROP_COUNTER": {
+    "DEBUG_COUNTER": {
+        "DEBUG_0": {
+            "configured": true,
+            "type": "PACKET_DROP"
+        },
+        "DEBUG_1": {
+            "configured": true,
+            "type": "PACKET_DROP"
+        },
+        "DEBUG_2": {
+            "configured": true,
+            "type": "PACKET_DROP"
+        },
+        "DEBUG_3": {
+            "configured": false
+        }
+    }
+}
+```
+
+### 3.2.2 PACKET_DROP_COUNTER Table
+Example:
+```
+{
+    "PACKET_DROP_COUNTER": {
         "LEGAL_RX_DROPS": {
-            "offset": "0",
+            "counter": "DEBUG_0",
             "type": "ingress",
             "reasons": [
                 SAI_PORT_IN_DROP_REASON_SMAC_EQUALS_DMAC,
@@ -79,7 +106,7 @@ Example:
             ]
         },
         "LEGAL_TX_DROPS": {
-            "offset": "1",
+            "counter": "DEBUG_1",
             "type": "egress",
             "reasons": [
                 SAI_PORT_IN_DROP_REASON_EGRESS_VLAN_FILTER
@@ -179,4 +206,4 @@ Deleting EXAMPLE...
 DONE!
 ```
 
-# 4 Flows
+# 4 Flows (WIP)
