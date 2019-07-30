@@ -5,9 +5,41 @@
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
+* [List of Figures](#list-of-figures)
+* [Revision](#revision)
+* [About this Manual](#about-this-manual)
+* [Scope](#scope)
+* [Defintions/Abbreviation](#definitions/abbreviation)
+* [1 Overview](#1-overview)
+    - [1.1 Types of Drop Counters](#1.1-types-of-drop-counters)
+* [2 Requirements](#2-requirements)
+    - [2.1 Functional Requirements](#2.1-functional-requirements)
+    - [2.2 Configuration and Management Requirements](#2.2-configuration-and-management-requirements)
+    - [2.3 Scalability Requirements](#2.3-scalability-requirements)
+* [3 Design](#3-design)
+    - [3.1 Counters DB](#3.1-counters-db)
+    - [3.2 Config DB](#3.2-config-db)
+        - [3.2.1 DEBUG_COUNTER Table](#3.2.1-debug_counter-table)
+        - [3.2.2 PACKET_DROP_COUNTER Table](#3.2.2-packet_drop_counter-table)
+    - [3.3 State DB](#3.3-state-db)
+    - [3.4 SWSS](#3.4-swss)
+    - [3.5 CLI](#3.5-CLI)
+        - [3.5.1 CLI show](#3.5.1-cli-show)
+        - [3.5.2 CLI clear](#3.5.2-cli-clear)
+        - [3.5.3 CLI configuration](#3.5.3-cli-configuration)
+* [4 Flows](#4-flows)
+    - [4.1 General Flow](#4.1-general-flow)
+* [5 Unit Tests](#5-unit-tests)
+* [6 Open Questions](#6-open-questions)
+
+
 
 # List of Tables
-Placeholder
+* [Table 1: Abbreviations](#definitions/abbreviation)
+* [Table 2: Types of Drop Counters](#1.1-types-of-drop-counters)
+
+# List of Figures
+* [Figure 1: General Flow](#4.1-general-flow)
 
 # Revision
 | Rev | Date     | Author      | Change Description |
@@ -21,7 +53,10 @@ This document provides an overview of the implementation of configurable packet 
 This document describes the high level design of the configurable drop counter feature.
 
 # Definitions/Abbreviation
-Placeholder
+| Abbreviation | Description     |
+|--------------|-----------------|
+| RX           | Receive/ingress |
+| TX           | Transmit/egress |
 
 # 1 Overview
 The goal of this feature is to provide better packet drop visibility in SONiC by providing a mechanism to count and classify packet drops that occur due to different reasons. Because different types of packet drops are important to track in different use cases, it is also key for this feature to be easily configurable.
@@ -101,15 +136,15 @@ Example:
             "counter": "DEBUG_0",
             "type": "ingress",
             "reasons": [
-                SAI_PORT_IN_DROP_REASON_SMAC_EQUALS_DMAC,
-                SAI_PORT_IN_DROP_REASON_INGRESS_VLAN_FILTER
+                SMAC_EQUALS_DMAC,
+                INGRESS_VLAN_FILTER
             ]
         },
         "LEGAL_TX_DROPS": {
             "counter": "DEBUG_1",
             "type": "egress",
             "reasons": [
-                SAI_PORT_IN_DROP_REASON_EGRESS_VLAN_FILTER
+                EGRESS_VLAN_FILTER
             ]
         }
     }
@@ -120,6 +155,7 @@ Example:
 State DB will store information about:
 * Whether drop counters are available on this device
 * How many drop counters are available on this device
+* What drop reasons are supported by this device
 
 ## 3.4 SWSS
 Portorch should be extended to support a variable number of SAI_PORT_STAT_IN/OUT_DROP_REASON counters.
@@ -206,23 +242,25 @@ Deleting EXAMPLE...
 DONE!
 ```
 
-# 4 Flows (WIP)
+# 4 Flows
 ## 4.1 General Flow
 ![alt text](./drop_counters_general_flow.png)
 The overall workflow is shown above in figure 1.
 
 (1) Users configure drop counters using the CLI. Configurations are stored in the PACKET_DROP_COUNTER Config DB table.
 
-(2&3&4) The Debug Counts orchagent subscribes to the Config DB table. Once the configuration changes, the orchagent uses the debug SAI API to configure the drop counters. It also publishes counter configs to the Flex Counter DB.
+(2) The debug counts orchagent subscribes to the Config DB table. Once the configuration changes, the orchagent uses the debug SAI API to configure the drop counters.
 
-(5&6&7) Syncd subscribes to Flex Counter DB and periodically queries the ASIC counters. Those values are written to the Counters DB.
+(3) The debug counts orchagent publishes counter configurations to Flex Counter DB.
 
-(8) CLI queries the Counters DB to satisfy user requests.
+(4) Syncd subscribes to Flex Counter DB and sets up flex counters. Flex counters periodically query ASIC counters and publishes data to Counters DB.
 
-**TODO:** add state DB to flow diagram, simplify some of the connections.
+(5) CLI uses counters DB to satisfy CLI requests.
+
+(6) (not shown) CLI uses State DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
 
 # 5 Unit Tests
 A separate test plan will be uploaded and reviewed by the community.
 
 # 6 Open Questions
-None at this time.
+* There's still some debate in the SAI proposal over whether counter indices will be managed by the SAI or the user. This doc is currently written as if the user is managing the indices, but if this changes then the design (specifically, the Config DB schema) will need to be revised.
