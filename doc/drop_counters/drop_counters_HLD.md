@@ -35,7 +35,7 @@
 
 
 # List of Tables
-* [Table 1: Abbreviations](#definitions/abbreviation)
+* [Table 1: Abbreviations](#definitionsabbreviation)
 * [Table 2: Types of Drop Counters](#11-types-of-drop-counters)
 
 # List of Figures
@@ -44,7 +44,7 @@
 # Revision
 | Rev | Date     | Author      | Change Description |
 |:---:|:--------:|:-----------:|--------------------|
-| 0.1 | 07/24/19 | Danny Allen | Initial version    |
+| 0.1 | 07/30/19 | Danny Allen | Initial version    |
 
 # About this Manual
 This document provides an overview of the implementation of configurable packet drop counters in SONiC.
@@ -99,7 +99,7 @@ The contents of the drop counters will be added to Counters DB by flex counters.
 
 ## 3.2 Config DB
 We'll add two new tables to Config DB:
-* DEBUG_COUNTERS to track which counters have been configured and for what purpose
+* DEBUG_COUNTER to track which counters have been configured and for what purpose
     * At this point the only supported type is PACKET_DROP
 * PACKET_DROP_COUNTER to save drop counters that have been configured by the user
 
@@ -138,14 +138,16 @@ Example:
             "reasons": [
                 SMAC_EQUALS_DMAC,
                 INGRESS_VLAN_FILTER
-            ]
+            ],
+            "desc": "Legal RX pipeline drops"
         },
         "LEGAL_TX_DROPS": {
             "counter": "DEBUG_1",
             "type": "egress",
             "reasons": [
                 EGRESS_VLAN_FILTER
-            ]
+            ],
+            "desc": "Legal TX pipeline drops"
         }
     }
 }
@@ -263,4 +265,4 @@ The overall workflow is shown above in figure 1.
 A separate test plan will be uploaded and reviewed by the community.
 
 # 6 Open Questions
-* There's still some debate in the SAI proposal over whether counter indices will be managed by the SAI or the user. This doc is currently written as if the user is managing the indices, but if this changes then the design (specifically, the Config DB schema) will need to be revised.
+* There's still an open question in the SAI proposal over whether counter indices will be managed by the SAI or the user. This doc is currently written as if the user is managing the indices, but if this changes then the design (specifically, the Config DB schema) will need to be revised.
