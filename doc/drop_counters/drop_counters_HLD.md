@@ -21,7 +21,7 @@
     - [3.2 Config DB](#32-config-db)
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
         - [3.2.2 PACKET_DROP_COUNTER Table](#322-packet_drop_counter-table)
-    - [3.3 State DB](#33-state-db)
+    - [3.3 App DB](#33-app-db)
     - [3.4 SWSS](#34-swss)
     - [3.5 CLI](#35-CLI)
         - [3.5.1 CLI show](#351-cli-show)
@@ -77,8 +77,7 @@ The goal of this feature is to provide better packet drop visibility in SONiC by
 
 ## 2.1 Functional Requirements
 1. Users can configure debug counters to track one or more drop reason(s).
-    1. Supported ingress drop reasons are specified in sai_port_in_drop_reason_t.
-    2. Supported egress drop reasons are specified in sai_port_out_drop_reason_t.
+    1. Supported drop reasons will be available in App DB
 2. Users can access debug counter information via a CLI command
     1. Users can see what types of drops each counter contains
     2. Users can assign aliases to counters
@@ -153,8 +152,8 @@ Example:
 }
 ```
 
-## 3.3 State DB
-State DB will store information about:
+## 3.3 App DB
+App DB will store information about:
 * Whether drop counters are available on this device
 * How many drop counters are available on this device
 * What drop reasons are supported by this device
@@ -259,7 +258,7 @@ The overall workflow is shown above in figure 1.
 
 (5) CLI uses counters DB to satisfy CLI requests.
 
-(6) (not shown) CLI uses State DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
+(6) (not shown) CLI uses App DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
 
 # 5 Unit Tests
 A separate test plan will be uploaded and reviewed by the community.
