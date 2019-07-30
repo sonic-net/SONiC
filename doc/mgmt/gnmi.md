@@ -34,16 +34,23 @@ Get:
 
 Set:
 ----
--Replace
+Replace:
+--------
     `./gnmi_set -replace /openconfig-acl:acl/:@./test/01_create_MyACL1_MyACL2.json -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty`
--Delete
+Delete:
+-------
     `./gnmi_set -delete /openconfig-acl:acl/ -target_addr 127.0.0.1:8080 -insecure`
 
 Subscribe:
 ----------
--Streaming sample based
-`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type s -streaming_sample_interval 3000000000 -streaming_type 2 -q /openconfig-acl:acl/ -v 0 -target TRANSLIB`
--Poll based
-`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type p -polling_interval 1s -count 5 -q /openconfig-acl:acl/ -v 0 -target TRANSLIB`
--Once based
-`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type o -q /openconfig-acl:acl/ -v 0 -target TRANSLIB`
+Streaming sample based:
+-----------------------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type s -streaming_sample_interval 3000000000 -streaming_type 2 -q /openconfig-acl:acl/ -v 0 -target OC-YANG`
+
+Poll based:
+-----------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type p -polling_interval 1s -count 5 -q /openconfig-acl:acl/ -v 0 -target OC-YANG`
+
+Once based:
+-----------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type o -q /openconfig-acl:acl/ -v 0 -target OC-YANG`
