@@ -17,11 +17,11 @@ As long as we are using ```--no-cache --squash``` to build docker images there i
 e.g. SNMP docker image:
 
 ```Dockerfile
-{% if docker_snmp_sv2_debs.strip() -%}
+{\% if docker_snmp_sv2_debs.strip() -\%}
 # Copy locally-built Debian package dependencies
-{%- for deb in docker_snmp_sv2_debs.split(' ') %}
+{\%- for deb in docker_snmp_sv2_debs.split(' ') \%}
 COPY debs/{{ deb }} /debs/
-{%- endfor %}
+{\%- endfor \%}
 
 ```
 Renders to:
