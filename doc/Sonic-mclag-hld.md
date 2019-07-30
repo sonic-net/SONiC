@@ -15,7 +15,7 @@
   - [5.5. ICCP Heartbeat sanity check](#55-ICCP-Heartbeat-sanity-check)
   - [5.6. ICCP consistence check](#56-ICCP-consistence-check)
 - [6. Typical configurations](#6-Typical-configurations)
-  - [6.1. Syntax of configuration](#61-Syntax-of-configuration)
+  - [6.1. Configuration syntax](#61-Configuration-syntax)
   - [6.2. MC-LAG L3 scenario configuration](#62-MC-LAG-L3-scenario-configuration)
   - [6.3. MC-LAG L2 scenario configuration](#63-MC-LAG-L2-scenario-configuration)
 - [7. Typical Data diagram for MCLAG](#7-Typical-Data-diagram-for-MCLAG)
@@ -56,6 +56,7 @@
   - [9.13. vnetorch changes](#913-vnetorch-changes)
   - [9.14. warm-reboot consideration](#914-warm-reboot-consideration)
   - [9.15. teammgr changes](#915-teammgr-changes)
+- [10. Test](#10-Test)
 
 <!-- /TOC -->
 
@@ -326,7 +327,7 @@ Diagram 7.2.2
 - In the L2 scenario, MC-LAG enabled port and peer link are in the same VLAN. When both ports are up, BUM may be flooded before the MAC is learned.
 - To prevent CE from receiving duplicated traffic, peer link port must be isolated from MC-LAG enabled port. In the diagram of 7.2.1, if PEER2 receives traffic from PEER1 via PortChannel0002, the traffic will not be forwarded to PortChannel0001. The following ASIC functions achieve this goal.
 - In Linux kernel, ebtable is used to isolate peer link port from MC-LAG port. The Linux command is like ‘ebtables –A FORWARD -i PortChannel0002 -o PortChannel0001 -j DROP’. PortChannel0002 is the peer-link input interface, and PortChannel0001 is the output interface.
-- In ASIC, ACL rule is used to isolate peer link from MC-LAG port. The rule is when the traffic is received from peer link and the output port is MC-LAG member port, the traffic must be dropped. It’s suggested to use isolation group, although isolation group is defined in SAI, but Orchagent does not support it currently. Also isolation group may not be supported by all ASIC vendors. Using ACL is a more generic way to support the isolation function. We will refine this function to isolation group later if it’s required.
+- In ASIC, ACL rule is used to isolate peer link from MC-LAG port. The rule is when the traffic is received from peer link and the output port is MC-LAG member port, the traffic must be dropped. For the chips whose ACL rule can't support out-port, there is a workaround in SAI layer by combination of ingress acl and egress acl. An alternative approach is to use isolation group. But The approach of isolation group still has some weakness, Firstly isolation group can't support tunnel-port and orchagent has not isolation group logic currently. Secondly isolation group may not be supported by all ASIC vendors. Using ACL is a more generic way to support the isolation function. We will refine this function to use isolation group later if it’s required.
 - In theory a scenario may happen when the ACL installation process is slower than the port operation event notification. When the port is up in one peer, but the ACL is not installed in the other peer yet, the packet may be flooded over the peer link and the CE may receive the duplicated packet. Handling this scenario will be enhanced in future release.
 
 ## 7.3. Peer connection down
@@ -635,7 +636,7 @@ Adding the following logics:
 ## 9.14. warm-reboot consideration
 
 - Teamd saves the last LACP PDU received from LAG peer in one file per port in directory '/var/warmboot/teamd/'. During warm-reboot, the routes or MACs in ASIC are not changed.
-- In MC-LAG scenario, two peer devices form one end point of a LAG, these two devices must have the same MAC address since it’s used for LACP. During warm-reboot, this MAC must not be changed. For this reason, if the last reboot is warm-reboot, when some ports are added to the existing portchannel, before the first LACP PDU is sent out via those newly added ports, teamd gets the MAC from the saved LACP PDU and updates the port MAC accordingly.
+- In MC-LAG scenario, two peer devices form one end point of a LAG, these two devices must have the same MAC address since it’s used for LACP. During warm-reboot, this MAC must not be changed. For this reason, if the last reboot is warm-reboot, when creating new portchannel, before the first LACP PDU is sent out via those newly added ports, teamd gets the MAC from the saved LACP PDU and updates the port MAC accordingly.
 - During warm-reboot, a USR1 signal is sent to ICCP. Then ICCP send a message to the peer to notify that this device will be warm-rebooted.
 - During warm-reboot, ICCP is also rebooted. During ICCP warm-reboot, ICCP doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual in the rebooting device.
 - During warm-reboot, the peer connection may be lost because of the keepalive timeout. In this scenario, during a defined time window, the remote peer doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual.
