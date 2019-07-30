@@ -207,3 +207,22 @@ DONE!
 ```
 
 # 4 Flows (WIP)
+## 4.1 General Flow
+![alt text](./drop_counters_general_flow.png)
+The overall workflow is shown above in figure 1.
+
+(1) Users configure drop counters using the CLI. Configurations are stored in the PACKET_DROP_COUNTER Config DB table.
+
+(2&3&4) The Debug Counts orchagent subscribes to the Config DB table. Once the configuration changes, the orchagent uses the debug SAI API to configure the drop counters. It also publishes counter configs to the Flex Counter DB.
+
+(5&6&7) Syncd subscribes to Flex Counter DB and periodically queries the ASIC counters. Those values are written to the Counters DB.
+
+(8) CLI queries the Counters DB to satisfy user requests.
+
+**TODO:** add state DB to flow diagram, simplify some of the connections.
+
+# 5 Unit Tests
+A separate test plan will be uploaded and reviewed by the community.
+
+# 6 Open Questions
+None at this time.
