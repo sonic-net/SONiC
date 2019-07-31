@@ -29,8 +29,9 @@
         - [3.5.3 CLI configuration](#353-cli-configuration)
 * [4 Flows](#4-flows)
     - [4.1 General Flow](#41-general-flow)
-* [5 Unit Tests](#5-unit-tests)
-* [6 Open Questions](#6-open-questions)
+* [5 Warm Reboot Support](#5-warm-reboot-support)
+* [6 Unit Tests](#6-unit-tests)
+* [7 Open Questions](#7-open-questions)
 
 
 
@@ -97,10 +98,11 @@ Users must be able to use all counters and drop reasons provided by the underlyi
 The contents of the drop counters will be added to Counters DB by flex counters.
 
 ## 3.2 Config DB
-We'll add two new tables to Config DB:
+We'll add three new tables to Config DB:
 * DEBUG_COUNTER to track which counters have been configured and for what purpose
     * At this point the only supported type is PACKET_DROP
 * PACKET_DROP_COUNTER to save drop counters that have been configured by the user
+* PACKET_DROP_COUNTER_RULE to save rules that are associated with user configured drop counters
 
 ### 3.2.1 DEBUG_COUNTER Table
 Example:
@@ -134,20 +136,25 @@ Example:
         "LEGAL_RX_DROPS": {
             "counter": "DEBUG_0",
             "type": "ingress",
-            "reasons": [
-                SMAC_EQUALS_DMAC,
-                INGRESS_VLAN_FILTER
-            ],
             "desc": "Legal RX pipeline drops"
         },
         "LEGAL_TX_DROPS": {
             "counter": "DEBUG_1",
             "type": "egress",
-            "reasons": [
-                EGRESS_VLAN_FILTER
-            ],
             "desc": "Legal TX pipeline drops"
         }
+    }
+}
+```
+
+### 3.2.3 PACKET_DROP_COUNTER_RULE Table
+Example:
+```
+{
+    "PACKET_DROP_COUNTER_RULE": {
+        "LEGAL_RX_DROPS|SMAC_EQUALS_DMAC": {},
+        "LEGAL_RX_DROPS|INGRESS_VLAN_FILTER": {},
+        "LEGAL_TX_DROPS|EGRESS_VLAN_FILTER": {}
     }
 }
 ```
@@ -166,7 +173,7 @@ Debugcountsorch should be implemented to handle debug counter creation and confi
 ## 3.5 CLI
 The CLI tool will provide the following functionality:
 * Show drop counts: ```show drops```
-* Clear drop counters: ```clear drops```
+* Clear drop counters: ```sonic-clear drops```
 * See drop counter config: ```show drops config```
 * Initialize a new drop counter: ```config drops init```
 * Add drop reasons to a drop counter: ```config drops add```
@@ -195,9 +202,9 @@ Ethernet12        U           0           0
 
 ### 3.5.2 CLI clear
 ```
-$ clear drops
-$ clear drops RX_LEGAL
-$ clear drops RX_LEGAL TX_LEGAL
+$ sonic-clear drops
+$ sonic-clear drops RX_LEGAL
+$ sonic-clear drops RX_LEGAL TX_LEGAL
 ```
 
 ### 3.5.3 CLI Configuration
@@ -260,8 +267,11 @@ The overall workflow is shown above in figure 1.
 
 (6) (not shown) CLI uses App DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
 
-# 5 Unit Tests
+# 5 Warm Reboot Support
+The debug counts orchagent will restore counter configurations after a warm reboot. It will get the current configuration from the SAI and check this against the configuration saved in config DB, reconfiguring the debug counters if necessary.
+
+# 6 Unit Tests
 A separate test plan will be uploaded and reviewed by the community.
 
-# 6 Open Questions
+# 7 Open Questions
 * There's still an open question in the SAI proposal over whether counter indices will be managed by the SAI or the user. This doc is currently written as if the user is managing the indices, but if this changes then the design (specifically, the Config DB schema) will need to be revised.
