@@ -133,15 +133,15 @@ Example:
 ```
 {
     "PACKET_DROP_COUNTER": {
-        "LEGAL_RX_DROPS": {
+        "RX_LEGIT": {
             "counter": "DEBUG_0",
             "type": "ingress",
-            "desc": "Legal RX pipeline drops"
+            "desc": "Legitimate RX pipeline drops"
         },
-        "LEGAL_TX_DROPS": {
+        "TX_LEGIT": {
             "counter": "DEBUG_1",
             "type": "egress",
-            "desc": "Legal TX pipeline drops"
+            "desc": "Legitimate TX pipeline drops"
         }
     }
 }
@@ -152,9 +152,9 @@ Example:
 ```
 {
     "PACKET_DROP_COUNTER_REASON": {
-        "LEGAL_RX_DROPS|SMAC_EQUALS_DMAC": {},
-        "LEGAL_RX_DROPS|INGRESS_VLAN_FILTER": {},
-        "LEGAL_TX_DROPS|EGRESS_VLAN_FILTER": {}
+        "RX_LEGIT|SMAC_EQUALS_DMAC": {},
+        "RX_LEGIT|INGRESS_VLAN_FILTER": {},
+        "TX_LEGIT|EGRESS_VLAN_FILTER": {}
     }
 }
 ```
@@ -184,15 +184,15 @@ The CLI tool will provide the following functionality:
 
 ```
 $ show drops
-     IFACE    STATE    RX_ERR    RX_DRP    RX_DISC    RX_LEGAL    TX_ERR    TX_DRP    TX_DISC    TX_LEGAL
+     IFACE    STATE    RX_ERR    RX_DRP    RX_DISC    RX_LEGIT    TX_ERR    TX_DRP    TX_DISC    TX_LEGIT
 ----------  -------  --------  --------  ---------  ----------  --------  --------  ---------  ----------
  Ethernet0        U        0         0       1500        1500         0         0          0           0
  Ethernet4        U        0         0        300         250         0         0          0           0
  Ethernet8        U        0         0          0           0         0         0          0           0
 Ethernet12        U        0         0       1200         400         0         0          0           0
 
-$ show drops --include "LEGAL"
-     IFACE    STATE    RX_LEGAL    TX_LEGAL
+$ show drops --include "LEGIT"
+     IFACE    STATE    RX_LEGIT    TX_LEGIT
 ----------  -------  ----------  ---------- 
  Ethernet0        U           0           0       
  Ethernet4        U           0           0       
@@ -203,8 +203,8 @@ Ethernet12        U           0           0
 ### 3.5.2 CLI clear
 ```
 $ sonic-clear drops
-$ sonic-clear drops RX_LEGAL
-$ sonic-clear drops RX_LEGAL TX_LEGAL
+$ sonic-clear drops RX_LEGIT
+$ sonic-clear drops RX_LEGIT TX_LEGIT
 ```
 
 ### 3.5.3 CLI Configuration
@@ -215,9 +215,9 @@ Available Counters: 3
 
 Name      Type     Reasons              Description
 --------  -------  -------------------  --------------
-RX_LEGAL  ingress  SMAC_EQUALS_DMAC     Legal RX pipeline drops
+RX_LEGIT  ingress  SMAC_EQUALS_DMAC     Legitimate RX pipeline drops
                    INGRESS_VLAN_FILTER
-TX_LEGAL   egress  EGRESS_VLAN_FILTER   Legal TX pipeline drops
+TX_LEGIT   egress  EGRESS_VLAN_FILTER   Legitimate TX pipeline drops
 DEBUG_2      OPEN                 NONE  Available debug counter
  
 $ config drops init --counter=DEBUG_2 --name=EXAMPLE --type=ingress --desc="example"
