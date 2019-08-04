@@ -144,7 +144,7 @@ FRR's BGP implementation is capable of running multiple autonomous systems (AS) 
 
 #### VRF route leak support
 
-VRF route leak is a case where route and nexthops are in different VRF.
+Generally VRF route leak is a case where route and nexthops are in different VRF. VRF route leak for directly connected destinations in another VRF is also supported.
 
 VRF route leak can be achieved via both Static or Dynamic approach.
 
@@ -402,7 +402,7 @@ app-intf-table is defined as the following:
 
 key = INTF_TABLE:ifname
 mtu = 1\*4DIGIT ; MTU for the interface
-VRF_NAME = 1\*16VCHAR ;
+VRF_NAME = 1\*15VCHAR ;
 ```
 
 app-intf-prefix-table is defined as the following corresponding to config_db definition.
