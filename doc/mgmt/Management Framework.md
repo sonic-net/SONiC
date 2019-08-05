@@ -68,21 +68,12 @@
                 * [3.2.2.6.3 YGOT request binder](#3_2_2_6_3-ygot-request-binder)
                 * [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
                 * [3.2.2.6.5 App Modules](#3_2_2_6_5-app-modules)
-			* [3.2.2.7 Transformer](#3_2_2_7-transformer)
-				* [3.2.2.7.1 Components](#3_2_2_7_1-components)
-				* [3.2.2.7.2 Design](#3_2_2_7_2-design)
-				* [3.2.2.7.3 Process](#3_2_2_7_3-process)
-				* [3.2.2.7.4 Common App](#3_2_2_7_4-common-app)
-				* [3.2.2.7.5 YANG Extensions](#3_2_2_7_5-yang-extensions)
-				* [3.2.2.7.6 Public Functions](#3_2_2_7_6-public-functions)
-				* [3.2.2.7.7 Overloded Modules](#3_2_2_7_7-overloaded-modules)
-				* [3.2.2.7.8 Utilities](#3_2_2_7_8-utilities)
-            * [3.2.2.8 Config Validation Library (CVL)](#3_2_2_8-config-validation-library-cvl)
-				* [3.2.2.8.1 Architecture](#3_2_2_8_1-architecture)
-				* [3.2.2.8.2 Validation types](#3_2_2_8_2-validation-types)
-				* [3.2.2.8.3 CVL APIs](#3_2_2_8_3-cvl-apis)
-            * [3.2.2.9 Redis DB](#3_2_2_9-redis-db)
-            * [3.2.2.10 Non DB data provider](#3_2_2_10-non-db-data-provider)
+            * [3.2.2.7 Config Validation Library (CVL)](#3_2_2_7-config-validation-library-cvl)
+				* [3.2.2.7.1 Architecture](#3_2_2_7_1-architecture)
+				* [3.2.2.7.2 Validation types](#3_2_2_7_2-validation-types)
+				* [3.2.2.7.3 CVL APIs](#3_2_2_7_3-cvl-apis)
+            * [3.2.2.8 Redis DB](#3_2_2_8-redis-db)
+            * [3.2.2.9 Non DB data provider](#3_2_2_9-non-db-data-provider)
 * [4 Flow Diagrams](#4-flow-diagrams)
     * [4.1 REST SET flow](#4_1-rest-set-flow)
     * [4.2 REST GET flow](#4_2-rest-get-flow)
@@ -919,138 +910,13 @@ DB access layer, Redis, CVL Interaction:
 
 TBD
 
-##### 3.2.2.7 Transformer
-
-Transformer provides a generic infrastructure for Translib to programmatically translate YANG to ABNF/Redis schema and vice versa, using YANG extensions to define translation hints on the YANG paths. At run time, the translation hints are mapped to an in-memory Transformer Spec that provides two-way mapping between YANG and ABNF/Redis schema for Transformer to perform data translation.
-
-With the Transformer, a developer needs only to provide:
-1. A YANG file to define the data model
-2. A YANG annotation file to define translation hints: To map YANG objects to DB objects (external callbacks used for complex mapping).
-3. The necessary callback code that provides translation from YANG to DB and vice versa
-
-###### 3.2.2.7.1 Components
-
-Transformer consists of the following components and data:
-* **Transformer Spec:** a collection of translation hints
-* **Spec Builder:**  loads YANG and annotation files to dynamically build YANG metadata and Transformer Spec. Note that Transformer Spec is built only for non ABNF based YANG.  [future – Notification spec can be built to support both sample or on-change based notification]
-* **Transformer Core:** main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup YANG metadata/Transformer spec, call Transformer methods, construct the results, error reporting etc.
-* **Built-in Default Transformer method:** perform static 1:1 translation and key generation
-* **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation
-* **YANG metadata:** provides the Transformer with the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc. 
-
-![Transformer Components](images/transformer_components.PNG)
-
-###### 3.2.2.7.2 Design
-
-Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules call Transformer to translate the request, then use the translated data to operate on DB/CVL to set or get data.
-
-![Transformer Design](images/transformer_design.PNG)
-
-At app init, each app module asks the transformer to load YANG modules pertaining to the application. Transformer parses YANG modules with extensions to dynamically build an in-memory metadata tree and transformer spec. 
-
-When a request lands at the app module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. 
-
-Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys by a concatenation of multiple YANG keys with a default delimiter `|`, which can be customized by a YANG extension.
-
-Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, `read_<transformer_method>` and `write_<transformer_method>`, which are invoked by Transformer core.
-
-###### 3.2.2.7.3 Process
-
-CRUD requests (configuration) are processed via the following steps:
-
-1. App module calls transformer to translate YANG to ABNF
-2. Transformer allocates buffer with 3-dimensional map: `[table-name][key-values][attributes]`
-	- `table-name` and `key-values` used for app to watch DB Keys
-	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the app module has to update in this order; it must regroup the translated data by table in order.
-3. Transformer decodes YGOT structure and traverses the incoming request to get the node name
-4. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
-5. If no spec or hint is found, the name and value are copied as-is
-6. If a hint is found, check the hint to perform the action, either simple data translation or invoke external callbacks 
-7. Repeat steps 3 through 6 until traversal is completed
-8. Invoke any annotated post-Transformer functions
-9. Transformer returns the buffer to app module
-10. App module proceeds to watch DB keys and update DB
-
-GET requests are processed via the following steps:
-1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and keys
-2. Transformer returns the query target
-3. App module proceeds to query the DB via DB-access to get the result
-4. App module asks the Transformer to translate from ABNF to YANG
-5. Transformer performs reverse translation using with default (reverse) method
-or overloaded Transformer (reverse) methods. 
-6. Transformer returns the output as YGOT structure to the app module
-
-###### 3.2.2.7.4 Common App
-
-The Common App is a generic app that handles all ABNF based YANG modules.
-
-There is a different flow in processing ABNF based YANG vs non-ABNF based YANG. If a request is in the form of ABNF based YANG, the generic common app module is a backend app that invokes Transformer to translate data. If a request is non-ABNF based YANG, a specific app module registered to Translib will be the backend app. By default, the common app will generically handle YGOT bindings for YANG modules.
-
-Unlike app modules for non-ABNF based YANGs, common app module does not need translation hints since the node name itself is defined as ABNF node, so the YANG data can be directly mapped to ABNF data by default transformer method. Reverse mapping also can be processed by a default method. Note that common app module processes the request in schema order. That is, when it gets a request that spans over multiple table updates, it processes it in the order as defined in YANG. 
-
-###### 3.2.2.7.5 YANG Extensions
-The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
-
-| Extensions | Usage |
-| ---------- | ----- |
-| `sonic-ext:table-name [string]` | Map a YANG list to TABLE name |
-| `sonic-ext:field-name [string]` | Map a YANG leafy to FIELD name |
-| `sonic-ext:key-delimiter [string]` | Override the default delimiter, “&#124;” |
-| `sonic-ext:db-locator [string]` |	DB locator for read-only data - STATE-DB, APPL-DB etc. |
-| `sonic-ext:key-transformer [function]` | Overloading default method for key generation |
-| `sonic-ext:field-transformer [function]` | Overloading default method for field generation |
-| `sonic-ext:subtree-transformer [function]` | Overloading default method for the current subtree, including all descendant nodes |
-| `sonic-ext:post-transformer [function]` | Overloading default method for post-translation |
-
-
-###### 3.2.2.7.6 Public Functions
-
-`XlateToDb()` and `XlateFromDb` are used by app modules to request translations
-
-```go
-func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[string]db.Value, error) {}
-
-func XlateFromDb(d map[string]map[string]db.Value) (ygot.GoStruct, error) {}
-```
-
-###### 3.2.2.7.7 Overloaded Methods
-
-Overloaded transformer methods are prepended with `Read` or `Write` to support bi-directional data transfer.
-
-```go
-func Read_method_name (s *ygot.GoStruct, t *interface{}) (map[string]map[string]db.Value, error) {}
-
-func Write_method_name (d map[string]map[string]db.Value) (ygot.GoStruct, error) {}
-```
-
-###### 3.2.2.7.8 Utilities
-
-To support annotating YANG extensions, the [goyang package](https://github.com/openconfig/goyang) will be extended to generate the template file, which has YANG paths with `deviation` statements. The template file can then be used by developers to define translation hints.
-
-For example:
-
-```YANG
-deviation /acl/acl-sets/acl-set {
-   deviate add { sonic-ext:key-delimiter; “_”; }
-
-deviation /acl/acl-sets/acl-set/acl-entries/acl-entry {
-   deviate add { sonic-ext:table-name; “ACL_RULE”; 
-   deviate add { sonic-ext:key-transformer; “make_acl_rule_keys”; }
-
-deviation /acl/acl-sets/ac-set/acl-entries/acl-entry/source-address {
-   deviate add { sonic-ext:field-name; “SRC_IP”; }
-deviation /acl/acl-sets/ac-set/acl-entries/acl-entry/ forwarding-action {
-   deviate add { sonic-ext:field-transformer; “set_packet_action”; }
-```
-
-
-##### 3.2.2.8 Config Validation Library (CVL)
+##### 3.2.2.7 Config Validation Library (CVL)
 
 Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/Azure/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB.
 
 CVL uses SONiC native YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and very close mapping of ABNF schema. Custom YANG extension (annotation) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used  to translate ABNF data to YANG data. Opensource *libyang* library is used to perform YANG data validation.
 
-###### 3.2.2.8.1 Architecture
+###### 3.2.2.7.1 Architecture
 
 ![CVL architecture](images/CVL_Arch.jpg)
 
@@ -1064,11 +930,11 @@ CVL uses SONiC native YANG models written based on ABNF schema along with variou
 8. Finally translated YANG data and dependent data are merged and fed to libyang for performing semantics validation. If error occurs, CVL returns appropriate error code and details to application, else success is returned.
 9. Platform validation is specific syntax and semantics validation only performed with the help of dynamic platform data as input.
 
-###### 3.2.2.8.2 Validation types
+###### 3.2.2.7.2 Validation types
 
 Config Validator does Syntactic, Semantic validation and Platform Validation as per native YANG schema.
 
-###### 3.2.2.8.2.1 Syntactic Validation
+###### 3.2.2.7.2.1 Syntactic Validation
 
 Following are some of the syntactic validation supported by the config validation library
 
@@ -1081,34 +947,34 @@ Following are some of the syntactic validation supported by the config validatio
 * Check for number of keys are their types
 * Check for table size etc.
 
-###### 3.2.2.8.2.2 Semantic Validation
+###### 3.2.2.7.2.2 Semantic Validation
 
 * Check for key reference existence  in other table
 * Check any conditions between fields within same table
 * Check any conditions between fields across different table
 
-###### 3.2.2.8.2.3 Platform specific validation
+###### 3.2.2.7.2.3 Platform specific validation
 
 There can be two types of platform constraint validation
 
-###### 3.2.2.8.2.3.1 Static Platform Constraint Validation
+###### 3.2.2.7.2.3.1 Static Platform Constraint Validation
 
 * Platform constraints (range, enum, ‘must’/’when’ expression etc.) are expressed in YANG deviation model for each feature.
 * Deviation models are compiled along with SONiC feature YANG model and new constraints are added or overwritten in the compiled schema.
 
-###### 3.2.2.8.2.3.2  Dynamic Platform Constraint Validation
+###### 3.2.2.7.2.3.2  Dynamic Platform Constraint Validation
 
-###### 3.2.2.8.2.3.2.1 Platform data is available in Redis DB table.
+###### 3.2.2.7.2.3.2.1 Platform data is available in Redis DB table.
 
 * SONiC YANG models can be developed based on platform specific data in Redis DB. Constraints like ‘must’ or ‘when’ are used in feature YANG by cross-referencing platform YANG models.
 
-###### 3.2.2.8.2.3.2.2 Platform data is available through APIs
+###### 3.2.2.7.2.3.2.2 Platform data is available through APIs
 
 * If constraints cannot be expressed using YANG syntax or platform data is available through API, custom validation needs to be hooked up in feature YANG model through custom YANG extension.
 * CVL will generate stub code for custom validation. Feature developer implements the stub code. The validation function should call platform API and fetch required parameter for checking constraints.
 * Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated. 
 
-###### 3.2.2.8.3 CVL APIs
+###### 3.2.2.7.3 CVL APIs
 
         //Strcture for key and data in API
         type CVLEditConfigData struct {
@@ -1165,11 +1031,11 @@ There can be two types of platform constraint validation
 5. ValidateKey(key string) - Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
 6. ValidateField(key, field, value string)  - Just validates the field:value pair in table. Key should have table name as prefix.
 
-##### 3.2.2.9 Redis DB
+##### 3.2.2.8 Redis DB
 
 Please see [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
 
-##### 3.2.2.10 Non DB data provider
+##### 3.2.2.9 Non DB data provider
 
 Currently, it is up to each App Module to perform the proprietary access
 mechanism for the app specific configuration.
