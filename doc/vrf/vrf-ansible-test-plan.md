@@ -3,37 +3,32 @@
 <!-- TOC -->
 
 - [overview](#overview)
-  - [Scope](#Scope)
-  - [Testbed](#Testbed)
-- [Setup configuration](#Setup-configuration)
+  - [Scope](#scope)
+  - [Testbed](#testbed)
+- [Setup configuration](#setup-configuration)
   - [vrf config in t0 topo](#vrf-config-in-t0-topo)
-  - [Scripts for generating configuration on SONIC](#Scripts-for-generating-configuration-on-SONIC)
-  - [Pytest scripts to setup and run test](#Pytest-scripts-to-setup-and-run-test)
-  - [Setup of DUT switch](#Setup-of-DUT-switch)
+  - [Scripts for generating configuration on SONIC](#scripts-for-generating-configuration-on-sonic)
+  - [Pytest scripts to setup and run test](#pytest-scripts-to-setup-and-run-test)
+  - [Setup of DUT switch](#setup-of-dut-switch)
     - [vrf configuration](#vrf-configuration)
     - [bgp vrf configuration](#bgp-vrf-configuration)
-    - [acl vrf configuration](#acl-vrf-configuration)
+    - [acl redirect vrf configuration](#acl-redirect-vrf-configuration)
     - [teardown operation after each test case](#teardown-operation-after-each-test-case)
-- [PTF Test](#PTF-Test)
-  - [Input files for PTF test](#Input-files-for-PTF-test)
-  - [Traffic validation in PTF](#Traffic-validation-in-PTF)
-- [Test cases](#Test-cases)
-  - [Test case #1 - vrf creat and bind](#Test-case-1---vrf-creat-and-bind)
-  - [Test case #2 - neighbor learning in vrf](#Test-case-2---neighbor-learning-in-vrf)
-  - [Test case #3 - route learning in vrf](#Test-case-3---route-learning-in-vrf)
-  - [Test case #4 - unbind intf from vrf](#Test-case-4---unbind-intf-from-vrf)
-  - [Test case #5 - remove vrf when intfs is bound to vrf](#Test-case-5---remove-vrf-when-intfs-is-bound-to-vrf)
-  - [Test case #6 - isolation among different vrfs](#Test-case-6---isolation-among-different-vrfs)
-  - [Test case #7 - vrf table attributes 'src_mac' test](#Test-case-7---vrf-table-attributes-srcmac-test)
-  - [Test case #8 - vrf table attributes 'ttl_action' test](#Test-case-8---vrf-table-attributes-ttlaction-test)
-  - [Test case #9 - vrf table attributes 'ip_opt_action' test](#Test-case-9---vrf-table-attributes-ipoptaction-test)
-  - [Test case #10 - vrf table attributes 'v4/v6' test](#Test-case-10---vrf-table-attributes-v4v6-test)
-  - [Test case #11 - acl redirect in vrf](#Test-case-11---acl-redirect-in-vrf)
-  - [Test case #12 - everflow in vrf](#Test-case-12---everflow-in-vrf)
-  - [Test case #13 - loopback interface](#Test-case-13---loopback-interface)
-  - [Test case #14 - Vrf capacity](#Test-case-14---Vrf-capacity)
-  - [Test case #15 - Vrf WarmReboot](#Test-case-15---Vrf-WarmReboot)
-- [TODO](#TODO)
+- [PTF Test](#ptf-test)
+  - [Input files for PTF test](#input-files-for-ptf-test)
+  - [Traffic validation in PTF](#traffic-validation-in-ptf)
+- [Test cases](#test-cases)
+  - [Test case #1 - vrf creat and bind](#test-case-1---vrf-creat-and-bind)
+  - [Test case #2 - neighbor learning in vrf](#test-case-2---neighbor-learning-in-vrf)
+  - [Test case #3 - route learning in vrf](#test-case-3---route-learning-in-vrf)
+  - [Test case #4 - isolation among different vrfs](#test-case-4---isolation-among-different-vrfs)
+  - [Test case #5 - acl redirect in vrf](#test-case-5---acl-redirect-in-vrf)
+  - [Test case #6 - loopback interface](#test-case-6---loopback-interface)
+  - [Test case #7 - Vrf WarmReboot](#test-case-7---vrf-warmreboot)
+  - [Test case #8 - Vrf capacity](#test-case-8---vrf-capacity)
+  - [Test case #9 - unbind intf from vrf](#test-case-9---unbind-intf-from-vrf)
+  - [Test case #10 - remove vrf when intfs is bound to vrf](#test-case-10---remove-vrf-when-intfs-is-bound-to-vrf)
+- [TODO](#todo)
 
 <!-- /TOC -->
 ## overview
@@ -64,7 +59,7 @@ Newly added `test_vrf.py` will be put in 'sonic-mgmt/tests/' directory.
 
 ### Setup of DUT switch
 
-Setup of SONIC DUT will be done by Ansible script. During the setup process Ansible will copy JSON file containing configuration for vrf to directory `/home/admin/vrf_cfg/` on the DUT. Config load utility will be used to push configuration to the SONiC Config-DB.
+Setup of SONIC DUT will be done by SONiC CLI. During the setup process pytest will use SONiC CLI to config vrf, bind intf to vrf and add ip address to intf.
 
 #### vrf configuration
 
@@ -209,191 +204,200 @@ We modify /usr/share/sonic/templates/frr.conf.j2 to generate the frr.conf includ
 The frr configuration is the following.
 
 ```jason
-! set static default route to mgmt gateway as a backup to learned default
-ip route 0.0.0.0/0 10.251.0.1 200
-! Set ip source to loopback for bgp learned routes
-route-map RM_SET_SRC permit 10
-    set src 10.1.0.32
+router bgp 65100 vrf Vrf2
+ bgp router-id 10.1.0.32
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ bgp graceful-restart
+ bgp bestpath as-path multipath-relax
+ neighbor BGPSLBPassive peer-group
+ neighbor BGPSLBPassive remote-as 65432
+ neighbor BGPSLBPassive passive
+ neighbor BGPSLBPassive ebgp-multihop 255
+ neighbor BGPVac peer-group
+ neighbor BGPVac remote-as 65432
+ neighbor BGPVac passive
+ neighbor BGPVac ebgp-multihop 255
+ neighbor 10.0.0.61 remote-as 64600
+ neighbor 10.0.0.61 description ARISTA03T1
+ neighbor 10.0.0.61 timers 3 10
+ neighbor 10.0.0.63 remote-as 64600
+ neighbor 10.0.0.63 description ARISTA04T1
+ neighbor 10.0.0.63 timers 3 10
+ neighbor fc00::7a remote-as 64600
+ neighbor fc00::7a description ARISTA03T1
+ neighbor fc00::7a timers 3 10
+ neighbor fc00::7e remote-as 64600
+ neighbor fc00::7e description ARISTA04T1
+ neighbor fc00::7e timers 3 10
+ bgp listen range 10.255.0.0/25 peer-group BGPSLBPassive
+ bgp listen range 192.168.0.0/21 peer-group BGPVac
+ !
+ address-family ipv4 unicast
+  network 10.1.0.32/32
+  network 192.168.0.0/21
+  neighbor 10.0.0.61 activate
+  neighbor 10.0.0.61 soft-reconfiguration inbound
+  neighbor 10.0.0.61 allowas-in 1
+  neighbor 10.0.0.63 activate
+  neighbor 10.0.0.63 soft-reconfiguration inbound
+  neighbor 10.0.0.63 allowas-in 1
+  neighbor BGPSLBPassive activate
+  neighbor BGPSLBPassive soft-reconfiguration inbound
+  neighbor BGPSLBPassive route-map FROM_BGP_SPEAKER_V4 in
+  neighbor BGPSLBPassive route-map TO_BGP_SPEAKER_V4 out
+  neighbor BGPVac activate
+  neighbor BGPVac soft-reconfiguration inbound
+  neighbor BGPVac route-map FROM_BGP_SPEAKER_V4 in
+  neighbor BGPVac route-map TO_BGP_SPEAKER_V4 out
+  maximum-paths 64
+ exit-address-family
+ !
+ address-family ipv6 unicast
+  network fc00:1::32/128
+  network fc00:168::/117
+  neighbor fc00::7a activate
+  neighbor fc00::7a soft-reconfiguration inbound
+  neighbor fc00::7a allowas-in 1
+  neighbor fc00::7a route-map set-next-hop-global-v6 in
+  neighbor fc00::7e activate
+  neighbor fc00::7e soft-reconfiguration inbound
+  neighbor fc00::7e allowas-in 1
+  neighbor fc00::7e route-map set-next-hop-global-v6 in
+  neighbor BGPSLBPassive activate
+  neighbor BGPSLBPassive soft-reconfiguration inbound
+  neighbor BGPVac activate
+  neighbor BGPVac soft-reconfiguration inbound
+  maximum-paths 64
+ exit-address-family
+!
+router bgp 65100 vrf Vrf1
+ bgp router-id 10.1.0.32
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ bgp graceful-restart
+ bgp bestpath as-path multipath-relax
+ neighbor BGPSLBPassive peer-group
+ neighbor BGPSLBPassive remote-as 65432
+ neighbor BGPSLBPassive passive
+ neighbor BGPSLBPassive ebgp-multihop 255
+ neighbor BGPVac peer-group
+ neighbor BGPVac remote-as 65432
+ neighbor BGPVac passive
+ neighbor BGPVac ebgp-multihop 255
+ neighbor 10.0.0.57 remote-as 64600
+ neighbor 10.0.0.57 description ARISTA01T1
+ neighbor 10.0.0.57 timers 3 10
+ neighbor 10.0.0.59 remote-as 64600
+ neighbor 10.0.0.59 description ARISTA02T1
+ neighbor 10.0.0.59 timers 3 10
+ neighbor fc00::72 remote-as 64600
+ neighbor fc00::72 description ARISTA01T1
+ neighbor fc00::72 timers 3 10
+ neighbor fc00::76 remote-as 64600
+ neighbor fc00::76 description ARISTA02T1
+ neighbor fc00::76 timers 3 10
+ bgp listen range 10.255.0.0/25 peer-group BGPSLBPassive
+ bgp listen range 192.168.0.0/21 peer-group BGPVac
+ !
+ address-family ipv4 unicast
+  network 10.1.0.32/32
+  network 192.168.0.0/21
+  neighbor 10.0.0.57 activate
+  neighbor 10.0.0.57 soft-reconfiguration inbound
+  neighbor 10.0.0.57 allowas-in 1
+  neighbor 10.0.0.59 activate
+  neighbor 10.0.0.59 soft-reconfiguration inbound
+  neighbor 10.0.0.59 allowas-in 1
+  neighbor BGPSLBPassive activate
+  neighbor BGPSLBPassive soft-reconfiguration inbound
+  neighbor BGPSLBPassive route-map FROM_BGP_SPEAKER_V4 in
+  neighbor BGPSLBPassive route-map TO_BGP_SPEAKER_V4 out
+  neighbor BGPVac activate
+  neighbor BGPVac soft-reconfiguration inbound
+  neighbor BGPVac route-map FROM_BGP_SPEAKER_V4 in
+  neighbor BGPVac route-map TO_BGP_SPEAKER_V4 out
+  maximum-paths 64
+ exit-address-family
+ !
+ address-family ipv6 unicast
+  network fc00:1::32/128
+  network fc00:168::/117
+  neighbor fc00::72 activate
+  neighbor fc00::72 soft-reconfiguration inbound
+  neighbor fc00::72 allowas-in 1
+  neighbor fc00::72 route-map set-next-hop-global-v6 in
+  neighbor fc00::76 activate
+  neighbor fc00::76 soft-reconfiguration inbound
+  neighbor fc00::76 allowas-in 1
+  neighbor fc00::76 route-map set-next-hop-global-v6 in
+  neighbor BGPSLBPassive activate
+  neighbor BGPSLBPassive soft-reconfiguration inbound
+  neighbor BGPVac activate
+  neighbor BGPVac soft-reconfiguration inbound
+  maximum-paths 64
+ exit-address-family
+!
+route-map set-next-hop-global-v6 permit 10
+ set ipv6 next-hop prefer-global
+!
+route-map ISOLATE permit 10
+ set as-path prepend 65100
+!
+route-map TO_BGP_SPEAKER_V4 deny 10
+!
+route-map FROM_BGP_SPEAKER_V4 permit 10
 !
 route-map RM_SET_SRC6 permit 10
-    set src fc00:1::32
+ set src fc00:1::32
+!
+route-map RM_SET_SRC permit 10
+ set src 10.1.0.32
 !
 ip protocol bgp route-map RM_SET_SRC
 !
 ipv6 protocol bgp route-map RM_SET_SRC6
-!
-!
-!
-! bgp multiple-instance
-!
-route-map FROM_BGP_SPEAKER_V4 permit 10
-!
-route-map TO_BGP_SPEAKER_V4 deny 10
-!
-router bgp 65100 vrf Vrf2
-  bgp log-neighbor-changes
-  bgp bestpath as-path multipath-relax
-  no bgp default ipv4-unicast
-  bgp graceful-restart
-  neighbor 10.0.0.61 remote-as 64600
-  neighbor 10.0.0.61 description ARISTA03T1
-  neighbor 10.0.0.61 timers 3 10
-  address-family ipv4
-    neighbor 10.0.0.61 allowas-in 1
-    neighbor 10.0.0.61 activate
-    neighbor 10.0.0.61 soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-  neighbor 10.0.0.63 remote-as 64600
-  neighbor 10.0.0.63 description ARISTA04T1
-  neighbor 10.0.0.63 timers 3 10
-  address-family ipv4
-    neighbor 10.0.0.63 allowas-in 1
-    neighbor 10.0.0.63 activate
-    neighbor 10.0.0.63 soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-  neighbor fc00::7a remote-as 64600
-  neighbor fc00::7a description ARISTA03T1
-  neighbor fc00::7a timers 3 10
-  address-family ipv6
-    neighbor fc00::7a allowas-in 1
-    neighbor fc00::7a activate
-    neighbor fc00::7a soft-reconfiguration inbound
-    neighbor fc00::7a route-map set-next-hop-global-v6 in
-    maximum-paths 64
-  exit-address-family
-  neighbor fc00::7e remote-as 64600
-  neighbor fc00::7e description ARISTA04T1
-  neighbor fc00::7e timers 3 10
-  address-family ipv6
-    neighbor fc00::7e allowas-in 1
-    neighbor fc00::7e activate
-    neighbor fc00::7e soft-reconfiguration inbound
-    neighbor fc00::7e route-map set-next-hop-global-v6 in
-    maximum-paths 64
-  exit-address-family
-!
-router bgp 65100 vrf Vrf1
-  bgp log-neighbor-changes
-  bgp bestpath as-path multipath-relax
-  no bgp default ipv4-unicast
-  bgp graceful-restart
-  bgp router-id 10.1.0.32
-  network 10.1.0.32/32
-  address-family ipv6
-    network fc00:1::32/128
-  exit-address-family
-  network 192.168.0.1/21
-  neighbor 10.0.0.59 remote-as 64600
-  neighbor 10.0.0.59 description ARISTA02T1
-  neighbor 10.0.0.59 timers 3 10
-  address-family ipv4
-    neighbor 10.0.0.59 allowas-in 1
-    neighbor 10.0.0.59 activate
-    neighbor 10.0.0.59 soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-  neighbor fc00::76 remote-as 64600
-  neighbor fc00::76 description ARISTA02T1
-  neighbor fc00::76 timers 3 10
-  address-family ipv6
-    neighbor fc00::76 allowas-in 1
-    neighbor fc00::76 activate
-    neighbor fc00::76 soft-reconfiguration inbound
-    neighbor fc00::76 route-map set-next-hop-global-v6 in
-    maximum-paths 64
-  exit-address-family
-  neighbor fc00::72 remote-as 64600
-  neighbor fc00::72 description ARISTA01T1
-  neighbor fc00::72 timers 3 10
-  address-family ipv6
-    neighbor fc00::72 allowas-in 1
-    neighbor fc00::72 activate
-    neighbor fc00::72 soft-reconfiguration inbound
-    neighbor fc00::72 route-map set-next-hop-global-v6 in
-    maximum-paths 64
-  exit-address-family
-  neighbor 10.0.0.57 remote-as 64600
-  neighbor 10.0.0.57 description ARISTA01T1
-  neighbor 10.0.0.57 timers 3 10
-  address-family ipv4
-    neighbor 10.0.0.57 allowas-in 1
-    neighbor 10.0.0.57 activate
-    neighbor 10.0.0.57 soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-  neighbor BGPVac peer-group
-  neighbor BGPVac passive
-  neighbor BGPVac remote-as 65432
-  neighbor BGPVac ebgp-multihop 255
-  bgp listen range 192.168.0.0/21 peer-group BGPVac
-  address-family ipv4
-    neighbor BGPVac activate
-    neighbor BGPVac soft-reconfiguration inbound
-    neighbor BGPVac route-map FROM_BGP_SPEAKER_V4 in
-    neighbor BGPVac route-map TO_BGP_SPEAKER_V4 out
-    maximum-paths 64
-  exit-address-family
-  address-family ipv6
-    neighbor BGPVac activate
-    neighbor BGPVac soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-  neighbor BGPSLBPassive peer-group
-  neighbor BGPSLBPassive passive
-  neighbor BGPSLBPassive remote-as 65432
-  neighbor BGPSLBPassive ebgp-multihop 255
-  bgp listen range 10.255.0.0/25 peer-group BGPSLBPassive
-  address-family ipv4
-    neighbor BGPSLBPassive activate
-    neighbor BGPSLBPassive soft-reconfiguration inbound
-    neighbor BGPSLBPassive route-map FROM_BGP_SPEAKER_V4 in
-    neighbor BGPSLBPassive route-map TO_BGP_SPEAKER_V4 out
-    maximum-paths 64
-  exit-address-family
-  address-family ipv6
-    neighbor BGPSLBPassive activate
-    neighbor BGPSLBPassive soft-reconfiguration inbound
-    maximum-paths 64
-  exit-address-family
-!
-route-map ISOLATE permit 10
-set as-path prepend 65100
-!
-route-map set-next-hop-global-v6 permit 10
-set ipv6 next-hop prefer-global
-!
 ...
 ```
 
-#### acl vrf configuration
+#### acl redirect vrf configuration
 
-Acl redirect action supports vrf, so we need specify the outgoing interface of the nexthop explicitly, the acl redirect configuration file is as following:
+Acl redirect action supports vrf, so we need specify the outgoing interface of the nexthop explicitly, the acl redirect configuration template is as following:
 
 ```jason
 {
     "ACL_TABLE": {
-        "VRF_ACL_REDIRECT": {
+        "VRF_ACL_REDIRECT_V4": {
             "policy_desc": "Redirect traffic to nexthop in different vrfs",
             "type": "L3",
-            "ports": ["Ethernet0"],
-            "stage": "INGRESS"
+            "ports": ["{{ src_port }}"]
+        },
+
+        "VRF_ACL_REDIRECT_V6": {
+            "policy_desc": "Redirect traffic to nexthop in different vrfs",
+            "type": "L3V6",
+            "ports": ["{{ src_port }}"]
         }
     },
     "ACL_RULE": {
-        "VRF_ACL_REDIRECT|rule1": {
+        "VRF_ACL_REDIRECT_V4|rule1": {
             "priority": "55",
-            "ip_type": "tcp",
-            "packet_action": "redirect:10.0.0.59|PortChannel0002,fc00::76|PortChannel0002,10.0.0.61|PortChannel0003,fc00::7a|PortChannel0003,10.0.0.63|PortChannel0004,                    fc00::73|PortChannel0004,192.168.0.2|Vlan2000"
+            "SRC_IP": "10.0.0.1",
+            "packet_action": "redirect:{% for intf, ip in redirect_dst_ipv6s %}{{ ip ~ "|" ~ intf }}{{ "," if not loop.last else "" }}{% endfor %}"
+        },
+        "VRF_ACL_REDIRECT_V6|rule1": {
+            "priority": "55",
+            "SRC_IPV6": "2000::1",
+            "packet_action": "redirect:{% for intf, ip in redirect_dst_ipv6s %}{{ ip ~ "|" ~ intf }}{{ "," if not loop.last else "" }}{% endfor %}"
         }
     }
 }
+
 ```
 
 #### teardown operation after each test case
 
-- Restore original configuration by config reload utility
+- Restore original topo-t0 configuration
 
 ## PTF Test
 
@@ -443,36 +447,7 @@ Verify v4/v6 route learning in vrf
   - each vm propagates 6.4K ipv4 route and 6.4k ipv6 route to DUT.
 - verify route entries by traffic(choose some routes)
 
-### Test case #4 - unbind intf from vrf
-
-#### Test objective <!-- omit in toc -->
-
-When the interface is unbound from the vrf all neighbors and routes associated with the interface should be removed. The other interfaces still bound to vrf should not be effected.
-
-#### Test steps <!-- omit in toc -->
-
-- unbind some intfs from vrf
-- verify neighbor and route entries removed by traffic
-- verify neighbor and route entries related to  other intf should not be effected by traffic
-- Restore configuration
-
-### Test case #5 - remove vrf when intfs is bound to vrf
-
-#### Test objective <!-- omit in toc -->
-
-Use CLI to remove vrf when intfs is bound to the vrf, all ip addresses of the intfs belonging to the vrf should be deleted and all neighbor and route entries related to this vrf should be removed. The entries in other vrf should not be effected.
-
-#### Test steps <!-- omit in toc -->
-
-- load vrf configuration and frr.conf
-- verify route and neigh status is okay
-- remove specified vrf using CLI
-- verify ip addresses of the interfaces belonging to the vrf are removed by traffic
-- verify neighbor and route entries removed by traffic
-- verify neighbor and route entries in other vrf existed by traffic
-- Restore configuration
-
-### Test case #6 - isolation among different vrfs
+### Test case #4 - isolation among different vrfs
 
 #### Test objective <!-- omit in toc -->
 
@@ -486,62 +461,7 @@ The neighbor and route entries should be isolated among different vrfs.
 - verify traffic matched neighbor entry isolation in different vrf
 - verify traffic matched route entry isolation in different vrf
 
-### Test case #7 - vrf table attributes 'src_mac' test
-
-#### Test objective <!-- omit in toc -->
-
-In ingress stage, the ip packet whose dst_mac matches the vrf configured src_mac can be L3 forwarded. If not match, the packet will be L2 fowarded. In egress stage ip packet src_mac must be modified to the vrf configured src_mac. The vrf without src_mac attribute will use the default router mac.
-
-#### Test steps <!-- omit in toc -->
-
-- verify packet whose dst_mac matched the 'src_mac' of Vrf1 will be L3 forwarded in Vrf1
-- verify packet whose dst_mac don't match the 'src_mac' of Vrf1 will be L2 forwarded in Vrf1. In our environment these packets will be droped.
-- verify in Vrf1 L3 forwarded packets' src_mac are modified to configured 'src_mac'
-- verify packet whose dst_mac matched default router mac will be L3 forwarded in Vrf2
-- verify in Vrf2 L3 forwarded packets src_mac should be default router mac
-
-### Test case #8 - vrf table attributes 'ttl_action' test
-
-#### Test objective <!-- omit in toc -->
-
-Action for Packets with TTL 0 or 1. When set to 'drop',the packets with TTL 0 or 1 will be dropped.This attribute is vrf based, different vrf may have different 'ttl_action'.
-
-#### Test steps <!-- omit in toc -->
-
-- verify packets with TTL 0 or 1 will be dropped in Vrf1
-- verify packets with TTL more than 1 will be forwarded in Vrf1
-- verify packets with TTL 0 or 1 will be fowarded in Vrf2
-
-### Test case #9 - vrf table attributes 'ip_opt_action' test
-
-#### Test objective <!-- omit in toc -->
-
-Action for Packets with IP options. When set to 'drop',the packets with IP options will be dropped. This attribute is vrf based, different vrf may have different 'ip_opt_action'.
-
-#### Test steps <!-- omit in toc -->
-
-- verify packets with IP options will be dropped in Vrf1
-- verify packets without IP options will be forwarded in Vrf1
-- verify packets with IP options will be fowarded in Vrf2
-
-### Test case #10 - vrf table attributes 'v4/v6' test
-
-#### Test objective <!-- omit in toc -->
-
-When 'v4' atrribute is setted to 'false', it will prevent ipv4 L3 forwarding, ipv6 L3 fowarding is not effected. This attribute is vrf based, different vrf may have different 'v4/v6' state.
-
-#### Test steps <!-- omit in toc -->
-
-- set 'v4' state to 'false' in Vrf1
-- verify ipv4 L3 forwarding is prevented in Vrf1
-- verify ipv6 L3 forwarding is not effected in Vrf1
-- verify ipv4 L3 forwarding is not effected in Vrf2
-- set 'v6' state to 'false' in Vrf1
-- verify ipv6 L3 forwarding is prevented in Vrf1
-- verify ipv6 L3 forwarding is not effected in Vrf2
-- Restore configuration
-
-### Test case #11 - acl redirect in vrf
+### Test case #5 - acl redirect in vrf
 
 #### Test objective <!-- omit in toc -->
 
@@ -551,25 +471,12 @@ ACL redirection can redirect packets to the nexthop with specified interface bou
 
 - load acl_redirect configuration file
 - PTF send pkts
+- verify PTF ports can not receive pkt from origin L3 forward destination ports
 - verify PTF ports can receive pkt from configured nexthop group member
 - verify load balance between nexthop group members
 - Restore configuration
 
-### Test case #12 - everflow in vrf
-
-#### Test objective <!-- omit in toc -->
-
-Everflow will mirror traffic to destination found in specific VRF. When route nexthop change, traffic will be mirrored to valid ports.
-
-#### Test steps <!-- omit in toc -->
-
-- load everflow_vrf configuration
-- send packets which match everflow rules
-- verify traffic in specific VRF
-- route change in specific VRF
-- verify traffic in specific VRF
-
-### Test case #13 - loopback interface
+### Test case #6 - loopback interface
 
 #### Test objective <!-- omit in toc -->
 
@@ -580,24 +487,11 @@ User can configurate multiple loopback interfaces. Each interface can belong to 
 - load loopback configuration file
 - On ptf in different vrf ping DUT loopback interface ip address
 - Verify if ping operation is successful
+- use loopback interface as bgp update-source in vrf
+- verify bgp session state is Established
 - Restore configuration
 
-### Test case #14 - Vrf capacity
-
-#### Test objective <!-- omit in toc -->
-
-Current sonic can support up to 1000 Vrf.
-
-#### Test steps <!-- omit in toc -->
-
-- create 1000 vlans and Vrfs using CLI
-- configure Ethernet0 to 1000 vlans
-- bind 1000 vlan interfaces to 1000 vrfs
-- configure ip addresses on 1000 vlan interfaces
-- Verify if any error log occur
-- Verify 1000 vlan interfaces connection with ptf by traffic
-
-### Test case #15 - Vrf WarmReboot
+### Test case #7 - Vrf WarmReboot
 
 #### Test objective <!-- omit in toc -->
 
@@ -613,9 +507,54 @@ During system/swss warm-reboot, traffic should not be dropped.
 - do swss warm-reboot
 - after swss warm-reboot, stop ptf background traffic test
 - verify traffic should not be dropped
+
+### Test case #8 - Vrf capacity
+
+#### Test objective <!-- omit in toc -->
+
+Current sonic can support up to 1000 Vrf.
+
+#### Test steps <!-- omit in toc -->
+
+- create 1000 vlans and Vrfs using CLI
+- configure Ethernet0 to 1000 vlans
+- bind 1000 vlan interfaces to 1000 vrfs
+- configure ip addresses on 1000 vlan interfaces
+- Verify if any error log occur
+- Verify 1000 vlan interfaces connection with ptf by traffic
+
+### Test case #9 - unbind intf from vrf
+
+#### Test objective <!-- omit in toc -->
+
+When the interface is unbound from the vrf all neighbors and routes associated with the interface should be removed. The other interfaces still bound to vrf should not be effected.
+
+#### Test steps <!-- omit in toc -->
+
+- unbind some intfs from vrf
+- verify neighbor and route entries removed by traffic
+- verify neighbor and route entries related to  other intf should not be effected by traffic
+- Restore configuration
+
+### Test case #10 - remove vrf when intfs is bound to vrf
+
+#### Test objective <!-- omit in toc -->
+
+Use CLI to remove vrf when intfs is bound to the vrf, all ip addresses of the intfs belonging to the vrf should be deleted and all neighbor and route entries related to this vrf should be removed. The entries in other vrf should not be effected.
+
+#### Test steps <!-- omit in toc -->
+
+- load vrf configuration and frr.conf
+- verify route and neigh status is okay
+- remove specified vrf using CLI
+- verify ip addresses of the interfaces belonging to the vrf are removed by traffic
+- verify neighbor and route entries removed by traffic
+- verify neighbor and route entries in other vrf existed by traffic
+- Restore configuration
+
 ## TODO
 
-- vrf table attributes 'l3_mc_action' test
 - vrf table attributes 'fallback lookup' test
 - vrf route leaking between VRFS
+- everflow support in vrf
 - application test in VRF such as ssh
