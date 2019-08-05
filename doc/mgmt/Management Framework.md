@@ -56,7 +56,9 @@
                 * [3.2.2.4.10 RESTCONF Operations](#3_2_2_4_10-restconf-operations)
                 * [3.2.2.4.11 RESTCONF Notifications](#3_2_2_4_11-restconf-notifications)
                 * [3.2.2.4.12 Authentication](#3_2_2_4_12-authentication)
-                * [3.2.2.4.13 DB Schema](#3_2_2_4_13-db-schema)
+                * [3.2.2.4.13 Error Response](#3_2_2_4_13-error-response)
+                * [3.2.2.4.14 DB Schema](#3_2_2_4_14-db-schema)
+                * [3.2.2.4.15 API Documentation](#3_2_2_4_15-api-documentation)
             * [3.2.2.5 gNMI server](#3_2_2_5-gnmi-server)
 			    * [3.2.2.5.1 Files changed/added](#3_2_2_5_1-files-changed/added)
 				* [3.2.2.5.2 Sample Requests](#3_2_2_5_3-sample-requests)
@@ -434,7 +436,7 @@ The management REST Server will be implemented as a Go HTTP server. It supports 
 
 ###### 3.2.2.4.1 Transport options
 
-REST Servers supports only HTTPS transport and listens on default port 443. Server port can be changed through a an entry in ConfigDB REST_SERVER table. Details are in [DB Schema](#322413-db-schema) section.
+REST Servers supports only HTTPS transport and listens on default port 443. Server port can be changed through a an entry in ConfigDB REST_SERVER table. Details are in [DB Schema](#3_2_2_4_14-db-schema) section.
 
 HTTPS certificates are managed similar to that of existing gNMI Telemetry program. Server key, certificate and CA certificate are maintained in ConfigDB DEVICE_METATDATA table. Same certificate will be used by both gNMI Telemetry and REST Server.
 
@@ -450,7 +452,7 @@ REST Server will statically link with Translib. Each REST request will invoke Tr
  PUT         | Translib.Replace | path, payload | status
  DELETE      | Translib.Delete  | path          | status
 
-More details about Translib APIs are in section [3.2.2.6](#3226-Translib).
+More details about Translib APIs are in section [3.2.2.6](#3_2_2_6-Translib).
 
 ###### 3.2.2.4.3 Media Types
 
@@ -509,7 +511,7 @@ REST Server will support below 3 authentication modes.
 * TLS Certificate authentication
 * Username/password authentication
 
-Only one mode can be active at a time. Administrator can choose the authentication mode through ConfigDB REST_SERVER table entry. See [DB Schema](#322413-db-schema) section.
+Only one mode can be active at a time. Administrator can choose the authentication mode through ConfigDB REST_SERVER table entry. See [DB Schema](#3_2_2_4_14-db-schema) section.
 
 ###### 3.2.2.4.12.1 No Authentication
 
@@ -527,7 +529,69 @@ REST Server will integrate with Linux PAM to authenticate and authorize the user
 
 Performing TACACS+ authentication for every REST request can slow down the APIs. This will be optimized through JSON Web Token (JWT) or a similar mechanism in future release.
 
-###### 3.2.2.4.13 DB Schema
+###### 3.2.2.4.13 Error Response
+
+REST Server sends back HTTP client error (4xx) or server error (5xx) status when request processing
+fails. Response status and payload will be as per RESTCONF specifications - [RCF8040, section7](https://tools.ietf.org/html/rfc8040#page-73).
+Error response data will be a JSON with below structure. Response Content-Type will be
+"application/yang-data+json".
+
+    +---- errors
+         +---- error*
+              +---- error-type       "protocol" or "application"
+              +---- error-tag        string
+              +---- error-app-tag?   string
+              +---- error-path?      xpath
+              +---- error-message?   string
+
+Note: REST Server will not populate error-app-tag and error-path fields in this release. It can be
+enhanced in a future release. A sample error response:
+
+    {
+      "ietf-restconf:errors" : {
+        "error" : [
+          {
+            "error-type" : "application",
+            "error-tag" : "invalid-value",
+            "error-message" : "VLAN 100 not found"
+          }
+        ]
+      }
+    }
+
+**error-type** can be either "protocol" or "application", indicating the origin of the error.
+RESTCONF defines two more error-type enums "transport" and "rpc"; they are not used by REST Server.
+
+**error-tag** indicates nature of error as described in [RFC8040, section 7](https://tools.ietf.org/html/rfc8040#page-74).
+
+**error-message** field carries a human friendly error message that can be displayed to the end
+user. This is an optional field; system errors do not include error-message, or have generic
+messages like "Internal error". App Module developer should use human friendly messages while
+returning application errors. In case of CVL constraint violation the REST Server will pick
+the error message from the yang "error-message" statement of CVL schema yang. 
+
+Table below lists possible error conditions with response status and data returned by REST Server.
+
+Method  | Error condition          | Status | error-type  | error-tag        | error-message
+--------|--------------------------|--------|-------------|------------------|----------------------
+*any*   | Incorrect request data      | 400 | protocol    | invalid-value    | 
+*write* | Bad content-type            | 415 | protocol    | invalid-value    | Unsupported content-type
+*write* | OpenAPI schema validation fails | 400 | protocol| invalid-value    | Content not as per schema
+*write* | YGOT schema validation fails    | 400 | protocol| invalid-value    | *YGOT returned message*
+*any*   | Invalid user credentials    | 401 | protocol    | access-denied    | Authentication failed
+*write* | User is not an admin        | 403 | protocol    | access-denied    | Authorization failed
+*write* | TransLib commit failure     | 409 | protocol    | in-use           |
+*any*   | Unknown HTTP server failure | 500 | protocol    | operation-failed | Internal error
+*any*   | Not supported by App Module | 405 | application | operation-not-supported | *App Module returned message*
+*any*   | Incorrect payload           | 400 | application | invalid-value    | *App Module returned message*
+*any*   | Resource not found          | 404 | application | invalid-value    | *App Module returned message*
+POST    | Resource exists             | 409 | application | resource-denied  | *App Module returned message*
+*any*   | Unknown error in TransLib   | 500 | application | operation-failed | Internal error
+*any*   | Unknown App Module failure  | 500 | application | operation-failed | *App Module returned message*
+*any*   | CVL constraint failure      | 500 | application | invalid-value    | *error-message defined in CVL yang*
+
+
+###### 3.2.2.4.14 DB Schema
 
 A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST Server configurations. Below is the schema for this table.
 
@@ -544,6 +608,13 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST Se
                                         ;       Client's public certificate should
                                         ;       be registered on this server.
     log_level   = DIGIT                 ; Verbosity for glog.V logs
+
+###### 3.2.2.4.15 API Documentation
+
+REST Server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
+documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
+URL **https://*REST_SERVER_IP*/ui** in a browser. This page will list all supported OpenAPI
+definition files (both YANG generated and manual) along with link to open Swagger UI for them.
 
 
 ##### 3.2.2.5 gNMI server
@@ -807,6 +878,8 @@ The APIs are broadly classified into the following areas:
     * Read                : GetEntry(), GetKeys(), GetTable()
     * Write               : SetEntry(), CreateEntry(), ModEntry(), DeleteEntry()
     * Transactions        : StartTx(), CommitTx(), AbortTx()
+    * Map                 : GetMap(), GetMapAll()
+    * Subscriptions       : SubscribeDB(), UnsubscribeDB()
 
 Detail Method Signature:
     Please refer to the code for the detailed method signatures.
@@ -1177,7 +1250,6 @@ Describe key scaling factor and considerations
 1.  Verify that if no ACL and Rules configured, top level GET request should return empty response
 2.  Verify that bulk request for ACLs, multiple Rules within each ACLs and interface bindings are getting created with POST request at top level
 3.  Verify that all ACLs and Rules and interface bindings are shown with top level GET request
-4.  Verify that GET returns all Rules for single ACL
 5.  Verify that GET returns all Rules for single ACL
 6.  Verify that GET returns Rules details for single Rule
 7.  Verify that GET returns all interfaces at top level ACL-interfaces
@@ -1196,43 +1268,441 @@ Describe key scaling factor and considerations
 20. Verify that CVL returns error on giving invalid interface number in payload during binding creation
 
 #### CVL
-1.  Verify that CVL Failure is returned when non-existent key name is given
-2.  Verify that CVL Failure is returned when non-existent depenedent configuration is given
-3.  Verify that CVL Success is returned when Valid JSON data is provided
-4.  Verify that CVL Failure is returned must expression is not satisified
-5.  Verify that CVL Failure is returned when out of range values are present.
-6.  Verify that CVL Failure is returned when invalid options are given
-7.  Verify that CVL Failure is returned when invalid IP address is given
-8.  Verify that CVL Failure is returned when extra invalid node is added.
-9.  Verify that CVL failure is returned when mandatory node is not provided.
-10. Verify that CVL Failure is returned when values exceed custom platform constraints
-11. Verify that CVL failure is returned is incorrect number of keys are given
-12. Verify that CVL Failure is returned when key value is invalid
-13. ValidateCreate - CVL failure is returned if user tries to create list with existing key
-14. ValidateCreate - CVL failure is returned if user tries to create list with invalid key
-15. ValidateCreate - CVL failure is returned if user tries to create list without mandatory nodes not present
-16. ValidateCreate - CVL failure is returned if user tries to create list with REDIS based dependent nodes not present
-17. ValidateCreate - CVL failure is returned if user tries to create list with App-module based depedent not present
-18. ValidateCreate - CVl failure is reurned if user tries to create list with missing key
-19. ValidateCreate - CVL success is returned for valid ABNF json coming from ZTP
-20. ValidateCreate - CVL success is returned for valid ABNF json coming from Translib
-21. ValidateCreate - CVL success is returned for valid ABNF json coming from cfg-gen
-22. ValidateCreate - CVL success is returned for valid ABNF json coming from any other applications
-23. ValidateUpdate - CVL failure is returned if user tries to replace an entry with non-existing key
-24. ValidateUpdate - CVL failure is returned if user tries to replace an entry without mandotory nodes present
-25. ValidateUpdate - CVL failure is returned if user tries to replace an entry with REDIS based dependent nodes not present
-26. ValidateUpdate - CVL failure is returned if user tries to replace an entry with App-Module based dependent nodes not present
-27. ValidateUpdate - CVL success is returned if user tries to update with data coming from Click CLI
-28. ValidateUpdate - CVL success is returned if user tries to update with data coming from Translib
-29. ValidateUpdate - CVL success is returned if user tries to update with data coming from cfg-gen
-30. ValidateUpdate - CVL success is returned if user tries to update with data coming from any other applications
-31. ValidateUpdate - CVL failure is returned for any syntactic error is present in ABNF json
-32. ValidateUpdate - CVL failure is returned for any semantic error is present in ABNF json
-33. ValidateDelete - CVL failure is returned if user tries to delete node with non-existent key
-34. ValidateDelete - CVL failure is returned if user tries to delete leaf that has been referred somewhere else and not found in list of delete keys
-35. ValidateDelete - CVl deletes all the dependent nodes
-
+1. Check if CVL validation passes when data is given as JSON file
+2. Check if CVL Validation passes for Tables with repeated keys like QUEUE,WRED_PROFILE and SCHEDULER
+3. Check if CVL throws error when bad schema is passed
+4. Check if debug trace level is changed as per updated conf file on receiving SIGUSR2
+5. Check must constraint for DELETE throws failure if condition fails, (if acl is a bound to port, deleting the acl rule throws error due to must constraint)
+6. Check if CVL Validation passes when data has cascaded leafref dependency (Vlan Member->Vlan->Port)
+7. Check if Proper Error Tag is returned when must condition is not satisfied
+8. Check if CVL Validation passes if Redis is loaded with dependent data for UPDATE operation.
+9. Check is CVL Error is returned when any mandatory node is not provided.
+10. Check if CVL validation passes when global cache is updated for PORT Table for "must" expressions.
+11. Check if CVL is able to validate JSON data given in JSON file for VLAN , ACL models
+12. Check if CVL initialization is successful
+13. Check if CVL is able to validate JSON data given in string format for CABLE LENGTH
+14. Check if CVL failure is returned if input JSON data has incorrect key
+15. Check if CVL is returning CVL_SUCCESS for Create operation if Dependent Data is present in Redis
+16. Check if CVL is returning CVL_FAILURE for Create operation with invalid field for CABLE_LENGTH .
+17. Check is CVL Error is returned for any invalid field in leaf
+18. Check is Valid CVL_SUCCESS is returned for Valid field for ACL_TABLE when data is given in Test Structure
+19. Check is Valid CVL_SUCCESS is returned for Valid field for ACL_RULE where Dependent data is provided in same session
+20. Check if CVL is returning CVL_FAILURE for Create operation with invalid Enum vaue
+21. Check if CVL validation fails when incorrect IP address prefix is provided.
+22. Check is CVL validation fails when incorrect IP address is provided.
+23. Check is CVL validation fails when out of bound are provided.
+24. Check is CVL validation fails when invalid IP protocol
+25. Check is CVL validation fails when out of range values are provided.
+26. Check if CVL validation fails when incorrect key name is provided .
+27. Check if CVL validation passes is any allowed special character is list name.
+28. Check if CVL validation fails when key names contains junk characters.
+29. Check if CVL validation fails when additional extra node is provided
+30. Check is CVL validation passes when JSON data is given as buffer for DEVICE METEADATA
+31. Check if CVL validation fails when key name does not contain separators.
+32. Check if CVL validation fails when one of the keys is missing for  Create operation
+33. Check if CVL validation fails when there are no keys between separators for Create operation
+34. Check if CVL validation fails when missing dependent data is provided for Update operation in same transaction 
+35. Check if CVL validation fails when missing dependent data is provided for Create operation in same transaction.
+36. Check if CVL validation fails when there are no keys between separators for DELETE operation
+37. Check if CVL validation fails when there are no keys between separators for UPDATE operation
+38. Check if CVL validation fails when invalid key separators are provided for Delete operation
+39. Check if CVL validation fails if UPDATE operation is given with invalid enum value
+40. Check if CVL validation fails if UPDATE operation is given with invalid key containing missing keys
+41. Check if CVL validation passes with dependent data present in same transaction for DELETE operation.
+42. Check if CVL validation fails if DELETE operation is given with missing key for DELETE operation.
+43. Check if CVL validation fails if UPDATE operation is given with missing key
+44. Check if CVL validation fails when an existing key is provided in CREATE operation
+45. Check if CVL validation passes for INTERFACE table
+46. Check if CVL validation fails when configuration not satisfying must constraint is provided
+47. Check if CVL validation passes when Redis has valid dependent data for UPDATE operation
+48. Check if CVL validation fails when two different sequences are passed(Create and Update is same transaction)                                                            
+49. Check if CVL validation fails for UPDATE operation when Redis does not have dependent data.
+50. Check if CVL validation passes with valid dependent  data given for CREATE operation.
+51. Check if CVL validation fails when user tries to delete non existent key
+52. Check if CVL Validation passes if Cache contains dependent data populated in same sessions but separate transaction.
+53. Check if CVL Validation passes if Cache data dependent data that is populated across sessions
+54. Check if CVL Validation fails when incorrect dependent Data is provided for CREATE operation
+55. Check if CVL validation passes when valid dependent data is provided for CREATE operation
+56. Check if Proper Error Tag is returned when must condition is not satisfied in "range"
+57. Check if Proper Error Tag is returned when must condition is not satisfied in "length"
+58. Check if Proper Error Tag is returned when must condition is not satisfied in "pattern"
+59. Check if DELETE fails when ACL Table is tried to Rule or when DELETE tries to delete TABLE with non-empty leafref
+60. Check if validation fails when non-existent dependent data is provided.
+61. Check if CVL validation fails when DELETE tries to delete leafref of another table(delete ACL table referenced by ACL rule)
+62. Check if CVL Validation fails when unrelated chained dependent data is given.
+63. Check if CVL Validation fails when VLAN range is out of bound and proper error message is returned
+64. Check if Logs are printed as per configuration in log configuration file.
+65. Check if DELETE operation is performed on single field 
+66. Check if CVL validation passes when valid dependent data is provided using a JSON file.
+67. Check if CVL validation is passed when when delete is performed on Table and then connected leafref 
+68. Check if CVL validation is passes when JSON data can be given in file format
+69. Check if CVL Finish operation is successful
+70. Check if CVL validation passes when Entry can be deleted and created in same transaction
+71. Check if CVL validation passes when two UPDATE operation are given
 
 ## 10 Internal Design Information
 
 Internal BRCM information to be removed before sharing with the community
+
+
+## APPENDIX
+
+### How to write CVL/SONiC Northbound YANG
+
+1. CVL YANG schema is 1:1 mapping of ABNF schema. So ABNF schema is taken as reference and CVL YANG model is written based on it.
+2. All related data definition should be written in a single YANG model file. YANG model file is named as 'sonic-<feature>.yang'. It is mandatory to define a top level container named as 'sonic-<feature>' i.e. same as YANG model name. All other definition should be written inside this container. 
+3. Define common data type in a common YANG model like sonic-common.yang file. All YANG extension are also defined in sonic-common.yang.
+4. Define a YANG 'list' for each table in ABNF schema. The list name should be same exactly same as table name including its case.
+5. By default table is defined in CONFIG_DB, if needed use extension 'scommon:db-name' for defining the table in other DB. Example - 'scommon:db-name "APPL_DB"'.
+6. The default separator used in table key pattern is "|". If it is different, use  'scommon:key-delim <separator>;'
+7. Define same number of key elements as specified in table in ABNF schema. Generally the default key pattern is '{table_name}|{key1}|{key2}. However, if needed use '*' for repetitive key pattern e.g. 'scommon:key-pattern QUEUE|({ifname},)*|{qindex}'. ABNF schema does not have any explicit key name. So,  use appropriate key name as needed and define them as leaf. 
+
+Example :
+The 'key  = "QUEUE:"port_name":queue_index' key definition in ABNF schema is defined as :
+
+	list QUEUE {
+		key "ifname qindex";
+		scommon:key-pattern "QUEUE|({ifname},)*|{qindex}";
+
+		leaf ifname {
+			type leafref {
+				path "/prt:sonic-port/prt:PORT/prt:ifname";
+			}
+		}
+
+		leaf qindex {
+			type string {
+				pattern "[0-8]((-)[0-8])?";
+			}
+		}
+	}
+
+
+Refer to [sonic-queue.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-queue.yang) for example.
+
+8. Mapping tables in Redis are defined using nested 'list'. Use 'scommon:map-list "true";' to indicate that the 'list' is used for mapping table. Use 'scommon:map-leaf "<field1> <field2>";' to defining the mapping between two fields. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance. 
+Example :
+
+	list TC_TO_QUEUE_MAP {
+		key "name";
+		scommon:key-pattern "TC_TO_QUEUE_MAP|{name}";
+		scommon:map-list "true"; //special conversion for map tables
+		scommon:map-leaf "tc_num qindex"; //every key:value pair is mapped to list keys, e.g. "1":"7" ==> tc_num=1, qindex=7
+
+		leaf name {
+			type string;
+		}
+
+		list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
+			key "tc_num qindex";
+
+			leaf tc_num {
+				type string {
+					pattern "[0-9]?";
+				}
+			}
+
+			leaf qindex {
+				type string {
+					pattern "[0-9]?";
+				}
+			}
+		}
+
+	}
+
+Refer to [sonic-tc-queue-map.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-tc-queue-map.yang) for example.
+
+9. Each field in table instance i.e. hash entry in Redis is defined as a leaf in YANG list. Use appropriate data type for each field. Use enum, range and pattern as needed for defining data syntax constraint.
+
+10. Use 'leafref' to build relationship between two tables tables. 
+Example:
+  	leaf MIRROR_ACTION {
+		 type leafref {
+			 path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
+		 }
+	}
+Refer to [sonic-acl.yang ](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) to see the relationship between ACL_RULE and MIRROR_SESSION table.
+
+11. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table. 
+
+Example : 'scheduler' in QUEUE table is defined as :
+	
+	leaf scheduler {
+			type leafref {
+				path "/sch:sonic-scheduler/sch:SCHEDULER/sch:name";
+			}
+	}
+	
+Refer to [sonic-queue.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-queue.yang) for example.
+
+12. The establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met.
+Example:
+        must "(/scommon:operation/scommon:operation != 'DELETE') or " +
+			"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
+				error-message "Ports are already bound to this rule.";
+		}
+
+Refer to [sonic-acl.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) for example.
+
+13. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
+Example:
+
+	leaf vlanid {
+		mandatory true;
+		type uint16 {
+			range "1..4095" {
+				error-message "Vlan ID out of range";
+				error-app-tag vlanid-invalid;
+			}
+		}
+	}
+
+
+14. Use 'when' statement for conditional data definition.
+15. Add read-only nodes for state  data using 'config false' statement. Such data definition is used by management application only and CVL ignores them.
+16. Define custom RPC for executing command like clear, reset etc. This is also for Northbound interface, CVL ignores it.
+17. Define NOTIFICATION for sending out events as they occur in the system, e.g. link up/down or link failure event. This is also ignored by CVL.
+18. Once YANG file is written, place it inside 'src/cvl/schema' folder and compile it by invoking 'make' utility. Fix any YANG error reported by 'pyang' compiler.
+
+
+#### Sample YANG model:
+
+
+	module sonic-acl {
+		namespace "http://github.com/Azure/sonic-acl";
+		prefix sacl;
+		yang-version 1.1;
+
+		import ietf-yang-types {
+			prefix yang;
+		}
+
+		import ietf-inet-types {
+			prefix inet;
+		}
+
+		import sonic-common {
+			prefix scommon;
+		}
+
+		import sonic-port {
+			prefix prt;
+		}
+
+		import sonic-portchannel {
+			prefix spc;
+		}
+
+		import sonic-mirror-session {
+			prefix sms;
+		}
+
+		import sonic-pf-limits {
+			prefix spf;
+		}
+
+		organization
+			"BRCM";
+
+		contact
+			"BRCM";
+
+		description
+			"SONIC ACL";
+
+		revision 2019-05-15 {
+			description
+					"Initial revision.";
+		}
+
+		container sonic-acl {
+			scommon:db-name "CONFIG_DB";
+
+			list ACL_TABLE {
+				key "aclname";
+				scommon:key-delim "|";
+				scommon:key-pattern "ACL_TABLE|{aclname}";
+
+				leaf aclname {
+					type string;
+				}
+
+				leaf policy_desc {
+					type string {
+						length 1..255 {
+							error-app-tag policy-desc-invalid-length;
+						}
+					}
+				}
+
+				leaf stage {
+					type enumeration {
+						enum INGRESS;
+						enum EGRESS;
+					}
+				}
+
+				leaf type {
+					type enumeration {
+						enum MIRROR;
+						enum L2;
+						enum L3;
+						enum L3V6;
+					}
+				}
+
+				leaf-list ports {
+					type leafref {
+						path "/prt:sonic-port/prt:PORT/prt:ifname";
+					}
+				}
+			}
+
+			list ACL_RULE {
+					key "aclname rulename";
+					scommon:key-delim "|";
+					scommon:key-pattern "ACL_RULE|{aclname}|{rulename}";
+					scommon:pf-check    "ACL_CheckAclLimits";
+
+					leaf aclname {
+						type leafref {
+							path "../../ACL_TABLE/aclname";
+						}
+						must "(/scommon:operation/scommon:operation != 'DELETE') or " +
+							"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
+								error-message "Ports are already bound to this rule.";
+						}
+					}
+
+					leaf rulename {
+						type string;
+					}
+
+					leaf PRIORITY {
+						type uint16 {
+							range "1..65535";
+						}
+					}
+
+					leaf RULE_DESCRIPTION {
+						type string;
+					}
+
+					leaf PACKET_ACTION {
+						type enumeration {
+							enum FORWARD;
+							enum DROP;
+							enum REDIRECT;
+						}
+					}
+
+					leaf MIRROR_ACTION {
+						type leafref {
+							path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
+						}
+					}
+
+					leaf IP_TYPE {
+						type enumeration {
+							enum any;
+							enum ip;
+							enum ipv4;
+							enum ipv4any;
+							enum non_ipv4;
+							enum ipv6any;
+							enum non_ipv6;
+						}
+					}
+
+					leaf IP_PROTOCOL {
+						type uint8 {
+							range "1|2|6|17|46|47|51|103|115";
+						}
+					}
+
+					leaf ETHER_TYPE {
+						type string{
+							pattern "(0x88CC)|(0x8100)|(0x8915)|(0x0806)|(0x0800)|(0x86DD)|(0x8847)";
+						}
+					}
+
+					choice ip_src_dst {
+						case ipv4_src_dst {
+							leaf SRC_IP {
+								mandatory true;
+								type inet:ipv4-prefix;
+							}
+							leaf DST_IP {
+								mandatory true;
+								type inet:ipv4-prefix;
+							}
+						}
+						case ipv6_src_dst {
+							leaf SRC_IPV6 {
+								mandatory true;
+								type inet:ipv6-prefix;
+							}
+							leaf DST_IPV6 {
+								mandatory true;
+								type inet:ipv6-prefix;
+							}
+						}
+					}
+
+					choice src_port {
+						case l4_src_port {
+							leaf L4_SRC_PORT {
+								type uint16;
+							}
+						}
+						case l4_src_port_range {
+							leaf L4_SRC_PORT_RANGE {
+								type string {
+									pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+								}
+							}
+						}
+					}
+
+				choice dst_port {
+						case l4_dst_port {
+							leaf L4_DST_PORT {
+								type uint16;
+							}
+						}
+						case l4_dst_port_range {
+							leaf L4_DST_PORT_RANGE {
+								type string {
+									pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+								}
+							}
+						}
+				}
+
+				leaf TCP_FLAGS {
+					type string {
+						pattern "0[xX][0-9a-fA-F]{2}[/]0[xX][0-9a-fA-F]{2}";
+					}
+				}
+
+				leaf DSCP {
+					type uint8;
+				}
+			}
+			
+			container state {
+				config false;
+				description "Status data";
+
+				leaf MATCHED_PACKETS {
+					type yang:counter64;
+				}
+
+				leaf MATCHED_OCTETS {
+					type yang:counter64;
+				}
+			}
+
+		}
+	}
