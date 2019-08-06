@@ -107,7 +107,7 @@
 |:---:|:-----------:|:-----------------------:|-----------------------------------|
 | 0.1 | 06/13/2019  | Anand Kumar Subramanian | Initial version                   |
 | 0.2 | 07/05/2019  | Prabhu Sreenivasan      | Added gNMI, CLI content from DELL |
-
+| 0.3 | 08/05/2019  | Senthil Kumar Ganesan   | Updated gNMI content |
 ## About this Manual
 
 This document provides general information about the Management framework feature implementation in SONiC.
@@ -211,16 +211,18 @@ User can start with YANG or OpenAPI spec.
 
 ##### 3.1.2.3 gNMI
 
-1. gNMI Is a TCP/gRPC based server that has 4 RPCs defined: Get, Set, Capabilities and Subscribe.
-2. gNMI Specification requires all connections to use mutual TLS.
-3. Authentication on a per RPC is supported with username/password or token based authentication.
-4. Communication happens using Protocol Buffers defined in the gNMI Specification for each request type. 
-5. Errors are handled by returning the standard gRPC Error codes in the response, along with one or more user readable error strings.
-6. Get requests provide a path to an object and the response provides the object in a specified encoding (Json, Xml, Yang, Protobuf)
-7. Set Requests can have more than one operation defined. There are three operation types: Update, Replace and Delete. All operations in a Set Request are part of a transaction that will either succeed or fail as one operation. Update and replace operations provide a path along with a payload provided in a specified encoding. Delete operations only require a path.
-8. Set and Get operations will send the request path and payload (if applicable) through to the Translib. Translib will then provide a response in the correct format to be returned to the gNMI client.
-9. Capabilities request returns version information, list of supported models (ACL, Interface, System etc.) as well as supported encodings (Json, Xml, Yang, Protobuf etc.)
-10. Subscribe request requires a path to an object as well as a operation type: Once, Poll or Stream. For Once, the gRPC connection remains open until a single update is sent, then it is closed. For Poll, the gRPC connection remains open, but the client is responsible for requesting updates to the object. For Stream, the gRPC remains open and the Server will send updates as soon as they are available from Translib.
+GNMI service defines a gRPC-based protocol for the modification and retrieval of configuration from a target device, as well as the control and generation of telemetry streams from a target device to a data collection system. Refer  [GNMI spec](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md)
+
+![SONIC Telemetry Architecture (Current)](images/dial_in_out.png)
+
+![GNMI Service High level diagram (Proposed)](images/GNMI_Server.png)
+
+1. Existing SONiC telemetry framework has been extended to support the new GNMI services.
+2. All 4 GNMI services are supported: Get, Set, Capabilities and Subscribe.
+3. A new client transl data client is added to support the request incoming request in YANG objects (Both Open Config and SONiC)
+4. The new transl data client relies on translib infra provided to translate, get, set of the YANG objects.
+
+More details onthe GNMI Server, Client and workflow provided later in the document.
 
 ### 3.2 SONiC Management Framework Components
 
@@ -433,8 +435,58 @@ Client applications can use swagger generated client SDK or any other REST clien
 
 ##### 3.2.2.3 gNMI Client
 
-GNMI clients developed by JipanYANG.(github.com/jipanYANG/gnxi/gnmi_get, github.com/jipanYANG/gnxi/gnmi_set)
-are used for testing. gnmi_get and gnmi_set code has been changed to handle module name.
+SONiC Teleletry service provides the gNMI server, while the client must be provided by the user. 
+
+GNMI client developed by JipanYANG.(github.com/jipanYANG/gnxi/gnmi_get, github.com/jipanYANG/gnxi/gnmi_set)
+is used for testing. gnmi_get and gnmi_set code has been changed to handle module name.
+
+Note: Although the GRPC protocol allows for many encodings and models to be used, our usage is restricted to JSON encoding.
+
+Supported RPC Operations:
+-------------------------
+- Get: Get one or more paths and have value(s) returned in a GetResponse.
+- Set: Update, replace or delete objects
+    + Update: List of one or more objects to update
+    + Replace: List of one or objects to replace existing objects, any unspecified fields wil be defaulted.
+    + Delete: List of one or more object paths to delete
+- Capabilities: Return gNMI version and list of supported models
+- Subscribe:
+    + Subscribe to paths using either streaming or poll, or once based subscription, with either full current state or updated values only.
+        * Once: Get single subscription message.
+        * Poll: Get one subscription message for each poll request from the client.
+        * Stream: Get one subscription message for each object update, or at each sample interval if using sample mode. target_defined uses the values pre-configured for that particular object.
+        
+
+Example Client Operations:
+--------------------------
+Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-framework/tree/master/src/translib/test
+
+Get:
+----
+`./gnmi_get -xpath /openconfig-acl:acl/interfaces -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty`
+
+Set:
+----
+Replace:
+--------
+    `./gnmi_set -replace /openconfig-acl:acl/:@./test/01_create_MyACL1_MyACL2.json -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty`
+Delete:
+-------
+    `./gnmi_set -delete /openconfig-acl:acl/ -target_addr 127.0.0.1:8080 -insecure`
+
+Subscribe:
+----------
+Streaming sample based:
+-----------------------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type s -streaming_sample_interval 3000000000 -streaming_type 2 -q /openconfig-acl:acl/ -v 0 -target YANG`
+
+Poll based:
+-----------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type p -polling_interval 1s -count 5 -q /openconfig-acl:acl/ -v 0 -target YANG`
+
+Once based:
+-----------
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type o -q /openconfig-acl:acl/ -v 0 -target YANG`
 
 ##### 3.2.2.4 REST Server
 
@@ -628,12 +680,12 @@ definition files (both YANG generated and manual) along with link to open Swagge
 
 ##### 3.2.2.5 gNMI server
 
-1. gNMI Server is part of the telemetry process that supports dialout telemtry as well as gNMI.
+1. gNMI Server is part of the telemetry process that supports telemtry as well as gNMI.
 2. The gRPC server opens a TCP port and allows only valid mutually authenticated TLS connections, which requires valid Client, Server and CA Certificates be installed as well a properly configured DNS. Multiple simultaneous connections are allowed to gNMI server.
 3. The gNMI Agent uses the db client, as well as the non-db client to access and modify data directly in the redis DB.
 4. The Translib client is used to provide alternative models of access such as Openconfig models as opposed to the native redis schema, as long as the Translib supports these models. Translib offers bidirectional translation between the native redis model and the desired north bound model, as well as notifications/updates on these model objects to support telemetry and asynchronous updates, alarms and events. Translib should also provide information about what models it supports so that information can be returned in gNMI Capabilities response.
 5. The gNMI Server defines the four RPC functions as required by the gNMI Specification: Get, Set, Capabilities and Subscribe.
-6. Since the db, non-db and translib clients offer the functionality to support these functions, gNMI only has to translate the paths and object payloads into the correct parameters for the client calls and package the results back intro the response gNMI objects to return to the gNMI Client, which is a straightforward operation, since no additional processing of the data is expected to be done in the gNMI Server itself. When new models are added to Translib, no additional work should be required to support them in gNMI Server.
+6. Since the db, non-db and translib clients offer the functionality to support these functions, gNMI only has to translate the paths and object payloads into the correct parameters for the client calls and package the results back into the response gNMI objects to return to the gNMI Client, which is a straightforward operation, since no additional processing of the data is expected to be done in the gNMI Server itself. When new models are added to Translib, no additional work should be required to support them in gNMI Server.
 7. All operations in a Set request are processed in a single transaction that will either succeed or fail as one operation. The db, non-db and translib clients must support a Bulk operation in order to achieve the transactional behavior. gNMI Server then must use this Bulk operation for Set requests.
 8. Subscribe operations: Once, Poll and Stream require that the gRPC connection remain open until the subscription is completed. This means many connections must be supported. Subscribe offers several options, such as only sending object updates (not the whole object) which requires support form the db clients. Subscribe also allows for periodic sampling defined by the client. This must be handled in the gNMI agent itself. This requires a timer for each subscribe connection of this type in order to periodically poll the db client and return the result in a Subscribe Response. These timers should be destroyed when the subscription gRPC connection is closed.
 
