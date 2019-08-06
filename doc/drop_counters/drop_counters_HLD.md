@@ -275,3 +275,4 @@ A separate test plan will be uploaded and reviewed by the community.
 
 # 7 Open Questions
 * There's still an open question in the SAI proposal over whether counter indices will be managed by the SAI or the user. This doc is currently written as if the user is managing the indices, but if this changes then the design (specifically, the Config DB schema) will need to be revised.
+    - Update: This has been addressed and counters are SAI managed. We'll stick with the current design because it still may be useful to have a table of configured counters in the future in case more counter types are added.
