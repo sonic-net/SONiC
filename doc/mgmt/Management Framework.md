@@ -96,6 +96,8 @@
 * [8 Scalability](#8-scalability)
 * [9 Unit Test](#9-unit-test)
 * [10 Internal Design Information](#10-internal-design-information)
+* [APPENDIX](#APPENDIX)
+
 
 ## List of Tables
 
@@ -1601,29 +1603,33 @@ Refer to [sonic-tc-queue-map.yang](https://github.com/project-arlo/sonic-mgmt-fr
 
 9. Each field in table instance i.e. hash entry in Redis is defined as a leaf in YANG list. Use appropriate data type for each field. Use enum, range and pattern as needed for defining data syntax constraint.
 
-10. Use 'leafref' to build relationship between two tables tables. 
+10. Use 'leafref' to build relationship between two tables tables.
+
 Example:
+
   	leaf MIRROR_ACTION {
 		 type leafref {
 			 path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
 		 }
 	}
+
 Refer to [sonic-acl.yang ](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) to see the relationship between ACL_RULE and MIRROR_SESSION table.
 
 11. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table. 
 
 Example : 'scheduler' in QUEUE table is defined as :
-	
+
 	leaf scheduler {
 			type leafref {
 				path "/sch:sonic-scheduler/sch:SCHEDULER/sch:name";
 			}
 	}
-	
+
 Refer to [sonic-queue.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-queue.yang) for example.
 
 12. The establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met.
 Example:
+
         must "(/scommon:operation/scommon:operation != 'DELETE') or " +
 			"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
 				error-message "Ports are already bound to this rule.";
@@ -1632,6 +1638,7 @@ Example:
 Refer to [sonic-acl.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) for example.
 
 13. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
+
 Example:
 
 	leaf vlanid {
