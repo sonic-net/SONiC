@@ -81,8 +81,8 @@ A sub port interface shall support the following features:
 * VRF
 * RIF counters
 * QoS setting inherited from parent physical port or port channel
-* Per sub port interface mtu config
-* mtu inheritance from parent physical port or port channel if mtu is not specified on a sub port interface in the configuration file.
+* mtu inherited from parent physical port or port channel
+* Per sub port interface admin status config
 
 # 2 Schema design
 
@@ -94,7 +94,7 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
 ```
 "SUB_INTERFACE": {
     "{{ port_name }}.{{ vlan_id }}": {
-        "mtu" : "{{ mtu_size }}"
+        "admin_status" : "{{ adminstatus }}"
     },
     "{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}": {}
 },
@@ -105,15 +105,19 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
     }
 },
 ```
-A key in the SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot). The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
+A key in the SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot).
+The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
 
-mtu of a sub port interface should be no greater than that of the parent physical port or port channel. In the case field "mtu" is absent in the config_db.json file, a sub port interface inherits the mtu from its parent physical port or port channel.
+mtu of a sub port interface is inherited from its parent physical port or port channel, and is not configurable in the current design.
+
+admin_status of a sub port interface can be either up or down.
+In the case field "admin_status" is absent in the config_db.json file, a sub port interface is set admin status up by default at its creation.
 
 Example configuration:
 ```
 "SUB_INTERFACE": {
     "Ethernet64.10": {
-        "mtu" : "9100"
+        "admin_status" : "up"
     },
     "Ethernet64.10|192.168.0.1/21": {},
     "Ethernet64.10|fc00::/7": {}
@@ -129,7 +133,7 @@ Example configuration:
 ### 2.1.2 CONFIG_DB
 ```
 SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}
-    "mtu" : "{{ mtu_size }}"
+    "admin_status" : "{{ adminstatus }}"
 
 SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}
     "NULL" : "NULL"
@@ -145,7 +149,7 @@ subif_name      = port_name "." vlan_id         ; port_name is the name of paren
                                                 ; vlanid is DIGIT 1-4094
 
 ; field         = value
-mtu             = 1*4DIGIT                      ; sub port interface MTU (Optional)
+admin_status    = up / down                     ; admin status of the sub port interface
 ```
 
 ```
@@ -177,7 +181,7 @@ ls32            = ( h16 ":" h16 ) / IPv4address
 Example:
 ```
 SUB_INTERFACE|Ethernet64.10
-    "mtu" : "9100"
+    "admin_status" : "up"
 
 SUB_INTERFACE|Ethernet64.10|192.168.0.1/21
     "NULL" : "NULL"
@@ -192,13 +196,18 @@ INTF_TABLE:{{ port_name }}.{{ vlan_id }}
     "mtu" : "{{ mtu_size }}"
 
 INTF_TABLE:{{ port_name }}.{{ vlan_id }}:{{ ip_prefix }}
-    "NULL" : "NULL"
+    "scope" : "{{ visibility_scope }}"
+    "family": "{{ address_family }}"
+
+; field         = value
+scope           = global / local        ; local is an interface visible on this localhost only
+family          = IPv4 / IPv6           ; address family
 ```
 
 Example:
 ```
 INTF_TABLE:Ethernet64.10
-    "mtu" : "9100"
+    "admin_status" : "up"
 
 INTF_TABLE:Ethernet64.10:192.168.0.1/24
     "scope" : "global"
@@ -322,7 +331,7 @@ Internally, a sub port interface is represented as a Port object to be perceived
 ## 3.1 Sub port interface creation
 ![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_creation_flow.png)
 
-## 3.2 Sub port interface runtime mtu change
+## 3.2 Sub port interface runtime admin status change
 ![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_set_mtu_flow.png)
 
 ## 3.3 Sub port interface removal
@@ -476,8 +485,9 @@ We enforce a minimum scalability requirement on the number of sub port interface
 | Number of sub port interfaces per switch                          | 750                       |
 
 # 8 Port channel renaming
-Linux has the limitation of 16 characters on an interface name.
+Linux has the limitation of 15 characters on an interface name.
 For sub port interface use cases on port channels, we need to redesign the current naming convention for port channels (PortChannelXXXX, 15 characters) to take shorter names (such as, PoXXXX, 6 characters).
+Even when the parent port is a physical port, sub port interface use cases, such as Ethernet128.1024, still exceed the 15-character limit on an interface name.
 
 # 9 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
