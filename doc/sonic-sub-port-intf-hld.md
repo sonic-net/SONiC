@@ -86,13 +86,13 @@ A sub port interface shall support the following features:
 
 # 2 Schema design
 
-We introduce a new table "DOT1Q_INTERFACE" in the CONFIG_DB to host the attributes of a sub port interface.
+We introduce a new table "SUB_INTERFACE" in the CONFIG_DB to host the attributes of a sub port interface.
 For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces, but reuse existing tables to host sub port interface keys.
 
 ## 2.1 Configuration
 ### 2.1.1 config_db.json
 ```
-"DOT1Q_INTERFACE": {
+"SUB_INTERFACE": {
     "{{ port_name }}.{{ vlan_id }}": {
         "mtu" : "{{ mtu_size }}"
     },
@@ -105,13 +105,13 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
     }
 },
 ```
-A key in the DOT1Q_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot). The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
+A key in the SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot). The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
 
 mtu of a sub port interface should be no greater than that of the parent physical port or port channel. In the case field "mtu" is absent in the config_db.json file, a sub port interface inherits the mtu from its parent physical port or port channel.
 
 Example configuration:
 ```
-"DOT1Q_INTERFACE": {
+"SUB_INTERFACE": {
     "Ethernet64.10": {
         "mtu" : "9100"
     },
@@ -128,17 +128,17 @@ Example configuration:
 
 ### 2.1.2 CONFIG_DB
 ```
-DOT1Q_INTERFACE|{{ port_name }}.{{ vlan_id }}
+SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}
     "mtu" : "{{ mtu_size }}"
 
-DOT1Q_INTERFACE|{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}
+SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}
     "NULL" : "NULL"
 ```
 
 ### 2.1.3 CONFIG_DB schemas
 ```
 ; Defines for sub port interface configuration attributes
-key             = DOT1Q_INTERFACE|subif_name    ; subif_name is the name of the sub port interface
+key             = SUB_INTERFACE|subif_name      ; subif_name is the name of the sub port interface
 
 ; subif_name annotations
 subif_name      = port_name "." vlan_id         ; port_name is the name of parent physical port or port channel
@@ -150,7 +150,7 @@ mtu             = 1*4DIGIT                      ; sub port interface MTU (Option
 
 ```
 ; Defines for sub port interface configuration attributes
-key             = DOT1Q_INTERFACE|subif_name|IPprefix   ; an instance of this key will be repeated for each IP prefix
+key             = SUB_INTERFACE|subif_name|IPprefix     ; an instance of this key will be repeated for each IP prefix
 
 IPprefix        = IPv4prefix / IPv6prefix               ; an instance of this key/value pair will be repeated for each IP prefix
 
@@ -176,13 +176,13 @@ ls32            = ( h16 ":" h16 ) / IPv4address
 
 Example:
 ```
-DOT1Q_INTERFACE|Ethernet64.10
+SUB_INTERFACE|Ethernet64.10
     "mtu" : "9100"
 
-DOT1Q_INTERFACE|Ethernet64.10|192.168.0.1/21
+SUB_INTERFACE|Ethernet64.10|192.168.0.1/21
     "NULL" : "NULL"
 
-DOT1Q_INTERFACE|Ethernet64.10|fc00::/7
+SUB_INTERFACE|Ethernet64.10|fc00::/7
     "NULL" : "NULL"
 ```
 
@@ -417,7 +417,7 @@ Test shall cover the parent interface being a physical port or a port channel.
 ### 6.1.1 Create a sub port interface
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that sub port interface configuration is pushed to CONIFG_DB DOT1Q_INTERFACE table              |
+| Verify that sub port interface configuration is pushed to CONIFG_DB SUB_INTERFACE table                |
 | Verify that sub port interface configuration is synced to APPL_DB INTF_TABLE by Intfmgrd               |
 | Verify that sub port interface state ok is pushed to STATE_DB by Intfmgrd                              |
 | Verify that a sub port router interface entry is created in ASIC_DB                                    |
@@ -427,7 +427,7 @@ Test shall cover the IP address being an IPv4 address or an IPv6 address.
 
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that ip address configuration is pushed to CONIFG_DB DOT1Q_INTERFACE table                      |
+| Verify that ip address configuration is pushed to CONIFG_DB SUB_INTERFACE table                        |
 | Verify that ip address configuration is synced to APPL_DB INTF_TABLE by Intfmgrd                       |
 | Verify that ip address state ok is pushed to STATE_DB INTERFACE_TABLE by Intfmgrd                      |
 | Verify that a subnet route entry is created in ASIC_DB                                                 |
@@ -436,7 +436,7 @@ Test shall cover the IP address being an IPv4 address or an IPv6 address.
 ## 6.2 Sub port interface mtu change
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that sub port interface mtu change is pushed to CONIFG_DB DOT1Q_INTERFACE table                 |
+| Verify that sub port interface mtu change is pushed to CONIFG_DB SUB_INTERFACE table                   |
 | Verify that sub port interface mtu change is synced to APPL_DB INTF_TABLE by Intfmgrd                  |
 | Verify that sub port router interface entry in ASIC_DB has the updated mtu value                       |
 
@@ -446,7 +446,7 @@ Test shall cover the IP address being an IPv4 address or an IPv6 address.
 
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that ip address configuration is removed from CONIFG_DB DOT1Q_INTERFACE table                   |
+| Verify that ip address configuration is removed from CONIFG_DB SUB_INTERFACE table                     |
 | Verify that ip address configuration is removed from APPL_DB INTF_TABLE by Intfmgrd                    |
 | Verify that ip address state ok is removed from STATE_DB INTERFACE_TABLE by Intfmgrd                   |
 | Verify that subnet route entry is removed from ASIC_DB                                                 |
@@ -462,7 +462,7 @@ Test shall cover the parent interface being a physical port or a port channel.
 
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that sub port interface configuration is removed from CONIFG_DB DOT1Q_INTERFACE table           |
+| Verify that sub port interface configuration is removed from CONIFG_DB SUB_INTERFACE table             |
 | Verify that sub port interface configuration is removed from APPL_DB INTF_TABLE by Intfmgrd            |
 | Verify that sub port interface state ok is removed from STATE_DB by Intfmgrd                           |
 
