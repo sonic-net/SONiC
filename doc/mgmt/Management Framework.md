@@ -1365,7 +1365,7 @@ REDIS schema needs to be expressed in SONiC proprietary YANG model with all data
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to APPENDIX (section - â??How to write CVL/SONiC Northbound YANGâ??) for detailed guidelines on writing CVL YANG model.
+Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing CVL YANG model.
 
 ### 5.4 Generation of REST server stubs and Client SDKs
 
