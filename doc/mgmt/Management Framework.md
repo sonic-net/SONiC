@@ -102,7 +102,6 @@
 * [8 Warm Boot Support](#8-warm-boot-support)
 * [9 Scalability](#9-scalability)
 * [10 Unit Test](#10-unit-test)
-* [11 Internal Design Information](#11-internal-design-information)
 * [APPENDIX](#APPENDIX)
 
 
@@ -1592,10 +1591,6 @@ Describe key scaling factor and considerations
 69. Check if CVL Finish operation is successful
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
-
-## 11 Internal Design Information
-
-Internal BRCM information to be removed before sharing with the community
 
 
 ## APPENDIX
