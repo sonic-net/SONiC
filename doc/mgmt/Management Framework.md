@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.2
+### Rev 0.4
 
 ## Table of Contents
 
@@ -116,6 +116,8 @@
 | 0.1 | 06/13/2019  | Anand Kumar Subramanian | Initial version                   |
 | 0.2 | 07/05/2019  | Prabhu Sreenivasan      | Added gNMI, CLI content from DELL |
 | 0.3 | 08/05/2019  | Senthil Kumar Ganesan   | Updated gNMI content |
+| 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS |
+
 ## About this Manual
 
 This document provides general information about the Management framework feature implementation in SONiC.
@@ -950,6 +952,33 @@ The APIs are broadly classified into the following areas:
 
 Detail Method Signature:
     Please refer to the code for the detailed method signatures.
+
+Concurrent Access via Redis CAS transactions:
+
+    Upto 4 levels of concurrent write access support.
+
+    1. Table based watch keys (Recommended):
+       At app module registration, the set of Tables that are to be managed by
+       the module are provided. External (i.e. non-Management-Framework)
+       applications may choose to watch and set these same table keys to detect
+       and prevent concurrent write access. The format of the table key is
+       "CONFIG_DB_UPDATED_<TABLE>".  (Eg: CONFIG_DB_UPDATED_ACL_TABLE)
+
+    2. Row based watch keys:
+       For every transaction, the app module provides a list of keys that it
+       would need exclusive access to for the transaction to succeed. Hence,
+       this is more complex for the app modules to implement. The external
+       applications need not be aware of table based keys. However, the
+       concurrent modification of yet to be created keys (i.e. keys which are
+       not in the DB, but might be created by a concurrent application) may not
+       be detected.
+
+    3. A combination of 1. and 2.:
+       More complex, but easier concurrent write access detection.
+
+    4. None:
+       For applications not needing concurrent write access protections.
+
 
 DB access layer, Redis, CVL Interaction:
 
