@@ -23,6 +23,7 @@
         - [3.2.2 PACKET_DROP_COUNTER Table](#322-packet_drop_counter-table)
     - [3.3 App DB](#33-app-db)
     - [3.4 SWSS](#34-swss)
+        - [3.4.1 SAI APIs](#341-sai-apis)
     - [3.5 CLI](#35-CLI)
         - [3.5.1 CLI show](#351-cli-show)
         - [3.5.2 CLI clear](#352-cli-clear)
@@ -166,9 +167,14 @@ App DB will store information about:
 * What drop reasons are supported by this device
 
 ## 3.4 SWSS
-Portorch should be extended to support a variable number of SAI_PORT_STAT_IN/OUT_DROP_REASON counters.
-
 Debugcountsorch should be implemented to handle debug counter creation and configuration.
+
+### 3.4.1 SAI APIs
+This orchestrator will interact with the following SAI APIs (all via sai_debug_counter_api_t):
+* `sai_create_debug_counter_fn` to create/configure new drop counters.
+* `sai_remove_debug_counter_fn` to delete/free up drop counters that are no longer being used.
+* `sai_get_debug_counter_attribute_fn` to gather information about counters that have been configured (e.g. index, drop reasons, etc.).
+* `sai_set_debug_counter_attribute_fn` to re-configure drop reasons for counters that have already been created.
 
 ## 3.5 CLI
 The CLI tool will provide the following functionality:
