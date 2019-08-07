@@ -115,9 +115,9 @@
 |:---:|:-----------:|:-----------------------:|-----------------------------------|
 | 0.1 | 06/13/2019  | Anand Kumar Subramanian | Initial version                   |
 | 0.2 | 07/05/2019  | Prabhu Sreenivasan      | Added gNMI, CLI content from DELL |
-| 0.3 | 08/05/2019  | Senthil Kumar Ganesan   | Updated gNMI content			  |
-| 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS		  |
-| 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support		  | 
+| 0.3 | 08/05/2019  | Senthil Kumar Ganesan   | Updated gNMI content          |
+| 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS   |
+| 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support    | 
 
 ## About this Manual
 
@@ -768,13 +768,13 @@ Translib is a library that will convert the management server requests to Redis 
             stop - channel for stopping the subscribe request.
             Returns:
             error - error string
-			IsSubscribeResponse - slice of subscribe response for each of the incoming paths.
-		func IsSubscribeSupported(paths []string) ([]*IsSubscribeResponse, error)
-			This method is exposed for the management servers to get the type of subscribe operation that is supported on a given path.
-			Input parameters:
-			paths - paths of all the operational data that are being subscribed
-			Returns:
-			error - error string
+            IsSubscribeResponse - slice of subscribe response for each of the incoming paths.
+        func IsSubscribeSupported(paths []string) ([]*IsSubscribeResponse, error)
+            This method is exposed for the management servers to get the type of subscribe operation that is supported on a given path.
+            Input parameters:
+            paths - paths of all the operational data that are being subscribed
+            Returns:
+            error - error string
             IsSubscribeResponse - slice of subscribe response for each of the incoming paths.
         func GetModels() ([]ModelData, error)
             This method is exposed to get all the supported models using which the user will be able to communicate
@@ -808,28 +808,28 @@ Translib is a library that will convert the management server requests to Redis 
             ErrSrc     ErrSource
         }
 
-		type SubscribeResponse struct{
-			Path         string
-			Payload      []byte
-			Timestamp    int64
-			SyncComplete bool
-			IsTerminated bool
-		}
+        type SubscribeResponse struct{
+            Path         string
+            Payload      []byte
+            Timestamp    int64
+            SyncComplete bool
+            IsTerminated bool
+        }
 
-		type NotificationType int 
+        type NotificationType int 
 
-		const(
-			Sample  NotificationType = iota
-			OnChange
-		)
+        const(
+            Sample  NotificationType = iota
+            OnChange
+        )
 
-		type IsSubscribeResponse struct{
-			Path                    string
-			IsOnChangeSupported     bool
-			MinInterval             int
-			Err                     error
-			PreferredType           NotificationType
-		}
+        type IsSubscribeResponse struct{
+            Path                    string
+            IsOnChangeSupported     bool
+            MinInterval             int
+            Err                     error
+            PreferredType           NotificationType
+        }
 
         type ModelData struct{
             Name      string
@@ -867,10 +867,10 @@ App Interface helps in identifing the App module responsible for servicing the i
         App Interface Structures:
         //Structure containing app module information
         type AppInfo struct {
-            AppType      	reflect.Type
-            YGOTRootType 	reflect.Type
-            IsNative     	bool
-			tablesToWatch   []*db.TableSpec
+            AppType         reflect.Type
+            YGOTRootType    reflect.Type
+            IsNative        bool
+            tablesToWatch   []*db.TableSpec
         }
 
         Example Usages:
