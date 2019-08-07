@@ -13,88 +13,96 @@
 * [Definition/Abbreviation](#definitionabbreviation)
 * [Table 1: Abbreviations](#table-1-abbreviations)
 * [1 Feature Overview](#1-feature-overview)
-    * [1.1 Requirements](#1_1-requirements)
-    * [1.2 Design Overview](#1_2-design-overview)
-        * [1.2.1 Basic Approach](#1_2_1-basic-approach)
-        * [1.2.2 Container](#1_2_2-container)
+    * [1.1 Requirements](#11-requirements)
+    * [1.2 Design Overview](#12-design-overview)
+        * [1.2.1 Basic Approach](#121-basic-approach)
+        * [1.2.2 Container](#122-container)
 * [2 Functionality](#2-functionality)
-    * [2.1 Target Deployment Use Cases](#2_1-target-deployment-use-cases)
-    * [2.2 Functional Description](#2_2-functional-description)
+    * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
+    * [2.2 Functional Description](#22-functional-description)
 * [3 Design](#3-design)
-    * [3.1 Overview](#3_1-overview)
-        * [3.1.1 Build time flow](#3_1_1-build-time-flow)
-        * [3.1.2 Run time flow](#3_1_2-run-time-flow)
-            * [3.1.2.1 CLI](#3_1_2_1-cli)
-            * [3.1.2.2 REST](#3_1_2_2-rest)
-            * [3.1.2.3 gNMI](#3_1_2_3-gnmi)
-    * [3.2 SONiC Management Framework Components](#3_2-sonic-management-framework-components)
-        * [3.2.1 Build time components](#3_2_1-build-time-components)
-            * [3.2.1.1 Yang to OpenAPI converter](#3_2_1_1-yang-to-openapi-converter)
-                * [3.1.1.1.1 Overview](#3_1_1_1_1-overview)
-                * [3.1.1.1.2 Supported HTTP verbs](#3_1_1_1_2-supported-http-verbs)
-                * [3.1.1.1.3 Supported Data Nodes](#3_1_1_1_3-supported-data-nodes)
-                * [3.1.1.1.4 Data Type Mappings](#3_1_1_1_4-data-type-mappings)
-                * [3.1.1.1.5 Notes](#3_1_1_1_5-notes)
-                * [3.1.1.1.6 Future enhancements](#3_1_1_1_6-future-enhancements)
-            * [3.2.1.2 swagger generator](#3_2_1_2-swagger-generator)
-            * [3.2.1.3 YGOT generator](#3_2_1_3-ygot-generator)
-            * [3.2.1.4 pyang compiler](#3_2_1_4-pyang-compiler)
-        * [3.2.2 Run time components](#3_2_2-run-time-components)
-            * [3.2.2.1 CLI](#3_2_2_1-cli)
-            * [3.2.2.2 REST Client SDK](#3_2_2_2-rest-client-sdk)
-            * [3.2.2.3 gNMI Client](#3_2_2_3-gnmi-client)
-            * [3.2.2.4 REST Server](#3_2_2_4-rest-server)
-                * [3.2.2.4.1 Transport options](#3_2_2_4_1-transport-options)
-                * [3.2.2.4.2 TransLib linking](#3_2_2_4_2-translib-linking)
-                * [3.2.2.4.3 Media Types](#3_2_2_4_3-media-types)
-                * [3.2.2.4.4 Payload Validations](#3_2_2_4_4-payload-validations)
-                * [3.2.2.4.5 Concurrency](#3_2_2_4_5-concurrency)
-                * [3.2.2.4.6 API Versioning](#3_2_2_4_6-api-versioning)
-                * [3.2.2.4.7 RESTCONF Entity-tag](#3_2_2_4_7-restconf-entity-tag)
-                * [3.2.2.4.8 RESTCONF Discovery](#3_2_2_4_8-restconf-discovery)
-                * [3.2.2.4.9 RESTCONF Query Parameters](#3_2_2_4_9-restconf-query-parameters)
-                * [3.2.2.4.10 RESTCONF Operations](#3_2_2_4_10-restconf-operations)
-                * [3.2.2.4.11 RESTCONF Notifications](#3_2_2_4_11-restconf-notifications)
-                * [3.2.2.4.12 Authentication](#3_2_2_4_12-authentication)
-                * [3.2.2.4.13 Error Response](#3_2_2_4_13-error-response)
-                * [3.2.2.4.14 DB Schema](#3_2_2_4_14-db-schema)
-                * [3.2.2.4.15 API Documentation](#3_2_2_4_15-api-documentation)
-            * [3.2.2.5 gNMI server](#3_2_2_5-gnmi-server)
-			    * [3.2.2.5.1 Files changed/added](#3_2_2_5_1-files-changed/added)
-				* [3.2.2.5.2 Sample Requests](#3_2_2_5_3-sample-requests)
-            * [3.2.2.6 Translib](#3_2_2_6-translib)
-                * [3.2.2.6.1 App Interface](#3_2_2_6_1-app-interface)
-                * [3.2.2.6.2 Translib Request Handler](#3_2_2_6_2-translib-request-handler)
-                * [3.2.2.6.3 YGOT request binder](#3_2_2_6_3-ygot-request-binder)
-                * [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
-                * [3.2.2.6.5 App Modules](#3_2_2_6_5-app-modules)
-			* [3.2.2.7 Transformer](#3_2_2_7-transformer)
-				* [3.2.2.7.1 Components](#3_2_2_7_1-components)
-				* [3.2.2.7.2 Design](#3_2_2_7_2-design)
-				* [3.2.2.7.3 Process](#3_2_2_7_3-process)
-				* [3.2.2.7.4 Common App](#3_2_2_7_4-common-app)
-				* [3.2.2.7.5 YANG Extensions](#3_2_2_7_5-yang-extensions)
-				* [3.2.2.7.6 Public Functions](#3_2_2_7_6-public-functions)
-				* [3.2.2.7.7 Overloaded Modules](#3_2_2_7_7-overloaded-modules)
-				* [3.2.2.7.8 Utilities](#3_2_2_7_8-utilities)
-            * [3.2.2.8 Config Validation Library (CVL)](#3_2_2_8-config-validation-library-cvl)
-				* [3.2.2.8.1 Architecture](#3_2_2_8_1-architecture)
-				* [3.2.2.8.2 Validation types](#3_2_2_8_2-validation-types)
-				* [3.2.2.8.3 CVL APIs](#3_2_2_8_3-cvl-apis)
-            * [3.2.2.9 Redis DB](#3_2_2_9-redis-db)
-            * [3.2.2.10 Non DB data provider](#3_2_2_10-non-db-data-provider)
+    * [3.1 Overview](#31-overview)
+        * [3.1.1 Build time flow](#311-build-time-flow)
+        * [3.1.2 Run time flow](#312-run-time-flow)
+            * [3.1.2.1 CLI](#3121-cli)
+            * [3.1.2.2 REST](#3122-rest)
+            * [3.1.2.3 gNMI](#3123-gnmi)
+    * [3.2 SONiC Management Framework Components](#32-sonic-management-framework-components)
+        * [3.2.1 Build time components](#321-build-time-components)
+            * [3.2.1.1 Yang to OpenAPI converter](#3211-yang-to-openapi-converter)
+                * [3.1.1.1.1 Overview](#31111-overview)
+                * [3.1.1.1.2 Supported HTTP verbs](#31112-supported-http-verbs)
+                * [3.1.1.1.3 Supported Data Nodes](#31113-supported-data-nodes)
+                * [3.1.1.1.4 Data Type Mappings](#31114-data-type-mappings)
+                * [3.1.1.1.5 Notes](#31115-notes)
+                * [3.1.1.1.6 Future enhancements](#31116-future-enhancements)
+            * [3.2.1.2 swagger generator](#3212-swagger-generator)
+            * [3.2.1.3 YGOT generator](#3213-ygot-generator)
+            * [3.2.1.4 pyang compiler](#3214-pyang-compiler)
+        * [3.2.2 Run time components](#322-run-time-components)
+            * [3.2.2.1 CLI](#3221-cli)
+            * [3.2.2.2 REST Client SDK](#3222-rest-client-sdk)
+            * [3.2.2.3 gNMI Client](#3223-gnmi-client)
+            * [3.2.2.4 REST Server](#3224-rest-server)
+                * [3.2.2.4.1 Transport options](#32241-transport-options)
+                * [3.2.2.4.2 TransLib linking](#32242-translib-linking)
+                * [3.2.2.4.3 Media Types](#32243-media-types)
+                * [3.2.2.4.4 Payload Validations](#32244-payload-validations)
+                * [3.2.2.4.5 Concurrency](#32245-concurrency)
+                * [3.2.2.4.6 API Versioning](#32246-api-versioning)
+                * [3.2.2.4.7 RESTCONF Entity-tag](#32247-restconf-entity-tag)
+                * [3.2.2.4.8 RESTCONF Discovery](#32248-restconf-discovery)
+                * [3.2.2.4.9 RESTCONF Query Parameters](#32249-restconf-query-parameters)
+                * [3.2.2.4.10 RESTCONF Operations](#322410-restconf-operations)
+                * [3.2.2.4.11 RESTCONF Notifications](#322411-restconf-notifications)
+                * [3.2.2.4.12 Authentication](#322412-authentication)
+                * [3.2.2.4.13 Error Response](#322413-error-response)
+                * [3.2.2.4.14 DB Schema](#322414-db-schema)
+                * [3.2.2.4.15 API Documentation](#322415-api-documentation)
+            * [3.2.2.5 gNMI server](#3225-gnmi-server)
+			    * [3.2.2.5.1 Files changed/added](#32251-files-changed/added)
+				* [3.2.2.5.2 Sample Requests](#32253-sample-requests)
+            * [3.2.2.6 Translib](#3226-translib)
+                * [3.2.2.6.1 App Interface](#32261-app-interface)
+                * [3.2.2.6.2 Translib Request Handler](#32262-translib-request-handler)
+                * [3.2.2.6.3 YGOT request binder](#32263-ygot-request-binder)
+                * [3.2.2.6.4 DB access layer](#32264-db-access-layer)
+                * [3.2.2.6.5 App Modules](#32265-app-modules)
+			* [3.2.2.7 Transformer](#3227-transformer)
+				* [3.2.2.7.1 Components](#32271-components)
+				* [3.2.2.7.2 Design](#32272-design)
+				* [3.2.2.7.3 Process](#32273-process)
+				* [3.2.2.7.4 Common App](#32274-common-app)
+				* [3.2.2.7.5 YANG Extensions](#32275-yang-extensions)
+				* [3.2.2.7.6 Public Functions](#32276-public-functions)
+				* [3.2.2.7.7 Overloaded Modules](#32277-overloaded-modules)
+				* [3.2.2.7.8 Utilities](#32278-utilities)
+            * [3.2.2.8 Config Validation Library (CVL)](#3228-config-validation-library-cvl)
+				* [3.2.2.8.1 Architecture](#32281-architecture)
+				* [3.2.2.8.2 Validation types](#32282-validation-types)
+				* [3.2.2.8.3 CVL APIs](#32283-cvl-apis)
+            * [3.2.2.9 Redis DB](#3229-redis-db)
+            * [3.2.2.10 Non DB data provider](#32210-non-db-data-provider)
 * [4 Flow Diagrams](#4-flow-diagrams)
-    * [4.1 REST SET flow](#4_1-rest-set-flow)
-    * [4.2 REST GET flow](#4_2-rest-get-flow)
-	* [4.3 Translib Initialization flow](#4_3-translib-initialization-flow)
-	* [4.4 gNMI flow](#4_4-gNMI-flow)
-	* [4.5 CVL flow](#4_5-CVL-flow)
-* [5 Error Handling](#5-error-handling)
-* [6 Serviceability and Debug](#6-serviceability-and-debug)
-* [7 Warm Boot Support](#7-warm-boot-support)
-* [8 Scalability](#8-scalability)
-* [9 Unit Test](#9-unit-test)
-* [10 Internal Design Information](#10-internal-design-information)
+    * [4.1 REST SET flow](#41-rest-set-flow)
+    * [4.2 REST GET flow](#42-rest-get-flow)
+	* [4.3 Translib Initialization flow](#43-translib-initialization-flow)
+	* [4.4 gNMI flow](#44-gNMI-flow)
+	* [4.5 CVL flow](#45-CVL-flow)
+* [5 Developer Work flow](#5-Developer-Work-flow)
+    * [5.1 Identify the standard YANG module](#51-Identify-the-standard-YANG-module)
+    * [5.2 Define the REDIS schema for the new feature](#52-Define-the-REDIS-schema-for-the-new-feature)
+    * [5.3 Define Config Validation YANG schema](#53-Define-Config-Validation-YANG-schema)
+    * [5.4 Generation of REST server stubs and Client SDKs](#54-Generation-of-REST-server-stubs-and-Client-SDKs)
+    * [5.5 Config Translation App](#55-Config-Translation-App)
+    * [5.6 Cisco style CLI](#56-Cisco-style-CLI)
+    * [5.7 gNMI](#57-gNMI)
+* [6 Error Handling](#6-error-handling)
+* [7 Serviceability and Debug](#7-serviceability-and-debug)
+* [8 Warm Boot Support](#8-warm-boot-support)
+* [9 Scalability](#9-scalability)
+* [10 Unit Test](#10-unit-test)
+* [11 Internal Design Information](#11-internal-design-information)
 * [APPENDIX](#APPENDIX)
 
 
@@ -262,24 +270,24 @@ For each of the below-listed Data keywords nodes in the YANG model, the OpenAPI 
 
 ##### 3.1.1.1.4 Data Type Mappings
 
-| YANG Type |     OpenAPI Type
-|:---:|:-----------:|:-----------------------:|-----------------------------------|
-| int8 | Integer
-| int16 | Integer
-| int32 | Integer
-| int64 | Integer
-| uint8 | Integer
-| uint16 | Integer
-| uint32 | Integer
-| uint64 | Integer
-| decimal64 | Number
-| String | string
-| Enum | Enum
-| Identityref | String (Future can be Enum)
-| long | Integer
-| Boolean | Boolean
-| Binary | String with Format as Binary (<https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md>)
-| bits | integer
+ YANG Type | OpenAPI Type
+-------------|------------------
+int8 | Integer
+int16 | Integer
+int32 | Integer
+int64 | Integer
+uint8 | Integer
+uint16 | Integer
+uint32 | Integer
+uint64 | Integer
+decimal64 | Number
+String | string
+Enum | Enum
+Identityref | String (Future can be Enum)
+long | Integer
+Boolean | Boolean
+Binary | String with Format as Binary (<https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md>)
+bits | integer
 
 ##### 3.1.1.1.5 Notes
 
@@ -541,7 +549,8 @@ For YANG defined RESTCONF APIs, the version will the latest YANG revision date. 
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
-REST Server supports entity-tag and last-modified timestamps only for top level datastore (/restconf/data). Per resource entity tags and timestamps will not be supported. Global entity tag and timestamp are used for all resources.
+REST Server will support RESTCONF entity-tag and last-modified timestamps in next release. Server will not process or send corresponding request, response headers in first release.
+Note that entity-tag and last-modified timestamps will be supported only for top level datastore node (/restconf/data). Per resource entity tags and timestamps will not be supported. Global entity tag and timestamp are used for all resources.
 
 ###### 3.2.2.4.8 RESTCONF Discovery
 
@@ -954,7 +963,7 @@ DB access layer, Redis, CVL Interaction:
                     |                  |  previous HGETALL)|Else
                     |                  |                   | Validate(OP_UPDATE)
                     |                  |                   | Validate(
-                    |                  |                   |   DEL_FIELDS) TBD
+                    |                  |                   |   DEL_FIELDS)
     ----------------|------------------|-------------------|--------------------
     CreateEntry(k,v)|    none          | HMSET(fields in v)| Validate(OP_CREATE)
     ----------------|------------------|-------------------|--------------------
@@ -963,11 +972,7 @@ DB access layer, Redis, CVL Interaction:
     DeleteEntry(k,v)|set,mod_entry(k,0)| DEL               | Validate(OP_DELETE)
     ----------------|------------------|-------------------|--------------------
     DeleteEntryField|    none          | HDEL(fields)      | Validate(
-    (k,v)           |                  |                   |   DEL_FIELDS) TBD
-
-###### 3.2.2.6.5 App Modules
-
-TBD
+    (k,v)           |                  |                   |   DEL_FIELDS)
 
 ##### 3.2.2.7 Transformer
 
@@ -1341,26 +1346,90 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 25. Write lock acquired in Step 3 is released.
 26. Final response is returned from the translib infra to REST/GNMI.
 
-## 5 Error Handling
+## 5 Developer Work-flow
+
+
+### 5.1 Identify the standard YANG module
+OpenConfig model is preferred; IETF YANG model can be used if there is no OpenConfig model for the feature.
+
+Custom YANG model can be developed if there are no standard YANGs. CVL YANG can also be used as Northbound YANG.
+
+Feature implementation may support additional configuration/state knobs than standard YANGs. The developer needs to write a custom extension YANG in such cases. Extension YANGs add custom configuration/state knobs on top of standard YANG tree using YANG deviation.
+
+### 5.2 Define the REDIS schema for the new feature.
+It is suggested to keep it in line with YANG model hierarchy.
+
+
+### 5.3 Define Config Validation YANG schema
+REDIS schema needs to be expressed in SONiC proprietary YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation.
+
+Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
+
+Refer to APPENDIX (section - â??How to write CVL/SONiC Northbound YANGâ??) for detailed guidelines on writing CVL YANG model.
+
+### 5.4 Generation of REST server stubs and Client SDKs
+
+* Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
+	* By placing YANG module in this directory, YAML (swagger spec) is generated for the YANG.
+	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
+* Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
+	* By placing YANG module in this directory, YAML (swagger spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
+* Generation of Rest-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
+
+
+### 5.5 Config Translation App
+Config Translation App (Go language) consists of two parts - Transformer and App module. They translate the data in Northbound API schema (defined in step#1) to the native REDIS schema (defined in step#2) and vice versa. All Northbound API services like REST, GNMI, NETCONF invoke this App to read and write data.
+
+Key features:
+* Go language.
+* YANG to REDIS  and vice-versa data translation is handled by Transformer.
+* The processing of data is taken care by App module
+	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures
+	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
+	* For read operation
+		* App receives the YANG path to read
+		* App should read appropriate REDIS entries for the above path using Transformer
+		* App should construct the ygot tree structure from the DB data using Transformer
+	* For write operations
+		* App receives the target YANG path and data as ygot tree
+		* App translates the ygot tree data into appropriate REDIS calls using Transformer
+		* Translation Framework takes care of transaction - write everything or none
+* REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
+* Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
+
+
+### 5.6 Cisco style CLI
+Cisco Style CLI is achieved using KLISH framework.
+
+* CLI tree is expressed in the XML file with node data types and hierarchy along with different modes.
+* Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
+* Show command output formatting is achieved using [Jinja](http://jinja.pocoo.org/) templates. So, the developer needs to check if generic template has to be used or new template needs to be written.
+
+### 5.7  gNMI
+There is no specific steps required for gNMI.
+
+
+## 6 Error Handling
 
 Validation is done at both north bound interface and against database schema. Appropriate error code is returned for invalid configuration.
 All application errors are logged into syslog.
 
-## 6 Serviceability and Debug
+## 7 Serviceability and Debug
 
 1. Detailed syslog messages to help trace a failure.
 2. Debug commands will be added when debug framework becomes available.
 3. CPU profiling enable/disable with SIGUR1 signal.
 
-## 7 Warm Boot Support
+## 8 Warm Boot Support
 
 Management Framework does not disrupt data plane traffic during warmboot. No special handling required for warmboot.
 
-## 8 Scalability
+## 9 Scalability
 
 Describe key scaling factor and considerations
 
-## 9 Unit Test
+## 10 Unit Test
 
 #### GNMI
 1.  Verify that gnmi_get is working at Toplevel module
@@ -1524,7 +1593,7 @@ Describe key scaling factor and considerations
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
 
-## 10 Internal Design Information
+## 11 Internal Design Information
 
 Internal BRCM information to be removed before sharing with the community
 
