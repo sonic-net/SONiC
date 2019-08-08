@@ -98,7 +98,7 @@
         * [5.1.5 gNMI](#515-gNMI)
     * [5.2 Developer work flow for standard (OpenConfig/IETF) YANG](#52-Developer-work-flow-for-standard-OpenConfigIETF-YANG)
         * [5.2.1 Identify the standard YANG module for the feature for northbound APIs](#521-Identify-the-standard-YANG-module-for-the-feature-for-northbound-APIs)
-        * [5.2.2 Define the REDIS schema for the new feature. (not applicable for legacy/existing feature)](#522-Define-the-REDIS-schema-for-the-new feature-not-applicable-for-legacyexisting-feature)
+        * [5.2.2 Define the REDIS schema for the new feature. (not applicable for legacy/existing feature)](#522-Define-the-REDIS-schema-for-the-new-feature-not-applicable-for-legacyexisting-feature)
         * [5.2.3 Define Config Validation YANG schema](#523-Define-Config-Validation-YANG-schema)
         * [5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs](#524-Generation-of-REST-server-stubs-and-Client-SDKs-for-YANG-based-APIs)
         * [5.2.5 Config Translation App (Go language)](#525-Config-Translation-App-Go-language)
@@ -1596,7 +1596,7 @@ Cisco Style CLI is achieved using KLISH framework.
 * Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
 * Show command output formatting is achieved using [Jinja](http://jinja.pocoo.org/) templates. So, the developer needs to check if generic template has to be used or new template needs to be written.
 
-#### 5.2.7  gNMI
+#### 5.2.7 gNMI
 There is no specific steps required for gNMI.
 
 
