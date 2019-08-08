@@ -90,13 +90,20 @@
 	* [4.4 gNMI flow](#44-gNMI-flow)
 	* [4.5 CVL flow](#45-CVL-flow)
 * [5 Developer Work flow](#5-Developer-Work-flow)
-    * [5.1 Identify the standard YANG module](#51-Identify-the-standard-YANG-module)
-    * [5.2 Define the REDIS schema for the new feature](#52-Define-the-REDIS-schema-for-the-new-feature)
-    * [5.3 Define Config Validation YANG schema](#53-Define-Config-Validation-YANG-schema)
-    * [5.4 Generation of REST server stubs and Client SDKs](#54-Generation-of-REST-server-stubs-and-Client-SDKs)
-    * [5.5 Config Translation App](#55-Config-Translation-App)
-    * [5.6 Cisco style CLI](#56-Cisco-style-CLI)
-    * [5.7 gNMI](#57-gNMI)
+    * [5.1 Developer work flow for custom (SONiC/CVL) YANG](#51-Developer-work-flow-for-custom-(SONiC/CVL)-YANG)
+        * [5.1.1 Define Config Validation YANG schema](#511-Define-Config-Validation-YANG-schema)
+        * [5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs](#512-Generation-of-REST-server-stubs-and-Client-SDKs-for-YANG-based-APIs)
+        * [5.1.3 Config Translation App (Go language)](#513-Config-Translation-App-(Go-language))
+        * [5.1.4 Cisco style CLI](514-Cisco-style-CLI)
+        * [5.1.5 gNMI](#515-gNMI)
+    * [5.2 Developer work flow for standard (OpenConfig/IETF) YANG](#52-Developer-work-flow-for-standard-(OpenConfig/IETF)-YANG)
+        * [5.2.1 Identify the standard YANG module for the feature for northbound APIs](#521-Identify-the-standard-YANG-module-for-the-feature-for-northbound-APIs)
+        * [5.2.2 Define the REDIS schema for the new feature. (not applicable for legacy/existing feature)](#522-Define-the-REDIS-schema-for-the-new feature.-(not-applicable-for-legacy/existing-feature))
+        * [5.2.3 Define Config Validation YANG schema](#523-Define-Config-Validation-YANG-schema)
+        * [5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs](#524-Generation-of-REST-server-stubs-and-Client-SDKs-for-YANG-based-APIs)
+        * [5.2.5 Config Translation App (Go language)](#525-Config-Translation-App-(Go-language))
+        * [5.2.6 Cisco style CLI](#526-Cisco-style-CLI)
+        * [5.2.7 gNMI](#527-gNMI)
 * [6 Error Handling](#6-error-handling)
 * [7 Serviceability and Debug](#7-serviceability-and-debug)
 * [8 Warm Boot Support](#8-warm-boot-support)
@@ -1464,28 +1471,92 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 25. Write lock acquired in Step 3 is released.
 26. Final response is returned from the translib infra to REST/GNMI.
 
-## 5 Developer Work-flow
+## 5 Developer Work flow
+Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a new feature is being added to SONiC, it is advisable for developer to design redis database schema according to chosen standard northbound YANG model. This simplifies the work flow as translation intelligence can be avoided as both redis schema and NB yang schema are aligned.
+
+It is possible that a chosen standard YANG cannot be represented in redis DB schema fully because of the redis DB limitation on having nested tables to represent hierarchy. Management framework provides mechanisms to represent complex translations via developer written custom functions.
+
+CVL YANG needed for data validation per redis schema should be purely based on the schema of config objects in DB. CVL YANG can also be used as northbound YANG with addition of state, rpc etc objects.
+
+For the case where developer prefers to write own YANG model for an new/existing feature. The YANG should be written aligned to redis schema such that the same YANG can be used for both northbound and CVL. This simplifies the developer work flow (explained in section 5.1)
+
+ Typical steps for writing a non-standard YANG for management framework are given below.
+- Write YANG with config objects keeping redis schema and CVL into consideration.
+- Add MUST expressions to capture the dependency between config objects.
+- Add required non-config, notification and RPC objects to the YANG.
+- Add meta data for transformer.
 
 
-### 5.1 Identify the standard YANG module
-OpenConfig model is preferred; IETF YANG model can be used if there is no OpenConfig model for the feature.
+###5.1 Developer work flow for custom (SONiC/CVL) YANG
 
-Custom YANG model can be developed if there are no standard YANGs. CVL YANG can also be used as Northbound YANG.
-
-Feature implementation may support additional configuration/state knobs than standard YANGs. The developer needs to write a custom extension YANG in such cases. Extension YANGs add custom configuration/state knobs on top of standard YANG tree using YANG deviation.
-
-### 5.2 Define the REDIS schema for the new feature.
-It is suggested to keep it in line with YANG model hierarchy.
-
-
-### 5.3 Define Config Validation YANG schema
+####5.1.1 Define Config Validation YANG schema
 REDIS schema needs to be expressed in SONiC proprietary YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation.
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing CVL YANG model.
+Refer to APPENDIX (section - â??How to write CVL/SONiC Northbound YANGâ??) for detailed guidelines on writing CVL YANG model.
 
-### 5.4 Generation of REST server stubs and Client SDKs
+####5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
+
+* Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
+	* By placing YANG module in this directory, YAML (swagger spec) is generated for the YANG.
+	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
+* Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
+	* By placing YANG module in this directory, YAML (swagger spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
+* Generation of Rest-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
+
+####5.1.3 Config Translation App (Go language)
+Config Translation App consists of two parts - Transformer and App module. They translate the data in Northbound API schema (defined in step#1) to the native REDIS schema (defined in step#2) and vice versa. All Northbound API services like REST, GNMI, NETCONF invoke this App to read and write data.
+
+Key features:
+
+* Go language.
+* YANG to REDIS and vice-versa data translation is handled by Transformer [Dell to fill in].
+* The processing of data is taken care by App module
+	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
+	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
+	* For read operation
+		* App receives the YANG path to read
+		* App should read appropriate REDIS entries for the above path using Transformer [Dell to fill in]
+		* App should construct the ygot tree structure from the DB data using Transformer [Dell to fill in]
+	* For write operations
+		* App receives the target YANG path and data as ygot tree
+		* App translates the ygot tree data into appropriate REDIS calls using Transformer [Dell to fill in]
+		* Translation Framework takes care of transaction - write everything or none [Dell to fill in]
+* REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
+* Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
+
+#### 5.1.4 Cisco style CLI
+Cisco Style CLI is achieved using KLISH framework.
+
+* CLI tree is expressed in the XML file with node data types and hierarchy along with different modes.
+* Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
+* Show command output formatting is achieved using [Jinja](http://jinja.pocoo.org/) templates. So, the developer needs to check if generic template has to be used or new template needs to be written.
+
+#### 5.1.5  gNMI
+There is no specific steps required for gNMI.
+
+
+###5.2 Developer work flow for standard (OpenConfig/IETF) YANG
+
+#### 5.2.1 Identify the standard YANG module for the feature for northbound APIs..
+OpenConfig model is preferred; IETF YANG model can be used if there is no OpenConfig model for the feature.
+
+Feature implementation may support additional configuration/state knobs than standard YANGs. The developer needs to write a custom extension YANG in such cases. Extension YANGs add custom configuration/state knobs on top of standard YANG tree using YANG deviation.
+
+#### 5.2.2 Define the REDIS schema for the new feature. (not applicable for legacy/existing feature)
+It is suggested to keep it in line with YANG model hierarchy.
+
+
+#### 5.2.3 Define Config Validation YANG schema
+REDIS schema needs to be expressed in SONiC proprietary YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation.
+
+Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
+
+Refer to APPENDIX (section - â??How to write CVL/SONiC Northbound YANGâ??) for detailed guidelines on writing CVL YANG model.
+
+#### 5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs
 
 * Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
 	* By placing YANG module in this directory, YAML (swagger spec) is generated for the YANG.
@@ -1496,35 +1567,36 @@ Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing CVL YANG model
 * Generation of Rest-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
 
-### 5.5 Config Translation App
-Config Translation App (Go language) consists of two parts - Transformer and App module. They translate the data in Northbound API schema (defined in step#1) to the native REDIS schema (defined in step#2) and vice versa. All Northbound API services like REST, GNMI, NETCONF invoke this App to read and write data.
+#### 5.2.5 Config Translation App (Go language)
+Config Translation App consists of two parts - Transformer and App module. They translate the data in Northbound API schema (defined in step#1) to the native REDIS schema (defined in step#2) and vice versa. All Northbound API services like REST, GNMI, NETCONF invoke this App to read and write data.
 
 Key features:
+
 * Go language.
-* YANG to REDIS  and vice-versa data translation is handled by Transformer.
+* YANG to REDIS and vice-versa data translation is handled by Transformer [Dell to fill in].
 * The processing of data is taken care by App module
-	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures
+	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
 	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
 	* For read operation
 		* App receives the YANG path to read
-		* App should read appropriate REDIS entries for the above path using Transformer
-		* App should construct the ygot tree structure from the DB data using Transformer
+		* App should read appropriate REDIS entries for the above path using Transformer [Dell to fill in]
+		* App should construct the ygot tree structure from the DB data using Transformer [Dell to fill in]
 	* For write operations
 		* App receives the target YANG path and data as ygot tree
-		* App translates the ygot tree data into appropriate REDIS calls using Transformer
-		* Translation Framework takes care of transaction - write everything or none
+		* App translates the ygot tree data into appropriate REDIS calls using Transformer [Dell to fill in]
+		* Translation Framework takes care of transaction - write everything or none [Dell to fill in]
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
 
 
-### 5.6 Cisco style CLI
+#### 5.2.6 Cisco style CLI
 Cisco Style CLI is achieved using KLISH framework.
 
 * CLI tree is expressed in the XML file with node data types and hierarchy along with different modes.
 * Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
 * Show command output formatting is achieved using [Jinja](http://jinja.pocoo.org/) templates. So, the developer needs to check if generic template has to be used or new template needs to be written.
 
-### 5.7  gNMI
+#### 5.2.7  gNMI
 There is no specific steps required for gNMI.
 
 
