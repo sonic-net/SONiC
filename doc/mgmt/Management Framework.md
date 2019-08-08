@@ -1037,7 +1037,7 @@ DB access layer, Redis, CVL Interaction:
 
 ##### 3.2.2.7 Transformer
 
-Transformer provides a generic infrastructure for Translib to programmatically translate YANG to ABNF/Redis schema and vice versa, using YANG extensions to define translation hints on the YANG paths. At run time, the translation hints are mapped to an in-memory Transformer Spec that provides two-way mapping between YANG and ABNF/Redis schema for Transformer to perform data translation.
+Transformer provides a generic infrastructure for Translib to programmatically translate YANG to ABNF/Redis schema and vice versa, using YANG extensions to define translation hints on the YANG paths. At run time, YANG schema and extensions are accessed by Transformer to build an in-memory Transformer Spec that provides two-way mapping between YANG and ABNF/Redis schema for Transformer to perform data translation.
 
 With the Transformer, a developer needs only to provide:
 1. A YANG file to define the data model
@@ -1048,25 +1048,38 @@ With the Transformer, a developer needs only to provide:
 
 Transformer consists of the following components and data:
 * **Transformer Spec:** a collection of translation hints
-* **Spec Builder:**  loads YANG and annotation files to dynamically build YANG metadata and Transformer Spec. Note that Transformer Spec is built only for non ABNF based YANG.  [future – Notification spec can be built to support both sample or on-change based notification]
-* **Transformer Core:** main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup YANG metadata/Transformer spec, call Transformer methods, construct the results, error reporting etc.
-* **Built-in Default Transformer method:** perform static 1:1 translation and key generation
-* **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation
-* **YANG metadata:** provides the Transformer with the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
+* **Spec Builder:**  access YANG schema tree and extensions to build in-memory Transformer Spec. Note that Transformer Spec is built only for non ABNF based YANG.  [future – Notification spec can be built to support both sample or on-change based notification]
+* **Transformer Core:** main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup YANG schema and Transformer spec, call Transformer methods, construct the results, error reporting etc.
+* **Built-in Default Transformer method:** perform static 1:1 translation and key translation
+* **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation with developer supplied translation logic
+* **YANG metadata:** provides the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
 
 ![Transformer Components](images/transformer_components.PNG)
 
 ###### 3.2.2.7.2 Design
 
-Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules call Transformer to translate the request, then use the translated data to operate on DB/CVL to set or get data.
+Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules request Transformer to translate the request, then use the translated data to operate on DB/CVL to set or get data.
 
 ![Transformer Design](images/transformer_design.PNG)
 
-At app init, each app module asks the transformer to load YANG modules pertaining to the application. Transformer parses YANG modules with extensions to dynamically build an in-memory metadata tree and transformer spec.
+At Transformer init, it accesses YANG schema tree to get node information and extensions per module, and build an in-memory transformer spec that contains the translation hints.
+Below structure is defined for the transformer spec:
+
+```YANG
+ type yangXpathInfo  struct {
+    tableName      *string
+    dbEntry        *yang.Entry
+    yangEntry      *yang.Entry
+    keyXpath       map[int]*[]string
+    delim          string
+    fieldName      string
+    xfmrFunc       string
+} 
+```
 
 When a request lands at the app module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup.
 
-Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys by a concatenation of multiple YANG keys with a default delimiter `|`, which can be customized by a YANG extension.
+Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys with a default delimiter |, which can be customized by a YANG extension.
 
 Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, `read_<transformer_method>` and `write_<transformer_method>`, which are invoked by Transformer core.
 
@@ -1075,8 +1088,8 @@ Additionally, for more complex translations of non-ABNF YANG models (such as Ope
 CRUD requests (configuration) are processed via the following steps:
 
 1. App module calls transformer to translate YANG to ABNF
-2. Transformer allocates buffer with 3-dimensional map: `[table-name][key-values][attributes]`
-	- `table-name` and `key-values` used for app to watch DB Keys
+2. Transformer allocates buffer with 3-dimensional map: `[table-name][db.Key][attributes]`
+	- `table-name` and `db.Key` used for app to watch DB Keys, update DB
 	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the app module has to update in this order; it must regroup the translated data by table in order.
 3. Transformer decodes YGOT structure and traverses the incoming request to get the node name
 4. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
@@ -1085,10 +1098,10 @@ CRUD requests (configuration) are processed via the following steps:
 7. Repeat steps 3 through 6 until traversal is completed
 8. Invoke any annotated post-Transformer functions
 9. Transformer returns the buffer to app module
-10. App module proceeds to watch DB keys and update DB
+10. App module proceeds to update DB
 
 GET requests are processed via the following steps:
-1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and keys
+1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and db.Key
 2. Transformer returns the query target
 3. App module proceeds to query the DB via DB-access to get the result
 4. App module asks the Transformer to translate from ABNF to YANG
@@ -1124,19 +1137,63 @@ The translation hints are defined as YANG extensions to support simple table/fie
 `XlateToDb()` and `XlateFromDb` are used by app modules to request translations
 
 ```go
-func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[string]db.Value, error) {}
+func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
 
-func XlateFromDb(d map[string]map[string]db.Value) (ygot.GoStruct, error) {}
+func XlateFromDb(d map[string]map[db.Key]db.Value) (ygot.GoStruct, error) {}
 ```
+func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
 
+func XlateFromDb(d map[string]map[db.Key]db.Value) (ygot.GoStruct, error) {}
 ###### 3.2.2.7.7 Overloaded Methods
 
-Overloaded transformer methods are prepended with `Read` or `Write` to support bi-directional data transfer.
+Overloaded transformer methods support bi-directional data transfer. The function prototypes defined in the following-
 
 ```go
-func Read_method_name (s *ygot.GoStruct, t *interface{}) (map[string]map[string]db.Value, error) {}
+/**
+* KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key
+* Transformer function definition.
+* Param: Database info, YgotRoot, Xpath
+* Return: Database keys to access db entry, error
+**/
+type KeyXfmrYangToDb (*db.DB, *ygot.GoStruct, string) (db.Key, error)
+/**
+* KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
+* Transformer function definition.
+* Param: Database info, Database keys to access db entry
+* Return: multi dimensional map to hold the yang key attributes of complete xpath, error
+**/
+type KeyXfmrDbToYang (d *db.DB, key db.Key) (map[string]map[string]string, error)
 
-func Write_method_name (d map[string]map[string]db.Value) (ygot.GoStruct, error) {}
+/**
+* FieldXfmrYangToDb type is defined to use for conversion of yang Field to DB field
+* Transformer function definition.
+* Param: Database info, YgotRoot, Xpath
+* Return: multi dimensional map to hold the DB data, error
+**/
+type FieldXfmrYangToDb (d *db.DB, ygotRoot *ygot.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+/**
+* FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
+* Transformer function definition.
+* Param: Database info, DB data in multidimensional map, output param YgotRoot
+* Return: error
+**/
+type FieldXfmrDbtoYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *ygot.GoStruct)  (error)
+
+/**
+* SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
+* Transformer function definition.
+* Param: Database info, YgotRoot, Xpath
+* Return: multi dimensional map to hold the DB data, error
+**/
+type SubTreeXfmrYangToDb (d *db.DB, ygotRoot *ygot.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+/**
+* SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
+* Transformer function definition.
+* Param : Database info, DB data in multidimensional map, output param YgotRoot
+* Return :  error
+**/
+type SubTreeXfmrDbToYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *ygot.GoStruct) (error)
+
 ```
 
 ###### 3.2.2.7.8 Utilities
