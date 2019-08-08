@@ -1054,7 +1054,7 @@ Transformer consists of the following components and data:
 * **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation with developer supplied translation logic
 * **YANG metadata:** provides the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
 
-![Transformer Components](images/transformer_components.PNG)
+![Transformer Components](images/transformer_components.png)
 
 ###### 3.2.2.7.2 Design
 
