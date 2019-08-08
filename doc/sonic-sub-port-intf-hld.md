@@ -70,7 +70,7 @@ __Fig. 2: Sub port bridge port__
 # Acronyms
 | Acronym                  | Description                                |
 |--------------------------|--------------------------------------------|
-| VRF                      | Virtual route forward                      |
+| VRF                      | Virtual routing and forwarding             |
 | RIF                      | Router interface                           |
 
 # 1 Requirements
@@ -83,7 +83,7 @@ Manage the life cycle of a sub port interface created on a physical port or a po
 A sub port interface shall support the following features:
 * L3 forwarding (both unicast and multicast)
 * BGP
-* ARP
+* ARP and NDP
 * VRF
 * RIF counters
 * QoS setting inherited from parent physical port or port channel
