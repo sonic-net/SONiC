@@ -94,7 +94,7 @@
         * [5.1.1 Define Config Validation YANG schema](#511-Define-Config-Validation-YANG-schema)
         * [5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs](#512-Generation-of-REST-server-stubs-and-Client-SDKs-for-YANG-based-APIs)
         * [5.1.3 Config Translation App (Go language)](#513-Config-Translation-App-Go-language)
-        * [5.1.4 Cisco style CLI](#514-Cisco-style-CLI)
+        * [5.1.4 IS CLI](#514-IS-CLI)
         * [5.1.5 gNMI](#515-gNMI)
     * [5.2 Developer work flow for standard (OpenConfig/IETF) YANG](#52-Developer-work-flow-for-standard-OpenConfigIETF-YANG)
         * [5.2.1 Identify the standard YANG module for the feature for northbound APIs](#521-Identify-the-standard-YANG-module-for-the-feature-for-northbound-APIs)
@@ -102,7 +102,7 @@
         * [5.2.3 Define Config Validation YANG schema](#523-Define-Config-Validation-YANG-schema)
         * [5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs](#524-Generation-of-REST-server-stubs-and-Client-SDKs-for-YANG-based-APIs)
         * [5.2.5 Config Translation App (Go language)](#525-Config-Translation-App-Go-language)
-        * [5.2.6 Cisco style CLI](#526-Cisco-style-CLI)
+        * [5.2.6 IS CLI](#526-IS-CLI)
         * [5.2.7 gNMI](#527-gNMI)
 * [6 Error Handling](#6-error-handling)
 * [7 Serviceability and Debug](#7-serviceability-and-debug)
@@ -1527,8 +1527,8 @@ Key features:
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
 
-#### 5.1.4 Cisco style CLI
-Cisco Style CLI is achieved using KLISH framework.
+#### 5.1.4 IS CLI
+IS CLI is achieved using KLISH framework.
 
 * CLI tree is expressed in the XML file with node data types and hierarchy along with different modes.
 * Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
@@ -1589,8 +1589,8 @@ Key features:
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
 
 
-#### 5.2.6 Cisco style CLI
-Cisco Style CLI is achieved using KLISH framework.
+#### 5.2.6 IS CLI
+IS CLI is achieved using KLISH framework.
 
 * CLI tree is expressed in the XML file with node data types and hierarchy along with different modes.
 * Action handler needs to be hooked up in XML for corresponding CLI syntax. Action handler should be developed by call client SDK APIs (i.e one action handler might need to call multiple client SDK APIs.)
