@@ -52,14 +52,20 @@
 # Scope
 A sub port interface is a logical interface that can be created on a physical port or a port channel.
 A sub port interface serves as an interface to either a .1D bridge or a VRF, but not both.
-This design focuses on the use case of creating a sub port interface on a physical port or a port channel and using it as a router interface to a VRF.
+This design focuses on the use case of creating a sub port interface on a physical port or a port channel and using it as a router interface to a VRF as shown in Fig. 1.
 
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_rif.png)
+![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_rif.png "Fig. 1: Sub port router interface")
+__Fig. 1: Sub port router interface__
 
 Multiple L3 sub port interfaces, each characterized by a VLAN id in the 802.1q tag, can be created on a physical port or a port channel.
 Sub port interfaces attaching to the same physical port or port channel can interface to different VRFs, though they share the same VLAN id space and must have different VLAN ids.
 Sub port interfaces attaching to different physical ports or port channels can use the same VLAN id, even when they interface to the same VRF.
 However, there is no L2 bridging between these sub port interfaces; each sub port interface is considered to stay in a separate bridge domain.
+
+This design does NOT cover the case of creating and using sub port as a bridge port to a .1D bridge shown in Fig. 2.
+
+![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_bridge_port.png "Fig. 2: Sub port bridge port (out of scope of this design")
+__Fig. 2: Sub port bridge port__
 
 # Acronyms
 | Acronym                  | Description                                |
