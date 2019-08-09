@@ -124,7 +124,8 @@
 | 0.2 | 07/05/2019  | Prabhu Sreenivasan      | Added gNMI, CLI content from DELL |
 | 0.3 | 08/05/2019  | Senthil Kumar Ganesan   | Updated gNMI content          |
 | 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS   |
-| 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support    | 
+| 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support    |
+| 0.6 | 08/08/2019  | Kwangsuk Kim            | Updated Developer Workflow and CLI sections |
 
 ## About this Manual
 
@@ -346,99 +347,152 @@ Following are the run time components in the management framework
 
 ##### 3.2.2.1 CLI
 
-Open source Klish is integrated to sonic-mgmt-framework to provide the command line interface tool to perform network operations more efficiently in SONiC.  Klish will provide the core functionality of command parsing, syntax validation, command help and command auto-completion.
+Open source Klish is integrated to sonic-mgmt-framework to provide the command line interface tool to perform network operations more efficiently in SONiC. Klish will provide the core functionality of command parsing, syntax validation, command help and command auto-completion. The following diagram shows how the CLI commands are built, processed, and executed.
 
 ![CLI components Interaction Diagram](images/cli_interactions.jpg)
 
 1. CLI command input from user
 2. Klish invokes the actioner script
-3. Actioner script invokes the swagger client API to make a REST API call.
-4. Receive response from swagger client API and pass it to renderer scripts.
-5. Renderer scripts processes the JSON response from Rest Client and parses the response.
+3. Actioner script invokes the Swagger client API to make a REST API call.
+4. Receive response fromSswagger client API and pass it to renderer scripts.
+5. Renderer scripts processes the JSON response from REST Client and optionally formats the output using a Jinja template
 6. CLI output is rendered to the console.
 
+###### 3.2.2.1.1 CLI components
 
 CLI consists of the following components.
 
-1) CLI Parser engine
+* **Open source Klish** - CLI parser framework to support Command Line Interface Shell
+* **XML files** to define CLI command line options and actions
+  * Klish uses XML to define CLI commands to build the command tree. Klish provides modular CLI tree configurations to build command trees from multiple XML files. XML elements can be defined with macros and entity references, which are then preprocessed by utility scripts to generate the expanded XML files that are ultimately used by Klish.
+* **Actioner** - Python scripts defined as a command `action`, to form the request body and invoke the swagger client API
+* **Renderer** - Python scripts defined with Jinja templates. Receives the JSON response from Swagger API and use the jinja2 template file to render and format CLI output.
+* **Preprocess scripts** - Validates XML files and applies some processing from a developer-friendly form into a "raw" form that is compatible with Klish.
 
-Open source Klish
+###### 3.2.2.1.2 Preprocessing XML files
 
-2) XML files
+Multiple scripts are executed at build time to preprocess special XML tags/attributes - MACRO substitution, adding pipe processing, etc. - and generate target XML files in a form that is consumable by Klish.
 
-XML files defined by developer that defines the CLI command structure. Klish uses XML based command tree inputs to build the parser command tree. Every CLI to be supported are specified in xml format in module/feature specific xml file. XML files can be defined with macros and entity references, preprocessed by scripts to generate the expanded XML files.
-
-3) Actioner scripts
-
-Script that will form the request body and invoke the swagger client API.
-
-4) Renderer
-
-Script that will receive the JSON response from Swagger CLI API and use the jinja2 template file to render the CLI output in the desired format.
-
-###### Preprocess XML files
-
-The preprocessing scripts preprocess the raw CLI xml files and generate a target XML file that can be consumed by the klish open source parser. The inputs to the preprocessing scripts are the raw CLI XML files, macro files and other utility files like platform specifics.
-
-The cli-xml files are validated as part of compilation. The 'xmllint' binary is used to validate all the processed XML files (i.e. after macro substitution and pipe processing) against the detailed schema kept at sonic-clish.xsd
+The XML files are also validated as part of compilation. `xmllint` is used to validate all the processed XML files after macro substitution and pipe processing against the detailed schema defined in `sonic-clish.xsd`. Once the XML files are fully validated and preprocessed, the target XML files are generated in the folder `${workspace}/sonic-mgmt-framework/build/cli/target/command-tree`.
 
 The following preprocessing scripts are introduced:
+*	`klish_ins_def_cmd.py` - append the "exit" and "end" commands to the views of the Klish XML files
+*	`klish_insert_pipe.py` - extend every show and get COMMAND with pipe option
+*	`klish_platform_features_process.sh` - validate all platform xml files. Generate the entity.xml files.
+*	`klish_replace_macro.py` – perform macro substitution on the Klish XML files
 
-*klish_ins_def_cmd.py*
+###### 3.2.2.1.3 MACROs
 
-This script is used to append the "exit" and "end" commands to the views of the Klish XML files
+There are some CLI commands that can have the same set of options, where the set of XML tags would need to be repeated in all those CLI commands. Macros can be used to avoid such repetitions and to keep the options in one place, so that it is possible to make a reference to a macro in multiple command definitions. There are cases where we may need to use variations in the values of these macro options. In such cases, it is also possible to pass those XML attributes as an argument to macros and substitute those values inside the macro definition. The macro definition is referred as the ``<MACRO name="name of macro">`` and ``</MACRO>`` tags. `klish_replace_macro.py` is used to process macros at the compile time to expand the references to the target XML files.
+The macro definition files are located in the folder `${workspace}/sonic-mgmt-framework/src/CLI/clitree/macro`.
 
+Example:
 
-*klish_insert_pipe.py*
+Before macro substitution:
 
-This script extends every show and get COMMAND with pipe option
+```XML
+<VIEW name="configure-if-view">
+    <!-- ip access-group -->
+    <COMMAND
+         name="ip access-group"
+         help="Specify access control for packets"
+         >
+    <MACRO name="ACG-OPTIONS" arg=""></MACRO>
+       ...
+    </COMMAND>
+```
 
+After macro substitution:
 
-*klish_platform_features_process.sh*
+```XML
+<VIEW name="configure-if-view">
+    <!-- ip access-group -->
+    <COMMAND name="ip access-group" help="Specify access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 140)" ptype="STRING"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list in incoming direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list in outgoing direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+        ...
+    </COMMAND>
+```
 
-Validate all platform xml files. Generate the entity.xml files.
+###### 3.2.2.1.4 ENTITY
+XML files can include an ENTITY that refers to a predefined value. Entity is typically used to define platform specific values and processed by `klish_platform_features_process.sh` to prepend the ENTITY values to the target XML files. By default, there is a default file called `platform_dummy.xml` that defines a platform default ENTITY list. Note that the platform specific is not supported yet.
 
+Example: `platform_dummy.xml`
 
-*klish_replace_macro.py*
+```XML
+<ENTITYLIST>
+  <ENTITYNAME value="1">START_PORT_ID</ENTITYNAME>
+  <ENTITYNAME value="32">MAX_PORT_ID</ENTITYNAME>
+  <ENTITYNAME value="1">START_SUB_PORT_ID</ENTITYNAME>
+  <ENTITYNAME value="4">MAX_SUB_PORT_ID</ENTITYNAME>
+  <ENTITYNAME value="9276">MAX_MTU</ENTITYNAME>
+ </ENTITYLIST>
+```
 
-This script does macro replacement on the xml files which are used by klish to define CLI structure.
+The ENTITY name can be referenced in command definitions. For example, PTYPE for RANGE_MTU, used for interface commands:
 
+```XML
+<PTYPE
+  help=""
+	method="integer"
+  name="RANGE_MTU"
+	pattern="1312..&MAX_MTU;"
+/>
+```
 
-###### Actioner scripts
+###### 3.2.2.1.5 Actioner scripts
 
-The Actioner script is used to invoke the swagger client API. The script can be defined in the <ACTION> tag and run with bash conditional expressions.  
+The Actioner script is used to invoke the swagger client API. The script can be defined in the `<ACTION>` tag and run with shell commands. Klish spawns a sub-shell to interpret the instructions defined in a command's `<ACTION>` tag.
+The sub-shell runs the wrapper script `sonic_cli_<module_name>.py`
+```
+	sonic_cli_<module_name>.py <Swagger client method> [parameters . . .]
+```
+The `sonic_cli_<module_name>.py` has a dispatch function to call a Swagger client method with parameters passed from user input.
 
-    Example:
-    <VIEW name="configure-if-view">
-        <!-- ip access-group -->
-        <COMMAND
-             name="ip access-group"
-             help="Specify access control for packets"
-             >
-        <MACRO name="ACG-OPTIONS" arg=""></MACRO>
-        <ACTION>
-            if test "${direction-switch}" = "in"; then
-                python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} ingress
-            else
-                python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} egress
-            fi
-        </ACTION>
-        </COMMAND>
+Example:
+```XML
+<VIEW name="configure-if-view">
+    <!-- ip access-group -->
+    <COMMAND
+         name="ip access-group"
+         help="Specify access control for packets"
+         >
+    <MACRO name="ACG-OPTIONS" arg=""></MACRO>
+    <ACTION>
+        if test "${direction-switch}" = "in"; then
+            python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} ingress
+        else
+            python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} egress
+        fi
+    </ACTION>
+    </COMMAND>
+    ...
+```
 
-###### Renderer scripts.
+###### 3.2.2.1.6 Renderer scripts
 
 The actioner script receives the JSON output from the swagger client API and invokes the renderer script. The renderer script will send the JSON response to the jinja2 template file to parse the response and generate the CLI output.
 
+Example: "show acl"
 
-###### Workflow (to add a new CLI)
+```
+{% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] %}
+   {% for acl_set in acl_sets %}
+       Name:  {{ acl_set['state']['description'] }}
+   {% endfor %}
+```
+
+###### 3.2.2.1.7 Workflow (to add a new CLI)
 
 The following steps are to be followed when a new CLI is to be added.
-1. Create a CLI XML file that defines the cli command structure.
-2. Define the CLI command and the parameters that the command requires.
-3. Define the CLI help string to be displayed and datatype for the parameters.
-   New parameter types(PTYPES) can be defined and used in the CLI XML files.
-   All xml tags should be defined in the sonic-clish.xsd schema file.
-4. New macro can be introduced by defining them in <module>macro.xml
+1.	Create an XML file that defines CLI command and parameters that the command requires.
+2.	Define the CLI help string to be displayed and datatype for the parameters. New parameter types (PTYPES), macros, and entities can be defined and used in the XML files. Valid XML tags are defined in the `sonic-clish.xsd` file.
+3.	Add the shell commands to `<ACTION>` tag to run the wrapper script with the Swagger client method name and parameters
+4.	Add the code to the wrapper script to construct the payload in `generate_body()` and handle the response
+5.	For ‘show’ commands, create a Jinja template to format the output
 
 
 ##### 3.2.2.2 REST Client SDK
@@ -823,7 +877,7 @@ Translib is a library that will convert the management server requests to Redis 
             IsTerminated bool
         }
 
-        type NotificationType int 
+        type NotificationType int
 
         const(
             Sample  NotificationType = iota
@@ -1081,7 +1135,7 @@ Below structure is defined for the transformer spec:
     delim          string
     fieldName      string
     xfmrFunc       string
-} 
+}
 ```
 
 When a request lands at the app module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup.
@@ -1209,7 +1263,7 @@ To support annotating YANG extensions, the [goyang package](https://github.com/o
 
 For example:
 
-```YANG
+```
 deviation /acl/acl-sets/acl-set {
    deviate add { sonic-ext:key-delimiter; “_”; }
 
@@ -1494,7 +1548,7 @@ REDIS schema needs to be expressed in SONiC proprietary YANG model with all data
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to APPENDIX (section - �??How to write CVL/SONiC Northbound YANG�??) for detailed guidelines on writing CVL YANG model.
+Refer to APPENDIX (section - �??How to write CVL/SONiC Northbound YANG�??) for detailed guidelines on writing CVL YANG model.
 
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
@@ -1512,18 +1566,18 @@ Config Translation App consists of two parts - Transformer and App module. They 
 Key features:
 
 * Go language.
-* YANG to REDIS and vice-versa data translation is handled by Transformer [Dell to fill in].
+* YANG to REDIS and vice-versa data translation is handled by Transformer. In order to facilitate data translation, the developer needs to provide just the YANG file for the data model.
 * The processing of data is taken care by App module
 	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
 	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
 	* For read operation
 		* App receives the YANG path to read
-		* App should read appropriate REDIS entries for the above path using Transformer [Dell to fill in]
-		* App should construct the ygot tree structure from the DB data using Transformer [Dell to fill in]
+		* App should read appropriate REDIS entries for the above path using reference from Transformer
+		* App should return the YGOT tree structure translated from the DB data using Transformer
 	* For write operations
 		* App receives the target YANG path and data as ygot tree
-		* App translates the ygot tree data into appropriate REDIS calls using Transformer [Dell to fill in]
-		* Translation Framework takes care of transaction - write everything or none [Dell to fill in]
+		* App translates the ygot tree data into appropriate REDIS calls using reference from Transformer
+		* Translation Framework takes care of DB transactions - write everything or none
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
 
@@ -1573,18 +1627,22 @@ Config Translation App consists of two parts - Transformer and App module. They 
 Key features:
 
 * Go language.
-* YANG to REDIS and vice-versa data translation is handled by Transformer [Dell to fill in].
+* YANG to REDIS and vice-versa data translation is handled by Transformer. In order to facilitate data translation, the developer needs to provide just the YANG file for the data model
+    * YANG file for the data model
+    * Optionally, a YANG annotation file to define translation hints to map YANG objects to DB objects. These translation hints are external callbacks. This annotation file is also placed in `sonic-mgmt-framework/models/yang`
+    * Code to define the translation callbacks, in `sonic-mgmt-framework/src/translib/transformer`
 * The processing of data is taken care by App module
 	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
 	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
-	* For read operation
+  * For read operation
 		* App receives the YANG path to read
-		* App should read appropriate REDIS entries for the above path using Transformer [Dell to fill in]
-		* App should construct the ygot tree structure from the DB data using Transformer [Dell to fill in]
+		* App should read appropriate REDIS entries for the above path using reference from Transformer
+		* App should return the YGOT tree structure translated from the DB data using Transformer
 	* For write operations
 		* App receives the target YANG path and data as ygot tree
-		* App translates the ygot tree data into appropriate REDIS calls using Transformer [Dell to fill in]
-		* Translation Framework takes care of transaction - write everything or none [Dell to fill in]
+		* App translates the ygot tree data into appropriate REDIS calls using reference from Transformer
+    * App also handles additional complex logic like transaction ordering or checking for dependencies
+		* Translation Framework takes care of DB transactions - write everything or none
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
 
