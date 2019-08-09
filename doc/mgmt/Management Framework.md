@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.5
+### Rev 0.7
 
 ## Table of Contents
 
@@ -126,6 +126,7 @@
 | 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS   |
 | 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support    |
 | 0.6 | 08/08/2019  | Kwangsuk Kim            | Updated Developer Workflow and CLI sections |
+| 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview | 
 
 ## About this Manual
 
@@ -174,9 +175,21 @@ Management framework is a SONiC application which is responsible for providing v
 
 ### 1.2 Design Overview
 
-Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. This framework will support both standard and custom YANG models for communication with the corresponding management servers. Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before persisting them into the Redis DB.
+Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. This framework will support both standard and custom YANG models for communication with the corresponding management servers. Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before persisting them into the Redis DB. Config Validation Library is used for syntactic and semantic validation of ABNF JSON based on YANG derived from Redis ABNF schema.
 
 #### 1.2.1 Basic Approach
+
+* Management framework takes comprehensive approach catering:
+	* Standard based YANG Models and custom YANG
+	* Open API spec
+	* Industry standard CLI
+	* Config Validation
+* REST server, gNMI server, App Module and TransLib - all in GO
+* Translation by using the TransLib Library and application specific modules
+* Marshalling and unmarshalling using YGOT
+* Redis updated using CAS(Check-and-Set) trans. (No locking, No rollback)
+* Config Validation by using YANG model from ABNF schema
+* CLI with klish framework 
 
 #### 1.2.2 Container
 
