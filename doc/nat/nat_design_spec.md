@@ -198,6 +198,8 @@ User can configure a static binding of IP address + optional L4 port between dif
 
 Static NAT/NAPT entries are not timed out from the translation table.
 
+NOTE: Overlap in the configured Global IP address between Static NAT and Static NAPT is not allowed.
+
 ### 2.2.3 Dynamic NAT and NAPT
 On the NAT router, when the public addresses are limited and less in number than the internal network addresses, the many-to-one mapping is needed from the [Private IP address + L4 port] to a [Public IP address + L4 port]. This is where  multiple internal IPs map to a single public IP by overloading with different L4 ports. When the internally originated outbound traffic hits the NAT router, if a matching SNAT entry exists it is translated. Else the packet is trapped to CPU so that a new SNAT mapping is allocated for the [Private IP address + L4 port].
 
@@ -212,6 +214,8 @@ The dynamic port allocation from the pool is done in a random manner.
 When the pool is exhausted, new incoming connections are no longer NAT'ted in the hardware. In such scenario, the new incoming traffic are reported as NAT miss and dropped. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
 
 Dynamic NAT/NAPT is supported only for the traffic of IP protocol types TCP/UDP/ICMP. Other IP protocol type traffic are not dynamically NAT'ted but are dropped in the hardware.
+
+NOTE: Overlap in the configured Global IP address and Port range between Static NAT/NAPT and Dynamic NAT/NAPT is not allowed.   
 
 #### 2.2.3.1 Full Cone NAT
 When the first connection from a particular internal IP + L4 port is dynamically SNAT mapped to an external IP + L4 port, the SNAT and the corresponding DNAT entries are added for that mapping in the hardware.
@@ -249,6 +253,8 @@ The configuration for Twice NAT/NAPT is achieved in 2 ways:
 - Putting a Dynamic NAT/NAPT Binding and a Static type NAT/NAPT entry in the same Group ('twice_nat_id' value).
 
 When a host matching a dynamic NAT pool binding sends traffic to host with a matching DNAT Static NAT/NAPT entry in the same 'twice_nat_id' group, a bi-directional Twice NAT/NAPT entry is created for the traffic flow.
+
+NOTE: The Static NAT/NAPT entry that is part of a Twice NAT group is not added used for single NAT'ting in the hardware.
 
 ### 2.2.6 VRF support
 NAT is supported in the default Virtual Routing and Forwarding (VRF) domain only. 
@@ -549,7 +555,7 @@ COUNTERS_NAT_ZONE:<zone-id>
 ```
 The following new counters are available per NAT/NAPT entry:
 ```
-The counters in the COUNTERS_DB are updated every 10 seconds. The key for the entry in the COUNTERS_DB is same as the key in the APP_DB.
+The counters in the COUNTERS_DB are updated every 5 seconds. The key for the entry in the COUNTERS_DB is same as the key in the APP_DB.
 
 COUNTERS_NAT:ip
     DNAT_TRANSLATIONS_PKTS   : <packets_counter_value>
@@ -685,9 +691,9 @@ It is the responsibility of the administrator to ensure that the addresses in th
 #### 3.3.1.1 ACL usage
 ACLs are installed in the hardware independently by the ACL OrchAgent module.
 
-ACL rules are added with 'do-not-nat' action for the hosts for which the NAT is to be avoided, and with 'forward' action for the hosts for which the NAT is to be performed.
+ACL rules are added with 'do_not_nat' action for the hosts for which the NAT is to be avoided, and with 'forward' action for the hosts for which the NAT is to be performed.
 
-The action 'do-not-nat' tells the hardware to skip doing NAT zone checks and NAT processing for the packet, and instead the packet is L3 forwarded. For the rest of the permitted packets, the NAT processing is done in the hardware.
+The action 'do_not_nat' tells the hardware to skip doing NAT zone checks and NAT processing for the packet, and instead the packet is L3 forwarded. For the rest of the permitted packets, the NAT processing is done in the hardware.
 If a matching SNAT entry or DNAT entry does not exist in the hardware, the packets are trapped to CPU as NAT miss packets to be processed by the kernel software forwarding path.
 
 Corresponding to the ACL, the equivalent deny and permit rules are added in the iptables so that the intended NAT miss packets are dynamically SNAT'ted in the kernel.
@@ -704,6 +710,8 @@ Following match actions of the ACL are handled to match against the traffic for 
 - Source L4 port or L4 port range
 - Destination L4 port or L4 port range
 - IP protocol
+
+When ACL rule is changed from 'forward' action to 'do_not_nat' action, the matching traffic flows corresponding to the NAT entries that were created before due to the 'forward' action continue to be translated till the NAT entries are timed out.
 
 #### 3.3.1.2 IP Interface config events
 When the IP on the outside NAT zone interface is deleted, for any matching NAT pool and the matching Static NAT/NAPT entries, the corresponding iptables SNAT rules and the Static DNAT rules are deleted in the kernel.
@@ -1192,6 +1200,7 @@ N/A
 | show nat config bindings | Use this command to display the NAT bindings configuration |
 | show nat config globalvalues       | Use this command to display the global NAT configuration |
 | show nat config zones      | Use this command to display the L3 interface zone values |
+| show nat translations count      | Use this command to display the NAT entries count |
 
 Example:
 ```
@@ -1221,6 +1230,16 @@ tcp      20.0.0.1:5000    65.55.42.1:2000   65.55.42.1:1025    20.0.0.1:4500
 tcp      20.0.0.1:4500    65.55.42.1:1025   65.55.42.1:2000    20.0.0.1:5000
 tcp      20.0.0.1:5500    65.55.42.1:2000   65.55.42.1:1026    20.0.0.1:4500
 tcp      20.0.0.1:4500    65.55.42.1:1026   65.55.42.1:2000    20.0.0.1:5500
+
+Router#show nat translations count
+
+Static NAT Entries        ................. 4
+Static NAPT Entries       ................. 2
+Dynamic NAT Entries       ................. 0
+Dynamic NAPT Entries      ................. 4
+Static Twice NAT Entries  ................. 0
+Static Twice NAPT Entries ................. 2
+Total Entries             ................. 12
 
 Router#show nat statistics
 
@@ -1479,7 +1498,7 @@ The Unit test case one-liners are as below:
 | 19 | Verify the inactivity timeout with different configured timeouts.                                                                                                                                                                     |
 | 20 | Verify that the NAT zone configuration (on L3 interface) are picked up by NatMgrd and propagated to APP_DB.                                                                          |
 | 21 | Verify the outbound NAT translations to be working with traffic on VLAN or Ethernet or Port Channel L3 interfaces.                                                                                                                          |
-| 22 | Verify that the dynamic NAPT translations are applied only on the traffic permitted by the ACL in the binding and not applied on the traffic that are 'do-no-nat'.                                                                    |
+| 22 | Verify that the dynamic NAPT translations are applied only on the traffic permitted by the ACL in the binding and not applied on the traffic that are 'do_no_nat'.                                                                    |
 | 23 | Verify that the static NAPT entries are successfuly created in CONFIG_DB.                                                                                                                                                              |
 | 24 | Verify that the NAT pool config and the ACL association of the pool are configured and added to CONFIG_DB.                                                                                                                             |
 | 25 | Verify that the twice NAT/NAPT entries are successfully created in the APP_DB.                                                                                                                                                              |
