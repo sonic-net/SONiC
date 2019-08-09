@@ -90,6 +90,10 @@ Configuration of the drop counters can be done via:
 * CLI
 * JSON input
 
+At this stage, allocation of the debug counters will be restricted to config_db.json updates or minigraph updates. We may revise this in the future as more debug reasons are added.
+
+Debug counters that have been allocated for counting packet drops can be incrementally configured via the command line, which will be described later.
+
 ## 2.3 Scalability Requirements
 Users must be able to use all counters and drop reasons provided by the underlying hardware.
 
@@ -101,7 +105,7 @@ The contents of the drop counters will be added to Counters DB by flex counters.
 ## 3.2 Config DB
 We'll add three new tables to Config DB:
 * DEBUG_COUNTER to track which counters have been configured and for what purpose
-    * At this point the only supported type is PACKET_DROP
+    * At this point the only supported type is PACKET_DROP_COUNTER
 * PACKET_DROP_COUNTER to save drop counters that have been configured by the user
 * PACKET_DROP_COUNTER_RULE to save rules that are associated with user configured drop counters
 
@@ -111,19 +115,13 @@ Example:
 {
     "DEBUG_COUNTER": {
         "DEBUG_0": {
-            "configured": true,
-            "type": "PACKET_DROP"
+            "type": "PACKET_DROP_COUNTER"
         },
         "DEBUG_1": {
-            "configured": true,
-            "type": "PACKET_DROP"
+            "type": "PACKET_DROP_COUNTER"
         },
         "DEBUG_2": {
-            "configured": true,
-            "type": "PACKET_DROP"
-        },
-        "DEBUG_3": {
-            "configured": false
+            "type": "PACKET_DROP_COUNTER"
         }
     }
 }
@@ -136,12 +134,12 @@ Example:
     "PACKET_DROP_COUNTER": {
         "RX_LEGIT": {
             "counter": "DEBUG_0",
-            "type": "ingress",
+            "type": "PORT_INGRESS",
             "desc": "Legitimate RX pipeline drops"
         },
         "TX_LEGIT": {
             "counter": "DEBUG_1",
-            "type": "egress",
+            "type": "PORT_EGRESS",
             "desc": "Legitimate TX pipeline drops"
         }
     }
@@ -197,7 +195,7 @@ $ show drops
  Ethernet8        U        0         0          0           0         0         0          0           0
 Ethernet12        U        0         0       1200         400         0         0          0           0
 
-$ show drops --include "LEGIT"
+$ show drops --contains "LEGIT"
      IFACE    STATE    RX_LEGIT    TX_LEGIT
 ----------  -------  ----------  ---------- 
  Ethernet0        U           0           0       
@@ -209,8 +207,6 @@ Ethernet12        U           0           0
 ### 3.5.2 CLI clear
 ```
 $ sonic-clear drops
-$ sonic-clear drops RX_LEGIT
-$ sonic-clear drops RX_LEGIT TX_LEGIT
 ```
 
 ### 3.5.3 CLI Configuration
@@ -219,37 +215,45 @@ $ show drops config
 Drop Counters: supported
 Available Counters: 3
 
-Name      Type     Reasons              Description
---------  -------  -------------------  --------------
-RX_LEGIT  ingress  SMAC_EQUALS_DMAC     Legitimate RX pipeline drops
-                   INGRESS_VLAN_FILTER
-TX_LEGIT   egress  EGRESS_VLAN_FILTER   Legitimate TX pipeline drops
-DEBUG_2      OPEN                 NONE  Available debug counter
+Name      Type          Reasons              Description
+--------  ------------  -------------------  --------------
+RX_LEGIT  PORT_INGRESS  SMAC_EQUALS_DMAC     Legitimate RX pipeline drops
+                        INGRESS_VLAN_FILTER
+TX_LEGIT  PORT_EGRESS   EGRESS_VLAN_FILTER   Legitimate TX pipeline drops
+DEBUG_2   OPEN          NONE                 Available drop counter
  
-$ config drops init --counter=DEBUG_2 --name=EXAMPLE --type=ingress --desc="example"
+$ config drops init --counter="DEBUG_2" --name="EXAMPLE" --type="PORT_INGRESS" --desc="example"
 Initializing DEBUG_2 as EXAMPLE...
 DONE!
 
-Name      Type     Reasons              Description
---------  -------  -------------------  --------------
-EXAMPLE   ingress                 NONE  example
+Name      Type          Reasons              Description
+--------  ------------  -------------------  --------------
+EXAMPLE   PORT_INGRESS  NONE                 example
 
-$ config drops add --counter=EXAMPLE --reasons="SMAC_MULTICAST,DMAC_RESERVED"
+$ config drops add --counter=EXAMPLE --reason="SMAC_MULTICAST"
 Configuring EXAMPLE...
 DONE!
 
-Name      Type     Reasons              Description
---------  -------  -------------------  --------------
-EXAMPLE   ingress       SMAC_MULTICAST  example
+Name      Type          Reasons              Description
+--------  ------------  -------------------  --------------
+EXAMPLE   PORT_INGRESS  SMAC_MULTICAST       example
+
+$ config drops add --counter=EXAMPLE --reason="DMAC_RESERVED"
+Configuring EXAMPLE...
+DONE!
+
+Name      Type          Reasons              Description
+--------  ------------  -------------------  --------------
+EXAMPLE   PORT_INGRESS  SMAC_MULTICAST       example
                         DMAC_RESERVED
 
-$ config drops remove --counter=EXAMPLE --reasons="DMAC_RESERVED"
+$ config drops remove --counter=EXAMPLE --reason="DMAC_RESERVED"
 Configuring EXAMPLE...
 DONE!
 
-Name      Type     Reasons              Description
---------  -------  -------------------  --------------
-EXAMPLE   ingress       SMAC_MULTICAST  example
+Name      Type          Reasons              Description
+--------  ------------  -------------------  --------------
+EXAMPLE   PORT_INGRESS  SMAC_MULTICAST       example
 
 $ config drops delete --counter=EXAMPLE
 Deleting EXAMPLE...
