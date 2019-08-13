@@ -210,7 +210,6 @@ ACL is configured to classify a set of hosts to apply the NAT translation on. AC
 Dynamically created NAT/NAPT entries are timed out after a period of inactivity in the hardware. The inactivity timeout periods are independently configurable for TCP and UDP NAPT entries.
 The inactivity timeout period is configurable for the basic NAT entries.
 
-The dynamic port allocation from the pool is done in a random manner.
 When the pool is exhausted, new incoming connections are no longer NAT'ted in the hardware. In such scenario, the new incoming traffic are reported as NAT miss and dropped. Only when the inactive entries are released are the new incoming connections dynamically mapped to the freed up ports.
 
 Dynamic NAT/NAPT is supported only for the traffic of IP protocol types TCP/UDP/ICMP. Other IP protocol type traffic are not dynamically NAT'ted but are dropped in the hardware.
@@ -656,9 +655,9 @@ iptables -t nat -A POSTROUTING -p tcp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p udp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p icmp -s 20.0.1.0/24 -j RETURN
 
-iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
-iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
-iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --random-fully
+iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
 ```
 They tell the kernel to do the dynamic SNAT L4 port mapping or icmp query-id mapping dynamically for any incoming packets permitted by the ACL (20.0.0.0/16 subnet hosts excepting 20.0.1.0/24 subnet hosts), that are routed and before being sent out on the interface Ethernet15.
 
@@ -818,8 +817,8 @@ NAT_BINDINGS|nat1
 
 The following iptables rules are added in the kernel for each protocol type traffic for SNAT purpose:
 ```
-iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Ethernet28 --to-source 65.55.42.1:1024-65535 --random-fully
-iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Vlan100 --to-source 65.55.42.1:1024-65535 --random-fully
+iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Ethernet28 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p tcp -j SNAT -o Vlan100 --to-source 65.55.42.1:1024-65535 --fullcone
 ```
 
 ### 3.4.2 Connection tracking
@@ -844,9 +843,14 @@ For the first traffic flow above, the 3-tuple entry is added in the hardware to
 
 The second traffic flow [SIP=1.0.0.2, SPORT=120] cannot be added in the hardware to translate to the same IP/PORT [SIP=65.55.45.1, SPORT=600], since the reverse traffic flows cannot be uniquely translated to the original Source endpoints.
 
-This mismatch in the NAT models between the ASIC and the Kernel is addressed by the following design approach in SONiC.
-- To minimize the overlap/re-use of the translated SIP/SPORT in the 5-tuple conntrack entries, the iptables are programmed in the kernel to do translated port mapping in a random manner from the given port range.
-- Even with the random allocation, if a different Source endpoint is mapped to reuse an existing translated SIP+SPORT, the corresponding conntrack entry is deleted in the kernel. This results in retries by the Source endpoint till the translated SIP+SPORT is not overlapping with the existing entry.
+This mismatch in the NAT models between the ASIC and the Kernel is addressed by:
+- Changes in the Linux kernel to do 3-tuple unique translation and full cone NAT functionality in the outbound (SNAT) direction.
+- Full cone NAT functionality in the inbound (DNAT) direction.
+- Change in iptables utility to pass the fullcone option to the kernel while creating the PREROUTING and POSTROUTING rules.
+
+With those changes, for the above flows, 3-tuple unique translations are achieved.
+[SIP=1.0.0.1, SPORT=100] SNAT to [SIP=65.55.45.1, SPORT=600]
+[SIP=1.0.0.2, SPORT=120] SNAT to [SIP=65.55.45.1, SPORT=601]
 
 ### 3.4.3 Interactions between Kernel and Natsyncd
 Following sections explain how the NAT entries corresponding to the connections originated from the private networks are created in the hardware.
@@ -1538,8 +1542,9 @@ Following features are not supported:
 - Subnet based NAT
 - Hairpinning traffic with NAT 
 - Dynamic Destination NAT/NAPT based on the Pool and ACL bindings
+- Dynamic NAPT for protocol types other than TCP/UDP/ICMP. 
 - NAT64 to translate traffic between IPv6 and IPv4 hosts
 - VRF aware NAT
 - NAT on fragmented IP packets arriving at the NAT router
-- Error handling of the failed NAT entries in the hardware.
+- Error handling of the failed NAT entries in the hardware
 - ALG support
