@@ -1,3 +1,27 @@
+Table of Contents
+<!-- TOC -->
+- [Scope](#scope)
+- [Overview](#overview)
+- [Quality Objective](#quality-objective)
+- [Module design](#module-design)
+  - [Overall design](#overall-design)
+  - [Updated directory structure](#updated-directory-structure)
+  - [Thresholds overview](#thresholds-overview)
+  - [Thresholds configuration file](#thresholds-configuration-file)
+  - [Thresholds template](#thresholds-template)
+  - [Preliminary defaults](#preliminary-defaults)
+- [Pytest plugin overview](#pytest-plugin-overview)
+  - [Pytest option](#pytest-option)
+  - [Pytest hooks](#pytest-hooks)
+  - [Classes](#classes)
+- [Interaction with dut](#interaction-with-dut)
+- [Tests execution flaw](#tests-execution-flaw)
+- [Extended info to print for error cases](#extended-info-to-print-for-error-cases)
+- [Commands to fetch monitoring data](#commands-to-fetch-monitoring-data)
+- [Possible future expansion](#possible-future-expansion)
+  
+<!-- /TOC -->
+
 ### Scope
 
 This document describes the high level design of verification the hardware resources consumed by a device. The hardware resources which are currently verified are CPU, RAM and HDD.
@@ -17,10 +41,12 @@ Purpose of the current feature is to - verify that previously listed resources a
 + Ensure RAM consumption on DUT does not exceed threshold 
 + Ensure used space in the partition mounted to the HDD "/" root folder does not exceed threshold
 
-### 1. Module design
-#### 1.1 Overall design
+### Module design
+#### Overall design
 The following figure depicts current feature integration with existed Pytest framework.
-#### TODO: add link to the picture
+
+![](https://github.com/yvolynets-mlnx/SONiC/blob/dut_monitor/images/dut_monitor_hld/Load_flaw.jpg)
+
 Newly introduced feature consists of:
 + Pytest plugin – pytest_dut_monitor.py. Plugin defines:
   + pytest hooks: pytest_addoption , pytest_configure, pytest_unconfigure
@@ -30,23 +56,22 @@ Newly introduced feature consists of:
 + Pytest plugin registers new option “--dut_monitor"
 + Python module - dut_monitor.py. Which is running on DUT and collects CPU, RAM and HDD data and writes it to the log files. There will be created three new files: cpu.log, ram.log, hdd.log.
 
-### 1.2 Updated directory structure with new files
-./sonic-mgmt/tests/thresholds.yml
-./sonic-mgmt/tests/plugins/pytest_dut_monitor.py
-./sonic-mgmt/tests/monitoring/dut_monitor.py
+#### Updated directory structure
++ ./sonic-mgmt/tests/thresholds.yml
++ ./sonic-mgmt/tests/plugins/pytest_dut_monitor.py
++ ./sonic-mgmt/tests/monitoring/dut_monitor.py
 
-#### 1.3 Thresholds overview
+#### Thresholds overview
 To be able to verify that CPU, RAM or HDD utilization are not critical on the DUT, there is a need to define specific thresholds.
 
 List of thresholds:
-
-    Total system CPU consumption
-    Separate process CPU consumption
-    Time duration of CPU monitoring
-    Average CPU consumption during test run
-    Peak RAM consumption
-     RAM consumption delta before and after test run
-    Used disk space
++ Total system CPU consumption
++ Separate process CPU consumption
++ Time duration of CPU monitoring
++ Average CPU consumption during test run
++ Peak RAM consumption
++ RAM consumption delta before and after test run
++ Used disk space
 
 ```Total system CPU consumption``` - integer value (percentage). Triggers when total peak CPU consumption is >= to defined value during “Peak CPU monitoring duration” seconds.
 
@@ -62,13 +87,13 @@ List of thresholds:
 
 ```Used disk space``` - integer value (percentage). Triggers when used disk space is >= to defined value.
 
-#### 1.4 Thresholds configuration file
+#### Thresholds configuration file
 
-As for now configuration files are stored in the sonic-mgmt/tests/ folder, thresholds config file can be stored here as well - ./sonic-mgmt/tests/thresholds.yml 
+As for now configuration files are stored in the sonic-mgmt/tests/ folder, thresholds config file, for now, can be stored here as well - ./sonic-mgmt/tests/thresholds.yml 
 
 As different platforms have different hardware the proposal is to define thresholds per platform instead of common.
 
-##### thresholds.yml template:
+##### Thresholds template:
 ```code
 Platform X:
     CPU_total: x
@@ -81,7 +106,9 @@ Platform X:
 
 ...
 ```
-##### Preliminary defaults (need to be tested to define accurately)
+##### Preliminary defaults
+Note: need to be tested to define accurately.
+
     CPU_total: 90
     CPU_process: 60
     CPU_measure_duration: 10
@@ -90,22 +117,23 @@ Platform X:
     RAM_delta: 1
     HDD_used: 80
 
-### 2. Pytest plugin overview
+### Pytest plugin overview
 
-#### 2.1 Pytest option
+#### Pytest option
 To enable DUT monitoring for each test case the following pytest console option should be used - "--dut_monitor"
 
-#### 2.2 Pytest hooks description in dut_monitor.py module:
-#### pytest_addoption(parser)
+#### Pytest hooks
+dut_monitor.py module defines the following hooks:
+##### pytest_addoption(parser)
 Register "--dut_monitor" option. This option used for trigger device monitoring.
-#### pytest_configure(config)
+##### pytest_configure(config)
 Check whether "--dut_monitor" option is used, if so register DUTMonitorPlugin class as pytest plugin.
-#### pytest_unconfigure(config)
+##### pytest_unconfigure(config)
 Unregister DUTMonitorPlugin plugin.
 
-#### 2.3 DUTMonitorClient class:
-
-API with the given possibilities:
+### Classes
+#### DUTMonitorClient class
+Define API for:
 
 + Start monitoring on the DUT
 + Stop monitoring on the DUT. Compare measurements with defined thresholds
@@ -113,9 +141,10 @@ API with the given possibilities:
 + Track SSH connection with DUT
 + Automatically restore SSH connection with DUT while in monitoring mode
 
-#### 2.4 DUTMonitorPlugin class:
+#### DUTMonitorPlugin class
 Defines the following pytest fixtures:
-#### dut_ssh(autouse=True, scope="session")
+
+##### dut_ssh(autouse=True, scope="session")
 Establish SSH connection with a device. Keeps this connection during all tests run.
 
 If the connection to the DUT is broken during monitoring phase (test performed DUT reboot), it will automatically try to restore connection during some time (for example 5 minutes).
@@ -124,16 +153,18 @@ If the connection will be restored, monitoring will be automatically restored as
 
 If the connection will not be restored, exception will be raised that DUT become inaccessible.
 
-#### dut_monitor(dut_ssh, autouse=True, scope="function")
+##### dut_monitor(dut_ssh, autouse=True, scope="function")
 - Starts DUT monitoring before test start
 - Stops DUT monitoring after test finish
 - Get measured values and compare them with defined thresholds
 - Pytest error will be generated if any of resources exceed the defined threshold.
 
-### 3. Pytest - DUT communication
-##### TODO: add picture
 
-#### 4 Tests execution flaw
+### Interaction with dut
+
+![](https://github.com/yvolynets-mlnx/SONiC/blob/dut_monitor/images/dut_monitor_hld/Dut_monitor_ssh.jpg)
+
+### Tests execution flaw
 
 + Start pytest run with added “–dut_monitor” option
 + Before each test case - initialize DUT monitoring
@@ -146,27 +177,27 @@ If the connection will not be restored, exception will be raised that DUT become
 + Pytest error will be generated if any of resources exceed the defined threshold. Error message will also show extended output about consumed CPU, RAM and HDD, which is described below. Test case status like pass/fail still be shown separately. It gives possibility to have separate results for test cases (pass/fail) and errors if resources consumption exceed the threshold.
 
 
-#### 4.1 Extended info to be displayed for error cases
+#### Extended info to print for error cases
 Display output of the following commands:
 
 + df -h --total /*
 + ps aux --sort rss
 + docker stats --all --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 
-#### 5. Commands which will be executed to obtain measurement data on DUT:
+### Commands to fetch monitoring data
 
-##### CPU:
+##### Fetch CPU consumption:
 ps -A -o pcpu | tail -n+2 | python -c "import sys; print(sum(float(line) for line in sys.stdin))"
-##### RAM:
+##### Fetch RAM consumption:
 show system-memory
 OR
 ps -A -o rss | tail -n+2 | python -c "import sys; print(sum(float(line) for line in sys.stdin))"
 
-##### HDD:
+##### Fetch HDD usage:
 df -hm /
 
 
-#### 6. Future expansion:
+### Possible future expansion
 
 Later this functionality can be integrated with some UI interface where will be displayed consumed resources and device health during regression run. As UI board can be used Grafana. 
 
