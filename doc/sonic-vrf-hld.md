@@ -360,17 +360,17 @@ The existing acl_rule_table definition is the following.
 
 ```
 
-To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. So new acl_rule_table should like the following.
+To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. For backward compatibilty nexthop key `{IP}` is also supported, it only works on global vrf. So new acl_rule_table should like the following. 
 
 ```json
 
 "table1|rule1": {
     "L4_SRC_PORT": "99",
-    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet10,30.1.1.93|Ethernet11"
+    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet10,30.1.1.93"
 },
 "table1|rule2": {
     "L4_SRC_PORT": "100",
-    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet11"
+    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet11, 30.1.1.93"
 },
 
 ```
