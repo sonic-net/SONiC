@@ -9,18 +9,17 @@
  | 1.0 | 22 Aug 2019             |      Praveen Chaudhary      | Initial version                   |
 
 
-## 
+
 ## This document lists the guidelines, which will be used to write Yang Modules for Sonic. These Yang Modules will be primarily based on ABNF Schema of Sonic. 
-##
 
 
 
-### Each primary section of Config DB (i.e a dictionary in config_db.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in config DB will be mapped to a container in Yang model.
+### 1. Each primary section of Config DB (i.e a dictionary in config_db.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in config DB will be mapped to a container in Yang model.
 
 Example:
 
-ABNF
---
+#### ABNF
+
 ```
 "INTERFACE": {
         ~~"Ethernet112|2a04:fxxx:40:a709::xxx/126": {
@@ -31,7 +30,7 @@ ABNF
 ```
 will translate to:
 
-Yang:
+####  Yang
 --
 ```
 container INTERFACE {
@@ -40,13 +39,12 @@ container INTERFACE {
 }
 ```
 
-### Each leaf in yang module should have same name as corresponding key in Config DB.
+### 2. Each leaf in yang module should have same name as corresponding key in Config DB.
 
 Example:
 Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY.
 
-ABNF
---
+#### ABNF
 ```
         "NO-NSW-xxx|xxx": {
             "PACKET_ACTION": "FORWARD",
@@ -57,8 +55,7 @@ ABNF
         },
 ```
 
-Yang
---
+####  Yang
 ```
             leaf PACKET_ACTION {
                 type xxxx;
@@ -74,13 +71,12 @@ Yang
 ```
 
 
-### Hierarchy of the an objects in yang models will be same as for all the objects at same hierarchy in Redis. If any exception is created then it must be recorded properly.
+### 3. Hierarchy of the an objects in yang models will be same as for all the objects at same hierarchy in Redis. If any exception is created then it must be recorded properly.
 For Example: 
 
 "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE should be at same level in yang model too.
 
-ABNF
---
+#### ABNF
 ```
 "VLAN_INTERFACE": {
         "Vlan100|2a04:f547:45:6709::1/64": {
@@ -96,8 +92,7 @@ ABNF
         }
 }
 ```
-Yang
---
+####  Yang
 In Yang, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level. 
 ```
 container VLAN_INTERFACE {
@@ -123,12 +118,11 @@ container ACL_RULE {
 }
 ``` 
 
-### If an object is used as a key in Redis, it should be a key in yang model, irrespective of need. Exception must be recorded in Yang Model.
+### 4.  if an object is used as a key in Redis, it should be a key in yang model, irrespective of need. Exception must be recorded in Yang Model.
 
 Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and Port part of the key. So yang model should have the same keys.
 
-ABNF
---
+#### ABNF
 ```
  "VLAN_MEMBER": {
         "Vlan100|Ethernet0": {<<<< KEYS
@@ -136,8 +130,7 @@ ABNF
         }
    }
 ```
-Yang
---
+#### Yang
 ```
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
@@ -147,7 +140,15 @@ container VLAN_MEMBER {
 }
 ```
 
-### When it comes about the choice between objects, it is good to stick to standard models. 
+### 5.  It is best to categorized Yang Modules based on a networking components. For Example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
+```
+sonic-acl.yang
+sonic-interface.yang
+sonic-port.yang
+sonic-vlan.yang
+```
+
+### 6. When it comes about the choice between objects, it is good to stick to standard models. 
 For example: if open-config defines acl-rules as container and have an acl-rules list inside it, then we will stick to the same object types, if a container and list is must in Sonic Yang model.
 Examples:
 ```
@@ -157,7 +158,9 @@ container acl-entries {
         key "sequence-id";
 ```
 
-### All must, when, pattern and enumeration constraints will come from .h files (or code). If code has the possibility to have unknown behavior with some config, then we will put a constraint in yang models objects. (This will always be Ongoing effort).
+
+
+### 7.  All must, when, pattern and enumeration constraints will come from .h files (or code). If code has the possibility to have unknown behavior with some config, then we will put a constraint in yang models objects. (This will always be Ongoing effort).
 
 For Example: Enumeration of IP_TYPE comes for aclorch.h
 ```
@@ -174,8 +177,7 @@ For Example: Enumeration of IP_TYPE comes for aclorch.h
 ```
 Example of When Statement: Orchagent of Sonic will have unknown behavior if below config is entered, So yang must have a constraint. Here SRC_IP is IPv4, where as IP_TYPE is IPv6.
 
-ABNF:
---
+#### ABNF:
 ```
    "ACL_RULE": {
         "NO-NSW-PACL-V4|Rule_20": {
@@ -187,8 +189,7 @@ ABNF:
         },
  
 ```
-Yang:
---
+#### Yang:
 ```
 choice ip_prefix {
                 case ip4_prefix {
@@ -219,7 +220,7 @@ leaf L4_DST_PORT_RANGE {
         }
 }
 ```
-### Comment all must, when and patterns conditions.
+### 8. Comment all must, when and patterns conditions.
 Example:
 ```
 leaf family {
@@ -236,19 +237,7 @@ leaf family {
 
 
 
-
-### It is best to categorized Yang Modules based on a networking components. For Example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
-```
-sonic-acl.yang
-sonic-interface.yang
-sonic-port.yang
-sonic-vlan.yang
-```
-
-
-
-
-### Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say Sonic types) only if IETF type is not applicable. All Sonic Types must be part of same header type or common yang model.
+### 9.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say Sonic types) only if IETF type is not applicable. All Sonic Types must be part of same header type or common yang model.
 Example:
 ```
                     leaf SRC_IP {
@@ -261,4 +250,4 @@ Example:
 ```
 
 
-### All above steps are manual right now, in future few of them can be automated.
+## All above steps are manual right now, in future few of them can be automated.
