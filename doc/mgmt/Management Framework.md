@@ -1,8 +1,8 @@
-# SONiC Management Framework - [DRAFT]
+# SONiC Management Framework
 
 ## High level design document
 
-### Rev 0.7
+### Rev 0.9
 
 ## Table of Contents
 
@@ -19,33 +19,31 @@
         * [1.2.2 Container](#122-container)
 * [2 Functionality](#2-functionality)
     * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
-    * [2.2 Functional Description](#22-functional-description)
 * [3 Design](#3-design)
     * [3.1 Overview](#31-overview)
         * [3.1.1 Build time flow](#311-build-time-flow)
         * [3.1.2 Run time flow](#312-run-time-flow)
             * [3.1.2.1 CLI](#3121-cli)
-            * [3.1.2.2 REST](#3122-rest)
+            * [3.1.2.2 REST](#3122-REST)
             * [3.1.2.3 gNMI](#3123-gnmi)
     * [3.2 SONiC Management Framework Components](#32-sonic-management-framework-components)
         * [3.2.1 Build time components](#321-build-time-components)
             * [3.2.1.1 Yang to OpenAPI converter](#3211-yang-to-openapi-converter)
-                * [3.1.1.1.1 Overview](#31111-overview)
-                * [3.1.1.1.2 Supported HTTP verbs](#31112-supported-http-verbs)
-                * [3.1.1.1.3 Supported Data Nodes](#31113-supported-data-nodes)
-                * [3.1.1.1.4 Data Type Mappings](#31114-data-type-mappings)
-                * [3.1.1.1.5 Notes](#31115-notes)
-                * [3.1.1.1.6 Future enhancements](#31116-future-enhancements)
+                * [3.2.1.1.1 Overview](#32111-overview)
+                * [3.2.1.1.2 Supported HTTP verbs](#32112-supported-http-verbs)
+                * [3.2.1.1.3 Supported Data Nodes](#32113-supported-data-nodes)
+                * [3.2.1.1.4 Data Type Mappings](#32114-data-type-mappings)
+                * [3.2.1.1.5 Future enhancements](#32115-future-enhancements)
             * [3.2.1.2 swagger generator](#3212-swagger-generator)
-            * [3.2.1.3 YGOT generator](#3213-ygot-generator)
+            * [3.2.1.3 YGOT generator](#3213-YGOT-generator)
             * [3.2.1.4 pyang compiler](#3214-pyang-compiler)
         * [3.2.2 Run time components](#322-run-time-components)
             * [3.2.2.1 CLI](#3221-cli)
-            * [3.2.2.2 REST Client SDK](#3222-rest-client-sdk)
+            * [3.2.2.2 REST Client SDK](#3222-REST-client-sdk)
             * [3.2.2.3 gNMI Client](#3223-gnmi-client)
-            * [3.2.2.4 REST Server](#3224-rest-server)
+            * [3.2.2.4 REST server](#3224-REST-server)
                 * [3.2.2.4.1 Transport options](#32241-transport-options)
-                * [3.2.2.4.2 TransLib linking](#32242-translib-linking)
+                * [3.2.2.4.2 Translib linking](#32242-Translib-linking)
                 * [3.2.2.4.3 Media Types](#32243-media-types)
                 * [3.2.2.4.4 Payload Validations](#32244-payload-validations)
                 * [3.2.2.4.5 Concurrency](#32245-concurrency)
@@ -62,10 +60,10 @@
             * [3.2.2.5 gNMI server](#3225-gnmi-server)
 			    * [3.2.2.5.1 Files changed/added](#32251-files-changed/added)
 				* [3.2.2.5.2 Sample Requests](#32253-sample-requests)
-            * [3.2.2.6 Translib](#3226-translib)
+            * [3.2.2.6 Translib](#3226-Translib)
                 * [3.2.2.6.1 App Interface](#32261-app-interface)
-                * [3.2.2.6.2 Translib Request Handler](#32262-translib-request-handler)
-                * [3.2.2.6.3 YGOT request binder](#32263-ygot-request-binder)
+                * [3.2.2.6.2 Translib Request Handler](#32262-Translib-request-handler)
+                * [3.2.2.6.3 YGOT request binder](#32263-YGOT-request-binder)
                 * [3.2.2.6.4 DB access layer](#32264-db-access-layer)
                 * [3.2.2.6.5 App Modules](#32265-app-modules)
 			* [3.2.2.7 Transformer](#3227-transformer)
@@ -84,9 +82,9 @@
             * [3.2.2.9 Redis DB](#3229-redis-db)
             * [3.2.2.10 Non DB data provider](#32210-non-db-data-provider)
 * [4 Flow Diagrams](#4-flow-diagrams)
-    * [4.1 REST SET flow](#41-rest-set-flow)
-    * [4.2 REST GET flow](#42-rest-get-flow)
-	* [4.3 Translib Initialization flow](#43-translib-initialization-flow)
+    * [4.1 REST SET flow](#41-REST-set-flow)
+    * [4.2 REST GET flow](#42-REST-get-flow)
+	* [4.3 Translib Initialization flow](#43-Translib-initialization-flow)
 	* [4.4 gNMI flow](#44-gNMI-flow)
 	* [4.5 CVL flow](#45-CVL-flow)
 * [5 Developer Work flow](#5-Developer-Work-flow)
@@ -111,7 +109,6 @@
 * [10 Unit Test](#10-unit-test)
 * [APPENDIX](#APPENDIX)
 
-
 ## List of Tables
 
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -126,7 +123,9 @@
 | 0.4 | 08/07/2019  | Arun Barboza            | Clarifications on Table CAS   |
 | 0.5 | 08/07/2019  | Anand Kumar Subramanian | Translib Subscribe support    |
 | 0.6 | 08/08/2019  | Kwangsuk Kim            | Updated Developer Workflow and CLI sections |
-| 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview | 
+| 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview |
+| 0.8 | 08/15/2019  | Anand Kumar Subramanian | Addressed review comments     |
+| 0.9 | 08/19/2019  | Partha Dutta            | Addressed review comments related to CVL    |
 
 ## About this Manual
 
@@ -143,17 +142,25 @@ This document describes the high level design of Management framework feature.
 | **Term**                 | **Meaning**                         |
 |--------------------------|-------------------------------------|
 | CVL                      | Config Validation Library           |
+| NBI                      | North Bound Interface               |
+| ABNF                     | Augmented Backus-Naur Form          |
+| YANG                     | Yet Another Next Generation         |
+| JSON                     | Java Script Object Notation         |
+| XML                      | eXtensible Markup Language          |
+| gNMI                     | gRPC Network Management Interface   |
+| YGOT                     | YANG Go Tools                       |
 
 ## 1 Feature Overview
 
-Management framework is a SONiC application which is responsible for providing various common North Bound Interfaces (NBIs) for the purposes of managing configuration on SONiC switches. The application manages coordination of NBI’s to provide a coherent way to validate, apply and show configuration.
+Management framework is a SONiC application which is responsible for providing various common North Bound Interfaces (NBIs) for the purposes of managing configuration and status on SONiC switches. The application manages coordination of NBI’s to provide a coherent way to validate, apply and show configuration.
 
 ### 1.1 Requirements
 
 * Must provide support for:
 
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
-    2. Industry-standard CLI
+    2. Custom YANG models
+    3. Industry-standard CLI
 
 * Must provide support for [OpenAPI spec](https://swagger.io/specification/) to generate REST server side code
 * Must provide support for NBIs such as:
@@ -166,16 +173,18 @@ Management framework is a SONiC application which is responsible for providing v
 
     1. Certificate-based authentication
     2. User/password based authentication
+    3. Role based authorization
 
 * Ease of use for developer workflow
 
     1. Specify data model and auto-generate as much as possible from there
 
 * Must support Validation and Error Handling - data model, platform capability/scale, dynamic resources
+* SNMP integration in SONiC is left for future study
 
 ### 1.2 Design Overview
 
-Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. This framework will support both standard and custom YANG models for communication with the corresponding management servers. Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before persisting them into the Redis DB. Config Validation Library is used for syntactic and semantic validation of ABNF JSON based on YANG derived from Redis ABNF schema.
+Management framework makes use of the translation library (Translib) written in golang to convert the data models exposed to the management clients into the Redis ABNF schema format. Supported management servers can make use of the Translib to convert the incoming payload to SONiC ABNF schema and vice versa depending on the incoming request. Translib will cater to the needs of REST and gNMI servers. Later the Translib can be enhanced to support other management servers if needed. This framework will support both standard and custom YANG models for communication with the corresponding management servers. Management framework will also take care of maintaining data consistency, when writes are performed from two different management servers at the same time. Management framework will provide a mechanism to authenticate and authorize any incoming requests. Management framework will also take care of validating the requests before writing them into the Redis DB. Config Validation Library is used for syntactic and semantic validation of ABNF JSON based on YANG derived from Redis ABNF schema.
 
 #### 1.2.1 Basic Approach
 
@@ -184,32 +193,31 @@ Management framework makes use of the translation library (Translib) written in 
 	* Open API spec
 	* Industry standard CLI
 	* Config Validation
-* REST server, gNMI server, App Module and TransLib - all in GO
-* Translation by using the TransLib Library and application specific modules
+* REST server, gNMI server, App module and Translib - all in Go
+* Translation by using the Translib Library and application specific modules
 * Marshalling and unmarshalling using YGOT
 * Redis updated using CAS(Check-and-Set) trans. (No locking, No rollback)
 * Config Validation by using YANG model from ABNF schema
-* CLI with klish framework 
+* CLI with Klish framework
 
 #### 1.2.2 Container
 
-The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with translib, and CLI process. The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. Although it is possible to run gNMI server in a separate container, it would make more sense to move the gNMI server to the new management framework.
+The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
+The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
 
 ## 2 Functionality
 
 ### 2.1 Target Deployment Use Cases
 
-1. KLISH based CLI which will use REST client to talk to the corresponding servers to send and receive data.
+1. Industry Standard CLI which will use REST client to talk to the corresponding servers to send and receive data.
 2. REST client through which the user can perform POST, PUT, PATCH, DELETE, GET operations on the supported YANG paths.
 3. gNMI client with support for capabilities, get, set, and subscribe based on the supported YANG models.
-
-### 2.2 Functional Description
 
 ## 3 Design
 
 ### 3.1 Overview
 
-The SONiC management framework comprises two flows:
+The SONiC management framework comprises two workflows:
 
 1. Build time flow
 2. Run time flow
@@ -220,18 +228,24 @@ as show in the architecture diagram below.
 
 #### 3.1.1 Build time flow
 
-User can start with YANG or OpenAPI spec.
+The Developer starts by defining the desired management objects and the access APIs to provide for the target application. This can be done in one of the two ways: -
+1) A YANG data model
+2) An OpenAPI spec
 
-1. In case of YANG, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the Swagger generator to generate the REST client SDK and REST SERVER stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/ygot) generator to generate the YGOT bindings which will be consumed by the APP module. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be converted into filled in YGOT structures and given to app module for conversion. The app module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
-2. In case of OpenAPI spec, it is directly given to the [Swagger](https://swagger.io) generator to generate the REST client SDK and REST SERVER stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to the app module. In this case the Translib infra will invoke the App module functions with the path and the raw JSON for App modules for conversion.
+This can be an independent choice on an application by application basis. However note that using YANG allows for richer data modelling, and therefore superior data validation.
+
+1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate CVL YANG model has to be written based on Redis ABNF schema for validating Redis configuration. However, if custom SONiC YANG model is written based on guidelines (refer to [APPENDIX](#APPENDIX)), CVL YANG is automatically derived from it and the same is used for validation purpose. Based on the given YANG model as input,   
+the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the Swagger generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
+
+2. In case of OpenAPI spec, it is directly given to the [Swagger](https://swagger.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, CVL YANG model has to be written based on Redis ABNF schema. 
 
 #### 3.1.2 Run time flow
 
 ##### 3.1.2.1 CLI
 
-1. CLI uses the KLISH framework to provide CLI shell. The CLI request is converted to a corresponding REST client request using the Client SDK generated by the Swagger generator and given to the REST server.
-2. The Swagger generated REST server handles all the REST requests from the CLI and invokes a common handler for all the create, update, replace, delete and get operations along with path and payload. This common handler converts all the requests into Translib arguments and invokes the corresponding Translib provided APIs.
-3. TransLib uses the value of the input (incoming) path/URI to determine the identity of the appropriate App module.
+1. CLI uses the KLISH framework to provide a CLI shell. The CLI request is converted to a corresponding REST client SDK request that was generated by the Swagger generator, and is given to the REST server.
+2. The Swagger generated REST server handles all the REST requests from the client SDK and invokes a common handler for all the create, update, replace, delete and get operations along with path and payload. This common handler converts all the requests into Translib arguments and invokes the corresponding Translib provided APIs.
+3. Translib uses the value of the input (incoming) path/URI to determine the identity of the appropriate App module. It then calls that App module, passing the request as either a populated YGOT structure or as JSON, depending upon the data modelling method in use for the application (see section [3.1.1](#311-build-time-flow)).
 4. Further processing of CLI commands will be handled by Translib componenets that will be discussed in more detail in the later sections.
 
 ##### 3.1.2.2 REST
@@ -247,10 +261,10 @@ GNMI service defines a gRPC-based protocol for the modification and retrieval of
 
 1. Existing SONiC telemetry framework has been extended to support the new GNMI services.
 2. All 4 GNMI services are supported: Get, Set, Capabilities and Subscribe.
-3. A new client transl data client is added to support the request incoming request in YANG objects (Both Open Config and SONiC)
-4. The new transl data client relies on translib infra provided to translate, get, set of the YANG objects.
+3. A new transl data client is added to process the incoming YANG-based request (either standard or proprietary)
+4. The new transl data client relies on Translib infra provided to translate, get, set of the YANG objects.
 
-More details onthe GNMI Server, Client and workflow provided later in the document.
+More details onthe GNMI server, Client and workflow provided later in the document.
 
 ### 3.2 SONiC Management Framework Components
 
@@ -263,26 +277,26 @@ Management framework components can be classified into
 
 Following are the build time components of the management framework
 
-1. YANG to OpenAPI converter
+1. Pyang compiler (for YANG to OpenAPI conversion)
 2. Swagger generator
 3. YGOT generator
 4. pyang compiler (for CVL YANG to YIN conversion)
 
 ##### 3.2.1.1 YANG to OpenAPI converter
 
-##### 3.1.1.1.1 Overview
+##### 3.2.1.1.1 Overview
 
-Open source Python-based YANG parser called pyang is used for YANG parsing and building a python object dictionary. A custom in-house plugin is developed to translate this python object dictionary into OpenAPI spec. As of now OpenAPI spec version, 2.0 is chosen considering the maturity of the toolset available in the open community.
+Open source Python-based YANG parser called pyang is used for YANG parsing and building a Python object dictionary. A custom plugin is developed to translate this Python object dictionary into an OpenAPI spec. As of now OpenAPI spec version, 2.0 is chosen considering the maturity of the toolset available in the open community.
 
-URI format and payload will be RESTCONF complaint and is based on the [RFC8040](https://tools.ietf.org/html/rfc8040). The Request and Response body will only be in JSON format in this release.
+URI format and payload is RESTCONF complaint and is based on the [RFC8040](https://tools.ietf.org/html/rfc8040). The Request and Response body is in JSON format in this release.
 
-##### 3.1.1.1.2 Supported HTTP verbs
+##### 3.2.1.1.2 Supported HTTP verbs
 
-Following are the HTTP methods supported in the version 1
+Following are the HTTP methods supported in first release.
 
 POST, PUT, PATCH, GET and DELETE.
 
-##### 3.1.1.1.3 Supported Data Nodes
+##### 3.2.1.1.3 Supported Data Nodes
 
 For each of the below-listed Data keywords nodes in the YANG model, the OpenAPI (path) will be generated in version 1
 
@@ -291,7 +305,7 @@ For each of the below-listed Data keywords nodes in the YANG model, the OpenAPI 
 * Leaf
 * Leaf-list
 
-##### 3.1.1.1.4 Data Type Mappings
+##### 3.2.1.1.4 Data Type Mappings
 
  YANG Type | OpenAPI Type
 -------------|------------------
@@ -312,37 +326,35 @@ Boolean | Boolean
 Binary | String with Format as Binary (<https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md>)
 bits | integer
 
-##### 3.1.1.1.5 Notes
-
 * All list keys will be made mandatory in the payload and URI
 * YANG mandatory statements will be mapped to the required statement in OpenAPI
 * Default values, Enums are mapped to Default and Enums statements of OpenAPI
-* Currently, Swagger/OpenAPI 2.0 Specification does NOT support JSON-schema a yOf and oneOfdirectives, which means that we cannot properly treat YANG choice/case statements during conversion. As a workaround, the current transform will simply serialize all configuration nodes from the choice/case sections into a flat list of properties.
+* Currently, Swagger/OpenAPI 2.0 Specification does NOT support JSON-schema anyOf and oneOfdirectives, which means that we cannot properly treat YANG choice/case statements during conversion. As a workaround, the current transform will simply serialize all configuration nodes from the choice/case sections into a flat list of properties.
 
-##### 3.1.1.1.6 Future enhancements
+##### 3.2.1.1.5 Future enhancements
 
 * Support for additional Data nodes such as RPC, Actions, and notifications(if required).
 * Support for RESTCONF query parameters such as depth, filter, etc
 * Support for other RESTCONF features such as capabilities.
 * Support for HTTPS with X.509v3 Certificates.
 * Support for a pattern in string, the range for integer types and other OpenAPI header objects defined in https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#header-object
-* Other misc OpenAPI related constraint will be added
+* Other misc OpenAPI related constraints will be added
 
 ##### 3.2.1.2 Swagger generator
 
 Swagger-codegen tool (github.com/Swagger-api/Swagger-codegen) is used to generate REST server and client code from the OpenAPI definitions. It consumes the OpenAPI definitions generated from YANG files and any other manually written OpenAPI definition files.
 
-REST Server is generated in GO language. Customized Swagger-codegen templates are used to make each server stub invoke a common request handler function. The common request handler will invoke Translib APIs to service the request.
+REST server is generated in Go language. Customized Swagger-codegen templates are used to make each server stub invoke a common request handler function. The common request handler will invoke Translib APIs to service the request.
 
-REST client is generated in python language. Client applications can generate the REST client in any language using standard Swagger-codegen tool.
+REST client is generated in Python language. Client applications can generate the REST client in any language using standard Swagger-codegen tool.
 
 ##### 3.2.1.3 YGOT generator
 
-YGOT generator generates GO binding structures for the management YANG. The generated GO binding structures are consumed by the Translib to validate the incoming payload and help in conversion of Redis data to management YANG specific JSON output payload.
+YGOT generator generates Go binding structures for the management YANG. The generated Go binding structures are consumed by the Translib to validate the incoming payload and help in conversion of Redis data to management YANG specific JSON output payload.
 
 ##### 3.2.1.4 pyang compiler
 
-Open source pyang tool is used to compile CVL specific SONiC native YANG models and generate YIN schema.
+Open source pyang tool is used to compile YANG models and generate output file in required format. For example CVL YANG model is compiled and YIN schema file is generated for validation purpose. Similarly, after compiling YANG model, OpenAPI spec file is generated for generating REST client SDK and server code using Swagger-codegen.
 
 #### 3.2.2 Run time components
 
@@ -350,9 +362,9 @@ Following are the run time components in the management framework
 
 1. CLI
 2. REST Client SDK
-3. gNMI Client
-4. REST Server
-5. gNMI Server
+3. REST server
+4. gNMI Client
+5. gNMI server
 6. Translib
 7. Config Validation Library (CVL)
 8. Redis DB
@@ -360,7 +372,7 @@ Following are the run time components in the management framework
 
 ##### 3.2.2.1 CLI
 
-Open source Klish is integrated to sonic-mgmt-framework to provide the command line interface tool to perform network operations more efficiently in SONiC. Klish will provide the core functionality of command parsing, syntax validation, command help and command auto-completion. The following diagram shows how the CLI commands are built, processed, and executed.
+Open source Klish is integrated into sonic-mgmt-framework container to provide the command line interface tool to perform more efficient network operations more efficiently in SONiC. Klish will provide the core functionality of command parsing, syntax validation, command help and command auto-completion. The following diagram shows how the CLI commands are built, processed, and executed.
 
 ![CLI components Interaction Diagram](images/cli_interactions.jpg)
 
@@ -391,7 +403,7 @@ The XML files are also validated as part of compilation. `xmllint` is used to va
 The following preprocessing scripts are introduced:
 *	`klish_ins_def_cmd.py` - append the "exit" and "end" commands to the views of the Klish XML files
 *	`klish_insert_pipe.py` - extend every show and get COMMAND with pipe option
-*	`klish_platform_features_process.sh` - validate all platform xml files. Generate the entity.xml files.
+*	`klish_platform_features_process.sh` - validate all platform XML files. Generate the entity.XML files.
 *	`klish_replace_macro.py` – perform macro substitution on the Klish XML files
 
 ###### 3.2.2.1.3 MACROs
@@ -431,9 +443,9 @@ After macro substitution:
 ```
 
 ###### 3.2.2.1.4 ENTITY
-XML files can include an ENTITY that refers to a predefined value. Entity is typically used to define platform specific values and processed by `klish_platform_features_process.sh` to prepend the ENTITY values to the target XML files. By default, there is a default file called `platform_dummy.xml` that defines a platform default ENTITY list. Note that the platform specific is not supported yet.
+XML files can include an ENTITY that refers to a predefined value. Entity is typically used to define platform specific values and processed by `klish_platform_features_process.sh` to prepend the ENTITY values to the target XML files. By default, there is a default file called `platform_dummy.XML` that defines a platform default ENTITY list. Note that the platform specific is not supported yet.
 
-Example: `platform_dummy.xml`
+Example: `platform_dummy.XML`
 
 ```XML
 <ENTITYLIST>
@@ -476,9 +488,9 @@ Example:
     <MACRO name="ACG-OPTIONS" arg=""></MACRO>
     <ACTION>
         if test "${direction-switch}" = "in"; then
-            python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} ingress
+            Python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} ingress
         else
-            python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} egress
+            Python $SONIC_CLI_ROOT/target/sonic-cli.py post_list_base_interfaces_interface ${access-list-name} ACL_IPV4 ${iface} egress
         fi
     </ACTION>
     </COMMAND>
@@ -510,9 +522,9 @@ The following steps are to be followed when a new CLI is to be added.
 
 ##### 3.2.2.2 REST Client SDK
 
-Framework provides swagger-codegen generated python client SDK. Developers can generate client SDK code in other programming languages from the OpenAPI definitions on need basis.
+Framework provides swagger-codegen generated Python client SDK. Developers can generate client SDK code in other programming languages from the OpenAPI definitions as required.
 
-Client applications can use swagger generated client SDK or any other REST client tool to communicate with REST Server.
+Client applications can use swagger generated client SDK or any other REST client tool to communicate with the REST server.
 
 ##### 3.2.2.3 gNMI Client
 
@@ -540,7 +552,7 @@ Supported RPC Operations:
 
 Example Client Operations:
 --------------------------
-Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-framework/tree/master/src/translib/test
+Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-framework/tree/master/src/Translib/test
 
 Get:
 ----
@@ -571,20 +583,28 @@ Once based:
 
 ##### 3.2.2.4 REST Server
 
-The management REST Server will be implemented as a Go HTTP server. It supports below operations:
+The management REST server is a HTTP server implemented in Go language.
+It supports following operations:
 
 * RESTCONF APIs for YANG data
 * REST APIs for manual OpenAPI definitions
 
 ###### 3.2.2.4.1 Transport options
 
-REST Servers supports only HTTPS transport and listens on default port 443. Server port can be changed through a an entry in ConfigDB REST_SERVER table. Details are in [DB Schema](#3_2_2_4_14-db-schema) section.
+REST server supports only HTTPS transport and listens on default port 443.
+Server port can be changed through an entry in CONFIG_DB REST_SERVER table.
+Details are in [DB Schema](#3_2_2_4_14-db-schema) section.
 
-HTTPS certificates are managed similar to that of existing gNMI Telemetry program. Server key, certificate and CA certificate are maintained in ConfigDB DEVICE_METATDATA table. Same certificate will be used by both gNMI Telemetry and REST Server.
+HTTPS certificates are managed similar to that of existing gNMI Telemetry program.
+Server key, certificate and CA certificate file paths are configured in CONFIG_DB
+DEVICE_METATDATA table entry. Same certificate is used by both gNMI Telemetry and
+REST server.
 
 ###### 3.2.2.4.2 Translib linking
 
-REST Server will statically link with Translib. Each REST request will invoke Translib APIs which will invoke appropriate app module. Below is the mapping of HTTP operations to Translib APIs:
+REST server will statically link with Translib. For each REST request, the srever
+invokes Translib API which then invokes appropriate App module to process the request.
+Below is the mapping of HTTP operations to Translib APIs:
 
  HTTP Method | Translib API     | Request data  | Response data
 -------------|------------------|---------------|---------------
@@ -598,45 +618,57 @@ More details about Translib APIs are in section [3.2.2.6](#3_2_2_6-Translib).
 
 ###### 3.2.2.4.3 Media Types
 
-YANG defined RESTCONF APIs support **application/yang-data+json** media type. **application/yang-data+xml** is not supported in first release.
+YANG defined RESTCONF APIs support **application/yang-data+json** media type.
+Request and response payloads follow [RFC7951](https://tools.ietf.org/html/rfc7951)
+defined encoding rules. Media type **application/yang-data+xml** is not supported
+in first release.
 
-OpenAPI defined REST APIs can support any media type. REST Server or Translib will not process input or output data for such APIs. App module should process the data.
+OpenAPI defined REST APIs can use any media type depending on App module
+implementation. However content type negotiation is not supported by REST server.
+A REST API should not be designed to consume or produce multiuple content types.
+OpenAPI definition for each REST API should have maximun one cone media type in
+its "consumes" and "produces" statements.
 
 ###### 3.2.2.4.4 Payload Validations
 
-REST Server will not perform any payload validation for YANG defined RESTCONF APIs. Translib will validate the input and output payloads through YGOT bindings.
+REST server does not validate request payload for YANG defined RESTCONF APIs.
+Payload will be validated automatically in lower layers when it gets loaded
+into YGOT bindings.
 
-For OpenAPI defined REST APIs the REST Server will provide limited payload validation. Translib will not validate such payloads. JSON request payloads (content type **application/json**) will be validated against the schema defined in OpenAPI. Response data and non-JSON request data will not be validated.
+For OpenAPI defined REST APIs the REST server will provide limited payload
+validation. JSON request payloads (content type **application/json**) will be
+validated against the schema defined in OpenAPI. Response data and non-JSON
+request data are not validated by the REST server - this is left to the App module.
 
 ###### 3.2.2.4.5 Concurrency
 
-REST Server will accept concurrent requests. Translib provides appropriate locking mechanism - parallel reads and sequential writes.
+REST server will accept concurrent requests. Translib provides appropriate locking mechanism - parallel reads and sequential writes.
 
 ###### 3.2.2.4.6 API Versioning
 
-REST Server will allow clients to specify API version through a custom HTTP header "Accept-Version". However API versioning feature will be supported only in a future release. The server will ignore the version information in current release.
+REST server will allow clients to specify API version through a custom HTTP header "Accept-Version". However API versioning feature will be supported only in a future release. The server will ignore the version information in current release.
 
     Accept-Version: 2019-06-20
     Accept-Version: 1.0.3
 
-REST Server will extract version text from the request header and pass it to the Translib API as metadata. App modules can inspect the version information and act accordingly.
+REST server will extract version text from the request header and pass it to the Translib API as metadata. App modules can inspect the version information and act accordingly.
 
 For YANG defined RESTCONF APIs, the version will the latest YANG revision date. For manual OpenAPI definitions developer can define version text in any appropriate format.
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
-REST Server will support RESTCONF entity-tag and last-modified timestamps in next release. Server will not process or send corresponding request, response headers in first release.
+REST server will support RESTCONF entity-tag and last-modified timestamps in next release. server will not process or send corresponding request, response headers in first release.
 Note that entity-tag and last-modified timestamps will be supported only for top level datastore node (/restconf/data). Per resource entity tags and timestamps will not be supported. Global entity tag and timestamp are used for all resources.
 
 ###### 3.2.2.4.8 RESTCONF Discovery
 
-Server will support RESTCONF root resource discovery as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18). RESTCONF root resource will be "/restconf".
+server will support RESTCONF root resource discovery as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18). RESTCONF root resource will be "/restconf".
 
 YANG module library discovery as per [RFC7895](https://tools.ietf.org/html/rfc7895) will be supported in a future release.
 
 ###### 3.2.2.4.9 RESTCONF Query Parameters
 
-RESTCONF Query Parameters will be supported in future release. All query parameters will be ignored by REST Server in this release.
+RESTCONF Query Parameters will be supported in future release. All query parameters will be ignored by REST server in this release.
 
 ###### 3.2.2.4.10 RESTCONF Operations
 
@@ -648,7 +680,7 @@ RESTCONF Notification are not supported by framework. Clients can use gNMI for m
 
 ###### 3.2.2.4.12 Authentication
 
-REST Server will support below 3 authentication modes.
+REST server will support below 3 authentication modes.
 
 * No authentication
 * TLS Certificate authentication
@@ -658,23 +690,23 @@ Only one mode can be active at a time. Administrator can choose the authenticati
 
 ###### 3.2.2.4.12.1 No Authentication
 
-This is the default mode. REST Server will not authenticate the client; all requests will be processed. It should not be used in production.
+This is the default mode. REST server will not authenticate the client; all requests will be processed. It should not be used in production.
 
 ###### 3.2.2.4.12.2 Certificate Authentication
 
-In this mode TLS public certificate of the client will be used to authenticate the client. Administrator will have to pre-provision the CA certificate in ConfigDB DEVICE_METADATA|x509 entry. REST Server will accept a connection only if the client TLS certificate is signed by that CA.
+In this mode TLS public certificate of the client will be used to authenticate the client. Administrator will have to pre-provision the CA certificate in ConfigDB DEVICE_METADATA|x509 entry. REST server will accept a connection only if the client TLS certificate is signed by that CA.
 
 ###### 3.2.2.4.12.3 User Authentication
 
-In this mode REST Server expects the client to provide user credentials in every request. Server will support HTTP Basic Authentication method to accept user credentials.
+In this mode REST server expects the client to provide user credentials in every request. server will support HTTP Basic Authentication method to accept user credentials.
 
-REST Server will integrate with Linux PAM to authenticate and authorize the user. PAM may internally use native user database or TACACS+ server based on system configuration. REST write requests will be allowed only if the user has admin privileges. Only read operations will be allowed for other users.
+REST server will integrate with Linux PAM to authenticate and authorize the user. PAM may internally use native user database or TACACS+ server based on system configuration. REST write requests will be allowed only if the user has admin privileges. Only read operations will be allowed for other users.
 
 Performing TACACS+ authentication for every REST request can slow down the APIs. This will be optimized through JSON Web Token (JWT) or a similar mechanism in future release.
 
 ###### 3.2.2.4.13 Error Response
 
-REST Server sends back HTTP client error (4xx) or server error (5xx) status when request processing
+REST server sends back HTTP client error (4xx) or server error (5xx) status when request processing
 fails. Response status and payload will be as per RESTCONF specifications - [RCF8040, section7](https://tools.ietf.org/html/rfc8040#page-73).
 Error response data will be a JSON with below structure. Response Content-Type will be
 "application/yang-data+json".
@@ -687,7 +719,7 @@ Error response data will be a JSON with below structure. Response Content-Type w
               +---- error-path?      xpath
               +---- error-message?   string
 
-Note: REST Server will not populate error-app-tag and error-path fields in this release. It can be
+Note: REST server will not populate error-app-tag and error-path fields in this release. It can be
 enhanced in a future release. A sample error response:
 
     {
@@ -703,17 +735,17 @@ enhanced in a future release. A sample error response:
     }
 
 **error-type** can be either "protocol" or "application", indicating the origin of the error.
-RESTCONF defines two more error-type enums "transport" and "rpc"; they are not used by REST Server.
+RESTCONF defines two more error-type enums "transport" and "rpc"; they are not used by REST server.
 
 **error-tag** indicates nature of error as described in [RFC8040, section 7](https://tools.ietf.org/html/rfc8040#page-74).
 
 **error-message** field carries a human friendly error message that can be displayed to the end
 user. This is an optional field; system errors do not include error-message, or have generic
-messages like "Internal error". App Module developer should use human friendly messages while
-returning application errors. In case of CVL constraint violation the REST Server will pick
+messages like "Internal error". App module developer should use human friendly messages while
+returning application errors. In case of CVL constraint violation the REST server will pick
 the error message from the yang "error-message" statement of CVL schema yang.
 
-Table below lists possible error conditions with response status and data returned by REST Server.
+Table below lists possible error conditions with response status and data returned by REST server.
 
 Method  | Error condition          | Status | error-type  | error-tag        | error-message
 --------|--------------------------|--------|-------------|------------------|----------------------
@@ -723,24 +755,24 @@ Method  | Error condition          | Status | error-type  | error-tag        | e
 *write* | YGOT schema validation fails    | 400 | protocol| invalid-value    | *YGOT returned message*
 *any*   | Invalid user credentials    | 401 | protocol    | access-denied    | Authentication failed
 *write* | User is not an admin        | 403 | protocol    | access-denied    | Authorization failed
-*write* | TransLib commit failure     | 409 | protocol    | in-use           |
+*write* | Translib commit failure     | 409 | protocol    | in-use           |
 *any*   | Unknown HTTP server failure | 500 | protocol    | operation-failed | Internal error
-*any*   | Not supported by App Module | 405 | application | operation-not-supported | *App Module returned message*
-*any*   | Incorrect payload           | 400 | application | invalid-value    | *App Module returned message*
-*any*   | Resource not found          | 404 | application | invalid-value    | *App Module returned message*
-POST    | Resource exists             | 409 | application | resource-denied  | *App Module returned message*
-*any*   | Unknown error in TransLib   | 500 | application | operation-failed | Internal error
-*any*   | Unknown App Module failure  | 500 | application | operation-failed | *App Module returned message*
+*any*   | Not supported by App module | 405 | application | operation-not-supported | *App module returned message*
+*any*   | Incorrect payload           | 400 | application | invalid-value    | *App module returned message*
+*any*   | Resource not found          | 404 | application | invalid-value    | *App module returned message*
+POST    | Resource exists             | 409 | application | resource-denied  | *App module returned message*
+*any*   | Unknown error in Translib   | 500 | application | operation-failed | Internal error
+*any*   | Unknown App module failure  | 500 | application | operation-failed | *App module returned message*
 *any*   | CVL constraint failure      | 500 | application | invalid-value    | *error-message defined in CVL yang*
 
 
 ###### 3.2.2.4.14 DB Schema
 
-A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST Server configurations. Below is the schema for this table.
+A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST server configurations. Below is the schema for this table.
 
-    key         = REST_SERVER:default   ; REST Server configurations.
+    key         = REST_SERVER:default   ; REST server configurations.
     ;field      = value
-    port        = 1*5DIGIT              ; Server port - defaults to 443
+    port        = 1*5DIGIT              ; server port - defaults to 443
     client_auth = "none"/"user"/"cert"  ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
@@ -754,7 +786,7 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST Se
 
 ###### 3.2.2.4.15 API Documentation
 
-REST Server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
+REST server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
 documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
 URL **https://*REST_SERVER_IP*/ui** in a browser. This page will list all supported OpenAPI
 definition files (both YANG generated and manual) along with link to open Swagger UI for them.
@@ -762,13 +794,13 @@ definition files (both YANG generated and manual) along with link to open Swagge
 
 ##### 3.2.2.5 gNMI server
 
-1. gNMI Server is part of the telemetry process that supports telemtry as well as gNMI.
-2. The gRPC server opens a TCP port and allows only valid mutually authenticated TLS connections, which requires valid Client, Server and CA Certificates be installed as well a properly configured DNS. Multiple simultaneous connections are allowed to gNMI server.
+1. gNMI server is part of the telemetry process that supports telemtry as well as gNMI.
+2. The gRPC server opens a TCP port and allows only valid mutually authenticated TLS connections, which requires valid Client, server and CA Certificates be installed as well a properly configured DNS. Multiple simultaneous connections are allowed to gNMI server.
 3. The gNMI Agent uses the db client, as well as the non-db client to access and modify data directly in the redis DB.
 4. The Translib client is used to provide alternative models of access such as Openconfig models as opposed to the native redis schema, as long as the Translib supports these models. Translib offers bidirectional translation between the native redis model and the desired north bound model, as well as notifications/updates on these model objects to support telemetry and asynchronous updates, alarms and events. Translib should also provide information about what models it supports so that information can be returned in gNMI Capabilities response.
-5. The gNMI Server defines the four RPC functions as required by the gNMI Specification: Get, Set, Capabilities and Subscribe.
-6. Since the db, non-db and translib clients offer the functionality to support these functions, gNMI only has to translate the paths and object payloads into the correct parameters for the client calls and package the results back into the response gNMI objects to return to the gNMI Client, which is a straightforward operation, since no additional processing of the data is expected to be done in the gNMI Server itself. When new models are added to Translib, no additional work should be required to support them in gNMI Server.
-7. All operations in a Set request are processed in a single transaction that will either succeed or fail as one operation. The db, non-db and translib clients must support a Bulk operation in order to achieve the transactional behavior. gNMI Server then must use this Bulk operation for Set requests.
+5. The gNMI server defines the four RPC functions as required by the gNMI Specification: Get, Set, Capabilities and Subscribe.
+6. Since the db, non-db and Translib clients offer the functionality to support these functions, gNMI only has to translate the paths and object payloads into the correct parameters for the client calls and package the results back into the response gNMI objects to return to the gNMI Client, which is a straightforward operation, since no additional processing of the data is expected to be done in the gNMI server itself. When new models are added to Translib, no additional work should be required to support them in gNMI server.
+7. All operations in a Set request are processed in a single transaction that will either succeed or fail as one operation. The db, non-db and Translib clients must support a Bulk operation in order to achieve the transactional behavior. gNMI server then must use this Bulk operation for Set requests.
 8. Subscribe operations: Once, Poll and Stream require that the gRPC connection remain open until the subscription is completed. This means many connections must be supported. Subscribe offers several options, such as only sending object updates (not the whole object) which requires support form the db clients. Subscribe also allows for periodic sampling defined by the client. This must be handled in the gNMI agent itself. This requires a timer for each subscribe connection of this type in order to periodically poll the db client and return the result in a Subscribe Response. These timers should be destroyed when the subscription gRPC connection is closed.
 
 ###### 3.2.2.5.1 Files changed/added:
@@ -797,64 +829,16 @@ go run gnmi_capabilities.go -target_addr 10.130.84.34:8081 -alsologtostderr -ins
 
 ##### 3.2.2.6 Translib
 
-Translib is a library that will convert the management server requests to Redis ABNF format and vice versa. Translib exposes the following APIs for the management servers to consume. Translib also has the capability to communicate with non DB data providers and get and set data on them.
+Translib is a library that adapts management server requests to SONiC data providers and vice versa. Translib exposes the following APIs for the management servers to consume.
 
         func Create(req SetRequest) (SetResponse, error)
-            This method is exposed to the management servers to perform a configuration create operation.
-            Input parameters:
-            SetRequest - Contains the path and payload of the create request
-            Returns:
-            error - error string
-            SetResponse - contains fields like error source, error type etc
         func Update(req SetRequest) (SetResponse, error)
-            This method is exposed to the management servers to perform a configuration update operation.
-            Input parameters:
-            SetRequest - Contains the path and payload of the update request
-            Returns:
-            error - error string
-            SetResponse - contains fields like error source, error type etc
         func Replace(req SetRequest) (SetResponse, error)
-            This method is exposed to the management servers to perform a configuration replace operation.
-            Input parameters:
-            SetRequest - Contains the path and payload of the replace request
-            Returns:
-            error - error string
-            SetResponse - contains fields like error source, error type etc
         func Delete(req SetRequest) (SetResponse, error)
-            This method is exposed to the management servers to perform a configuration delete operation.
-            Input parameters:
-            SetRequest - Contains the path and payload of the delete request
-            Returns:
-            error - error string
-            SetResponse - contains fields like error source, error type etc
         func Get(req GetRequest) (GetResponse, error)
-            This method is exposed to the management servers to perform a configuration/Operational get operation.
-            Input parameters:
-            GetRequest - Contains the path and payload of the get request
-            Returns:
-            error - error string
-            GetResponse - contains fields like payload, error source, error type etc
         func Subscribe(paths []string, q *queue.PriorityQueue, stop chan struct{}) ([]*IsSubscribeResponse, error)
-            This method is exposed to the management servers to perform a subscribe operation on the operational data.
-            Input parameters:
-            paths - paths of all the operational data that are being subscribed
-            q - queue through which the operational data notifications will exchanged with the management servers
-            stop - channel for stopping the subscribe request.
-            Returns:
-            error - error string
-            IsSubscribeResponse - slice of subscribe response for each of the incoming paths.
         func IsSubscribeSupported(paths []string) ([]*IsSubscribeResponse, error)
-            This method is exposed for the management servers to get the type of subscribe operation that is supported on a given path.
-            Input parameters:
-            paths - paths of all the operational data that are being subscribed
-            Returns:
-            error - error string
-            IsSubscribeResponse - slice of subscribe response for each of the incoming paths.
         func GetModels() ([]ModelData, error)
-            This method is exposed to get all the supported models using which the user will be able to communicate
-            Returns:
-            error - error string
-            []ModelData - array of ModelData structure containing name, version and organisation of the exposed models
 
         Translib Structures:
         type ErrSource int
@@ -922,24 +906,24 @@ Translib has the following sub modules to help in the translation of data
 
 ###### 3.2.2.6.1 App Interface
 
-App Interface helps in identifing the App module responsible for servicing the incoming request. It provides the following APIs for the App modules to register themselves with the App interface during the initialization of the app modules.
+App Interface helps in identifying the App module responsible for servicing the incoming request. It provides the following APIs for the App modules to register themselves with the App interface during the initialization of the app modules.
 
         func Register(path string, appInfo *AppInfo) error
-            This method can be used by any app module to register itself with the Translib infra.
+            This method can be used by any App module to register itself with the Translib infra.
             Input Parameters:
-            path - base path of the model that this app module services
-            appInfo - This contains the reflect types of the App module structure that needs to be instantiated for each request, corresponding YGOT structure reflect type to instantiate the corresponding YGOT structure and boolean indicating if this is native app module to differentiate between OpenAPI spec servicing app module and the YANG serving app module.
+            path - base path of the model that this App module services
+            appInfo - This contains the reflect types of the App module structure that needs to be instantiated for each request, corresponding YGOT structure reflect type to instantiate the corresponding YGOT structure and boolean indicating if this is native App module to differentiate between OpenAPI spec servicing App module and the YANG serving App module.
             Returns:
             error - error string  
         func AddModel(model *gnmi.ModelData) error
-            This method can be used to register the models that the app module supports with the Translib infra.
+            This method can be used to register the models that the App module supports with the Translib infra.
             Input Parameters:
             model - Filled ModelData structure containing the Name, Organisation and version of the model that is being supported.
             Returns:
             error - error string
 
         App Interface Structures:
-        //Structure containing app module information
+        //Structure containing App module information
         type AppInfo struct {
             AppType         reflect.Type
             YGOTRootType    reflect.Type
@@ -950,12 +934,14 @@ App Interface helps in identifing the App module responsible for servicing the i
         Example Usages:
         func init () {
             log.Info("Init called for ACL module")
-            err := appinterface.Register("/openconfig-acl:acl",
-                    &appinterface.AppInfo{AppType: reflect.TypeOf(AclApp{}),
-                    YGOTRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
-                    IsNative: false})
+            err := register("/openconfig-acl:acl",
+                    &appInfo{appType: reflect.TypeOf(AclApp{}),
+                    ygotRootType:  reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
+                    isNative:      false,
+                    tablesToWatch: []*db.TableSpec{&db.TableSpec{Name: ACL_TABLE}, &db.TableSpec{Name: RULE_TABLE}}})
+
             if err != nil {
-                log.Fatal("Register ACL app module with App Interface failed with error=", err)
+                log.Fatal("Register ACL App module with App Interface failed with error=", err)
             }
 
             err = appinterface.AddModel(&gnmi.ModelData{Name:"openconfig-acl",
@@ -976,21 +962,21 @@ Translib request handlers use the App interface to get all the App module inform
 
 ###### 3.2.2.6.2 Translib Request Handler
 
-These are the handlers for the APIs exposed by the Translib. Whenever a request lands in the request handler, the handler uses the App interface to get the App Module that can process the request based on the incoming path. It then uses the YGOT binder module, if needed, to convert the incoming path and payload from the request into YGOT structures. The filled YGOT structures are given to the App Modules for conversion to ABNF schema. The Translib also interacts with the DB access layer to start, commit and abort a transaction.
+These are the handlers for the APIs exposed by the Translib. Whenever a request lands in the request handler, the handler uses the App interface to get the App module that can process the request based on the incoming path. It then uses the YGOT binder module, if needed, to convert the incoming path and payload from the request into YGOT structures. The filled YGOT structures are given to the App Modules for processing. The Translib also interacts with the DB access layer to start, commit and abort a transaction.
 
 ###### 3.2.2.6.3 YGOT request binder
 
-The YGOT request binder module uses the YGOT tools to perform the un-marshalling and validation. YGOT (YANG Go Tools) is an open source tool and it has collection of Go utilities which are used to
+The YGOT request binder module uses the YGOT tools to perform the unmarshalling and validation. YGOT (YANG Go Tools) is an open source tool and it has collection of Go utilities which are used to
 
-  1. generate a set of Go structures for bindings for the given YANG modules at build time
-  2. un-marshall the given request into the Go structure objects, and these objects follows the same hierarchical structure defined in the YANG model, and it's simply a data instance tree of the given request, but represented using the generated Go structures
-  3. validate the contents of the Go structures against the YANG schema (e.g., validating range and regular expression constraints).
-  4. render the Go structure objects to an output format - such as JSON.
+  1. Generate a set of Go structures for bindings for the given YANG modules at build time
+  2. Unmarshall the given request into the Go structure objects. These objects follows the same hierarchical structure defined in the YANG model, and it's simply a data instance tree of the given request, but represented using the generated Go structures
+  3. Validate the contents of the Go structures against the YANG model (e.g., validating range and regular expression constraints).
+  4. Render the Go structure objects to an output format - such as JSON.
 
-This RequestBinder module exposes the below mentioned APIs which will be used to un-marshall the request into Go structure objects, and validate the request  
+This RequestBinder module exposes the below mentioned APIs which will be used to unmarshall the request into Go structure objects, and validate the request  
 
     func getRequestBinder(uri *string, payload *[]byte, opcode int, appRootNodeType *reflect.Type) *requestBinder
-        This method is used to create the requestBinder object which keeps the given request information such as uri, payload, App module root type, and un-marshall the same into object bindings
+        This method is used to create the requestBinder object which keeps the given request information such as uri, payload, App module root type, and unmarshall the same into object bindings
         Input parameters:
             uri -  path of the target object in the request.
             payload - payload content of given the request and the type is byte array
@@ -1000,11 +986,11 @@ This RequestBinder module exposes the below mentioned APIs which will be used to
         requestBinder -  pointer to the requestBinder object instance
 
     func (binder *requestBinder) unMarshall() (*YGOT.GoStruct, *interface{}, error)
-        This method is be used to un-marshall the request into Go structure objects, and validates the request against YANG model schema
+        This method is be used to unmarshall the request into Go structure objects, and validates the request against YANG model schema
         Returns:
         YGOT.GoStruct - root Go structure object of type Device.
         interface{} - pointer to the interface type of the Go structure object instance of the given target path
-        error - error object to describe the error if the un-marshalling fails, otherwise nil
+        error - error object to describe the error if the unmarshalling fails, otherwise nil
 
 Utilities methods:
 These utilities methods provides below mentioned common operations on the YGOT structure which are needed by the App module
@@ -1040,7 +1026,7 @@ These utilities methods provides below mentioned common operations on the YGOT s
 
 ###### 3.2.2.6.4 DB access layer
 
-The DB access layer implements a wrapper over the go-Redis/Redis package
+The DB access layer implements a wrapper over the [go-redis](https://github.com/go-redis/redis) package
 enhancing the  functionality in the following ways:
 
     * Provide a sonic-py-swsssdk like API in Go
@@ -1065,14 +1051,14 @@ Concurrent Access via Redis CAS transactions:
     Upto 4 levels of concurrent write access support.
 
     1. Table based watch keys (Recommended):
-       At app module registration, the set of Tables that are to be managed by
+       At App module registration, the set of Tables that are to be managed by
        the module are provided. External (i.e. non-Management-Framework)
        applications may choose to watch and set these same table keys to detect
        and prevent concurrent write access. The format of the table key is
        "CONFIG_DB_UPDATED_<TABLE>".  (Eg: CONFIG_DB_UPDATED_ACL_TABLE)
 
     2. Row based watch keys:
-       For every transaction, the app module provides a list of keys that it
+       For every transaction, the App module provides a list of keys that it
        would need exclusive access to for the transaction to succeed. Hence,
        this is more complex for the app modules to implement. The external
        applications need not be aware of table based keys. However, the
@@ -1151,7 +1137,7 @@ Below structure is defined for the transformer spec:
 }
 ```
 
-When a request lands at the app module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup.
+When a request lands at the App module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup.
 
 Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys with a default delimiter |, which can be customized by a YANG extension.
 
@@ -1164,14 +1150,14 @@ CRUD requests (configuration) are processed via the following steps:
 1. App module calls transformer to translate YANG to ABNF
 2. Transformer allocates buffer with 3-dimensional map: `[table-name][db.Key][attributes]`
 	- `table-name` and `db.Key` used for app to watch DB Keys, update DB
-	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the app module has to update in this order; it must regroup the translated data by table in order.
+	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the App module has to update in this order; it must regroup the translated data by table in order.
 3. Transformer decodes YGOT structure and traverses the incoming request to get the node name
 4. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
 5. If no spec or hint is found, the name and value are copied as-is
 6. If a hint is found, check the hint to perform the action, either simple data translation or invoke external callbacks
 7. Repeat steps 3 through 6 until traversal is completed
 8. Invoke any annotated post-Transformer functions
-9. Transformer returns the buffer to app module
+9. Transformer returns the buffer to App module
 10. App module proceeds to update DB
 
 GET requests are processed via the following steps:
@@ -1181,15 +1167,15 @@ GET requests are processed via the following steps:
 4. App module asks the Transformer to translate from ABNF to YANG
 5. Transformer performs reverse translation using with default (reverse) method
 or overloaded Transformer (reverse) methods.
-6. Transformer returns the output as YGOT structure to the app module
+6. Transformer returns the output as YGOT structure to the App module
 
 ###### 3.2.2.7.4 Common App
 
 The Common App is a generic app that handles all ABNF based YANG modules.
 
-There is a different flow in processing ABNF based YANG vs non-ABNF based YANG. If a request is in the form of ABNF based YANG, the generic common app module is a backend app that invokes Transformer to translate data. If a request is non-ABNF based YANG, a specific app module registered to Translib will be the backend app. By default, the common app will generically handle YGOT bindings for YANG modules.
+There is a different flow in processing ABNF based YANG vs non-ABNF based YANG. If a request is in the form of ABNF based YANG, the generic common App module is a backend app that invokes Transformer to translate data. If a request is non-ABNF based YANG, a specific App module registered to Translib will be the backend app. By default, the common app will generically handle YGOT bindings for YANG modules.
 
-Unlike app modules for non-ABNF based YANGs, common app module does not need translation hints since the node name itself is defined as ABNF node, so the YANG data can be directly mapped to ABNF data by default transformer method. Reverse mapping also can be processed by a default method. Note that common app module processes the request in schema order. That is, when it gets a request that spans over multiple table updates, it processes it in the order as defined in YANG.
+Unlike app modules for non-ABNF based YANGs, common App module does not need translation hints since the node name itself is defined as ABNF node, so the YANG data can be directly mapped to ABNF data by default transformer method. Reverse mapping also can be processed by a default method. Note that common App module processes the request in schema order. That is, when it gets a request that spans over multiple table updates, it processes it in the order as defined in YANG.
 
 ###### 3.2.2.7.5 YANG Extensions
 The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
@@ -1211,13 +1197,13 @@ The translation hints are defined as YANG extensions to support simple table/fie
 `XlateToDb()` and `XlateFromDb` are used by app modules to request translations
 
 ```go
-func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
+func XlateToDb(s *YGOT.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
 
-func XlateFromDb(d map[string]map[db.Key]db.Value) (ygot.GoStruct, error) {}
+func XlateFromDb(d map[string]map[db.Key]db.Value) (YGOT.GoStruct, error) {}
 ```
-func XlateToDb(s *ygot.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
+func XlateToDb(s *YGOT.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
 
-func XlateFromDb(d map[string]map[db.Key]db.Value) (ygot.GoStruct, error) {}
+func XlateFromDb(d map[string]map[db.Key]db.Value) (YGOT.GoStruct, error) {}
 ###### 3.2.2.7.7 Overloaded Methods
 
 Overloaded transformer methods support bi-directional data transfer. The function prototypes defined in the following-
@@ -1229,7 +1215,7 @@ Overloaded transformer methods support bi-directional data transfer. The functio
 * Param: Database info, YgotRoot, Xpath
 * Return: Database keys to access db entry, error
 **/
-type KeyXfmrYangToDb (*db.DB, *ygot.GoStruct, string) (db.Key, error)
+type KeyXfmrYangToDb (*db.DB, *YGOT.GoStruct, string) (db.Key, error)
 /**
 * KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
 * Transformer function definition.
@@ -1244,14 +1230,14 @@ type KeyXfmrDbToYang (d *db.DB, key db.Key) (map[string]map[string]string, error
 * Param: Database info, YgotRoot, Xpath
 * Return: multi dimensional map to hold the DB data, error
 **/
-type FieldXfmrYangToDb (d *db.DB, ygotRoot *ygot.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+type FieldXfmrYangToDb (d *db.DB, ygotRoot *YGOT.GoStruct, xpath string) (map[string]map[string]db.Value, error)
 /**
 * FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
 * Transformer function definition.
 * Param: Database info, DB data in multidimensional map, output param YgotRoot
 * Return: error
 **/
-type FieldXfmrDbtoYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *ygot.GoStruct)  (error)
+type FieldXfmrDbtoYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *YGOT.GoStruct)  (error)
 
 /**
 * SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
@@ -1259,14 +1245,14 @@ type FieldXfmrDbtoYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot 
 * Param: Database info, YgotRoot, Xpath
 * Return: multi dimensional map to hold the DB data, error
 **/
-type SubTreeXfmrYangToDb (d *db.DB, ygotRoot *ygot.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+type SubTreeXfmrYangToDb (d *db.DB, ygotRoot *YGOT.GoStruct, xpath string) (map[string]map[string]db.Value, error)
 /**
 * SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
 * Transformer function definition.
 * Param : Database info, DB data in multidimensional map, output param YgotRoot
 * Return :  error
 **/
-type SubTreeXfmrDbToYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *ygot.GoStruct) (error)
+type SubTreeXfmrDbToYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *YGOT.GoStruct) (error)
 
 ```
 
@@ -1293,9 +1279,11 @@ deviation /acl/acl-sets/ac-set/acl-entries/acl-entry/ forwarding-action {
 
 ##### 3.2.2.8 Config Validation Library (CVL)
 
-Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/Azure/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB.
+Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/Azure/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB. Ideally, any component importing config_db.json file into Redis DB can invoke CVL API to validate the configuration. 
 
-CVL uses SONiC native YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and very close mapping of ABNF schema. Custom YANG extension (annotation) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used  to translate ABNF data to YANG data. Opensource *libyang* library is used to perform YANG data validation.
+CVL uses SONiC native YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and have a very close mapping to the associated ABNF schema. Custom YANG extensions (annotations) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used to translate ABNF data to YANG data. In the context of CVL these YANG models are called CVL YANG models. Opensource [libyang](https://github.com/CESNET/libyang) library is used to perform YANG data validation.
+
+CVL YANG can be used as Northbound YANG for management interface by adding other data definitions such as state data (read only data), RPC or Notification as needed.Such YANG models written based on CVL YANG models are called SONiC NBI YANG models. Since CVL validates configuration data only, these data definition statements are ignored by CVL. During build time CVL YANG is actually generated from SONiC NBI YANG models. Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing SONiC NBI YANG model.
 
 ###### 3.2.2.8.1 Architecture
 
@@ -1304,20 +1292,20 @@ CVL uses SONiC native YANG models written based on ABNF schema along with variou
 1. During build time, developer writes YANG schema based on ABNF schema and adds metadata and constraints as needed. Custom YANG extensions are defined for this purpose.
 2. The YANG models are compiled using Pyang compiler and generated YIN files packaged in the build
 3. During boot up/initialization sequence YIN schemas generated from SONiC native YANG models are parsed and schema tree is build using libyang API.
-4. Application calls CVL APIs to validate the configuration.
+4. Application calls CVL APIs to validate the configuration. In case of Translib library DB Access layer calls appropriate CVL APIs to validate the configuration.
 5. ABNF JSON goes through a translator and YANG  data is generated. Metadata embedded in the YANG schema are used to help this translation process.
 6. Then YANG data is fed to libyang for performing syntax validation first. If error occurs, CVL returns appropriate error code and details to application without proceeding further.
-7. If syntax validation is successful, CVL uses dependent data from translated YANG data or if needed, fetches the dependent data from Redis DB.
+7. If syntax validation is successful, CVL uses dependent data from translated YANG data or if needed, fetches the dependent data from Redis DB. Dependent data refers to the data needed to validate constraint expressed in YANG syntax such as 'leafref', 'must', 'when' etc.
 8. Finally translated YANG data and dependent data are merged and fed to libyang for performing semantics validation. If error occurs, CVL returns appropriate error code and details to application, else success is returned.
 9. Platform validation is specific syntax and semantics validation only performed with the help of dynamic platform data as input.
 
 ###### 3.2.2.8.2 Validation types
 
-Config Validator does Syntactic, Semantic validation and Platform Validation as per native YANG schema.
+Config Validator does Syntactic, Semantic validation and Platform Validation as per YIN schema with metadata.
 
 ###### 3.2.2.8.2.1 Syntactic Validation
 
-Following are some of the syntactic validation supported by the config validation library
+Following are some of the syntactic validations supported by the config validation library
 
 * Basic data type
 * Enum
@@ -1340,24 +1328,36 @@ There can be two types of platform constraint validation
 
 ###### 3.2.2.8.2.3.1 Static Platform Constraint Validation
 
-* Platform constraints (range, enum, ‘must’/’when’ expression etc.) are expressed in YANG deviation model for each feature.
-* Deviation models are compiled along with SONiC feature YANG model and new constraints are added or overwritten in the compiled schema.
+* Platform constraints (range, enum, ‘must’/’when’ expression etc.) are expressed in CVL YANG deviation model for each feature.  
+
+Example of 'deviation' :
+
+	 deviation /svlan:sonic-vlan/svlan:VLAN/svlan:name {
+                deviate replace {
+                        type string {
+                                // Supports 3K VLANs in a specific platform
+                                pattern "Vlan([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[1-9])";
+                        }
+                }
+        }
+
+* Deviation models are compiled along with corresponding CVL YANG model and new constraints are added or overwritten in the compiled schema.
 
 ###### 3.2.2.8.2.3.2  Dynamic Platform Constraint Validation
 
 ###### 3.2.2.8.2.3.2.1 Platform data is available in Redis DB table.
 
-* SONiC YANG models can be developed based on platform specific data in Redis DB. Constraints like ‘must’ or ‘when’ are used in feature YANG by cross-referencing platform YANG models.
+* Based on Redis DB, platform specific YANG data defintion can be added in CVL YANG models. Constraints like ‘must’ or ‘when’ are used in feature YANG by cross-referencing platform YANG models.
 
 ###### 3.2.2.8.2.3.2.2 Platform data is available through APIs
 
-* If constraints cannot be expressed using YANG syntax or platform data is available through API, custom validation needs to be hooked up in feature YANG model through custom YANG extension.
-* CVL will generate stub code for custom validation. Feature developer implements the stub code. The validation function should call platform API and fetch required parameter for checking constraints.
+* If constraints cannot be expressed using YANG syntax or platform data is available through feature/component API (APIs exposed by a feature to query platform specific constants, resource limitation etc.), custom validation needs to be hooked up in CVL YANG model through custom YANG extension.
+* CVL will generate stub code for custom validation. Feature developer populates the stub functions with functional validation code. The validation function should call feature/component API and fetch required parameter for checking constraints.
 * Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated.
 
 ###### 3.2.2.8.3 CVL APIs
 
-        //Strcture for key and data in API
+        //Structure for key and data in API
         type CVLEditConfigData struct {
                 VType CVLValidateType //Validation type
                 VOp CVLOperation      //Operation type
@@ -1408,7 +1408,7 @@ There can be two types of platform constraint validation
 1. Initialize() - Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
 2. Finish()  - Clean up the library resources. This should ideally be called when no more validation is needed or process is about to exit.
 3. ValidateConfig(jsonData string) - Just validates json buffer containing multiple row instances of the same table, data instance from different tables. All dependency are provided in the payload. This is useful for bulk data validation.
-4. ValidateEditConfig(cfgData []CVLEditConfigData) - Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as depedent data for validation to be succesful.
+4. ValidateEditConfig(cfgData []CVLEditConfigData) - Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as dependent data for validation to be succesful.
 5. ValidateKey(key string) - Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
 6. ValidateField(key, field, value string)  - Just validates the field:value pair in table. Key should have table name as prefix.
 
@@ -1418,7 +1418,7 @@ Please see [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
 
 ##### 3.2.2.10 Non DB data provider
 
-Currently, it is up to each App Module to perform the proprietary access
+Currently, it is up to each App module to perform the proprietary access
 mechanism for the app specific configuration.
 
 ## 4 Flow Diagrams
@@ -1430,35 +1430,35 @@ mechanism for the app specific configuration.
 1. REST client can send any of the write commands such as POST, PUT, PATCH or DELETE and it will be handled by the REST Gateway.
 2. All handlers in the REST gateway will invoke a command request handler.
 3. Authentication and authorization of the commands are done here.
-4. Request handler invokes one of the write APIs exposed by the translib.
-5. Translib infra populates the ygot structure with the payload of the request and performs a syntactic validation
+4. Request handler invokes one of the write APIs exposed by the Translib.
+5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
-7. Translib infra gets the app module corresponding to the incoming uri.
-8. Translib infra calls the initialize function of the app module with the ygot structures, path and payload.
+7. Translib infra gets the App module corresponding to the incoming URI.
+8. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
 9. App module caches the incoming data into the app structure.
-10. App module calls Transformer function to translate the request from cached ygot structures into redis ABNF format. It also gets all the keys that will be affected as part of this request.
+10. App module calls Transformer function to translate the request from cached YGOT structures into redis ABNF format. It also gets all the keys that will be affected as part of this request.
 11. App module returns the list of keys that it wants to keep a watch on along with the status.
 12. Translib infra invokes the start transaction request exposed by the DB access layer.
 13. DB access layer performs a WATCH of all the keys in the redis DB. If any of these keys are modified externally then the EXEC call in step 26 will fail.
-14. Status being returned fram redis.
+14. Status being returned from Redis.
 15. Status being returned from DB access layer.
-16. Translib then invokes the processWrite API on the app module.
+16. Translib then invokes the processWrite API on the App module.
 17. App modules perform writes of the translated data to the DB access layer.
 18. DB access layer validates the writes using CVL and then caches them.
 19. Status being returned from DB access layer.
-20. Status being returned from App Module.
+20. Status being returned from App module.
 21. Translib infra invokes the commit transaction on the DB access layer.
 22. DB access layer first invokes MULTI request on the redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
 23. Status returned from redis.
-24. pipeline of all the cached writes are executed from the DB access layer.
+24. Pipeline of all the cached writes are executed from the DB access layer.
 25. Status retuned from redis.
 26. EXEC call is made to the redis DB. Here if the call fails, it indicates that one of the keys that we watched has changed and none of the writes will go into the redis DB.
 27. Status returned from redis DB.
-28. Status retuned from DB access layer.
+28. Status returned from DB access layer.
 29. Write lock acquired in Step 6 is released.
-30. Status returned from the translib infra.
+30. Status returned from the Translib infra.
 31. REST Status returned from the Request handler.
-32. REST response is sent by the rest gateway to the rest client.
+32. REST response is sent by the REST gateway to the REST client.
 
 ### 4.2 REST GET flow
 
@@ -1467,15 +1467,15 @@ mechanism for the app specific configuration.
 1. REST GET request from the REST client is sent to the REST Gateway.
 2. REST Gateway invokes a common request handler.
 3. Authentication of the incoming request is performed.
-4. Request handler calls the translib exposed GET API with the uri of the request.
-5. Translib infra gets the app module corresponding to the incoming uri.
-6. Translib infra calls the initialize function of the app module with the ygot structures and path. App module caches them.
-7. Status retuned from app module.
+4. Request handler calls the Translib exposed GET API with the uri of the request.
+5. Translib infra gets the App module corresponding to the incoming uri.
+6. Translib infra calls the initialize function of the App module with the YGOT structures and path. App module caches them.
+7. Status retuned from App module.
 8. App module queries Transformer to translate the path to the Redis keys that need to be queried.
-9. Status returned from app module.
-10. Translib infra calls the processGet function on the app module
+9. Status returned from App module.
+10. Translib infra calls the processGet function on the App module
 11. App modules calls read APIs exposed by the DB access layer to read data from the redis DB.
-12. Data is read from the Redis DB is returned to the app module
+12. Data is read from the Redis DB is returned to the App module
 13. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
 14. App module converts the YGOT structures to JSON format.
 15. IETF JSON payload is returned to the Translib infra.
@@ -1487,14 +1487,14 @@ mechanism for the app specific configuration.
 
 ![Translib Initialization flow](images/Init.jpg)
 
-1. App Module 1 `init` is invoked
-2. App module 1 calls `Register` function exposed by Translib infra to register itself with the translib.
-3. App Module 2 `init` is invoked
-4. App module 2 calls `Register` function exposed by Translib infra to register itself with the translib.
-5. App Module N `init` is invoked
-6. App module N calls `Register` function exposed by Translib infra to register itself with the translib.
+1. App module 1 `init` is invoked
+2. App module 1 calls `Register` function exposed by Translib infra to register itself with the Translib.
+3. App module 2 `init` is invoked
+4. App module 2 calls `Register` function exposed by Translib infra to register itself with the Translib.
+5. App module N `init` is invoked
+6. App module N calls `Register` function exposed by Translib infra to register itself with the Translib.
 
-This way multiple app modules initialize with the translib infra during boot up.
+This way multiple app modules initialize with the Translib infra during boot up.
 
 ### 4.4 gNMI flow
 
@@ -1511,16 +1511,16 @@ This way multiple app modules initialize with the translib infra during boot up.
 
 Above is the sequence diagram explaining the CVL steps. Note that interaction between DB Access layer and Redis including transactions is not shown here for brevity.
 
-1. REST/GNMI invokes one of the write APIs exposed by the translib.
-2. Translib infra populates the ygot structure with the payload of the request and performs a syntactic validation.
+1. REST/GNMI invokes one of the write APIs exposed by the Translib.
+2. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
 3. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
-4. Translib infra gets the app module corresponding to the incoming uri.
-5. Translib infra calls the initialize function of the app module with the ygot structures, path and payload.
-6. App module calls Transformer to translate the request from cached ygot structure into redis ABNF format. It also gets all the keys that will be affected as part of this request.
+4. Translib infra gets the App module corresponding to the incoming uri.
+5. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+6. App module calls Transformer to translate the request from cached YGOT structure into redis ABNF format. It also gets all the keys that will be affected as part of this request.
 7. App modules returns the list of keys that it wants to keep a watch on along with the status.
 8. Translib infra invokes the start transaction request exposed by the DB access layer.
 9. Status being returned from DB access layer.
-10. Translib then invokes the processWrite API on the app module.
+10. Translib then invokes the processWrite API on the App module.
 11. App modules perform writes of the translated data to the DB access layer.
 12. DB access layer calls validateWrite for CREATE/UPDATE/DELETE operation. It is called with keys and Redis/ABNF payload.
 13. validateSyntax() feeds Redis data to translator internally which produces YANG XML. This is fed to libyang for validating the syntax.
@@ -1536,20 +1536,20 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 23. Translib infra invokes the commit transaction on the DB access layer.
 24. Status is returned from DB access layer after performing commit operation.
 25. Write lock acquired in Step 3 is released.
-26. Final response is returned from the translib infra to REST/GNMI.
+26. Final response is returned from the Translib infra to REST/GNMI.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a new feature is being added to SONiC, it is advisable for developer to design redis database schema according to chosen standard northbound YANG model. This simplifies the work flow as translation intelligence can be avoided as both redis schema and NB yang schema are aligned.
 
 It is possible that a chosen standard YANG cannot be represented in redis DB schema fully because of the redis DB limitation on having nested tables to represent hierarchy. Management framework provides mechanisms to represent complex translations via developer written custom functions.
 
-CVL YANG needed for data validation per redis schema should be purely based on the schema of config objects in DB. CVL YANG can also be used as northbound YANG with addition of state, rpc etc objects.
+CVL YANG needed for data validation per redis schema should be purely based on the schema of config objects in DB. CVL YANG can also be used as northbound YANG with addition of state, RPC objects etc.
 
 For the case where developer prefers to write own YANG model for an new/existing feature. The YANG should be written aligned to redis schema such that the same YANG can be used for both northbound and CVL. This simplifies the developer work flow (explained in section 5.1)
 
  Typical steps for writing a non-standard YANG for management framework are given below.
 - Write YANG with config objects keeping redis schema and CVL into consideration.
-- Add MUST expressions to capture the dependency between config objects.
+- Add 'must','when' expressions to capture the dependency between config objects.
 - Add required non-config, notification and RPC objects to the YANG.
 - Add meta data for transformer.
 
@@ -1561,7 +1561,7 @@ REDIS schema needs to be expressed in SONiC proprietary YANG model with all data
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to APPENDIX (section - �??How to write CVL/SONiC Northbound YANG�??) for detailed guidelines on writing CVL YANG model.
+Refer to [APPENDIX](#APPENDIX) (section - "How to write CVL/SONiC Northbound YANG") for detailed guidelines on writing CVL YANG model.
 
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
@@ -1571,7 +1571,7 @@ Refer to APPENDIX (section - �??How to write CVL/SONiC Northbound YANG�??) f
 * Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
 	* By placing YANG module in this directory, YAML (swagger spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
 	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
-* Generation of Rest-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
+* Generation of REST-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
 #### 5.1.3 Config Translation App (Go language)
 Config Translation App consists of two parts - Transformer and App module. They translate the data in Northbound API schema (defined in step#1) to the native REDIS schema (defined in step#2) and vice versa. All Northbound API services like REST, GNMI, NETCONF invoke this App to read and write data.
@@ -1581,15 +1581,15 @@ Key features:
 * Go language.
 * YANG to REDIS and vice-versa data translation is handled by Transformer. In order to facilitate data translation, the developer needs to provide just the YANG file for the data model.
 * The processing of data is taken care by App module
-	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
-	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
+	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/YGOT) structures.
+	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing Python APIs defined in sonic-py-swsssdk repo.
 	* For read operation
 		* App receives the YANG path to read
 		* App should read appropriate REDIS entries for the above path using reference from Transformer
 		* App should return the YGOT tree structure translated from the DB data using Transformer
 	* For write operations
-		* App receives the target YANG path and data as ygot tree
-		* App translates the ygot tree data into appropriate REDIS calls using reference from Transformer
+		* App receives the target YANG path and data as YGOT tree
+		* App translates the YGOT tree data into appropriate REDIS calls using reference from Transformer
 		* Translation Framework takes care of DB transactions - write everything or none
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
 * Spytest automation integration can make use of direct REST calls or CLI (which also makes use of REST internally - step#5). Framework generates REST client SDK to facilitate direct REST calls.
@@ -1631,7 +1631,7 @@ Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing CVL YANG model
 * Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
 	* By placing YANG module in this directory, YAML (swagger spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
 	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
-* Generation of Rest-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
+* Generation of REST-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
 
 #### 5.2.5 Config Translation App (Go language)
@@ -1643,17 +1643,17 @@ Key features:
 * YANG to REDIS and vice-versa data translation is handled by Transformer. In order to facilitate data translation, the developer needs to provide just the YANG file for the data model
     * YANG file for the data model
     * Optionally, a YANG annotation file to define translation hints to map YANG objects to DB objects. These translation hints are external callbacks. This annotation file is also placed in `sonic-mgmt-framework/models/yang`
-    * Code to define the translation callbacks, in `sonic-mgmt-framework/src/translib/transformer`
+    * Code to define the translation callbacks, in `sonic-mgmt-framework/src/Translib/transformer`
 * The processing of data is taken care by App module
-	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/ygot) structures.
-	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing python APIs defined in sonic-py-swsssdk repo.
+	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/YGOT) structures.
+	* Framework provides Go language APIs for REDIS DB access. APIs are similar to existing Python APIs defined in sonic-py-swsssdk repo.
   * For read operation
 		* App receives the YANG path to read
 		* App should read appropriate REDIS entries for the above path using reference from Transformer
 		* App should return the YGOT tree structure translated from the DB data using Transformer
 	* For write operations
-		* App receives the target YANG path and data as ygot tree
-		* App translates the ygot tree data into appropriate REDIS calls using reference from Transformer
+		* App receives the target YANG path and data as YGOT tree
+		* App translates the YGOT tree data into appropriate REDIS calls using reference from Transformer
     * App also handles additional complex logic like transaction ordering or checking for dependencies
 		* Translation Framework takes care of DB transactions - write everything or none
 * REST server provides a test UI for quick UT of translation app. This UI lists all REST APIs for a YANG and provide option to try them out. REST server invokes Translation Apps.
@@ -1710,12 +1710,12 @@ Describe key scaling factor and considerations
 15. Verify that  GNMI capabalities is returning correctly.
 
 #### Request Binder (YGOT)
-1.  create a ygot object binding for the uri ends with container
-2.  create a ygot object binding for the uri ends with leaf
-3.  create a ygot object binding for the uri ends with list
-4.  create a ygot object binding for the uri ends with leaf-list
-5.  create a ygot object binding for the uri which has keys
-6.  create a ygot object binding for the uri which has keys and ends with list with keys
+1.  create a YGOT object binding for the uri ends with container
+2.  create a YGOT object binding for the uri ends with leaf
+3.  create a YGOT object binding for the uri ends with list
+4.  create a YGOT object binding for the uri ends with leaf-list
+5.  create a YGOT object binding for the uri which has keys
+6.  create a YGOT object binding for the uri which has keys and ends with list with keys
 7.  validate the uri which has the correct number of keys
 8.  validate the uri which has the invalid node name
 9.  validate the uri which has the invalid key value
@@ -1860,10 +1860,11 @@ Describe key scaling factor and considerations
 ### How to write CVL/SONiC Northbound YANG
 
 1. CVL YANG schema is 1:1 mapping of ABNF schema. So ABNF schema is taken as reference and CVL YANG model is written based on it.
-2. All related data definition should be written in a single YANG model file. YANG model file is named as 'sonic-<feature>.yang'. It is mandatory to define a top level container named as 'sonic-<feature>' i.e. same as YANG model name. All other definition should be written inside this container.
-3. Define common data type in a common YANG model like sonic-common.yang file. All YANG extension are also defined in sonic-common.yang.
+2. All related data definitions should be written in a single YANG model file. YANG model file is named as 'sonic-<feature>.yang'. It is mandatory to define a top level YANG container named as 'sonic-<feature>' i.e. same as YANG model name. All other definition should be written inside this container.
+3. Define common data types in a common YANG model like sonic-common.yang file. All YANG extensions are also defined in sonic-common.yang.
 4. Define a YANG 'list' for each table in ABNF schema. The list name should be same exactly same as table name including its case.
-5. By default table is defined in CONFIG_DB, if needed use extension 'scommon:db-name' for defining the table in other DB. Example - 'scommon:db-name "APPL_DB"'.
+5. By default table is defined in CONFIG_DB, if needed use extension 'scommon:db-name' for defining the table in other DB.
+   Example - 'scommon:db-name "APPL_DB"'.
 6. The default separator used in table key pattern is "|". If it is different, use  'scommon:key-delim <separator>;'
 7. Define same number of key elements as specified in table in ABNF schema. Generally the default key pattern is '{table_name}|{key1}|{key2}. However, if needed use '*' for repetitive key pattern e.g. 'scommon:key-pattern QUEUE|({ifname},)*|{qindex}'. ABNF schema does not have any explicit key name. So,  use appropriate key name as needed and define them as leaf.
 
@@ -1873,13 +1874,11 @@ The 'key  = "QUEUE:"port_name":queue_index' key definition in ABNF schema is def
 	list QUEUE {
 		key "ifname qindex";
 		scommon:key-pattern "QUEUE|({ifname},)*|{qindex}";
-
 		leaf ifname {
 			type leafref {
 				path "/prt:sonic-port/prt:PORT/prt:ifname";
 			}
 		}
-
 		leaf qindex {
 			type string {
 				pattern "[0-8]((-)[0-8])?";
@@ -1898,7 +1897,6 @@ Example :
 		scommon:key-pattern "TC_TO_QUEUE_MAP|{name}";
 		scommon:map-list "true"; //special conversion for map tables
 		scommon:map-leaf "tc_num qindex"; //every key:value pair is mapped to list keys, e.g. "1":"7" ==> tc_num=1, qindex=7
-
 		leaf name {
 			type string;
 		}
@@ -1906,30 +1904,34 @@ Example :
 		list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
 			key "tc_num qindex";
 
+		leaf name {
+			type string;
+		}
+			
+		list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
+			key "tc_num qindex";
 			leaf tc_num {
 				type string {
 					pattern "[0-9]?";
 				}
 			}
-
 			leaf qindex {
 				type string {
 					pattern "[0-9]?";
 				}
 			}
 		}
-
 	}
 
 Refer to [sonic-tc-queue-map.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-tc-queue-map.yang) for example.
 
 9. Each field in table instance i.e. hash entry in Redis is defined as a leaf in YANG list. Use appropriate data type for each field. Use enum, range and pattern as needed for defining data syntax constraint.
 
-10. Use 'leafref' to build relationship between two tables tables.
+10. Use 'leafref' to build relationship between two tables.
 
 Example:
 
-  	leaf MIRROR_ACTION {
+	leaf MIRROR_ACTION {
 		 type leafref {
 			 path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
 		 }
@@ -1939,7 +1941,8 @@ Refer to [sonic-acl.yang ](https://github.com/project-arlo/sonic-mgmt-framework/
 
 11. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
 
-Example : 'scheduler' in QUEUE table is defined as :
+Example : 
+'scheduler' in QUEUE table is defined as :
 
 	leaf scheduler {
 			type leafref {
@@ -2018,7 +2021,7 @@ Example:
 		}
 
 		organization
-			"BRCM";
+			"SONiC";
 
 		contact
 			"BRCM";
