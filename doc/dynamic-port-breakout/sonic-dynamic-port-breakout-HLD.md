@@ -58,6 +58,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 07/15/2019  | Zhenggen Xu           | Initial version                   |
 | 0.2 | 08/16/2019  | Zhenggen Xu           | Second version                   |
+| 0.3 | 08/16/2019  | Zhenggen Xu           | Review feedback and other changes                   |
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
 
@@ -128,7 +129,8 @@ Note, it will be similar if we want to support 8 lanes mode for newer devices.
 ## Platform capability design
 A capability file for a platform with port breakout capabilities is provided. It defines the initial configurations like lanes, speed, alias etc. This file will be used for CLI later to pick the parent port and breakout mode. It can be used for speed checks based on the current mode. It will also replace the functionality of the current existing port_config.ini.
 
-The capability file is named `platform.json` and should be provided to each platform if we need support DPB. And we also keep a running breakout mode in separate file as `platform-running-mode.json`.
+The capability file is named `platform.json` and should be provided to each platform if we need support DPB.
+
 `platform.json` looks like this:
 ```
 "Ethernet0": {
@@ -136,7 +138,7 @@ The capability file is named `platform.json` and should be provided to each plat
     "lanes": "0,1,2,3",
     "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
     "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_mode": "1x100G[40G]"
+    "default_brkout_mode": "1x100G[40G]"
  },
 
  "Ethernet4": {
@@ -144,7 +146,7 @@ The capability file is named `platform.json` and should be provided to each plat
     "lanes": "4,5,6,7",
     "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
     "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_mode": "1x100G[40G]"
+    "default_brkout_mode": "1x100G[40G]"
  }
  ...
 ```
@@ -155,7 +157,7 @@ In this file, only the parent ports (e,g, Ethernet0/4) are defined, the child po
 - "breakout_modes": This defines the breakout modes available on the platform for this parent port.
 
     The modes in the example file is neither necessarily the full list nor a must list, the design will not tied to the example. For instance, we should be able to define 50G serdes based platforms for 400G/200G/100G/50G ports. We can also define a subset of the port modes on some platform.
-- "default_mode": This defines the default breakout mode if no mode changes were applied on the system.
+- "default_brkout_mode": This defines the default breakout mode if no mode changes were applied on the system.
 
 Syntax for breakout_modes:
 - `number x speed1 [speed2, speed3]`
@@ -183,37 +185,52 @@ Syntax for breakout_modes:
 Speeds in the breakout modes will be used for speed validation when we change the individual ports speed later.
 Eg, In `4x25G[10G]` mode, we can change the individual port in that port group to 25G or 10G, but not some other speeds.
 
-`platform-running-mode.json` is formatted as below:
+The speeds usually used today are:
+`10G, 20G, 25G, 50G, 100G, 200G, 400G` etc.
+However, the design is not limited to this list.
+
+We will have a new table `BREAKOUT_CFG` in configDB to present the current running breakout mode, it will be saved to configDB after the initial breakout at boot time, and also updated whenever the port breakout is changed.
+
+```
+BREAKOUT_CFG:
+{
+    "Ethernet0": {
+        "current_brkout_mode": "1x100G[40G]"
+    },
+
+    "Ethernet4": {
+        "current_brkout_mode": "2x50G"
+     }
+    ...
+}
+```
+
+The configDB will have the final port breakout settings for individual ports, the format/schema is the same as before. Above table is used for CLI to quickly know what breakout mode the system is on, and thus delete/add relevant ports if we are going to change the breakout mode. Also, it could be used by backend daemons like `PMON` to know the breakout mode and change the port layout for port based events and LED changes etc.
+
+After dynamic port breakout support, we won’t need different HWSKUs for the same platform. If for any reason (e,g, keep backwards compatibility) the user still wants to have HWSKUs, we would put the `platform.json` into each HWSKU with the desired breakout modes:
 ```
 "Ethernet0": {
-    "running_mode": "1x100G[40G]"
+    "index": "1,1,1,1",
+    "lanes": "0,1,2,3",
+    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
+    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+    "default_brkout_mode": "1x100G[40G]"
  },
 
  "Ethernet4": {
-    "running_mode": "2x50G"
+    "index": "2,2,2,2",
+    "lanes": "4,5,6,7",
+    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
+    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+    "default_brkout_mode": "2x50G"
  }
-...
-```
-This file is saved on the device when the breakout mode was changed successfully. The configDB will have the final port breakout settings for individual ports, the format/schema is the same as before. This file is only used for CLI to quickly know what breakout mode the system is on, and thus delete/add relevant ports if we are going to change the breakout mode.
-
-After dynamic port breakout support, we won’t need different HWSKUs for the same platform. If for any reason (e,g, keep backwards compatibility) the user still wants to have HWSKUs, we would need to provide a predefined breakout file: `hwsku_breakout.json` per HWSKU:
-```
-"Ethernet0": {
-    "default_mode": "1x100G[40G]"
- 	}
-"Ethernet4": {
-    "default_mode": "4x25G[10]"
- 	}
-"Ethernet8": {
-    "default_mode": "2x50G"
-}
 …
 ```
-The mode in this file will have precedence over the "default_mode" on the `platform.json`, and it will be used for port breakout during the initialization phase
+The file will will have precedence over the `platform.json` at platform level, and it will be used for port breakout during the initialization phase
 
-Above `platform.json` and `hwsku_breakout.json` will deprecate the old port_config.ini file in the current SONiC design.
+Above `platform.json` will deprecate the old port_config.ini file in the current SONiC design.
 
-To keep backwards compatibility, we will modify the current code which is using port_config.ini to read from `platform.json` and `hwsku_breakout.json` first, if they don't exist, it will read the port_config.ini as usual. To support the breakout feature, the json files will be required. In case they are missing, DPB changes would fail at CLI phase.
+To keep backwards compatibility, we will modify the current code which is using port_config.ini to read from `platform.json` first, if it doesn't exist, it will read the port_config.ini as usual. To support the breakout feature, the json files will be required. In case they are missing, DPB changes would fail at CLI phase.
 
 ### Special HW capability consideration
 On some platforms, there are some limitations about the number of port/mac available for the total count or for a particular group. For example, on some platforms, there were limitations where only 4 port/MAC are available for 8 lanes, in this case, we could define the `platform.json` to fit that platform. e,g:
@@ -223,7 +240,7 @@ On some platforms, there are some limitations about the number of port/mac avail
     "lanes": "0,1,2,3,4,5,6,7",
     "alias_at_lanes":"Eth1/1, Eth1/2, Eth1/3, Eth1/4, Eth2/1, Eth2/2, Eth2/3, Eth2/4",
     "breakout_modes": "2x100G[40G],4x50G,1x100G[40G](4)+2x50G(4),2x50G(4)+1x100G[40G](4),4x25G[10G](4), None(4)+4x25G[10G](4)",
-    "default_mode": "2x100G[40G]"
+    "default_brkout_mode": "2x100G[40G]"
  }
  ...
 ```
@@ -235,7 +252,7 @@ On some platforms, the serdes connection to front panel port might not be the as
     "lanes": "0,1",
     "alias_at_lanes": "Eth1/1, Eth1/2",
     "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]",
-    "default_mode": "1x50G"
+    "default_brkout_mode": "1x50G"
  },
 
  "Ethernet2": {
@@ -243,14 +260,14 @@ On some platforms, the serdes connection to front panel port might not be the as
     "lanes": "2,3",
     "alias_at_lanes": "Eth2/1, Eth2/1",
     "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]",
-     "default_mode": "1x50G"
+     "default_brkout_mode": "1x50G"
  }
  ...
 ```
 
 ## CLI design
 ### General design
-As mentioned above, when we change the configuration by CLI, we also keep a running breakout mode in `platform-running-mode.json`. This file is used by CLI to know the current mode and do platform validation. The `platform.json` will be used to generate new configurations after we breakout the ports to a different mode. The format/schema of the configDB for port table is not changed in this design.
+As mentioned above, when we change the configuration by CLI, we also keep a running breakout mode in configDB to know the current mode and do platform validation. The `platform.json` will be used to generate new configurations after we breakout the ports to a different mode. The format/schema of the configDB for port table is not changed in this design. Also, we will introduce a lock for config CLI so only one can change the configuration at time to prevent inconsistency.
 
 Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with Ethernet1/2/3 in the same group:
 ```
@@ -259,7 +276,7 @@ Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with E
     "lanes": "0,1,2,3",
     "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
     "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G,2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_mode": "1x100G[40G]"
+    "default_brkout_mode": "1x100G[40G]"
  }
 ```
 CLI will look like below:
@@ -273,9 +290,9 @@ Or
 > config interface Ethernet0 breakout 1x100G[40G]
 > config interface Ethernet0 speed 40G
 ```
-CLI will query the `platform-running-mode.json` to get the current mode of `4x25G[10G]` for Ethernet0. If Ethernet0 or other port name is not found in json, we will fail the CLI.
+CLI will query the configDB to get the current mode of `4x25G[10G]` for Ethernet0. If port name in the CLI (e,g, Ethernet0) is not found in json, we will fail the CLI.
 
-Based on the `platform.json` and the mode, we know there are 4 ports in the port group, and CLI will try to delete all of them one by one first. During deletion, if there are dependencies on the port, depending on the CLI options, we will print the list of the dependencies and fail the CLI, or we delete the dependencies automatically and then delete the ports. This will be described in more details later. After the old ports got deleted, CLI will query the `platform.json` and the target breakout mode to generate the configDB entries. In this case as below:
+Based on the `platform.json` and the current mode, we know there are 4 ports in the port group, and CLI will try to delete all of them one by one first. During deletion, if there are dependencies on the port, depending on the CLI options, we will print the list of the dependencies and fail the CLI, or we delete the dependencies automatically and then delete the ports. This will be described in more details later. After the old ports got deleted, CLI will query the `platform.json` and the target breakout mode to generate the configDB entries. In this case as below:
 ```
     "Ethernet0": {
         "alias": "Eth1/1",
@@ -308,11 +325,11 @@ Config port to 25G/50G mix speeds:
 ```
 We should now get Ethernet0/1 with 25G and Ethernet2 with 50G. Ethernet3 are removed if existed before.
 
-In short, the CLI will query the current breakout mode from `platform-running-mode.json`, it will delete ports first and then add ports back.
+In short, the CLI will query the current breakout mode from configDB, it will delete ports first and then add ports back.
 
 The CLI checks that only the ports in `platform.json` will be applicable for breakout mode, and only the breakout modes defined in "breakout_modes" in `platform.json` can be applied.
 
-When using CLI to configure the port speed, it will also query the current breakout mode `platform-running-mode.json`, and then check if the current speed is supported or not.
+When using CLI to configure the port speed, it will also query the current breakout mode from configDB, and then check if the current speed is supported or not.
 
 E,g, If the current breakout mode is `4x25G[10G]`, this means any ports can be configured to 25G or 10G,  but if we configure the speed with 50G or other speed, CLI will return error right away before calling the backend calls.
 
@@ -335,17 +352,27 @@ During the port breakout removing port process, it will communicate with configu
 During the adding port process, CLI will determine the physical lanes for each breakout port based on `platform.json` and the target breakout mode. It will generate multiple individual ports with proper lanes, alias, speed etc info to configDB,
 
 ### Show CLI
-Show interface command should be able to show the ports with mode and different properties etc.
+Show interface command should be able to show the ports capability and the current breakout mode.
 ```
 > show interfaces breakout
-  Interface    breakout
------------   ------------
-  Ethernet0    1x100G[40G]
-  Ethernet4    2x50G
-  Ethernet8    4x25G[10G]
-  Ethernet12   1x100G[40G]
-  Ethernet16   2x50G
-  Ethernet20   4x25G[10G]
+"Ethernet0": {
+    "index": "1,1,1,1",
+    "lanes": "0,1,2,3",
+    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
+    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+    "default_brkout_mode": "1x100G[40G]",
+    "current_brkout_mode": "4x25G[10G]"
+ },
+
+ "Ethernet4": {
+    "index": "2,2,2,2",
+    "lanes": "4,5,6,7",
+    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
+    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+    "default_brkout_mode": "1x100G[40G]",
+    "current_brkout_mode": "2x50G"
+ }
+
 ```
 
 ## Configuration management
@@ -362,7 +389,7 @@ High level configuration flow is as below:
 ![alt text](images/sonic-dpb-config-interfaces.png "SONiC dynamic port breakout config interfaces")
 
 Interfaces in the figure:
-1. CLI will utilize `platform.json` and `platform-running-mode.json` to find out what ports to be deleted and generate the individual port configurations into configDB. When port-breakout was changed successfully, CLI will update the `platform-running-mode.json`.
+1. CLI will utilize `platform.json` and configDB to find out what ports to be deleted and then generate the individual port configurations into configDB. When port-breakout was changed successfully, CLI will update the configDB for `BREAKOUT_CFG` table.
 2. CLI will call the config management library to load configDB data into Yang instance data after generic translation, then during the port delete, it will find all the dependencies and optionally remove them automatically. It then translates the Yang instance data to configDB data. This interface is also used for config validate like syntax checks and dependency checks, whenever we are pushing data to configDB, e,g, during the port adding process.
 3. CLI will use existing RedisDB APIs or utilities like sonic-cfggen to read/write data to configDB.
 4. This is the RedisDB interface.
