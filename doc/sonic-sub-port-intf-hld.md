@@ -104,12 +104,6 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
     },
     "{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}": {}
 },
-
-"VLAN": {
-    "Vlan{{ vlan_id }}": {
-        "vlanid" : "{{ vlan_id }}"
-    }
-},
 ```
 A key in the VLAN_SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot).
 The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
@@ -127,12 +121,6 @@ Example configuration:
     },
     "Ethernet64.10|192.168.0.1/21": {},
     "Ethernet64.10|fc00::/7": {}
-},
-
-"VLAN": {
-    "Vlan10": {
-        "vlanid" : "10"
-    }
 },
 ```
 
@@ -254,7 +242,7 @@ SAI attributes related to a sub port interface are listed in the Table below.
 | SAI_ROUTER_INTERFACE_ATTR_VIRTUAL_ROUTER_ID      | VRF oid                                      |
 | SAI_ROUTER_INTERFACE_ATTR_TYPE                   | SAI_ROUTER_INTERFACE_TYPE_SUB_PORT           |
 | SAI_ROUTER_INTERFACE_ATTR_PORT_ID                | parent physical port or port channel oid     |
-| SAI_ROUTER_INTERFACE_ATTR_VLAN_ID                | VLAN oid                                     |
+| SAI_ROUTER_INTERFACE_ATTR_OUTER_VLAN_ID          | VLAN id (sai_uint16_t)                       |
 | SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS        | MAC address                                  |
 | SAI_ROUTER_INTERFACE_ATTR_MTU                    | mtu size                                     |
 
@@ -271,8 +259,8 @@ sub_intf_attrs[1].value.s32 = SAI_ROUTER_INTERFACE_TYPE_SUB_PORT;
 sub_intf_attrs[2].id = SAI_ROUTER_INTERFACE_ATTR_PORT_ID;
 sub_intf_attrs[2].value.oid = parent_port_oid;  /* oid of the parent physical port or port channel */
 
-sub_intf_attrs[3].id = SAI_ROUTER_INTERFACE_ATTR_VLAN_ID;
-sub_intf_attrs[3].value.oid = vlan_oid;
+sub_intf_attrs[3].id = SAI_ROUTER_INTERFACE_ATTR_OUTER_VLAN_ID;
+sub_intf_attrs[3].value.u16 = 10;
 
 sai_mac_t mac = {0x00, 0xe0, 0xec, 0xc2, 0xad, 0xf1};
 sub_intf_attrs[4].id = SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
@@ -501,3 +489,4 @@ Even when the parent port is a physical port, sub port interface use cases, such
 
 # 9 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
+[2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
