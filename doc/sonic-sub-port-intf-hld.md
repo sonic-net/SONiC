@@ -298,7 +298,7 @@ sai_status_t status = remove_router_interface(rif_id);
 ## 2.5 Linux integration
 ### 2.5.1 Host sub port interfaces
 
-We use iproute2 package to manage host sub port interfaces.
+Inside SONiC, we use iproute2 package to manage host sub port interfaces.
 Specifically, we use `ip link add link <parent_port_name> name <subif_name> type vlan id <vlan_id>` to create a host sub port interface.
 This command implies the dependancy that a parent host interface must be created before the creation of a host sub port interface.
 
