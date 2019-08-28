@@ -495,7 +495,19 @@ Linux has the limitation of 15 characters on an interface name.
 For sub port interface use cases on port channels, we need to redesign the current naming convention for port channels (PortChannelXXXX, 15 characters) to take shorter names (such as, PoXXXX, 6 characters).
 Even when the parent port is a physical port, sub port interface use cases, such as Ethernet128.1024, still exceed the 15-character limit on an interface name.
 
-# 9 References
+# 9 Appendix
+## 9.1 Difference between a sub port interface and a vlan interface
+Sub port interface is a router interface (RIF type sub port Vlan#) between a VRF and a physical port or a port channel.
+Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. It is an interface between a bridge port type router (connecting to a .1Q bridge) and a VRF, as shown in Fig. 3.
+
+![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/vlan_intf_rif.png "Fig. 3: Vlan interface")
+__Fig. 3: Vlan interface__
+
+# 10 Open questions:
+1. Miss policy
+
+
+# 11 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
