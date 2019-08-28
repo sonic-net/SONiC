@@ -76,8 +76,8 @@ __Fig. 2: Sub port bridge port__
 # 1 Requirements
 
 Manage the life cycle of a sub port interface created on a physical port or a port channel and used as a router interface to a VRF:
-* Creation with the specified dot1q vlan id encapsulation and optional mtu
-* Runtime mtu change
+* Creation with the specified dot1q vlan id encapsulation
+* Runtime admin status change
 * Removal
 
 A sub port interface shall support the following features:
@@ -187,7 +187,11 @@ VLAN_SUB_INTERFACE|Ethernet64.10|fc00::/7
 ## 2.2 APPL_DB
 ```
 INTF_TABLE:{{ port_name }}.{{ vlan_id }}
-    "mtu" : "{{ mtu_size }}"
+    "admin_status" : "{{ adminstatus }}"
+
+; field         = value
+admin_status    = up / down             ; admin status of the sub port interface
+
 
 INTF_TABLE:{{ port_name }}.{{ vlan_id }}:{{ ip_prefix }}
     "scope" : "{{ visibility_scope }}"
@@ -273,12 +277,16 @@ uint32_t sub_intf_attrs_count = 6;
 sai_status_t status = create_router_interface(&rif_id, switch_oid, sub_intf_attrs_count, sub_intf_attrs);
 ```
 
-### 2.4.2 Set a sub port interface mtu
+### 2.4.2 Set a sub port interface admin status
 ```
 sai_attribute_t sub_intf_attr;
-sub_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_MTU;
-sub_intf_attr.value.u32 = 9000;
 
+sub_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
+sub_intf_attr.value.booldata = false;
+sai_status_t status = set_router_interface_attribute(rif_id, &attr);
+
+sub_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
+sub_intf_attr.value.booldata = false;
 sai_status_t status = set_router_interface_attribute(rif_id, &attr);
 ```
 
@@ -293,7 +301,6 @@ sai_status_t status = remove_router_interface(rif_id);
 We use iproute2 package to manage host sub port interfaces.
 Specifically, we use `ip link add link <parent_port_name> name <subif_name> type vlan id <vlan_id>` to create a host sub port interface.
 This command implies the dependancy that a parent host interface must be created before the creation of a host sub port interface.
-At creation, a host sub port interface is always set to admin status up.
 
 Example:
 ```
@@ -330,7 +337,7 @@ Internally, a sub port interface is represented as a Port object to be perceived
 ![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_creation_flow.png)
 
 ## 3.2 Sub port interface runtime admin status change
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_set_mtu_flow.png)
+![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_set_admin_status_flow.png)
 
 ## 3.3 Sub port interface removal
 ![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_removal_flow.png)
@@ -440,12 +447,12 @@ Test shall cover the IP address being an IPv4 address or an IPv6 address.
 | Verify that a subnet route entry is created in ASIC_DB                                                 |
 | Verify that a ip2me route entry is created in ASIC_DB                                                  |
 
-## 6.2 Sub port interface mtu change
+## 6.2 Sub port interface admin status change
 | Test case description                                                                                  |
 |--------------------------------------------------------------------------------------------------------|
-| Verify that sub port interface mtu change is pushed to CONIFG_DB VLAN_SUB_INTERFACE table              |
-| Verify that sub port interface mtu change is synced to APPL_DB INTF_TABLE by Intfmgrd                  |
-| Verify that sub port router interface entry in ASIC_DB has the updated mtu value                       |
+| Verify that sub port interface admin status change is pushed to CONIFG_DB VLAN_SUB_INTERFACE table     |
+| Verify that sub port interface admin status change is synced to APPL_DB INTF_TABLE by Intfmgrd         |
+| Verify that sub port router interface entry in ASIC_DB has the updated admin status                    |
 
 ## 6.3 Sub port interface removal
 ### 6.3.1 Remove an IP address from a sub port interface
@@ -489,4 +496,5 @@ Even when the parent port is a physical port, sub port interface use cases, such
 
 # 9 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
+
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
