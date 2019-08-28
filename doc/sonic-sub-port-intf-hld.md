@@ -344,6 +344,7 @@ Internally, a sub port interface is represented as a Port object to be perceived
 
 # 4 CLIs
 ## 4.1 Config commands
+### 4.1.1 Config a sub port interface
 `subinterface` command category is introduced to the `config` command.
 
 ```
@@ -371,7 +372,6 @@ Options:
 Commands:
   add       Add a sub port interface
   del       Remove a sub port interface
-  ip        Add or remove an IP address
 ```
 ```
 Usage: config subinterface add [OPTIONS] <sub_port_interface_name>
@@ -380,9 +380,10 @@ Usage: config subinterface add [OPTIONS] <sub_port_interface_name>
 Usage: config subinterface del [OPTIONS] <sub_port_interface_name>
 ```
 
-Once a sub port interface is added, `add` and `del` ip address commands are supported on it.
+### 4.1.2 Config IP address on a sub port interface
+Once a sub port interface is added, existing `config interface ip` is used to `add` or `del` ip address on it.
 ```
-Usage: config subinterface ip [OPTIONS] COMMAND [ARGS]...
+Usage: config interface ip [OPTIONS] COMMAND [ARGS]...
 
   Add or remove IP address
 
@@ -390,14 +391,14 @@ Options:
   --help    Show this message and exit.
 
 Commands:
-  add       Add an IP address towards a sub port interface
-  del       Remove an IP address from a sub port interface
+  add       Add an IP address towards the interface
+  del       Remove an IP address from the interface
 ```
 ```
-Usage: config subinterface ip add [OPTIONS] <sub_port_interface_name> <ip_addr>
+Usage: config interface ip add [OPTIONS] <sub_port_interface_name> <ip_addr>
 ```
 ```
-Usage: config subinterface ip del [OPTIONS] <sub_port_interface_name> <ip_addr>
+Usage: config interface ip del [OPTIONS] <sub_port_interface_name> <ip_addr>
 ```
 
 ## 4.2 Show commands
