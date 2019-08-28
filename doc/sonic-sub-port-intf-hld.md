@@ -504,8 +504,13 @@ Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. 
 __Fig. 3: Vlan interface__
 
 # 10 Open questions:
-1. Miss policy
+1. Miss policy to be defined in SAI specification
 
+    When a 802.1q tagged packet is received on a physical port or a port channel, it will go to the sub port interface that matches the VLAN id inside the packet.
+    If no sub port interfaces match the VLAN id in the packet tag, what is the default policy on handling the packet?
+
+    As shown in Fig. 1, there is possiblity that a physical port or a port channel may not have a RIF type port created.
+    In this case, if an untagged packet is received on the physical port or port channel, what is the policy on handling the untagged packet?
 
 # 11 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
