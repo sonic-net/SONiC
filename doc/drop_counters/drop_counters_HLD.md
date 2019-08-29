@@ -22,6 +22,7 @@
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
         - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
     - [3.3 App DB](#33-app-db)
+        - [3.3.1 SAI APIs](#331-sai-apis)
     - [3.4 SWSS](#34-swss)
         - [3.4.1 SAI APIs](#341-sai-apis)
     - [3.5 CLI](#35-CLI)
