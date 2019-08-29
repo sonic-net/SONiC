@@ -277,7 +277,25 @@ uint32_t sub_intf_attrs_count = 6;
 sai_status_t status = create_router_interface(&rif_id, switch_oid, sub_intf_attrs_count, sub_intf_attrs);
 ```
 
-### 2.4.2 Set a sub port interface admin status
+### 2.4.2 Runtime change on sub port interface attributes
+### 2.4.2.1 Supported attributes
+The following attributes are supported in SAI spec to be changed at run time.
+
+| SAI attributes                                        | attribute value/type                         |
+|-------------------------------------------------------|----------------------------------------------|
+| SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE              | true / false                                 |
+| SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE              | true / false                                 |
+| SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS             | MAC address                                  |
+| SAI_ROUTER_INTERFACE_ATTR_MTU                         | mtu size                                     |
+| SAI_ROUTER_INTERFACE_ATTR_INGRESS_ACL                 | ACL table or ACL table group oid             |
+| SAI_ROUTER_INTERFACE_ATTR_EGRESS_ACL                  | ACL table or ACL table group oid             |
+| SAI_ROUTER_INTERFACE_ATTR_V4_MCAST_ENABLE             | true / false                                 |
+| SAI_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE             | true / false                                 |
+| SAI_ROUTER_INTERFACE_ATTR_NEIGHBOR_MISS_PACKET_ACTION | sai_packet_action_t                          |
+| SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION      | sai_packet_action_t                          |
+
+
+### 2.4.2.1 Set a sub port interface admin status
 ```
 sai_attribute_t sub_intf_attr;
 
