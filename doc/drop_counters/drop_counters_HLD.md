@@ -20,7 +20,7 @@
     - [3.1 Counters DB](#31-counters-db)
     - [3.2 Config DB](#32-config-db)
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
-        - [3.2.2 PACKET_DROP_COUNTER Table](#322-packet_drop_counter-table)
+        - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
     - [3.3 App DB](#33-app-db)
     - [3.4 SWSS](#34-swss)
         - [3.4.1 SAI APIs](#341-sai-apis)
@@ -104,49 +104,29 @@ The contents of the drop counters will be added to Counters DB by flex counters.
 
 ## 3.2 Config DB
 We'll add three new tables to Config DB:
-* DEBUG_COUNTER to track which counters have been configured and for what purpose
-    * At this point the only supported type is PACKET_DROP_COUNTER
-* PACKET_DROP_COUNTER to save drop counters that have been configured by the user
-* PACKET_DROP_COUNTER_RULE to save rules that are associated with user configured drop counters
+* DEBUG_COUNTER to save debug counters have been configured by the user
+* PACKET_DROP_COUNTER_REASON to save reasons that are associated with user configured packet drop counters
 
 ### 3.2.1 DEBUG_COUNTER Table
 Example:
 ```
 {
-    "DEBUG_COUNTER": {
-        "DEBUG_0": {
-            "type": "PACKET_DROP_COUNTER"
-        },
-        "DEBUG_1": {
-            "type": "PACKET_DROP_COUNTER"
-        },
-        "DEBUG_2": {
-            "type": "PACKET_DROP_COUNTER"
-        }
-    }
-}
-```
-
-### 3.2.2 PACKET_DROP_COUNTER Table
-Example:
-```
-{
     "PACKET_DROP_COUNTER": {
-        "RX_LEGIT": {
-            "counter": "DEBUG_0",
-            "type": "PORT_INGRESS",
+        "DEBUG_0": {
+            "alias": "RX_LEGIT",
+            "type": "PORT_INGRESS_DROPS",
             "desc": "Legitimate RX pipeline drops"
         },
-        "TX_LEGIT": {
-            "counter": "DEBUG_1",
-            "type": "PORT_EGRESS",
+        "DEBUG_1": {
+            "counter": "TX_LEGIT",
+            "type": "PORT_EGRESS_DROPS",
             "desc": "Legitimate TX pipeline drops"
         }
     }
 }
 ```
 
-### 3.2.3 PACKET_DROP_COUNTER_REASON Table
+### 3.2.2 PACKET_DROP_COUNTER_REASON Table
 Example:
 ```
 {
@@ -164,11 +144,16 @@ App DB will store information about:
 * How many drop counters are available on this device
 * What drop reasons are supported by this device
 
+### 3.3.1 SAI APIs
+We will use the following SAI APIs to get this information:
+* `sai_query_attribute_enum_values_capability` to query support for different types of counters
+* `sai_object_type_get_availability` to query the amount of available debug counters
+
 ## 3.4 SWSS
 Debugcountsorch should be implemented to handle debug counter creation and configuration.
 
 ### 3.4.1 SAI APIs
-This orchestrator will interact with the following SAI APIs (all via sai_debug_counter_api_t):
+This orchestrator will interact with the following SAI Debug Counter APIs:
 * `sai_create_debug_counter_fn` to create/configure new drop counters.
 * `sai_remove_debug_counter_fn` to delete/free up drop counters that are no longer being used.
 * `sai_get_debug_counter_attribute_fn` to gather information about counters that have been configured (e.g. index, drop reasons, etc.).
