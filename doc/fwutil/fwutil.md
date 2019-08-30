@@ -7,28 +7,33 @@
 - [Revision](#revision)
 - [Abbreviations](#abbreviations)
 - [1 Introduction](#1-introduction)
-    - [1.1 Feature overview](#1.1-feature-overview)
-    - [1.2 Requirements](#1.2-requirements)
-        - [1.2.1 Command interface](#1.2.1-command-interface)
-        - [1.2.2 Error handling](#1.2.2-error-handling)
-        - [1.2.3 Event logging](#1.2.3-event-logging)
+    - [1.1 Feature overview](#11-feature-overview)
+    - [1.2 Requirements](#12-requirements)
+        - [1.2.1 Functionality](#121-functionality)
+        - [1.2.2 Command interface](#122-command-interface)
+        - [1.2.3 Error handling](#123-error-handling)
+        - [1.2.4 Event logging](#124-event-logging)
 - [2 Design](#2-design)
-    - [2.1 Overview](#2.1-overview)
-    - [2.2 FW utility](#2.2-fw-utility)
-        - [2.2.1 Command structure](#2.2.1-command-structure)
-        - [2.2.2 Command interface](#2.2.2-command-interface)
-            - [2.2.2.1 Show commands](#2.2.2.1-show-commands)
-                - [2.2.2.1.1 Overview](#2.2.2.1.1-overview)
-                - [2.2.2.1.2 Description](#2.2.2.1.2-description)
-            - [2.2.2.2 Install commands](#2.2.2.2-install-commands)
-                - [2.2.2.2.1 Overview](#2.2.2.2.1-overview)
-                - [2.2.2.2.2 Description](#2.2.2.2.2-description)
-            - [2.2.2.3 Update commands](#2.2.2.3-update-commands)
-                - [2.2.2.3.1 Overview](#2.2.2.3.1-overview)
-                - [2.2.2.3.2 Description](#2.2.2.3.2-description)
-- [3 Tests](#3-tests)
-    - [3.1 Unit tests](#3.1-unit-tests)
-    - [3.2 Functional tests](#3.2-functional-tests)
+    - [2.1 Overview](#21-overview)
+    - [2.2 FW utility](#22-fw-utility)
+        - [2.2.1 Command structure](#221-command-structure)
+        - [2.2.2 Command interface](#222-command-interface)
+            - [2.2.2.1 Show commands](#2221-show-commands)
+                - [2.2.2.1.1 Overview](#22211-overview)
+                - [2.2.2.1.2 Description](#22212-description)
+            - [2.2.2.2 Install commands](#2222-install-commands)
+                - [2.2.2.2.1 Overview](#22221-overview)
+                - [2.2.2.2.2 Description](#22222-description)
+            - [2.2.2.3 Update commands](#2223-update-commands)
+                - [2.2.2.3.1 Overview](#22231-overview)
+                - [2.2.2.3.2 Description](#22232-description)
+- [4 Flows](#3-flows)
+    - [3.1 Show components status](#31-show-components-status)
+    - [3.2 Install component FW](#32-install-component-fw)
+        - [3.2.1 Non modular chassis platform](#321-non-modular-chassis-platform)
+        - [3.2.2 Modular chassis platform](#322-modular-chassis-platform)
+- [4 Tests](#4-tests)
+    - [4.1 Unit tests](#41-unit-tests)
 
 ## About this manual
 
@@ -60,49 +65,60 @@ This document provides general information about FW utility implementation in SO
 | N/A    | Not Applicable/Not Available                        |
 
 ## List of figures
-[Figure 1: FW utility High Level Design](#figure-1-fw-utility-high-level-design)
+
+[Figure 1: FW utility High Level Design](#figure-1-fw-utility-high-level-design)  
+[Figure 2: Show components status flow](#figure-2-show-components-status-flow)  
+[Figure 3: FW install (non modular) flow](#figure-3-fw-install-non-modular-flow)  
+[Figure 4: FW install (modular) flow](#figure-4-fw-install-modular-flow)  
 
 ## List of tables
+
 [Table 1: Event logging](#table-1-event-logging)
 
 # 1 Introduction
 
 ## 1.1 Feature overview
 
-A modern network switch is a sophisticated equipment which consists of many auxiliary components
-which are responsible for managing different subsystems (e.g., PSU/FAN/QSFP/EEPROM/THERMAL)
+A modern network switch is a sophisticated equipment which consists of many auxiliary components  
+which are responsible for managing different subsystems (e.g., PSU/FAN/QSFP/EEPROM/THERMAL)  
 and providing necessary interfaces (e.g., I2C/SPI/JTAG).
 
-Basically these components are complex programmable logic devices with it's own HW architecture
+Basically these components are complex programmable logic devices with it's own HW architecture  
 and software. The most important are BIOS/CPLD/FPGA etc.
 
-It is very important to always have the latest recommended software version to improve device
-stability, security and performance. Also, software updates can add new features
-and remove outdated ones.
+It is very important to always have the latest recommended software version to improve device stability,  
+security and performance. Also, software updates can add new features and remove outdated ones.
 
-In order to make software update as simple as possible and to provide a nice user frindly
-interface for various maintenance operations (e.g., install a new FW or query current version)
+In order to make software update as simple as possible and to provide a nice user frindly  
+interface for various maintenance operations (e.g., install a new FW or query current version)  
 we might need a dedicated FW utility.
 
 ## 1.2 Requirements
 
-### 1.2.1 Command interface
+### 1.2.1 Functionality
+
+**This feature will support the following functionality:**
+1. Manual FW installation for particular platform component
+2. Automatic FW installation for all available platform components
+3. Querying platform components and FW versions
+
+### 1.2.2 Command interface
 
 **This feature will support the following commands:**
 1. show: display FW versions
 2. install: manual FW installation
 3. update: automatic FW installation
 
-### 1.2.2 Error handling
+### 1.2.3 Error handling
 
 **This feature will provide error handling for the next situations:**
 1. Invalid input
 2. Incompatible options/parameters
 3. Invalid/nonexistent FW URL/path
 
-**Note:** FW binary validation (checksum, format, etc.) should be done by Low Level Utility
+**Note:** FW binary validation (checksum, format, etc.) should be done by SONiC platform API
 
-### 1.2.3 Event logging
+### 1.2.4 Event logging
 
 **This feature will provide event logging for the next situations:**
 1. FW binary downloading over URL: start/end
@@ -119,7 +135,7 @@ we might need a dedicated FW utility.
 | FW binary installation: start/end         | INFO     |
 | FW binary installation: error             | ERROR    |
 
-**Note:** Some extra information also shall be logged:
+**Note:** Some extra information also will be logged:
 1. Component location (e.g., Chassis1/Module1/BIOS)
 2. Operation result (e.g., success/failure)
 
@@ -135,17 +151,17 @@ In order to improve scalability and performance a modern network switches provid
 1. Non modular chassis platforms
 2. Modular chassis platforms
 
-Non modular chassis platforms may contain one or more chassis.
+Non modular chassis platforms may contain one or more chassis.  
 Each chassis may contain it's own set of components.
 
-Modular chassis platforms may contain one or more chassis.
-Each chassis may contain one or more modules and it's own set of components.
+Modular chassis platforms may contain one or more chassis.  
+Each chassis may contain one or more modules and it's own set of components.  
 Each module may contain it's own set of components.
 
 Basically each chassis/module may contain one or more components (e.g., BIOS/CPLD/FPGA).
 
-SONiC platform API provides an interface for FW maintenance operations for both modular
-and non modular chassis platforms. Both modular and non modular chassis platforms share the same platform API,
+SONiC platform API provides an interface for FW maintenance operations for both modular and  
+non modular chassis platforms. Both modular and non modular chassis platforms share the same platform API,  
 but may have different implementation.
 
 SONiC FW utility uses platform API to interact with the various platform components.
@@ -163,11 +179,11 @@ fwutil
 |--- install
 |    |--- chassis <chassis_name>
 |         |--- component <component_name>
-|         |    |--- fw <fw_path>
+|         |    |--- fw -y|--yes <fw_path>
 |         |--- module <module_name>
 |              |--- component <component_name>
-|                   |--- fw <fw_path>
-|--- update -o|--online -i|--image=<current|next>
+|                   |--- fw -y|--yes <fw_path>
+|--- update -i|--image=<current|next> -y|--yes
 ```
 
 **Note:** <fw_path> can be absolute path or URL
@@ -180,7 +196,7 @@ fwutil
 
 The purpose of the show commands group is to provide an interface for:
 1. FW utility related information query (version, etc.)
-2. FW version query for various platform components
+2. Platform components related information query (fw, etc.)
 
 ##### 2.2.2.1.2 Description
 
@@ -193,84 +209,161 @@ fwutil version 1.0.0.0
 **The following command displays platform components and FW versions:**
 ```bash
 root@sonic:~# fwutil show status
-Chassis   Module   Component  Version
---------  -------  ---------  ------------------
-Chassis1  N/A      BIOS       0ACLH003_02.02.007
-                   CPLD1      2
-                   CPLD2      5
-                   CPLD3      1
-                   FPGA1      5
-                   FPGA2      8
-                   FPGA3      4
-Chassis2  Module1  BIOS       0ACLH004_02.02.007
-                   CPLD1      5
-                   CPLD2      8
-                   CPLD3      4
-                   FPGA1      8
-                   FPGA2      11
-                   FPGA3      7
-          Module2  BIOS       0ACLH004_02.02.007
-                   CPLD1      5
-                   CPLD2      8
-                   CPLD3      4
-                   FPGA1      8
-                   FPGA2      11
-                   FPGA3      7
+Chassis   Module   Component  Version             Description
+--------  -------  ---------  ------------------  ------------
+Chassis1  N/A      BIOS       0ACLH003_02.02.007  Chassis BIOS
+                   ASIC       29.2000.1886        Chassis ASIC
+                   CPLD       5                   Chassis CPLD
+                   FPGA       5                   Chassis FPGA
+Chassis2           BIOS       0ACLH004_02.02.007  Chassis BIOS
+                   CPLD       5                   Chassis CPLD
+                   FPGA       5                   Chassis FPGA
+          Module1  ASIC       29.2000.1886        Module ASIC
+                   CPLD       10                  Module CPLD
+                   FPGA       10                  Module FPGA
+          Module2  ASIC       29.2000.1886        Module ASIC
+                   CPLD       10                  Module CPLD
+                   FPGA       10                  Module FPGA
 ```
 
 #### 2.2.2.2 Install commands
 
 ##### 2.2.2.2.1 Overview
 
-The purpose of the install commands group is to provide an interface
+The purpose of the install commands group is to provide an interface  
 for manual FW update of various platform components.
 
 ##### 2.2.2.2.2 Description
 
 **The following command installs FW on non modular chassis platform:**
 ```bash
-root@sonic:~# fwutil install chassis Chassis1 component BIOS fw /home/admin/bios.fw
-root@sonic:~# fwutil install chassis Chassis1 component CPLD1 fw /home/admin/cpld1.fw
-root@sonic:~# fwutil install chassis Chassis1 component FPGA1 fw /home/admin/fpga1.fw
+root@sonic:~# fwutil install chassis Chassis1 component BIOS fw --yes /home/admin/bios.fw
+root@sonic:~# fwutil install chassis Chassis1 component CPLD1 fw --yes /home/admin/cpld1.fw
+root@sonic:~# fwutil install chassis Chassis1 component FPGA1 fw --yes /home/admin/fpga1.fw
 ```
 
 **The following command installs FW on modular chassis platform:**
 ```bash
 root@sonic:~# fwutil install chassis Chassis1 module Module1 component BIOS fw /home/admin/bios.fw
+New FW will be installed, continue? [y/n]: n
+Aborted!
 root@sonic:~# fwutil install chassis Chassis1 module Module1 component CPLD1 fw /home/admin/cpld1.fw
+New FW will be installed, continue? [y/n]: n
+Aborted!
 root@sonic:~# fwutil install chassis Chassis1 module Module1 component FPGA1 fw /home/admin/fpga1.fw
+New FW will be installed, continue? [y/n]: n
+Aborted!
 ```
+
+**Supported options:**
+1. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
 
 #### 2.2.2.3 Update commands
 
 ##### 2.2.2.3.1 Overview
 
-The purpose of the update commands group is to provide an interface
+The purpose of the update commands group is to provide an interface  
 for automatic FW update of all available platform components.
 
-Different FW sources shall be supported:
-1. online - from internet
-2. image - from current/next SONiC image
+Automatic FW update requires platform_components.json to be created and placed at:  
+_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
+
+**Example:**
+```json
+{
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "BIOS": {
+                    "fw": "/etc/<platform_name>/fw/chassis1/bios/bios.bin"
+                },
+                "CPLD": {
+                    "fw": "/etc/<platform_name>/fw/chassis1/cpld/cpld.bin"
+                },
+                "FPGA": {
+                    "fw": "/etc/<platform_name>/fw/chassis1/fpga/fpga.bin"
+                }
+            },
+            "module": {
+                "Module1": {
+                    "component": {
+                        "ASIC": {
+                            "fw": "/etc/<platform_name>/fw/chassis1/module1/asic/asic.bin"
+                        },
+                        "CPLD": {
+                            "fw": "/etc/<platform_name>/fw/chassis1/module1/cpld/cpld.bin"
+                        },
+                        "FPGA": {
+                            "fw": "/etc/<platform_name>/fw/chassis1/module1/fpga/fpga.bin"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+**Note:** FW update will be skipped if path is not specified (e.g., 'fw': "")
 
 ##### 2.2.2.3.2 Description
 
-__The following command updates FW of all available platform components:__
+**The following command updates FW of all available platform components:**
 ```bash
-root@sonic:~# fwutil update --online
 root@sonic:~# fwutil update --image=next
+Chassis   Module   Component  Image
+--------  -------  ---------  ------------
+Chassis1  N/A      BIOS       /etc/<platform_name>/fw/chassis1/bios/bios.bin
+                   ASIC       /etc/<platform_name>/fw/chassis1/asic/asic.bin
+                   CPLD       /etc/<platform_name>/fw/chassis1/cpld/cpld.bin
+                   FPGA       /etc/<platform_name>/fw/chassis1/fpga/fpga.bin
+Chassis2           BIOS       /etc/<platform_name>/fw/chassis2/bios/bios.bin
+                   CPLD       /etc/<platform_name>/fw/chassis2/cpld/cpld.bin
+                   FPGA       /etc/<platform_name>/fw/chassis2/fpga/fpga.bin
+          Module1  ASIC       /etc/<platform_name>/fw/chassis2/module1/asic/asic.bin
+                   CPLD       /etc/<platform_name>/fw/chassis2/module1/cpld/cpld.bin
+                   FPGA       /etc/<platform_name>/fw/chassis2/module1/fpga/fpga.bin
+          Module2  ASIC       /etc/<platform_name>/fw/chassis2/module2/asic/asic.bin
+                   CPLD       /etc/<platform_name>/fw/chassis2/module2/cpld/cpld.bin
+                   FPGA       /etc/<platform_name>/fw/chassis2/module2/fpga/fpga.bin
+New FW will be installed, continue? [y/n]: n
+Aborted!
 ```
+
+**Supported options:**
+1. -i|--image - update FW using current/next SONiC image
+2. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
 
 **Note:** the default option is _--image=current_
 
-# 3 Tests
+# 3 Flows
 
-## 3.1 Unit tests
+## 3.1 Show components status
+
+![Show components status flow](images/show_status_flow.svg "Figure 2: Show components status flow")
+
+###### Figure 2: Show components status flow
+
+## 3.2 Install component FW
+
+### 3.2.1 Non modular chassis platform
+
+![FW install (non modular) flow](images/install_non_modular_flow.svg "Figure 3: FW install (non modular) flow")
+
+###### Figure 3: FW install (non modular) flow
+
+### 3.2.2 Modular chassis platform
+
+![FW install (modular) flow](images/install_modular_flow.svg "Figure 4: FW install (modular) flow")
+
+###### Figure 4: FW install (modular) flow
+
+# 4 Tests
+
+## 4.1 Unit tests
 
 1. Show FW utility version
 2. Show components status
-
-## 3.2 Functional tests
-
-1. Install new BIOS/CPLD/FPGA FW on non modular chassis
-2. Install new BIOS/CPLD/FPGA FW on modular chassis
-3. Update FW on all available chassis components
+3. Install new BIOS/CPLD/FPGA FW on non modular chassis
+4. Install new BIOS/CPLD/FPGA FW on modular chassis
+5. Update FW on all available chassis components
