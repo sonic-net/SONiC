@@ -433,10 +433,11 @@ Commands:
 ```
 Example:
 ```
-Sub port interface    Speed    MTU    Vlan    Oper    Admin                 Type
-------------------  -------  -----  ------  ------  -------  -------------------
-     Ethernet64.10     100G   9100      10      up       up  dot1q-encapsulation
+Sub port interface    Speed    MTU    Vlan    Admin                 Type
+------------------  -------  -----  ------  -------  -------------------
+     Ethernet64.10     100G   9100      10       up  dot1q-encapsulation
 ```
+No operational status is defined on RIF (sub port interface being a type of RIF) in SAI spec.
 
 # 5 Warm reboot support
 There is no special runtime state that needs to be kept for sub port interfaces.
