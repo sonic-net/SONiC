@@ -1,4 +1,4 @@
-#   YANG MODEL GUIDELINES
+#   SONiC YANG MODEL GUIDELINES
 
 ### Rev 1.0 ###
 
@@ -6,15 +6,18 @@
 
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
- | 1.0 | 22 Aug 2019             |      Praveen Chaudhary      | Initial version                   |
+ | 1.0 | 22 Aug 2019             |      Praveen Chaudhary      | Initial version                    |
+ | 1.1 | 29 Aug 2019             |      Praveen Chaudhary      | Addressed review comments.
 
 
 
-## This document lists the guidelines, which will be used to write Yang Modules for Sonic. These Yang Modules will be primarily based on ABNF Schema of Sonic. 
+###  This document lists the guidelines, which will be used to write YANG Modules for SONiC. These YANG Modules will be primarily based on or represent the ABNF Schema of SONiC, and the syntax of YANG models must follow RFC 7950.
+
+### These YANG models will be used to verify the configuration for SONiC switches, so a library which supports validation of configuration on SONiC Switch must use these YANG Models. List of such Libraries are: 1.) Configuration Validation Library. (CVL)
 
 
 
-### 1. Each primary section of Config DB (i.e a dictionary in config_db.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in config DB will be mapped to a container in Yang model.
+### 1. Each primary section of Config DB (i.e a dictionary in config_db.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in config DB will be mapped to a container in YANG model.
 
 Example:
 
@@ -30,7 +33,7 @@ Example:
 ```
 will translate to:
 
-####  Yang
+####  YANG
 --
 ```
 container INTERFACE {
@@ -39,7 +42,7 @@ container INTERFACE {
 }
 ```
 
-### 2. Each leaf in yang module should have same name as corresponding key in Config DB.
+### 2. Each leaf in YANG module should have same name as corresponding key in Config DB.
 
 Example:
 Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY.
@@ -55,7 +58,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY.
         },
 ```
 
-####  Yang
+####  YANG
 ```
             leaf PACKET_ACTION {
                 type xxxx;
@@ -71,10 +74,10 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY.
 ```
 
 
-### 3. Hierarchy of the an objects in yang models will be same as for all the objects at same hierarchy in Redis. If any exception is created then it must be recorded properly.
-For Example: 
+### 3. Data Node/Object Hierarchy of the an objects in YANG models will be same as for all the objects at same hierarchy in Redis. If any exception is created then it must be recorded properly.
+For Example:
 
-"Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE should be at same level in yang model too.
+"Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE should be at same level in YANG model too.
 
 #### ABNF
 ```
@@ -92,8 +95,8 @@ For Example:
         }
 }
 ```
-####  Yang
-In Yang, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level. 
+####  YANG
+In YANG, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level.
 ```
 container VLAN_INTERFACE {
         description "VLAN_INTERFACE part of config_db.json";
@@ -116,11 +119,11 @@ container ACL_RULE {
             }
     }
 }
-``` 
+```
 
-### 4.  if an object is used as a key in Redis, it should be a key in yang model, irrespective of need. Exception must be recorded in Yang Model.
+### 4.  if an object is used as a key in Redis, it should be a key in YANG model. Exception must be recorded in YANG Model.
 
-Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and Port part of the key. So yang model should have the same keys.
+Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and Port part of the key. So YANG model should have the same keys.
 
 #### ABNF
 ```
@@ -130,7 +133,7 @@ Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and Port part of t
         }
    }
 ```
-#### Yang
+#### YANG
 ```
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
@@ -140,7 +143,7 @@ container VLAN_MEMBER {
 }
 ```
 
-### 5.  It is best to categorized Yang Modules based on a networking components. For Example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
+### 5.  It is best to categorized YANG Modules based on a networking components. For Example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
 ```
 sonic-acl.yang
 sonic-interface.yang
@@ -148,19 +151,10 @@ sonic-port.yang
 sonic-vlan.yang
 ```
 
-### 6. When it comes about the choice between objects, it is good to stick to standard models. 
-For example: if open-config defines acl-rules as container and have an acl-rules list inside it, then we will stick to the same object types, if a container and list is must in Sonic Yang model.
-Examples:
-```
-container acl-entries {
-    description "Access list entries container";
-    list acl-entry {
-        key "sequence-id";
-```
 
 
-
-### 7.  All must, when, pattern and enumeration constraints will come from .h files (or code). If code has the possibility to have unknown behavior with some config, then we will put a constraint in yang models objects. (This will always be Ongoing effort).
+### 6.  All must, when, pattern and enumeration constraints can be derived from .h files (or code). If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, developr can put any additional constraint to stop invalid configuration.
+(This will always be Ongoing effort).
 
 For Example: Enumeration of IP_TYPE comes for aclorch.h
 ```
@@ -175,7 +169,7 @@ For Example: Enumeration of IP_TYPE comes for aclorch.h
 #define IP_TYPE_ARP_REQUEST "ARP_REQUEST"
 #define IP_TYPE_ARP_REPLY "ARP_REPLY"
 ```
-Example of When Statement: Orchagent of Sonic will have unknown behavior if below config is entered, So yang must have a constraint. Here SRC_IP is IPv4, where as IP_TYPE is IPv6.
+Example of When Statement: Orchagent of SONiC will have unknown behavior if below config is entered, So YANG must have a constraint. Here SRC_IP is IPv4, where as IP_TYPE is IPv6.
 
 #### ABNF:
 ```
@@ -187,9 +181,9 @@ Example of When Statement: Orchagent of Sonic will have unknown behavior if belo
             "PRIORITY": "999980",
             "IP_TYPE": "IPv6"
         },
- 
+
 ```
-#### Yang:
+#### YANG:
 ```
 choice ip_prefix {
                 case ip4_prefix {
@@ -220,13 +214,13 @@ leaf L4_DST_PORT_RANGE {
         }
 }
 ```
-### 8. Comment all must, when and patterns conditions.
+### 7. Comment all must, when and patterns conditions.
 Example:
 ```
 leaf family {
                 /* family leaf needed for backward compatibility
-                   Both ip4 and ip6 address are string in IETF RFC 6020, 
-                   so must statement can check based on : or ., family 
+                   Both ip4 and ip6 address are string in IETF RFC 6020,
+                   so must statement can check based on : or ., family
                    should be IPv4 or IPv6 according.
                 */
                 must "(contains(../ip-prefix, ':') and current()='IPv6') or
@@ -237,7 +231,7 @@ leaf family {
 
 
 
-### 9.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say Sonic types) only if IETF type is not applicable. All Sonic Types must be part of same header type or common yang model.
+### 8.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
 Example:
 ```
                     leaf SRC_IP {
@@ -250,4 +244,5 @@ Example:
 ```
 
 
-## All above steps are manual right now, in future few of them can be automated.
+## All above steps are manual right now, in future few of them can be automated. Below tasks are automated already:
+###  None
