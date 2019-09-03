@@ -8,18 +8,18 @@
 
 | Rev |     Date    |       Author            | Change Description                |
 |:---:|:-----------:|:-----------------------:|-----------------------------------|
-| 0.1 | 09/01/2019  | Partha Dutta            | Initial version                   |
+| 0.1 | 09/03/2019  | Partha Dutta            | Initial draft version                   |
 
 
 ## References
-| References 				|     Date/Version    |       Link      	      			|
+| References 				|     Date/Version    |       Link      	|
 |:-------------------------:|:-------------------:|:-----------------------------------:|
 | RFC 7950                  | August 2016         | https://tools.ietf.org/html/rfc7950 |
-| Management Framework      | 0.9                 |                                     |
+| Management Framework      | 0.9                 | TBD                                 |
 
 
 ## Overview 
-This document provides guideline for developing SONiC YANG model. RFC 7950 is used as the main reference for writing SONiC YANG model. SONiC YANG models are used in configuration management. At Northbound the entire YANG model is used. At Southbound, the configuration objects are used for validating ABNF based configuration and it is called CVL (Configuration Validation Library) YANG. CVL YANG is derived from SONiC YANG model. Please refer to "Management Framework.md" for further details on CVL and usage of SONiC YANG model.
+This document provides guideline for developing SONiC YANG model. [RFC 7950](https://tools.ietf.org/html/rfc7950) (YANG 1.1 Data Modeling Language) is used as the main reference for writing SONiC YANG model. SONiC YANG models are used in configuration management in [SONiC Management Framework](https://github.com/Azure/SONiC/pull/436). At Northbound the entire YANG model is used. At Southbound, the configuration objects are used for validating ABNF based configuration and it is called CVL (Configuration Validation Library) YANG. CVL YANG is derived from SONiC YANG model. Please refer to "[Management Framework](https://github.com/Azure/SONiC/pull/436)" for further details on CVL and usage of SONiC YANG model.
 
 ## Guidelines 
 
