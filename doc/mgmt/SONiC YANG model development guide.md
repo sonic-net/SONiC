@@ -12,7 +12,7 @@
 
 
 ## References
-| References 				|     Date/Version    |       Link      	|
+| References 		    |     Date/Version    |   		    Link     	 	|
 |:-------------------------:|:-------------------:|:-----------------------------------:|
 | RFC 7950                  | August 2016         | https://tools.ietf.org/html/rfc7950 |
 | Management Framework      | 0.9                 | TBD                                 |
@@ -417,6 +417,9 @@ Example:
 
 Example:
 ```
+module sonic-vlan {
+	....
+	....
 	leaf vlanid {
 		mandatory true;
 		type uint16 {
@@ -426,6 +429,9 @@ Example:
 			}
 		}
 	}
+	....
+	....
+}
 ```	
 
 
