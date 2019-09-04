@@ -1,7 +1,7 @@
 # Configurable Drop Counters in SONiC
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -15,16 +15,17 @@
     - [2.1 Functional Requirements](#21-functional-requirements)
     - [2.2 Configuration and Management Requirements](#2.2-configuration-and-management-requirements)
     - [2.3 Scalability Requirements](#23-scalability-requirements)
+    - [2.4 Supported Debug Counters](#24-supported-debug-counters)
 * [3 Design](#3-design)
-    - [3.1 Counters DB](#31-counters-db)
-    - [3.2 Config DB](#32-config-db)
-        - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
-        - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
-    - [3.3 State DB](#33-state-db)
+    - [3.1 Config DB](#31-config-db)
+        - [3.1.1 DEBUG_COUNTER Table](#311-debug_counter-table)
+        - [3.1.2 PACKET_DROP_COUNTER_REASON Table](#312-packet_drop_counter_reason-table)
+    - [3.2 State DB](#32-state-db)
+        - [3.2.1 SAI APIs](#321-sai-apis)
+    - [3.3 SWSS](#33-swss)
         - [3.3.1 SAI APIs](#331-sai-apis)
-    - [3.4 SWSS](#34-swss)
-        - [3.4.1 SAI APIs](#341-sai-apis)
-    - [3.5 syncd](#35-syncd)
+    - [3.4 syncd](#34-syncd)
+    - [3.5 Counters DB](#35-counters-db)
     - [3.6 CLI](#36-CLI)
         - [3.6.1 CLI show](#361-cli-show)
         - [3.6.2 CLI clear](#362-cli-clear)
@@ -65,15 +66,23 @@ This document describes the high level design of the configurable drop counter f
 # 1 Overview
 The goal of this feature is to provide better packet drop visibility in SONiC by providing a mechanism to count and classify packet drops that occur due to different reasons. Because different types of packet drops are important to track in different use cases, it is also key for this feature to be easily configurable.
 
+We will do this by adding support for SAI debug counters in SONiC. Support for creating and configuring port-level and switch-level debug counters will be added to orchagent and syncd. We will also provide a CLI tool for users create these counters to track drop reasons.
+
 # 2 Requirements
 
 ## 2.1 Functional Requirements
-1. Users can configure debug counters to track one or more drop reason(s).
-    1. Supported drop reasons will be available in State DB
-2. Users can access debug counter information via a CLI command
-    1. Users can see what types of drops each counter contains
-    2. Users can assign aliases to counters
-    3. Users can clear counters
+1. CONFIG_DB can be configured to create debug counters
+2. STATE_DB can be queried for debug counter capabilities
+3. Users can access drop counter information via a CLI tool
+    1. Users can see what capabilities are available to them
+        1. Types of counters (i.e. port-level and/or switch-level)
+        2. Number of counters
+        3. Supported drop reasons
+    2. Users can see what types of drops each configured counter contains
+    3. Users can add and remove drop reasons from each counter
+    4. Users can read the current value of each counter
+    5. Users can assign aliases to counters
+    6. Users can clear counters
 
 ## 2.2 Configuration and Management Requirements
 Configuration of the drop counters can be done via:
@@ -83,17 +92,20 @@ Configuration of the drop counters can be done via:
 ## 2.3 Scalability Requirements
 Users must be able to use all counters and drop reasons provided by the underlying hardware.
 
+## 2.4 Supported Debug Counters
+* PORT_INGRESS_DROPS: port-level ingress drop counters
+* PORT_EGRESS_DROPS: port-level egress drop counters
+* SWITCH_INGRESS_DROPS: switch-level ingress drop counters
+* SWITCH_EGRESS_DROPS: switch-level egress drop counters
+
 # 3 Design
 
-## 3.1 Counters DB
-The contents of the drop counters will be added to Counters DB by flex counters.
-
-## 3.2 Config DB
+## 3.1 Config DB
 Two new tables will be added to Config DB:
 * DEBUG_COUNTER to store general debug counter metadata
-* PACKET_DROP_COUNTER_REASON to store drop reasons for debug counters that have been configured to track packet drops
+* DEBUG_COUNTER_DROP_REASON to store drop reasons for debug counters that have been configured to track packet drops
 
-### 3.2.1 DEBUG_COUNTER Table
+### 3.1.1 DEBUG_COUNTER Table
 Example:
 ```
 {
@@ -117,11 +129,11 @@ Example:
 }
 ```
 
-### 3.2.2 PACKET_DROP_COUNTER_REASON Table
+### 3.1.2 DEBUG_COUNTER_DROP_REASON Table
 Example:
 ```
 {
-    "PACKET_DROP_COUNTER_REASON": {
+    "DEBUG_COUNTER_DROP_REASON": {
         "DEBUG_0|SMAC_EQUALS_DMAC": {},
         "DEBUG_0|INGRESS_VLAN_FILTER": {},
         "DEBUG_1|EGRESS_VLAN_FILTER": {},
@@ -130,29 +142,38 @@ Example:
 }
 ```
 
-## 3.3 State DB
+## 3.2 State DB
 State DB will store information about:
 * Whether drop counters are available on this device
 * How many drop counters are available on this device
 * What drop reasons are supported by this device
 
-### 3.3.1 SAI APIs
+This information will be populated by the orchestrator (described later) on startup.
+
+### 3.2.1 SAI APIs
 We will use the following SAI APIs to get this information:
 * `sai_query_attribute_enum_values_capability` to query support for different types of counters
 * `sai_object_type_get_availability` to query the amount of available debug counters
 
-## 3.4 SWSS
-A new orchestrator will be created to handle debug counter creation and configuration.
+## 3.3 SWSS
+A new orchestrator will be created to handle debug counter creation and configuration. Specifically, this orchestrator will support:
+* Creating a new counter
+* Deleting existing counters
+* Adding drop reasons to an existing counter
+* Removing a drop reason from a counter
 
-### 3.4.1 SAI APIs
+### 3.3.1 SAI APIs
 This orchestrator will interact with the following SAI Debug Counter APIs:
 * `sai_create_debug_counter_fn` to create/configure new drop counters.
 * `sai_remove_debug_counter_fn` to delete/free up drop counters that are no longer being used.
 * `sai_get_debug_counter_attribute_fn` to gather information about counters that have been configured (e.g. index, drop reasons, etc.).
 * `sai_set_debug_counter_attribute_fn` to re-configure drop reasons for counters that have already been created.
 
-## 3.5 syncd
+## 3.4 syncd
 Flex counter will be extended to support switch-level SAI counters.
+
+## 3.5 Counters DB
+The contents of the drop counters will be added to Counters DB by flex counters.
 
 ## 3.6 CLI
 The CLI tool will provide the following functionality:
@@ -274,10 +295,10 @@ The overall workflow is shown above in figure 1.
 (6) (not shown) CLI uses State DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
 
 # 5 Warm Reboot Support
-The debug counts orchagent will restore counter configurations after a warm reboot. It will get the current configuration from the SAI and check this against the configuration saved in config DB, reconfiguring the debug counters if necessary.
+At this stage, debug counters will be deleted prior to warm reboot and re-installed when orchagent starts back up. This is intended to simplify upgrade behavior and conserve hardware resources during the warm reboot.
 
 # 6 Unit Tests
-A separate test plan will be uploaded and reviewed by the community.
+A separate test plan will be uploaded and reviewed by the community. This will include both virtual switch tests to verify that ASIC_DB is configured correctly as well as pytest to verify overall system correctness.
 
 # 7 Open Questions
-None at this time.
+- How common of an operation is configuring a drop counter? Is this something that will usually only be done on startup, or something people will be updating frequently?
