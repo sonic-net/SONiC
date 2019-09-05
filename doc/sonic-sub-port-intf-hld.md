@@ -40,7 +40,11 @@
         * [6.3.3 Remove a sub port interface](#633-remove-a-sub-port-interface)
   * [7 Scalability](#7-scalability)
   * [8 Port channel renaming](#8-port-channel-renaming)
-  * [9 References](#9-references)
+  * [9 Appendix](#9-appendix)
+    * [9.1 Difference between a sub port interface and a vlan interface](#91-difference-between-a-sub-port-interface-and-a-vlan-interface)
+  * [10 Open questions](#10-open-questions)
+  * [11 Acknowledgment](#11-acknowledgment)
+  * [12 References](#9-references)
 
 <!-- /TOC -->
 
@@ -531,7 +535,10 @@ __Fig. 3: Vlan interface__
     As shown in Fig. 1, there is possiblity that a physical port or a port channel may not have a RIF type port created.
     In this case, if an untagged packet is received on the physical port or port channel, what is the policy on handling the untagged packet?
 
-# 11 References
+# 11 Acknowledgment
+Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Prince, Pavel, and Qi in particular, Itai with Mellanox for all discussions that shape the design proposal, and community members for comments and feedbacks that improve the design.
+
+# 12 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
