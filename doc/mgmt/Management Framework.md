@@ -1188,9 +1188,9 @@ The Common App is a default app that handles the GET/SET requests based on SONiC
 
 Here is a diagram to show how the common app can support SET(CRUD)/GET requests.
 
-![Transformer Design](images/crud_v1.PNG)
+![sequence diagram_for_set](images/crud_v1.png)
 
-![Transformer Design](images/get_v1.PNG)
+![sequence_diagram_for_get](images/get_v1.png)
 
 Note that common app module processes the request in schema order by default.
 e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the Redis DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE. 
