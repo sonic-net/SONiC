@@ -1101,61 +1101,70 @@ DB access layer, Redis, CVL Interaction:
 
 ##### 3.2.2.7 Transformer
 
-Transformer provides a generic infrastructure for Translib to programmatically translate YANG to ABNF/Redis schema and vice versa, using YANG extensions to define translation hints on the YANG paths. At run time, YANG schema and extensions are accessed by Transformer to build an in-memory Transformer Spec that provides two-way mapping between YANG and ABNF/Redis schema for Transformer to perform data translation.
+Transformer provides a generic infrastructure for Translib to programmatically translate YANG to ABNF/Redis schema and vice versa, using YANG extensions to define translation hints on the YANG paths. At run time, the translation hints are mapped to an in-memory Transformer Spec that provides two-way mapping between YANG and ABNF/Redis schema for Transformer to perform data translation. In case that SONiC YANG modules are used by NBI applications, the Transformer performs 1:1 mapping between a YANG object and a SONiC DB object without a need to write application codes or any translation hints.
 
 With the Transformer, a developer needs only to provide:
-1. A YANG file to define the data model
-2. A YANG annotation file to define translation hints: To map YANG objects to DB objects (external callbacks used for complex mapping).
-3. The necessary callback code that provides translation from YANG to DB and vice versa
+1. A YANG annotation file to define translation hints: To map YANG objects to DB objects (external callbacks used for complex mapping).
+e.g. ACL sequence id ‘1’ mapped to ‘RULE_1’ in Redis DB
+2. The necessary callback code that provides translation from YANG to DB and vice versa
+
 
 ###### 3.2.2.7.1 Components
 
 Transformer consists of the following components and data:
 * **Transformer Spec:** a collection of translation hints
-* **Spec Builder:**  access YANG schema tree and extensions to build in-memory Transformer Spec. Note that Transformer Spec is built only for non ABNF based YANG.  [future – Notification spec can be built to support both sample or on-change based notification]
-* **Transformer Core:** main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup YANG schema and Transformer spec, call Transformer methods, construct the results, error reporting etc.
-* **Built-in Default Transformer method:** perform static 1:1 translation and key translation
+* **Spec Builder:** loads YANG and annotation files to dynamically build YANG schema tree and Transformer Spec.
+* **Transformer Core:** perform main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup YANG schema tree and Transformer spec, call Transformer methods, construct the results, error reporting etc.
+* **Built-in Default Transformer method:** perform static 1:1 translation and key generation
 * **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation with developer supplied translation logic
-* **YANG metadata:** provides the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
+* **Ouput framer:** aggregate the translation pieces returned from default and overloaded methods to construct the output
+* **Method overloader:** dynamically lookup and invoke the overloaded transformer methods during data translation
+* **YANG schema tree:** provides the Transformer with the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
 
-![Transformer Components](images/transformer_components.png)
+![Transformer Components](images/transformer_components_v1.png)
 
 ###### 3.2.2.7.2 Design
 
-Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules request Transformer to translate the request, then use the translated data to operate on DB/CVL to set or get data.
+Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules call Transformer to translate the request, then use the translated data to operate on DB/CVL to set or get data.
 
 ![Transformer Design](images/transformer_design.PNG)
 
-At Transformer init, it accesses YANG schema tree to get node information and extensions per module, and build an in-memory transformer spec that contains the translation hints.
+At Transformer init, it loads YANG modules pertaining to the applications. Transformer parses YANG modules with the extensions to dynamically build an in-memory schema tree and transformer spec.
+
 Below structure is defined for the transformer spec:
 
 ```YANG
- type yangXpathInfo  struct {
+type yangXpathInfo  struct {
+    yangDataType   string
     tableName      *string
+    childTable      []string
     dbEntry        *yang.Entry
     yangEntry      *yang.Entry
     keyXpath       map[int]*[]string
     delim          string
     fieldName      string
     xfmrFunc       string
+    xfmrKey        string
+    dbIndex        db.DBNum
+    keyLevel       int
 }
 ```
 
-When a request lands at the App module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup.
+When a request lands at the app module in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that then decodes the YGOT structure to read the request payload and look up the spec to get translation hints. Note that the Transformer cannot be used for OpenAPI spec. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. The reverse mapping is used to populate the data read from RedisDB to YANG structure for the response to get operation.
 
-Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys with a default delimiter |, which can be customized by a YANG extension.
+Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys by a concatenation of multiple YANG keys with a default delimiter `|`, which can be customized by a YANG extension.
 
-Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, `read_<transformer_method>` and `write_<transformer_method>`, which are invoked by Transformer core.
+Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, YangToDb_<transformer_method> and DbToYang_<transformer_method>, which are invoked by Transformer core.
 
 ###### 3.2.2.7.3 Process
 
 CRUD requests (configuration) are processed via the following steps:
 
-1. App module calls transformer to translate YANG to ABNF
-2. Transformer allocates buffer with 3-dimensional map: `[table-name][db.Key][attributes]`
-	- `table-name` and `db.Key` used for app to watch DB Keys, update DB
-	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the App module has to update in this order; it must regroup the translated data by table in order.
-3. Transformer decodes YGOT structure and traverses the incoming request to get the node name
+1. App module calls transformer, passing it a YGOT populated Go structure to translate YANG to ABNF
+2. Transformer allocates buffer with 3-dimensional map: `[table-name][key-values][attributes]`
+	- `table-name` and `key-values` used for app module to watch DB Keys, update DB
+	- `table-name` also can be used by app to regroup the output from Transformer by tables if the app module needs to update the DB in a certain order. e.g. for `openconfig-acl.yang`: If a CREATE request includes ACL tables, rules, and binds rules to interfaces, then the App module has to update in this order; it must regroup the translated data by table in order.
+3. Transformer decodes YGOT structure and traverses the incoming request to get the YANG node name
 4. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
 5. If no spec or hint is found, the name and value are copied as-is
 6. If a hint is found, check the hint to perform the action, either simple data translation or invoke external callbacks
@@ -1165,7 +1174,7 @@ CRUD requests (configuration) are processed via the following steps:
 10. App module proceeds to update DB
 
 GET requests are processed via the following steps:
-1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and db.Key
+1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and keys
 2. Transformer returns the query target
 3. App module proceeds to query the DB via DB-access to get the result
 4. App module asks the Transformer to translate from ABNF to YANG
@@ -1175,11 +1184,16 @@ or overloaded Transformer (reverse) methods.
 
 ###### 3.2.2.7.4 Common App
 
-The Common App is a generic app that handles all ABNF based YANG modules.
+The Common App is a default app that handles the GET/SET requests based on SONiC or OpenConfig YANG modules
 
-There is a different flow in processing ABNF based YANG vs non-ABNF based YANG. If a request is in the form of ABNF based YANG, the generic common App module is a backend app that invokes Transformer to translate data. If a request is non-ABNF based YANG, a specific App module registered to Translib will be the backend app. By default, the common app will generically handle YGOT bindings for YANG modules.
+Here is a diagram to show how the common app can support SET(CRUD)/GET requests.
 
-Unlike app modules for non-ABNF based YANGs, common App module does not need translation hints since the node name itself is defined as ABNF node, so the YANG data can be directly mapped to ABNF data by default transformer method. Reverse mapping also can be processed by a default method. Note that common App module processes the request in schema order. That is, when it gets a request that spans over multiple table updates, it processes it in the order as defined in YANG.
+![Transformer Design](images/crud_v1.PNG)
+
+![Transformer Design](images/get_v1.PNG)
+
+Note that common app module processes the request in schema order by default.
+e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the Redis DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE. 
 
 ###### 3.2.2.7.5 YANG Extensions
 The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
@@ -1189,95 +1203,180 @@ The translation hints are defined as YANG extensions to support simple table/fie
 | `sonic-ext:table-name [string]` | Map a YANG list to TABLE name |
 | `sonic-ext:field-name [string]` | Map a YANG leafy to FIELD name |
 | `sonic-ext:key-delimiter [string]` | Override the default delimiter, “&#124;” |
-| `sonic-ext:db-locator [string]` |	DB locator for read-only data - STATE-DB, APPL-DB etc. |
 | `sonic-ext:key-transformer [function]` | Overloading default method for key generation |
 | `sonic-ext:field-transformer [function]` | Overloading default method for field generation |
 | `sonic-ext:subtree-transformer [function]` | Overloading default method for the current subtree, including all descendant nodes |
-| `sonic-ext:post-transformer [function]` | Overloading default method for post-translation |
+| `sonic-ext:get-transformer [function]` | Overloading default method to access data hosted in different DB – APPL_DB, COUNTER_DB etc. |
 
+e.g.
+```YANG
+deviation /oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set {
+      deviate add {
+        sonic-ext:table-name "ACL_TABLE";
+        sonic-ext:key-delimiter "_";
+      }
+    }
+
+deviation /oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set/oc-acl:acl-entries/oc-acl:acl-entry/oc-acl:actions/oc-acl:config/oc-acl:forwarding-action {
+      deviate add {
+        sonic-ext:field-name "PACKET_ACTION";
+      }
+    }
+
+deviation /oc-acl:acl/oc-acl:interfaces {
+      deviate add {
+        sonic-ext:subtree-transformer "acl_port_bindings_xfmr";
+      }
+    }
+```
 
 ###### 3.2.2.7.6 Public Functions
 
-`XlateToDb()` and `XlateFromDb` are used by app modules to request translations
+`XlateToDb()` and `GetAndXlateFromDb` are used by app modules to request translations.
 
 ```go
-func XlateToDb(s *YGOT.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
+func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
-func XlateFromDb(d map[string]map[db.Key]db.Value) (YGOT.GoStruct, error) {}
+func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 ```
-func XlateToDb(s *YGOT.GoStruct, t *interface{}) (map[string]map[db.Key]db.Value, error) {}
+func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
-func XlateFromDb(d map[string]map[db.Key]db.Value) (YGOT.GoStruct, error) {}
+func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
+
+
 ###### 3.2.2.7.7 Overloaded Methods
 
-Overloaded transformer methods support bi-directional data transfer. The function prototypes defined in the following-
+Overloaded transformer methods are prepended with ‘YangToDb’ or ‘DbToYang’ to support bi-directional data transfer. The function prototypes defined in the following-
 
 ```go
 /**
-* KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key
-* Transformer function definition.
-* Param: Database info, YgotRoot, Xpath
-* Return: Database keys to access db entry, error
-**/
-type KeyXfmrYangToDb (*db.DB, *YGOT.GoStruct, string) (db.Key, error)
+ * KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key 
+ * Transformer function definition.
+ * Param: Database info, YgotRoot, operation, Xpath
+ * Return: Database keys to access db entry, error
+ **/
+type KeyXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string) (string, error)
 /**
-* KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
-* Transformer function definition.
-* Param: Database info, Database keys to access db entry
-* Return: multi dimensional map to hold the YANG key attributes of complete xpath, error
-**/
-type KeyXfmrDbToYang (d *db.DB, key db.Key) (map[string]map[string]string, error)
+ * KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
+ * Transformer function definition.
+ * Param: Database info, operation, Database keys to access db entry
+ * Return: multi dimensional map to hold the yang key attributes of complete xpath, error
+ **/
+type KeyXfmrDbToYang func (*db.DB, int, string) (map[string]map[string]string, error)
 
 /**
-* FieldXfmrYangToDb type is defined to use for conversion of YANG Field to DB field
-* Transformer function definition.
-* Param: Database info, YgotRoot, Xpath
-* Return: multi dimensional map to hold the DB data, error
-**/
-type FieldXfmrYangToDb (d *db.DB, ygotRoot *YGOT.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+ * FieldXfmrYangToDb type is defined to use for conversion of yang Field to DB field
+ * Transformer function definition.
+ * Param: Database info, YgotRoot, operation, Xpath
+ * Return: multi dimensional map to hold the DB data, error
+ **/
+type FieldXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string, interface {}) (map[string]string, error)
 /**
-* FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
-* Transformer function definition.
-* Param: Database info, DB data in multidimensional map, output param YgotRoot
-* Return: error
-**/
-type FieldXfmrDbtoYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *YGOT.GoStruct)  (error)
+ * FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
+ * Transformer function definition.
+ * Param: Database info, operation, DB data in multidimensional map, output param YgotRoot
+ * Return: error
+ **/
+type FieldXfmrDbtoYang func (*db.DB, int, map[string]map[string]db.Value, *ygot.GoStruct)  (error)
 
 /**
-* SubTreeXfmrYangToDb type is defined to use for handling the YANG subtree to DB
-* Transformer function definition.
-* Param: Database info, YgotRoot, Xpath
-* Return: multi dimensional map to hold the DB data, error
-**/
-type SubTreeXfmrYangToDb (d *db.DB, ygotRoot *YGOT.GoStruct, xpath string) (map[string]map[string]db.Value, error)
+ * SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
+ * Transformer function definition.
+ * Param: Database info, YgotRoot, operation, Xpath
+ * Return: multi dimensional map to hold the DB data, error
+ **/
+type SubTreeXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string) (map[string]map[string]db.Value, error)
 /**
-* SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
-* Transformer function definition.
-* Param : Database info, DB data in multidimensional map, output param YgotRoot
-* Return :  error
-**/
-type SubTreeXfmrDbToYang (d *db.DB, data map[string]map[string]db.Value, ygotRoot *YGOT.GoStruct) (error)
+ * SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
+ * Transformer function definition.
+ * Param : Database info, operation, DB data in multidimensional map, output param YgotRoot
+ * Return :  error
+ **/
+type SubTreeXfmrDbToYang func (*db.DB, int, map[string]map[string]db.Value, *ygot.GoStruct, string) (error)
 
 ```
 
 ###### 3.2.2.7.8 Utilities
 
-To support annotating YANG extensions, the [goyang package](https://github.com/openconfig/goyang) will be extended to generate the template file, which has YANG paths with `deviation` statements. The template file can then be used by developers to define translation hints.
+The goyang package is extended to generate the template annotation file for any input yang files. A new output format type "annotate" can be used to generate the template annotation file.The goyang usage is as below:
+
+```
+Usage: goyang [-?] [--format FORMAT] [--ignore-circdep] [--path DIR[,DIR...]] [--trace TRACEFILE] [FORMAT OPTIONS] [SOURCE] [...]
+ -?, --help  display help
+     --format=FORMAT
+             format to display: annotate, tree, types
+     --ignore-circdep
+             ignore circular dependencies between submodules
+     --path=DIR[,DIR...]
+             comma separated list of directories to add to search path
+     --trace=TRACEFILE
+             write trace into to TRACEFILE
+
+Formats:
+    annotate - generate template file for yang annotations
+
+    tree - display in a tree format
+
+    types - display found types
+        --types_debug  display debug information
+        --types_verbose
+                       include base information
+```
+The $(SONIC_MGMT_FRAMEWORK)/gopkgs/bin is added to the PATH to run the goyang binary.
 
 For example:
 
 ```
-deviation /acl/acl-sets/acl-set {
-   deviate add { sonic-ext:key-delimiter; “_”; }
+goyang --format=annotate --path=/path/to/yang/models openconfig-acl.yang  > openconfig-acl-annot.yang
 
-deviation /acl/acl-sets/acl-set/acl-entries/acl-entry {
-   deviate add { sonic-ext:table-name; “ACL_RULE”;
-   deviate add { sonic-ext:key-transformer; “make_acl_rule_keys”; }
+Sample output:
+module openconfig-acl-annot {
+  
+    yang-version "1"
 
-deviation /acl/acl-sets/ac-set/acl-entries/acl-entry/source-address {
-   deviate add { sonic-ext:field-name; “SRC_IP”; }
-deviation /acl/acl-sets/ac-set/acl-entries/acl-entry/ forwarding-action {
-   deviate add { sonic-ext:field-transformer; “set_packet_action”; }
+    namespace "http://openconfig.net/yang/annotation";
+    prefix "oc-acl-annot"
+
+    import openconfig-packet-match { prefix oc-pkt-match }
+    import openconfig-interfaces { prefix oc-if }
+    import openconfig-yang-types { prefix oc-yang }
+    import openconfig-extensions { prefix oc-ext }
+
+    deviation oc-acl:openconfig-acl {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:state {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:state/oc-acl:counter-capability {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:acl-sets {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set {
+      deviate add {
+      }
+    }
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:acl-sets/oc-acl:acl-set/oc-acl:type {
+      deviate add {
+      }
+    }
+...
+...
+    deviation oc-acl:openconfig-acl/oc-acl:acl/oc-acl:config {
+      deviate add {
+      }
+    }
+}
 ```
 
 
