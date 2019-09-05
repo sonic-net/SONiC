@@ -1,8 +1,8 @@
+
 #   SONiC YANG MODEL GUIDELINES
 
-### Rev 1.0 ###
 
-### Revision ###
+## Revision
 
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
@@ -15,7 +15,7 @@
 These YANG models will be used to verify the configuration for SONiC switches, so a library which supports validation of configuration on SONiC Switch must use these YANG Models. List of such Libraries are: 1.) Configuration Validation Library. (CVL).  YANG models, which are written using these guidelines can also be used as User End YANG Models, i.e North Bound configuration tools or CLI can provide config data in sync with these YANG models.
 
 
-## Guideines
+## Guidelines
 
 ### 1. Each primary section of ABNF.json (i.e a dictionary in ABNF.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in ABNF.json will be mapped to a container in YANG model.
 
