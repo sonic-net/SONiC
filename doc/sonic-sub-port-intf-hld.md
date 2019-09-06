@@ -469,7 +469,7 @@ Test shall cover the IP address being an IPv4 address or an IPv6 address.
 | Verify that ip address configuration is synced to APPL_DB INTF_TABLE by Intfmgrd                       |
 | Verify that ip address state ok is pushed to STATE_DB INTERFACE_TABLE by Intfmgrd                      |
 | Verify that a subnet route entry is created in ASIC_DB                                                 |
-| Verify that a ip2me route entry is created in ASIC_DB                                                  |
+| Verify that an ip2me route entry is created in ASIC_DB                                                 |
 
 ## 6.2 Sub port interface admin status change
 | Test case description                                                                                  |
@@ -542,3 +542,5 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
+
+[3] Sub port interface implementation https://github.com/Azure/sonic-swss/pull/969
