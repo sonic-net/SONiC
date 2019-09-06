@@ -17,19 +17,21 @@
     - [2.3 Scalability Requirements](#23-scalability-requirements)
     - [2.4 Supported Debug Counters](#24-supported-debug-counters)
 * [3 Design](#3-design)
-    - [3.1 Config DB](#31-config-db)
-        - [3.1.1 DEBUG_COUNTER Table](#311-debug_counter-table)
-        - [3.1.2 PACKET_DROP_COUNTER_REASON Table](#312-packet_drop_counter_reason-table)
-    - [3.2 State DB](#32-state-db)
-        - [3.2.1 SAI APIs](#321-sai-apis)
-    - [3.3 SWSS](#33-swss)
-        - [3.3.1 SAI APIs](#331-sai-apis)
-    - [3.4 syncd](#34-syncd)
-    - [3.5 Counters DB](#35-counters-db)
-    - [3.6 CLI](#36-CLI)
-        - [3.6.1 CLI show](#361-cli-show)
-        - [3.6.2 CLI clear](#362-cli-clear)
-        - [3.6.3 CLI configuration](#363-cli-configuration)
+    - [3.1 CLI (and usage example)](#31-cli-and-usage-example)
+        - [3.1.1 Displaying available counter capabilities](#311-displaying-available-counter-capabilities)
+        - [3.1.2 Displaying current counter configuration](#312-displaying-current-counter-configuration)
+        - [3.1.3 Displaying the current counts](#313-displaying-the-current-counts)
+        - [3.1.4 Clearing the counts](#314-clearing-the-counts)
+        - [3.1.5 Configuring counters from the CLI](#315-configuring-counters-from-the-CLI)
+    - [3.2 Config DB](#32-config-db)
+        - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
+        - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
+    - [3.3 State DB](#32-state-db)
+        - [3.3.1 SAI APIs](#321-sai-apis)
+    - [3.4 Counters DB](#34-counters-db)
+    - [3.5 SWSS](#35-swss)
+        - [3.5.1 SAI APIs](#351-sai-apis)
+    - [3.6 syncd](#34-syncd)
 * [4 Flows](#4-flows)
     - [4.1 General Flow](#41-general-flow)
 * [5 Warm Reboot Support](#5-warm-reboot-support)
@@ -40,7 +42,6 @@
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
-* [Table 2: Types of Drop Counters](#11-types-of-drop-counters)
 
 # List of Figures
 * [Figure 1: General Flow](#41-general-flow)
@@ -64,9 +65,13 @@ This document describes the high level design of the configurable drop counter f
 | TX           | Transmit/egress |
 
 # 1 Overview
-The goal of this feature is to provide better packet drop visibility in SONiC by providing a mechanism to count and classify packet drops that occur due to different reasons. Because different types of packet drops are important to track in different use cases, it is also key for this feature to be easily configurable.
+The main goal of this feature is to provide better packet drop visibility in SONiC by providing a mechanism to count and classify packet drops that occur due to different reasons. 
 
-We will do this by adding support for SAI debug counters in SONiC. Support for creating and configuring port-level and switch-level debug counters will be added to orchagent and syncd. We will also provide a CLI tool for users create these counters to track drop reasons.
+The other goal of this feature is for users to be able to track the types of drop reasons that are important for their scenario. Because different users have different priorities, and because priorities change over time, it is important for this feature to be easily configurable.
+
+We will accomplish both goals by adding support for SAI debug counters to SONiC. 
+* Support for creating and configuring port-level and switch-level debug counters will be added to orchagent and syncd. 
+* A CLI tool will be provided for users to manage and configure their own drop counters
 
 # 2 Requirements
 
@@ -86,8 +91,9 @@ We will do this by adding support for SAI debug counters in SONiC. Support for c
 
 ## 2.2 Configuration and Management Requirements
 Configuration of the drop counters can be done via:
+* config_db.json 
+* minigraph.xml
 * CLI
-* JSON input
 
 ## 2.3 Scalability Requirements
 Users must be able to use all counters and drop reasons provided by the underlying hardware.
@@ -100,92 +106,79 @@ Users must be able to use all counters and drop reasons provided by the underlyi
 
 # 3 Design
 
-## 3.1 Config DB
-Two new tables will be added to Config DB:
-* DEBUG_COUNTER to store general debug counter metadata
-* DEBUG_COUNTER_DROP_REASON to store drop reasons for debug counters that have been configured to track packet drops
-
-### 3.1.1 DEBUG_COUNTER Table
-Example:
-```
-{
-    "DEBUG_COUNTER": {
-        "DEBUG_0": {
-            "alias": "PORT_RX_LEGIT",
-            "type": "PORT_INGRESS_DROPS",
-            "desc": "Legitimate port-level RX pipeline drops"
-        },
-        "DEBUG_1": {
-            "alias": "PORT_TX_LEGIT",
-            "type": "PORT_EGRESS_DROPS",
-            "desc": "Legitimate port-level TX pipeline drops"
-        },
-        "DEBUG_2": {
-            "alias": "SWITCH_RX_LEGIT",
-            "type": "SWITCH_INGRESS_DROPS",
-            "desc": "Legitimate switch-level RX pipeline drops"
-        }
-    }
-}
-```
-
-### 3.1.2 DEBUG_COUNTER_DROP_REASON Table
-Example:
-```
-{
-    "DEBUG_COUNTER_DROP_REASON": {
-        "DEBUG_0|SMAC_EQUALS_DMAC": {},
-        "DEBUG_0|INGRESS_VLAN_FILTER": {},
-        "DEBUG_1|EGRESS_VLAN_FILTER": {},
-        "DEBUG_2|TTL": {},
-    }
-}
-```
-
-## 3.2 State DB
-State DB will store information about:
-* Whether drop counters are available on this device
-* How many drop counters are available on this device
-* What drop reasons are supported by this device
-
-This information will be populated by the orchestrator (described later) on startup.
-
-### 3.2.1 SAI APIs
-We will use the following SAI APIs to get this information:
-* `sai_query_attribute_enum_values_capability` to query support for different types of counters
-* `sai_object_type_get_availability` to query the amount of available debug counters
-
-## 3.3 SWSS
-A new orchestrator will be created to handle debug counter creation and configuration. Specifically, this orchestrator will support:
-* Creating a new counter
-* Deleting existing counters
-* Adding drop reasons to an existing counter
-* Removing a drop reason from a counter
-
-### 3.3.1 SAI APIs
-This orchestrator will interact with the following SAI Debug Counter APIs:
-* `sai_create_debug_counter_fn` to create/configure new drop counters.
-* `sai_remove_debug_counter_fn` to delete/free up drop counters that are no longer being used.
-* `sai_get_debug_counter_attribute_fn` to gather information about counters that have been configured (e.g. index, drop reasons, etc.).
-* `sai_set_debug_counter_attribute_fn` to re-configure drop reasons for counters that have already been created.
-
-## 3.4 syncd
-Flex counter will be extended to support switch-level SAI counters.
-
-## 3.5 Counters DB
-The contents of the drop counters will be added to Counters DB by flex counters.
-
-## 3.6 CLI
+## 3.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
-* Show drop counts: ```show drops```
-* Clear drop counters: ```sonic-clear drops```
-* See drop counter config: ```show drops config```
-* Initialize a new drop counter: ```config drops init```
-* Add drop reasons to a drop counter: ```config drops add```
-* Remove drop reasons from a drop counter: ```config drops remove```
-* Delete a drop counter: ```config drops delete```
+* See available drop counter capabilities: `show drops available`
+* See drop counter config: `show drops config`
+* Show drop counts: `show drops`
+* Clear drop counters: `sonic-clear drops`
+* Initialize a new drop counter: `config drops init`
+* Add drop reasons to a drop counter: `config drops add`
+* Remove drop reasons from a drop counter: `config drops remove`
+* Delete a drop counter: `config drops delete`
 
-### 3.6.1 CLI show
+### 3.1.1 Displaying available counter capabilities
+```
+$ show drops available
+          TYPE  FREE  IN-USE
+--------------  ----  ------
+  PORT_INGRESS     2       1
+   PORT_EGRESS     2       1
+SWITCH_INGRESS     1       1
+ SWITCH_EGRESS     2       0
+
+$ show drops reasons
+PORT_INGRESS:
+    L2_ANY
+    SMAC_MULTICAST
+    SMAC_EQUALS_DMAC
+    INGRESS_VLAN_FILTER
+    EXCEEDS_L2_MTU
+    SIP_CLASS_E
+    SIP_LINK_LOCAL
+    DIP_LINK_LOCAL
+    UNRESOLVED_NEXT_HOP
+    DECAP_ERROR
+
+PORT_EGRESS:
+    L2_ANY
+    L3_ANY
+    A_CUSTOM_REASON
+
+SWITCH_INGRESS:
+    L2_ANY
+    SMAC_MULTICAST
+    SMAC_EQUALS_DMAC
+    SIP_CLASS_E
+    SIP_LINK_LOCAL
+    DIP_LINK_LOCAL
+
+SWITCH_EGRESS:
+    L2_ANY
+    L3_ANY
+    A_CUSTOM_REASON
+    ANOTHER_CUSTOM_REASON
+
+$ show drops reasons --type=PORT_EGRESS
+PORT_EGRESS:
+    L2_ANY
+    L3_ANY
+    A_CUSTOM_REASON
+
+```
+
+### 3.1.2 Displaying current counter configuration
+```
+$ show drops config
+Counter   Alias     Type            Reasons              Description
+--------  --------  --------------  -------------------  --------------
+DEBUG_0   RX_LEGIT  PORT_INGRESS    SMAC_EQUALS_DMAC     Legitimate port-level RX pipeline drops
+                                    INGRESS_VLAN_FILTER
+DEBUG_1   TX_LEGIT  PORT_EGRESS     EGRESS_VLAN_FILTER   Legitimate port-level TX pipeline drops
+DEBUG_2   RX_LEGIT  SWITCH_INGRESS  TTL                  Legitimate switch-level RX pipeline drops
+```
+
+### 3.1.3 Displaying the current counts
 
 ```
 $ show drops
@@ -221,61 +214,117 @@ $ show drops --contains "LEGIT"
 ABCDEFG-123-XYZ        U        2000
 ```
 
-### 3.6.2 CLI clear
+### 3.1.4 Clearing the counts
 ```
 $ sonic-clear drops
 ```
 
-### 3.6.3 CLI Configuration
+### 3.1.5 Configuring counters from the CLI
 ```
-$ show drops config
-Drop Counters: supported
-Available Counters: 4
+$ config drops init --counter="DEBUG_3" --alias="EXAMPLE" --type="SWITCH_EGRESS" --desc="example" --reasons=["L2_ANY", "L3_ANY"]
+Initializing DEBUG_3 as TX_LEGIT...
 
-Name      Type            Reasons              Description
---------  ------------    -------------------  --------------
-RX_LEGIT  PORT_INGRESS    SMAC_EQUALS_DMAC     Legitimate port-level RX pipeline drops
-                          INGRESS_VLAN_FILTER
-TX_LEGIT  PORT_EGRESS     EGRESS_VLAN_FILTER   Legitimate port-level TX pipeline drops
-RX_LEGIT  SWITCH_INGRESS  TTL                  Legitimate switch-level RX pipeline drops
- 
-$ config drops init --counter="DEBUG_3" --name="EXAMPLE" --type="SWITCH_EGRESS" --desc="example"
-Initializing DEBUG_3 as EXAMPLE...
-DONE!
+Counter   Alias     Type           Reasons  Description
+-------   --------  -------------  -------  -----------
+DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY   Legitimate switch-level TX pipeline drops
+                                   L3_ANY
 
-Name      Type           Reasons              Description
---------  -------------  -------------------  --------------
-EXAMPLE   SWITCH_EGRESS  NONE                 example
+$ config drops add --counter="DEBUG_3" --reasons=["A_CUSTOM_REASON", "ANOTHER_CUSTOM_REASON"]
+Configuring DEBUG_3...
 
-$ config drops add --counter=EXAMPLE --reason="SMAC_MULTICAST"
-Configuring EXAMPLE...
-DONE!
+Counter   Alias     Type           Reasons                Description
+-------   --------  -------------  ---------------------  -----------
+DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
+                                   L3_ANY
+                                   A_CUSTOM_REASON
+                                   ANOTHER_CUSTOM_REASON
 
-Name      Type           Reasons              Description
---------  -------------  -------------------  --------------
-EXAMPLE   SWITCH_EGRESS  SMAC_MULTICAST       example
+$ config drops remove --counter="DEBUG_3" --reasons=["A_CUSTOM_REASON"]
+Configuring DEBUG_3...
 
-$ config drops add --counter=EXAMPLE --reason="DMAC_RESERVED"
-Configuring EXAMPLE...
-DONE!
+Counter   Alias     Type           Reasons                Description
+-------   --------  -------------  ---------------------  -----------
+DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
+                                   L3_ANY
+                                   ANOTHER_CUSTOM_REASON
 
-Name      Type           Reasons              Description
---------  -------------  -------------------  --------------
-EXAMPLE   SWITCH_EGRESS  SMAC_MULTICAST       example
-                         DMAC_RESERVED
-
-$ config drops remove --counter=EXAMPLE --reason="DMAC_RESERVED"
-Configuring EXAMPLE...
-DONE!
-
-Name      Type           Reasons              Description
---------  -------------  -------------------  --------------
-EXAMPLE   SWITCH_EGRESS  SMAC_MULTICAST       example
-
-$ config drops delete --counter=EXAMPLE
-Deleting EXAMPLE...
-DONE!
+$ config drops delete --counter="DEBUG_3"
 ```
+
+## 3.2 Config DB
+Two new tables will be added to Config DB:
+* DEBUG_COUNTER to store general debug counter metadata
+* DEBUG_COUNTER_DROP_REASON to store drop reasons for debug counters that have been configured to track packet drops
+
+### 3.2.1 DEBUG_COUNTER Table
+Example:
+```
+{
+    "DEBUG_COUNTER": {
+        "DEBUG_0": {
+            "alias": "PORT_RX_LEGIT",
+            "type": "PORT_INGRESS_DROPS",
+            "desc": "Legitimate port-level RX pipeline drops"
+        },
+        "DEBUG_1": {
+            "alias": "PORT_TX_LEGIT",
+            "type": "PORT_EGRESS_DROPS",
+            "desc": "Legitimate port-level TX pipeline drops"
+        },
+        "DEBUG_2": {
+            "alias": "SWITCH_RX_LEGIT",
+            "type": "SWITCH_INGRESS_DROPS",
+            "desc": "Legitimate switch-level RX pipeline drops"
+        }
+    }
+}
+```
+
+### 3.2.2 DEBUG_COUNTER_DROP_REASON Table
+Example:
+```
+{
+    "DEBUG_COUNTER_DROP_REASON": {
+        "DEBUG_0|SMAC_EQUALS_DMAC": {},
+        "DEBUG_0|INGRESS_VLAN_FILTER": {},
+        "DEBUG_1|EGRESS_VLAN_FILTER": {},
+        "DEBUG_2|TTL": {},
+    }
+}
+```
+
+## 3.3 State DB
+State DB will store information about:
+* What types of drop counters are available on this device
+* How many drop counters are available on this device
+* What drop reasons are supported by this device
+
+This information will be populated by the orchestrator (described later) on startup.
+
+### 3.3.1 SAI APIs
+We will use the following SAI APIs to get this information:
+* `sai_query_attribute_enum_values_capability` to query support for different types of counters
+* `sai_object_type_get_availability` to query the amount of available debug counters
+
+## 3.4 Counters DB
+The contents of the drop counters will be added to Counters DB by flex counters.
+
+## 3.5 SWSS
+A new orchestrator will be created to handle debug counter creation and configuration. Specifically, this orchestrator will support:
+* Creating a new counter
+* Deleting existing counters
+* Adding drop reasons to an existing counter
+* Removing a drop reason from a counter
+
+### 3.5.1 SAI APIs
+This orchestrator will interact with the following SAI Debug Counter APIs:
+* `sai_create_debug_counter_fn` to create/configure new drop counters.
+* `sai_remove_debug_counter_fn` to delete/free up drop counters that are no longer being used.
+* `sai_get_debug_counter_attribute_fn` to gather information about counters that have been configured (e.g. index, drop reasons, etc.).
+* `sai_set_debug_counter_attribute_fn` to re-configure drop reasons for counters that have already been created.
+
+## 3.6 syncd
+Flex counter will be extended to support switch-level SAI counters.
 
 # 4 Flows
 ## 4.1 General Flow
