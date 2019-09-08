@@ -342,7 +342,7 @@ ip address add 192.168.0.1/24 dev Ethernet64.10
 ```
 
 Please note that the use of iproute2 package is internal to SONiC, specifically IntfMgrd.
-Users should always use SONiC CLIs defined in Section 4 to manage sub port interfaces in order to have an event flowing properly across all compoments and DBs shown in Section 3.
+Users should always use SONiC CLIs defined in Section 4 to manage sub port interfaces in order to have an event flowing properly across all components and DBs shown in Section 3.
 The direct use of iproute2 commands, e.g., `ip link` and `ip address`, by users are not recommended.
 
 ### 2.5.2 Route, neighbor subsystems
