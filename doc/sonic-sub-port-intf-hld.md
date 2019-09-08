@@ -44,7 +44,7 @@
     * [9.1 Difference between a sub port interface and a vlan interface](#91-difference-between-a-sub-port-interface-and-a-vlan-interface)
   * [10 Open questions](#10-open-questions)
   * [11 Acknowledgment](#11-acknowledgment)
-  * [12 References](#9-references)
+  * [12 References](#12-references)
 
 <!-- /TOC -->
 
@@ -282,7 +282,7 @@ sai_status_t status = create_router_interface(&rif_id, switch_oid, sub_intf_attr
 ```
 
 ### 2.4.2 Runtime change on sub port interface attributes
-### 2.4.2.1 Supported attributes
+### 2.4.2.1 SAI-supported attributes
 The following attributes are supported in SAI spec to be changed at run time.
 
 | SAI attributes                                        | attribute value/type                         |
@@ -543,4 +543,10 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
 
-[3] Sub port interface implementation https://github.com/Azure/sonic-swss/pull/969
+[3] Sub port interface schema https://github.com/Azure/sonic-swss-common/pull/284
+
+[4] Sub port interface implementation https://github.com/Azure/sonic-swss/pull/969
+
+[5] Use dot1p in packet 802.1q tag to map a packet to traffic class (TC) inside a switch pipeline https://github.com/Azure/sonic-swss/pull/871; https://github.com/Azure/sonic-buildimage/pull/3412
+
+[6] Generate a CONFIG_DB with sub port interface config from minigraph https://github.com/Azure/sonic-buildimage/pull/3413
