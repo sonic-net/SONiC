@@ -429,6 +429,29 @@ Usage: config interface ip del <sub_port_interface_name> <ip_addr>
 ```
 
 ### 4.1.3 Change admin status on a sub port interface
+Current `config interface startup` and `shutdown` commands are extended to sub port interfaces to set admin status up and down, respectively, on a sub port interface.
+```
+Usage: config interface startup [OPTIONS] <interface_name>
+
+  Start up interface
+
+Options:
+  --help    Show this message and exit.
+```
+```
+Usage: config interface shutdown [OPTIONS] <interface_name>
+
+  Shut down interface
+
+Options:
+  --help    Show this message and exit.
+```
+```
+Usage: config interface startup <sub_port_interface_name>
+```
+```
+Usage: config interface shutdown <sub_port_interface_name>
+```
 
 ## 4.2 Show commands
 ```
