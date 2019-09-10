@@ -16,24 +16,29 @@
     * [2.3 STATE_DB](#23-state-db)
     * [2.4 SAI](#24-sai)
         * [2.4.1 Create a sub port interface](#241-create-a-sub-port-interface)
-        * [2.4.2 Set a sub port interface mtu](#242-set-a-sub-port-interface-mtu)
+        * [2.4.2 Runtime change on sub port interface attributes](#242-runtime-change-on-sub-port-interface-attributes)
+            * [2.4.2.1 SAI-supported attributes](#2421-sai-supported-attributes)
+            * [2.4.2.2 Set a sub port interface admin status](#2422-set-a-sub-port-interface-admin-status)
         * [2.4.3 Remove a sub port interface](#243-remove-a-sub-port-interface)
     * [2.5 Linux integration](#25-linux-integration)
         * [2.5.1 Host sub port interfaces](#251-host-sub-port-interfaces)
         * [2.5.2 Route, neighbor subsystems](#252-route-neighbor-subsystems)
   * [3 Event flow diagrams](#3-event-flow-diagrams)
     * [3.1 Sub port interface creation](#31-sub-port-interface-creation)
-    * [3.2 Sub port interface runtime mtu change](#32-sub-port-interface-runtime-mtu-change)
+    * [3.2 Sub port interface runtime admin status change](#32-sub-port-interface-runtime-admin-status-change)
     * [3.3 Sub port interface removal](#33-sub-port-interface-removal)
   * [4 CLI](#4-cli)
     * [4.1 Config commands](#41-config-commands)
+        * [4.1.1 Config a sub port interface](#411-config-a-sub-port-interface)
+        * [4.1.2 Config IP address on a sub port interface](#412-config-ip-address-on-a-sub-port-interface)
+        * [4.1.3 Change admin status on a sub port interface](#413-change-admin-status-on-a-sub-port-interface)
     * [4.2 Show commands](#42-show-commands)
   * [5 Warm reboot support](#5-warm-reboot-support)
   * [6 Unit test](#6-unit-test)
     * [6.1 Sub port interface creation](#61-sub-port-interface-creation)
         * [6.1.1 Create a sub port interface](#611-create-a-sub-port-interface)
         * [6.1.2 Add an IP address to a sub port interface](#612-add-an-ip-address-to-a-sub-port-interface)
-    * [6.2 Sub port interface mtu change](#62-sub-port-interface-mtu-change)
+    * [6.2 Sub port interface admin status change](#62-sub-port-interface-admin-status-change)
     * [6.3 Sub port interface removal](#63-sub-port-interface-removal)
         * [6.3.1 Remove an IP address from a sub port interface](#631-remove-an-ip-address-from-a-sub-port-interface)
         * [6.3.2 Remove all IP addresses from a sub port interface](#632-remove-all-ip-addresses-from-a-sub-port-interface)
@@ -282,7 +287,7 @@ sai_status_t status = create_router_interface(&rif_id, switch_oid, sub_intf_attr
 ```
 
 ### 2.4.2 Runtime change on sub port interface attributes
-### 2.4.2.1 SAI-supported attributes
+#### 2.4.2.1 SAI-supported attributes
 The following attributes are supported in SAI spec to be changed at run time.
 
 | SAI attributes                                        | attribute value/type                         |
@@ -299,7 +304,7 @@ The following attributes are supported in SAI spec to be changed at run time.
 | SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION      | sai_packet_action_t                          |
 
 
-### 2.4.2.1 Set a sub port interface admin status
+#### 2.4.2.2 Set a sub port interface admin status
 ```
 sai_attribute_t sub_intf_attr;
 
@@ -422,6 +427,8 @@ Usage: config interface ip add [OPTIONS] <sub_port_interface_name> <ip_addr>
 ```
 Usage: config interface ip del [OPTIONS] <sub_port_interface_name> <ip_addr>
 ```
+
+### 4.1.3 Change admin status on a sub port interface
 
 ## 4.2 Show commands
 ```
@@ -547,6 +554,8 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 
 [4] Sub port interface implementation https://github.com/Azure/sonic-swss/pull/969
 
-[5] Use dot1p in packet 802.1q tag to map a packet to traffic class (TC) inside a switch pipeline https://github.com/Azure/sonic-swss/pull/871; https://github.com/Azure/sonic-buildimage/pull/3412
+[5] Use dot1p in packet 802.1q tag to map a packet to traffic class (TC) inside a switch pipeline https://github.com/Azure/sonic-swss/pull/871; https://github.com/Azure/sonic-buildimage/pull/3412; https://github.com/Azure/sonic-buildimage/pull/3422
 
 [6] Generate a CONFIG_DB with sub port interface config from minigraph https://github.com/Azure/sonic-buildimage/pull/3413
+
+[7] CLI to support sub port interface admin status change https://github.com/Azure/sonic-utilities/pull/638
