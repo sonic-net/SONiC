@@ -221,7 +221,7 @@ $ sonic-clear drops
 
 ### 3.1.5 Configuring counters from the CLI
 ```
-$ config drops init --counter="DEBUG_3" --alias="EXAMPLE" --type="SWITCH_EGRESS" --desc="example" --reasons=["L2_ANY", "L3_ANY"]
+$ config drops init --counter="DEBUG_3" --alias="TX_LEGIT" --type="SWITCH_EGRESS" --desc="Legitimate switch-level TX pipeline drops" --reasons=["L2_ANY", "L3_ANY"]
 Initializing DEBUG_3 as TX_LEGIT...
 
 Counter   Alias     Type           Reasons  Description
