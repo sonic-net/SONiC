@@ -219,6 +219,10 @@ INTF_TABLE:Ethernet64.10
 INTF_TABLE:Ethernet64.10:192.168.0.1/24
     "scope" : "global"
     "family": "IPv4"
+
+INTF_TABLE:Ethernet64.10:fc00::/7
+    "scope" : "global"
+    "family": "IPv6"
 ```
 
 ## 2.3 STATE_DB
