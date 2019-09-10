@@ -6,7 +6,7 @@
   - [1.4 Check xcvrd information in DB](#14-check-xcvrd-information-in-db)
   - [1.5 Sequential syncd/swss restart](#15-sequential-syncdswss-restart)
   - [1.6 Reload configuration](#16-reload-configuration)
-  - [1.7 COLD/WARM/FAST reboot](#17-coldwarmfast-reboot)
+  - [1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot](#17-coldwarmfastpower-offwatchdog-reboot)
   - [1.8 Check thermal sensors output using new OPTIC cables](#18-check-thermal-sensors-output-using-new-optic-cables)
   - [1.9 Manually plug in and pull out PSU modules](#19-manually-plug-in-and-pull-out-psu-modules)
   - [1.10 Manually plug in and pull out PSU power cord](#110-manually-plug-in-and-pull-out-psu-power-cord)
@@ -354,14 +354,26 @@ New automation required
 ### Automation
 Partly covered by existing automation. New automation required.
 
-## 1.7 COLD/WARM/FAST reboot
+## 1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot
 
 ### Steps
-* Perform cold/warm/fast reboot
+* Perform cold/warm/fast/power off/watchdog reboot
+  * cold/warm/fast reboot
+    * Make use of commands to reboot the switch
+  * watchdog reboot
+    * Make use of new platform api to reboot the switch
+  * power off reboot
+    * Make use of PDUs to power on/off DUT.
+    * Power on/off the DUT for (number of PSUs + 1) * 2 times
+      * Power on each PSU solely
+      * Power on all the PSUs simultaneously
+      * Delay 5 and 15 seconds between powering off and on in each test
 * After reboot, check:
   * status of services: syncd, swss
     * `sudo systemctl status syncd`
     * `sudo systemctl status swss`
+  * reboot cause:
+    * `show reboot-cause`
   * status of hw-management - **Mellanox specific**
     * `sudo systemctl status hw-management`
   * status of interfaces and port channels
@@ -375,6 +387,7 @@ Partly covered by existing automation. New automation required.
 ### Pass/Fail Criteria
 * After reboot, status of services, interfaces and transceivers should be normal:
   *  Services syncd and swss should be active(running)
+  *  Reboot cause should be correct
   *  Service hw-management should be active(exited) - **Mellanox specific**
   *  All interface and port-channel status should comply with current topology.
   *  All transcevers of ports specified in lab connection graph (`ansible/files/lab_connection_graph.xml`) should present.
