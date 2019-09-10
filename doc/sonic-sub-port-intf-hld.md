@@ -250,6 +250,10 @@ PORT_TABLE|Ethernet64.10
 INTERFACE_TABLE|Ethernet64.10|192.168.0.1/21
     "state" : "ok"
 ```
+```
+INTERFACE_TABLE|Ethernet64.10|fc00::/7
+    "state" : "ok"
+```
 
 ## 2.4 SAI
 SAI attributes related to a sub port interface are listed in the Table below.
