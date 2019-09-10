@@ -401,10 +401,10 @@ Commands:
   del       Remove a sub port interface
 ```
 ```
-Usage: config subinterface add [OPTIONS] <sub_port_interface_name>
+Usage: config subinterface add <sub_port_interface_name>
 ```
 ```
-Usage: config subinterface del [OPTIONS] <sub_port_interface_name>
+Usage: config subinterface del <sub_port_interface_name>
 ```
 
 ### 4.1.2 Config IP address on a sub port interface
@@ -422,10 +422,10 @@ Commands:
   del       Remove an IP address from the interface
 ```
 ```
-Usage: config interface ip add [OPTIONS] <sub_port_interface_name> <ip_addr>
+Usage: config interface ip add <sub_port_interface_name> <ip_addr>
 ```
 ```
-Usage: config interface ip del [OPTIONS] <sub_port_interface_name> <ip_addr>
+Usage: config interface ip del <sub_port_interface_name> <ip_addr>
 ```
 
 ### 4.1.3 Change admin status on a sub port interface
