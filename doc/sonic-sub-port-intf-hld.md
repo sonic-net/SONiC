@@ -18,7 +18,7 @@
         * [2.4.1 Create a sub port interface](#241-create-a-sub-port-interface)
         * [2.4.2 Runtime change on sub port interface attributes](#242-runtime-change-on-sub-port-interface-attributes)
             * [2.4.2.1 SAI-supported attributes](#2421-sai-supported-attributes)
-            * [2.4.2.2 Set a sub port interface admin status](#2422-set-a-sub-port-interface-admin-status)
+            * [2.4.2.2 Set sub port interface admin status](#2422-set-sub-port-interface-admin-status)
         * [2.4.3 Remove a sub port interface](#243-remove-a-sub-port-interface)
     * [2.5 Linux integration](#25-linux-integration)
         * [2.5.1 Host sub port interfaces](#251-host-sub-port-interfaces)
@@ -304,7 +304,7 @@ The following attributes are supported in SAI spec to be changed at run time.
 | SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION      | sai_packet_action_t                          |
 
 
-#### 2.4.2.2 Set a sub port interface admin status
+#### 2.4.2.2 Set sub port interface admin status
 ```
 sai_attribute_t sub_intf_attr;
 
