@@ -7,7 +7,7 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 1.0 | 22 Aug 2019 | Praveen Chaudhary  | Initial version                   |
- | 1.0 | 11 Sep 2019 | Partha Dutta       | Adding more steps for SONiC YANG  |
+ | 1.0 | 11 Sep 2019 | Partha Dutta       | Adding additional steps for SONiC YANG  |
 
 ## References
 | References 		    |     Date/Version    |   		    Link     	 	|
@@ -50,7 +50,7 @@ module sonic-acl {
 }
 ```
 
-### 2. Define namespace as "http://github.com/Azure/<model-name>" and define a shorter(preferably within 3-4 letters) namespace prefix. Use the prefix in XPath for referring to any node present in other model.
+### 2. Define namespace as "http://github.com/Azure/{model-name}" and define a shorter(preferably within 3-4 letters) namespace prefix. Use the prefix in XPath for referring to any node present in other model.
 
 Example :
 ####  YANG
@@ -344,7 +344,7 @@ container ACL_RULE {
 }
 ```
 
-### 12. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}. However, if needed use '*' for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
+### 12. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
 
 Example :
 
@@ -704,9 +704,13 @@ module sonic-port {
 
 
 
+
+
+
 ## APPENDIX
 
-### Sample SONiC YANG model
+### Sample SONiC ACL YANG
+
 ```
 module sonic-acl {
         namespace "http://github.com/Azure/sonic-acl";
