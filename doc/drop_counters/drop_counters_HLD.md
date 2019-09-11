@@ -26,8 +26,9 @@
     - [3.2 Config DB](#32-config-db)
         - [3.2.1 DEBUG_COUNTER Table](#321-debug_counter-table)
         - [3.2.2 PACKET_DROP_COUNTER_REASON Table](#322-packet_drop_counter_reason-table)
-    - [3.3 State DB](#32-state-db)
-        - [3.3.1 SAI APIs](#321-sai-apis)
+    - [3.3 State DB](#33-state-db)
+        - [3.3.1 DEBUG_COUNTER_CAPABILITIES Table](#331-debug-counter-capabilities-table)
+        - [3.3.2 SAI APIs](#332-sai-apis)
     - [3.4 Counters DB](#34-counters-db)
     - [3.5 SWSS](#35-swss)
         - [3.5.1 SAI APIs](#351-sai-apis)
@@ -96,7 +97,9 @@ Configuration of the drop counters can be done via:
 * CLI
 
 ## 2.3 Scalability Requirements
-Users must be able to use all counters and drop reasons provided by the underlying hardware.
+Users must be able to use all debug counters and drop reasons provided by the underlying hardware.
+
+Interacting with debug counters will not interfere with existing hardware counters (e.g. portstat). Likewise, interacting with existing hardware counters will not interfere with debug counter behavior.
 
 ## 2.4 Supported Debug Counters
 * PORT_INGRESS_DROPS: port-level ingress drop counters
@@ -299,9 +302,26 @@ State DB will store information about:
 * How many drop counters are available on this device
 * What drop reasons are supported by this device
 
+### 3.3.1 DEBUG_COUNTER_CAPABILITIES Table
+Example:
+```
+{
+    "DEBUG_COUNTER_CAPABILITIES": {
+        "SWITCH_INGRESS_DROPS": {
+            "count": 2,
+            "reasons": [L2_ANY, L3_ANY, SMAC_EQUALS_DMAC]
+        },
+        "SWITCH_EGRESS_DROPS": {
+            "count": 2,
+            "reasons": [L2_ANY, L3_ANY]
+        }
+    }
+}
+```
+
 This information will be populated by the orchestrator (described later) on startup.
 
-### 3.3.1 SAI APIs
+### 3.3.2 SAI APIs
 We will use the following SAI APIs to get this information:
 * `sai_query_attribute_enum_values_capability` to query support for different types of counters
 * `sai_object_type_get_availability` to query the amount of available debug counters
@@ -344,7 +364,7 @@ The overall workflow is shown above in figure 1.
 (6) (not shown) CLI uses State DB to display hardware capabilities (e.g. how many counters are available, supported drop reasons, etc.)
 
 # 5 Warm Reboot Support
-At this stage, debug counters will be deleted prior to warm reboot and re-installed when orchagent starts back up. This is intended to simplify upgrade behavior and conserve hardware resources during the warm reboot.
+On resource-constrained platforms, debug counters will be deleted prior to warm reboot and re-installed when orchagent starts back up. This is intended to conserve hardware resources during the warm reboot.
 
 # 6 Unit Tests
 A separate test plan will be uploaded and reviewed by the community. This will include both virtual switch tests to verify that ASIC_DB is configured correctly as well as pytest to verify overall system correctness.
