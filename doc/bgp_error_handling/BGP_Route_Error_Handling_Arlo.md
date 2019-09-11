@@ -1,5 +1,6 @@
 
 
+
   
 # BGP Route Install Error Handling
 # High Level Design Document
@@ -124,6 +125,8 @@ Commands:
   enable   Administratively Enable BGP error handling
   ```
   When the error-handling is disabled, fpmsyncd will not subcribe to any notification from ERROR_ROUTE_TABLE.  By default, the error-handling feature is disabled. During system reload, config replay for this feature is possible when the docker routing config mode is unified or split.
+ This feature can be turned off on demand. But it can affect the system stability. When the config was turned on, there may be some routes in BGP, for which, it is waiting for update from hardware. When the feature is turned off, we will unsubscribe from ERROR_DB and will no longer receive any notifications from hardware. Hence, some of the routes may not receive any notification from hardware.  
+It is recommended to restart the BGP docker when the config state is changed to disable from enable. By default, this config is disabled. If the config is changed from disable to enable, we do not need to restart the docker. But the feature will be affecting only those routes which will be learnt after enabling the feature.
   
 ### 3.7.3 Show Commands
 ```
@@ -212,6 +215,13 @@ __Figure 4: Module flow for route delete success/fail notification__
 
 
 # 6 Warm Boot Support
+There are two scenarios here. One is warm-reboot case and another is unplanned reboot (like bgp restart or docker restart due to cold reboot).  Note that in current sonic code, we don't retain routes learnt by Zebra across
+warm-reboot. 
+During warm reboot, fpmsyncd supports syncing of existing routes in APP_DB with newly learnt routes.  After warm reboot of BGP docker, BGP sends newly learnt routes to fpmsyncd. Since warm reboot is enabled, fpmsyncd will mark the existing db routes and send only the newly learnt routes to APP_DB. If BGP error-handling is enabled, for the routes which were same as before, we will send an implicit positive ACK to Zebra. 
+Before warm reboot, suppose, we had 5 routes sent by BGP to fpmsynd, out of them., 5th route failed to be installed in hardware. Zebra will delete the 5th route from kernel, APP_DB, ASIC_DB and ERROR_DB. After warm reboot, when fpmsyncd receives the 5 routes again from BGP, it will send add for the 5th route again (since 5th route was never present in APP_DB prior to warm reboot).
+During unplanned reboot, for the same 5 routes, suppose, fpmsyncd crashed before processing the add failure for the 5th route. Now, all the 5 routes are present in APP_DB and ASIC_DB. Since 
+the 5th route failed to be installed in hardware, it is present in ERROR_DB. When docker comes up again, orchagent will send the notification for the 5th route failure to fpmsyncd. fpmsyncd will send this message to Zebra. Zebra cleans the route from APP_DB and ASIC_DB. After the warm reboot timer expires, fpmsyncd will
+receive the implicit ACK for the remaining routes (routes which did not change during warm-reboot). If any route changes during warm-reboot, the route will be sent to orchagent for installation in hardware and ACK will take its normal flow.
 
 # 7 Scalability
 
