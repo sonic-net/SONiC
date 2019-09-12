@@ -1,6 +1,6 @@
 # Process and docker stats availability thorugh telemetry agent
 
-##Revision
+## Revision
 
 | Rev | Date     | Author      | Change Description |
 |:---:|:--------:|:-----------:|--------------------|
@@ -31,24 +31,24 @@ $ ps aux
 above output will be stored inside state-DB as follows:
 
 ProcessStats|4276
-"CPU"
-"0.0"
-"MEM"
-"0.1"
-"VSZ"
-"108816"
-"RSS"
-"5552"
-"TTY"
-"?"
-"STAT"
-"SI"
-"START"
-"00:39"
-"TIME"
-"0:01"
-"COMMAND"
-"containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc"
+"CPU"  
+"0.0"  
+"MEM"  
+"0.1"  
+"VSZ"  
+"108816"  
+"RSS"  
+"5552"  
+"TTY"  
+"?"  
+"STAT"  
+"SI"  
+"START"  
+"00:39"  
+"TIME"  
+"0:01"  
+"COMMAND"  
+"containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc"  
 
 ###### Docker stats
 
@@ -61,24 +61,24 @@ $ docker stats --no-stream -a
 
 above output will be stored inside state-DB as follows:
 
-DockerStats|4dc60c743348  
-"NAME"
-"snmp"
-"CPU%"
-"3.93"
-"MEM USAGE"
-"41.56MiB"
-"LIMIT"
-"7.784GiB"
-"MEM%"
-"0.52"
-"NET I"
-"0B"
-"NET O"
-"0B"
-"BLOCKI"
-"31.5MiB"
-"BLOCKO"
-"81.9KB"
-"PIDS"
-"7"
+DockerStats|4dc60c743348    
+"NAME"  
+"snmp"  
+"CPU%"  
+"3.93"  
+"MEM USAGE"  
+"41.56MiB"  
+"LIMIT"  
+"7.784GiB"  
+"MEM%"  
+"0.52"  
+"NET I"  
+"0B"  
+"NET O"  
+"0B"  
+"BLOCKI"  
+"31.5MiB"  
+"BLOCKO"  
+"81.9KB"  
+"PIDS"  
+"7"  
