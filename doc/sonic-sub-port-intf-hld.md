@@ -590,3 +590,5 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 [6] Generate a CONFIG_DB with sub port interface config from minigraph https://github.com/Azure/sonic-buildimage/pull/3413
 
 [7] CLI to support sub port interface admin status change https://github.com/Azure/sonic-utilities/pull/638
+
+[8] CLI to show subinterfaces status https://github.com/Azure/sonic-utilities/pull/642
