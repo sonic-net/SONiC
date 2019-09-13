@@ -107,6 +107,20 @@ The following figure shows the configuration and control flows for sFlow:
 5. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
 6. Sampling rate changes are updated in the SFLOW table. The sflowmgrd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs.
 
+Below figures explain the flow for different commands from CLI to SAI
+
+![alt text](../../images/sflow/sflow_enable.png "SONiC sFlow Enable command")
+
+![alt text](../../images/sflow/sflow_disable.png "SONiC sFlow Disable command")
+
+![alt text](../../images/sflow/sflow_intf_disable_all.png "SONiC Interface disable all command")
+
+![alt text](../../images/sflow/sflow_intf_disable.png "SONiC Interface enable/disable command")
+
+![alt text](../../images/sflow/sflow_intf_rate.png "SONiC Interface rate set command")
+
+![alt text](../../images/sflow/sflow_intf_rate.png "SONiC Interface rate set command")
+
 ### 6.3 **sFlow sample path**
 The following figure shows the sFlow sample packet path flow:
 
