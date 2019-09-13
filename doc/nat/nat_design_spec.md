@@ -55,13 +55,13 @@
   * [6 Warm Boot Support](#6-warm-boot-support)
   * [7 Scalability](#7-scalability)
   * [8 Unit Test](#8-unit-test)
-  * [9 Unsupported features](#9-unsupported-features)
+  * [9 To be done in future release](#9-to-be-done-in-future-release)
   
 # Revision
 
 | Rev |     Date    |       Author       | Change Description                  |
 |:---:|:-----------:|:-------------------|:-----------------------------------|
-| 0.1 |  05/22/2019 | Kiran Kella, <br> Akhilesh Samineni       | Initial version                     |
+| 0.2 |  09/09/2019 | Kiran Kella, <br> Akhilesh Samineni       | Initial version                     |
 
 
 # About this Manual
@@ -248,8 +248,8 @@ More details on the configuration of the Loopback IP as public IP is in the sect
 Twice NAT or Double NAT is a NAT variation where both the Source IP and the Destination IP addresses are modified as a packet crosses the address zones. It is typically used in  the communication between networks with overlapping private addresses.
 
 The configuration for Twice NAT/NAPT is achieved in 2 ways:
-- Putting two Static NAT/NAPT entries in the same Group ('twice_nat_id' value).
-- Putting a Dynamic NAT/NAPT Binding and a Static type NAT/NAPT entry in the same Group ('twice_nat_id' value).
+- Putting two Static NAT/NAPT entries (one SNAT and one DNAT) in the same Group ('twice_nat_id' value).
+- Putting a Dynamic Source NAT/NAPT Binding and a Static Source NAT/NAPT entry in the same Group ('twice_nat_id' value).
 
 When a host matching a dynamic NAT pool binding sends traffic to host with a matching DNAT Static NAT/NAPT entry in the same 'twice_nat_id' group, a bi-directional Twice NAT/NAPT entry is created for the traffic flow.
 
@@ -263,8 +263,8 @@ It is assumed that the Static or Dynamic NAT configurations do not include the i
 ## 3.1 Design overview
 The design overview at a high level is as below. The details are explained in the following subsections.
 - Configuration tables and schema for provisioning the static and dynamic NAT/NAPT entries.
-- Design is centered around the iptables and connection tracking modules in the kernel. 
-- NAT applications configures the NAT configuration rules using iptables in the kernel.
+- Design is centered around the iptables and connection tracking module in the kernel. 
+- NAT application configures the NAT configuration rules using iptables in the kernel.
 - The iptables and connection tracking modules in the kernel are leveraged to handle the NAT miss packets to create the NAT/NAPT entries, that are added to the hardware.
 
 ## 3.2 DB Changes
@@ -283,13 +283,13 @@ STATIC_NAPT|{{global_ip}}|{{ip_protocol}}|{{global_l4_port}}
 ```
 This config tells to do:
 - If the "nat_type" is 'dnat':
-  - DNAT translation of the DIP/DPORT in the IP packet from 'global_ip' address and 'global_port' to 'local_ip' address and 'local_l4_port' when the packet crosses the zones.
+  - DNAT translation of the DIP/DPORT in the IP packet from 'global_ip' address and 'global_port' to 'local_ip' address and 'local_l4_port'.
   - SNAT translation of the SIP/SPORT in the IP packet from 'local_ip' address and 'local_port'
   to 'global_ip' address and 'global_l4_port' when the packet crosses the zones.
 - If the "nat_type" is 'snat':
   - SNAT translation of the SIP/SPORT in the IP packet from 'global_ip' address and 'global_port' to 'local_ip' address and 'local_l4_port' when the packet crosses the zones.
   - DNAT translation of the DIP/DPORT in the IP packet from 'local_ip' address and 'local_port'
-  to 'global_ip' address and 'global_l4_port' when the packet crosses the zones.
+  to 'global_ip' address and 'global_l4_port'.
 - The default value of nat_type is 'dnat' if the option is not given.
 ```
 
@@ -304,11 +304,11 @@ STATIC_NAT|{{global_ip}}
 ```
 This config tells to do:
 - If the "nat_type" is 'dnat':
-  - DNAT translation of the DIP in the IP packet from 'global_ip' address to 'local_ip' address when the packet crosses the zones.
+  - DNAT translation of the DIP in the IP packet from 'global_ip' address to 'local_ip'.
   - SNAT translation of the SIP in the IP packet from 'local_ip' address to 'global_ip' address when the packet crosses the zones.
 - If the "nat_type" is 'snat':
   - SNAT translation of the SIP in the IP packet from 'global_ip' address to 'local_ip' address when the packet crosses the zones.
-  - DNAT translation of the DIP in the IP packet from 'local_ip' address to 'global_ip' address when the packet crosses the zones.
+  - DNAT translation of the DIP in the IP packet from 'local_ip' address to 'global_ip' address.
 - The default value of nat_type is 'dnat' if the option is not given.
 ```
 #### 3.2.1.3 NAT_GLOBAL Table
@@ -453,7 +453,7 @@ NAT_ZONE                     = 1*1DIGIT          ; a number in the range 0-3
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ### 3.2.3 APP DB
-New table is introduced to specify NAT translation entries.
+New tables are introduced to specify NAT translation entries.
 
 ```
 NAPT_TABLE:{{ip_protocol}}:{{ip}}:{{l4_port}}
@@ -541,7 +541,7 @@ NAT_UDP_TIMEOUT                = 1*6DIGIT         ; Timeout in secs (Range: 120 
 ```
 
 ### 3.2.5 COUNTERS DB
-The following new counters are available per zone:
+The following new counters are applicable per zone based on the support in the hardware.
 ```
 COUNTERS_NAT_ZONE:<zone-id>
     SAI_NAT_DNAT_DISCARDS
@@ -890,7 +890,9 @@ The NAT translation for the ICMP error messages is based on RFC 5508, Section 4.
 The ICMP NAT session timeout is 30 seconds as maintained by the Kernel.
 
 ## 3.5 Docker for NAT
-NatSyncd and NatMgrd daemons run in a separate docker named 'nat'. It can be stopped/started/restarted independently.
+NatSyncd and NatMgrd daemons run in a separate docker named 'nat'. It can be stopped/started/restarted independently. When the NAT docker is stopped, the following cleanup is done:
+- The iptable rules in the nat table and the conntrack tables are cleared.
+- The NAT/NAPT entries in the APP_DB and the ASIC_DB are cleared. 
 
 ```
 root@sonic:/home/admin# docker ps
@@ -957,7 +959,7 @@ nat_entry_attr[4].value.booldata = true;
 
 attr_count = 5;
 
-memset(&snat_etnry, 0, sizeof(nat_etnry));
+memset(&snat_entry, 0, sizeof(nat_entry));
 
 snat_entry.data.key.src_ip = 20.0.0.1;
 snat_entry.data.mask.src_ip = 0xffffffff;
@@ -992,7 +994,7 @@ nat_entry_attr[5].value.booldata = true;
 
 attr_count = 5;
 
-memset(&dnat_etnry, 0, sizeof(nat_etnry));
+memset(&dnat_entry, 0, sizeof(nat_entry));
 
 dnat_entry.data.key.dst_ip = 65.55.42.1;
 dnat_entry.data.mask.dst_ip = 0xffffffff;
@@ -1153,7 +1155,7 @@ get_nat_entry_attributes(snat_entry, attr_count, nat_entry_attr);
 ```
 
 ## 3.7 Statistics
-The following NAT counters are provided per zone:
+The following NAT counters are applicable per zone:
 
 DNAT_DISCARDS/SNAT_DISCARDS – If Packet is not TCP/UDP and/or is a fragmentated IP packet. 
 DNAT_TRANSLATION_NEEDED/SNAT_TRANSLATION_NEEDED – If there is NAT table lookup miss for TCP/UDP packets.
@@ -1205,6 +1207,7 @@ N/A
 | show nat config globalvalues       | Use this command to display the global NAT configuration |
 | show nat config zones      | Use this command to display the L3 interface zone values |
 | show nat translations count      | Use this command to display the NAT entries count |
+| show nat config | Use this command to display all the NAT configuration |
 
 Example:
 ```
@@ -1215,8 +1218,13 @@ Static NAPT Entries       ................. 2
 Dynamic NAT Entries       ................. 0
 Dynamic NAPT Entries      ................. 4
 Static Twice NAT Entries  ................. 0
-Static Twice NAPT Entries ................. 2
-Total Entries             ................. 12
+Static Twice NAPT Entries ................. 4
+Dynamic Twice NAT Entries  ................ 0
+Dynamic Twice NAPT Entries ................ 0
+Total SNAT/SNAPT Entries   ................ 9
+Total DNAT/DNAPT Entries   ................ 9
+Total Entries              ................ 14
+
 
 Protocol Source           Destination       Translated Source  Translated Destination
 -------- ---------        --------------    -----------------  ----------------------
@@ -1242,8 +1250,12 @@ Static NAPT Entries       ................. 2
 Dynamic NAT Entries       ................. 0
 Dynamic NAPT Entries      ................. 4
 Static Twice NAT Entries  ................. 0
-Static Twice NAPT Entries ................. 2
-Total Entries             ................. 12
+Static Twice NAPT Entries ................. 4
+Dynamic Twice NAT Entries  ................ 0
+Dynamic Twice NAPT Entries ................ 0
+Total SNAT/SNAPT Entries   ................ 9
+Total DNAT/DNAPT Entries   ................ 9
+Total Entries              ................ 14
 
 Router#show nat statistics
 
@@ -1301,13 +1313,10 @@ Router#show nat config globalvalues
 | sonic-clear nat statistics   | Use this command to clear the statistics of NAT operations in the system. |
 
 ### 3.8.5 Debug commands
-Debug commands will be available once the debug framework is ready.
+Debug commands will be available once the debug framework is approved.
 
-Debug commands are needed to dump:
-
-- Internal cache of NAT entries (with all state information) in the NatOrch.
-- The pending queue of unprocessed events from APP_DB, in the NatOrch.
-- Operational data in NatMgrd.
+Debug command is needed to dump:
+- Internal cache of NAT, NAPT, Twice NAT, Twice NAPT entries (with all state information) in the NatOrch.
 
 ### 3.8.6 REST API Support
 N/A
@@ -1500,7 +1509,7 @@ The Unit test case one-liners are as below:
 | 17 | Verify that the active NAT entries are not timed out by the Orchagent.                                                                                                                                                                |
 | 18 | Verify that the static NAT entries are not timed out though they are inactive.                                                                                                                                                        |
 | 19 | Verify the inactivity timeout with different configured timeouts.                                                                                                                                                                     |
-| 20 | Verify that the NAT zone configuration (on L3 interface) are picked up by NatMgrd and propagated to APP_DB.                                                                          |
+| 20 | Verify that the NAT zone configuration are propagated to hardware.                                                                          |
 | 21 | Verify the outbound NAT translations to be working with traffic on VLAN or Ethernet or Port Channel L3 interfaces.                                                                                                                          |
 | 22 | Verify that the dynamic NAPT translations are applied only on the traffic permitted by the ACL in the binding and not applied on the traffic that are 'do_no_nat'.                                                                    |
 | 23 | Verify that the static NAPT entries are successfuly created in CONFIG_DB.                                                                                                                                                              |
@@ -1520,31 +1529,31 @@ The Unit test case one-liners are as below:
 | 37 | Send up to 1024 outbound traffic flows that trigger creation of 1024 dynamic NAT entries.                                                                                                                                              |
 | 38 | Send more than 1024 outbound traffic flows and check that the NAT entry creations beyond 1024 entries are not created.                                       |
 | 39 | Verify that timed-out entries are creating space for new NAT entries and again limited to 1024 maximum entries.                                                                                                 |
-| 40 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported.                                                                                                                                     |
-| 41 | Any dynamic memory allocation failures are handled gracefully.                                  |
+| 40 | Verify scaling beyond table limits and ensure the 'Table full' condition is reported by Nat OrchAgent.                                                                                                                                     |
+| 41 | Any dynamic memory allocation failures are handled gracefully.                                |
 | 42 | NatMgrd handles errors while programming iptables rules in the kernel by logging the error log messages.                                                                                                                              |
 | 43 | Error log when errors are seen in receiving netlink messages from conntrack by NatSyncd (for the dynamic NAPT entry notifications from the kernel).                                                                                   |
-| 44 | Error messages are logged if NatMrgd gets errors writing to APP_DB.                                                                                                                                                                    |
-| 45 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB.                                                                                                                                                              |
-| 46 | Error messages are logged if Syncd gets errors when writing to COUNTERS_DB.                                                                                                                                                            |
-| 47 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3). The queue assignment should be lower than protocol queues and higher than broadcast packets.             |
-| 48 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps).                                                                                                                                      |
-| 49 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
-| 50 | Verify the tracing of natmgrd at different log levels.                                                                                                                                                                                 |
-| 51 | Verify the tracing of natorch at different log levels.                                                                                                                                                                                |
-| 52 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
-| 53 | Verify NAT happens on ICMP traffic like ping, traceroute traffic.                                                                                                                               |
-| 54 | Verify NAT happens on TCP traffic like ssh, telnet and UDP traffic like TFTP.                                                                                                                               |
+| 44 | Error messages are logged if NatOrch gets errors when writing to ASIC_DB.                                                                                                                                                              |
+| 45 | Verify that the received NAT source miss and destination miss packets are 'trapped' to CPU on the right COS queue (Queue 3). The queue assignment should be lower than protocol queues and higher than broadcast packets.             |
+| 46 | Verify that the NAT source miss and destination miss packets are 'rate limited' to CPU (600pps).                                                                                                                                      |
+| 47 | Verify that dynamic NAT entries are learnt even during a BCAST/MCAST storm (at line rate).                                                                                                                                            |
+| 48 | Verify the tracing of natmgrd at different log levels.                                                                                                                                                                                 |
+| 49 | Verify the tracing of natorch at different log levels.                                                                                                                                                                                |
+| 50 | Execute the debug dump commands for dumping the internal operational data/state of NatOrch and NatMgrd.                                                                                                                               |
+| 51 | Verify NAT happens on ICMP traffic like ping, traceroute traffic.                                                                                                                               |
+| 52 | Verify NAT happens on TCP traffic like ssh, telnet and UDP traffic like TFTP.                                                                                                                               |
 
+# 9 To be done in future release
 
-# 9 Unsupported features
-Following features are not supported:
-- Subnet based NAT
-- Hairpinning traffic with NAT 
+Features planned for future releases:
+
+- Loopback IP as Public IP
+- Hairpinning traffic with NAT
+- VRF aware NAT 
 - Dynamic Destination NAT/NAPT based on the Pool and ACL bindings
 - Dynamic NAPT for protocol types other than TCP/UDP/ICMP. 
 - NAT64 to translate traffic between IPv6 and IPv4 hosts
-- VRF aware NAT
+- Subnet based NAT
 - NAT on fragmented IP packets arriving at the NAT router
 - Error handling of the failed NAT entries in the hardware
 - ALG support
