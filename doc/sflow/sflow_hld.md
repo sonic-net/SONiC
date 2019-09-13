@@ -10,6 +10,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 |v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
+|v0.6 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
