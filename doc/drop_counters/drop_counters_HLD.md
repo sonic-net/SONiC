@@ -173,12 +173,12 @@ PORT_EGRESS:
 ### 3.1.2 Displaying current counter configuration
 ```
 $ show drops config
-Counter   Alias     Type            Reasons              Description
---------  --------  --------------  -------------------  --------------
-DEBUG_0   RX_LEGIT  PORT_INGRESS    SMAC_EQUALS_DMAC     Legitimate port-level RX pipeline drops
-                                    INGRESS_VLAN_FILTER
-DEBUG_1   TX_LEGIT  PORT_EGRESS     EGRESS_VLAN_FILTER   Legitimate port-level TX pipeline drops
-DEBUG_2   RX_LEGIT  SWITCH_INGRESS  TTL                  Legitimate switch-level RX pipeline drops
+Counter   Alias     Group  Type            Reasons              Description
+--------  --------  -----  --------------  -------------------  --------------
+DEBUG_0   RX_LEGIT  LEGIT  PORT_INGRESS    SMAC_EQUALS_DMAC     Legitimate port-level RX pipeline drops
+                                           INGRESS_VLAN_FILTER
+DEBUG_1   TX_LEGIT  LEGIT  PORT_EGRESS     EGRESS_VLAN_FILTER   Legitimate port-level TX pipeline drops
+DEBUG_2   RX_LEGIT  LEGIT  SWITCH_INGRESS  TTL                  Legitimate switch-level RX pipeline drops
 ```
 
 ### 3.1.3 Displaying the current counts
@@ -204,7 +204,7 @@ $ show drops --type=PORT
  Ethernet8        U        0         0          0           0         0         0          0           0
 Ethernet12        U        0         0       1200         400         0         0          0           0
 
-$ show drops --contains "LEGIT"
+$ show drops --group "LEGIT"
           IFACE    STATE    RX_LEGIT    TX_LEGIT
 ---------------  -------  ----------  ---------- 
       Ethernet0        U           0           0       
@@ -224,32 +224,32 @@ $ sonic-clear drops
 
 ### 3.1.5 Configuring counters from the CLI
 ```
-$ config drops init --counter="DEBUG_3" --alias="TX_LEGIT" --type="SWITCH_EGRESS" --desc="Legitimate switch-level TX pipeline drops" --reasons=["L2_ANY", "L3_ANY"]
+$ config drops init --counter="DEBUG_3" --alias="TX_LEGIT" --group="LEGIT" --type="SWITCH_EGRESS" --desc="Legitimate switch-level TX pipeline drops" --reasons=["L2_ANY", "L3_ANY"]
 Initializing DEBUG_3 as TX_LEGIT...
 
-Counter   Alias     Type           Reasons  Description
--------   --------  -------------  -------  -----------
-DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY   Legitimate switch-level TX pipeline drops
-                                   L3_ANY
+Counter   Alias     Group  Type           Reasons  Description
+-------   --------  -----  -------------  -------  -----------
+DEBUG_3   TX_LEGIT  LEGIT  SWITCH_EGRESS  L2_ANY   Legitimate switch-level TX pipeline drops
+                                          L3_ANY
 
 $ config drops add --counter="DEBUG_3" --reasons=["A_CUSTOM_REASON", "ANOTHER_CUSTOM_REASON"]
 Configuring DEBUG_3...
 
-Counter   Alias     Type           Reasons                Description
--------   --------  -------------  ---------------------  -----------
-DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
-                                   L3_ANY
-                                   A_CUSTOM_REASON
-                                   ANOTHER_CUSTOM_REASON
+Counter   Alias     Group  Type           Reasons                Description
+-------   --------  -----  -------------  -------                -----------
+DEBUG_3   TX_LEGIT  LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
+                                          L3_ANY
+                                          A_CUSTOM_REASON
+                                          ANOTHER_CUSTOM_REASON
 
 $ config drops remove --counter="DEBUG_3" --reasons=["A_CUSTOM_REASON"]
 Configuring DEBUG_3...
 
-Counter   Alias     Type           Reasons                Description
--------   --------  -------------  ---------------------  -----------
-DEBUG_3   TX_LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
-                                   L3_ANY
-                                   ANOTHER_CUSTOM_REASON
+Counter   Alias     Group  Type           Reasons                Description
+-------   --------  -----  -------------  -------                -----------
+DEBUG_3   TX_LEGIT  LEGIT  SWITCH_EGRESS  L2_ANY                 Legitimate switch-level TX pipeline drops
+                                          L3_ANY
+                                          ANOTHER_CUSTOM_REASON
 
 $ config drops delete --counter="DEBUG_3"
 ```
@@ -267,17 +267,20 @@ Example:
         "DEBUG_0": {
             "alias": "PORT_RX_LEGIT",
             "type": "PORT_INGRESS_DROPS",
-            "desc": "Legitimate port-level RX pipeline drops"
+            "desc": "Legitimate port-level RX pipeline drops",
+            "group": "LEGIT"
         },
         "DEBUG_1": {
             "alias": "PORT_TX_LEGIT",
             "type": "PORT_EGRESS_DROPS",
             "desc": "Legitimate port-level TX pipeline drops"
+            "group": "LEGIT"
         },
         "DEBUG_2": {
             "alias": "SWITCH_RX_LEGIT",
             "type": "SWITCH_INGRESS_DROPS",
             "desc": "Legitimate switch-level RX pipeline drops"
+            "group": "LEGIT"
         }
     }
 }
@@ -345,6 +348,8 @@ This orchestrator will interact with the following SAI Debug Counter APIs:
 
 ## 3.6 syncd
 Flex counter will be extended to support switch-level SAI counters.
+
+Additionally, we will add a mapping from debug counter names to the appropriate port/switch stat index called COUNTERS_DEBUG_NAME_INDEX_MAP.
 
 # 4 Flows
 ## 4.1 General Flow
