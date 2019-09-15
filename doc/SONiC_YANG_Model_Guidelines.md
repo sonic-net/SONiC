@@ -31,7 +31,7 @@ These YANG models will be used to verify the configuration for SONiC switches, s
 [SONiC Management Framework](https://github.com/Azure/SONiC/pull/436) uses SONiC YANG models for configuration management in two ways :
 
 * As *custom Northbound Management YANG* in absence of standard YANG model and for configuration validation (CVL uses it).
-* As *CVL YANG* for configuration validation only, when standard YANG model (Openconfig, IETF etc.) is used as Northbound Management YANG. In such case steps 22 to 24 below can be skipped while developing SONiC YANG model.
+* As *CVL YANG* for configuration validation only, when standard YANG model (Openconfig, IETF etc.) is used as Northbound Management YANG. In such case steps #23 to #25 below can be skipped while developing SONiC YANG model.
 
 
 ## Guidelines
@@ -50,20 +50,29 @@ module sonic-acl {
 }
 ```
 
-### 2. Define namespace as "http://github.com/Azure/{model-name}" and define a shorter(preferably within 3-4 letters) namespace prefix. Use the prefix in XPath for referring to any node present in other model.
+
+### 2  It is best to categorize YANG Modules based on a networking components. For example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
+```
+sonic-acl.yang
+sonic-interface.yang
+sonic-port.yang
+sonic-vlan.yang
+```
+
+### 3. Define namespace as "http://github.com/Azure/{model-name}" and define a shorter(preferably within 3-4 letters) namespace prefix. Use the prefix in XPath for referring to any node present in other model.
 
 Example :
 ####  YANG
 ```
 module sonic-acl {
 	namespace "http://github.com/Azure/sonic-acl";
-	prefix sms;
+	prefix sacl;
 	.....
 	.....
 }
 ```
 
-### 3. Use 'revision' to record revision history whenever YANG model is changed. Updating revision with appropriate details helps tracking the changes in the model.
+### 4. Use 'revision' to record revision history whenever YANG model is changed. Updating revision with appropriate details helps tracking the changes in the model.
 
 Example :
 ```
@@ -85,17 +94,16 @@ module sonic-acl {
 }
 ```
 
-### 4. Each primary section of ABNF.json (i.e a dictionary in ABNF.json) for Example, VLAN, VLAN_MEMBER, INTERFACE  in ABNF.json will be mapped to a container in YANG model.
+### 5. Each primary section of ABNF.json (i.e a dictionary in ABNF.json) for example, VLAN, VLAN_MEMBER, INTERFACE  in ABNF.json will be mapped to a container in YANG model.
 
-Example: Table INTERFACE will translate to container INTERFACE.
+Example: Table VLAN will translate to container VLAN.
 
 #### ABNF
 
 ```
-"INTERFACE": {
-        "Ethernet112|2a04:fxxx:40:a709::xxx/126": {
-            "scope": "global",
-            "family": "IPv6"
+"VLAN": {
+        "Vlan100": {
+             "vlanid": "107"
         }
  }
 ```
@@ -104,13 +112,17 @@ will translate to:
 ####  YANG
 --
 ```
-container INTERFACE {
-.....
-.....
+container VLAN {  //"VLAN" mapped to a container
+ list VLAN_LIST {
+   key name;
+   leaf vlanid {
+      type uint16;
+   }
+ }
 }
 ```
 
-### 5. By default table is defined in CONFIG_DB, if needed use extension 'sonic-ext:db-name' for defining the table present in other Redis DB.
+### 6. By default table is defined in CONFIG_DB, if needed use extension 'sonic-ext:db-name' for defining the table present in other Redis DB.
 
 ####  YANG
 
@@ -122,7 +134,7 @@ sonic-ext:db-name "APPL_DB"; //table defined in APPL_DB
 }
 ```
 
-### 6. The default separator used in table key  is "|". If it is different, use 'sonic-ext:key-delim {separator};' YANG extension.
+### 7. The default separator used in table key  is "|". If it is different, use 'sonic-ext:key-delim {separator};' YANG extension.
 
 Example : 
 ```
@@ -135,10 +147,10 @@ container ACL_TABLE {
 }
 ```
 
-### 7. Each leaf in YANG module should have same name as corresponding key-fields in ABNF.json.
+### 8. Each leaf in YANG module should have same name (including their case) as corresponding key-fields in ABNF.json.
 
 Example:
-Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are .
+Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in ABNF.
 
 #### ABNF
 ```
@@ -164,7 +176,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are .
             }
 ```
 
-### 8. Use appropriate data type for each leaf. Use enum, range and pattern as needed for defining data syntax constraint. 'leaf-list' is defined when array of values are used. 
+### 9. Use appropriate data type for each leaf. Use enum, range and pattern as needed for defining data syntax constraint. 'leaf-list' is defined when array of values are used. 
 
 
 Example :
@@ -228,7 +240,19 @@ container ACL_TABLE {
 }
 ```
 
-### 9. Data Node/Object Hierarchy of the an objects in YANG models will be same as for all the fields at same hierarchy in Config DB. If any exception is created then it must be recorded properly with comment under object level in YANG models. To see an example of a comment, please refer Guideline # 19.
+### 10.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
+Example:
+```
+                    leaf SRC_IP {
+                        type inet:ipv4-prefix; <<<<
+                    }
+
+                    leaf DST_IP {
+                        type inet:ipv4-prefix;
+                    }
+```
+
+### 11. Data Node/Object Hierarchy of the an objects in YANG models will be same as for all the fields at same hierarchy in Config DB. If any exception is created then it must be recorded properly with comment under object level in YANG models. To see an example of a comment, please refer Guideline #20.
 
 For Example:
 
@@ -255,7 +279,7 @@ In YANG, "Family" of VLAN_INTERFACE and "IP_TYPE" of ACL_RULE is at same level.
 ```
 container VLAN_INTERFACE {
         description "VLAN_INTERFACE part of config_db.json";
-        list ..... {
+        list VLAN_INTERFACE_LIST {
             ......
             ......
             leaf family {
@@ -266,7 +290,7 @@ container VLAN_INTERFACE {
 
 container ACL_RULE {
         description "ACL_RULE part of config_db.json";
-        list ..... {
+        list ACL_RULE_LIST {
             ......
             ......
             leaf IP_TYPE {
@@ -276,14 +300,14 @@ container ACL_RULE {
 }
 ```
 
-### 10.  If an object is part of primary-key in ABNF.json, then it should be a key in YANG model. In YANG models, a primary-key from ABNF.json can be represented either as name of a Container object or as a key field in List object. Exception must be recorded in YANG Model with a comment in object field. To see an example of a comment, please refer Guideline # 19. Though, key names are not stored in Redis DB, use the same key name as defined in ABNF schema.
+### 12.  If an object is part of primary-key in ABNF.json, then it should be a key in YANG model. In YANG models, a primary-key from ABNF.json can be represented either as name of a Container object or as a key field in List object. Exception must be recorded in YANG Model with a comment in object field. To see an example of a comment, please refer Guideline #20. Though, key names are not stored in Redis DB, use the same key name as defined in ABNF schema.
 
 Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and ifname part of the key. So YANG model should have the same keys.
 
 #### ABNF
 ```
  "VLAN_MEMBER": {
-        "Vlan100|Ethernet0": {<<<< KEYS
+        "Vlan100|Ethernet0": { //<<<< KEYS
             "tagging_mode": "untagged"
         }
    }
@@ -296,12 +320,12 @@ key                 = VLAN_MEMBER_TABLE:"Vlan"vlanid:ifname ;
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
         list ..... {
-            key "vlanid ifname";<<<< KEYS
+            key "vlanid ifname";//<<<< KEYS
        }
 }
 ```
 
-### 11. If any key used in current table refers to other table, use leafref type for the key leaf definition. 
+### 13. If any key used in current table refers to other table, use leafref type for the key leaf definition. 
 
 Example : 
 #### ABNF
@@ -344,7 +368,7 @@ container ACL_RULE {
 }
 ```
 
-### 12. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
+### 14. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
 
 Example :
 
@@ -381,15 +405,8 @@ container QUEUE {
 }	
 ```
 
-### 13.  It is best to categorize YANG Modules based on a networking components. For Example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
-```
-sonic-acl.yang
-sonic-interface.yang
-sonic-port.yang
-sonic-vlan.yang
-```
 
-### 14. Mapping tables in Redis are defined using nested 'list'. Use 'sonic-ext:map-list "true";' to indicate that the 'list' is used for mapping table. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance.
+### 15. Mapping tables in Redis are defined using nested 'list'. Use 'sonic-ext:map-list "true";' to indicate that the 'list' is used for mapping table. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance.
 
 Example :
 
@@ -434,7 +451,7 @@ queue  = 1*DIGIT; queue index
 ```
 
 
-### 15. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
+### 16. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
 
 Example : 
 
@@ -475,13 +492,13 @@ container sonic-queue {
 
 			leaf scheduler {
 				type leafref {
-					path "/sch:sonic-scheduler/sch:SCHEDULER/sch:name";
+					path "/sch:sonic-scheduler/sch:SCHEDULER/sch:name"; //Reference to SCHEDULER table
 				}
 			}
 
 			leaf wred_profile {
 				type leafref {
-					path "/wrd:sonic-wred-profile/wrd:WRED_PROFILE/wrd:name";
+					path "/wrd:sonic-wred-profile/wrd:WRED_PROFILE/wrd:name"; // Reference to WRED_PROFILE table
 				}
 			}
 		}
@@ -489,7 +506,7 @@ container sonic-queue {
 }
 ```
 
-### 16. To establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met. For existing feature, code logic could be  reference point for deriving 'must' expression.
+### 17. To establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met. For existing feature, code logic could be  reference point for deriving 'must' expression.
 Example:
 
 ```
@@ -499,7 +516,7 @@ Example:
 	}
 ```
 
-### 17. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
+### 18. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
 
 Example:
 ```
@@ -521,7 +538,7 @@ module sonic-vlan {
 
 ```	
 
-### 18.  All must, when, pattern and enumeration constraints can be derived from .h files or from code. If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, Developer can put any additional constraint to stop invalid configuration. For new features, constraints may be derived based on low-level design document.
+### 19.  All must, when, pattern and enumeration constraints can be derived from .h files or from code. If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, Developer can put any additional constraint to stop invalid configuration. For new features, constraints may be derived based on low-level design document.
 
 For Example: Enumeration of IP_TYPE comes for aclorch.h
 ```
@@ -581,7 +598,7 @@ leaf L4_DST_PORT_RANGE {
         }
 }
 ```
-### 19. Comment all must, when and patterns conditions. See Example of comment below.
+### 20. Comment all must, when and patterns conditions. See example of comment below.
 Example:
 ```
 leaf family {
@@ -597,26 +614,12 @@ leaf family {
 ```
 
 
-
-### 20.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
-Example:
-```
-                    leaf SRC_IP {
-                        type inet:ipv4-prefix; <<<<
-                    }
-
-                    leaf DST_IP {
-                        type inet:ipv4-prefix;
-                    }
-```
-
-
 ### 21. If a List object is needed in YANG model to bundle multiple entries from a Table in ABNF.json, but this LIST is not a valid entry in config data, then we must define such list as <TABLE_NAME>_LIST .
 
 For Example: Below entries in PORTCHANNEL_INTERFACE Table must be part of List Object in YANG model, because variable number of entries may be present in config data. But there is no explicit list in config data. To support this, a list object with name PORTCHANNEL_INTERFACE_LIST should be added in YANG model.
 #### ABNF:
 ```
-PORTCHANNEL_INTERFACE": {
+"PORTCHANNEL_INTERFACE": {
         "PortChannel01|10.0.0.56/31": {},
         "PortChannel01|FC00::71/126": {},
         "PortChannel02|10.0.0.58/31": {},
@@ -638,7 +641,61 @@ container PORTCHANNEL_INTERFACE {
 }
 ```
 
-### 22. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data.
+### 22. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. Use "sonic-ext:table" extension if list name is not same as ABNF table name.
+
+Example : "INTERFACE" table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
+
+#### ABNF
+```
+"INTERFACE" : {
+	"Ethernet1" : {
+		"vrf-name": "vrf1"
+	}
+	"Ethernet1|10.184.230.211/31": {
+	}
+}
+```
+#### YANG
+```
+......
+container sonic-interface {
+	container INTERFACE {
+		list INTERFACE_LIST {  // 1st list
+    			key ifname;
+			
+			leaf ifname {
+				type leafref { 
+				......
+				}
+			}
+			leaf vrf-name {
+				type leafref { 
+				......
+				}
+			}
+    			......
+		}
+
+		list INTERFACE_IPADDR_LIST { //2nd list
+  			sonic-ext:table INTERFACE; // which Redis table to refer to create this list instance
+   			key ifname, ip_addr;
+			
+  			leaf ifname {
+				type leafref { 
+				......
+				}
+			}
+  			leaf ip_addr {
+      				  type inet:ipv4-prefix;
+  			}
+			......
+		}
+	} 
+} 
+......
+```
+
+### 23. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data.
 
 Example:
 ```
@@ -662,7 +719,7 @@ container ACL_RULE {
 }
 ```
 
-### 23. Define custom RPC for executing command like clear, reset etc. No configuration should change through such RPCs. Define 'input and 'output' as needed, however they are optional.
+### 24. Define custom RPC for executing command like clear, reset etc. No configuration should change through such RPCs. Define 'input and 'output' as needed, however they are optional.
 
 Example:
 ```
@@ -683,7 +740,7 @@ container sonic-acl {
 }
 ```
 
-### 24. Define Notification for sending out events generated in the system, e.g. link up/down or link failure event. 
+### 25. Define Notification for sending out events generated in the system, e.g. link up/down or link failure event. 
 
 Example:
 ```
@@ -700,7 +757,7 @@ module sonic-port {
 }
 ```
 
-### 25. Once YANG file is written, place it inside 'models/yang/' folder in 'sonic-mgmt-framework' framework repository.
+### 26. Once YANG file is written, place it inside 'models/yang/' folder in 'sonic-mgmt-framework' framework repository.
 
 
 
