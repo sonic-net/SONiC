@@ -75,6 +75,8 @@ module sonic-acl {
 ### 4. Use 'revision' to record revision history whenever YANG model is changed. Updating revision with appropriate details helps tracking the changes in the model.
 
 Example :
+
+#### YANG
 ```
 module sonic-acl {
 	revision 2019-09-02 {
@@ -242,6 +244,8 @@ container ACL_TABLE {
 
 ### 10.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
 Example:
+
+#### YANG
 ```
                     leaf SRC_IP {
                         type inet:ipv4-prefix; <<<<
@@ -368,7 +372,7 @@ container ACL_RULE {
 }
 ```
 
-### 14. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
+### 14. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}'. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
 
 Example :
 
@@ -509,6 +513,7 @@ container sonic-queue {
 ### 17. To establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met. For existing feature, code logic could be  reference point for deriving 'must' expression.
 Example:
 
+#### YANG
 ```
 	must "(/sonic-ext:operation/sonic-ext:operation != 'DELETE') or " +
 		"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
@@ -519,6 +524,8 @@ Example:
 ### 18. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
 
 Example:
+
+#### YANG
 ```
 module sonic-vlan {
 	....
@@ -536,7 +543,7 @@ module sonic-vlan {
 	....
 }
 
-```	
+```
 
 ### 19.  All must, when, pattern and enumeration constraints can be derived from .h files or from code. If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, Developer can put any additional constraint to stop invalid configuration. For new features, constraints may be derived based on low-level design document.
 
@@ -600,6 +607,8 @@ leaf L4_DST_PORT_RANGE {
 ```
 ### 20. Comment all must, when and patterns conditions. See example of comment below.
 Example:
+
+#### YANG
 ```
 leaf family {
                 /* family leaf needed for backward compatibility
@@ -698,6 +707,8 @@ container sonic-interface {
 ### 23. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data.
 
 Example:
+
+#### YANG
 ```
 container ACL_RULE {
 	list  ACL_RULE_LIST {
@@ -722,6 +733,8 @@ container ACL_RULE {
 ### 24. Define custom RPC for executing command like clear, reset etc. No configuration should change through such RPCs. Define 'input and 'output' as needed, however they are optional.
 
 Example:
+
+#### YANG
 ```
 container sonic-acl {
 	....
@@ -743,6 +756,8 @@ container sonic-acl {
 ### 25. Define Notification for sending out events generated in the system, e.g. link up/down or link failure event. 
 
 Example:
+
+#### YANG
 ```
 module sonic-port {
 	....
