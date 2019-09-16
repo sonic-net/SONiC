@@ -79,7 +79,35 @@ Provide management framework get support to existing SONiC capabilities with res
 ### 3.6.1 Data Models
 The following open config YANG model is used to implement get support for ARP/NDP entries.
 [https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-ip.yang#L1205](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-ip.yang#L1205)
-
+```
+module: openconfig-if-ip
+  augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface:
+    +--rw ipv4
+       +--rw neighbors
+       |  +--rw neighbor* [ip]
+       |     +--rw ip        -> ../config/ip
+       |     +--rw config
+       |     |  +--rw ip?                   oc-inet:ipv4-address
+       |     |  +--rw link-layer-address    oc-yang:phys-address
+       |     +--ro state
+       |        +--ro ip?                   oc-inet:ipv4-address
+       |        +--ro link-layer-address    oc-yang:phys-address
+       |        +--ro origin?               neighbor-origin
+augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface:
+    +--rw ipv6
+       +--rw neighbors
+       |  +--rw neighbor* [ip]
+       |     +--rw ip        -> ../config/ip
+       |     +--rw config
+       |     |  +--rw ip?                   oc-inet:ipv6-address
+       |     |  +--rw link-layer-address    oc-yang:phys-address
+       |     +--ro state
+       |        +--ro ip?                   oc-inet:ipv6-address
+       |        +--ro link-layer-address    oc-yang:phys-address
+       |        +--ro origin?               neighbor-origin
+       |        +--ro is-router?            empty
+       |        +--ro neighbor-state?       enumeration
+```
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
 #### 3.6.2.2 Show Commands
