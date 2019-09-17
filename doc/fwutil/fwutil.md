@@ -41,9 +41,11 @@ This document provides general information about FW utility implementation in SO
 
 ## Revision
 
-| Rev | Date       | Author         | Description     |
-|:---:|:----------:|:--------------:|:----------------|
-| 0.1 | 21/08/2019 | Nazarii Hnydyn | Initial version |
+| Rev | Date       | Author         | Description                       |
+|:---:|:----------:|:--------------:|:----------------------------------|
+| 0.1 | 21/08/2019 | Nazarii Hnydyn | Initial version                   |
+| 0.2 | 10/09/2019 | Nazarii Hnydyn | Review feedback and other changes |
+| 0.3 | 17/09/2019 | Nazarii Hnydyn | Align flows with the platform API |
 
 ## Abbreviations
 
