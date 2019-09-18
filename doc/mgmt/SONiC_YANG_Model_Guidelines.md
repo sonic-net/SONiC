@@ -51,7 +51,7 @@ module sonic-acl {
 ```
 
 
-### 2  It is best to categorize YANG Modules based on a networking components. For example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
+### 2.  It is best to categorize YANG Modules based on a networking components. For example, it is good to have separate modules for VLAN,  ACL, PORT and IP-ADDRESSES etc.
 ```
 sonic-acl.yang
 sonic-interface.yang
@@ -125,20 +125,7 @@ container VLAN {  //"VLAN" mapped to a container
 ```
 
 
-### 6. The default separator used in table key  is "|". If it is different, use 'sonic-ext:key-delim {separator};' YANG extension.
-
-Example : 
-```
-container ACL_TABLE {
-	list ACL_TABLE_LIST {
-		sonic-ext:key-delim ":";
-		.....
-		.....
-	}
-}
-```
-
-### 7. Each leaf in YANG module should have same name (including their case) as corresponding key-fields in ABNF.json.
+### 6. Each leaf in YANG module should have same name (including their case) as corresponding key-fields in ABNF.json.
 
 Example:
 Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in ABNF.
@@ -167,7 +154,7 @@ Leaf names are same PACKET_ACTION, IP_TYPE and PRIORITY, which are defined in AB
             }
 ```
 
-### 8. Use appropriate data type for each leaf. Use enum, range and pattern as needed for defining data syntax constraint. 'leaf-list' is defined when array of values are used. 
+### 7. Use appropriate data type for each leaf. Use enum, range and pattern as needed for defining data syntax constraint. 'leaf-list' is defined when array of values are used. 
 
 
 Example :
@@ -231,21 +218,21 @@ container ACL_TABLE {
 }
 ```
 
-### 9.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
+### 8.  Use IETF data types for leaf type first if applicable (RFC 6021) . Declare new type (say SONiC types) only if IETF type is not applicable. All SONiC Types must be part of same header type or common YANG model.
 Example:
 
 #### YANG
 ```
-                    leaf SRC_IP {
-                        type inet:ipv4-prefix; <<<<
-                    }
+	leaf SRC_IP {
+		type inet:ipv4-prefix; <<<<
+	}
 
-                    leaf DST_IP {
-                        type inet:ipv4-prefix;
-                    }
+	leaf DST_IP {
+		type inet:ipv4-prefix;
+	}
 ```
 
-### 10. Data Node/Object Hierarchy of the an objects in YANG models will be same as for all the fields at same hierarchy in Config DB. If any exception is created then it must be recorded properly with comment under object level in YANG models. To see an example of a comment, please refer to the step with heading as "Comment all must, when and patterns conditions." below.
+### 9. Data Node/Object Hierarchy of the an objects in YANG models will be same as for all the fields at same hierarchy in Config DB. If any exception is created then it must be recorded properly with comment under object level in YANG models. To see an example of a comment, please refer to the step with heading as "Comment all must, when and patterns conditions." below.
 
 For Example:
 
@@ -293,7 +280,7 @@ container ACL_RULE {
 }
 ```
 
-### 11.  If an object is part of primary-key in ABNF.json, then it should be a key in YANG model. In YANG models, a primary-key from ABNF.json can be represented either as name of a Container object or as a key field in List object. Exception must be recorded in YANG Model with a comment in object field. To see an example of a comment, please refer to the step with heading as "Comment all must, when and patterns conditions." below. Though, key names are not stored in Redis DB, use the same key name as defined in ABNF schema.
+### 10.  If an object is part of primary-key in ABNF.json, then it should be a key in YANG model. In YANG models, a primary-key from ABNF.json can be represented either as name of a Container object or as a key field in List object. Exception must be recorded in YANG Model with a comment in object field. To see an example of a comment, please refer to the step with heading as "Comment all must, when and patterns conditions." below. Though, key names are not stored in Redis DB, use the same key name as defined in ABNF schema.
 
 Example: VLAN_MEMBER dictionary in ABNF.json has both vlan-id and ifname part of the key. So YANG model should have the same keys.
 
@@ -318,7 +305,7 @@ container VLAN_MEMBER {
 }
 ```
 
-### 12. If any key used in current table refers to other table, use leafref type for the key leaf definition. 
+### 11. If any key used in current table refers to other table, use leafref type for the key leaf definition. 
 
 Example : 
 #### ABNF
@@ -361,45 +348,7 @@ container ACL_RULE {
 }
 ```
 
-### 13. Typically the default ABNF key pattern is '{table_name}|{key1}|{key2}'. However, if needed use ``'*'`` for repetitive key pattern e.g. 'sonic-ext:key-pattern QUEUE|({ifname},)*|{qindex}'. 
-
-Example :
-
-#### ABNF
-```
-##### Schema
-key  = "QUEUE:"port_name":queue_index' 
-```
-##### JSON
-```
-"QUEUE": {
-                "Ethernet0,Ethernet4,Ethernet8|0": {
-                        "scheduler": "[SCHEDULER|scheduler.1]"
-                }
-         }
-```
-#### YANG
-```
-container QUEUE {
-	list QUEUE_LIST {
-		key "ifname qindex";
-		scommon:key-pattern "QUEUE|({ifname},)*|{qindex}";
-		leaf ifname {
-			type leafref {
-				path "/prt:sonic-port/prt:PORT/prt:ifname";
-			}
-		}
-		leaf qindex {
-			type string {
-				pattern "[0-8]((-)[0-8])?";
-			}
-		}
-	}
-}	
-```
-
-
-### 14. Mapping tables in Redis are defined using nested 'list'. Use 'sonic-ext:map-list "true";' to indicate that the 'list' is used for mapping table. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance.
+### 12. Mapping tables in Redis are defined using nested 'list'. Use 'sonic-ext:map-list "true";' to indicate that the 'list' is used for mapping table. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance.
 
 Example :
 
@@ -444,7 +393,7 @@ queue  = 1*DIGIT; queue index
 ```
 
 
-### 15. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
+### 13. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
 
 Example : 
 
@@ -499,7 +448,7 @@ container sonic-queue {
 }
 ```
 
-### 16. To establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met. For existing feature, code logic could be  reference point for deriving 'must' expression.
+### 14. To establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met. For existing feature, code logic could be  reference point for deriving 'must' expression.
 Example:
 
 #### YANG
@@ -510,7 +459,7 @@ Example:
 	}
 ```
 
-### 17. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error reporting.
+### 15. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error reporting.
 
 Example:
 
@@ -534,7 +483,7 @@ module sonic-vlan {
 
 ```
 
-### 18.  All must, when, pattern and enumeration constraints can be derived from .h files or from code. If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, Developer can put any additional constraint to stop invalid configuration. For new features, constraints may be derived based on low-level design document.
+### 16.  All must, when, pattern and enumeration constraints can be derived from .h files or from code. If code has the possibility to have unknown behavior with some config, then we should put a constraint in YANG models objects. Also, Developer can put any additional constraint to stop invalid configuration. For new features, constraints may be derived based on low-level design document.
 
 For Example: Enumeration of IP_TYPE comes for aclorch.h
 ```
@@ -594,7 +543,7 @@ leaf L4_DST_PORT_RANGE {
         }
 }
 ```
-### 19. Comment all must, when and patterns conditions. See example of comment below.
+### 17. Comment all must, when and patterns conditions. See example of comment below.
 Example:
 
 #### YANG
@@ -612,7 +561,7 @@ leaf family {
 ```
 
 
-### 20. If a List object is needed in YANG model to bundle multiple entries from a Table in ABNF.json, but this LIST is not a valid entry in config data, then we must define such list as <TABLE_NAME>_LIST .
+### 18. If a List object is needed in YANG model to bundle multiple entries from a Table in ABNF.json, but this LIST is not a valid entry in config data, then we must define such list as <TABLE_NAME>_LIST .
 
 For Example: Below entries in PORTCHANNEL_INTERFACE Table must be part of List Object in YANG model, because variable number of entries may be present in config data. But there is no explicit list in config data. To support this, a list object with name PORTCHANNEL_INTERFACE_LIST should be added in YANG model.
 #### ABNF:
@@ -639,7 +588,7 @@ container PORTCHANNEL_INTERFACE {
 }
 ```
 
-### 21. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. 
+### 19. In some cases it may be required to split an ABNF table into multiple YANG lists based on the data stored in the ABNF table. 
 
 Example : "INTERFACE" table stores VRF names to which an interface belongs, also it stores IP address of each interface. Hence it is needed to split them into two different YANG lists.
 
@@ -692,8 +641,7 @@ container sonic-interface {
 ......
 ```
 
-### 22. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data. This step applies when SONiC YANG is used as Northbound YANG. If state data is defined in other DB than CONFIG_DB, use extension 'sonic-ext:db-name' for defining the table present in other Redis DB.
-
+### 20. Add read-only nodes for state data using 'config false' statement. Define a separate top level container for state data. If state data is defined in other DB than CONFIG_DB, use extension 'sonic-ext:db-name' for defining the table present in other Redis DB. The default separator used in table key  is "|", if it is different, use 'sonic-ext:key-delim {separator};' YANG extension. This step applies when SONiC YANG is used as Northbound YANG.
 
 Example:
 
@@ -701,6 +649,8 @@ Example:
 ```
 container ACL_RULE {
 	list  ACL_RULE_LIST {
+	sonic-ext:db-name "APPL_DB"; //For example only
+	sonic-ext:key-delim ":";     //For example only
 	....
 	....
 		container state {
@@ -719,7 +669,7 @@ container ACL_RULE {
 }
 ```
 
-### 23. Define custom RPC for executing command like clear, reset etc. No configuration should change through such RPCs. Define 'input' and 'output' as needed, however they are optional. This step applies when SONiC YANG is used as Northbound YANG.
+### 21. Define custom RPC for executing command like clear, reset etc. No configuration should change through such RPCs. Define 'input' and 'output' as needed, however they are optional. This step applies when SONiC YANG is used as Northbound YANG.
 
 Example:
 
@@ -742,7 +692,7 @@ container sonic-acl {
 }
 ```
 
-### 24. Define Notification for sending out events generated in the system, e.g. link up/down or link failure event. This step applies  when SONiC YANG is used as Northbound YANG.
+### 22. Define Notification for sending out events generated in the system, e.g. link up/down or link failure event. This step applies  when SONiC YANG is used as Northbound YANG.
 
 Example:
 
@@ -761,7 +711,7 @@ module sonic-port {
 }
 ```
 
-### 25. Once YANG file is written, place it inside 'src/models/yang/' folder in 'sonic-mgmt-framework' framework repository.
+### 23. Once YANG file is written, place it inside 'models/yang/' folder in 'sonic-mgmt-framework' framework repository.
 
 
 
@@ -774,235 +724,235 @@ module sonic-port {
 
 ```
 module sonic-acl {
-        namespace "http://github.com/Azure/sonic-acl";
-        prefix sacl;
-        yang-version 1.1;
+	namespace "http://github.com/Azure/sonic-acl";
+	prefix sacl;
+	yang-version 1.1;
 
-        import ietf-yang-types {
-                prefix yang;
-        }
+	import ietf-yang-types {
+		prefix yang;
+	}
 
-        import ietf-inet-types {
-                prefix inet;
-        }
+	import ietf-inet-types {
+		prefix inet;
+	}
 
-        import sonic-common {
-                prefix scommon;
-        }
+	import sonic-common {
+		prefix scommon;
+	}
 
-        import sonic-port {
-                prefix prt;
-        }
+	import sonic-port {
+		prefix prt;
+	}
 
-        import sonic-portchannel {
-                prefix spc;
-        }
+	import sonic-portchannel {
+		prefix spc;
+	}
 
-        import sonic-mirror-session {
-                prefix sms;
-        }
+	import sonic-mirror-session {
+		prefix sms;
+	}
 
-        import sonic-pf-limits {
-                prefix spf;
-        }
+	import sonic-pf-limits {
+		prefix spf;
+	}
 
-        organization
-                "SONiC";
+	organization
+		"SONiC";
 
-        contact
-                "SONiC";
+	contact
+		"SONiC";
 
-        description
-                "SONiC YANG ACL";
+	description
+		"SONiC YANG ACL";
 
-        revision 2019-09-11 {
-                description
-                        "Initial revision.";
-        }
+	revision 2019-09-11 {
+		description
+			"Initial revision.";
+	}
 
-      container sonic-acl {
-	  container ACL_TABLE {
-                list ACL_TABLE_LIST {
-                        key "aclname";
+	container sonic-acl {
+		container ACL_TABLE {
+			list ACL_TABLE_LIST {
+				key "aclname";
 
-                        leaf aclname {
-                                type string;
-                        }
+				leaf aclname {
+					type string;
+				}
 
-                        leaf policy_desc {
-                                type string {
-                                        length 1..255 {
-                                                error-app-tag policy-desc-invalid-length;
-                                        }
-                                }
-                        }
+				leaf policy_desc {
+					type string {
+						length 1..255 {
+							error-app-tag policy-desc-invalid-length;
+						}
+					}
+				}
 
-                        leaf stage {
-                                type enumeration {
-                                        enum INGRESS;
-                                        enum EGRESS;
-                                }
-                        }
+				leaf stage {
+					type enumeration {
+						enum INGRESS;
+						enum EGRESS;
+					}
+				}
 
-                        leaf type {
-                                type enumeration {
-                                        enum MIRROR;
-                                        enum L2;
-                                        enum L3;
-                                        enum L3V6;
-                                }
-                        }
+				leaf type {
+					type enumeration {
+						enum MIRROR;
+						enum L2;
+						enum L3;
+						enum L3V6;
+					}
+				}
 
-                        leaf-list ports {
-                                type union {
-                                        type leafref {
-                                                path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:ifname";
-                                        }
-                                        type leafref {
-                                                path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
-                                        }
-                                }
-                        }
-                }
+				leaf-list ports {
+					type union {
+						type leafref {
+							path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:ifname";
+						}
+						type leafref {
+							path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
+						}
+					}
+				}
 			}
-			
-			container ACL_RULE {
-                list ACL_RULE_LIST {
-                        key "aclname rulename";
-                        leaf aclname {
-                                type leafref {
-                                        path "../../../ACL_TABLE/ACL_TABLE_LIST/aclname";
-                                }
-                                must "(/scommon:operation/scommon:operation != 'DELETE') or " +
-                                        "(current()/../../../ACL_TABLE/ACL_TABLE_LIST[aclname=current()]/type = 'L3')" {
-                                                error-message "Type not staisfied.";
-                                }
-                        }
+		}
 
-                        leaf rulename {
-                                type string;
-                        }
+		container ACL_RULE {
+			list ACL_RULE_LIST {
+				key "aclname rulename";
+				leaf aclname {
+					type leafref {
+						path "../../../ACL_TABLE/ACL_TABLE_LIST/aclname";
+					}
+					must "(/scommon:operation/scommon:operation != 'DELETE') or " +
+						"(current()/../../../ACL_TABLE/ACL_TABLE_LIST[aclname=current()]/type = 'L3')" {
+							error-message "Type not staisfied.";
+						}
+				}
 
-                        leaf PRIORITY {
-                                type uint16 {
-                                        range "1..65535"{
-                                                error-message "Invalid ACL rule priority.";
-                                        }
-                                }
-                        }
+				leaf rulename {
+					type string;
+				}
 
-                        leaf RULE_DESCRIPTION {
-                                type string;
-                        }
+				leaf PRIORITY {
+					type uint16 {
+						range "1..65535"{
+							error-message "Invalid ACL rule priority.";
+					}
+					}
+				}
 
-                        leaf PACKET_ACTION {
-                                type enumeration {
-                                        enum FORWARD;
-                                        enum DROP;
-                                        enum REDIRECT;
-                                }
-                        }
+				leaf RULE_DESCRIPTION {
+					type string;
+				}
 
-                        leaf MIRROR_ACTION {
-                                type leafref {
-                                        path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:MIRROR_SESSION_LIST/sms:name";
-                                }
-                        }
+				leaf PACKET_ACTION {
+					type enumeration {
+						enum FORWARD;
+						enum DROP;
+						enum REDIRECT;
+					}
+				}
 
-                        leaf IP_TYPE {
-                                type enumeration {
-                                        enum ANY;
-                                        enum IP;
-                                        enum IPV4;
-                                        enum IPV4ANY;
-                                        enum NON_IPV4;
-                                        enum IPV6ANY;
-                                        enum NON_IPV6;
-                                }
-                        }
+				leaf MIRROR_ACTION {
+					type leafref {
+						path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:MIRROR_SESSION_LIST/sms:name";
+					}
+				}
 
-                        leaf IP_PROTOCOL {
-                                type uint8 {
-                                        range "1|2|6|17|46|47|51|103|115";
-                                }
-                        }
+				leaf IP_TYPE {
+					type enumeration {
+						enum ANY;
+						enum IP;
+						enum IPV4;
+						enum IPV4ANY;
+						enum NON_IPV4;
+						enum IPV6ANY;
+						enum NON_IPV6;
+					}
+				}
 
-                        leaf ETHER_TYPE {
-                                type string{
-                                        pattern "(0x88CC)|(0x8100)|(0x8915)|(0x0806)|(0x0800)|(0x86DD)|(0x8847)"{
-                                                error-message "Invalid ACL Rule Ether Type";
-                                                error-app-tag ether-type-invalid;
-                                        }
-                                }
-                        }
+				leaf IP_PROTOCOL {
+					type uint8 {
+						range "1|2|6|17|46|47|51|103|115";
+					}
+				}
 
-                        choice ip_src_dst {
-                                case ipv4_src_dst {
-                                        when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV4' or .='IPV4ANY'])";
-                                        leaf SRC_IP {
-                                                mandatory true;
-                                                type inet:ipv4-prefix;
-                                        }
-                                        leaf DST_IP {
-                                                mandatory true;
-                                                type inet:ipv4-prefix;
-                                        }
-                                }
-                                case ipv6_src_dst {
-                                        when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV6' or .='IPV6ANY'])";
-                                        leaf SRC_IPV6 {
-                                                mandatory true;
-                                                type inet:ipv6-prefix;
-                                        }
-                                        leaf DST_IPV6 {
-                                                mandatory true;
-                                                type inet:ipv6-prefix;
-                                        }
-                                }
-                        }
+				leaf ETHER_TYPE {
+					type string {
+						pattern "(0x88CC)|(0x8100)|(0x8915)|(0x0806)|(0x0800)|(0x86DD)|(0x8847)" {
+							error-message "Invalid ACL Rule Ether Type";
+							error-app-tag ether-type-invalid;
+						}
+					}
+				}
 
-                        choice src_port {
-                                case l4_src_port {
-                                        leaf L4_SRC_PORT {
-                                                type uint16;
-                                        }
-                                }
-                                case l4_src_port_range {
-                                        leaf L4_SRC_PORT_RANGE {
-                                                type string {
-                                                        pattern "[0-9]{1,5}(-)[0-9]{1,5}";
-                                                }
-                                        }
-                                }
-                        }
+				choice ip_src_dst {
+					case ipv4_src_dst {
+						when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV4' or .='IPV4ANY'])";
+						leaf SRC_IP {
+							mandatory true;
+							type inet:ipv4-prefix;
+						}
+						leaf DST_IP {
+							mandatory true;
+							type inet:ipv4-prefix;
+						}
+					}
+					case ipv6_src_dst {
+						when "boolean(IP_TYPE[.='ANY' or .='IP' or .='IPV6' or .='IPV6ANY'])";
+						leaf SRC_IPV6 {
+							mandatory true;
+							type inet:ipv6-prefix;
+						}
+						leaf DST_IPV6 {
+							mandatory true;
+							type inet:ipv6-prefix;
+						}
+					}
+				}
 
-                        choice dst_port {
-                                case l4_dst_port {
-                                        leaf L4_DST_PORT {
-                                                type uint16;
-                                        }
-                                }
-                                case l4_dst_port_range {
-                                        leaf L4_DST_PORT_RANGE {
-                                                type string {
-                                                        pattern "[0-9]{1,5}(-)[0-9]{1,5}";
-                                                }
-                                        }
-                                }
-                        }
+				choice src_port {
+					case l4_src_port {
+						leaf L4_SRC_PORT {
+							type uint16;
+						}
+					}
+					case l4_src_port_range {
+						leaf L4_SRC_PORT_RANGE {
+							type string {
+								pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+							}
+						}
+					}
+				}
 
-                        leaf TCP_FLAGS {
-                                type string {
-                                        pattern "0[xX][0-9a-fA-F]{2}[/]0[xX][0-9a-fA-F]{2}";
-                                }
-                        }
+				choice dst_port {
+					case l4_dst_port {
+						leaf L4_DST_PORT {
+							type uint16;
+						}
+					}
+					case l4_dst_port_range {
+						leaf L4_DST_PORT_RANGE {
+							type string {
+								pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+							}
+						}
+					}
+				}
 
-                        leaf DSCP {
-                                type uint8;
-                        }
-                }
-	    }
-        }
+				leaf TCP_FLAGS {
+					type string {
+						pattern "0[xX][0-9a-fA-F]{2}[/]0[xX][0-9a-fA-F]{2}";
+					}
+				}
+
+				leaf DSCP {
+					type uint8;
+				}
+			}
+		}
+	}
 }
 
 ```
