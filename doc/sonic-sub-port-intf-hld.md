@@ -592,3 +592,5 @@ Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Pr
 [7] CLI to support sub port interface admin status change https://github.com/Azure/sonic-utilities/pull/638
 
 [8] CLI to show subinterfaces status https://github.com/Azure/sonic-utilities/pull/642
+
+[8] CLI to add/del ip address on a sub port interface https://github.com/Azure/sonic-utilities/pull/651
