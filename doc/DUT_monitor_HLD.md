@@ -53,13 +53,16 @@ Newly introduced feature consists of:
   + pytest fixtures: dut_ssh, dut_monitor
   + DUTMonitorPlugin – class to be registered as plugin. Define pytest fixtures described above
   + DUTMonitorClient - class to control DUT monitoring over SSH
-+ Pytest plugin registers new option “--dut_monitor"
++ Pytest plugin register new options: "--dut_monitor", "--thresholds_file"
 + Python module - dut_monitor.py. Which is running on DUT and collects CPU, RAM and HDD data and writes it to the log files. There will be created three new files: cpu.log, ram.log, hdd.log.
 
 #### Updated directory structure
-+ ./sonic-mgmt/tests/thresholds.yml
-+ ./sonic-mgmt/tests/plugins/pytest_dut_monitor.py
-+ ./sonic-mgmt/tests/monitoring/dut_monitor.py
++ ./sonic-mgmt/tests/plugins/\_\_init__.yml
++ ./sonic-mgmt/tests/plugins/dut_monitor/thresholds.yml
++ ./sonic-mgmt/tests/plugins/dut_monitor/pytest_dut_monitor.py
++ ./sonic-mgmt/tests/plugins/dut_monitor/dut_monitor.py
++ ./sonic-mgmt/tests/plugins/dut_monitor/errors.py
++ ./sonic-mgmt/tests/plugins/dut_monitor/\_\_init__.py
 
 #### Thresholds overview
 To be able to verify that CPU, RAM or HDD utilization are not critical on the DUT, there is a need to define specific thresholds.
@@ -88,34 +91,70 @@ List of thresholds:
 ```Used disk space``` - integer value (percentage). Triggers when used disk space is >= to defined value.
 
 #### Thresholds configuration file
+Default thresholds are defined in ./sonic-mgmt/tests/plugins/dut_monitor/thresholds.yml file.
 
-As for now configuration files are stored in the sonic-mgmt/tests/ folder, thresholds config file, for now, can be stored here as well - ./sonic-mgmt/tests/thresholds.yml 
+The proposal is to define thresholds for specific platform and its hwsku. Below is template of "thresholds.yml" file, which has defined: general default thresholds, platform default thresholds, specific HWSKU thresholds.
 
-As different platforms have different hardware the proposal is to define thresholds per platform instead of common.
+If HWSKU is not defined for current DUT - platform thresholds will be used.
+
+If platform is not defined for current DUT - default thresholds will be used.
 
 ##### Thresholds template:
 ```code
-Platform X:
-    CPU_total: x
-    CPU_process: x
-    CPU_measure_duration: x
-    CPU_total_average: x
-    RAM_peak: x
-    RAM_delta: x
-    HDD_used: x
+default:
+  cpu_total: x
+  cpu_process: x
+  cpu_measure_duration: x
+  cpu_total_average: x
+  ram_peak: x
+  ram_delta: x
+  hdd_used: x
 
+platform X:
+  hwsku: A
+    cpu_total: x
+    cpu_process: x
+    cpu_measure_duration: x
+    cpu_total_average: x
+    ram_peak: x
+    ram_delta: x
+    hdd_used: x
+  ...
+  default:
+    cpu_total: 80
+    cpu_process: 70
+    cpu_measure_duration: 10
+    cpu_total_average: 90
+    ram_peak: 90
+    hdd_used: 75
 ...
 ```
 ##### Preliminary defaults
 Note: need to be tested to define accurately.
 
-    CPU_total: 90
-    CPU_process: 60
-    CPU_measure_duration: 10
-    CPU_total_average: 90
-    RAM_peak: 80
-    RAM_delta: 1
-    HDD_used: 80
+    cpu_total: 90
+    cpu_process: 60
+    cpu_measure_duration: 10
+    cpu_total_average: 90
+    ram_peak: 80
+    ram_delta: 1
+    hdd_used: 80
+
+##### How to tune thresholds
+1. User can pass its own thresholds file for test run using "--thresholds_file" pytest option. For example:
+```code
+py.test TEST_RUN_OPTIONS --thresholds_file THRESHOLDS_FILE_PATH
+```
+2. User can update thresholds directly in test case by using "dut_monitor" fixture.
+For example:
+```code
+dut_monitor["cpu_total"] = 80
+dut_monitor["ram_peak"] = 90
+...
+```
+3. Define thresholds for specific test groups.
+For specific test groups like scale, performance, etc. thresholds can be common. In such case "thresholds.yml" file can be created and placed next to the test module file. Pytest framework will automatically discover "thresholds.yml" file and will apply defined thresholds for current tests.
+
 
 ### Pytest plugin overview
 
@@ -126,6 +165,9 @@ To enable DUT monitoring for each test case the following pytest console option 
 dut_monitor.py module defines the following hooks:
 ##### pytest_addoption(parser)
 Register "--dut_monitor" option. This option used for trigger device monitoring.
+
+Register "--thresholds_file" option. This option takes path to the thresholds file.
+
 ##### pytest_configure(config)
 Check whether "--dut_monitor" option is used, if so register DUTMonitorPlugin class as pytest plugin.
 ##### pytest_unconfigure(config)
