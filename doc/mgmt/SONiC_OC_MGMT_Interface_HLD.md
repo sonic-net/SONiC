@@ -1,5 +1,5 @@
 # Feature Name
-Openconfig support for Management Interface via openconfig-interfaces.yang.
+Openconfig support for Physical and Management interfaces via openconfig-interfaces.yang.
 # High Level Design Document
 #### Rev 0.1
 
@@ -18,10 +18,10 @@ Openconfig support for Management Interface via openconfig-interfaces.yang.
 | 0.1 | 09/09/2019  |   Ravi Vasanthm     | Initial version                   |
 
 # About this Manual
-This document provides general information about openconfig support for Management interface handling in SONIC.
+This document provides general information about openconfig support for Physical and Management interfaces handling in SONIC.
 
 # Scope
-This document describes the high level design of openconfig support for Management interface handling feature. Call out any related design that is not covered by this document
+This document describes the high level design of openconfig support for Physical and Management interfaces handling feature. Call out any related design that is not covered by this document
 
 # Definition/Abbreviation
 
@@ -31,22 +31,23 @@ This document describes the high level design of openconfig support for Manageme
 | MGMT Intf                     | Management Interface                     |
 
 # 1 Feature Overview
-Currently SONIC does not support managing/configuring Management interface parameters via CLI, REST and GNMI. As part of this feature will be providing config set/get and status get support for Management interface via openconfig-interfaces.yang.
+This feature will provide config set/get and status get support for Physical and Management interfaces according to the openconfig-interfaces.yang data model via CLI, REST, and gNMI.
+
+https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-interfaces.yang
 
 ## 1.1 Requirements
 
-![](http://10.59.132.240:9009/projects/csg_sonic/documentation/graphics/templates/test1.png)
 
 ### 1.1.1 Functional Requirements
 
-1. Provide CLI, REST and GNMI support for configuring and displaying management interface attributes.
-2. Enhance existing implementation of interfaces yang to include management interface handling.
-3. Enhance existing top level show commands for interfaces to include management interface details too.
+1. Provide CLI, REST and GNMI support for configuring and displaying physical and management interfaces attributes.
+2. Enhance existing implementation of interfaces yang to include physical and management interfaces handling.
+3. Enhance existing top level show commands for interfaces to include physical and management interfaces details too.
 
 
 ### 1.1.2 Configuration and Management Requirements
-1. Provide CLI/GNMI/REST support for configuring Management interface attributes.
-2. Provide CLI/GNMI/REST support for show Management  interface attributes/parameters.
+1. Provide CLI/GNMI/REST support for configuring Physical and Management interfaces attributes.
+2. Provide CLI/GNMI/REST support for show Physical and Management  interfaces attributes/parameters.
 
 
 ### 1.1.3 Scalability Requirements
@@ -55,7 +56,7 @@ N/A
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-Will be enhancing the management framework management backed code and transformer methods to add support for Management interface Handling.
+Will be enhancing the management framework backend and transformer methods to add support for Physical and  Management interfaces Handling.
 
 
 ### 1.2.2 Container
@@ -66,14 +67,14 @@ All code changes will be done in management-framework container.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Manage/configure management interface via GNMI, REST and CLI interfaces
+Manage/configure physical and management interfaces via GNMI, REST and CLI interfaces
 
 ## 2.2 Functional Description
-Provide GNMI and REST support for get/set of Management interface attributes and CLI config and show commands to manage Management interface.
+Provide GNMI and REST support for get/set of Physical and Management interfaces attributes and CLI config and show commands to manage Management interface.
 
 # 3 Design
 ## 3.1 Overview
-1. Transformer common app owns the openconfig-interface.yang models (which  means no separate app module required for interfaces yang objects handling) Will be deleting the existing interface app module.
+1. Transformer common app owns the openconfig-interface.yang models (which  means no separate app module required for interfaces yang objects handling). Will be deleting the existing interface app module.
 2. Provide annotations for required objects in interfaces and respective augmented models so that transformer core and common app will take care of handling interfaces objects.
 3. Provide transformer methods as per the annotations defined for interfaces and respective augmented models to take care of model specific logics and validations.
 
@@ -103,13 +104,13 @@ N/A
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 Can be reference to YANG if applicable. Also cover GNMI here.
-List of yang models will be need to add support for management interface management.
-1. openconfig-if-ethernet.yang
-2. openconfig-if-ip.yang
-3. openconfig-interfaces.yang
+List of yang models will be need to add support for physical and management interfaces.
+1. openconfig-if-ethernet.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ethernet.yang)
+2. openconfig-if-ip.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ip.yang)
+3. openconfig-interfaces.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-interfaces.yang)
 
 Supported yang objects and attributes:
-
+```diff
 module: openconfig-interfaces
 
     +--rw interfaces
@@ -176,7 +177,8 @@ module: openconfig-interfaces
           |  |  +--rw oc-eth:auto-negotiate?        boolean
           |  |  +--ro oc-eth:port-speed?               identityref
 
-
+```
+```
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
 1. interface Management <Interface Id>
@@ -201,7 +203,7 @@ sonic(conf-if-eth0)#
   no           Negate a command or set its defaults
   shutdown     Disable the interface
   speed        Configure speed
-
+```
 Note: To configure management interface, select  Management subcommand under config->interface command and provide the interface id(integer, for eth0 its 0 and so on). Once provided the interface ID, cli banner shows which management interface view user is at (sonic(conf-if-eth0)#). CLI backend/GNMI/REST clients should use actual interface names(eth<x>) for configuring or show.
 
 2. shutdown
