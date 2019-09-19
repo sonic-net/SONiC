@@ -300,7 +300,7 @@ key                 = VLAN_MEMBER_TABLE:"Vlan"vlanid:ifname ;
 container VLAN_MEMBER {
     description "VLAN_MEMBER part of config_db.json";
         list ..... {
-            key "vlanid ifname";//<<<< KEYS
+            key "vlan-name ifname";//<<<< KEYS
        }
 }
 ```
@@ -649,11 +649,13 @@ Example:
 ```
 container ACL_RULE {
 	list  ACL_RULE_LIST {
-	sonic-ext:db-name "APPL_DB"; //For example only
-	sonic-ext:key-delim ":";     //For example only
+
 	....
 	....
 		container state {
+			sonic-ext:db-name "APPL_DB"; //For example only
+			sonic-ext:key-delim ":";     //For example only
+			
 			config false;
 			description "State data";
 
