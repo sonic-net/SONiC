@@ -130,7 +130,6 @@ $ show drops available
 SWITCH_INGRESS     1       1
  SWITCH_EGRESS     2       0
 
-$ show drops reasons
 PORT_INGRESS:
     L2_ANY
     SMAC_MULTICAST
@@ -162,7 +161,11 @@ SWITCH_EGRESS:
     A_CUSTOM_REASON
     ANOTHER_CUSTOM_REASON
 
-$ show drops reasons --type=PORT_EGRESS
+$ show drops available --type=PORT_EGRESS
+          TYPE  TOTAL FREE  IN-USE
+--------------  ----- ----  ------
+   PORT_EGRESS      3    2       1
+
 PORT_EGRESS:
     L2_ANY
     L3_ANY
@@ -311,11 +314,13 @@ Example:
 {
     "DEBUG_COUNTER_CAPABILITIES": {
         "SWITCH_INGRESS_DROPS": {
-            "count": 2,
+            "total": 3,
+            "used":  1,
             "reasons": [L2_ANY, L3_ANY, SMAC_EQUALS_DMAC]
         },
         "SWITCH_EGRESS_DROPS": {
-            "count": 2,
+            "total": 3,
+            "used": 1,
             "reasons": [L2_ANY, L3_ANY]
         }
     }
@@ -331,6 +336,8 @@ We will use the following SAI APIs to get this information:
 
 ## 3.4 Counters DB
 The contents of the drop counters will be added to Counters DB by flex counters.
+
+Additionally, we will add a mapping from debug counter names to the appropriate port or switch stat index called COUNTERS_DEBUG_NAME_PORT_STAT_MAP and COUNTERS_DEBUG_NAME_SWITCH_STAT_MAP respectively.
 
 ## 3.5 SWSS
 A new orchestrator will be created to handle debug counter creation and configuration. Specifically, this orchestrator will support:
@@ -348,8 +355,6 @@ This orchestrator will interact with the following SAI Debug Counter APIs:
 
 ## 3.6 syncd
 Flex counter will be extended to support switch-level SAI counters.
-
-Additionally, we will add a mapping from debug counter names to the appropriate port/switch stat index called COUNTERS_DEBUG_NAME_INDEX_MAP.
 
 # 4 Flows
 ## 4.1 General Flow
