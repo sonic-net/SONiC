@@ -88,18 +88,25 @@ TBD - Need to amend the SONiC YANG model to include sFlow attributes since there
 ### 3.6.2 CLI
 sFlow configuration and show commands will be the same as the one available on the host provided by SONiC
 #### 3.6.2.1 Configuration Commands
-#### 3.6.2.1 Configuration Commands
-| Command description | CLI command |
+| Command description | CLI syntax |
 | :------ | :----- |
-| Enable sFlow | sonic(config-sflow)# enable |
-| Disable sFlow | sonic(config-sflow)# disable |
-| Configure sFlow polling interval | sonic(config-sflow) polling-interval 3 |
-| Configure sFlow agent ID | sonic(config-sflow) agent-id Ethernet 0 |
-| Configure sFlow collector | sonic(config-sflow) collector add Collector1 1.1.1.2 |
-| Delete sFlow Collector | sonic(config-sflow) collector del Collector1 |
-| Enable sFlow on interface | sonic(config-sflow) interface enable Ethernet0 |
-| Disable sFlow on interface | sonic(config-sflow) interface disable Ethernet0 |
-| Configure sampling-rate on interface | sonic(config-sflow) interface sampling-rate Ethernet0 300 |
+| global configurations | [no] sflow [enable] [polling-interval <int>] [agent-id <intf-name>] |
+| collector configuration | [no] sflow collector [add <collector name> <collector ipv4/v6 address> [port #]]
+| interface configuration | [no] sflow [enable] [sample-rate <int>]
+
+| Command description | CLI command Example |
+| :------ | :----- |
+| Enable sFlow | sonic(config)# sflow enable |
+| Disable sFlow | sonic(config)# no sflow |
+| Configure sFlow polling interval | sonic(config)# sflow polling-interval 3 |
+| Configure sFlow agent ID | sonic(config)# sflow agent-id Ethernet 0 |
+| Reset back to default sFlow agent ID | sonic(config)# no sflow agent-id |
+| Configure sFlow collector | sonic(config)# sflow collector add Collector1 1.1.1.2 |
+| Delete sFlow Collector | sonic(config)# no sflow collector Collector1 |
+| Enable sFlow on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# sflow enable |
+| Disable sFlow on interface | sonic(config)# interface disable Ethernet0<br> sonic(config-intf)# no sflow |
+| Configure sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# sflow sampling-rate 300 |
+| Reset to default sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# no sflow sampling-rate |
 
 
 #### 3.6.2.2 Show Commands
@@ -133,9 +140,38 @@ POST - Change existing sFlow configuration in CONFIG DB
 # 9 Unit Test
 The unit-test for this feature will include:
 1. configuration via CLI
+
+| Test Name | Test Description |
+| :------ | :----- |
+| Enable sflow | Verfiy sFlow is enabled in configDB |
+| Disable sflow | Verify sFlow is disabled in configDB |
+| Configure polling-interval | Verify sFlow polling-interval is set in configDB |
+| Disable polling-interval | Verify sflow polling-interval is removed from configDB (back to default)
+| Add a collector | Verify a collector has been added into configDB |
+| Add a collector with port # | Verify a collector has been added into configDB with user supplied port #|
+| Delete a collector | Verify a collector has been deleted from configDB
+| Enable sflow on interface | Verfiy sFlow for an interface is enabled in configDB |
+| Disable sflow on interface | Verfiy sFlow for an interface is disabled in configDB |
+| Configure sampling-rate on interface | Verify sampling-rate for an interface is set in configDB|
+| Disable sampling-rate on interface | Verify sampling-rate has returned to default
+
 2. show sflow configuration via CLI
+
 3. configuration (POST) via GNMI
+
+Same test as CLI configuration Test but using gNMI POST request
+
 4. get configuration (GET) via GNMI
+
+Same as CLI show test but with gNMI GET request, will verify the JSON response is correct.
+
+5. configuration (POST) via REST
+
+Same test as CLI configuration Test but using REST POST request
+
+6. show configuration (GET) via REST
+
+Same as CLI show test but with REST GET request, will verify the JSON response is correct.
 
 # 10 Internal Design Information
 
