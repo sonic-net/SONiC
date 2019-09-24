@@ -1,4 +1,4 @@
-# Process and docker stats availability thorugh telemetry agent
+# Process and docker stats availability via telemetry agent
 
 ## Revision
 
@@ -21,19 +21,21 @@ From state-DB data need to be available via telemetry agent
 
 ###### Process stats
 
-$ ps aux 
+$ ps -eo "ruser pid ppid pcpu pmem vsz rssize tty stat start time command" 
 
-|USER |   PID |  %CPU|%MEM |VSZ          |RSS   |  TTY |   STAT |START| TIME| COMMAND                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-|-------|-------|--------|--------|------------|-------|------|---------|-------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|root    | 4276 | 0.0    | 0.0     | 108816    | 5552 |?      |    Sl     |00:39 |0:01 | containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
-|root    | 6601 |  0.0   |  0.0    |108816     | 5516 |?      |    Sl     |00:42 |0:01 |containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/4dc60c74334813d6c833d967b1196d1783b90bff0488aa0c35d544db66dc8a81 -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
+|RUSER |   PID |PPID   |  %CPU|%MEM |VSZ          |RSS   |  TTY |   STAT |START| TIME| COMMAND                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|-------|-------|---------|--------|--------|------------|-------|------|---------|-------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|root    | 4276 | 0        |0.0    | 0.0     | 108816    | 5552 |?      |    Sl     |00:39 |0:01 | containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
+|root    | 6601 |   2      |0.0   |  0.0    |108816     | 5516 |?      |    Sl     |00:42 |0:01 |containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/4dc60c74334813d6c833d967b1196d1783b90bff0488aa0c35d544db66dc8a81 -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
 
-above output will be stored inside state-DB as follows:
+above output will be stored inside state-DB as follows for largest 1024 CPU consumption processes:
 
 ProcessStats|4276
-"CPU"  
+"RUSER"
+"ROOT"
+"CPU%"  
 "0.0"  
-"MEM"  
+"MEM%"  
 "0.1"  
 "VSZ"  
 "108816"  
@@ -66,19 +68,19 @@ DockerStats|4dc60c743348    
 "snmp"  
 "CPU%"  
 "3.93"  
-"MEM USAGE"  
+"MEM"  
 "41.56MiB"  
-"LIMIT"  
+"MEM_LIMIT"  
 "7.784GiB"  
 "MEM%"  
 "0.52"  
-"NET I"  
+"NET_IN"  
 "0B"  
-"NET O"  
+"NET_OUT"  
 "0B"  
-"BLOCKI"  
+"BLOCK_IN"  
 "31.5MiB"  
-"BLOCKO"  
+"BLOCK_OUT" 
 "81.9KB"  
 "PIDS"  
 "7"  
