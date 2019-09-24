@@ -303,6 +303,13 @@ Based on the `platform.json` and the current mode, we know there are 4 ports in 
 ```
 At this point, the backend should have deleted the old ports and is adding this new port as specified. We should now get Ethernet0 as 100G. Ethernet1/2/3 are removed.
 
+Note: The other properties would be loaded with default values or not set at this point, e,g, admin_status, mtu, FEC setting etc.
+
+- For example, admin_status is "DOWN" by default, so the newly created port is stood at "DOWN" state until user put it in "UP" state later. This could prevent the issues where we have to apply other configurations first before we can bring up the port itself to avoid some temporary traffic impact.
+
+- Also, different FEC setting could be applied separately by user later.
+
+
 Similar CLI for different modes, examples as below:
 
 Config port to 2x50G
@@ -1043,7 +1050,9 @@ PRs:
 https://github.com/Azure/sonic-sairedis/pull/464
 https://github.com/Azure/sonic-sairedis/pull/483
 
-Another issue with syncd today is to support dynamic port breakout feature with warm-reboot. We need dynamically update the port map in syncd for comparison logic to support warm-reboot. This is TBD item.
+Another issue with syncd today is to support dynamic port breakout feature with warm-reboot. We need dynamically update the port map in syncd for comparison logic to support warm-reboot.
+PR is available as below:
+https://github.com/Azure/sonic-sairedis/pull/515
 
 ## libSAI requirements
 We need the HW to initialize with the profile that is breakout capable.
@@ -1149,7 +1158,7 @@ remove_neighbor_entry
 ```
 
 # Warm reboot support
-Syncd changes are required as mentioned above.
+Syncd changes are required as mentioned above. The PR need to be merged and tested.
 
 # Unit test -TBD
 At high level, We will leverage the vs test environment to test:
