@@ -1198,78 +1198,73 @@ e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE ope
 
 The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
 
-| Extensions | Usage |
-| ---------- | ----- |
-| `sonic-ext:table-name [string]` | Map a YANG container/list to TABLE name |
-| `sonic-ext:field-name [string]` | Map a YANG leafy - leaf or leaf-list - node to FIELD name |
-| `sonic-ext:key-delimiter [string]` | Override the default delimiter, “&#124;” |
-| `sonic-ext:key-name [string]` | Fixed key name, used for YANG container mapped to TABLE with a fixed key |
-| `sonic-ext:key-transformer [function]` | Overloading default method to generate DB keys(s) |
-| `sonic-ext:field-transformer [function]` | Overloading default method to generate FIELD value |
-| `sonic-ext:subtree-transformer [function]` | Overloading default method for the current subtree |
-| `sonic-ext:db-name [string]` | DB name to access data – “APPL_DB”, “ASIC_DB”, “COUNTERS_DB”, “CONFIG_DB”, “FLEX_COUNTER_DB”, “STATE_DB”. The default db-name is CONFIG_DB |
-| `sonic-ext:post-transformer [function]` | A special hook to update the DB requests right before passing to common-app |
-| `sonic-ext:table-transformer [function]` | Dynamically map a YANG container/list to TABLE name(s) |
-| `sonic-ext:get-validate [function]` | A special hook to validate YANG nodes, to populate data read from database |
+----------
 
-Note:
-1. sonic-ext:table-name [string]
+1. `sonic-ext:table-name [string]`: Map a YANG container/list to TABLE name 
 Processed by the default transformer method. Argument is a table name statically mapped to the given YANG container or list node
 The table-name is inherited to all descendant nodes unless another one is defined.
-2. sonic-ext:field-name [string]
+
+2. `sonic-ext:field-name [string]`: Map a YANG leafy - leaf or leaf-list - node to FIELD name
 Processed by the default transformer method
-3. sonic-ext:key-delimiter [string]
+
+3. `sonic-ext:key-delimiter [string]`: Override the default delimiter, “&#124;”
 Processed by the default transformer method. Used to concatenate multiple YANG keys of a YANG list into a single DB key
 Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list
-4. sonic-ext:key-name [string]
+
+4. `sonic-ext:key-name [string]`: Fixed key name, used for YANG container mapped to TABLE with a fixed key 
 Processed by the default transformer method. Used to define a fixed key, mainly for container mapped to TABLE key,
 e.g. Redis can have a hash “STP|GLOBAL”
+```YANG
 container global
    sonic-ext:table-name “STP”
    sonic-ext:key-name “GLOBAL”
-5. sonic-ext:key-transformer [function]
+```
+5. `sonic-ext:key-transformer [function]`: Overloading default method to generate DB keys(s) 
 Used when the key values in a YANG list are different from ones in DB TABLE
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx
-6. sonic-ext:field-transformer [function]
+A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
+
+6. `sonic-ext:field-transformer [function]`: Overloading default method to generate FIELD value
 Used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx
-7. sonic-ext:subtree-transformer [function]
+A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
+
+7. `sonic-ext:subtree-transformer [function]`: Overloading default method for the current subtree
 Allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
 The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated.
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, DbToYangxxx
-8. sonic-ext:db-name [string]
+A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
+
+8. `sonic-ext:db-name [string]`: DB name to access data – “APPL_DB”, “ASIC_DB”, “COUNTERS_DB”, “CONFIG_DB”, “FLEX_COUNTER_DB”, “STATE_DB”. The default db-name is CONFIG_DB
 Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG
 Processed by Transformer core to traverse database
 The db-name is inherited to all descendant nodes unless another one. Must be defined with the table-name
-9. sonic-ext:post-transformer [function]
+
+9. `sonic-ext:post-transformer [function]`: A special hook to update the DB requests right before passing to common-app
 Analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
 Used to add/update additional data to the maps returned from Transformer before passing to common-app, e.g. add a default acl rule 
 Note that the post-transformer can be annotated only to the top-level container(s) within each module, and called once for the given node during translation
-10. sonic-ext:table-transformer [function]
+
+10. `sonic-ext:table-transformer [function]`: Dynamically map a YANG container/list to TABLE name(s)
 Allows the table-transformer to map a YANG list/container to table names
 Used to dynamically map a YANG list/container to table names based on URI and payload
 The table-transformer is inherited to all descendant nodes unless another one is defined
-11. sonic-ext:get-validate [function]
+
+11. `sonic-ext:get-validate [function]`: A special hook to validate YANG nodes, to populate data read from database
 Allows developers to instruct Transformer to choose a YANG node among multiple nodes, while constructing the response payload 
 Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes.
 
+----------
 
-Note that the key-transformer, field-transformer and subtree-transformer have a pair of callbacks associated with 2 way translation using a prefix - YangToDBxxx, Db2Yangxxx. It is not mandatory to implement both functions. E.g. if you need a translation for GET operation only, you can implement only Db2Yangxxx. 
+
+Note that the key-transformer, field-transformer and subtree-transformer have a pair of callbacks associated with 2 way translation using a prefix - **YangToDB***function*, **DbToYang***function*. It is not mandatory to implement both functions. E.g. if you need a translation for GET operation only, you can implement only **DbToYang***function*. 
 
 The template annotation file can be generated and used by the developers to define extensions to the yang paths as needed to translate data between YANG and ABNF format. Refer to the 3.2.2.7.8 Utilities.
 
 Here is the general guide you can check to find which extensions can be annotated in implementing your model.
 ```YANG
 1)	If the translation is simple mapping between YANG container/list and TABLE, consider using the extensions - table-name, field-name, optionally key-delimiter 
-
 2)	If the translation requires a complex translation with your codes, consider the following transformer extensions - key-transformer, field-transformer, subtree-transformer to take a control during translation. Note that multiple subtree-transformers can be annotated along YANG path to divide the scope
-
 3)	If multiple tables are mapped to a YANG list, e.g. openconfig-interface.yang, use the table-transformer to dynamically choose tables based on URI/payload 
-
 4)	In Get operation access to non CONFIG_DB, you can use the db-name extension
-
 5)	In Get operation, you can annotate the subtree-transformer on the node to implement your own data access and translation with DbToYangxxx function
-
 6)	In case of mapping a container to TABLE/KET, you can use the key-name along with the table-name extension
 ```
 
@@ -1292,20 +1287,32 @@ func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) (
 Overloaded transformer methods are prepended with ‘YangToDb’ or ‘DbToYang’ to support bi-directional data transfer. The function prototypes defined in the following-
 
 ```go
+type XfmrParams struct {
+	d *db.DB
+	dbs [db.MaxDB]*db.DB
+	curDb db.DBNum
+	ygRoot *ygot.GoStruct
+	uri string
+	oper int
+	key string
+	dbDataMap *map[db.DBNum]map[string]map[string]db.Value
+	param interface{}
+}
+
 /**
  * KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key 
  * Transformer function definition.
- * Param: Database info, YgotRoot, operation, Xpath
+ * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
  * Return: Database keys to access db entry, error
  **/
-type KeyXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string) (string, error)
+type KeyXfmrYangToDb func (inParams XfmrParams) (string, error)
 /**
  * KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
  * Transformer function definition.
- * Param: Database info, operation, Database keys to access db entry
+ * Param: XfmrParams structure having Database info, operation, Database keys to access db entry
  * Return: multi dimensional map to hold the yang key attributes of complete xpath, error
  **/
-type KeyXfmrDbToYang func (*db.DB, int, string) (map[string]map[string]string, error)
+type KeyXfmrDbToYang func (inParams XfmrParams) (map[string]interface{}, error)
 
 /**
  * FieldXfmrYangToDb type is defined to use for conversion of yang Field to DB field
@@ -1313,29 +1320,29 @@ type KeyXfmrDbToYang func (*db.DB, int, string) (map[string]map[string]string, e
  * Param: Database info, YgotRoot, operation, Xpath
  * Return: multi dimensional map to hold the DB data, error
  **/
-type FieldXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string, interface {}) (map[string]string, error)
+type FieldXfmrYangToDb func (inParams XfmrParams) (map[string]string, error)
 /**
  * FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
  * Transformer function definition.
- * Param: Database info, operation, DB data in multidimensional map, output param YgotRoot
+ * Param: XfmrParams structure having Database info, operation, DB data in multidimensional map, output param YgotRoot
  * Return: error
  **/
-type FieldXfmrDbtoYang func (*db.DB, int, map[string]map[string]db.Value, *ygot.GoStruct)  (error)
+type FieldXfmrDbtoYang func (inParams XfmrParams)  (map[string]interface{}, error)
 
 /**
  * SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
  * Transformer function definition.
- * Param: Database info, YgotRoot, operation, Xpath
+ * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
  * Return: multi dimensional map to hold the DB data, error
  **/
-type SubTreeXfmrYangToDb func (*db.DB, *ygot.GoStruct, int, string) (map[string]map[string]db.Value, error)
+type SubTreeXfmrYangToDb func (inParams XfmrParams) (map[string]map[string]db.Value, error)
 /**
  * SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
  * Transformer function definition.
- * Param : Database info, operation, DB data in multidimensional map, output param YgotRoot
+ * Param : XfmrParams structure having Database pointers, current db, operation, DB data in multidimensional map, output param YgotRoot, uri
  * Return :  error
  **/
-type SubTreeXfmrDbToYang func (*db.DB, int, map[string]map[string]db.Value, *ygot.GoStruct, string) (error)
+type SubTreeXfmrDbToYang func (inParams XfmrParams) (error)
 /**
  * ValidateCallpoint is used to validate a YANG node during data translation back to YANG as a response to GET
  * Param : XfmrParams structure having Database pointers, current db, operation, DB data in multidimensional map, output param YgotRoot, uri
