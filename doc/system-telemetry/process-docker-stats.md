@@ -12,7 +12,12 @@
 ### Enable sonic streaming telemetry agent to send Process and docker stats data
 
 ##### Part 1 
-For 1st part, Daemon code will be added under sonic-buildimage/files/image_config.  A Daemon will start when OS starts and upload Process and docker stats data every 2 mins to state-DB. Details of CLI and state-DB given below. 
+For 1st part, Daemon code will be added under sonic-buildimage/files/image_config.  A Daemon will start when OS starts. At ever 2min interval it will do following:
+Delete all entries for Process and Docker stats from state db
+Update Process and Docker stats data to state-DB. 
+Update last update time for process and Docker stats.
+
+Details of CLI and state-DB given below. 
 
 ##### Part 2
 From state-DB data need to be available via telemetry agent
@@ -21,36 +26,37 @@ From state-DB data need to be available via telemetry agent
 
 ###### Process stats
 
-$ ps -eo "ruser pid ppid pcpu pmem vsz rssize tty stat start time command" 
+$ ps -eo uid,pid,ppid,%mem,%cpu,stime,tty,time,cmd
 
-|RUSER |   PID |PPID   |  %CPU|%MEM |VSZ          |RSS   |  TTY |   STAT |START| TIME| COMMAND                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-|-------|-------|---------|--------|--------|------------|-------|------|---------|-------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|root    | 4276 | 0        |0.0    | 0.0     | 108816    | 5552 |?      |    Sl     |00:39 |0:01 | containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
-|root    | 6601 |   2      |0.0   |  0.0    |108816     | 5516 |?      |    Sl     |00:42 |0:01 |containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/4dc60c74334813d6c833d967b1196d1783b90bff0488aa0c35d544db66dc8a81 -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
+|UID |   PID |PPID     |  %CPU|%MEM|  TTY |STIME| TIME| CMD                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|---- |-------|---------|--------|--------|------|--------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|0     | 4276 | 0        |0.0      | 0.0     |?       | 00:39 |0:01 | containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
+|0     | 6601 |   2      |0.0      |  0.0    |?       | 00:42 |0:01 |containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/4dc60c74334813d6c833d967b1196d1783b90bff0488aa0c35d544db66dc8a81 -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
 
 above output will be stored inside state-DB as follows for largest 1024 CPU consumption processes:
 
 ProcessStats|4276
-"RUSER"
-"ROOT"
+"UID"
+"0"
+"PID"
+"4276"
+"PPID"
+"0"
 "CPU%"  
 "0.0"  
 "MEM%"  
 "0.1"  
-"VSZ"  
-"108816"  
-"RSS"  
-"5552"  
 "TTY"  
 "?"  
-"STAT"  
-"SI"  
-"START"  
+"STIME"  
 "00:39"  
 "TIME"  
 "0:01"  
-"COMMAND"  
+"CMD"  
 "containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc"  
+
+Along with data new entry for timestamp will be updated in state_db: 
+Process_Stats|LastUpdateTime
 
 ###### Docker stats
 
