@@ -1198,66 +1198,61 @@ e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE ope
 
 The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
 
-| Extensions | Usage | Note |
-| ---------- | ----- | ---- |
-| `sonic-ext:table-name [string]` | Map a YANG container/list to TABLE name | Processed by the default transformer method.
+| Extensions | Usage |
+| ---------- | ----- |
+| `sonic-ext:table-name [string]` | Map a YANG container/list to TABLE name |
+| `sonic-ext:field-name [string]` | Map a YANG leafy - leaf or leaf-list - node to FIELD name |
+| `sonic-ext:key-delimiter [string]` | Override the default delimiter, “&#124;” |
+| `sonic-ext:key-name [string]` | Fixed key name, used for YANG container mapped to TABLE with a fixed key |
+| `sonic-ext:key-transformer [function]` | Overloading default method to generate DB keys(s) |
+| `sonic-ext:field-transformer [function]` | Overloading default method to generate FIELD value |
+| `sonic-ext:subtree-transformer [function]` | Overloading default method for the current subtree |
+| `sonic-ext:db-name [string]` | DB name to access data – “APPL_DB”, “ASIC_DB”, “COUNTERS_DB”, “CONFIG_DB”, “FLEX_COUNTER_DB”, “STATE_DB”. The default db-name is CONFIG_DB |
+| `sonic-ext:post-transformer [function]` | A special hook to update the DB requests right before passing to common-app |
+| `sonic-ext:table-transformer [function]` | Dynamically map a YANG container/list to TABLE name(s) |
+| `sonic-ext:get-validate [function]` | A special hook to validate YANG nodes, to populate data read from database |
 
-Argument is a table name statically mapped to the given YANG container or list node
-
-The table-name is inherited to all descendant nodes unless another one is defined | Processed by the default transformer method |
-
-| `sonic-ext:field-name [string]` | Map a YANG leafy - leaf or leaf-list - node to FIELD name | Processed by the default transformer method
-
-Used to concatenate multiple YANG keys of a YANG list into a single DB key
-
-Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list |
-| `sonic-ext:key-delimiter [string]` | Override the default delimiter, “&#124;” | Processed by the default transformer method
-
-Used to concatenate multiple YANG keys of a YANG list into a single DB key
-
-Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list |
-| `sonic-ext:key-name [string]` | Fixed key name, used for YANG container mapped to TABLE with a fixed key | Processed by the default transformer method
-
-Used to define a fixed key, mainly for container mapped to TABLE key,
-e.g.
-
+Note:
+1. sonic-ext:table-name [string]
+Processed by the default transformer method. Argument is a table name statically mapped to the given YANG container or list node
+The table-name is inherited to all descendant nodes unless another one is defined.
+2. sonic-ext:field-name [string]
+Processed by the default transformer method
+3. sonic-ext:key-delimiter [string]
+Processed by the default transformer method. Used to concatenate multiple YANG keys of a YANG list into a single DB key
+Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list
+4. sonic-ext:key-name [string]
+Processed by the default transformer method. Used to define a fixed key, mainly for container mapped to TABLE key,
+e.g. Redis can have a hash “STP|GLOBAL”
 container global
    sonic-ext:table-name “STP”
    sonic-ext:key-name “GLOBAL”
-
-Redis can have a hash “STP|GLOBAL” |
-| `sonic-ext:key-transformer [function]` | Overloading default method to generate DB keys(s) | Used when the key values in a YANG list are different from ones in DB TABLE
-
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx |
-| `sonic-ext:field-transformer [function]` | Overloading default method to generate FIELD value | Used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB
-
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx |
-| `sonic-ext:subtree-transformer [function]` | Overloading default method for the current subtree | Allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
-
-The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated
-
-A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, DbToYangxxx |
-| `sonic-ext:db-name [string]` | DB name to access data – “APPL_DB”, “ASIC_DB”, “COUNTERS_DB”, “CONFIG_DB”, “FLEX_COUNTER_DB”, “STATE_DB”. The default db-name is CONFIG_DB | Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG
- 
+5. sonic-ext:key-transformer [function]
+Used when the key values in a YANG list are different from ones in DB TABLE
+A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx
+6. sonic-ext:field-transformer [function]
+Used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB
+A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, Db2Yangxxx
+7. sonic-ext:subtree-transformer [function]
+Allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
+The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated.
+A pair of callbacks should be implemented to support 2 way translation - YangToDBxxx, DbToYangxxx
+8. sonic-ext:db-name [string]
+Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG
 Processed by Transformer core to traverse database
-
-The db-name is inherited to all descendant nodes unless another one.
-
-Must be defined with the table-name |
-| `sonic-ext:post-transformer [function]` | A special hook to update the DB requests right before passing to common-app | Analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
-
-
+The db-name is inherited to all descendant nodes unless another one. Must be defined with the table-name
+9. sonic-ext:post-transformer [function]
+Analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
 Used to add/update additional data to the maps returned from Transformer before passing to common-app, e.g. add a default acl rule 
-
-Note that the post-transformer can be annotated only to the top-level container(s) within each module, and called once for the given node during translation |
-| `sonic-ext:table-transformer [function]` | Dynamically map a YANG container/list to TABLE name(s) | Allows the table-transformer to map a YANG list/container to table names
-
+Note that the post-transformer can be annotated only to the top-level container(s) within each module, and called once for the given node during translation
+10. sonic-ext:table-transformer [function]
+Allows the table-transformer to map a YANG list/container to table names
 Used to dynamically map a YANG list/container to table names based on URI and payload
+The table-transformer is inherited to all descendant nodes unless another one is defined
+11. sonic-ext:get-validate [function]
+Allows developers to instruct Transformer to choose a YANG node among multiple nodes, while constructing the response payload 
+Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes.
 
-The subtree-transformer is inherited to all descendant nodes unless another one is defined |
-| `sonic-ext:get-validate [function]` | A special hook to validate YANG nodes, to populate data read from database | Allows developers to instruct Transformer to choose a YANG node among multiple nodes, while constructing the response payload 
-
-Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes |
 
 Note that the key-transformer, field-transformer and subtree-transformer have a pair of callbacks associated with 2 way translation using a prefix - YangToDBxxx, Db2Yangxxx. It is not mandatory to implement both functions. E.g. if you need a translation for GET operation only, you can implement only Db2Yangxxx. 
 
