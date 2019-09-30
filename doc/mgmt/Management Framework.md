@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.10
+### Rev 0.11
 
 ## Table of Contents
 
@@ -73,7 +73,7 @@
 				* [3.2.2.7.4 Common App](#32274-common-app)
 				* [3.2.2.7.5 YANG Extensions](#32275-yang-extensions)
 				* [3.2.2.7.6 Public Functions](#32276-public-functions)
-				* [3.2.2.7.7 Transformer Callbacks](#32277-overloaded-modules)
+				* [3.2.2.7.7 Overloaded Modules](#32277-overloaded-modules)
 				* [3.2.2.7.8 Utilities](#32278-utilities)
             * [3.2.2.8 Config Validation Library (CVL)](#3228-config-validation-library-cvl)
 				* [3.2.2.8.1 Architecture](#32281-architecture)
@@ -107,7 +107,7 @@
 * [8 Warm Boot Support](#8-warm-boot-support)
 * [9 Scalability](#9-scalability)
 * [10 Unit Test](#10-unit-test)
-* [APPENDIX](#APPENDIX)
+
 
 ## List of Tables
 
@@ -126,7 +126,8 @@
 | 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview |
 | 0.8 | 08/15/2019  | Anand Kumar Subramanian | Addressed review comments     |
 | 0.9 | 08/19/2019  | Partha Dutta            | Addressed review comments related to CVL    |
-| 0.10 | 09/25/2019  | Kwangsuk Kim            | Updated Transformer section |
+| 0.10 | 09/25/2019  | Kwangsuk Kim           | Updated Transformer section |
+| 0.11 | 09/30/2019  | Partha Dutta           | Updated as per SONiC YANG guideline    |
 
 ## About this Manual
 
@@ -160,7 +161,7 @@ Management framework is a SONiC application which is responsible for providing v
 * Must provide support for:
 
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
-    2. Custom YANG models
+    2. Custom YANG models ([SONiC YANG](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI
 
 * Must provide support for [OpenAPI spec](https://swagger.io/specification/) to generate REST server side code
@@ -235,9 +236,9 @@ The Developer starts by defining the desired management objects and the access A
 
 This can be an independent choice on an application by application basis. However note that using YANG allows for richer data modelling, and therefore superior data validation.
 
-1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate CVL YANG model has to be written based on Redis ABNF schema for validating Redis configuration and transformer hints should be written in a deviation file for standard YANG model to Redis DB coversion and vice versa (refer to [3.2.2.7 Transformer](#3227-transformer) for details). However, if custom SONiC YANG model is written based on guidelines (refer to [APPENDIX](#APPENDIX)), CVL YANG is automatically derived from it and the same is used for validation purpose and there is no need of writing any deviation file for transformer hints. Based on the given YANG model as input, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the Swagger generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
+1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate SONiC YANG model has to be written based on Redis ABNF schema for validating Redis configuration and transformer hints should be written in a deviation file for standard YANG model to Redis DB coversion and vice versa (refer to [3.2.2.7 Transformer](#3227-transformer) for details). However, if custom SONiC YANG model is written based on guidelines, CVL YANG is automatically derived from it and the same is used for validation purpose and there is no need of writing any deviation file for transformer hints. Based on the given YANG model as input, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the Swagger generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
 
-2. In case of OpenAPI spec, it is directly given to the [Swagger](https://swagger.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, CVL YANG model has to be written based on Redis ABNF schema. 
+2. In case of OpenAPI spec, it is directly given to the [Swagger](https://swagger.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, SONiC YANG model has to be written based on Redis ABNF schema. 
 
 #### 3.1.2 Run time flow
 
@@ -354,7 +355,7 @@ YGOT generator generates Go binding structures for the management YANG. The gene
 
 ##### 3.2.1.4 pyang compiler
 
-Open source pyang tool is used to compile YANG models and generate output file in required format. For example CVL YANG model is compiled and YIN schema file is generated for validation purpose. Similarly, after compiling YANG model, OpenAPI spec file is generated for generating REST client SDK and server code using Swagger-codegen.
+Open source pyang tool is used to compile YANG models and generate output file in required format. For example SONiC YANG model is compiled and YIN schema file is generated for validation purpose. Similarly, after compiling YANG model, OpenAPI spec file is generated for generating REST client SDK and server code using Swagger-codegen.
 
 #### 3.2.2 Run time components
 
@@ -763,7 +764,7 @@ Method  | Error condition          | Status | error-type  | error-tag        | e
 POST    | Resource exists             | 409 | application | resource-denied  | *App module returned message*
 *any*   | Unknown error in Translib   | 500 | application | operation-failed | Internal error
 *any*   | Unknown App module failure  | 500 | application | operation-failed | *App module returned message*
-*any*   | CVL constraint failure      | 500 | application | invalid-value    | *error-message defined in CVL YANG*
+*any*   | CVL constraint failure      | 500 | application | invalid-value    | *error-message defined in SONiC YANG*
 
 
 ###### 3.2.2.4.14 DB Schema
@@ -1120,7 +1121,7 @@ Transformer consists of the following components and data:
 * **Transformer Core:** perform main transformer tasks, i.e. encode/decode YGOT, traverse the payload, lookup Transformer spec, call Transformer methods, construct the results, error reporting etc.
 * **Built-in Default Transformer method:** perform static translation
 * **Overloaded Transformer methods:** callback functions invoked by Transformer core to perform complex translation with developer supplied translation logic
-* **Ouput framer:** aggregate the translated pieces returned from default and/or overloaded methods to construct the output payload
+* **Ouput framer:** aggregate the translated pieces returned from default and overloaded methods to construct the output payload
 * **Method overloader:** dynamically lookup and invoke the overloaded transformer methods during data translation
 * **YANG schema tree:** provides the Transformer with the schema information that can be accessed by Transformer to get node information, like default values, parent/descendant nodes, etc.
 
@@ -1128,7 +1129,7 @@ Transformer consists of the following components and data:
 
 ###### 3.2.2.7.2 Design
 
-Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on the common app module. The common app calls Transformer APIs to translate the request, then use the translated data to proceed to DB/CVL layer to set or get data in Redis DB. The **common app** as a default application module generically handles both SET (CRUD) and GET, and Subscribe requests with Transformer. Note that a specific app module can be registered to the Translib to handle the requests if needed.
+Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules call Transformer APIs to translate the request, then use the translated data to proceed to DB/CVL layer to set or get data. If an app module is not registered to Translib, the **common app** is used as a default application module to generically handle both SET (CRUD) and GET, and Subscribe requests with Transformer.
 
 ![Transformer Design](images/transformer_design.PNG)
 
@@ -1153,18 +1154,18 @@ type yangXpathInfo  struct {
 }
 ```
 
-When a request lands at the common app in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that decodes the YGOT structure to read the request payload and look up the spec to get translation hints. Note that the Transformer cannot be used for OpenAPI spec. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. The reverse mapping is used to populate the data read from Redis DB to YANG structure for the response to get operation.
+When a request lands at the common app in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that decodes the YGOT structure to read the request payload and look up the spec to get translation hints. Note that the Transformer cannot be used for OpenAPI spec. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. The reverse mapping is used to populate the data read from RedisDB to YANG structure for the response to get operation.
 
-Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, table/key/field name - which can be customized by a YANG extension.
+Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys by a concatenation of multiple YANG keys with a default delimiter `|`, which can be customized by a YANG extension.
 
-Additionally, for more complex translations of non-ABNF YANG models, i.e. OpenConfig models, Transformer also allows developers to overload the default method by specifying a callback fucntion in YANG extensions, to perform translations with developer-supplied translation codes as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer callback must be defined to support two-way translation, i.e, YangToDb_<transformer_callback> and DbToYang_<transformer_callback>, which are invoked by Transformer core.
+Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, YangToDb_<transformer_method> and DbToYang_<transformer_method>, which are invoked by Transformer core.
 
 ###### 3.2.2.7.3 Process
 
 CRUD requests (configuration) are processed via the following steps:
 
 1. App module calls transformer, passing it a YGOT populated Go structure to translate YANG to ABNF
-2. App module calls CVL API to get all depenent table list to watch tables, and get the ordered table list 
+2. App modules calls Transformer to get the ordered list of tables and watch tables to ensure DB update in this order 
 3. Transformer allocates buffer with 3-dimensional map: `[table-name][key-values][attributes]`
 4. Transformer decodes YGOT structure and traverses the incoming request to get the YANG node name
 5. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
@@ -1172,22 +1173,15 @@ CRUD requests (configuration) are processed via the following steps:
 7. If a hint is found, check the hint to perform the action, either simple data translation or invoke external callbacks
 8. Repeat steps 4 through 7 until traversal is completed
 9. Invoke any annotated post-Transformer functions
-10. Transformer aggregates the results to returns to App module
-11. App module proceeds to update DB to ensure DB update in the order learnt from step 2
+10. Transformer returns the buffer to App module
+11. App module proceeds to update DB
 
 GET requests are processed via the following steps:
-
-1. App module asks the transformer to translate the URL to the keyspec to the query target
-	```YANG
-	type KeySpec struct {
-		dbNum db.DBNum
-		Tsdb.TableSpec
-		Key   db.Key
-		Child []KeySpec
-	}
-2. Transformer proceeds to traverse the DB with the keyspec to get the results 
-3. Transformer translate the results from ABNF to YANG, with default transformer method or callbacks 
-4. Transformer aggregate the translated results, return to the App module to unmarshall the JSON payload 
+1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and keys
+2. Transformer returns the query target
+3. App module proceeds to query the DB via DB-access to get the result
+4. App module asks the Transformer to translate from ABNF to YANG, with either default transformer method or overloaded method 
+5. Transformer returns the output to the App module to unmarshall the JSON payload 
 
 ###### 3.2.2.7.4 Common App
 
@@ -1200,11 +1194,11 @@ Here is a diagram to show how the common app supports SET(CRUD)/GET requests.
 ![sequence_diagram_for_get](images/get_v1.png)
 
 If a request is associated with multiple tables, the common app module processes the DB updates in the table order learned from CVL layer.
-e.g. in case that the sonic-acl.yang used by NBI and the payload with CREATE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the CONFIG-DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE. 
+e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the CONFIG-DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE. 
 
 ###### 3.2.2.7.5 YANG Extensions
 
-The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by external callbacks.
+The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
 
 ----------
 
@@ -1216,8 +1210,8 @@ The table-name is inherited to all descendant nodes unless another one is define
 Map a YANG leafy - leaf or leaf-list - node to FIELD name, processed by the default transformer method
 
 3. `sonic-ext:key-delimiter [string]`: 
-Override the default key delimiters used in Redis DB, processed by the default transformer method.
-Default delimiters are used by Transformer unless the extension is defined - CONFIG_DB: “&#124;”, APPL_DB: “&#58;”, ASIC_DB: “&#124;”, COUNTERS_DB: “&#58;”, FLEX_COUNTER_DB: “&#124;”, STATE_DB: “&#124;”
+Override the default delimiter, “&#124;”, processed by the default transformer method. Used to concatenate multiple YANG keys of a YANG list into a single DB key.
+Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list
 
 4. `sonic-ext:key-name [string]`: 
 Fixed key name, used for YANG container mapped to TABLE with a fixed key, processed by the default transformer method. Used to define a fixed key, mainly for container mapped to TABLE key
@@ -1228,15 +1222,15 @@ container global
    sonic-ext:key-name “GLOBAL”
 ```
 5. `sonic-ext:key-transformer [function]`: 
-Overloading default method with a callback to generate DB keys(s), used when the key values in a YANG list are different from ones in DB TABLE.
+Overloading default method to generate DB keys(s), used when the key values in a YANG list are different from ones in DB TABLE.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
 6. `sonic-ext:field-transformer [function]`: 
-Overloading default method with a callback to generate FIELD value, used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
+Overloading default method to generate FIELD value, used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
 7. `sonic-ext:subtree-transformer [function]`: 
-Overloading default method with a callback for the current subtree, allows the sub-tree transformer to take full control of translation. Note that, if any other extensions, e.g. table-name etc., are annotated to the nodes on the subtree, they are not effective.
+Overloading default method for the current subtree, allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
 The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
@@ -1261,34 +1255,37 @@ Typically used to check the “when” condition to validate YANG node among mul
 ----------
 
 
-Note that the key-transformer, field-transformer and subtree-transformer have a pair of callbacks associated with 2 way translation using a prefix - **YangToDB***function*, **DbToYang***function*. It is not mandatory to implement both functions. E.g. if a translation is required for GET operation only, you can implement only **DbToYang***function*. 
+Note that the key-transformer, field-transformer and subtree-transformer have a pair of callbacks associated with 2 way translation using a prefix - **YangToDB***function*, **DbToYang***function*. It is not mandatory to implement both functions. E.g. if you need a translation for GET operation only, you can implement only **DbToYang***function*. 
 
 The template annotation file can be generated and used by the developers to define extensions to the yang paths as needed to translate data between YANG and ABNF format. Refer to the 3.2.2.7.8 Utilities.
 
 Here is the general guide you can check to find which extensions can be annotated in implementing your model.
 ```YANG
-
-1. If the translation is simple mapping between YANG container/list and TABLE, consider using the extensions - table-name, field-name, optionally key-delimiter 
-2. If the translation requires a complex translation with your codes, consider the following transformer extensions - key-transformer, field-transformer, subtree-transformer to take a control during translation. Note that multiple subtree-transformers can be annotated along YANG path to divide the scope
-3. If multiple tables are mapped to a YANG list, e.g. openconfig-interface.yang, use the table-transformer to dynamically choose tables based on URI/payload 
-4. In Get operation access to non CONFIG_DB, you can use the db-name extension
-5. In Get operation, you can annotate the subtree-transformer on the node to implement your own data access and translation with DbToYangxxx function
-6. In case of mapping a container to TABLE/KEY, you can use the key-name along with the table-name extension
+1)	If the translation is simple mapping between YANG container/list and TABLE, consider using the extensions - table-name, field-name, optionally key-delimiter 
+2)	If the translation requires a complex translation with your codes, consider the following transformer extensions - key-transformer, field-transformer, subtree-transformer to take a control during translation. Note that multiple subtree-transformers can be annotated along YANG path to divide the scope
+3)	If multiple tables are mapped to a YANG list, e.g. openconfig-interface.yang, use the table-transformer to dynamically choose tables based on URI/payload 
+4)	In Get operation access to non CONFIG_DB, you can use the db-name extension
+5)	In Get operation, you can annotate the subtree-transformer on the node to implement your own data access and translation with DbToYangxxx function
+6)	In case of mapping a container to TABLE/KET, you can use the key-name along with the table-name extension
 ```
 
 ###### 3.2.2.7.6 Public Functions
 
-`XlateToDb()` and `GetAndXlateFromDb` are used by the common app to request translations.
+`XlateToDb()` and `GetAndXlateFromDb` are used by app modules to request translations.
 
 ```go
 func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 ```
+func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
-###### 3.2.2.7.7 Transformer Callbacks
+func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 
-The function prototypes for external transformer callbacks are defined in the following-
+
+###### 3.2.2.7.7 Overloaded Methods
+
+Overloaded transformer methods are prepended with ‘YangToDb’ or ‘DbToYang’ to support bi-directional data transfer. The function prototypes defined in the following-
 
 ```go
 type XfmrParams struct {
@@ -1452,17 +1449,17 @@ module openconfig-acl-annot {
 
 Config Validation Library (CVL) is an independent library to validate ABNF schema based SONiC (Redis) configuration. This library can be used by component like [Cfg-gen](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-config-engine/sonic-cfggen), Translib, [ZTP](https://github.com/Azure/SONiC/blob/master/doc/ztp/ztp.md) etc. to validate SONiC configuration data before it is written to Redis DB. Ideally, any component importing config_db.json file into Redis DB can invoke CVL API to validate the configuration. 
 
-CVL uses SONiC native YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and have a very close mapping to the associated ABNF schema. Custom YANG extensions (annotations) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used to translate ABNF data to YANG data. In the context of CVL these YANG models are called CVL YANG models. Opensource [libyang](https://github.com/CESNET/libyang) library is used to perform YANG data validation.
+CVL uses SONiC YANG models written based on ABNF schema along with various constraints. These native YANG models are simple and have a very close mapping to the associated ABNF schema. Custom YANG extensions (annotations) are used for custom validation purpose. Specific YANG extensions (rather metadata) are used to translate ABNF data to YANG data. In the context of CVL these YANG models are called CVL YANG models and generated from SONiC YANG during build time. Opensource [libyang](https://github.com/CESNET/libyang) library is used to perform YANG data validation.
 
-CVL YANG can be used as Northbound YANG for management interface by adding other data definitions such as state data (read only data), RPC or Notification as needed.Such YANG models written based on CVL YANG models are called SONiC NBI YANG models. Since CVL validates configuration data only, these data definition statements are ignored by CVL. During build time CVL YANG is actually generated from SONiC NBI YANG models. Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing SONiC NBI YANG model.
+SONiC YANG can be used as Northbound YANG for management interface by adding other data definitions such as state data (read only data), RPC or Notification as needed.Such YANG models are called SONiC NBI YANG models. Since CVL validates configuration data only, these data definition statements are ignored by CVL. During build time CVL YANG is actually generated from SONiC NBI YANG models with the help of CVL specific pyang plugin. 
 
 ###### 3.2.2.8.1 Architecture
 
 ![CVL architecture](images/CVL_Arch.jpg)
 
-1. During build time, developer writes YANG schema based on ABNF schema and adds metadata and constraints as needed. Custom YANG extensions are defined for this purpose.
-2. The YANG models are compiled using Pyang compiler and generated YIN files are packaged in the build.
-3. During boot up/initialization sequence YIN schemas generated from SONiC native YANG models are parsed and schema tree is build using libyang API.
+1. During build time, developer writes SONiC YANG schema based on ABNF schema following [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) and adds metadata and constraints as needed. Custom YANG extensions are defined for this purpose.
+2. The YANG models are compiled using Pyang compiler. CVL specific YIN schema files are derived from SONiC YANG with the help of CVL specific pyang plugin. Finally, generated YIN files are packaged in the build.
+3. During boot up/initialization sequence, YIN schemas generated from SONiC YANG models are parsed and schema tree is build using libyang API.
 4. Application calls CVL APIs to validate the configuration. In case of Translib library DB Access layer calls appropriate CVL APIs to validate the configuration.
 5. ABNF JSON goes through a translator and YANG  data is generated. Metadata embedded in the YANG schema are used to help this translation process.
 6. Then YANG data is fed to libyang for performing syntax validation first. If error occurs, CVL returns appropriate error code and details to application without proceeding further.
@@ -1489,7 +1486,7 @@ Following are some of the syntactic validations supported by the config validati
 
 ###### 3.2.2.8.2.2 Semantic Validation
 
-* Check for key reference existence  in other table
+* Check for key reference existence in other table
 * Check any conditions between fields within same table
 * Check any conditions between fields across different table
 
@@ -1499,7 +1496,7 @@ There can be two types of platform constraint validation
 
 ###### 3.2.2.8.2.3.1 Static Platform Constraint Validation
 
-* Platform constraints (range, enum, ‘must’/’when’ expression etc.) are expressed in CVL YANG deviation model for each feature.  
+* Platform constraints (range, enum, ‘must’/’when’ expression etc.) are expressed in SONiC YANG deviation model for each feature.  
 
 Example of 'deviation' :
 
@@ -1512,17 +1509,17 @@ Example of 'deviation' :
                 }
         }
 
-* Deviation models are compiled along with corresponding CVL YANG model and new constraints are added or overwritten in the compiled schema.
+* Deviation models are compiled along with corresponding SONiC YANG model and new constraints are added or overwritten in the compiled schema.
 
 ###### 3.2.2.8.2.3.2  Dynamic Platform Constraint Validation
 
 ###### 3.2.2.8.2.3.2.1 Platform data is available in Redis DB table.
 
-* Based on Redis DB, platform specific YANG data defintion can be added in CVL YANG models. Constraints like ‘must’ or ‘when’ are used in feature YANG by cross-referencing platform YANG models.
+* Based on Redis DB, platform specific YANG data defintion can be added in SONiC YANG models. Constraints like ‘must’ or ‘when’ are used in feature YANG by cross-referencing platform YANG models.
 
 ###### 3.2.2.8.2.3.2.2 Platform data is available through APIs
 
-* If constraints cannot be expressed using YANG syntax or platform data is available through feature/component API (APIs exposed by a feature to query platform specific constants, resource limitation etc.), custom validation needs to be hooked up in CVL YANG model through custom YANG extension.
+* If constraints cannot be expressed using YANG syntax or platform data is available through feature/component API (APIs exposed by a feature to query platform specific constants, resource limitation etc.), custom validation needs to be hooked up in SONiC YANG model through custom YANG extension.
 * CVL will generate stub code for custom validation. Feature developer populates the stub functions with functional validation code. The validation function should call feature/component API and fetch required parameter for checking constraints.
 * Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated.
 
@@ -1714,33 +1711,31 @@ Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary Y
 
 Where the YANG does not map directly to the Redis DB, the management framework provides mechanisms to represent complex translations via developer written custom functions.
 
-CVL YANG should always be developed for a new feature, and should be purely based on the schema of config objects in DB. 
+SONiC YANG should always be developed for a new feature, and should be purely based on the schema of config objects in DB. 
 
 For the case where developer prefers to write a non-standard YANG model for a new or existing SONIC feature, the YANG should be written aligned to Redis schema such that the same YANG can be used for both northbound and CVL. This simplifies the developer work flow (explained in section 5.1)
 
 
-### 5.1 Developer work flow for non Standards-based (SONiC/CVL) YANG
+### 5.1 Developer work flow for non Standards-based SONiC YANG
 
  Typical steps for writing a non-standard YANG for management framework are given below.
-- Write the CVL YANG based upon the Redis DB design.
+- Write the SONiC YANG based upon the Redis DB design.
 - Add 'must','when' expressions to capture the dependency between config objects.
 - Add required non-config, notification and RPC objects to the YANG.
 - Add meta data for transformer.
 
 #### 5.1.1 Define SONiC YANG schema
-Redis schema needs to be expressed in SONiC proprietary YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation and Translib for Northbound management interface.
+Redis schema needs to be expressed in SONiC proprietary YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing metadata. The YANG model is used by Config Validation Library(CVL) to provide automatic syntactic and semantic validation and Translib for Northbound management interface.
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to [APPENDIX](#APPENDIX) (section - "How to write CVL/SONiC Northbound YANG") for detailed guidelines on writing CVL YANG model.
+Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
 
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
 * Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
 	* By placing YANG module in this directory, on the next build, OpenAPI YAML (swagger spec) is generated for the YANG.
-	* If t
-	* 
-	* here is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
+	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
 * Place all dependent YANG modules which are imported into the main YANG module such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
 	* By placing YANG module in this directory, OpenAPI YAML (swagger spec) is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
 	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
@@ -1794,12 +1789,12 @@ The SONiC feature implementation may not exactly match the chosen model - there 
 The Redis DB design should take the YANG design into account, and try to stay as close to it as possible. This simplifies the translation processes within the Management implementation. Where this is not possible or appropriate, custom translation code must be provided.
 
 
-#### 5.2.3 Define CVL YANG schema
-Redis schema needs to be expressed in CVL YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing this metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation.
+#### 5.2.3 Define SONiC YANG schema
+Redis schema needs to be expressed in SONiC YANG model with all data types and constraints. Appropriate custom YANG extensions need to be used for expressing this metadata. The YANG model is used by Config Validation Library(CVL)to provide automatic syntactic and semantic validation.
 
 Custom validation code needs to be written if some of the constraints cannot be expressed in YANG syntax.
 
-Refer to [APPENDIX](#APPENDIX) for detailed guidelines on writing CVL YANG model.
+Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) for detiailed guidelines on writing SONiC YANG.
 
 #### 5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs
 
@@ -2005,7 +2000,7 @@ Describe key scaling factor and considerations
 45. Check if CVL validation passes for INTERFACE table
 46. Check if CVL validation fails when configuration not satisfying must constraint is provided
 47. Check if CVL validation passes when Redis has valid dependent data for UPDATE operation
-48. Check if CVL validation fails when two different sequences are passed(Create and Update is same transaction)                                                            
+48. Check if CVL validation fails when two different sequences are passed(Create and Update is same transaction)   
 49. Check if CVL validation fails for UPDATE operation when Redis does not have dependent data.
 50. Check if CVL validation passes with valid dependent  data given for CREATE operation.
 51. Check if CVL validation fails when user tries to delete non existent key
@@ -2030,375 +2025,3 @@ Describe key scaling factor and considerations
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
 
-
-## APPENDIX
-
-### How to write CVL/SONiC Northbound YANG
-
-1. CVL YANG schema is 1:1 mapping of ABNF schema. So ABNF schema is taken as reference and CVL YANG model is written based on it.
-2. All related data definitions should be written in a single YANG model file. YANG model file is named as 'sonic-<feature>.yang'. It is mandatory to define a top level YANG container named as 'sonic-<feature>' i.e. same as YANG model name. All other definition should be written inside this container.
-3. Define common data types in a common YANG model like sonic-common.yang file. All YANG extensions are also defined in sonic-common.yang.
-4. Define a YANG 'list' for each table in ABNF schema. The list name should be same exactly same as table name including its case.
-5. By default table is defined in CONFIG_DB, if needed use extension 'scommon:db-name' for defining the table in other DB.
-   Example - 'scommon:db-name "APPL_DB"'.
-6. The default separator used in table key pattern is "|". If it is different, use  'scommon:key-delim <separator>;'
-7. Define same number of key elements as specified in table in ABNF schema. Generally the default key pattern is '{table_name}|{key1}|{key2}. However, if needed use '*' for repetitive key pattern e.g. 'scommon:key-pattern QUEUE|({ifname},)*|{qindex}'. ABNF schema does not have any explicit key name. So,  use appropriate key name as needed and define them as leaf.
-
-Example :
-The 'key  = "QUEUE:"port_name":queue_index' key definition in ABNF schema is defined as :
-
-	list QUEUE {
-		key "ifname qindex";
-		scommon:key-pattern "QUEUE|({ifname},)*|{qindex}";
-		leaf ifname {
-			type leafref {
-				path "/prt:sonic-port/prt:PORT/prt:ifname";
-			}
-		}
-		leaf qindex {
-			type string {
-				pattern "[0-8]((-)[0-8])?";
-			}
-		}
-	}
-
-
-Refer to [sonic-queue.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-queue.yang) for example.
-
-8. Mapping tables in Redis are defined using nested 'list'. Use 'scommon:map-list "true";' to indicate that the 'list' is used for mapping table. Use 'scommon:map-leaf "<field1> <field2>";' to defining the mapping between two fields. The outer 'list' is used for multiple instances of mapping. The inner 'list' is used for mapping entries for each outer list instance.
-Example :
-
-```
-	list TC_TO_QUEUE_MAP {
-		key "name";
-		scommon:key-pattern "TC_TO_QUEUE_MAP|{name}";
-		scommon:map-list "true"; //special conversion for map tables
-		scommon:map-leaf "tc_num qindex"; //every key:value pair is mapped to list keys, e.g. "1":"7" ==> tc_num=1, qindex=7
-		leaf name {
-			type string;
-		}
-
-		list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
-			key "tc_num qindex";
-
-		leaf name {
-			type string;
-		}
-			
-		list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
-			key "tc_num qindex";
-			leaf tc_num {
-				type string {
-					pattern "[0-9]?";
-				}
-			}
-			leaf qindex {
-				type string {
-					pattern "[0-9]?";
-				}
-			}
-		}
-	}
-```
-
-Refer to [sonic-tc-queue-map.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-tc-queue-map.yang) for example.
-
-9. Each field in table instance i.e. hash entry in Redis is defined as a leaf in YANG list. Use appropriate data type for each field. Use enum, range and pattern as needed for defining data syntax constraint.
-
-10. Use 'leafref' to build relationship between two tables.
-
-Example:
-
-	leaf MIRROR_ACTION {
-		 type leafref {
-			 path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
-		 }
-	}
-
-Refer to [sonic-acl.yang ](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) to see the relationship between ACL_RULE and MIRROR_SESSION table.
-
-11. 'ref_hash_key_reference' in ABNF schema is defined using 'leafref' to the referred table.
-
-Example : 
-'scheduler' in QUEUE table is defined as :
-
-	leaf scheduler {
-			type leafref {
-				path "/sch:sonic-scheduler/sch:SCHEDULER/sch:name";
-			}
-	}
-
-Refer to [sonic-queue.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-queue.yang) for example.
-
-12. The establish complex relationship and constraints among multiple tables use 'must' expression. Define appropriate error message for reporting to Northbound when condition is not met.
-Example:
-
-        must "(/scommon:operation/scommon:operation != 'DELETE') or " +
-			"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
-				error-message "Ports are already bound to this rule.";
-		}
-
-Refer to [sonic-acl.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/schema/sonic-acl.yang) for example.
-
-13. Define appropriate 'error-app-tag' and 'error' messages for in 'length', 'pattern', 'range' and 'must' statement so that management application can use it for error processing.
-
-Example:
-
-	leaf vlanid {
-		mandatory true;
-		type uint16 {
-			range "1..4095" {
-				error-message "Vlan ID out of range";
-				error-app-tag vlanid-invalid;
-			}
-		}
-	}
-
-
-14. Use 'when' statement for conditional data definition.
-15. Add read-only nodes for state  data using 'config false' statement. Such data definition is used by management application only and CVL ignores them.
-16. Define custom RPC for executing command like clear, reset etc. This is also for Northbound interface, CVL ignores it.
-17. Define NOTIFICATION for sending out events as they occur in the system, e.g. link up/down or link failure event. This is also ignored by CVL.
-18. Once YANG file is written, place it inside 'src/cvl/schema' folder and compile it by invoking 'make' utility. Fix any YANG error reported by 'pyang' compiler.
-
-
-#### Sample YANG model:
-
-
-	module sonic-acl {
-		namespace "http://github.com/Azure/sonic-acl";
-		prefix sacl;
-		yang-version 1.1;
-
-		import ietf-yang-types {
-			prefix yang;
-		}
-
-		import ietf-inet-types {
-			prefix inet;
-		}
-
-		import sonic-common {
-			prefix scommon;
-		}
-
-		import sonic-port {
-			prefix prt;
-		}
-
-		import sonic-portchannel {
-			prefix spc;
-		}
-
-		import sonic-mirror-session {
-			prefix sms;
-		}
-
-		import sonic-pf-limits {
-			prefix spf;
-		}
-
-		organization
-			"SONiC";
-
-		contact
-			"BRCM";
-
-		description
-			"SONIC ACL";
-
-		revision 2019-05-15 {
-			description
-					"Initial revision.";
-		}
-
-		container sonic-acl {
-			scommon:db-name "CONFIG_DB";
-
-			list ACL_TABLE {
-				key "aclname";
-				scommon:key-delim "|";
-				scommon:key-pattern "ACL_TABLE|{aclname}";
-
-				leaf aclname {
-					type string;
-				}
-
-				leaf policy_desc {
-					type string {
-						length 1..255 {
-							error-app-tag policy-desc-invalid-length;
-						}
-					}
-				}
-
-				leaf stage {
-					type enumeration {
-						enum INGRESS;
-						enum EGRESS;
-					}
-				}
-
-				leaf type {
-					type enumeration {
-						enum MIRROR;
-						enum L2;
-						enum L3;
-						enum L3V6;
-					}
-				}
-
-				leaf-list ports {
-					type leafref {
-						path "/prt:sonic-port/prt:PORT/prt:ifname";
-					}
-				}
-			}
-
-			list ACL_RULE {
-					key "aclname rulename";
-					scommon:key-delim "|";
-					scommon:key-pattern "ACL_RULE|{aclname}|{rulename}";
-					scommon:pf-check    "ACL_CheckAclLimits";
-
-					leaf aclname {
-						type leafref {
-							path "../../ACL_TABLE/aclname";
-						}
-						must "(/scommon:operation/scommon:operation != 'DELETE') or " +
-							"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
-								error-message "Ports are already bound to this rule.";
-						}
-					}
-
-					leaf rulename {
-						type string;
-					}
-
-					leaf PRIORITY {
-						type uint16 {
-							range "1..65535";
-						}
-					}
-
-					leaf RULE_DESCRIPTION {
-						type string;
-					}
-
-					leaf PACKET_ACTION {
-						type enumeration {
-							enum FORWARD;
-							enum DROP;
-							enum REDIRECT;
-						}
-					}
-
-					leaf MIRROR_ACTION {
-						type leafref {
-							path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
-						}
-					}
-
-					leaf IP_TYPE {
-						type enumeration {
-							enum any;
-							enum ip;
-							enum ipv4;
-							enum ipv4any;
-							enum non_ipv4;
-							enum ipv6any;
-							enum non_ipv6;
-						}
-					}
-
-					leaf IP_PROTOCOL {
-						type uint8 {
-							range "1|2|6|17|46|47|51|103|115";
-						}
-					}
-
-					leaf ETHER_TYPE {
-						type string{
-							pattern "(0x88CC)|(0x8100)|(0x8915)|(0x0806)|(0x0800)|(0x86DD)|(0x8847)";
-						}
-					}
-
-					choice ip_src_dst {
-						case ipv4_src_dst {
-							leaf SRC_IP {
-								mandatory true;
-								type inet:ipv4-prefix;
-							}
-							leaf DST_IP {
-								mandatory true;
-								type inet:ipv4-prefix;
-							}
-						}
-						case ipv6_src_dst {
-							leaf SRC_IPV6 {
-								mandatory true;
-								type inet:ipv6-prefix;
-							}
-							leaf DST_IPV6 {
-								mandatory true;
-								type inet:ipv6-prefix;
-							}
-						}
-					}
-
-					choice src_port {
-						case l4_src_port {
-							leaf L4_SRC_PORT {
-								type uint16;
-							}
-						}
-						case l4_src_port_range {
-							leaf L4_SRC_PORT_RANGE {
-								type string {
-									pattern "[0-9]{1,5}(-)[0-9]{1,5}";
-								}
-							}
-						}
-					}
-
-				choice dst_port {
-						case l4_dst_port {
-							leaf L4_DST_PORT {
-								type uint16;
-							}
-						}
-						case l4_dst_port_range {
-							leaf L4_DST_PORT_RANGE {
-								type string {
-									pattern "[0-9]{1,5}(-)[0-9]{1,5}";
-								}
-							}
-						}
-				}
-
-				leaf TCP_FLAGS {
-					type string {
-						pattern "0[xX][0-9a-fA-F]{2}[/]0[xX][0-9a-fA-F]{2}";
-					}
-				}
-
-				leaf DSCP {
-					type uint8;
-				}
-			}
-
-			container state {
-				config false;
-				description "Status data";
-
-				leaf MATCHED_PACKETS {
-					type yang:counter64;
-				}
-
-				leaf MATCHED_OCTETS {
-					type yang:counter64;
-				}
-			}
-
-		}
-	}
