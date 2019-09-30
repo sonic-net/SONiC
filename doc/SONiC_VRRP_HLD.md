@@ -2,6 +2,8 @@
 
 #### Rev 0.1
 
+
+
 [TOC]
 
 
@@ -13,9 +15,7 @@
 # Revision
 | Rev  |    Date    |       Author        | Change Description                                           |
 |:--:|:--------:|:-----------------:|:------------------------------------------------------------:|
-| 0.1  | 09/05/2019 |   Dilip Kumar   | Initial version                                              |
-| 0.2 | 09/11/2019 | Dilip Kumar | Addressed review comments from Ben and others. Minor edits to complete the unifished sections. |
-| 0.3 | 9/25/2019 | Dilip Kumar | Addressed review comments |
+| 0.1  | 09/28/2019 |   Dilip Kumar (Broadcom)   | Initial version                                              |
 |      |            |             |                    |
 
 # Definition/Abbreviation
@@ -215,7 +215,7 @@ Maximum number of interfaces that can be tracked for a virtual router instance i
 
 Keepalived (https://www.keepalived.org/) open source code is chosen for VRRP control plane code.
 
-![VRRP Keepalived Design](images/VRRP_Keepalived_design.PNG "Figure : Design")
+![VRRP Keepalived Design](../images/vrrp_hld/VRRP_Keepalived_design.PNG "Figure : Design")
 
 
 ### 4.1.2 Container
@@ -250,7 +250,7 @@ At a high level below are some of the interactions between relevant components a
 
 
 
-![VRRP Arch](images/VRRP_architecture.PNG "Figure : Arch")
+![VRRP Arch](../images/vrrp_hld/VRRP_architecture.PNG "Figure : Arch")
 __Figure 1: VRRP Architecture__
 
 ### 4.2.1 CONFIG_DB changes
