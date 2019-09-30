@@ -53,6 +53,10 @@ The Virtual Router Redundancy Protocol (VRRP) functionality is designed to elimi
 failure inherent in the static default routed environment. VRRP specifies an election protocol that
 dynamically assigns responsibility of gateway router to a VRRP instance on one of the routers on a LAN. The VRRP instance controlling the IP address(es) associated with a virtual router is called the Master, and routes the traffic. The election process provides dynamic fail-over in the forwarding responsibility should the Master become unavailable. Any of the virtual router's IP addresses on a LAN can then be used as the default first hop router by end-hosts. The advantage gained from using VRRP is a higher availability default path without requiring configuration of dynamic routing or router discovery protocols on every end-host.
 
+Some of the use cases where VRRP could be deployed are,
+- 3-tier access layer, distribution layer & core layer network, where the redundancy for gateway is needed in distribution layer.
+- Layer 3 CLOS network, where the redundancy is needed for the first hop gateways.
+
 
 
 
@@ -62,27 +66,25 @@ dynamically assigns responsibility of gateway router to a VRRP instance on one o
 
 Following requirements are addressed by the design presented in this document:
 
-1. Support VRRP v2 (IPv4) 
+1. Support VRRP v2 (IPv4)
 
-2. Support multiple VRRP instances (groups) per interface
+2. Support VRRP v3 (IPv6)
 
-3. Support VRRP on VLAN, PortChannel and Ethernet interfaces
+3. Support multiple VRRP instances (groups) per interface
 
-4. Support Uplink interface tracking
+4. Support VRRP on VLAN, PortChannel and Ethernet interfaces
 
-5. Support pre-emption of a Master when a high priority VRRP node comes up
+5. Support Uplink interface tracking
 
-6. Support configurable priority for VRRP instance
+6. Support pre-emption of a Master when a high priority VRRP node comes up
 
-7. Support configuration and management of various VRRP parameters
+7. Support configurable priority for VRRP instance
 
-    
+8. Support configuration and management of various VRRP parameters
 
-Following requirements are beyond scope of this release. 
+9. REST, SNMP and gNMI access support to VRRP objects
 
-1. VRRPv3 (IPv6) support
-2. REST, SNMP and gNMI access support to VRRP objects
-3. VRRP support on non-default VRF
+10. VRRP support on non-default VRF
 
 
 
@@ -128,31 +130,35 @@ The following are some of the deployment use cases for VRRP
 
 VRRP specifies an election protocol to provide the virtual router function described earlier. All protocol
 messaging is performed using IP multicast datagrams, thus the protocol can operate over a variety of
-multiaccess LAN technologies supporting IP multicast. Each VRRP virtual router has a single well-known
-MAC address allocated to it. This document currently only details the mapping to networks using the IEEE
-802 48-bit MAC address. The virtual router MAC address is used as the source in all periodic VRRP
-messages sent by the Master router to enable bridge learning in an extended LAN.
+multiaccess LAN technologies supporting IP multicast. 
+
+Each VRRP virtual router has a single well-known MAC address allocated to it. This document currently only details the mapping to networks using the IEEE 802 48-bit MAC address. The virtual router MAC address is used as the source in all periodic VRRP messages sent by the Master router to enable bridge learning in an extended LAN.
+
 A virtual router is defined by its virtual router identifier (VRID) and a set of IP addresses. A VRRP router
 may associate a virtual router with its real addresses on an interface, and may also be configured with
 additional virtual router mappings and priority for virtual routers it is willing to backup. The mapping
 between VRID and addresses must be coordinated among all VRRP routers on a LAN. However, there is
 no restriction against reusing a VRID with a different address mapping on different LANs. The scope of
 each virtual router is restricted to a single LAN.
+
 To minimize network traffic, only the Master for each virtual router sends periodic VRRP Advertisement
 messages. A Backup router will not attempt to pre-empt the Master unless it has higher priority. This
 eliminates service disruption unless a more preferred path becomes available. It's also possible to
 administratively prohibit all pre-emption attempts. The only exception is that a VRRP router will always
-become Master of any virtual router associated with addresses it owns. If the Master becomes unavailable
-then the highest priority Backup will transition to Master after a short delay, providing a controlled
-transition of the virtual router responsibility with minimal service interruption.
+become Master of any virtual router associated with addresses it owns. 
+
+If the Master becomes unavailable then the highest priority Backup will transition to Master after a short delay, providing a controlled transition of the virtual router responsibility with minimal service interruption.
+
 The VRRP protocol design provides rapid transition from Backup to Master to minimize service
 interruption, and incorporates optimizations that reduce protocol complexity while guaranteeing
 controlled Master transition for typical operational scenarios. The optimizations result in an election
 protocol with minimal runtime state requirements, minimal active protocol states, and a single message
-type and sender. The typical operational scenarios are defined to be two redundant routers and/or distinct
-path preferences among each router. A side effect when these assumptions are violated (i.e., more than two redundant paths all with equal preference) is that duplicate packets may be forwarded for a brief period during Master election. However, the typical scenario assumptions are likely to cover the vast majority of deployments, loss of the Master router is infrequent, and the expected duration in Master election convergence is quite small ( &lt;&lt; 1 second ). Thus the VRRP optimizations represent significant
-simplifications in the protocol design while incurring an insignificant probability of brief network
-degradation.
+type and sender. 
+
+The typical operational scenarios are defined to be two redundant routers and/or distinct path preferences among each router. A side effect when these assumptions are violated (i.e., more than two redundant paths all with equal preference) is that duplicate packets may be forwarded for a brief period during Master election. However, the typical scenario assumptions are likely to cover the vast majority of deployments, loss of the Master router is infrequent, and the expected duration in Master election convergence is quite small ( &lt;&lt; 1 second ). 
+
+Thus the VRRP optimizations represent significant simplifications in the protocol design while incurring an insignificant probability of brief network degradation.
+
 Though VRRP standard protocol present in RFC 3768 is complete in itself, there are few
 limitations/drawbacks of the protocol:
 
@@ -193,7 +199,7 @@ where, vrid is user configured 1-byte virtual router identifier. VRID has interf
 
 ### 3.2.4    VRRP Advertisement Frame
 
-VRRP control packets have IP protocol type as 112 (reserved for VRRP), and are sent to VRRP multicast address 224.0.0.18. Source MAC in VRRP control packets is virtual MAC address and source IP is interface IP.                                                               
+VRRP control packets have IP protocol type as 112 (reserved for VRRP), and are sent to VRRP multicast address 224.0.0.18. The already defined SAI trap IDs viz., SAI_HOSTIF_TRAP_TYPE_VRRP & SAI_HOSTIF_TRAP_TYPE_VRRPV6 will be used to trap the VRRP packets. Source MAC in VRRP control packets is virtual MAC address and source IP is interface IP.                                                               
 
 ### 3.2.5    ARP Request Handling 
 
@@ -415,14 +421,14 @@ sequenceDiagram
 
 ### vrrpsyncd
 
-Listens to MACVLAN interface programming in kernel. Status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APP_DB will be programmed with interface name and VIP for Master instances.
+Listens to MACVLAN interfaces, that are added by keepalived, programming in kernel. Keepalived would add the MACVLAN interface in kernel with interface name starting with 'vrrp'. Here the status of MACVLAN interface determines Master/Backup state of VRRP instances. VRRP_Table in APP_DB will be programmed with interface name and VIP for Master instances.
 
 - For every IP add to MACVLAN interface, adds interface name and Virtual IP in APP_DB in VRRP_Table
 - For every IP delete from MACVLAN interface, deletes interface name and Virtual IP in APP_DB from VRRP_Table
 
 ### vrrporchd
 
-- Listens to VRRP_Table in APP_DB and adds virtual MAC entries in ASIC_DB for Master instances
+- Listens to VRRP_Table in APP_DB and for entry in VRRP_TABLE, program the VIP as my IP and the VMAC as my MAC(virtual RIF) in ASIC_DB.
 
 
 
@@ -535,7 +541,10 @@ The existing logging mechanisms shall be used. Proposed debug framework shall be
 
 ## 7 Warm Reboot Support
 
-Currently, warm-reboot is not supported for VRRP. That is, warm-reboot will simply restart the VRRP docker without VRRP storing any data for warm restart. 
+To not affect forwarding during warm-reboot, VRRP before entering into warm-reboot will relinquish mastership.
+VRRP master's will relinquish mastership, by sending 0 priority keepalives, so that the standby routers can instantaneously takeover the mastership before warm-reboot begins.
+
+This way the forwarding is kept unchanged and functional during the process of warm-reboot. 
 
 ## 8 Unit Test cases
 
