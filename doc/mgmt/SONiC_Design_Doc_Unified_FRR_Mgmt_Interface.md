@@ -37,11 +37,11 @@ Feature Name
   * [4 Flow Diagrams](#4-flow-diagrams)
     * [4.1 Configuration Sequence](#41-configuration-sequence)
     * [4.2 CLI Show Command Sequence](#42-cli-show-command-sequence)
-      * [4.2.1 CLI Show Sequence - config only)](#421-cli-show-sequence-config-only)
-      * [4.2.2 CLI Show Sequence - State/Statistics)](#422-cli-show-sequence-state-statistics)
+      * [4.2.1 CLI Show Sequence - config only](#421-cli-show-sequence-config-only)
+      * [4.2.2 CLI Show Sequence - State/Statistics](#422-cli-show-sequence-state-statistics)
     * [4.3 REST Get Sequence](#43-rest-get-sequence)
-      * [4.3.1 REST Get Sequence - config only)](#431-rest-get-sequence-config-only)
-      * [4.3.2 REST Get Sequence - State/Statistics)](#432-rest-get-sequence-state-statistics)
+      * [4.3.1 REST Get Sequence - config only](#431-rest-get-sequence-config-only)
+      * [4.3.2 REST Get Sequence - State/Statistics](#432-rest-get-sequence-state-statistics)
   * [5 Error Handling](#6-error-handling)
   * [6 Serviceability and Debug](#7-serviceability-and-debug)
   * [7 Warm Boot Support](#8-warm-boot-support)
@@ -171,7 +171,7 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 Following section describes the changes to DB.
 
 ### 3.2.1 CONFIG DB
-> [TODO} Add the DB schema
+> [TODO] Add the DB schema
 
 Added new tables to configure following information:
 
@@ -376,7 +376,7 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 ## 4.2 CLI Show Command Sequence
 > [TBD] - Alternative design for CLI show is, from CLI renderer fetch DB get and convert it to Jinga template. This needs to be explored and updated accordingly.
 
-### 4.2.1 CLI Show Sequence (only config information)
+### 4.2.1 CLI Show Sequence - Config information
 ![FRR-BGP-CLI-SHOW-SEQUENCE1](images/frr-bgp-cli-show-sequence11.jpg)
 
 ### 4.2.2 CLI Show Sequence - State/Statistics
@@ -384,7 +384,7 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 
 ## 4.3 REST Get Sequence
 
-### 4.3.1 REST Get Sequence (only config information)
+### 4.3.1 REST Get Sequence - Config information
 ![FRR-BGP-REST-GET-SEQUENCE1](images/frr-bgp-rest-get-sequence1.jpg)
 
 ### 4.3.2 REST Get Sequence - State/Statistics
