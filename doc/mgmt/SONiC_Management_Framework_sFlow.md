@@ -97,16 +97,16 @@ sFlow configuration and show commands will be the same as the one available on t
 | Command description | CLI command Example |
 | :------ | :----- |
 | Enable sFlow | sonic(config)# sflow enable |
-| Disable sFlow | sonic(config)# no sflow |
+| Disable sFlow | sonic(config)# no sflow enable |
 | Configure sFlow polling interval | sonic(config)# sflow polling-interval 3 |
 | Configure sFlow agent ID | sonic(config)# sflow agent-id Ethernet 0 |
 | Reset back to default sFlow agent ID | sonic(config)# no sflow agent-id |
 | Configure sFlow collector | sonic(config)# sflow collector add Collector1 1.1.1.2 |
 | Delete sFlow Collector | sonic(config)# no sflow collector Collector1 |
-| Enable sFlow on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# sflow enable |
-| Disable sFlow on interface | sonic(config)# interface disable Ethernet0<br> sonic(config-intf)# no sflow |
-| Configure sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# sflow sampling-rate 300 |
-| Reset to default sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-intf)# no sflow sampling-rate |
+| Enable sFlow on interface | sonic(config)# interface Ethernet 0<br>sonic(config-if-Ethernet0)# sflow enable |
+| Disable sFlow on interface | sonic(config)# interface Ethernet0<br> sonic(config-if-Ethernet0)# no sflow enable |
+| Configure sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-if-Ethernet0)# sflow sampling-rate 300 |
+| Reset to default sampling-rate on interface | sonic(config)# interface Ethernet0<br>sonic(config-if-Ethernet0)# no sflow sampling-rate |
 
 
 #### 3.6.2.2 Show Commands
