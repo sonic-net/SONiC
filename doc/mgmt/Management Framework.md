@@ -1185,7 +1185,6 @@ GET requests are processed via the following steps:
 		Key   db.Key
 		Child []KeySpec
 	}
-        ```
 2. Transformer proceeds to traverse the DB with the keyspec to get the results
 3. Transformer translate the results from ABNF to YANG, with default transformer method or callbacks
 4. Transformer aggregate the translated results, return to the App module to unmarshall the JSON payload
