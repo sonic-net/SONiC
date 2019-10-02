@@ -1129,7 +1129,7 @@ Transformer consists of the following components and data:
 
 ###### 3.2.2.7.2 Design
 
-Requests from Northbound Interfaces (NBI) are processed by Translib public APIs – Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on app modules. The app modules call Transformer APIs to translate the request, then use the translated data to proceed to DB/CVL layer to set or get data. If an app module is not registered to Translib, the **common app** is used as a default application module to generically handle both SET (CRUD) and GET, and Subscribe requests with Transformer.
+Requests from Northbound Interfaces (NBI) are processed by Translib public APIs - Create, Replace, Update, Delete, (CRUD) and Get - that call a specific method on the common app module. The common app calls Transformer APIs to translate the request, then use the translated data to proceed to DB/CVL layer to set or get data in Redis DB. The **common app** as a default application module generically handles both SET (CRUD) and GET, and Subscribe requests with Transformer. Note that a specific app module can be registered to the Translib to handle the requests if needed.
 
 ![Transformer Design](images/transformer_design.PNG)
 
@@ -1154,18 +1154,18 @@ type yangXpathInfo  struct {
 }
 ```
 
-When a request lands at the common app in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that decodes the YGOT structure to read the request payload and look up the spec to get translation hints. Note that the Transformer cannot be used for OpenAPI spec. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. The reverse mapping is used to populate the data read from RedisDB to YANG structure for the response to get operation.
+When a request lands at the common app in the form of a YGOT structure from the Translib request handler, the request is passed to Transformer that decodes the YGOT structure to read the request payload and look up the spec to get translation hints. Note that the Transformer cannot be used for OpenAPI spec. The Transformer Spec is structured with a two-way mapping to allow Transformer to map YANG-based data to ABNF data and vice-versa via reverse lookup. The reverse mapping is used to populate the data read from Redis DB to YANG structure for the response to get operation.
 
-Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, generating DB Keys by a concatenation of multiple YANG keys with a default delimiter `|`, which can be customized by a YANG extension.
+Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, table/key/field name - which can be customized by a YANG extension.
 
-Additionally, for more complex translations of non-ABNF YANG models (such as OpenConfig), Transformer also allows developers to overload the default method by specifying a method name in YANG extensions, to perform translations with developer-supplied methods as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer method must be defined to support two-way translation, i.e, YangToDb_<transformer_method> and DbToYang_<transformer_method>, which are invoked by Transformer core.
+Additionally, for more complex translations of non-ABNF YANG models, i.e. OpenConfig models, Transformer also allows developers to overload the default method by specifying a callback fucntion in YANG extensions, to perform translations with developer-supplied translation codes as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer callback must be defined to support two-way translation, i.e, YangToDb_<transformer_callback> and DbToYang_<transformer_callback>, which are invoked by Transformer core.
 
 ###### 3.2.2.7.3 Process
 
 CRUD requests (configuration) are processed via the following steps:
 
 1. App module calls transformer, passing it a YGOT populated Go structure to translate YANG to ABNF
-2. App modules calls Transformer to get the ordered list of tables and watch tables to ensure DB update in this order 
+2. App module calls CVL API to get all depenent table list to watch tables, and get the ordered table list
 3. Transformer allocates buffer with 3-dimensional map: `[table-name][key-values][attributes]`
 4. Transformer decodes YGOT structure and traverses the incoming request to get the YANG node name
 5. Transformer looks up the Transformer Spec to check if a translation hint exists for the given path
@@ -1173,15 +1173,22 @@ CRUD requests (configuration) are processed via the following steps:
 7. If a hint is found, check the hint to perform the action, either simple data translation or invoke external callbacks
 8. Repeat steps 4 through 7 until traversal is completed
 9. Invoke any annotated post-Transformer functions
-10. Transformer returns the buffer to App module
-11. App module proceeds to update DB
+10. Transformer aggregates the results to returns to App module
+11. App module proceeds to update DB to ensure DB update in the order learnt from step 2
 
 GET requests are processed via the following steps:
-1. App module asks the transformer to translate the URL with key predicates to the query target, i.e. table name and keys
-2. Transformer returns the query target
-3. App module proceeds to query the DB via DB-access to get the result
-4. App module asks the Transformer to translate from ABNF to YANG, with either default transformer method or overloaded method 
-5. Transformer returns the output to the App module to unmarshall the JSON payload 
+1. App module asks the transformer to translate the URL to the keyspec to the query target
+	```YANG
+	type KeySpec struct {
+		dbNum db.DBNum
+		Tsdb.TableSpec
+		Key   db.Key
+		Child []KeySpec
+	}
+        ```
+2. Transformer proceeds to traverse the DB with the keyspec to get the results
+3. Transformer translate the results from ABNF to YANG, with default transformer method or callbacks
+4. Transformer aggregate the translated results, return to the App module to unmarshall the JSON payload
 
 ###### 3.2.2.7.4 Common App
 
@@ -1194,11 +1201,11 @@ Here is a diagram to show how the common app supports SET(CRUD)/GET requests.
 ![sequence_diagram_for_get](images/get_v1.png)
 
 If a request is associated with multiple tables, the common app module processes the DB updates in the table order learned from CVL layer.
-e.g. in case that the sonic-acl.yang used by NBI and the payload with CRAETE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the CONFIG-DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE. 
+e.g. in case that the sonic-acl.yang used by NBI and the payload with CREATE operation has a data including both ACL_TABLE and ACL_RULE, the common app updates the CONFIG-DB to create an ACL TABLE instance, followed by ACL_RULE entry creation in this order. DELETE operates in the reverse order, i.e. ACL_RULE followed by ACL_TABLE.
 
 ###### 3.2.2.7.5 YANG Extensions
 
-The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by overloading the default methods.
+The translation hints are defined as YANG extensions to support simple table/field name mapping or more complex data translation by external callbacks.
 
 ----------
 
@@ -1210,8 +1217,8 @@ The table-name is inherited to all descendant nodes unless another one is define
 Map a YANG leafy - leaf or leaf-list - node to FIELD name, processed by the default transformer method
 
 3. `sonic-ext:key-delimiter [string]`: 
-Override the default delimiter, “&#124;”, processed by the default transformer method. Used to concatenate multiple YANG keys of a YANG list into a single DB key.
-Note that the default delimiter “|” is used when keys are concatenated between current node and the nested nodes, i.e. container/list
+Override the default key delimiters used in Redis DB, processed by the default transformer method.
+Default delimiters are used by Transformer unless the extension is defined - CONFIG_DB: "&#124;", APPL_DB: "&#58;", ASIC_DB: "&#124;", COUNTERS_DB: "&#58;", FLEX_COUNTER_DB: "&#124;", STATE_DB: "&#124;"
 
 4. `sonic-ext:key-name [string]`: 
 Fixed key name, used for YANG container mapped to TABLE with a fixed key, processed by the default transformer method. Used to define a fixed key, mainly for container mapped to TABLE key
@@ -1222,15 +1229,15 @@ container global
    sonic-ext:key-name “GLOBAL”
 ```
 5. `sonic-ext:key-transformer [function]`: 
-Overloading default method to generate DB keys(s), used when the key values in a YANG list are different from ones in DB TABLE.
+Overloading default method with a callback to generate DB keys(s), used when the key values in a YANG list are different from ones in DB TABLE.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
 6. `sonic-ext:field-transformer [function]`: 
-Overloading default method to generate FIELD value, used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
+Overloading default method with a callback to generate FIELD value, used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
 7. `sonic-ext:subtree-transformer [function]`: 
-Overloading default method for the current subtree, allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
+Overloading default method with a callback for the current subtree, allows the sub-tree transformer to take full control of translation. Note that, if any other extensions, e.g. table-name etc., are annotated to the nodes on the subtree, they are not effective.
 The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
@@ -1271,21 +1278,17 @@ Here is the general guide you can check to find which extensions can be annotate
 
 ###### 3.2.2.7.6 Public Functions
 
-`XlateToDb()` and `GetAndXlateFromDb` are used by app modules to request translations.
+`XlateToDb()` and `GetAndXlateFromDb` are used by the common app to request translations.
 
 ```go
 func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
 ```
-func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
-
-func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
-
 
 ###### 3.2.2.7.7 Overloaded Methods
 
-Overloaded transformer methods are prepended with ‘YangToDb’ or ‘DbToYang’ to support bi-directional data transfer. The function prototypes defined in the following-
+The function prototypes for external transformer callbacks are defined in the following-
 
 ```go
 type XfmrParams struct {
