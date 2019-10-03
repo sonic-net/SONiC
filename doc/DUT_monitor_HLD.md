@@ -99,8 +99,9 @@ If HWSKU is not defined for current DUT - platform thresholds will be used.
 
 If platform is not defined for current DUT - default thresholds will be used.
 
-##### Thresholds template:
+##### Thresholds template example:
 ```code
+# All fields are mandatory
 default:
   cpu_total: x
   cpu_process: x
@@ -110,8 +111,20 @@ default:
   ram_delta: x
   hdd_used: x
 
+# Platform inherits thresholds from 'default' section
+# Any threshold field can be redefined per platform specific
+# In below example all defaults are redefined
 platform X:
-  hwsku: A
+  hwsku:
+    [HWSKU]:
+      cpu_total: x
+      cpu_process: x
+      cpu_measure_duration: x
+      cpu_total_average: x
+      ram_peak: x
+      ram_delta: x
+      hdd_used: x
+  default:
     cpu_total: x
     cpu_process: x
     cpu_measure_duration: x
@@ -119,15 +132,6 @@ platform X:
     ram_peak: x
     ram_delta: x
     hdd_used: x
-  ...
-  default:
-    cpu_total: 80
-    cpu_process: 70
-    cpu_measure_duration: 10
-    cpu_total_average: 90
-    ram_peak: 90
-    hdd_used: 75
-...
 ```
 ##### Preliminary defaults
 Note: need to be tested to define accurately.
