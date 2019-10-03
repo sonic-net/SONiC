@@ -3,24 +3,30 @@
 Table of Contents
 <!-- TOC -->
 
-- [SONiC VRF support design spec draft](#sonic-vrf-support-design-spec-draft)
-  - [Document History](#document-history)
-  - [Abbreviations](#abbreviations)
-  - [VRF feature Requirement](#vrf-feature-requirement)
-  - [Functionality](#functionality)
-    - [Target Deployment Use Case](#target-deployment-use-case)
-    - [Functionality Description](#functionality-description)
-    - [VRF Route Leak Support](#vrf-route-leak-support)
-  - [Dependencies](#dependencies)
-  - [SONiC system diagram for VRF](#sonic-system-diagram-for-vrf)
-  - [The schema changes](#the-schema-changes)
-    - [Add VRF related configuration in config_db.json](#add-vrf-related-configuration-in-configdbjson)
-    - [Change redirect syntax in acl_rule_table of configdb](#change-redirect-syntax-in-aclruletable-of-configdb)
-    - [Add a VRF_TABLE in APP_DB](#add-a-vrftable-in-appdb)
-    - [Add 2-segment key entry support in APP-intf-table](#add-2-segment-key-entry-support-in-app-intf-table)
-    - [Add VRF key to app-route-table key list](#add-vrf-key-to-app-route-table-key-list)
-  - [Event flow diagram](#event-flow-diagram)
-  - [Agent changes](#agent-changes)
+- [SONiC VRF support design spec draft](#SONiC-VRF-support-design-spec-draft)
+  - [Document History](#Document-History)
+  - [Abbreviations](#Abbreviations)
+  - [VRF feature Requirement](#VRF-feature-Requirement)
+  - [Functionality](#Functionality)
+    - [Target Deployment Use Cases](#Target-Deployment-Use-Cases)
+    - [Functional Description](#Functional-Description)
+      - [VRF route leak support](#VRF-route-leak-support)
+  - [Dependencies](#Dependencies)
+  - [SONiC system diagram for VRF](#SONiC-system-diagram-for-VRF)
+  - [The schema changes](#The-schema-changes)
+    - [Add VRF related configuration in config_db.json](#Add-VRF-related-configuration-in-configdbjson)
+      - [Add vrf-table in config_db](#Add-vrf-table-in-configdb)
+      - [Add vrf-binding information in config_db.json file](#Add-vrf-binding-information-in-configdbjson-file)
+      - [Add vrf information in the BGP configuration of config_db.json file](#Add-vrf-information-in-the-BGP-configuration-of-configdbjson-file)
+      - [Add static route information in config_db.json file](#Add-static-route-information-in-configdbjson-file)
+    - [Change redirect syntax in acl_rule_table of config_db.json](#Change-redirect-syntax-in-aclruletable-of-configdbjson)
+    - [Add a VRF_TABLE in APP_DB](#Add-a-VRFTABLE-in-APPDB)
+    - [Add 2-segment key entry support in APP-intf-table](#Add-2-segment-key-entry-support-in-APP-intf-table)
+    - [Add VRF key to app-route-table key list](#Add-VRF-key-to-app-route-table-key-list)
+  - [Event flow diagram](#Event-flow-diagram)
+  - [Modules changes](#Modules-changes)
+    - [Frr template changes](#Frr-template-changes)
+    - [loopback interface consideration](#loopback-interface-consideration)
     - [vrfmgrd changes](#vrfmgrd-changes)
     - [intfsmgrd changes](#intfsmgrd-changes)
     - [nbrmgrd changes](#nbrmgrd-changes)
@@ -31,16 +37,21 @@ Table of Contents
     - [neighorch changes](#neighorch-changes)
     - [aclorch changes](#aclorch-changes)
     - [warm-reboot consideration](#warm-reboot-consideration)
-    - [TODO](#todo)
-  - [CLI](#cli)
-  - [user scenarios](#user-scenarios)
-    - [Configure ip address without vrf feature](#configure-ip-address-without-vrf-feature)
-    - [Add VRF and bind/unbind interfaces to this VRF](#add-vrf-and-bindunbind-interfaces-to-this-vrf)
-    - [Delete vrf](#delete-vrf)
-  - [Impact to other service after import VRF feature](#impact-to-other-service-after-import-vrf-feature)
-  - [Test plan](#test-plan)
-  - [Appendix - An alternative proposal](#appendix---an-alternative-proposal)
-    - [vrf as key](#vrf-as-key)
+    - [TODO](#TODO)
+  - [CLI](#CLI)
+  - [Other Linux utilities](#Other-Linux-utilities)
+  - [User scenarios](#User-scenarios)
+    - [Configure ip address without vrf feature](#Configure-ip-address-without-vrf-feature)
+    - [Add VRF and bind/unbind interfaces to this VRF](#Add-VRF-and-bindunbind-interfaces-to-this-VRF)
+    - [Delete vrf](#Delete-vrf)
+    - [Create a Loopback interface and bind it to a VRF](#Create-a-Loopback-interface-and-bind-it-to-a-VRF)
+    - [Add IP address on Loopback interface](#Add-IP-address-on-Loopback-interface)
+    - [Delete Loopback interface](#Delete-Loopback-interface)
+    - [Static leak route configuration](#Static-leak-route-configuration)
+  - [Impact to other service after import VRF feature](#Impact-to-other-service-after-import-VRF-feature)
+  - [Test plan](#Test-plan)
+  - [Appendix - An alternative proposal](#Appendix---An-alternative-proposal)
+    - [vrf as the part of key](#vrf-as-the-part-of-key)
     - [intfsmgrd changes](#intfsmgrd-changes-1)
     - [intfsorch changes](#intfsorch-changes-1)
 
@@ -58,6 +69,7 @@ Table of Contents
 | v.06    | 05/09/2019 | Shine Chen, Jeffrey Zeng, Tyler Li | Add Some description and format adjustment |
 | v1.0    | 05/26/2019 | Shine Chen, Jeffrey Zeng, Tyler Li, Ryan Guo | After review, move proposal-2 in v0.6 to Appendix
 | v1.1    | 06/04/2019 | Preetham Singh, Nikhil Kelapure, Utpal Kant Pintoo | Update on VRF Leak feature support |
+| v1.2    | 07/21/2019 | Preetham Singh, Shine Chen | Update on loopback device/frr template for vrf and static route support |
 
 ## Abbreviations
 
@@ -79,18 +91,26 @@ Table of Contents
 4. Enable BGP VRF aware in SONiC
 5. Fallback lookup.
 
-The fallback feature which defined by RFC4364 is very useful for specified VRF user to access internet through global/main route. Some enterprise users still use this to access internet on vpn environment.
+    The fallback feature which defined by RFC4364 is very useful for specified VRF user to access internet through global/main route. Some enterprise users still use this to access internet on vpn environment.
 
 6. VRF route leaking between VRFs.
-
 7. VRF Scalability: Currently VRF number can be supported up to 1000 after fixing a bug in FRR.
+8. loopback devices with vrf.
+   - Add/delete Loopback interfaces per VRF
+   - Support to add IPv4 and IPv6 host address on these loopback interfaces
+   - Support to use these loopback interfaces as source for various routing protocol control packet transmission. For instance in case of BGP multihop sessions source IP of the BGP packet will be outgoing interface IP which can change based on the interface status bringing down BGP session though there is alternate path to reach BGP neighbor. In case loopback interface is used as source BGP session would not flap.
+   - These loopback interface IP address can be utilized for router-id generation on the VRF which could be utilized by routing protocols.
+   - Support to use these interfaces as tunnel end points if required in future.
+   - Support to use these interfaces as source for IP Unnumbered interface if required in future.
 
 In this release, requirement 5) is not supported. See next section for details.
 
 Note: linux kernel use VRF master device to support VRF and it supports admin up/down on VRF master device. But we don't plan to support VRF level up/down state on SONIC.
 
 ## Functionality
+
 ### Target Deployment Use Cases
+
 Virtual Routing and Forwarding is used to achieve network virtualization and traffic separation over on a shared network infrastructure in Enterprise and DC delpoyments.
 
 ![Deployment use case](https://github.com/preetham-singh/SONiC-1/blob/master/images/vrf_hld/Multi-VRF_Deployment.png "Figure 1: Multi VRF Deployment use case")
@@ -116,15 +136,15 @@ The Multi-VRF capable Provider Edge router maps an input customer interface to a
 
 Multi-VRF routers communicate with one another by exchanging route information in the VRF table with the neighboring Provider Edge router.
 This exchange of information among the Provider Edge routers is done using routing protocol like BGP.
-Customers connect to Provider Edge routers in the network using Customer Edge routers as shown in Figure 1. 
+Customers connect to Provider Edge routers in the network using Customer Edge routers as shown in Figure 1.
 
 Due to this overlapping address spaces can be maintained among the different VRF instances.
 
 FRR's BGP implementation is capable of running multiple autonomous systems (AS) at once. Each configured AS is associated with a VRF instance. The  SONiC VRF implementation will enable this capability of FRR BGP in SONiC.
 
-#### VRF route leak support:
+#### VRF route leak support
 
-VRF route leak is a case where route and nexthops are in different VRF.
+Generally VRF route leak is a case where route and nexthops are in different VRF. VRF route leak for directly connected destinations in another VRF is also supported.
 
 VRF route leak can be achieved via both Static or Dynamic approach.
 
@@ -142,17 +162,11 @@ VRF feature needs the following software package/upgrade
 
 1. Linux kernel 4.9
 
-Linux Kernel 4.9 support generic IP VRF with L3 master net device. Every L3
-master net device has its own FIB. The name of the master device is the
-VRF's name. Real network interface can join the VRF by becoming the slave of
-the master net device.
+    Linux Kernel 4.9 support generic IP VRF with L3 master net device. Every L3 master net device has its own FIB. The name of the master device is the VRF's name. Real network interface can join the VRF by becoming the slave of the master net device.
 
-Application can get creation or deletion event of VRF master device via RTNETLINK,
-as well as information about slave net device joining a VRF.
+    Application can get creation or deletion event of VRF master device via RTNETLINK, as well as information about slave net device joining a VRF.
 
-Linux kernel supports VRF forwarding using PBR scheme. All route lookups will be performed on
-main routing table associated with the VRF. VRF also can have its own default network
-instruction in case route lookup fails.
+    Linux kernel supports VRF forwarding using PBR scheme. All route lookups will be performed on main routing table associated with the VRF. VRF also can have its own default network instruction in case route lookup fails.
 
 2. FRRouting is needed to support BGP VRF aware routing.
 
@@ -185,7 +199,7 @@ Hence in this implementation release we use VR object as VRF object.
 
 Here are the new flags we propose to add in the SAI interface:
 
-```jason
+```json
 /*
  * @brief if it is global vrf
  *
@@ -217,9 +231,9 @@ The following is high level diagram of modules with VRF support.
 
 Note "fallback" keyword is not supported in this release.
 
-Add vrf-table in config_db.json file.
+#### Add vrf-table in config_db
 
-```jason
+```json
 "VRF": {
     "Vrf-blue": {
         "fallback":"true" //enable global fib lookup while vrf fib lookup missed
@@ -234,9 +248,9 @@ Add vrf-table in config_db.json file.
 
 ```
 
-Add vrf-binding information in config_db.json file.
+#### Add vrf-binding information in config_db.json file
 
-```jason
+```json
 
 "INTERFACE":{
     "Ethernet0":{
@@ -279,41 +293,91 @@ With this approach, there is no redundant vrf info configured with an interface 
 
 Logically IP address configuration must be processed after interface binding to vrf is processed. In intfmgrd/intfOrch process intf-bind-vrf event must be handled before IP address event. So interface-name entry in config_db.json is necessary even though user doesn't use VRF feature. e.g. `"Ethernet2":{}` in the above example configuration. For version upgrade compatibility we need to add a script, this script will convert old config_db.json to new config_db.json at bootup automatically, then the new config_db.json would contain the interface-name entry for interfaces associated in the global VRF table.
 
-### Change redirect syntax in acl_rule_table of configdb
+#### Add vrf information in the BGP configuration of config_db.json file
 
-The existing acl_rule_table definition is the following.
+```json
 
-```jason
+"BGP_NEIGHBOR": {
+    "Vrf-blue|10.0.0.49": {   // This neighbour belongs to Vrf-blue
+        "name": "ARISTA09T0",
+        "rrclient": "0",
+        "local_addr": "10.0.0.48",
+        "asn": "64009",
+        "nhopself": "0"
+    }
+}
 
-    "table1|rule1": {
-        "L4_SRC_PORT": "99",
-        "PACKET_ACTION": "REDIRECT:20.1.1.93,30.1.1.93"
-    },
-    "table1|rule2": {
-        "L4_SRC_PORT": "100",
-        "PACKET_ACTION": "REDIRECT:20.1.1.93"
-    },
+"BGP_PEER_RANGE": {
+    "BGPSLBPassive": {        // This BGP_PEER_Group belong to Vrf-blue
+        "name": "BGPSLBPassive",
+        "vrf_name": "Vrf-blue",
+        "src_address":"10.1.1.2",
+        "ip_range": [
+            "192.168.8.0/27"
+        ]
+    }
+}
 
 ```
 
-To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. So new acl_rule_table should like the following.
+#### Add static route information in config_db.json file
 
-```jason
+```json
 
-    "table1|rule1": {
-        "L4_SRC_PORT": "99",
-        "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet10,30.1.1.93|Ethernet11"
+"STATIC_ROUTE": {
+    "11.11.11.0/24": {
+        "distance": "10",
+        "nexthop": "1.1.1.1"
     },
-    "table1|rule2": {
-        "L4_SRC_PORT": "100",
-        "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet11"
+
+    "Vrf-blue|22.11.11.0/24": {
+        "distance": "10",
+        "nexthop-vrf": "Vrf-red",
+        "nexthop": "2.1.1.1"
     },
+
+    "Vrf-red|11.11.11.0/24": {
+        "nexthop": "1.1.1.1"
+    }
+}
+
+```
+
+### Change redirect syntax in acl_rule_table of config_db.json
+
+The existing acl_rule_table definition is the following.
+
+```json
+
+"table1|rule1": {
+    "L4_SRC_PORT": "99",
+    "PACKET_ACTION": "REDIRECT:20.1.1.93,30.1.1.93"
+},
+"table1|rule2": {
+    "L4_SRC_PORT": "100",
+    "PACKET_ACTION": "REDIRECT:20.1.1.93"
+},
+
+```
+
+To support vrf the nexthop key should change to `{IP,interface}` pair from single `{IP}`. For backward compatibilty nexthop key `{IP}` is also supported, it only works on global vrf. So new acl_rule_table should like the following. 
+
+```json
+
+"table1|rule1": {
+    "L4_SRC_PORT": "99",
+    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet10,30.1.1.93"
+},
+"table1|rule2": {
+    "L4_SRC_PORT": "100",
+    "PACKET_ACTION": "REDIRECT:20.1.1.93|Ethernet11, 30.1.1.93"
+},
 
 ```
 
 ### Add a VRF_TABLE in APP_DB
 
-```jason
+```json
 ;defines virtual routing forward table
 ;
 ;Status: stable
@@ -338,11 +402,10 @@ app-intf-table is defined as the following:
 
 key = INTF_TABLE:ifname
 mtu = 1\*4DIGIT ; MTU for the interface
-VRF_NAME = 1\*64VCHAR ;
+VRF_NAME = 1\*15VCHAR ;
 ```
 
 app-intf-prefix-table is defined as the following corresponding to config_db definition.
-
 
 ```json
 ;defines logical network interfaces with IP-prefix, an attachment to a PORT and
@@ -358,7 +421,7 @@ family = "IPv4" / "IPv6" ; address family
 
 ### Add VRF key to app-route-table key list
 
-```jason
+```json
 ;Stores a list of routes
 ;Status: Mandatory
 
@@ -479,7 +542,71 @@ sequenceDiagram
 
 ```
 
-## Agent changes
+## Modules changes
+
+### Frr template changes
+
+- FRR template must enhance to contain VRF related configuration and static route configuration.
+- On startup `sonic-cfggen` will use `frr.conf.j2` to generate `frr.conf` file.
+
+The generated frr.conf with vrf and static route feature is like the following:
+
+```json
+
+## static route configuration
+!
+ip route 11.11.11.0/24 1.1.1.1 10
+!
+vrf Vrf-red
+## static leak route
+  ip route 11.11.11.0/24 Vrf-blue 1.1.1.1
+!
+## bgp configuration with VRF
+router bgp 64015 vrf Vrf-red
+  bgp router-id 4.4.4.4
+  network 4.4.4.4/32
+  neighbor 10.0.0.49 remote-as 64009
+  neighbor 10.0.0.49 description ARISTA09T0
+  address-family ipv4
+    neighbor 10.0.0.49 activate
+    neighbor 10.0.0.49 soft-reconfiguration inbound
+    maximum-paths 64
+  exit-address-family
+  neighbor PeerGroup peer-group
+  neighbor PeerGroup passive
+  neighbor PeerGroup remote-as 65432
+  neighbor PeerGroup ebgp-multihop 255
+  neighbor PeerGroup update-source 2.2.2.2
+  bgp listen range 192.168.0.0/27 peer-group PeerGroup
+  address-family ipv4
+    neighbor PeerGroup activate
+    neighbor PeerGroup soft-reconfiguration inbound
+    neighbor PeerGroup route-map FROM_BGP_SPEAKER_V4 in
+    neighbor PeerGroup route-map TO_BGP_SPEAKER_V4 out
+    maximum-paths 64
+  exit-address-family
+!
+router bgp 64015
+  bgp router-id 3.3.3.3
+.....
+!
+!
+```
+
+### loopback interface consideration
+
+- Sonic must support multiple loopback interfaces and each loopback interface can belong to different vrf. Because linux kernel can only support one lo interface. We will use dummy interface instead of lo interface in linux kernel.
+
+- The following is the example to configure new loopback interface by using dummy interface
+
+    ```bash
+    ip link add loopback1 type dummy
+    ip link set loopback1 up
+    ip link set dev loopback1 master Vrf_blue
+    ip address add 10.0.2.2/32 dev loopback1
+    ```
+
+- In the existing implementation interface-config.service takes care of loopback configuration. IntfMgrd will take interface-config.service instead to handle it.
 
 ### vrfmgrd changes
 
@@ -503,7 +630,7 @@ IP address event and VRF binding event need to be handled seperately. These two 
     - del interface entry with VRF attribute from app-intf-table
     - unset vrf-binding flag on STATE_DB
 - Listening to interface ip address configuration in config_db.
-  - add ip address event: 
+  - add ip address event:
     - wait until intf-bind-vrf flag is set, set ip address on kernel device and add {interface_name:ip address} entry to app-intf-prefix-table
   - del ip address event:
     - unset ip address on kernel device
@@ -590,6 +717,12 @@ $ config interface vrf bind <interface_name> <vrf_name>
 //unbind an interface from a VRF
 $ config interface vrf unbind <interface_name> <vrf_name>
 
+// create loopback device
+$ config loopback add Loopback<0-999>
+
+// delete loopback device
+$ config loopback del Loopback<0-999>
+
 // show attributes for a given vrf
 $ show vrf [<vrf_name>]
 
@@ -609,11 +742,10 @@ $ config route del [vrf <vrf_name>] prefix <route_prefix/mask> nexthop <[vrf <vr
 $ show ip route [vrf < all | vrf_name>]
 
 //show ip interface command updated to show VRF name to which interface is bound to
-$ show ip interface 
+$ show ip interface
 
 //show ipv6 interface command updated to show VRF name to which interface is bound to
-$ show ipv6 interface 
-
+$ show ipv6 interface
 ```
 
 ## Other Linux utilities
@@ -642,9 +774,7 @@ If a user does not care about VRF configuration, it can simply use this command 
 Lets use Ethernet0 as an example in this document.
 
 ```bash
-
 $ config interface ip add Ethernet0 1.1.1.1/24
-
 ```
 
 This command is enhanced to do the following:
@@ -657,9 +787,7 @@ This command is enhanced to do the following:
 To remove IP address from an interface:
 
 ```bash
-
 $ config interface ip remove Ethernet0 1.1.1.1/24
-
 ```
 
 This command is enhanced to do the following:
@@ -675,10 +803,8 @@ This command is enhanced to do the following:
 In this case, user wants to configure a VRF "Vrf-blue", with interfaces attached to this VRF. Following are the steps:
 
 ```bash
-
 $ config vrf add Vrf-blue
 $ config interface bind Ethernet0 Vrf-blue
-
 ```
 
 The Bind command will do the following:
@@ -688,9 +814,7 @@ The Bind command will do the following:
 - Bind the interface to Vrf-blue (it will eventually create Ethernet0 router interface)
 
 ```bash
-
 $ config interface ip add Ethernet0 1.1.1.1/24
-
 ```
 
 This command will do the following:
@@ -700,9 +824,7 @@ This command will do the following:
 To unbind an interface from VRF:
 
 ```bash
-
-$ config interface unbind Ethernet0 Vrf-blue 
-
+$ config interface unbind Ethernet0 Vrf-blue
 ```
 
 This command will do the following:
@@ -717,7 +839,6 @@ User wants to delete a VRF (Vrf-blue), here are the steps:
 This set of commands will perform the work:
 
 ```bash
-
 $ show vrf Vrf-blue
 This will to get interface list belonging to Vrf-blue from app_db
 $ config interface ip remove Ethernet0 1.1.1.1/24
@@ -726,16 +847,13 @@ $ config interface Ethernet0 vrf unbind
 This will unbind all interfaces from this VRF
 $ config vrf del Vrf-blue
 This command will delete the VRF.
-
 ```
 
 To simplify the user experience, we can combine the above commands to create one single command, similar to the iprotue2 command:`# ip link del Vrf-blue`
 This is the current proposal:
 
 ```bash
-
 $ config vrf del Vrf-blue
-
 ```
 
 This command will do the following:
@@ -745,12 +863,63 @@ This command will do the following:
 - unbind interfaces(s) from Vrf-blue
 - del Vrf-blue
 
-### Route Leak Configuration
+### Create a Loopback interface and bind it to a VRF
+
+In case, user wants to configure Loopback say Loopback10 in Vrf-blue following are the steps:
+
+```bash
+$ config loopback add Loopback10
+$ config interface bind Loopback10 Vrf-blue
+```
+
+This command does following operations:
+
+- Create loopback interface entry in LOOPBACK_INTERFACE in config_db
+- vrf binding to Vrf-blue
+- intfmgrd will create netdevice Loopback10 of type dummy and brings up the netdev.
+
+    This will result in below sequence of netdev events in kernel from intfmgrd
+
+    ```bash
+    ip link add Loopback10 type dummy
+    ip link set dev Loopback10 up
+    ip link set Loopback10 master Vrf-blue
+    ```
+
+- intfsorch will store this interface-vrf binding in local cache of interface information
+
+### Add IP address on Loopback interface
+
+```bash
+$ config interface ip add Loopback10 10.1.1.1/32
+```
+
+This command does following operations:
+
+In intfmgr:
+
+- When IP address add is received on these loopback interfaces, ip address will be applied on corresponding kernel loopback netdevice. Also add {interface_name:ip address} to app-intf-prefix-table.
+
+In intforch
+
+- When app-intf-prefix-table sees IP address add/delete for Loopback interface, vrf name is fetched from local interface cache to obtain VRF-ID and add IP2ME route with this VRF ID.
+
+### Delete Loopback interface
+
+```bash
+$ config loopback del Loopback10
+```
+
+When user deletes loopback interface, first all IP configured on the interface will be removed from app-intf-prefix-table
+Later interface itself will be deleted from INTERFACE table in config_db
+In intfmgrd, this will flush all ip on netdev and deletes loopback netdev in kernel
+Infrorchd will delete IP2ME routes from corresponding VRF and deletes local interface cache which holds vrf binding information.
+
+### Static leak route configuration
 
 User can configure static leak routes using below CLIs:
 
 ```bash
-
 $ config route add vrf Vrf-red prefix 10.1.1.1/32 nexthop vrf Vrf-green 100.1.1.2
 This installs route 10.1.1.1/32 in Vrf-red and with nexthop pointing to 100.1.1.2 in Vrf-green, provided below conditions are met:
   - Vrf-green is configured in kernel
@@ -758,8 +927,9 @@ This installs route 10.1.1.1/32 in Vrf-red and with nexthop pointing to 100.1.1.
 
 $ config route del vrf Vrf-red prefix 10.1.1.1/32 nexthop vrf Vrf-green 100.1.1.2
 This deletes route 10.1.1.1/32 in Vrf-red.
-
 ```
+
+Since FRR is used to manage Static route the converted frr command is issue to FRR suite by vtysh.
 
 ## Impact to other service after import VRF feature
 
@@ -801,20 +971,20 @@ A separate test plan document will be uploaded and reviewed by the community
 
 The VRF binding and IP address configuration dependency can be solved in a different way. There are other areas to be considered as well to make the VRF feature support solid. A different proposal is also considered, discussed but rejected by the community. It's listed here for future reference.
 
-Major areas to be addressed in the above chosen proposal are: 
+Major areas to be addressed in the above chosen proposal are:
 
-1)	VRF bind and IP config message sequence dependency
-2)	Need INTERFACE|Ethernet0:{}, even if user does not use VRF config. Not compatible with JSON file.
-3)	Not compatible with the existing JSON file, need a script to convert
-4)	Warm reboot implementation become complicated
-5)	Unit test cases (swss and Ansible) are not compatible, need test case modification
-6)	Add more wait states in each daemon, may have performance impact
+1) VRF bind and IP config message sequence dependency
+2) Need INTERFACE|Ethernet0:{}, even if user does not use VRF config. Not compatible with JSON file.
+3) Not compatible with the existing JSON file, need a script to convert
+4) Warm reboot implementation become complicated
+5) Unit test cases (swss and Ansible) are not compatible, need test case modification
+6) Add more wait states in each daemon, may have performance impact
 
-### vrf as key
+### vrf as the part of key
 
 Using this syntax in the config_db.json can also solve the sequence dependency:
 
-```jason
+```json
 "INTERFACE":{
     "Ethernet2|Vrf-blue|12.12.12.1/24": {}
     "Ethernet2|Vrf-blue|13.13.13.1/24": {}
@@ -822,10 +992,9 @@ Using this syntax in the config_db.json can also solve the sequence dependency:
 },
 
 ....
-
 ```
 
-Here "Vrf-blue" is part of the IP address configuration of the interface. 
+Here "Vrf-blue" is part of the IP address configuration of the interface.
 
 Since it is very complicated to carry IP addresses when an interface moves from one VRF to another VRF, the current implementation is when interface moves from one VRF to another VRF, the IP address will be deleted. Because of this, we can treat VRF as part of the key of interface entry, but not an attribute. This solution has following advantage:
 

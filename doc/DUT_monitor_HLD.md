@@ -99,6 +99,7 @@ If HWSKU is not defined for current DUT - platform thresholds will be used.
 
 If platform is not defined for current DUT - default thresholds will be used.
 
+
 ##### Thresholds template example:
 ```code
 # All fields are mandatory
@@ -110,6 +111,7 @@ default:
   ram_peak: x
   ram_delta: x
   hdd_used: x
+
 
 # Platform inherits thresholds from 'default' section
 # Any threshold field can be redefined per platform specific
