@@ -147,14 +147,14 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 
 1. Transformer common app owns the Open config data models related to BGP (which means no separate app module required for handling BGP yang objects).
 
-  * openconfig-network-instance.yang
-  * openconfig-bgp.yang
-  * openconfig-bgp-global.yang
-  * openconfig-bgp-neighbor.yang
-  * openconfig-bgp-peer-group.yang
-  * openconfig-routing-policy.yang
-  * openconfig-bgp-policy.yang
-  * openconfig-rib-bgp.yang
+    * openconfig-network-instance.yang
+    * openconfig-bgp.yang
+    * openconfig-bgp-global.yang
+    * openconfig-bgp-neighbor.yang
+    * openconfig-bgp-peer-group.yang
+    * openconfig-routing-policy.yang
+    * openconfig-bgp-policy.yang
+    * openconfig-rib-bgp.yang
 
 2. Provide annotations for required objects so that transformer core and common app will take care of handling them.
 
@@ -181,11 +181,115 @@ Added new tables to configure following information:
   * BGP template configurations
   * BGP community configurations
   * Route policy configurations
-  > [TODO] Add any other tables added to DB
+> [TODO] Add any other tables added to DB
 
 Enhance following tables to configure additional attributes:
 
   * BGP Neighbor table
+
+#### 3.2.1.1 Add a BGP_INST_TABLE in CONFIG_DB
+```JSON
+;Defines BGP routing instance table
+;
+;Status: stable
+
+key                   = BGP_INST_TABLE:vrf_name ;
+local_asn             = uint32 ; Local ASN for the BGP instance
+router_id             = \*IPv4prefix ; Router ID IPv4 address
+load_balance_mp_relax = "true" / "false" ;
+grace_restart         = "true" / "false" ;
+```
+
+#### 3.2.1.2 Enhance BGP_NEIGHBOR table in CONFIG_DB
+> [TODO] check current BGP neighbor table definition and update for any additions to existing table.
+
+```JSON
+;Defines BGP neighbor table
+;
+;Status: stable
+
+key               = BGP_NEIGHBOR:vrf_name:IPprefix ;
+IPprefix          = IPv4Prefix / IPv6prefix ;
+local_asn         = uint32 ; Local ASN for the BGP neighbor
+descr             = 1*64VCHAR ; BGP neighbor description
+ebgp_mhop_count   = uint8 ; EBGP multihop count
+peer_asn          = uint32 ; Remote ASN
+admin             = "true" / "false" ; Neighbor admin status
+keepalive_intvl   = uint16 ; keepalive interval
+hold_time         = uint16 ; hold time
+local_address     = IPprefix ; local IP address
+peer_group        = 1*64VCHAR ; peer group name
+```
+#### 3.2.1.3 Add BGP_NEIGHBOR_AF table in CONFIG_DB
+```JSON
+;Defines BGP Neighbor table at an address family level
+;
+;Status: stable
+
+key           = BGP_NEIGHBOR_AF:vrf_name:prefix:af ;
+admin         = "true" / "false" ; Neighbor admin status
+allow_asin    = uint8 ;  Number of occurences of ASN
+route_map     = 1*64VCHAR ; route map filter to apply for this neighbor
+direction     = "in" / "out" ; direction to apply for this route map
+```
+
+#### 3.2.1.4 Add BGP_PEER_GROUP table in CONFIG_DB
+> [TODO] check if there is any existing peer group DB.
+
+```JSON
+;Defines BGP peer group table
+;
+;Status: stable
+
+key              = BGP_PEER_GROUP:vrf_name:peer_group_name ;
+peer_group_name  = 1*64VCHAR ; alias name for the peer group template, must be unique
+local_asn        = 1\*10DIGIT ; Local ASN for the BGP peer group
+descr             = 1*64VCHAR ; BGP peer group description
+ebgp_mhop_count   = uint8 ; EBGP multihop count
+peer_asn          = uint32 ; Remote ASN
+admin             = "true" / "false" ; Peer group admin status
+keepalive_intvl   = uint16 ; keepalive interval
+hold_time         = uint16 ; hold time
+local_address     = IPprefix ; local IP address
+```
+#### 3.2.1.5 Add BGP_AF_PEER_GROUP table in CONFIG_DB
+> [TODO] check if there is any existing peer group DB.
+
+```JSON
+;Defines BGP per address family peer group table
+;
+;Status: stable
+
+key               = BGP_AF_PEER_GROUP:vrf_name:af:peer_group_name ;
+af                = "IPv4" / "IPv6"  ; address family
+peer_group_name   = 1*64VCHAR ; alias name for the peer group template, must be unique
+admin             = "true" / "false" ; Peer group admin status
+allow_asin        = uint8 ;  Number of occurences of ASN
+route_map         = 1*64VCHAR ; route map filter to apply for this peer group
+direction         = "in" / "out" ; direction to apply for this route map
+```
+
+#### 3.2.1.6 Add BGP_AF table in CONFIG_DB
+```JSON
+;Defines BGP Address family table
+;
+;Status: stable
+
+key           = BGP_AF:vrf_name:af ;
+af            = "IPv4" / "IPv6"  ; address family
+source        = "connected" / "static" ; route types to redistribute
+route_map     = 1*64VCHAR ; route map filter to apply for redistribute
+```
+
+#### 3.2.1.7 Add BGP_LISTEN_PREFIX table in CONFIG_DB
+```JSON
+;Defines BGP Listen Prefix table
+;
+;Status: stable
+
+key             = BGP_AF:vrf_name:IPprefix ;
+peer_group_name = 1*64VCHAR ; Peer group this listen prefix is associated with
+```
 
 ### 3.2.2 APP DB
 N/A
@@ -240,7 +344,8 @@ List of  Open-config yang models required for FRR-BGP Unified Configuration and 
     8) openconfig-rib-bgp.yang
 
 Supported yang objects and attributes:
-  > [TODO] - update the supported YANG objects tree under each model
+
+> [TODO] - update the supported YANG objects tree under each model
 
 
 ### 3.6.2 CLI
@@ -264,7 +369,6 @@ Supported yang objects and attributes:
 
 
 #### 3.6.2.1 Configuration Commands
-> [TODO] - update the config command list.
 
 ##### 3.6.2.1.1 BGP Router mode commands
 
@@ -351,7 +455,7 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 - **SONIC** - meaning that no IS-CLI-like command could be found, so the command is derived specifically for SONIC.
 
 |CLI Command|Compliance|IS-CLI Command (if applicable)| Link to the web site identifying the IS-CLI command (if applicable)|
-|:---:|:-----------:|:------------------:|-----------------------------------|
+|:---|:-----------|:------------------|:-----------------------------------|
 | | | | |
 | | | | |
 
@@ -362,7 +466,7 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 > [TODO] - Update this section for REST config path.
 
 |Command description | OpenConfig Command Path |
-|:---:|:-----------:|
+|:---|:-----------|
 | | |
 | | |
 | | |
