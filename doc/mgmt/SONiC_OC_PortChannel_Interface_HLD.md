@@ -256,23 +256,58 @@ module: openconfig-interfaces
 +         |  |  +--ro oc-lag:member*      oc-if:base-interface-ref
 ```
 
-**Note:** Currently LACP fallback not supported, so will be augmenting openconfig-if-aggregate.yang data model. 
+**Note:** Currently LACP fallback not supported, so openconfig-if-aggregate.yang data model will be augmented. 
 
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
-| Command description | CLI command |
-| :------ | :----- |
-| Create a PortChannel  | sonic(config)# interface PortChannel \<channel-number>  |
-| Configure min-links |  sonic(conf-if-poX)# minimum-links \<number> |
-| Configure MTU |  sonic(conf-if-poX)#  mtu \<number> |
-| Configure default MTU |  sonic(conf-if-poX)# no mtu |
-| Disable interface |  sonic(conf-if-poX)# shutdown |
-| Enable interface |  sonic(conf-if-poX)# no shutdown|
-| Configure IP address |  sonic(conf-if-poX)# ip address \<ip-address with mask> |
-| Remove IP address |  sonic(conf-if-poX)# no ip address \<ip-address> |
-| Add port member | sonic(config)# interface EthernetX \<id> <br><br> sonic(conf-if-EthernetX)# channel-group \<channel-number>  |
-| Remove a port member | sonic(config)# interface EthernetX <br><br> sonic(conf-if-EthernetX)# no channel-group|
-| Delete a PortChannel | sonic(config)# no interface PortChannel \<channel-number> |
+
+### Create a PortChannel
+`interface PortChannel \<channel-number>` — Create a PortChannel 
+```
+sonic(config)# interface PortChannel 1
+```
+### Configure min-links
+`minimum-links \<number>` 
+Default:0
+```
+sonic(conf-if-poX)# minimum-links 1
+```
+### Configure MTU
+`mtu \<number> | no ntu`
+```
+sonic(conf-if-poX)#  mtu \<number>
+sonic(conf-if-poX)# no mtu
+```
+
+### Activate or deactivate an interface
+`shutdown | no shutdown` 
+```
+sonic(conf-if-poX)# shutdown 
+sonic(conf-if-poX)# no shutdown
+```
+### Configures an IPv4 address of the interface.
+`ip address <ip-address with mask> | no ip address <ip-address>`
+```
+sonic(conf-if-poX)# ip address 2.2.2.2/24 |
+sonic(conf-if-poX)# no ip address 2.2.2.2 |
+```
+### Add port member
+`channel-group \<channel-number>` 
+```
+sonic(config)# interface Ethernet4 
+sonic(conf-if-EthernetX)# channel-group 1
+```
+### Remove a port member
+`no channel-group`
+```
+sonic(config)# interface Ethernet4
+sonic(conf-if-EthernetX)# no channel-group
+```
+### Delete a PortChannel
+`no interface PortChannel \<channel-number>` 
+```
+sonic(config)# no interface PortChannel 1
+```
 
 #### 3.6.2.2 Show Commands
 
@@ -283,13 +318,13 @@ module: openconfig-interfaces
 Example output:
 ````
 Flags:  D - Down
-        U - Up (PortChannel)
+        U - Up
 --------------------------------------------------------------------------------
 Group Port-Channel           Type     Protocol  Member Ports
 --------------------------------------------------------------------------------
-1    PortChannel1    (D)     Eth      LACP    Ethernet56, Ethernet60
-10   PortChannel10   (D)     Eth      LACP
-111  PortChannel111  (D)     Eth      LACP
+1    PortChannel1    (D)     Eth      DYNAMIC    Ethernet56(D), Ethernet60(D)
+10   PortChannel10   (D)     Eth      DYNAMIC
+111  PortChannel111  (D)     Eth      DYNAMIC
 
 ````
 
