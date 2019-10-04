@@ -1,5 +1,6 @@
 # PortChannel
-Openconfig support for PortChannel interface via openconfig-interfaces.yang
+Openconfig support for PortChannel interfaces
+
 # High Level Design Document
 #### Rev 0.1
 
@@ -19,10 +20,10 @@ Openconfig support for PortChannel interface via openconfig-interfaces.yang
 | 0.1 | 09/09/2019  |   Tejaswi Goel      | Initial version                   |
 
 # About this Manual
-This document provides information about the PortChannel configuration in SONiC using management framework container
+This document provides information about the north bound interface details for PortChannels.
 
 # Scope
-Covers Northbound interface for the PortChannel feature, as well as Unit Test cases.
+This document covers the "configuration" and "show" commands supported for PortChannels based on openconfig yang and Unit test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -53,6 +54,20 @@ Provide management framework support to existing SONiC capabilities with respect
 
 Details described in Section 3.
 
+Configuration of LACP protocol parameters (LACP interval, mode, MAC, priority) using management framework is **not supported** due to the following limitations:
+
+- No support for LACP protocol specific configurations in SONiC. For example, on creating port channels and adding members to it, “teammgrd” daemon (in SONIC code base):
+1.	Reads user configuration from CONFIG DB
+2.	Spawns an instance of libteamd (open source package for LACP protocol stack) with the given user configurations and a couple of default LACP options.
+
+Now to support protocol specific configurations we would need to enhance:
+1.	REDIS CONFIG DB PORTCHANNEL Table schema
+2.	Code changes in “teammgrd” to read these protocol specific configs and to use “teamdctl” control utility to configure the above-mentioned configs to an already running "teamd" daemon.
+
+- `teamd` supports only a few options (not LACP-specific) to be configured via `teamdctl` utility. This could be overcome by enhancing `teamd` to support configuration of LACP parameters.
+
+Due to the above mentioned reasons, LACP **protocol specific configuration is not supported** in the initial release.
+
 ### 1.1.3 Scalability Requirements
 key scaling factors -N/A
 ### 1.1.4 Warm Boot Requirements
@@ -76,14 +91,16 @@ Provide CLI, GNMI and REST support PortChannel related commands handling
 
 # 3 Design
 ## 3.1 Overview
-Enhancing the management framework backed code and transformer methods to add support for PortChannel interface Handling
+Enhancing the management framework backend code and transformer methods to add support for PortChannel interface Handling
 
 ## 3.2 DB Changes
 N/A
 ### 3.2.1 CONFIG DB
-No changes to database schema's just populate Config DB
+No changes to CONFIG DB. Will be populating PORTCHANNEL table and PORTCHANNEL_MEMBER table with user configuartions.
+
 ### 3.2.2 APP DB
-Read data
+Will be reading LAG_TABLE and LAG_MEMBER_TABLE for show commands.
+
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
@@ -104,6 +121,7 @@ N/A
 List of yang models required for PortChannel interface management.
 1. **openconfig-if-aggregate.yang** 
 2. **openconfig-interfaces.yang**
+3. **openconfig-lacp.yang**
 
 Supported yang objects and attributes:
 ```diff
@@ -281,11 +299,15 @@ Group Port-Channel           Type     Protocol  Member Ports
 
 Example output:
 ````
-PortChannel 1 is up, line protocol is down
+PortChannel 1 is up, line protocol is down, mode lacp
 Interface index is 49
 MTU 1532 bytes, IP MTU 1500 bytes
 Minimum number of links to bring Port-channel up is 1
+LACP mode active interval slow 
+LACP Actor System ID: Priority 65535 Address 90:b1:1c:f4:a8:7e
 Members in this channel: Ethernet56
+LACP Actor Port 56  Address 90:b1:1c:f4:a8:7e Key 0
+LACP Partner Port 0  Address 00:00:00:00:00:00 Key 0
 Input statistics:
      0 packets, 0 octets
      0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
@@ -350,6 +372,8 @@ N/A
     - Verify error returned if invalid interface given
 - Validate PortChannel deletion via CLI, GNMI and REST
     - Verify error returned if PortChannel does not exist
+- Validate show command's listed above using CLI, GNMI and REST
+
 
 # 10 Internal Design Information
 
