@@ -91,40 +91,57 @@ Note - SONiC doesn't support other attributes for VLAN Interface.
 ### 3.2.2 CLI
 
 #### 3.2.2.1 Configuration Commands
-````
-VLAN Creation:-
-sonic(config)# interface Vlan <vlan-id>
 
-VLAN Deletion:-
-sonic(config)# no interface Vlan <vlan-id>
-
-Trunk VLAN addition to Member Port:-
-sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan <vlan-id>
-
-Trunk VLAN removal from Member Port:-
-sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan <vlan-id>
-
-Access VLAN addition to Member Port:-
-sonic(conf-if-Ethernet4)# switchport access Vlan <vlan-id>
-
-Access VLAN removal from Member Port:-
+#### VLAN Creation
+`interface Vlan <vlan-id>`
+```
+sonic(config)# interface Vlan 5
+```
+#### VLAN Deletion
+`no interface Vlan <vlan-id>`
+```
+sonic(config)# no interface Vlan 5
+```
+#### Trunk VLAN addition to Member Port
+`switchport trunk allowed Vlan <vlan-id>`
+```
+sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan 5
+```
+#### Trunk VLAN removal from Member Port
+`no switchport trunk allowed Vlan <vlan-id>`
+```
+sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan 5
+```
+#### Access VLAN addition to Member Port
+`switchport access Vlan <vlan-id>`
+```
+sonic(conf-if-Ethernet4)# switchport access Vlan 5
+```
+#### Access VLAN removal from Member Port
+`no switchport access Vlan`
+```
 sonic(conf-if-Ethernet4)# no switchport access Vlan
-````
+```
+
 #### 3.2.2.2 Show Commands
-````
-sonic# show Vlan
+#### Display VLAN details
+`show Vlan`
+```
 Q: A - Access (Untagged), T - Tagged
     NUM       Status       Q Ports
     5         Active       T Ethernet24
     10        Inactive
     20        Inactive     A Ethernet4
-
-sonic# show Vlan <vlan-id>
+```
+#### Display specific VLAN details
+`show Vlan <vlan-id>`
+```
+sonic# show Vlan 5
 Q: A - Access (Untagged), T - Tagged
     NUM    Status     Q Ports
     5      Active     T Ethernet24
                       A Ethernet20
-````
+```
 #### 3.2.2.3 Debug Commands
 N/A
 
