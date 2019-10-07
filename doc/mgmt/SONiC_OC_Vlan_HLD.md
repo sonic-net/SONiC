@@ -55,35 +55,35 @@ Details described in Section 3.
 ## 1.2 Design Overview
 
 ### 1.2.1 Basic Approach
-Need a description here
+Provide transformer methods in sonic-mgmt-framework container for VLAN handling
 
 ### 1.2.2 Container
-Management container
+All code changes will be done in management-framework container
 
 ### 1.2.3 SAI Overview
 N/A
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Wordy description, with diagrams if possible
+Manage/configure Vlan interface via CLI, gNMI and Rest interfaces
 ## 2.2 Functional Description
-Wordy description
+Provide CLI, gNMI and REST support for Vlan related commands handling
 
 # 3 Design
 ## 3.1 Overview
-big picture view of the actors involved.
+Enhancing the management framework backend code and transformer methods to add support for Vlan handling
 
 ## 3.2 User Interface
 ### 3.2.1 Data Models
 **openconfig-vlan.yang** (Config for Set Op and State for Get Op)
 
-- ``/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/[config|state]/[interface-mode/access-vlan/trunk-vlans]``
+- ``/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/[config | state]/[interface-mode | access-vlan | trunk-vlans]``
 
 Exception - "native-vlan" is not supported in the above config and state containers.
 
 **openconfig-interfaces.yang** (Get Support)
 
-- ``/openconfig-interfaces:interfaces/ interface={name}/state/[admin-status|mtu]``
+- ``/openconfig-interfaces:interfaces/ interface={name}/state/[admin-status | oper-status | mtu]``
 
 Note - SONiC doesn't support other attributes for VLAN Interface.
 
@@ -93,37 +93,37 @@ Note - SONiC doesn't support other attributes for VLAN Interface.
 #### 3.2.2.1 Configuration Commands
 ````
 VLAN Creation:-
-sonic(config)# interface vlan <vlan-id>
+sonic(config)# interface Vlan <vlan-id>
 
 VLAN Deletion:-
-sonic(config)# no interface vlan <vlan-id>
+sonic(config)# no interface Vlan <vlan-id>
 
 Trunk VLAN addition to Member Port:-
-sonic(conf-if-Ethernet4)# switchport trunk allowed vlan <vlan-id>
+sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan <vlan-id>
 
 Trunk VLAN removal from Member Port:-
-sonic(conf-if-Ethernet4)# no switchport trunk allowed vlan <vlan-id>
+sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan <vlan-id>
 
 Access VLAN addition to Member Port:-
-sonic(conf-if-Ethernet4)# switchport access vlan <vlan-id>
+sonic(conf-if-Ethernet4)# switchport access Vlan <vlan-id>
 
 Access VLAN removal from Member Port:-
-sonic(conf-if-Ethernet4)# no switchport access vlan
+sonic(conf-if-Ethernet4)# no switchport access Vlan
 ````
 #### 3.2.2.2 Show Commands
 ````
-sonic# show vlan
+sonic# show Vlan
 Q: A - Access (Untagged), T - Tagged
-    NUM    Q Ports
-    5      T Ethernet24
-    10
-    20     A Ethernet4
+    NUM       Status       Q Ports
+    5         Active       T Ethernet24
+    10        Inactive
+    20        Inactive     A Ethernet4
 
-sonic# show vlan <vlan-id>
+sonic# show Vlan <vlan-id>
 Q: A - Access (Untagged), T - Tagged
-    NUM    Q Ports
-    5      T Ethernet24
-           A Ethernet20
+    NUM    Status     Q Ports
+    5      Active     T Ethernet24
+                      A Ethernet20
 ````
 #### 3.2.2.3 Debug Commands
 N/A
@@ -137,14 +137,13 @@ N/A
 - `/openconfig-interfaces:interfaces/ interface={name}`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/[access-vlan | trunk-vlans | interface-mode]`
 
-Note: Expects Interface mode to be passed for ACCESS/TRUNK vlan configs.
 
 **DELETE**
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/[access-vlan | trunk-vlans]`
 - `/openconfig-interfaces:interfaces/ interface={name}`
 
 **GET**
-- `/openconfig-interfaces:interfaces/ interface={name}/state/[admin-status | mtu]`
+- `/openconfig-interfaces:interfaces/ interface={name}/state/[admin-status | mtu | oper-status]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/State/[access-vlan | trunk-vlans]`
 
 # 4 Flow Diagrams
@@ -163,12 +162,13 @@ N/A
 N/A
 
 # 9 Unit Test
-- Create VLAN A, verify it using #show vlan command and SONiC CLI commands.
-- Add an untagged-port to VLAN A, verify it using #show vlan <id> command and SONiC CLI commands.
-- Add 2 tagged-ports to VLAN B, verify it using #show vlan command and SONiC CLI commands.
-- Remove un-tagged port from VLAN A, verify it using #show vlan <id> command and SONiC CLI commands.
-- Remove all the tagged-ports from VLAN B, verify it using #show vlan <id> command and SONiC CLI commands.
-- Delete VLAN, verify it using #show vlan command and SONiC CLI commands.
+- Create VLAN A, verify it using CLI, gNMI and Rest.
+- Add an untagged-port to VLAN A, verify it using CLI, gNMI and Rest.
+- Create VLAN B, verify it using CLI, gNMI and Rest.
+- Add 2 tagged-ports to VLAN B, verify it using CLI, gNMI and Rest.
+- Remove un-tagged port from VLAN A, verify it using CLI, gNMI and Rest.
+- Remove all the tagged-ports from VLAN B, verify it using CLI, gNMI and Rest.
+- Delete VLAN, verify it using CLI, gNMI and Rest.
 
 # 10 Internal Design Information
-Internal BRCM information to be removed before sharing with the community.
+N/A
