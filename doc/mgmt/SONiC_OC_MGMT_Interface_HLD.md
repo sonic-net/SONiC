@@ -18,7 +18,7 @@ Openconfig support for Physical and Management interfaces via openconfig-interfa
 | 0.1 | 09/09/2019  |   Ravi Vasanthm     | Initial version                   |
 
 # About this Manual
-This document provides general information about openconfig support for Physical and Management interfaces handling in SONIC.
+This document provides general information about openconfig support for Physical and Management interfaces handling in SONiC.
 
 # Scope
 This document describes the high level design of openconfig support for Physical and Management interfaces handling feature. Call out any related design that is not covered by this document
@@ -40,20 +40,20 @@ https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/ope
 
 ### 1.1.1 Functional Requirements
 
-1. Provide CLI, REST and GNMI support for configuring and displaying physical and management interfaces attributes.
-2. Enhance existing implementation of interfaces yang to include physical and management interfaces handling.
+1. Provide CLI, REST and gNMI support for configuring and displaying physical and management interfaces attributes.
+2. Enhance existing implementation of interfaces YANG to include physical and management interfaces handling.
 3. Enhance existing top level show commands for interfaces to include physical and management interfaces details too.
 
 
 ### 1.1.2 Configuration and Management Requirements
-1. Provide CLI/GNMI/REST support for configuring Physical and Management interfaces attributes.
-2. Provide CLI/GNMI/REST support for show Physical and Management  interfaces attributes/parameters.
+1. Provide CLI/gNMI/REST support for configuring Physical and Management interfaces attributes.
+2. Provide CLI/gNMI/REST support for show Physical and Management  interfaces attributes/parameters.
 
 
 ### 1.1.3 Scalability Requirements
 N/A
 ### 1.1.4 Warm Boot Requirements
-
+N/A
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
 Will be enhancing the management framework backend and transformer methods to add support for Physical and  Management interfaces Handling.
@@ -67,14 +67,14 @@ All code changes will be done in management-framework container.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Manage/configure physical and management interfaces via GNMI, REST and CLI interfaces
+Manage/configure physical and management interfaces via gNMI, REST and CLI interfaces
 
 ## 2.2 Functional Description
-Provide GNMI and REST support for get/set of Physical and Management interfaces attributes and CLI config and show commands to manage Management interface.
+Provide gNMI and REST support for get/set of Physical and Management interfaces attributes and CLI config and show commands to manage Management interface.
 
 # 3 Design
 ## 3.1 Overview
-1. Transformer common app owns the openconfig-interface.yang models (which  means no separate app module required for interfaces yang objects handling). Will be deleting the existing interface app module.
+1. Transformer common app owns the openconfig-interface.yang models (which  means no separate app module required for interfaces YANG objects handling). Will be deleting the existing interface app module.
 2. Provide annotations for required objects in interfaces and respective augmented models so that transformer core and common app will take care of handling interfaces objects.
 3. Provide transformer methods as per the annotations defined for interfaces and respective augmented models to take care of model specific logics and validations.
 
@@ -92,6 +92,7 @@ No changes to database schema's just read COUNTER DB for getting interface count
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
+N/A
 ### 3.3.2 Other Process
 N/A.
 
@@ -103,13 +104,13 @@ N/A
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
-Can be reference to YANG if applicable. Also cover GNMI here.
-List of yang models will be need to add support for physical and management interfaces.
+Can be reference to YANG if applicable. Also cover gNMI here.
+List of YANG models will be need to add support for physical and management interfaces.
 1. openconfig-if-ethernet.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ethernet.yang)
 2. openconfig-if-ip.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ip.yang)
 3. openconfig-interfaces.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-interfaces.yang)
 
-Supported yang objects and attributes:
+Supported YANG objects and attributes:
 ```diff
 module: openconfig-interfaces
 
@@ -182,57 +183,159 @@ module: openconfig-interfaces
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
 1. interface Management <Interface Id>
-  CLI -> Interface syntax and output
-  sonic(config)# interface
+
+  sonic(config)# interface ?
   Ethernet    Interface commands
   Management  Management Interface commands
 
-sonic(config)# interface Management
-  Unsigned integer  Management interface
+  sonic(config)# interface Management ?
+      Management interface (0..0)
 
-sonic(config)# interface Management 0
-  <cr>
 
-sonic(config)# interface Management 0
-sonic(conf-if-eth0)#
-  autoneg      Configure autoneg
-  description  Textual description
-  ip           Interface Internet Protocol config commands
-  ipv6         Interface Internet Protocol config commands
-  mtu          Configure MTU
-  no           Negate a command or set its defaults
-  shutdown     Disable the interface
-  speed        Configure speed
+  sonic(config)# interface Management 0
+  sonic(conf-if-eth0)#
+    autoneg      Configure autoneg
+    description  Textual description
+    end          Exit to the exec Mode
+    exit         Exit from current mode
+    ip           Interface Internet Protocol config commands
+    ipv6         Interface Internet Protocol config commands
+    mtu          Configure MTU
+    no           Negate a command or set its defaults
+    shutdown     Disable the interface
+    speed        Configure speed
 ```
-Note: To configure management interface, select  Management subcommand under config->interface command and provide the interface id(integer, for eth0 its 0 and so on). Once provided the interface ID, cli banner shows which management interface view user is at (sonic(conf-if-eth0)#). CLI backend/GNMI/REST clients should use actual interface names(eth<x>) for configuring or show.
 
-2. shutdown
-shutdown | no shutdown — Activates or deactivates an interface.
-3. mtu
+Note: To configure management interface, select  Management subcommand under config->interface command and provide the interface id(for eth0 ID is 0).
+
+# shutdown
+`shutdown | no shutdown` — Activate or deactivate an interface.
+```
+SONiC(config)# interface Management 0
+SONiC(conf-if-eth0)# no shutdown
+Success
+SONiC(conf-if-eth0)# shutdown
+Success
+```
+# mtu
 mtu <val> | no mtu — Configures the maximum transmission unit (MTU) size of the interface in bytes.
-4. description
+```
+SONiC(config)# interface Management 0
+SONiC(conf-if-eth0)# mtu 2500
+Success
+SONiC(conf-if-eth0)# no mtu
+Success
+```
+# description
 description <string> | no description — Provides a text-based description of an interface.
-5. ip address
+```
+sonic(conf-if-eth0)# description "Management0"
+Success
+sonic(conf-if-eth0)# no description
+Success
+```
+# ip address
 ip address <ip-address with mask> | no ip address <ip-address> — Configures an IPv4 address of the interface.
-6. ipv6 address
+```
+SONiC(config)# interface Management 0
+SONiC(conf-if-eth0)# ip address 2.2.2.2/24
+Success
+SONiC(conf-if-eth0)# no ip address 2.2.2.2
+Success
+```
+# ipv6 address
 ipv6 address <ipv6-address with mask> | no ipv6 address <ipv6-address> — Configures the IPv6 address of the interface.
-7. speed
-speed <10|100|1000 MBPS> | no speed - Configures speed of the management interface.
-8. autoneg
-on/off - auto negotiation mode  on/off
-
+```
+SONiC(config)# interface Management 0
+SONiC(conf-if-eth0)# ipv6 address a::e/64
+Success
+SONiC(conf-if-eth0)# no ipv6 address a::e
+Success
+```
+# speed
+Port speed config of the interface (10/100/1000/10000/25000/40000/100000/auto)
+```
+sonic(conf-if-eth0)# speed 100
+Success
+sonic(conf-if-eth0)# no speed
+Success
+```
+# autoneg
+on|off  Autoneg config of the interface (on/off)
+```
+sonic(conf-if-eth0)# autoneg on
+Success
+sonic(conf-if-eth0)# autoneg off
+Success
+sonic(conf-if-eth0)# no autoneg
+Success
+```
 #### 3.6.2.2 Show Commands
 1. show interface Management — Displays details about Management interface (eth0).
+```
+# show interface Management 0
+eth0 is up, line protocol is up
+Hardware is Eth
+Interface index is 11
+IPV4 address is 44.2.3.4/24
+Mode of IPV4 address assignment: MANUAL
+IPV6 address is a::e/64
+Mode of IPV6 address assignment: MANUAL
+IP MTU 1500 bytes
+LineSpeed 1000MB, Auto-negotiation on
+Input statistics:
+        0 packets, 0 octets
+        0 Multicasts, 0 Broadcasts, 0 Unicasts
+        0 error, 0 discarded
+Output statistics:
+        0 packets, 0 octets
+        0 Multicasts, 0 Broadcasts, 0 Unicasts
+        0 error, 0 discarded
+```
 ##### CLI's list which need's to be enhanced to add Management interface details>
-1. show interface status - Need to add eth0 interface as part of interfaces status list.
-2. show interface counters - - Need to add eth0 interface as part of interfaces counters list.
+1. show interface status - Displays a brief summary of the interfaces.
+  Note: Need to add eth0 interface as part of interfaces status list.
+```
+#show interface status
+------------------------------------------------------------------------------------------
+Name                Description         Admin          Oper           Speed          MTU
+------------------------------------------------------------------------------------------
+Ethernet0           -                   up             down           40GB           9100
+Ethernet4           -                   up             up             40GB           9100
+Ethernet8           -                   up             down           40GB           9100
+Ethernet12          Ethernet12          up             down           40GB           9100
+Ethernet16          -                   up             down           40GB           9100
+Ethernet20          -                   up             down           40GB           9100
+Ethernet24          -                   up             down           40GB           9100
+eth0                Management0         up             up             1000MB         1500
+```
+2. show interface counters - Displays port statistics of all physical interfaces.
+  Note - Need to add eth0 interface as part of interfaces counters list.
+```
+#show interface counters
+------------------------------------------------------------------------------------------------
+Interface      State     RX_OK     RX_ERR    RX_DRP    TX_OK     TX_ERR    TX_DRP
+------------------------------------------------------------------------------------------------
+Ethernet0      D         0         0         0         0         0         0
+Ethernet4      U         1064      0         0         438       0         0
+Ethernet8      D         0         0         0         0         0         0
+Ethernet12     D         0         0         0         0         0         0
+Ethernet16     D         0         0         0         0         0         0
+Ethernet20     D         0         0         0         0         0         0
+Ethernet24     D         0         0         0         0         0         0
+Ethernet28     D         0         0         0         0         0         0
+Ethernet32     U         431       0         0         438       0         0
+Ethernet36     D         0         0         0         0         0         0
+Ethernet40     D         0         0         0         0         0         0
+eth0           U        23233      0         0         33220     0         0
+```
 #### 3.6.2.3 Debug Commands
 N/A
 #### 3.6.2.4 IS-CLI Compliance
 N/A
 
 ### 3.6.3 REST API Support
-
+N/A
 # 4 Flow Diagrams
 N/A
 
@@ -249,12 +352,12 @@ N/A
 N/A.
 
 # 9 Unit Test
-1. Validate interfaces/interface/config enabled, mtu and description attributes get/set via GNMI and REST
-2. Validate interfaces/interface/state enabled, mtu and description attributes get via GNMI and REST
-3. Validate interfaces/interface/subinterface/subinterface/[ipv4|ipv6]/config ip attribute get/set via GNMI and REST.
-4. Validate interfaces/interface/subinterface/subinterface/[ipv4|ipv6]/state ip attribute get/set via GNMI and REST.
-5. Validate interfaces/interface/ethernet/config autoneg and speed attributes get/set via GNMI and REST.
-6. Validate interfaces/interface/ethernet/state autoneg and speed attributes get/set via GNMI and REST.
+1. Validate interfaces/interface/config enabled, mtu and description attributes get/set via gNMI and REST
+2. Validate interfaces/interface/state enabled, mtu and description attributes get via gNMI and REST
+3. Validate interfaces/interface/subinterface/subinterface/[ipv4|ipv6]/config ip attribute get/set via gNMI and REST.
+4. Validate interfaces/interface/subinterface/subinterface/[ipv4|ipv6]/state ip attribute get/set via gNMI and REST.
+5. Validate interfaces/interface/ethernet/config autoneg and speed attributes get/set via gNMI and REST.
+6. Validate interfaces/interface/ethernet/state autoneg and speed attributes get/set via gNMI and REST.
 7. Validate CLI command's listed above (section 3.6.2 CLI)
 
 # 10 Internal Design Information
