@@ -1,5 +1,5 @@
 # sFlow High Level Design
-### Rev 0.5
+### Rev 1.0
 ## Table of Contents
 
 ## 1. Revision 
@@ -10,7 +10,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 |v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
-|v0.6 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
+|v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -86,7 +86,8 @@ The newly introduced sflow container consists of:
        * updates the hsflowd.conf
 
 The swss container is enhanced to add the following component:
-* sfloworch : which subscribes to the APP DB and acts as southbound interface to SAI for programming the SAI_SAMPLEPACKET sessions, genetlink channel, multicast group and sampling parameters.
+* sfloworch : which subscribes to the APP DB and acts as southbound interface to SAI for programming the SAI_SAMPLEPACKET sessions.  
+* copporch : Copporch gets the genetlink family name and multicast group from copp.json file, programs the SAI genetlink attributes and associates it with trap group present for sflow in copp.json
 
 The syncd container is enhanced to support the SAI SAMPLEPACKET APIs.
 
@@ -120,7 +121,6 @@ Below figures explain the flow for different commands from CLI to SAI
 
 ![alt text](../../images/sflow/sflow_intf_rate.png "SONiC Interface rate set command")
 
-![alt text](../../images/sflow/sflow_intf_rate.png "SONiC Interface rate set command")
 
 ### 6.3 **sFlow sample path**
 The following figure shows the sFlow sample packet path flow:
@@ -228,9 +228,9 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
 #### Example SONiC CLI configuration ####
 
-&#35; sflow collector add sflow-a 10.100.12.13
+&#35; sflow collector add collector1 10.100.12.13
 
-&#35; sflow collector add sflow-b 10.144.1.2 port 6344
+&#35; sflow collector add collector2 10.144.1.2 port 6344
 
 &#35; sflow agent-id add loopback0
 
@@ -625,7 +625,7 @@ Unit test case one-liners are given below:
 | 22   | Verify that with config saved in the config_db.json, restarting the unit should result in sFlow coming up with saved configuration.     |
 | 23   | Verify sFlow functionality with valid startup configuration and after a normal reboot, fast-boot and warm-boot.                         |
 | 24   | Verify that the sFlow hsflowd logs are emitted to the syslog file for various severities.                                               |
-
+| 25   | Verify that the swss restart works without issues when sflow is enabled and continues to sample as configured. |
 ## 12 **Action items**
 * Determine if it is possible to change configuration without restarting hsflowd
 * Check host-sflow licensing options
