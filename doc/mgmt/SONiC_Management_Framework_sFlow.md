@@ -1,7 +1,7 @@
 # Feature Name
 sFlow Support in Management Framework
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -17,7 +17,7 @@ sFlow Support in Management Framework
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2019  |   Garrick He       | Initial version                   |
-| 0.1 | 10/04/2019  |   Garrick He       | Address review comments           |
+| 0.2 | 10/04/2019  |   Garrick He       | Address review comments           |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -51,7 +51,7 @@ to CONFIG DB to make configuration changes to sFlow. The underlying sFlow DB sch
 
 ### 1.2.2 Container
 There will be changes in the sonic-mgmt-framework container. The backend will be modifications to translib done through Transformer. There will be additional files added to:
-1. XML file for the CLI 
+1. XML file for the CLI
 2. Python script to handle CLI request (actioner)
 3. Jinja template to render CLI output (renderer)
 4. sFlow YANG model
