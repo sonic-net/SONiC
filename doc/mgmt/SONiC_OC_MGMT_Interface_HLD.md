@@ -1,5 +1,5 @@
 # Feature Name
-Openconfig support for Physical and Management interfaces via openconfig-interfaces.yang.
+OpenConfig support for Physical and Management interfaces via openconfig-interfaces.yang.
 # High Level Design Document
 #### Rev 0.1
 
@@ -18,10 +18,10 @@ Openconfig support for Physical and Management interfaces via openconfig-interfa
 | 0.1 | 09/09/2019  |   Ravi Vasanthm     | Initial version                   |
 
 # About this Manual
-This document provides general information about openconfig support for Physical and Management interfaces handling in SONiC.
+This document provides general information about OpenConfig support for Physical and Management interfaces handling in SONiC.
 
 # Scope
-This document describes the high level design of openconfig support for Physical and Management interfaces handling feature. Call out any related design that is not covered by this document
+This document describes the high level design of OpenConfig support for Physical and Management interfaces handling feature.
 
 # Definition/Abbreviation
 
@@ -41,7 +41,7 @@ https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/ope
 ### 1.1.1 Functional Requirements
 
 1. Provide CLI, REST and gNMI support for configuring and displaying physical and management interfaces attributes.
-2. Enhance existing implementation of interfaces YANG to include physical and management interfaces handling.
+2. Enhance existing implementation of interfaces OpenConfig YANG to include physical and management interfaces handling.
 3. Enhance existing top level show commands for interfaces to include physical and management interfaces details too.
 
 
@@ -70,13 +70,13 @@ All code changes will be done in management-framework container.
 Manage/configure physical and management interfaces via gNMI, REST and CLI interfaces
 
 ## 2.2 Functional Description
-Provide gNMI and REST support for get/set of Physical and Management interfaces attributes and CLI config and show commands to manage Management interface.
+Provide gNMI and REST support for get/set of Physical and Management interfaces attributes and CLI config and show commands to manage Management and physical interfaces.
 
 # 3 Design
 ## 3.1 Overview
 1. Transformer common app owns the openconfig-interface.yang models (which  means no separate app module required for interfaces YANG objects handling). Will be deleting the existing interface app module.
-2. Provide annotations for required objects in interfaces and respective augmented models so that transformer core and common app will take care of handling interfaces objects.
-3. Provide transformer methods as per the annotations defined for interfaces and respective augmented models to take care of model specific logics and validations.
+2. Provide annotations for required objects in interfaces and respective augmented models (openconfig-if-ethernet.yang and openconfig-if-ip.yang) so that transformer core and common app will take care of handling interfaces objects.
+3. Provide transformer methods as per the annotations defined for openconfig-interfaces.yang and respective augmented models (openconfig-if-ethernet.yang and openconfig-if-ip.yang) to take care of model specific logic and validations.
 
 ## 3.2 DB Changes
 N/A
@@ -182,7 +182,6 @@ module: openconfig-interfaces
 ```
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
-1. interface Management <Interface Id>
 
   sonic(config)# interface ?
   Ethernet    Interface commands
