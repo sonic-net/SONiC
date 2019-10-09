@@ -10,7 +10,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.3 |06/11/2019  |Padmanabhan Narayanan | Update CLIs, remove sflowcfgd 
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 |v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
-|v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
+|v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs. Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME insted of SAI_HOSTIF_ATTR_GENETLINK_PORT_ID.
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -483,6 +483,7 @@ SAMPLED PACKETS METADATA FIELDS
 ```
 
 The SAI driver may provide the interface OIDs corresponding to the IIFINDEX AND OIFINDEX. The hsflowd mod_sonic HsflowdRx() may have to map these correspondingly to the netdev ifindex.
+Note that the default PSAMPLE_ATTR_SAMPLE_GROUP that hsflowd expects is 1.
 
 Rather than define a new framework for describing the metadata for sFlow use, SAI would re-use the framework that the psample driver (https://github.com/torvalds/linux/blob/master/net/psample/psample.c) currently uses. The psample kernel driver is based on the Generic Netlink subsystem that is described in https://wiki.linuxfoundation.org/networking/generic_netlink_howto. SAI ASIC drivers supporting sFlow may choose to use the psample.ko driver as-is or may choose to implement the generic netlink interface (that complies with the above listed metadata) using a private generic netlink family.
 
@@ -490,9 +491,9 @@ Rather than define a new framework for describing the metadata for sFlow use, SA
 
 1. Application installs psample.ko (genl family = "psample") or it's own psample metadata compliant kernel driver (say, genl family ="asic_genl")
 
-2. Application creates a multicast group in the generic netlink family for use by SAI driver to lift samples on the chosen genetlink family’s multicast port.
+2. Application creates a multicast group in the generic netlink family for use by SAI driver to lift samples on the chosen genetlink family’s multicast group.
 
-3. Use sai_create_hostif_fn() to let SAI driver know of SAI_HOST_INTERFACE_TYPE_GENETLINK interface associated with generic netlink family (SAI_HOST_INTERFACE_ATTR_NAME) and mulsticast group id (SAI_HOSTIF_ATTR_GENETLINK_PORT_ID)
+3. Use sai_create_hostif_fn() to let SAI driver know of SAI_HOST_INTERFACE_TYPE_GENETLINK interface associated with generic netlink family (SAI_HOST_INTERFACE_ATTR_NAME) and mulsticast group name (SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME)
 
 4. Use sai_create_hostif_table_entry_fn() to map SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET to sai_host_if
 
@@ -518,17 +519,25 @@ The changes in SAI to support the GENETLINK host interface is highlighted below:
      */
     SAI_HOSTIF_ATTR_NAME,
 
- /**
-     * @brief Set the Generic netlink (multicast) port id on which the packets/buffers
+    /**
+     * @brief Defines maximum length of generic netlink multicast group name
+     */
+    #define SAI_HOSTIF_GENETLINK_MCGRP_NAME_SIZE 16
+
+    /**
+     * @brief Name [char[SAI_HOSTIF_GENETLINK_MCGRP_NAME_SIZE]]
+     *
+     * The maximum number of characters for the name is SAI_HOSTIF_GENETLINK_MCGRP_NAME_SIZE - 1
+     * Set the Generic netlink multicast group name on which the packets/buffers
      * are received on this host interface
      *
-     * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 0
+     * @type char
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @condition SAI_HOSTIF_ATTR_TYPE == SAI_HOSTIF_TYPE_GENETLINK
      */
-    SAI_HOSTIF_ATTR_GENETLINK_PORT_ID,
-
- /** Receive packets via Linux generic netlink interface */
+    SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME,
+    
+  /** Receive packets via Linux generic netlink interface */
     SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK
 ```
 #### Creating a GENETLINK Host Interface
@@ -546,8 +555,8 @@ sai_host_if_attr[0].value=SAI_HOST_INTERFACE_TYPE_GENETLINK;
 sai_host_if_attr[1].id= SAI_HOST_INTERFACE_ATTR_NAME;
 sai_host_if_attr[1].value=”psample”;
  
-sai_host_if_attr[2].id= SAI_HOSTIF_ATTR_GENETLINK_PORT_ID;
-sai_host_if_attr[2].value=100;
+sai_host_if_attr[2].id= SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME;
+sai_host_if_attr[2].value="packets";
 
 sai_create_host_interface_fn(&host_if_id, 9, sai_host_if_attr);
 ```
