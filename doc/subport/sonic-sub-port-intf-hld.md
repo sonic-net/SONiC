@@ -63,7 +63,7 @@ A sub port interface is a logical interface that can be created on a physical po
 A sub port interface serves as an interface to either a .1D bridge or a VRF, but not both.
 This design focuses on the use case of creating a sub port interface on a physical port or a port channel and using it as a router interface to a VRF as shown in Fig. 1.
 
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_rif.png "Fig. 1: Sub port router interface")
+![](sub_intf_rif.png "Fig. 1: Sub port router interface")
 __Fig. 1: Sub port router interface__
 
 Multiple L3 sub port interfaces, each characterized by a VLAN id in the 802.1q tag, can be created on a physical port or a port channel.
@@ -73,7 +73,7 @@ However, there is no L2 bridging between these sub port interfaces; each sub por
 
 This design does NOT cover the case of creating and using sub port as a bridge port to a .1D bridge shown in Fig. 2.
 
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_bridge_port.png "Fig. 2: Sub port bridge port (out of scope of this design")
+![](sub_intf_bridge_port.png "Fig. 2: Sub port bridge port (out of scope of this design")
 __Fig. 2: Sub port bridge port__
 
 # Acronyms
@@ -369,13 +369,13 @@ Internally, a sub port interface is represented as a Port object to be perceived
 
 # 3 Event flow diagrams
 ## 3.1 Sub port interface creation
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_creation_flow.png)
+![](sub_intf_creation_flow.png)
 
 ## 3.2 Sub port interface runtime admin status change
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_set_admin_status_flow.png)
+![](sub_intf_set_admin_status_flow.png)
 
 ## 3.3 Sub port interface removal
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/sub_intf_removal_flow.png)
+![](sub_intf_removal_flow.png)
 
 # 4 CLIs
 ## 4.1 Config commands
@@ -561,7 +561,7 @@ Even when the parent port is a physical port, sub port interface use cases, such
 Sub port interface is a router interface (RIF type sub port Vlan#) between a VRF and a physical port or a port channel.
 Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. It is an interface between a bridge port type router (connecting to a .1Q bridge) and a VRF, as shown in Fig. 3.
 
-![](https://github.com/wendani/SONiC/blob/sub_port_master/images/sub_interface_hld/vlan_intf_rif.png "Fig. 3: Vlan interface")
+![](vlan_intf_rif.png "Fig. 3: Vlan interface")
 __Fig. 3: Vlan interface__
 
 # 10 Open questions:
