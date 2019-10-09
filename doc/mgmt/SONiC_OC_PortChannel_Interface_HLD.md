@@ -87,7 +87,7 @@ N/A
 ## 2.1 Target Deployment Use Cases
 Manage/configure PortChannel interface via gNMI, REST and CLI interfaces
 ## 2.2 Functional Description
-Provide CLI, GNMI and REST support PortChannel related commands handling
+Provide CLI, gNMI and REST support PortChannel related commands handling
 
 # 3 Design
 ## 3.1 Overview
