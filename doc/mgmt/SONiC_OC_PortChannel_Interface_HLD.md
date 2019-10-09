@@ -17,13 +17,13 @@ Openconfig support for PortChannel interfaces
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 09/09/2019  |   Tejaswi Goel, Arthi Sivanantham      | Initial version                   |
+| 0.1 | 09/09/2019  |   Tejaswi Goel, Arthi Sivanantham  | Initial version   |
 
 # About this Manual
-This document provides information about the north bound interface details for PortChannels.
+This document provides general information about OpenConfig support for PortChannel interfaces handling in SONiC.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for PortChannels based on openconfig yang and Unit test cases. It does not include the protocol design or protocol implementation details.
+This document covers the "configuration" and "show" commands supported for PortChannel interfaces based on OpenConfig YANG, and the Unit test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -34,7 +34,7 @@ This document covers the "configuration" and "show" commands supported for PortC
 |          LACP            | Link Aggregation Control Protocol   |
 
 # 1 Feature Overview
-Add support for PortChannel create/set/get via CLI, REST and gNMI using  openconfig-interfaces.yang data model and sonic-mgmt-framework container
+Add support for PortChannel create/set/get via CLI, REST and gNMI using openconfig-interfaces.yang data model and sonic-mgmt-framework container.
 
 ## 1.1 Requirements
 Provide management framework capabilities to handle:
@@ -45,7 +45,7 @@ Provide management framework capabilities to handle:
 - Show PortChannel details
 
 ### 1.1.1 Functional Requirements
-Provide management framework support to existing SONiC capabilities with respect to PortChannel
+Provide management framework support to existing SONiC capabilities with respect to PortChannel.
 
 ### 1.1.2 Configuration and Management Requirements
 - IS-CLI style configuration and show commands
@@ -56,7 +56,7 @@ Details described in Section 3.
 
 Configuration of LACP protocol parameters (LACP interval, mode, MAC, priority) using management framework is **not supported** due to the following limitations:
 
-- No support for LACP protocol specific configurations in SONiC. For example, on creating port channels and adding members to it, “teammgrd” daemon (in SONIC code base):
+- No support for LACP protocol specific configurations in SONiC. For example, on creating port channels and adding members to it, “teammgrd” daemon (in SONiC code base):
 1.	Reads user configuration from CONFIG DB
 2.	Spawns an instance of libteamd (open source package for LACP protocol stack) with the given user configurations and a couple of default LACP options.
 
@@ -75,26 +75,27 @@ N/A
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-Provide transformer methods in sonic-mgmt-framework container for PortChannel handling
+Provide transformer methods in sonic-mgmt-framework container for PortChannel handling.
 
 ### 1.2.2 Container
-All code changes will be done in management-framework container
+All code changes will be done in management-framework container.
 
 ### 1.2.3 SAI Overview
 N/A
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Manage/configure PortChannel interface via gNMI, REST and CLI interfaces
+Manage/configure PortChannel interface via gNMI, REST and CLI interfaces.
 ## 2.2 Functional Description
-Provide CLI, gNMI and REST support PortChannel related commands handling
+Provide CLI, gNMI and REST support PortChannel related commands handling.
 
 # 3 Design
 ## 3.1 Overview
-Enhancing the management framework backend code and transformer methods to add support for PortChannel interface Handling
+Enhancing the management framework backend code and transformer methods to add support for PortChannel interface Handling.
 
 ## 3.2 DB Changes
 N/A
+
 ### 3.2.1 CONFIG DB
 No changes to CONFIG DB. Will be populating PORTCHANNEL table, PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table with user configuartions.
 
@@ -118,12 +119,12 @@ N/A
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
-List of yang models required for PortChannel interface management.
+List of yang models required for PortChannel interface management:
 1. [openconfig-if-aggregate.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-aggregate.yang) 
 2. [openconfig-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang) 
 3. [openconfig-lacp.yang](https://github.com/openconfig/public/blob/master/release/models/lacp/openconfig-lacp.yang) 
 
-Supported yang objects and attributes are highlighted in green:
+Supported OpenConfig YANG objects and attributes are _highlighted in green_:
 ```diff
 
 module: openconfig-interfaces
@@ -253,7 +254,7 @@ module: openconfig-interfaces
 
 ```
 
-**Note:** openconfig-if-aggregate.yang data model is augmented to support LACP fallback.
+**Note:** openconfig-if-aggregate.yang data model is augmented to support LACP Fallback.
 
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
@@ -265,40 +266,42 @@ sonic(config)# interface PortChannel 1
 ```
 ### Configure min-links
 `minimum-links <number>`
-Default:0
+<br>
+ Default:0
 ```
-sonic(conf-if-poX)# minimum-links 1
+sonic(config)# interface PortChannel 1
+sonic(conf-if-po1)# minimum-links 1
 ```
 ### Configure MTU
 `mtu <number> | no mtu`
 ```
-sonic(conf-if-poX)#  mtu <number>
-sonic(conf-if-poX)# no mtu
+sonic(conf-if-po1)#  mtu 9000
+sonic(conf-if-po1)# no mtu
 ```
 
 ### Activate or deactivate an interface
 `shutdown | no shutdown` 
 ```
-sonic(conf-if-poX)# shutdown
-sonic(conf-if-poX)# no shutdown
+sonic(conf-if-po1)# shutdown
+sonic(conf-if-po1)# no shutdown
 ```
-### Configures an IPv4 address of the interface.
+### Configures an IP address of the interface.
 `ip address <ip-address with mask> | no ip address <ip-address>`
 ```
-sonic(conf-if-poX)# ip address 2.2.2.2/24 |
-sonic(conf-if-poX)# no ip address 2.2.2.2 |
+sonic(conf-if-po1)# ip address 2.2.2.2/24
+sonic(conf-if-po1)# no ip address 2.2.2.2
 ```
 ### Add port member
 `channel-group <channel-number>`
 ```
 sonic(config)# interface Ethernet4
-sonic(conf-if-EthernetX)# channel-group 1
+sonic(conf-if-Ethernet4)# channel-group 1
 ```
 ### Remove a port member
 `no channel-group`
 ```
 sonic(config)# interface Ethernet4
-sonic(conf-if-EthernetX)# no channel-group
+sonic(conf-if-Ethernet4)# no channel-group
 ```
 ### Delete a PortChannel
 `no interface PortChannel <channel-number>`
@@ -308,10 +311,10 @@ sonic(config)# no interface PortChannel 1
 
 #### 3.6.2.2 Show Commands
 
-### Display summary information about PortChannels
+##### Display summary information about PortChannels
 `show PortChannel summary`
 ```
-sonic# show PortChannel summary 
+sonic# show PortChannel summary
 
 Flags:  D - Down
         U - Up
@@ -323,16 +326,16 @@ Group Port-Channel           Type     Protocol  Member Ports
 111  PortChannel111  (D)     Eth      DYNAMIC
 
 ```
-
 ### Show Interface status and configuration
-`show interface PortChannel`
-`show interface PortChannel <id>` 
+`show interface PortChannel` - Display details about all PortChannels.
+<br>
+`show interface PortChannel <id>` - Display details about a specific PortChannel.
 ```
 sonic# show interface PortChannel 1
-PortChannel 1 is up, line protocol is down, mode lacp
+PortChannel 1 is up, line protocol is down, mode LACP
 Interface index is 49
 MTU 1532 bytes, IP MTU 1500 bytes
-Minimum number of links to bring Port-channel up is 1
+Minimum number of links to bring PortChannel up is 1
 LACP mode active, interval slow, priority 65535, address 90:b1:1c:f4:a8:7e
 Members in this channel: Ethernet56
 LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
@@ -356,18 +359,19 @@ N/A
 ### 3.6.3 REST API Support
 
 ### Create/Delete a PortChannel 
-`/openconfig-interfaces:interfaces/interface={name}`
+- `/openconfig-interfaces:interfaces/interface={name}`
 #### Set min-links
-`/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
 #### Set MTU/admin-status
-`/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
+- `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
 #### Set IP
-`/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
+- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
 #### Add/Remove port member
-`/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 #### Get PortChannel details
-`/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state`
-`/openconfig-interfaces:interfaces/interface={name}/state/[admin-status|mtu]`
+- `/openconfig-interfaces:interfaces/ interface={name}/state/[admin-status | mtu | oper-status]`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/state/openconfig-if-aggregate:aggregate-id`
 
 # 4 Flow Diagrams
 N/A
@@ -390,8 +394,8 @@ N/A
 - Validate min-links, MTU, admin-status and IP address config for PortChannel via CLI, gNMI and REST
     - Verify error returned if min-links value out of supported range
 - Validate addition of ports to PortChannel via CLI, gNMI and REST
+    - Verify error returned if invalid PortChannel ID
     - Verify error returned if port already part of other PortChannel
-    - Validate MTU, speed and list of Vlans permitted on each member link are same as PortChannel
 - Validate removal of ports from PortChannel via CLI, gNMI and REST
     - Verify error returned if PortChannel does not exist
     - Verify error returned if invalid interface given
@@ -399,6 +403,5 @@ N/A
     - Verify error returned if PortChannel does not exist
 - Validate show command's listed above using CLI, gNMI and REST
 
-
 # 10 Internal Design Information
-
+N/A
