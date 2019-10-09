@@ -72,7 +72,7 @@ Provide CLI, gNMI and REST support for VLAN related commands handling
 
 # 3 Design
 ## 3.1 Overview
-Enhancing the management framework backend code and transformer methods to add support for Vlan handling
+Enhancing the management framework backend code and transformer methods to add support for VLAN handling
 
 ## 3.2 User Interface
 ### 3.2.1 Data Models
@@ -181,6 +181,23 @@ Q: A - Access (Untagged), T - Tagged
     5      Active     T Ethernet24
                       A Ethernet20
 ```
+#### Display VLAN information
+`show interface Vlan`
+```
+sonic# show interface Vlan
+Vlan10 is up, line protocol is up
+IP MTU 2500 bytes
+
+Vlan20 is up, line protocol is down
+IP MTU 5500 bytes
+```
+#### Display specific VLAN Information
+`show interface Vlan <vlan-id>`
+```sonic# show interface Vlan 10
+Vlan10 is up, line protocol is up
+IP MTU 2500 bytes
+```
+
 
 #### 3.2.2.3 Debug Commands
 N/A
@@ -221,8 +238,11 @@ N/A
 
 # 9 Unit Test
 - Create VLAN A, verify it using CLI, gNMI and REST.
+- Configure MTU for VLAN A, verify it using CLI, gNMI and REST.
+- Remove MTU for VLAN A, verify it using CLI, gNMI and REST.
 - Add an untagged-port to VLAN A, verify it using CLI, gNMI and REST.
 - Create VLAN B, verify it using CLI, gNMI and REST.
+- Configure admin-status, verify it using CLI, gNMI and REST.
 - Add 2 tagged-ports to VLAN B, verify it using CLI, gNMI and REST.
 - Remove un-tagged port from VLAN A, verify it using CLI, gNMI and REST.
 - Remove all the tagged-ports from VLAN B, verify it using CLI, gNMI and REST.
