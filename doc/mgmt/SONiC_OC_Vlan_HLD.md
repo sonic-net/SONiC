@@ -38,8 +38,9 @@ Add support for VLAN create/set/get via CLI, REST and gNMI using openconfig-inte
 ## 1.1 Requirements
 Provide management framework capabilities to handle:
 - VLAN creation and deletion
-- Addition of tagged/un-tagged ports to VLAN
-- Removal of tagged/un-tagged ports from VLAN
+- MTU / Admin-status configuration
+- Addition of tagged / un-tagged ports to VLAN
+- Removal of tagged / un-tagged ports from VLAN
 - Associated show commands.
 
 ### 1.1.1 Functional Requirements
@@ -140,6 +141,18 @@ sonic(config)# interface Vlan 5
 `no interface Vlan <vlan-id>`
 ```
 sonic(config)# no interface Vlan 5
+```
+#### MTU Configuration
+`[no] mtu <mtu-val>`
+```
+sonic(conf-if-vlan20)# mtu 2500
+sonic(conf-if-vlan20)# no mtu
+```
+#### Admin-Status Configuration
+`[no] shutdown`
+```
+sonic(conf-if-vlan20)# shutdown
+sonic(conf-if-vlan20)# no shutdown
 ```
 #### Trunk VLAN addition to Member Port
 `switchport trunk allowed Vlan <vlan-id>`
