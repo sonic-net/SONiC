@@ -17,7 +17,7 @@ Openconfig support for PortChannel interfaces
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 09/09/2019  |   Tejaswi Goel      | Initial version                   |
+| 0.1 | 09/09/2019  |   Tejaswi Goel, Arthi Sivanantham      | Initial version                   |
 
 # About this Manual
 This document provides information about the north bound interface details for PortChannels.
@@ -333,11 +333,10 @@ PortChannel 1 is up, line protocol is down, mode lacp
 Interface index is 49
 MTU 1532 bytes, IP MTU 1500 bytes
 Minimum number of links to bring Port-channel up is 1
-LACP mode active interval slow 
-LACP Actor System ID: Priority 65535 Address 90:b1:1c:f4:a8:7e
+LACP mode active, interval slow, priority 65535, address 90:b1:1c:f4:a8:7e
 Members in this channel: Ethernet56
-LACP Actor Port 56  Address 90:b1:1c:f4:a8:7e Key 0
-LACP Partner Port 0  Address 00:00:00:00:00:00 Key 0
+LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
+LACP Partner port 0  address 00:00:00:00:00:00 key 0
 Input statistics:
         6224 packets, 1787177 octets
         2855 Multicasts, 3369 Broadcasts, 0 Unicasts
