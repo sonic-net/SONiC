@@ -463,7 +463,60 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 **Deviations from IS-CLI:** If there is a deviation from IS-CLI, Please state the reason(s).
 
 ### 3.6.3 REST API Support
+
+#### PATCH API
+REST PATCH APIs are supported using the following openconfig BGP yang objects.
 > [TODO] - Update this section for REST config path.
+
+|Command description | OpenConfig Command Path |
+|:---|:-----------|
+|`Configure BGP router AS number`|`/network-instances/network-instance<vrf>/protocols<BGP,instance-id>/protocol/bgp/global/config/as=<local_asn>`|
+|`Configure BGP router-id` |`/network-instances/network-instance/protocols/protocol/bgp/global/config/router-id=<IPv4>` |
+|`Configure to allow ebgp multipath AS` |`/network-instances/network-instance/protocols/protocol/bgp/global/use-multiple-paths/ebgp/config/allow-multiple-as=<true\|false>` |
+|`Configure protocol Graceful restart capability` |`network-instances/network-instance/protocols/protocol/bgp/global/graceful-restart/config/enabled=<true\|false>` |
+|`Configure BGP neighbors local ASN` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address=<IP> local-as=<local_asn>` |
+|`Configure BGP peer group local ASN` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/config/peer-group-name=<peer-group> local-as=<local_asn>` |
+|`Configure BGP address family type` |`network-instances/network-instance/protocols/protocol/bgp/global/afi-safis/afi-safi/config/afi-safi-name=<IPV4_UNICAST\| IPV6_UNICAST \| L2VPN_EVPN>`|
+|`Configure BGP neighbors description` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address=<IP> description=<string>` |
+|`Enable EBGP Multihop count` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/ebgp-multihop/config/enabled=<true> multihop-ttl=<hop-cnt>` |
+|`Configure BGP neighbors remote ASN` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address=<IP> peer-as=<remote_asn>` |
+|`Configure BGP neighbor admin status` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address=<IP> enabled=<true>` |
+|`Configure BGP neighbors timers` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/timers/config/neighbor-address=<IP> keepalive-interval= <keepalive intvl> hold-time = <hold-time>` |
+|`Configure source address for BGP neighbor` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/transport/config/neighbor-address=<IP> local-address=<local-IP>` |
+|`Configure template to inherit for a BGP neighbor` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/config/neighbor-address=<IP> peer-group=<peer-group>` |
+|`Configure address family for a BGP neighbor` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/neighbor-address=<IP> afi-safi-name=<IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN>` |
+|`Configure admin status for a given BGP neighbor and address family ` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/neighbor-address=<IP> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN} enabled=<true>` |
+|`Configure ingress route filtering for a BGP neighbor` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/neighbor-address=<IP> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN}  import-policy= <route-map>` |
+|`Configure egress route filtering for a BGP neighbor` |`network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor/afi-safis/afi-safi/config/neighbor-address=<IP> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN}  export-policy= <route-map>` |
+|`Configure ingress route filtering for a BGP peer group` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/apply-policy import-policy= <route-map>` |
+|`Configure egress route filtering for a BGP peer group` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/apply-policy export-policy= <route-map>` |
+|`Configure BGP template's description` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/config/peer-group-name=<peer-group> description=<string>` |
+|`Enable EBGP Multihop count for a template` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/ebgp-multihop/config/peer-group-name=<peer-group> enabled=<true> multihop-ttl=<hop-cnt>` |
+|`Configure BGP template's remote ASN` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/config/peer-group-name=<peer-group> peer-as=<remote_asn>` |
+|`Configure BGP template's admin status` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/config/peer-group-name=<peer-group> enabled=<true>` |
+|`Configure BGP template's timers` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/timers/config/peer-group-name=<peer-group> keepalive-interval=<keepalive intvl> hold-time=<hold-time>` |
+|`Configure source address for BGP template` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/transport/config peer-group-name=<peer-group> local-address=<local-IP>` |
+|`Configure Listen prefix to BGP template` |`network-instances/network-instance/protocols/protocol/bgp/global/dynamic-neighbor-prefixes/dynamic-neighbor-prefix/config/prefix=<prefix> peer-group=<peer-group>` |
+|`Configure address family for a BGP template` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/config/peer-group-name=<peer-group> afi-safi-name=<IPV4_UNICAST  \| IPV6_UNICAST \| L2VPN_EVPN>` |
+|`Configure admin status of BGP template at address family level` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/config/peer-group-name=<peer-group> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN} enabled=<true>` |
+|`Configure ingress route filtering for a BGP peer group at an address family level` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/config/peer-group-name=<peer-group> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN} network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/apply-policy/import-policy=<route-map>` |
+|`Configure egress route filtering for a BGP peer group at an address family level` |`network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/config/peer-group-name=<peer-group> afi-safi-name={IPV4_UNICAST \| IPV6_UNICAST \| L2VPN_EVPN} network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis/afi-safi/apply-policy/export-policy=<route-map>` |
+|`Configure route redistribution policy` |`network-instances/network-instance/table-connections/table-connection/config/src_protocol={connected \| static } dest_protocol=BGP address_family=IPv4_UNICAST import-policy=<route-map>` |
+
+
+#### DELETE API
+REST DELETE APIs are supported using the following openconfig BGP yang objects.
+> [TODO] - Update this section for REST delete path.
+
+|Command description | OpenConfig Command Path |
+|:---|:-----------|
+| | |
+| | |
+| | |
+
+#### GET API
+GET is supported using the following openconfig BGP yang objects.
+> [TODO] - Update this section for REST GET path.
 
 |Command description | OpenConfig Command Path |
 |:---|:-----------|
