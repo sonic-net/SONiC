@@ -1,5 +1,5 @@
 # VLAN
-Openconfig support for VLAN interfaces
+OpenConfig support for VLAN interfaces
 # High Level Design Document
 #### Rev 0.1
 
@@ -19,10 +19,10 @@ Openconfig support for VLAN interfaces
 | 0.1 | 09/05/2019  |   Justine Jose      | Initial version                   |
 
 # About this Manual
-This document provides information about the north bound interface details for VLANs.
+This document provides information about the northbound interface details for VLANs.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for VLANs based on openconfig yang
+This document covers the "configuration" and "show" commands supported for VLANs based on OpenConfig yang
 and unit-test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
@@ -48,7 +48,7 @@ Provide management framework capabilities to handle:
 Provide management framework support to existing SONiC capabilities with respect to VLANs.
 
 ### 1.1.2 Configuration and Management Requirements
-- IS-CLI style configuration and show commands
+- CLI configuration and show commands
 - REST API support
 - gNMI Support
 
@@ -80,6 +80,7 @@ Enhancing the management framework backend code and transformer methods to add s
 List of yang models required for VLAN interface management.
 1. [openconfig-if-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang)
 2. [openconfig-if-ethernet.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-ethernet.yang)
+3. [sonic-vlan.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/sonic/sonic-vlan.yang)
 
 Supported yang objects and attributes are highlighted in green:
 ```diff
@@ -129,6 +130,7 @@ module: openconfig-interfaces
 +         |        +--ro oc-vlan:trunk-vlans*      union
 ```
 ### 3.2.2 CLI
+- sonic-vlan.yang is used for CLI #show commands.
 
 #### 3.2.2.1 Configuration Commands
 
@@ -143,15 +145,24 @@ sonic(config)# interface Vlan 5
 sonic(config)# no interface Vlan 5
 ```
 #### MTU Configuration
-`[no] mtu <mtu-val>`
+`mtu <mtu-val>`
 ```
 sonic(conf-if-vlan20)# mtu 2500
 sonic(conf-if-vlan20)# no mtu
 ```
-#### Admin-Status Configuration
-`[no] shutdown`
+#### MTU Removal
+`no mtu <mtu-val>` --> Reset to default
+```
+sonic(conf-if-vlan20)# no mtu
+```
+#### Disable VLAN
+`shutdown`
 ```
 sonic(conf-if-vlan20)# shutdown
+```
+#### Enable VLAN
+`no shutdown`
+```
 sonic(conf-if-vlan20)# no shutdown
 ```
 #### Trunk VLAN addition to Member Port
@@ -183,7 +194,7 @@ Q: A - Access (Untagged), T - Tagged
     NUM       Status       Q Ports
     5         Active       T Ethernet24
     10        Inactive
-    20        Inactive     A Ethernet4
+    20        Inactive     A Po20
 ```
 #### Display specific VLAN Members detail
 `show Vlan <vlan-id>`
@@ -192,6 +203,7 @@ sonic# show Vlan 5
 Q: A - Access (Untagged), T - Tagged
     NUM    Status     Q Ports
     5      Active     T Ethernet24
+                      T Po10
                       A Ethernet20
 ```
 #### Display VLAN information
@@ -250,16 +262,41 @@ N/A
 N/A
 
 # 9 Unit Test
-- Create VLAN A, verify it using CLI, gNMI and REST.
-- Configure MTU for VLAN A, verify it using CLI, gNMI and REST.
-- Remove MTU for VLAN A, verify it using CLI, gNMI and REST.
-- Add an untagged-port to VLAN A, verify it using CLI, gNMI and REST.
-- Create VLAN B, verify it using CLI, gNMI and REST.
-- Configure admin-status, verify it using CLI, gNMI and REST.
-- Add 2 tagged-ports to VLAN B, verify it using CLI, gNMI and REST.
-- Remove un-tagged port from VLAN A, verify it using CLI, gNMI and REST.
-- Remove all the tagged-ports from VLAN B, verify it using CLI, gNMI and REST.
-- Delete VLAN, verify it using CLI, gNMI and REST.
+#### Configuration and Show via CLI
+
+| Test Name | Test Description |
+| :------ | :----- |
+| Create VLAN | Verify VLAN is configured |
+| Configure MTU for VLAN | Verify MTU is configured |
+| Remove MTU for VLAN | Verify MTU is reset to default |
+| Configure access VLAN  | Verify access VLAN is configured |
+| Configure trunk VLAN with access VLAN Id | Error should be thrown |
+| Configure access VLAN again | Verify access VLAN is present |
+| Shutdown VLAN | Verify VLAN is Inactive |
+| Enable VLAN | Verify VLAN is active |
+| Configure trunk VLAN to 2 different ports | Verify trunk VLAN is configured |
+| Configure access VLAN with trunk VLAN Id | Error should be thrown |
+| Configure trunk VLAN again | Verify trunk VLAN is present |
+| Remove access VLAN | Verify access VLAN is removed |
+| Remove trunk VLAN | Verify trunk VLANs are removed |
+| Delete an Invalid VLAN | Error should be thrown |
+| Delete the VLAN | Verify the VLAN is deleted |
+
+#### Configuration via gNMI
+
+Same as CLI configuration test, but using gNMI SET request
+
+#### Get configuration via gNMI
+
+Same as CLI show test, but using gNMI GET request, verify the JSON response.
+
+#### Configuration via REST (PATCH)
+
+Same as CLI configuration test, but using REST request
+
+#### Get configuration via REST (GET)
+
+Same as CLI show test, but using REST GET request, verify the JSON response.
 
 # 10 Internal Design Information
 N/A
