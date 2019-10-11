@@ -1,7 +1,7 @@
 # Feature Name
 sFlow Support in Management Framework
 # High Level Design Document
-#### Rev 0.2
+#### Rev 0.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -18,13 +18,14 @@ sFlow Support in Management Framework
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2019  |   Garrick He       | Initial version                   |
 | 0.2 | 10/04/2019  |   Garrick He       | Address review comments           |
+| 0.3 | 10/11/2019  |   Garrick He       | Address review comments           |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
 # Scope
 This document describes the high level design of sFlow support in SONiC Management Framework. The underlying sFlow
 support in SONiC is provided by this high-level design document:
-https://github.com/padmanarayana/SONiC/blob/5c158360c3e36227de7899fb672fc1b016a5465c/doc/sflow/sflow_hld.md
+https://github.com/Azure/SONiC/blob/master/doc/sflow/sflow_hld.md
 
 
 # 1 Feature Overview
@@ -132,6 +133,7 @@ All commands are executed in `configuration-view`:
 sonic# configure terminal
 sonic(config)#
 ```
+
 ##### Enable sFlow
 ```
 sonic(config)# sflow enabled
@@ -145,6 +147,12 @@ sonic(config)#
 ```
 
 ##### Add sFlow Collector
+Syntax:
+
+port# : [0 - 65535]
+
+`sflow collector <collector name> <IPv4/IPv6 address> [port #]`
+
 ```
 sonic(config)# sflow collector col1 1.1.1.1
 sonic(config)#
@@ -152,17 +160,25 @@ sonic(config)#
 
 ##### Add sFlow Collector with port number
 ```
-sonic(config)# sflow collector col2 1.1.1.2 --port 4451
+sonic(config)# sflow collector col2 1.1.1.2 port 4451
 sonic(config)#
 ```
 
 ##### Remove a sFlow Collector
+Syntax:
+
+`no sflow collector <collector name>`
+
 ```
 sonic(config)# no sflow collector col1
 sonic(config)#
 ```
 
 ##### Configure sFlow agent interface
+Syntax:
+
+`sflow agent <ifname>`
+
 ```
 sonic(config)# sflow agent-id Ethernet0
 sonic(config)#
@@ -175,6 +191,12 @@ sonic(config)#
 ```
 
 ##### Configure sFlow polling-interval
+Syntax:
+
+interval: [5 - 300] (0 to disable)
+
+`sflow polling-interval <interval #>`
+
 ```
 sonic(config)# sflow polling-interval 44
 sonic(config)#
@@ -190,32 +212,38 @@ sFlow configurations for specific interface are executed in interview-configurat
 ```
 sonic# configure terminal
 sonic(config)# interface Ethernet 0
-sonic(conf-if-Ethernet0)
+sonic(conf-if-Ethernet0)#
 ```
 
 ##### Enable sFlow
 ```
-sonic(conf-if-Ethernet0) sflow enable
-sonic(conf-if-Ethernet0)
+sonic(conf-if-Ethernet0)# sflow enable
+sonic(conf-if-Ethernet0)#
 ```
 
 ##### Disable sFlow
 ```
-sonic(conf-if-Ethernet0) no sflow enable
-sonic(conf-if-Ethernet0)
+sonic(conf-if-Ethernet0)# no sflow enable
+sonic(conf-if-Ethernet0)#
 ```
 
 ##### Set sampling-rate
-A sampling-rate of 0 will disable sFlow on the interface.
+Syntax:
+
+rate: [256 - 8388608]
+
+`sflow sampling-rate <rate>`
+
+
 ```
-sonic(conf-if-Ethernet0) sflow sampling-rate 4400
-sonic(conf-if-Ethernet0)
+sonic(conf-if-Ethernet0)# sflow sampling-rate 4400
+sonic(conf-if-Ethernet0)#
 ```
 
 ##### Reset sampling-rate to default
 ```
-sonic(conf-if-Ethernet0) no sflow sampling-rate
-sonic(conf-if-Ethernet0)
+sonic(conf-if-Ethernet0)# no sflow sampling-rate
+sonic(conf-if-Ethernet0)#
 ```
 
 
@@ -226,9 +254,9 @@ sonic# show sflow
 ---------------------------------------------------------
 Global sFlow Information
 ---------------------------------------------------------
-        admin state: enabled
-        polling-interval: 20
-        agent-id:  default
+        admin state:       enabled
+        polling-interval:  20
+        agent-id:          default
 sonic#
 ```
 ##### Show sFlow interface configurations
@@ -279,6 +307,7 @@ sonic#
 GET - Get existing sFlow configuration information from CONFIG DB.
 POST - Add a new sFlow configuration into CONFIG DB.
 PATCH - Update existing sFlow configuraiton information in CONFIG DB.
+PUT - Add a list of sFlow configurations into CONFIG DB.
 DELETE - Delete a existing sFlow configuration from CONFIG DB. This will cause some configurations to return to default value.
 ```
 
@@ -301,19 +330,19 @@ The unit-test for this feature will include:
 
 | Test Name | Test Description |
 | :------ | :----- |
-| Enable sflow | Verfiy sFlow is enabled in configDB |
-| Disable sflow | Verify sFlow is disabled in configDB |
-| Configure polling-interval | Verify sFlow polling-interval is set in configDB |
-| Disable polling-interval | Verify sflow polling-interval is removed from configDB (back to default)
-| Add a collector | Verify a collector has been added into configDB |
-| Add a collector with port # | Verify a collector has been added into configDB with user supplied port #|
-| Add agent-id information | Verfiy sFlow agent interface is set
-| Delete a collector | Verify a collector has been deleted from configDB
-| Enable sflow on interface | Verfiy sFlow for an interface is enabled in configDB |
-| Disable sflow on interface | Verfiy sFlow for an interface is disabled in configDB |
-| Configure sampling-rate on interface | Verify sampling-rate for an interface is set in configDB|
-| Disable sampling-rate on interface | Verify sampling-rate has returned to default
+| Enable sFlow | Verify sFlow is enabled in Config DB |
+| Disable sFlow | Verify sFlow is disabled in Config DB |
+| Configure polling-interval | Verify sFlow polling-interval is set in Config DB |
+| Disable polling-interval | Verify sFlow polling-interval is removed from Config DB (back to default)
+| Add a collector | Verify a collector has been added into Config DB |
+| Add a collector with port # | Verify a collector has been added into Config DB with user supplied port #|
+| Delete a collector | Verify a collector has been deleted from Config DB
+| Add agent-id information | Verify sFlow agent interface is set
 | Disable sFlow agent | Verify sFlow agent interface is back to default
+| Enable sFlow on interface | Verify sFlow for an interface is enabled in Config DB |
+| Disable sFlow on interface | Verify sFlow for an interface is disabled in Config DB |
+| Configure sampling-rate on interface | Verify sampling-rate for an interface is set in Config DB|
+| Disable sampling-rate on interface | Verify sampling-rate has returned to default
 
 #### Show sFlow configuration via CLI
 
