@@ -7,6 +7,9 @@
 | 0.1 | 10/10/19 | Pradnya Mohite | Initial version    |
 
 ## Scope ##
+Add support to enable/disable features in sonic. Features like telemtry agent can be optional and this enhancement will provide way to control that. 
+
+### Implementation Details ###
 * Add feature table in config db.  
   * Modify sonic-cfggen tool to add table and enable the telemetry feature by default.  
   * For each feature, key is FEATURE|feature name, status :on/off.  
