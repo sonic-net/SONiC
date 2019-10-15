@@ -146,10 +146,9 @@ sonic(conf-wred-<name>)# random-detect color [green|yellow|red] minimum-threshol
 drop-probability 40
 sonic(conf-wred-<name>)# random-detect ecn
 
-````
     sonic(config)# no wred <name>
-
 ````
+
 - Configure Scheduler Policy
 ````
   sonic(config)# scheduler-policy <name>
@@ -160,6 +159,7 @@ sonic(conf-wred-<name>)# random-detect ecn
 
   sonic(conf-sched-policy)# no scheduler <q#>
   sonic(config)# no scheduler-policy <name>   
+````
 
 
 - Config DSCP to Traffic Class map  
@@ -168,11 +168,13 @@ sonic(conf-wred-<name>)# random-detect ecn
   sonic(conf-qos-map)# traffic-class <1..8> dscp  {<dscp-value>}
 
   sonic(config)# no dscp-to-tc-map <name>
+````
 
 - Config Traffic Class to Queue map
 ````
   sonic(config)# qos-map tc-to-queue-map <name>
   sonic(conf-qos-map)# queue 3 traffic-class 0-3
+````
 
 - Config interface QoS
 ````
@@ -189,6 +191,7 @@ sonic(conf-wred-<name>)# random-detect ecn
   sonic(conf-if-name)# no queue <q#> wred-profile <wred-profile-name>
   sonic(conf-if-name)# no queue <q#> [ucast|mcast] threshold 
 
+````
 
 
 #### 3.2.2.2 Show Commands
@@ -205,7 +208,7 @@ sonic(conf-wred-<name>)# random-detect ecn
     -------------|------------------|------------------|------------------|-------|
       wred_1     | 100 1000 100     | 50 100 100       | 50 100 100       | All   |
     -------------|------------------|------------------|------------------|-------|
-
+````
 
 
 - Show Scheduler Policy  
@@ -237,6 +240,7 @@ sonic(conf-wred-<name>)# random-detect ecn
       Q5 WRED profile:  wred-profile_2
       Q1 threshold: 2500
       Q5 threshold: 2500 
+````
 
 - Show DSCP to TC map
 ````
@@ -348,6 +352,7 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
      /scheduler-policy/name/config/scheduler/sequence/bc  
      /scheduler-policy/name/config/scheduler/sequence/be  
      /scheduler-policy/name/state/*  
+````
 
 
 - DSCP to TC map  
@@ -358,8 +363,10 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
 - Interface QoS
 
    The following two YANG containers are used to model interface QoS configuration:
+````
        openconfig-qos-interfaces.yang:: qos-interfaces-config
        openconfig-qos-elements.yang:: qos-queue-config  
+````
 
    A summary of the supported attributes or new attributes added to the tree:
 ````
@@ -374,12 +381,14 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
    /qos-interfaces/interface/interface-id/input/state/*
    /qos-interfaces/interface/interface-id/output/state/*
    /qos-queue/queues/queues/name/state/*  
+````
 
 
 - QoS Statistics  
   The following Open Config YANG container will be used and augmented to support QoS Statistics
 ````
    openconfig-qos-interfaces.yang:: qos-interfaces/interface/interface-id/output/queues/queue/state  
+````
 
 # 4 Flow Diagrams
 N/A
