@@ -162,7 +162,7 @@ Management framework is a SONiC application which is responsible for providing v
 
     1. Standard [YANG](https://tools.ietf.org/html/rfc7950) models (e.g. OpenConfig, IETF, IEEE)
     2. Custom YANG models ([SONiC YANG](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
-    3. Industry-standard CLI
+    3. Industry-standard CLI / Cisco like CLI
 
 * Must provide support for [OpenAPI spec](https://swagger.io/specification/) to generate REST server side code
 * Must provide support for NBIs such as:
@@ -603,7 +603,7 @@ REST server.
 
 ###### 3.2.2.4.2 Translib linking
 
-REST server will statically link with Translib. For each REST request, the srever
+REST server will statically link with Translib. For each REST request, the server
 invokes Translib API which then invokes appropriate App module to process the request.
 Below is the mapping of HTTP operations to Translib APIs:
 
@@ -1861,7 +1861,7 @@ Management Framework does not disrupt data plane traffic during warmboot. No spe
 
 ## 9 Scalability
 
-Describe key scaling factor and considerations
+Manageability framework will be scalable to handle huge payloads conforming to the standard/SONiC yang models.
 
 ## 10 Unit Test
 
