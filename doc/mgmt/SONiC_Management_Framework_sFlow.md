@@ -193,6 +193,7 @@ sonic(config)# no sflow agent-id
 sonic(config)#
 ```
 The default sFlow agent is selected based on some simple heuristics.
+
 For more information, please refer to the sFlow HLD linked above.
 
 ##### Configure sFlow polling-interval
@@ -249,7 +250,7 @@ sonic(conf-if-Ethernet0)#
 sonic(conf-if-Ethernet0)# no sflow sampling-rate
 sonic(conf-if-Ethernet0)#
 ```
-The default value is based on the interface speed: (ifSpeed / 1e6) where ifSpeed is in bits/sec
+The default value is based on the interface speed: (ifSpeed / 1e6) where ifSpeed is in bits/sec.
 For more information, please refer to the sFlow HLD linked above.
 
 
