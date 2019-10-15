@@ -19,6 +19,8 @@ sFlow Support in Management Framework
 | 0.1 | 09/09/2019  |   Garrick He       | Initial version                   |
 | 0.2 | 10/04/2019  |   Garrick He       | Address review comments           |
 | 0.3 | 10/11/2019  |   Garrick He       | Address review comments           |
+| 0.4 | 10/15/2019  |   Garrick He       | Add information on default value  |
+|     |             |                    | and SONiC sFlow YANG              |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -89,6 +91,7 @@ This feature will allow the user to make/show sFlow configuration changes to CON
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
+There are no OpenConfig YANG models available for sFlow so additions were made to SONiC YANG.
 Supported SONiC YANG URIs available from Swagger WebUI:
 ```
 /sonic-sflow:sonic-sflow/SFLOW/GLOBAL
@@ -189,6 +192,8 @@ sonic(config)#
 sonic(config)# no sflow agent-id
 sonic(config)#
 ```
+The default sFlow agent is selected based on some simple heuristics.
+For more information, please refer to the sFlow HLD linked above.
 
 ##### Configure sFlow polling-interval
 Syntax:
@@ -230,10 +235,9 @@ sonic(conf-if-Ethernet0)#
 ##### Set sampling-rate
 Syntax:
 
-rate: [256 - 8388608]
-
 `sflow sampling-rate <rate>`
 
+rate: [256 - 8388608]
 
 ```
 sonic(conf-if-Ethernet0)# sflow sampling-rate 4400
@@ -245,6 +249,8 @@ sonic(conf-if-Ethernet0)#
 sonic(conf-if-Ethernet0)# no sflow sampling-rate
 sonic(conf-if-Ethernet0)#
 ```
+The default value is based on the interface speed: (ifSpeed / 1e6) where ifSpeed is in bits/sec
+For more information, please refer to the sFlow HLD linked above.
 
 
 #### 3.6.2.2 Show Commands
