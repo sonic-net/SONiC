@@ -413,19 +413,27 @@ N/A
 N/A
 
 # 9 Unit Test
-- Validate PortChannel creation via CLI, gNMI and REST
-    - Verify error returned if PortChannel ID out of supported range
-- Validate min-links, MTU, admin-status and IP address config for PortChannel via CLI, gNMI and REST
-    - Verify error returned if min-links value out of supported range
-- Validate addition of ports to PortChannel via CLI, gNMI and REST
-    - Verify error returned if invalid PortChannel ID
-    - Verify error returned if port already part of a PortChannel
-- Validate removal of ports from PortChannel via CLI, gNMI and REST
-    - Verify error returned if PortChannel does not exist
-    - Verify error returned if invalid interface given
-- Validate PortChannel deletion via CLI, gNMI and REST
-    - Verify error returned if PortChannel does not exist
-- Validate show command's listed above using CLI, gNMI and REST
+
+#### Configuration  and Show via CLI
+| Test Name | Test Description |
+| :------ | :----- |
+| Create PortChannel | Verify PortChannel is configured <br> Verify error returned if PortChannel ID out of supported range |
+| Configure min-links | Verify min-links is configured <br> Verify error returned if min-links value out of supported range |
+| Remove min-links config | Verify min-links reset to default value |
+| Configure MTU, admin-status| Verify MTU, admin-status configured |
+| Configure Fallback to true/false | Verify Fallback configured |
+| Configure IP address | Verify IP address configured |
+| Add ports to PortChannel| Verify Port added using "show PortChannel summary command" <br> Verify error returned if port already part of a PortChannel |
+| Remove ports from PortChannel| Verify Port removed using "show PortChannel summary command" <br> Verify error returned if given PortChannel does not exist |
+| Delete PortChannel| Verify PortChannnel removed using "show PortChannel summary command" and "teamshow" command |
+
+#### Configuration via gNMI
+
+Same as CLI configuration test, but using gNMI SET request
+
+#### Configuration via REST (PATCH)
+
+Same as CLI configuration test, but using REST request
 
 # 10 Internal Design Information
 N/A
