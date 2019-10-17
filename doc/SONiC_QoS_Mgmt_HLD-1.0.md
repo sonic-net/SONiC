@@ -192,6 +192,10 @@ sonic(conf-wred-<name>)# random-detect ecn
   sonic(conf-if-name)# no queue <q#> [ucast|mcast] threshold 
 
 ````
+- Config Watermark polling interval
+````
+  sonic(config)# qos watermark polling-interval <val>
+````
 
 
 #### 3.2.2.2 Show Commands
