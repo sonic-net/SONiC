@@ -41,7 +41,7 @@ Provide management framework capabilities to handle:
 - PortChannel creation and deletion
 - Addition of ports to PortChannel
 - Removal of ports from PortChannel
-- Configure min-links, MTU, admin-status and IP address
+- Configure min-links, MTU, admin-status, IP address and LACP fallback.
 - Show PortChannel details
 
 ### 1.1.1 Functional Requirements
@@ -97,7 +97,7 @@ Enhancing the management framework backend code and transformer methods to add s
 N/A
 
 ### 3.2.1 CONFIG DB
-No changes to CONFIG DB. Will be populating PORTCHANNEL table, PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table with user configuartions.
+No changes to CONFIG DB. 
 
 ### 3.2.2 APP DB
 Will be reading LAG_TABLE and LAG_MEMBER_TABLE for show commands.
@@ -119,6 +119,10 @@ N/A
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
+List SONiC YANG models required:
+1. [sonic-portchannel-interface.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel-interface.yang)
+2. [sonic-portchannel.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel.yang)
+
 List of yang models required for PortChannel interface management:
 1. [openconfig-if-aggregate.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-aggregate.yang) 
 2. [openconfig-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang) 
@@ -259,27 +263,27 @@ module: openconfig-interfaces
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
 
-### Create a PortChannel
-`interface PortChannel <channel-number>`
+#### Create a PortChannel
+`interface PortChannel <channel-number>`<br>
+*Supported channel-number range: 0-9999*<br>
+*By default, the admin status is UP and MTU is 9100*
 ```
 sonic(config)# interface PortChannel 1
 ```
-### Configure min-links
+#### Configure min-links
 `minimum-links <number>`
 <br>
- Default:0
+*As per [teamd](https://www.systutorials.com/docs/linux/man/5-teamd.conf/), supported range: 1-255 & default value:0*
 ```
 sonic(config)# interface PortChannel 1
 sonic(conf-if-po1)# minimum-links 1
 ```
-### Reset to default value of min-links
-`no minimum-links`
-<br>
- Default:0
+#### Remove min-links
+`no minimum-links` --> Reset to default value of 0
 ```
 sonic(conf-if-po1)# no minimum-links 
 ```
-### Configure MTU
+#### Configure MTU
 `mtu <mtu-val>`
 ```
 sonic(conf-if-po1)#  mtu 9000
@@ -290,7 +294,6 @@ sonic(conf-if-po1)# no mtu
 ```
 sonic(conf-if-po1)# no mtu
 ```
-
 #### Enable PortChannel
 `no shutdown` 
 ```
@@ -301,9 +304,19 @@ sonic(conf-if-po1)# no shutdown
 ```
 sonic(conf-if-po1)# shutdown
 ```
-
+#### Enable Fallback
+`fallback enable`<br>
+*By default, LACP fallback is disabled*
+```
+sonic(conf-if-po1)# fallback enable
+```
+#### Disable Fallback
+`no fallback`
+```
+sonic(conf-if-po1)# no fallback
+```
 #### Configures an IPv4 address 
-`ip address <ip-address with mask> | no ip address <ip-address>`
+`ip address <ip-address/mask>`
 ```
 sonic(conf-if-po1)# ip address 2.2.2.2/24
 ```
@@ -312,11 +325,15 @@ sonic(conf-if-po1)# ip address 2.2.2.2/24
 ```
 sonic(conf-if-po1)# no ip address 2.2.2.2
 ```
-#### Configures an IPv6 address of the interface.
-`ipv6 address <ipv6-address with mask> | no ipv6 address <ipv6-address>`
+#### Configure an IPv6 address 
+`ipv6 address <ipv6-address/mask>`
 ```
 sonic(config)# interface Ethernet 4
 sonic(conf-if-Ethernet4)# ipv6 address a::e/64
+```
+#### Remove IPv6 address
+`no ipv6 address <ipv6-address>`
+```
 sonic(conf-if-Ethernet4)# no ipv6 address a::e
 ```
 #### Add port member
@@ -349,7 +366,8 @@ Flags:  D - Down
 --------------------------------------------------------------------------------
 Group Port-Channel           Type     Protocol  Member Ports
 --------------------------------------------------------------------------------
-1    PortChannel1    (D)     Eth      DYNAMIC    Ethernet56(D), Ethernet60(D)
+1    PortChannel1    (D)     Eth      DYNAMIC    Ethernet56(D) 
+                                                 Ethernet60(D)
 10   PortChannel10   (D)     Eth      DYNAMIC
 111  PortChannel111  (D)     Eth      DYNAMIC
 
@@ -361,6 +379,7 @@ Group Port-Channel           Type     Protocol  Member Ports
 ```
 sonic# show interface PortChannel 1
 PortChannel 1 is up, line protocol is down, mode LACP
+Fallback: Enabled
 MTU 1532 bytes, IP MTU 1500 bytes
 Minimum number of links to bring PortChannel up is 1
 LACP mode active, interval slow, priority 65535, address 90:b1:1c:f4:a8:7e
@@ -421,19 +440,16 @@ N/A
 | Configure min-links | Verify min-links is configured <br> Verify error returned if min-links value out of supported range |
 | Remove min-links config | Verify min-links reset to default value |
 | Configure MTU, admin-status| Verify MTU, admin-status configured |
-| Configure Fallback to true/false | Verify Fallback configured |
+| Configure Fallback | Verify Fallback configured |
 | Configure IP address | Verify IP address configured |
-| Add ports to PortChannel| Verify Port added using "show PortChannel summary command" <br> Verify error returned if port already part of a PortChannel |
+| Add ports to PortChannel| Verify Port added using "show PortChannel summary command" |
 | Remove ports from PortChannel| Verify Port removed using "show PortChannel summary command" <br> Verify error returned if given PortChannel does not exist |
 | Delete PortChannel| Verify PortChannnel removed using "show PortChannel summary command" and "teamshow" command |
 
-#### Configuration via gNMI
+#### Configuration(PATCH) and GET via gNMI/REST
 
-Same as CLI configuration test, but using gNMI SET request
-
-#### Configuration via REST (PATCH)
-
-Same as CLI configuration test, but using REST request
+- Verify the OpenConfig command paths in section 3.6.3 <br> 
+- Verify the JSON response for GET requests
 
 # 10 Internal Design Information
 N/A
