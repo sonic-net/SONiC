@@ -107,6 +107,7 @@
 * [8 Warm Boot Support](#8-warm-boot-support)
 * [9 Scalability](#9-scalability)
 * [10 Unit Test](#10-unit-test)
+* [10 Appendix A](#10-appendix-a)
 
 
 ## List of Tables
@@ -2027,3 +2028,22 @@ Manageability framework will be scalable to handle huge payloads conforming to t
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
 
+## 11 Appendix A
+
+Following are the list of Open source tools used in Management framework
+
+1. [Gorilla/mux](https://github.com/gorilla/mux)
+2. [Go datastructures](https://github.com/Workiva/go-datastructures/tree/master/queue)
+3. [Swagger](https://swagger.io)
+4. [gNMI client](https://github.com/jipanyang/gnxi)
+5. [goyang](https://github.com/openconfig/goyang)
+6. [YGOT](https://github.com/openconfig/goyang)
+7. [GO Redis](https://github.com/go-redis/redis)
+8. [Logging](https://github.com/google/glog)
+9. [Profiling](https://github.com/pkg/profile)
+10. [Validation](https://gopkg.in/go-playground/validator.v9)
+11. [JSON query](https://github.com/antchfx/jsonquery)
+12. [XML query](https://github.com/antchfx/xmlquery)
+13. [Sorting](https://github.com/facette/natsort)
+14. [pyangbind](https://github.com/robshakir/pyangbind)
+15. [libYang](https://github.com/CESNET/libyang)
