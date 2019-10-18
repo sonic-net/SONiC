@@ -286,8 +286,7 @@ sonic(conf-if-po1)# no minimum-links
 #### Configure MTU
 `mtu <mtu-val>`
 ```
-sonic(conf-if-po1)#  mtu 9000
-sonic(conf-if-po1)# no mtu
+sonic(conf-if-po1)# mtu 9000
 ```
 #### MTU Removal
 `no mtu` --> Reset to default
@@ -328,13 +327,12 @@ sonic(conf-if-po1)# no ip address 2.2.2.2
 #### Configure an IPv6 address 
 `ipv6 address <ipv6-address/mask>`
 ```
-sonic(config)# interface Ethernet 4
-sonic(conf-if-Ethernet4)# ipv6 address a::e/64
+sonic(conf-if-po1)# ipv6 address a::e/64
 ```
 #### Remove IPv6 address
 `no ipv6 address <ipv6-address>`
 ```
-sonic(conf-if-Ethernet4)# no ipv6 address a::e
+sonic(conf-if-po1)# no ipv6 address a::e
 ```
 #### Add port member
 `channel-group <channel-number>`
@@ -342,10 +340,14 @@ sonic(conf-if-Ethernet4)# no ipv6 address a::e
 sonic(config)# interface Ethernet4
 sonic(conf-if-Ethernet4)# channel-group 1
 ```
+#### Configure the port mode for the link in a PortChannel
+`channel-group <channel-number> mode [active|on]`
+```
+sonic(conf-if-Ethernet4)# channel-group 1 mode active
+```
 #### Remove a port member
 `no channel-group`
 ```
-sonic(config)# interface Ethernet4
 sonic(conf-if-Ethernet4)# no channel-group
 ```
 #### Delete a PortChannel
@@ -361,15 +363,15 @@ sonic(config)# no interface PortChannel 1
 ```
 sonic# show PortChannel summary
 
-Flags:  D - Down
+Flags:  D - Down, S - member selected
         U - Up
---------------------------------------------------------------------------------
-Group Port-Channel           Type     Protocol  Member Ports
---------------------------------------------------------------------------------
-1    PortChannel1    (D)     Eth      DYNAMIC    Ethernet56(D) 
-                                                 Ethernet60(D)
-10   PortChannel10   (D)     Eth      DYNAMIC
-111  PortChannel111  (D)     Eth      DYNAMIC
+---------------------------------------------------------------------------
+Group   PortChannel            Type    Protocol    Member Ports
+---------------------------------------------------------------------------
+1       PortChannel1    (D)     Eth     DYNAMIC     Ethernet56(D)
+                                                    Ethernet60(D)
+10      PortChannel10   (D)     Eth     DYNAMIC
+111     PortChannel111  (D)     Eth     DYNAMIC
 
 ```
 ### Show Interface status and configuration
