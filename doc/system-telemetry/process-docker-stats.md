@@ -61,7 +61,10 @@ ProcessStats|4276
 
 ```
 Along with data new entry for timestamp will be updated in state_db:  
+
+```
 Process_Stats|LastUpdateTime  
+```
 
 ###### Docker stats
 
@@ -100,4 +103,7 @@ DockerStats|bf7e49f494ee     
 "0"  
 ```
 Along with data new entry for timestamp will be updated in state_db:  
+
+```
 Docker_Stats|LastUpdateTime
+```
