@@ -29,19 +29,21 @@ Verify that from state-DB data is available via telemetry agent
 ```
 $ ps -eo uid,pid,ppid,%mem,%cpu,stime,tty,time,cmd
 
-|UID |   PID |PPID     |  %CPU|%MEM|  TTY |STIME| TIME| CMD                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|---- |-------|---------|--------|--------|------|--------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|0     | 4276 | 0        |0.0      | 0.0     |?       | 00:39 |0:01 | containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
-|0     | 6601 |   2      |0.0      |  0.0    |?       | 00:42 |0:01 |containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/4dc60c74334813d6c833d967b1196d1783b90bff0488aa0c35d544db66dc8a81 -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc|
+ UID   PID  PPID %MEM %CPU STIME TT           TIME CMD
+    0     1     0  0.1  0.0 Oct15 ?        00:00:09 /sbin/init
+    0     2     0  0.0  0.0 Oct15 ?        00:00:00 [kthreadd]
+    0     3     2  0.0  0.0 Oct15 ?        00:00:01 [ksoftirqd/0]
+    0     5     2  0.0  0.0 Oct15 ?        00:00:00 [kworker/0:0H]
 
 ```
 above output will be stored inside state-DB as follows for largest 1024 CPU consumption processes:  
 
+```
 ProcessStats|4276  
 "UID"  
 "0"  
 "PID"  
-"4276"  
+"1"  
 "PPID"  
 "0"  
 "CPU%"  
@@ -51,12 +53,13 @@ ProcessStats|4276
 "TTY"  
 "?"  
 "STIME"  
-"00:39"  
+"Oct15"  
 "TIME"  
-"0:01"  
+"00:00:09"  
 "CMD"  
-"containerd-shim -namespace moby -workdir /var/lib/containerd/io.containerd.runtime.v1.linux/moby/07983d8d914904ac8054af2be0aa6aa70a8325700aa2588f7424ece3fbfe648c -address /run/containerd/containerd.sock -containerd-binary /usr/bin/containerd -runtime-root /var/run/docker/runtime-runc"  
+"/sbin/init"  
 
+```
 Along with data new entry for timestamp will be updated in state_db:  
 Process_Stats|LastUpdateTime  
 
@@ -65,34 +68,36 @@ Process_Stats|LastUpdateTime
 ```
 $ docker stats --no-stream -a
 
-|CONTAINER ID |     NAME|              CPU % |             MEM USAGE / LIMIT|   MEM % |           NET I/O|             BLOCK I/O |          PIDS|
-|-----------------|----------|-------------------|--------------------------------|-----------|-----------------|----------------------|-------------|
-|4dc60c743348 |    snmp |              3.93%  |            41.56MiB / 7.784GiB| 0.52%    |           0B / 0B |    31.5MB / 81.9kB|     7          |
-|07983d8d9149 |   syncd |             41.89% |             291MiB / 7.784GiB  |   3.65%   |           0B / 0B |      83MB / 406kB |      33       |
+CONTAINER ID        NAME                CPU %               MEM USAGE / LIMIT     MEM %               NET I/O             BLOCK I/O           PIDS
+bf7e49f494ee        grpc                0.00%               0B / 0B               0.00%               0B / 0B             0B / 0B             0
+209c6e6116c6        syncd               10.82%              286MiB / 3.844GiB     7.26%               0B / 0B             0B / 639kB          32
+8a97fafdbd60        dhcp_relay          0.02%               12.15MiB / 3.844GiB   0.31%               0B / 0B             0B / 65.5kB         5
+
 ```
 above output will be stored inside state-DB as follows:
 
-DockerStats|4dc60c743348    
+```
+DockerStats|bf7e49f494ee     
 "NAME"  
-"snmp"  
+"grpc"  
 "CPU%"  
-"3.93"  
+"0.00%"  
 "MEM"  
-"41.56MiB"  
+"0B"  
 "MEM_LIMIT"  
-"7.784GiB"  
+"0B"  
 "MEM%"  
-"0.52"  
+"0.00"  
 "NET_IN"  
 "0B"  
 "NET_OUT"  
 "0B"  
 "BLOCK_IN"  
-"31.5MiB"  
+"0B"  
 "BLOCK_OUT"  
-"81.9KB"  
+"0B"  
 "PIDS"  
-"7"  
-
+"0"  
+```
 Along with data new entry for timestamp will be updated in state_db:  
 Docker_Stats|LastUpdateTime
