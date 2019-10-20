@@ -107,7 +107,8 @@
 * [8 Warm Boot Support](#8-warm-boot-support)
 * [9 Scalability](#9-scalability)
 * [10 Unit Test](#10-unit-test)
-* [10 Appendix A](#10-appendix-a)
+* [11 Appendix A](#11-appendix-a)
+* [12 Appendix B](#11-appendix-b)
 
 
 ## List of Tables
@@ -129,6 +130,7 @@
 | 0.9 | 08/19/2019  | Partha Dutta            | Addressed review comments related to CVL    |
 | 0.10 | 09/25/2019  | Kwangsuk Kim           | Updated Transformer section |
 | 0.11 | 09/30/2019  | Partha Dutta           | Updated as per SONiC YANG guideline    |
+| 0.12 | 10/19/2019  | Senthil Kumar Ganesan  | Added Appendix B    |
 
 ## About this Manual
 
@@ -2037,7 +2039,7 @@ Following are the list of Open source tools used in Management framework
 3. [Swagger](https://swagger.io)
 4. [gNMI client](https://github.com/jipanyang/gnxi)
 5. [goyang](https://github.com/openconfig/goyang)
-6. [YGOT](https://github.com/openconfig/goyang)
+6. [YGOT](https://github.com/openconfig/ygot/ygot)
 7. [GO Redis](https://github.com/go-redis/redis)
 8. [Logging](https://github.com/google/glog)
 9. [Profiling](https://github.com/pkg/profile)
@@ -2047,3 +2049,28 @@ Following are the list of Open source tools used in Management framework
 13. [Sorting](https://github.com/facette/natsort)
 14. [pyangbind](https://github.com/robshakir/pyangbind)
 15. [libYang](https://github.com/CESNET/libyang)
+
+
+## 12 Appendix B
+
+Following are the list of Open source libraries used in telemetry container. 
+Always refer to the [Makefile](https://github.com/Azure/sonic-telemetry/blob/master/Makefile) for the sonic-telemetry container for current package list.
+
+
+1. [GRPC](https://google.golang.org/grpc)
+2. [GNMI](https://github.com/openconfig/gnmi/proto/gnmi)
+3. [Protobuf](https://github.com/golang/protobuf/proto)
+4. [goyang](https://github.com/openconfig/goyang)
+5. [GO Redis](https://github.com/go-redis/redis)
+6. [YGOT](https://github.com/openconfig/ygot/ygot)
+7. [Logging](https://github.com/google/glog)
+8. [GO Context](https://golang.org/x/net/context)
+9. [Credentials](https://google.golang.org/grpc/credentials)
+10. [Validation](https://gopkg.in/go-playground/validator.v9)
+11. [GNXI utils](https://github.com/google/gnxi/utils)
+12. [Gorilla/mux](https://github.com/gorilla/mux)
+13. [jipanyang/xpath](https://github.com/jipanyang/gnxi/utils/xpath)
+14. [c9s/procinfo](https://github.com/c9s/goprocinfo/linux)
+15. [Workkiva/Queue](https://github.com/Workiva/go-datastructures/queue)
+16. [jipanyang/gnmi client](https://github.com/jipanyang/gnmi/client/gnmi)
+17. [xeipuuv/gojsonschema](https://github.com/xeipuuv/gojsonschema)
