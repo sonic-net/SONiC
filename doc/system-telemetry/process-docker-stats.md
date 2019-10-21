@@ -39,7 +39,7 @@ $ ps -eo uid,pid,ppid,%mem,%cpu,stime,tty,time,cmd
 above output will be stored inside state-DB as follows for largest 1024 CPU consumption processes:  
 
 ```
-ProcessStats|4276  
+PROCESS_STATS|4276  
 "UID"  
 "0"  
 "PID"  
@@ -63,7 +63,7 @@ ProcessStats|4276
 Along with data new entry for timestamp will be updated in state_db:  
 
 ```
-Process_Stats|LastUpdateTime  
+PROCESS_STATS|LastUpdateTime  
 ```
 
 ###### Docker stats
@@ -80,7 +80,7 @@ bf7e49f494ee        grpc                0.00%               0B / 0B             
 above output will be stored inside state-DB as follows:
 
 ```
-DockerStats|bf7e49f494ee     
+DOCKER_STATS|bf7e49f494ee     
 "NAME"  
 "grpc"  
 "CPU%"  
@@ -105,5 +105,5 @@ DockerStats|bf7e49f494ee     
 Along with data new entry for timestamp will be updated in state_db:  
 
 ```
-Docker_Stats|LastUpdateTime
+DOCKER_STATS|LastUpdateTime
 ```
