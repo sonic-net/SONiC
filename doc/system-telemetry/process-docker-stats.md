@@ -80,17 +80,17 @@ bf7e49f494ee        grpc                0.00%               0B / 0B             
 above output will be stored inside state-DB as follows:
 
 ```
-DOCKER_STATS|bf7e49f494ee     
+DOCKER_STATS|209c6e6116c6     
 "NAME"  
-"grpc"  
+"syncd"  
 "CPU%"  
-"0.00%"  
+"10.82%"  
 "MEM"  
-"0B"  
+"286MiB"  
 "MEM_LIMIT"  
-"0B"  
+"3.844GiB"  
 "MEM%"  
-"0.00"  
+"7.26%"  
 "NET_IN"  
 "0B"  
 "NET_OUT"  
@@ -98,9 +98,9 @@ DOCKER_STATS|bf7e49f494ee     
 "BLOCK_IN"  
 "0B"  
 "BLOCK_OUT"  
-"0B"  
+"639kB"  
 "PIDS"  
-"0"  
+"32"  
 ```
 Along with data new entry for timestamp will be updated in state_db:  
 
