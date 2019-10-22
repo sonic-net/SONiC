@@ -508,10 +508,11 @@ The actioner script receives the JSON output from the swagger client API and inv
 Example: "show acl"
 
 ```
-{% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] %}
-   {% for acl_set in acl_sets %}
+{\% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] \%}
+   {\% for acl_set in acl_sets \%}
        Name:  {{ acl_set['state']['description'] }}
-   {% endfor %}
+   {\% endfor \%}
+   NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual jinja2 code in SONiC.
 ```
 
 ###### 3.2.2.1.7 Workflow (to add a new CLI)
