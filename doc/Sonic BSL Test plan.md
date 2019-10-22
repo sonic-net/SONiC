@@ -43,11 +43,22 @@ Verify FDB learning happens on all ports.
 #### Test description
 Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/fdb.yml 
 
+### Test case \#3
+
+#### Test objective
+Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two parts - vlan_configure and vlan_test. vlan_configure cannot be run on BSL without modification as it takes into account port-channels. This must be modified to run on BSL configuration. 
+
+This test covers Vlan, ARP and PING tests.
+
+#### Test description
+Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/vlantb.yml
+
+
 | **\#** | **Test Description** | **Expected Result** |
 |--------|----------------------|---------------------|
-| 1.     |  Sanity              |         Pass        |
-| 2.     |  FDB                 |         MAC Learn   |
-| 3.     |                      |                     |
+| 1.     |  Sanity              |      Pass           |
+| 2.     |  FDB                 |      MAC Learn      |
+| 3.     |  VLAN                |   PING,ARP succeeds |
 | 4.     |                      |                     |
 | 5.     |                      |                     |
 
