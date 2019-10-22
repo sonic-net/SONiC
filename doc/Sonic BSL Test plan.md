@@ -2,7 +2,7 @@
 
 
 ## Overview
-This document outlines the Sonic BSL test plan. In BSL mode, Sonic device is brought up as an L2 switch. This test plan validates the functionality by running the tests as described below.
+This document outlines the Sonic BSL test plan. In BSL mode, Sonic device is brought up as an L2 switch. This test plan validates the functionality by running the tests as described in below sections. More details on BSL can be found in document https://github.com/Azure/SONiC/wiki/L2-Switch-mode#3-generate-a-configuration-for-l2-switch-mode. This must be followed to configure a Sonic device in L2 switch and verify the associated commands before running the below test cases. 
 
 ### Scope
 ---------
