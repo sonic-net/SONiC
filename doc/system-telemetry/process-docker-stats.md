@@ -72,7 +72,6 @@ PROCESS_STATS|LastUpdateTime
 $ docker stats --no-stream -a
 
 CONTAINER ID        NAME                CPU %               MEM USAGE / LIMIT     MEM %               NET I/O             BLOCK I/O           PIDS
-bf7e49f494ee        grpc                0.00%               0B / 0B               0.00%               0B / 0B             0B / 0B             0
 209c6e6116c6        syncd               10.82%              286MiB / 3.844GiB     7.26%               0B / 0B             0B / 639kB          32
 8a97fafdbd60        dhcp_relay          0.02%               12.15MiB / 3.844GiB   0.31%               0B / 0B             0B / 65.5kB         5
 
@@ -84,13 +83,13 @@ DOCKER_STATS|209c6e6116c6     
 "NAME"  
 "syncd"  
 "CPU%"  
-"10.82%"  
+"10.82"  
 "MEM"  
 "286MiB"  
 "MEM_LIMIT"  
 "3.844GiB"  
 "MEM%"  
-"7.26%"  
+"7.26"  
 "NET_IN"  
 "0B"  
 "NET_OUT"  
