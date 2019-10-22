@@ -710,7 +710,7 @@ Following match actions of the ACL are handled to match against the traffic for 
 - Destination L4 port or L4 port range
 - IP protocol
 
-Limitation: When ACL rule is changed from 'forward' action to 'do_not_nat' action, the matching traffic flows corresponding to the NAT entries that were created before due to the 'forward' action continue to be translated till the NAT entries are timed out. The conntrack entries in the kernel and the entries in the hardware continue to exist they become inactive and timeout.
+Limitation: When ACL rule is changed from 'forward' action to 'do_not_nat' action, the matching traffic flows corresponding to the NAT entries that were created before due to the 'forward' action continue to be translated till the NAT entries are timed out. The conntrack entries in the kernel and the entries in the hardware continue to exist they become inactive and timeout. Flushing of the conntrack entries and the hardware entries on action change from 'forward' to 'do_not_nat' is a future item.
 
 #### 3.3.1.2 IP Interface config events
 When the IP on the outside NAT zone interface is deleted, for any matching NAT pool and the matching Static NAT/NAPT entries, the corresponding iptables SNAT rules and the Static DNAT rules are deleted in the kernel.
@@ -820,9 +820,9 @@ NAT_BINDINGS|nat1
 
 The iptables 'mangle' table rules are added on each L3 interface (other than loopback) to set the MARK value.
 ```
-iptables -t mangle -A PREROUTING -i Ethernet20 -j MARK --set-mark 2
+iptables -t mangle -A PREROUTING -i Ethernet28 -j MARK --set-mark 2
 iptables -t mangle -A PREROUTING -i Vlan100 -j MARK --set-mark 2
-iptables -t mangle -A POSTROUTING -o Ethernet20 -j MARK --set-mark 2
+iptables -t mangle -A POSTROUTING -o Ethernet28 -j MARK --set-mark 2
 iptables -t mangle -A POSTROUTING -o Vlan100 -j MARK --set-mark 2
 ```
 
@@ -1564,8 +1564,9 @@ Features planned for future releases:
 - Hairpinning traffic with NAT
 - VRF aware NAT
 - Per Zone counters
+- Removing entries when ACL action is modified from forward to do-not-nat
 - Dynamic Destination NAT/NAPT based on the Pool and ACL bindings
-- Dynamic NAPT for protocol types other than TCP/UDP/ICMP. 
+- Dynamic NAPT for protocol types other than TCP/UDP/ICMP 
 - NAT64 to translate traffic between IPv6 and IPv4 hosts
 - Subnet based NAT
 - NAT on fragmented IP packets arriving at the NAT router
