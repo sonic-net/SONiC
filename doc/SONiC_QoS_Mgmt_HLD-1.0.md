@@ -49,7 +49,7 @@ Provide management framework capabilities to handle:
 Provide management framework support to existing SONiC capabilities with respect to QoS.
 
 ### 1.1.2 Configuration and Management Requirements
-- IS-CLI style configuration and show commands
+- CLI configuration and show commands
 - REST API support
 - gNMI Support
 
@@ -60,9 +60,9 @@ Details described in Section 3.
 ### 1.2.1 Basic Approach
 QoS deals with the traffic prioritization and scheduling. 
 
-The basic approach is to classify different traffic to different service category, ie. putting traffic to different queues. 
+The basic approach is to classify different traffic to different service category, ie. putting traffic to different queues during ingress packet processing. 
 
-In addition defining different queue behavior controls how the traffic is serviced.   
+In addition defining different queue behavior controls how the traffic is serviced during egress packet processing.   
 
 ### 1.2.2 Container
 Management container
@@ -279,7 +279,7 @@ sonic(conf-wred-<name>)# random-detect ecn
 	Interface ethernet1/1/1:  
 	Queue | Packets | Bytes | DroppedPackets | Dropped-Bytes
 	---   | ---     | ---   | ---            | ---
-	3     | 0       | 0     | 0              | 0
+	3     | 0       | 0     | 0              | 0
 
 
   > show queue wred statistics interface ethernet <name> queue <qid> (*) 
@@ -302,7 +302,7 @@ sonic(conf-wred-<name>)# random-detect ecn
         Queue | Watermark | Persistent-Watermark
         ---   | --------- | --------------------
         UC3   | 2124      | 3500
-        MC3   | 1520      | 3140
+        MC3   | 1520      | 3140
 
    > show queue buffer-threshold-breaches
    Sample Output:
@@ -336,7 +336,7 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
 
 - WRED profile
 
-   [SONiC YANG for WRED profile](https://github.com/project-arlo/sonic-mgmt-framework/blob/transformer-phase1/src/cvl/testdata/schema/sonic-wred-profile.yang) will be converted to Open Config YANG format 1-to-1 following Open Config convention.   
+   [SONiC YANG for WRED profile](https://github.com/project-arlo/sonic-mgmt-framework/blob/transformer-phase1/src/cvl/testdata/schema/sonic-wred-profile.yang) will be converted to Open Config YANG format following Open Config convention.   
   
 
 - Scheduler Policy
@@ -361,7 +361,7 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
 
 - DSCP to TC map  
 
-  [SONiC YANG for DSCP-to-TC map](https://github.com/project-arlo/sonic-mgmt-framework/blob/transformer-phase1/src/cvl/testdata/schema/sonic-dscp-tc-map.yang) will be converted to Open Config YANG format 1-to-1 following Open Config convention.  
+  [SONiC YANG for DSCP-to-TC map](https://github.com/project-arlo/sonic-mgmt-framework/blob/transformer-phase1/src/cvl/testdata/schema/sonic-dscp-tc-map.yang) will be converted to Open Config YANG format following Open Config convention.  
   
   
 - Interface QoS
@@ -378,7 +378,7 @@ The "DELETE" operation is available to the key(s) of a list in the YANG model.
    /qos-interfaces/interface/interface-id/input/dscp-to-tc-map (New!)
    /qos-interfaces/interface/interface-id/output/scheduler-policy/name    
 
-   /qos-queue/queues/queue/name = “intf-name + q#”
+   /qos-queue/queues/queue/name = "intf-name + q"
    /qos-queue/queues/queue/name/config/queue-type
    /qos-queue/queues/queue/name/config/wred-profile (New!)  
 
@@ -437,9 +437,9 @@ N/A
 
 For Scheduler Policy created via Open Config YANG model, each Scheduler within a Scheduler Policy is transformed into a Scheduler Profile defined by SONiC DB.  
 
-The Scheduler Profile is identified as “Policy_name + q#”. Such naming convention makes it possible to associate each interface queue with a unique Scheduler Profile later on.  
+The Scheduler Profile is identified as "Policy_name + q". Such naming convention makes it possible to associate each interface queue with a unique Scheduler Profile later on.  
 
-When a scheduler Policy is configured on an interface in Open Config YANG model, backend creates SONiC “interface.q#” in SONiC QueueDB if such entity has not yet been created. Backup also looks up the scheduler Profiles within the Scheduler Policy and attaches the Scheduler Profiles to the corresponding interface queues.  
+When a scheduler Policy is configured on an interface in Open Config YANG model, backend creates SONiC "interface.q#" in SONiC QueueDB if such entity has not yet been created. Backup also looks up the scheduler Profiles within the Scheduler Policy and attaches the Scheduler Profiles to the corresponding interface queues.  
 
 When WRED profile is configured on an interface queue in Open Config YANG model, backend writes the information into SONiC Queue DB.  
 
