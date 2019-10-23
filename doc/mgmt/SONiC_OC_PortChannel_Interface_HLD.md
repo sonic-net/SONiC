@@ -54,26 +54,13 @@ Provide management framework support to existing SONiC capabilities with respect
 
 Details described in Section 3.
 
-Configuration of LACP protocol parameters (LACP interval, mode, MAC, priority) using management framework is **not supported** due to the following limitations:
-
-- No support for LACP protocol specific configurations in SONiC. For example, on creating port channels and adding members to it, “teammgrd” daemon (in SONiC code base):
-1.	Reads user configuration from CONFIG DB
-2.	Spawns an instance of libteamd (open source package for LACP protocol stack) with the given user configurations and a couple of default LACP options.
-
-Now to support protocol specific configurations we would need to enhance:
-1.	REDIS CONFIG DB PORTCHANNEL Table schema
-2.	Code changes in “teammgrd” to read these protocol specific configs and to use “teamdctl” control utility to configure the above-mentioned configs to an already running "teamd" daemon.
-
-- `teamd` supports only a few options (not LACP-specific) to be configured via `teamdctl` utility. This could be overcome by enhancing `teamd` to support configuration of LACP parameters.
-
-Due to the above mentioned reasons, LACP **protocol specific configuration is not supported** in the initial release.
-
 ### 1.1.3 Scalability Requirements
 key scaling factors -N/A
 ### 1.1.4 Warm Boot Requirements
 N/A
 
 ## 1.2 Design Overview
+
 ### 1.2.1 Basic Approach
 Provide transformer methods in sonic-mgmt-framework container for PortChannel handling.
 
@@ -93,11 +80,35 @@ Provide CLI, gNMI and REST support PortChannel related commands handling.
 ## 3.1 Overview
 Enhancing the management framework backend code and transformer methods to add support for PortChannel interface Handling.
 
+To support PortChannel GETs, data is fetched from 3 different places:
+1. PortChannel data from LAG_TABLE and LAB_MEMBER_TABLE
+2. LACP data from Teamd
+3. PortChannel Counters information from COUNTER DB
+
+LACP protocol stack runs in `teamd` docker and `teamdctl` utility is used to fetch LACP data. To service north bound request from clients, we use `docker exec teamd ***` command in mgmt-framework docker (similar approach to SONiC click command) to get the required data.
+
+PortChannel link information and counters are obtained from REDIS DB using common app implemented by transformer.
+
+
+Configuration of LACP protocol parameters (LACP interval, mode, MAC, priority) using management framework is **not supported** due to the following limitations:
+
+- No support for LACP protocol specific configurations in SONiC. For example, on creating port channels and adding members to it, “teammgrd” daemon (in SONiC code base):
+1.      Reads user configuration from CONFIG DB
+2.      Spawns an instance of libteamd (open source package for LACP protocol stack) with the given user configurations and a couple of default LACP options.
+
+Now to support protocol specific configurations we would need to enhance:
+1.      REDIS CONFIG DB PORTCHANNEL Table schema
+2.      Code changes in “teammgrd” to read these protocol specific configs and to use “teamdctl” control utility to configure the above-mentioned configs to an already running "teamd" daemon.
+
+- `teamd` supports only a few options (not LACP-specific) to be configured via `teamdctl` utility. This could be overcome by enhancing `teamd` to support configuration of LACP parameters.
+
+Due to the above mentioned reasons, LACP **protocol specific configuration is not supported** in the initial release.
+
 ## 3.2 DB Changes
 N/A
 
 ### 3.2.1 CONFIG DB
-No changes to CONFIG DB. 
+No changes to CONFIG DB schema. 
 
 ### 3.2.2 APP DB
 Will be reading LAG_TABLE and LAG_MEMBER_TABLE for show commands.
@@ -105,6 +116,7 @@ Will be reading LAG_TABLE and LAG_MEMBER_TABLE for show commands.
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
+Will be reading COUNTERS table.
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
