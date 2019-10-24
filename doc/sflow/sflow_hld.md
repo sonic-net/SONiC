@@ -11,7 +11,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 |v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
 |v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
-|v1.1 |10/09/2019  |Padmanabhan Narayanan | Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME instead of ID. Note on genetlink creation.
+|v1.1 |10/23/2019  |Padmanabhan Narayanan | Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME instead of ID. Note on genetlink creation. Change admin_state values to up/down instead of enable/disable to be consistent with management framework's sonic-common.yang.
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -255,7 +255,7 @@ The configDB objects for the above CLI is given below:
 
     "SFLOW": {
         "global": {
-           "admin_state": "enable"
+           "admin_state": "up"
            "polling_interval": "20"
            "agent_id": "loopback0",
          }
@@ -263,11 +263,11 @@ The configDB objects for the above CLI is given below:
 
     "SFLOW_SESSION": {
         "Ethernet0": {
-           "admin_state": "disable"
+           "admin_state": "down"
            "sample_rate": "40000"
         },
         "Ethernet16": {
-           "admin_state": "enable"
+           "admin_state": "up"
            "sample_rate": "32768"
         }
     }
@@ -278,7 +278,7 @@ If user issues a "config sflow interface disable all", the SFLOW_SESSION will ha
 ```
     "SFLOW_SESSION": {
         "all":{
-            "admin_state":"disable"
+            "admin_state":"down"
         },
         ...
      }
@@ -364,7 +364,7 @@ A new SFLOW table will be added which holds global configurations
 ```
 ; Defines schema for SFLOW table which holds global configurations
 key                 = SFLOW
-ADMIN_STATE         = "enable" / "disable"
+ADMIN_STATE         = "up" / "down"
 POLLING_INTERVAL    = 1*3DIGIT      ; counter polling interval
 AGENT_ID            = ifname        ; Interface name
 ```
@@ -372,7 +372,7 @@ AGENT_ID            = ifname        ; Interface name
 A new SFLOW_SESSION table would be added.
 ```
 key SFLOW_SESSION:interface_name
-ADMIN_STATE     = "enable" / "disable"
+ADMIN_STATE     = "up" / "down"
 SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 
@@ -383,8 +383,8 @@ A new SFLOW_SESSION_TABLE is added to the AppDB:
 ```
 ; Defines schema for SFLOW_SESSION_TABLE which holds global configurations
 key 			= SFLOW_SESSION_TABLE:interface_name
-ADMIN_STATE	    	= "enable" / "disable"
-SAMPLE_RATE 		= 1*7DIGIT      ; average number of packets skipped before the sample is taken
+ADMIN_STATE	    = "up" / "down"
+SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 
 A new SFLOW_SAMPLE_RATE_TABLE table which maps interface speed to the sample rate for that speed is added to the AppDB
