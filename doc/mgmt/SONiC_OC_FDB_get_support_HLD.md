@@ -1,7 +1,7 @@
 
-# FDB get support
+# FDB GET support
 
-Implement get support for FDB using CLI/REST/gNMI SONiC management framework interfaces.
+Implement GET support for FDB entries using CLI/REST/gNMI SONiC management framework interfaces.
 
 # High Level Design Document
 #### Rev 0.1
@@ -22,9 +22,9 @@ Implement get support for FDB using CLI/REST/gNMI SONiC management framework int
 | 0.1 | 09/10/2019  |  Venkatesan Mahalingam      | Initial version                   |
 
 # About this Manual
-This document provides general information about FDB management get interfaces in SONiC.
+This document provides general information about FDB management GET operation for FDB-table in SONiC.
 # Scope
-Covers Northbound get interface for the FDB feature, as well as Unit Test cases.
+Covers Northbound GET request for the FDB entries, as well as Unit Test cases.
 
 # Definition/Abbreviation
 
@@ -36,20 +36,17 @@ Covers Northbound get interface for the FDB feature, as well as Unit Test cases.
 
 # 1 Feature Overview
 
-The documents covers the FDB get interfaces (CLI/REST/gNMI) for fetching the data from the back-end to the user using SONiC managment framework.
+The documents covers the FDB GET requests on (CLI/REST/gNMI) FDB-Table for fetching the data from the back-end to the user using SONiC managment framework.
 
 ## 1.1 Requirements
-
-![](http://10.59.132.240:9009/projects/csg_sonic/documentation/graphics/templates/test1.png)
-
 ### 1.1.1 Functional Requirements
 
-Provide management framework get support to existing SONiC capabilities with respect to FDB.
+Provide management framework GET support to existing SONiC capabilities with respect to FDB.
 
 ### 1.1.2 Configuration and Management Requirements
  - Implement FDB CLI show Commands
- - REST get support for FDB
- - gNMI get support for FDB
+ - REST GET support for FDB
+ - gNMI GET support for FDB
 
 ### 1.1.3 Scalability Requirements
 ### 1.1.4 Warm Boot Requirements
@@ -77,7 +74,7 @@ Provide management framework get support to existing SONiC capabilities with res
 ## 3.5 SAI
 ## 3.6 User Interface
 ### 3.6.1 Data Models
-The following open config YANG model is used to implement get support for FDB entries.
+The following OpenConfig YANG model is used to implement GET support for FDB entries.
 [https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance-l2.yang#L292)
 ```
 module: openconfig-network-instance
@@ -230,14 +227,11 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 ### 3.6.3 REST API Support
 #### 3.6.3.1 GET
 ##### Get all support for MAC entries
+- 'openconfig-network-instance:network-instances/network-instance={name}/fdb/mac-table/entries'
 
 ##### Get MAC entry with MAC address filter
+- 'openconfig-network-instance:network-instances/network-instance={name}/fdb/mac-table/entries/entry={mac-address},{vlan}'
 
-##### Get MAC entries with entry type (static/dynamic) filter
-
-##### Get MAC entries with interface (physical/port-channel) filter
-
-##### Get MAC entries with VLAN filter
 
 
 # 4 Flow Diagrams
