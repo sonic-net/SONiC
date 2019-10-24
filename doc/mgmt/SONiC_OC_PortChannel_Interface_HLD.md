@@ -78,7 +78,7 @@ Provide CLI, gNMI and REST support PortChannel related commands handling.
 
 # 3 Design
 ## 3.1 Overview
-Enhancing the management framework backend code and transformer methods to add support for PortChannel interface Handling.
+Enhancing the management framework backend code and transformer methods to add support for PortChannel interface handling.
 
 To support PortChannel GETs, data is fetched from 3 different places:
 1. PortChannel data from LAG_TABLE and LAB_MEMBER_TABLE
@@ -277,15 +277,15 @@ module: openconfig-interfaces
 
 #### Create a PortChannel
 `interface PortChannel <channel-number>`<br>
-*Supported channel-number range: 0-9999*<br>
-*By default, the admin status is UP and MTU is 9100*
+- *Supported channel-number range: 0-9999*<br>
+- *By default, the admin status is UP and MTU is 9100*
 ```
 sonic(config)# interface PortChannel 1
 ```
 #### Configure min-links
 `minimum-links <number>`
 <br>
-*As per [teamd](https://www.systutorials.com/docs/linux/man/5-teamd.conf/), supported range: 1-255 & default value:0*
+- *As per [teamd](https://www.systutorials.com/docs/linux/man/5-teamd.conf/), supported range: 1-255 & default value:0*
 ```
 sonic(config)# interface PortChannel 1
 sonic(conf-if-po1)# minimum-links 1
@@ -301,7 +301,7 @@ sonic(conf-if-po1)# no minimum-links
 sonic(conf-if-po1)# mtu 9000
 ```
 #### MTU Removal
-`no mtu` --> Reset to default
+`no mtu` --> Reset to default value of 9100
 ```
 sonic(conf-if-po1)# no mtu
 ```
@@ -317,7 +317,7 @@ sonic(conf-if-po1)# shutdown
 ```
 #### Enable Fallback
 `fallback enable`<br>
-*By default, LACP fallback is disabled*
+- *By default, LACP fallback is disabled*
 ```
 sonic(conf-if-po1)# fallback enable
 ```
@@ -354,6 +354,8 @@ sonic(conf-if-Ethernet4)# channel-group 1
 ```
 #### Configure the port mode for the link in a PortChannel
 `channel-group <channel-number> mode [active|on]`
+- active — Sets Channeling mode to Active
+- on — Sets Channeling mode to static
 ```
 sonic(conf-if-Ethernet4)# channel-group 1 mode active
 ```
