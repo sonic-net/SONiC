@@ -1,5 +1,5 @@
 # sFlow High Level Design
-### Rev 1.0
+### Rev 1.1
 ## Table of Contents
 
 ## 1. Revision 
@@ -11,6 +11,7 @@ Rev | Rev	Date	| Author	| Change Description
 |v0.4 |06/17/2019  |Padmanabhan Narayanan | Add per-interface configurations, counter mode support and <br /> unit test cases. Remove genetlink CLI
 |v0.5 |07/15/2019  |Padmanabhan Narayanan | Update CLI and DB schema based on comments from InMON : <br> Remove max-datagram-size from collector config <br/>Add CLI for counter polling interval <br/>Remvoe default header-size <br/>Add "all" interfaces option <br/> Separate CLI to set agent-id<br/>
 |v1.0 |09/13/2019  |Sudharsan | Updating sequence diagram for various CLIs 
+|v1.1 |10/23/2019  |Padmanabhan Narayanan | Update SAI section to use SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME instead of ID. Note on genetlink creation. Change admin_state values to up/down instead of enable/disable to be consistent with management framework's sonic-common.yang.
 
 ## 2. Scope
 This document describes the high level design of sFlow in SONiC
@@ -80,10 +81,8 @@ The following figure depicts the sFlow container in relation to the overall SONi
 The CLI is enhanced to provide configuring and display of sFlow parameters including sflow collectors, agent IP, sampling rate for interfaces. The CLI configurations currently only interact with the CONFIG_DB.
 
 The newly introduced sflow container consists of:
-* An instantiation of the InMon's hsflowd daemon (https://github.com/sflow/host-sflow described in https://sflow.net/documentation.php). The hsflowd is launched as a systemctl service. The host-sflow is customised to interact with SONiC subsystems by introducing a host-sflow/src/Linux/mod_sonic.c (descripted later)
-* sflowmgrd : 
-       * configure the genetlink family and multicast group for sflow use if necessary
-       * updates the hsflowd.conf
+* An instantiation of the InMon's hsflowd daemon (https://github.com/sflow/host-sflow described in https://sflow.net/documentation.php). The hsflowd is launched as a systemctl service. The host-sflow is customised to interact with SONiC subsystems by introducing a host-sflow/src/Linux/mod_sonic.c (described later)
+* sflowmgrd : updates APP DB sFlow tables based on config updates
 
 The swss container is enhanced to add the following component:
 * sfloworch : which subscribes to the APP DB and acts as southbound interface to SAI for programming the SAI_SAMPLEPACKET sessions.  
@@ -92,7 +91,7 @@ The swss container is enhanced to add the following component:
 The syncd container is enhanced to support the SAI SAMPLEPACKET APIs.
 
 The ASIC drivers need to be enhanced to:
-* Associate the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET to a specific genetlink channel and group.
+* Associate the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET to a specific genetlink channel and multicast group.
 * Punt trapped samples to this genetlink group
 
 The sflow container and changes to the existing components to support sflow are described in the following sections.
@@ -103,11 +102,10 @@ The following figure shows the configuration and control flows for sFlow:
 ![alt text](../../images/sflow/sflow_config_and_control.png "SONiC sFlow Configuration and Control")
 
 1. The user configures the sflow collector, agent, sampling related parameters (interfaces to be sampled and rate) and these configurations are added to the CONFIG DB.
-2. The sflowmgrd checks if the genetlink family "psample" and multicast group "packets" for sflow samples exists and if not, creates a genetlink family and multicast group. This will eventually be  used by the ASIC SAI driver to punt sFlow samples to hsflowd. Note that the psample kernel driver ((https://github.com/torvalds/linux/blob/master/net/psample/psample.c) typically creates these.
-3. The sfloworch calls a SAI API that enables the ASIC driver to map the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the specific genetlink channel and group.
-4. The sflowmgrd daemon watches the CONFIG DB's SFLOW_COLLECTOR table and updates the /etc/hsflowd.conf which is the configuration file for hsflowd. Based on the nature of changes, the sflowmgrd may restart the hsflowd service. The hsflowd service uses the collector, UDP port and agent IP information to open sockets to reach the sFlow collectors.
-5. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
-6. Sampling rate changes are updated in the SFLOW table. The sflowmgrd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs.
+2. The copporch (based on swssconfig/sample/00-copp.config.json) calls a SAI API that enables the ASIC driver to map the SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET trap to the specific genetlink channel and multicast group. The SAI driver creates the genetlink family and multicast group which will eventually be used to punt sFlow samples to hsflowd. If the SAI implementation uses the psample kernel driver (https://github.com/torvalds/linux/blob/master/net/psample/psample.c), the genetlink family "psample" and multicast group "packets" that the psample driver creates is to be used.
+3. The sflowmgrd daemon watches the CONFIG DB's SFLOW_COLLECTOR table and updates the /etc/hsflowd.conf which is the configuration file for hsflowd. Based on the nature of changes, the sflowmgrd may restart the hsflowd service. The hsflowd service uses the collector, UDP port and agent IP information to open sockets to reach the sFlow collectors.
+4. When hsflowd starts, the sonic module (mod_sonic) registered callback for packetBus/HSPEVENT_CONFIG_CHANGED opens a netlink socket for packet reception and registers an sflow sample handler over the netlink socket (HsflowdRx()).
+5. Sampling rate changes are updated in the SFLOW table. The sflowmgrd updates sampling rate changes into SFLOW_TABLE in the App DB. The sfloworch subagent in the orchagent container processes the change to propagate as corresponding SAI SAMPLEPACKET APIs.
 
 Below figures explain the flow for different commands from CLI to SAI
 
@@ -256,33 +254,33 @@ The configDB objects for the above CLI is given below:
     },
 
     "SFLOW": {
-       “global”: {
-           "admin_state": "enable"
-           “polling_interval”: “20”
+        "global": {
+           "admin_state": "up"
+           "polling_interval": "20"
            "agent_id": "loopback0",
          }
     }
 
     "SFLOW_SESSION": {
         "Ethernet0": {
-           "admin_state": "disable"
+           "admin_state": "down"
            "sample_rate": "40000"
         },
         "Ethernet16": {
-           "admin_state": "enable"
+           "admin_state": "up"
            "sample_rate": "32768"
         }
     }
 
 ```
 
-If user issues a “config sflow interface disable all”, the SFLOW_SESSION will have the following:
+If user issues a "config sflow interface disable all", the SFLOW_SESSION will have the following:
 ```
     "SFLOW_SESSION": {
-        “all”:{
-            “admin_state”:”disable”
+        "all":{
+            "admin_state":"down"
         },
-        …
+        ...
      }
 ```
 
@@ -366,7 +364,7 @@ A new SFLOW table will be added which holds global configurations
 ```
 ; Defines schema for SFLOW table which holds global configurations
 key                 = SFLOW
-ADMIN_STATE         = "enable" / "disable"
+ADMIN_STATE         = "up" / "down"
 POLLING_INTERVAL    = 1*3DIGIT      ; counter polling interval
 AGENT_ID            = ifname        ; Interface name
 ```
@@ -374,7 +372,7 @@ AGENT_ID            = ifname        ; Interface name
 A new SFLOW_SESSION table would be added.
 ```
 key SFLOW_SESSION:interface_name
-ADMIN_STATE     = "enable" / "disable"
+ADMIN_STATE     = "up" / "down"
 SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 
@@ -385,8 +383,8 @@ A new SFLOW_SESSION_TABLE is added to the AppDB:
 ```
 ; Defines schema for SFLOW_SESSION_TABLE which holds global configurations
 key 			= SFLOW_SESSION_TABLE:interface_name
-ADMIN_STATE	    	= "enable" / "disable"
-SAMPLE_RATE 		= 1*7DIGIT      ; average number of packets skipped before the sample is taken
+ADMIN_STATE	    = "up" / "down"
+SAMPLE_RATE     = 1*7DIGIT      ; average number of packets skipped before the sample is taken
 ```
 
 A new SFLOW_SAMPLE_RATE_TABLE table which maps interface speed to the sample rate for that speed is added to the AppDB
@@ -405,7 +403,7 @@ CLI configurations will be saved to the ConfigDB. Once the genetlink channel has
 
 #### sflowmgrd
 
-The sflowmgrd queries if the genetlink family "psample" and the multicast groun "packets" exists and if not creates it so that that will be used by the SAI driver to lift packets to the hsflowd. A multicast group is typically created which enables multiple applications (e.g. even a local netlink sniffer tools) to additionally inspect the samples that are lifted to hsflowd.
+The sflowmgrd consumes sflow config DB changes and updates the SFLOW APP DB tables.
 
 The sflowmgrd daemon listens to SFLOW_COLLECTOR to construct the hsflowd.conf and start the hsflowd service.
 The mapping between the SONiC sflow CLI parameters and the host-sflow is given below:
@@ -482,19 +480,20 @@ SAMPLED PACKETS METADATA FIELDS
               The rate the packet was sampled with
 ```
 
-The SAI driver may provide the interface OIDs corresponding to the IIFINDEX AND OIFINDEX. The hsflowd mod_sonic HsflowdRx() may have to map these correspondingly to the netdev ifindex.
+The SAI driver may provide the interface OIDs corresponding to the IIFINDEX AND OIFINDEX. The hsflowd mod_sonic HsflowdRx() may have to map these correspondingly to the netdev ifindex. Note that the default PSAMPLE_ATTR_SAMPLE_GROUP that hsflowd expects is 1.
 
 Rather than define a new framework for describing the metadata for sFlow use, SAI would re-use the framework that the psample driver (https://github.com/torvalds/linux/blob/master/net/psample/psample.c) currently uses. The psample kernel driver is based on the Generic Netlink subsystem that is described in https://wiki.linuxfoundation.org/networking/generic_netlink_howto. SAI ASIC drivers supporting sFlow may choose to use the psample.ko driver as-is or may choose to implement the generic netlink interface (that complies with the above listed metadata) using a private generic netlink family.
 
 #### SAI Host Interface based on Generic Netlink
 
-1. Application installs psample.ko (genl family = "psample") or it's own psample metadata compliant kernel driver (say, genl family ="asic_genl")
+During SWSS init (as part of copporch), based on the swssconfig/sample/00-copp.config.json settings, sai_create_hostif_fn() is used to let the SAI driver create a special genetlink interface (type SAI_HOST_INTERFACE_TYPE_GENETLINK) and associate it with generic netlink family (SAI_HOST_INTERFACE_ATTR_NAME) and multicast group name (SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME). Later, sai_create_hostif_table_entry_fn() is used to map SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET to the genetlink sai_host_if.
 
-2. Application creates a multicast group in the generic netlink family for use by SAI driver to lift samples on the chosen genetlink family’s multicast port.
+syncd/SAI implementations can use one of the following methods to create the genetlink interface:
 
-3. Use sai_create_hostif_fn() to let SAI driver know of SAI_HOST_INTERFACE_TYPE_GENETLINK interface associated with generic netlink family (SAI_HOST_INTERFACE_ATTR_NAME) and mulsticast group id (SAI_HOSTIF_ATTR_GENETLINK_PORT_ID)
+1. As part of syncd/SAI driver init, a driver based on the standard psample driver (genetlink family ="psample" and multicast group "packets") may be installed which would create the genetlink. In this case the sai_create_hostif_fn() determines that the genetlink interface is already created and merely associates the sai_host_if to the genetlink.
 
-4. Use sai_create_hostif_table_entry_fn() to map SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET to sai_host_if
+2. The genetlink interface may alternatively be created during the call to sai_create_hostif_fn().
+
 
 #### Changes in SAI to support the GENETLINK host interface
 
@@ -518,15 +517,18 @@ The changes in SAI to support the GENETLINK host interface is highlighted below:
      */
     SAI_HOSTIF_ATTR_NAME,
 
- /**
-     * @brief Set the Generic netlink (multicast) port id on which the packets/buffers
+    /**
+     * @brief Name [char[SAI_HOSTIF_GENETLINK_MCGRP_NAME_SIZE]]
+     *
+     * The maximum number of characters for the name is SAI_HOSTIF_GENETLINK_MCGRP_NAME_SIZE - 1
+     * Set the Generic netlink multicast group name on which the packets/buffers
      * are received on this host interface
      *
-     * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 0
+     * @type char
+     * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+     * @condition SAI_HOSTIF_ATTR_TYPE == SAI_HOSTIF_TYPE_GENETLINK
      */
-    SAI_HOSTIF_ATTR_GENETLINK_PORT_ID,
+    SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME,
 
  /** Receive packets via Linux generic netlink interface */
     SAI_HOSTIF_TABLE_ENTRY_CHANNEL_TYPE_GENETLINK
@@ -544,10 +546,10 @@ sai_host_if_attr[0].id=SAI_HOST_INTERFACE_ATTR_TYPE;
 sai_host_if_attr[0].value=SAI_HOST_INTERFACE_TYPE_GENETLINK;
  
 sai_host_if_attr[1].id= SAI_HOST_INTERFACE_ATTR_NAME;
-sai_host_if_attr[1].value=”psample”;
+sai_host_if_attr[1].value="psample";
  
-sai_host_if_attr[2].id= SAI_HOSTIF_ATTR_GENETLINK_PORT_ID;
-sai_host_if_attr[2].value=100;
+sai_host_if_attr[2].id= SAI_HOSTIF_ATTR_GENETLINK_MCGRP_NAME;
+sai_host_if_attr[2].value="packets";
 
 sai_create_host_interface_fn(&host_if_id, 9, sai_host_if_attr);
 ```
