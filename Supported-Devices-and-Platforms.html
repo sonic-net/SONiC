@@ -1,0 +1,999 @@
+<head>
+<style>
+/* Split the screen in half */
+.splitl {
+  height: 100%;
+  width: 80%;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  overflow-x: hidden;
+  padding-top: 2px;
+}
+.splitr {
+  height: 100%;
+  width: 20%;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  overflow-x: hidden;
+  padding-top: 20px;
+}
+
+/* Control the left side */
+.right {
+  left: 0;
+  background-color: white;
+}
+
+/* Control the right side */
+.left {
+  right: 0;
+  background-color: #2E86C1;
+}
+
+
+
+#myInput {
+  
+  background-position: 10px 12px; /* Position the search icon */
+  background-repeat: no-repeat; /* Do not repeat the icon image */
+  width: 75%; /* Full-width */
+  font-size: 16px; /* Increase font-size */
+  padding: 12px 20px 12px 40px; /* Add some padding */
+  border: 1px solid #ddd; /* Add a grey border */
+  margin-bottom: 12px; /* Add some space below the input */
+}
+#myInput2 {
+  
+  background-position: 10px 12px; /* Position the search icon */
+  background-repeat: no-repeat; /* Do not repeat the icon image */
+  width: 75%; /* Full-width */
+  font-size: 16px; /* Increase font-size */
+  padding: 12px 20px 12px 40px; /* Add some padding */
+  border: 1px solid #ddd; /* Add a grey border */
+  margin-bottom: 12px; /* Add some space below the input */
+}
+#myInput3 {
+  
+  background-position: 10px 12px; /* Position the search icon */
+  background-repeat: no-repeat; /* Do not repeat the icon image */
+  width: 75%; /* Full-width */
+  font-size: 16px; /* Increase font-size */
+  padding: 12px 20px 12px 40px; /* Add some padding */
+  border: 1px solid #ddd; /* Add a grey border */
+  margin-bottom: 12px; /* Add some space below the input */
+}
+
+#myInput4 {
+  
+  background-position: 10px 12px; /* Position the search icon */
+  background-repeat: no-repeat; /* Do not repeat the icon image */
+  width: 75%; /* Full-width */
+  font-size: 16px; /* Increase font-size */
+  padding: 12px 20px 12px 40px; /* Add some padding */
+  border: 1px solid #ddd; /* Add a grey border */
+  margin-bottom: 12px; /* Add some space below the input */
+}
+#myTable {
+  border-collapse: collapse; /* Collapse borders */
+  width: 100%; /* Full-width */
+  border: 1px solid #000000; /* Add a grey border */
+  font-size: 18px; /* Increase font-size */
+}
+
+#myTable th, #myTable td {
+  text-align: left; /* Left-align text */
+  padding: 12px; /* Add padding */
+   border: 1px solid #000000;
+}
+
+#myTable tr {
+  /* Add a bottom border to all table rows */
+  border: 1px solid #000000;
+}
+
+#myTable tr.header, #myTable tr:hover {
+  /* Add a grey background color to the table header and on hover */
+  background-color: #D5DBDB ;
+   border: 1px solid #ffffff; /* Add a grey border */
+}
+img.two {
+  height: auto%;
+  width: auto%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+
+}
+k {
+  font-family: "Verdana", sans-serif;
+  font-size: 50px;
+  font-weight: 400;
+  font-style: normal;
+  font-stretch: condensed;
+  color: #2E86C1;
+
+}
+</style>
+<script>
+function myFunction() {
+  // Declare variables
+  var input, filter, table, tr, td, i, txtValue;
+  input = document.getElementById("myInput");
+  filter = input.value.toUpperCase();
+  table = document.getElementById("myTable");
+  tr = table.getElementsByTagName("tr");
+
+  // Loop through all table rows, and hide those who don't match the search query
+  for (i = 0; i < tr.length; i++) {
+    td = tr[i].getElementsByTagName("td")[0];
+    if (td) {
+      txtValue = td.textContent || td.innerText;
+      if (txtValue.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = "";
+      } else {
+        tr[i].style.display = "none";
+      }
+    }
+  }
+}
+function ASIC_Vendor() {
+  // Declare variables
+  var input, filter, table, tr, td, i, txtValue;
+  input = document.getElementById("myInput2");
+  filter = input.value.toUpperCase();
+  table = document.getElementById("myTable");
+  tr = table.getElementsByTagName("tr");
+
+  // Loop through all table rows, and hide those who don't match the search query
+  for (i = 0; i < tr.length; i++) {
+    td = tr[i].getElementsByTagName("td")[2];
+    if (td) {
+      txtValue = td.textContent || td.innerText;
+      if (txtValue.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = "";
+      } else {
+        tr[i].style.display = "none";
+      }
+    }
+  }
+}
+function Switch_ASIC() {
+  // Declare variables
+  var input, filter, table, tr, td, i, txtValue;
+  input = document.getElementById("myInput3");
+  filter = input.value.toUpperCase();
+  table = document.getElementById("myTable");
+  tr = table.getElementsByTagName("tr");
+
+  // Loop through all table rows, and hide those who don't match the search query
+  for (i = 0; i < tr.length; i++) {
+    td = tr[i].getElementsByTagName("td")[3];
+    if (td) {
+      txtValue = td.textContent || td.innerText;
+      if (txtValue.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = "";
+      } else {
+        tr[i].style.display = "none";
+      }
+    }
+  }
+}
+function Port_Config() {
+  // Declare variables
+  var input, filter, table, tr, td, i, txtValue;
+  input = document.getElementById("myInput4");
+  filter = input.value.toUpperCase();
+  table = document.getElementById("myTable");
+  tr = table.getElementsByTagName("tr");
+
+  // Loop through all table rows, and hide those who don't match the search query
+  for (i = 0; i < tr.length; i++) {
+    td = tr[i].getElementsByTagName("td")[4];
+    if (td) {
+      txtValue = td.textContent || td.innerText;
+      if (txtValue.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = "";
+      } else {
+        tr[i].style.display = "none";
+      }
+    }
+  }
+}
+
+</script>
+<body>
+<div class="splitr left">
+  <div class="centered">
+<br>
+<br> 
+<br>
+<br>   
+ <p style="text-align: left; font-family: Verdana, sans-serif; color: #ffffff;  font-size: 20px">&nbsp;&nbsp;Filter your search </p>
+<center>
+<input type="text" id="myInput" onkeyup="myFunction()" placeholder="Search for Vendor.."><br>
+<input type="text" id="myInput2" onkeyup="ASIC_Vendor()" placeholder="Search for ASIC Vendor.."><br>
+<input type="text" id="myInput3" onkeyup="Switch_ASIC()" placeholder="Search for Switch ASIC .."><br>
+<input type="text" id="myInput4" onkeyup="Port_Config()" placeholder="Search for Port Config .."></center>
+  </div>
+</div>
+
+<div class="splitl right">
+  <div class="centered">
+<table style="width: 70%; background-color: #ffffff;" align="center">
+<tbody>
+<tr>
+<td style="width: 1%";></td>
+<td style="width:30%;"><img class="two" src="https://kannankvs.github.io/kvskSONiC/images/sonic-logo.png" alt="logo" width="270" height="120" /></td>
+<td style="width: 2%";>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+<td style="width: 2%">&nbsp; </td>
+<td style="width: 70% "><k><sub>Supported Platforms </sub><k></td>
+<td style="width: 5%">&nbsp; </td>
+</tr>
+</tbody>
+</table>
+<h2><p style="text-align: left; font-family: Verdana, sans-serif; color: #2E86C1; font-size: 20px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Following is the list of platforms that supports SONiC.</p></h2>
+<br>
+
+<table id="myTable" style="width: 70%; background-color: #ffffff; font-family: Verdana, sans-serif;" align="center">
+<thead>
+<tr style="color:#2E86C1;">
+<th>Vendor</th>
+<th>Platform</th>
+<th>ASIC Vendor</th>
+<th>Switch ASIC</th>
+<th>Port Configuration</th>
+<th>Image</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Accton</td>
+<td>AS4630-54PE</td>
+<td>Broadcom</td>
+<td>Helix 5</td>
+<td>48x1G + 4x25G + 2x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS5712-54X</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>72x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS5812-54X</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>72x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS5835-54T</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x10G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS5835-54X</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x10G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS6712-32X</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>32x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7116-54X</td>
+<td>Nephos</td>
+<td>Taurus</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7312-54X</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7312-54XS</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7315-27XB</td>
+<td>Broadcom</td>
+<td>Qumran</td>
+<td>20x10G + 4x25G + 3x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7326-56X</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7512-32X</td>
+<td>Cavium</td>
+<td>XPliantCNX880**</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/cavium/job/buildimage-cavm-201709/lastSuccessfulBuild/artifact/target/sonic-cavium.bin" rel="nofollow">SONiC-ONIE-Cavium</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7712-32X</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7716-32X</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7716-32XB</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7726-32X</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS7816-64X</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>AS9716-32D</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>32x400G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Accton</td>
+<td>Minipack</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>128x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Alphanetworks</td>
+<td>SNH60A0</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Alphanetworks</td>
+<td>SNH60B0</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7050QX-32</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>32x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7050QX-32S</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>32x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7060CX-32S</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7060DX4-32</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>32x400G + 2x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7060PX4-32</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>32x400G + 2x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7170-64C</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7260CX3-64</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7280CR3-32D4</td>
+<td>Broadcom</td>
+<td>Jericho 2</td>
+<td>32x100G + 4x400G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Arista</td>
+<td>7280CR3-32P4</td>
+<td>Broadcom</td>
+<td>Jericho 2</td>
+<td>32x100G + 4x400G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+</tr>
+<tr>
+<td>Barefoot</td>
+<td>SONiC-P4</td>
+<td>Barefoot</td>
+<td>P4 Emulated</td>
+<td>Configurable</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/p4/job/buildimage-p4-all/" rel="nofollow">SONiC-P4</a></td>
+</tr>
+<tr>
+<td>Barefoot</td>
+<td>Wedge 100BF-32</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+<tr>
+<td>Barefoot</td>
+<td>Wedge 100BF-65X</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+<tr>
+<td>Celestica</td>
+<td>DX010</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Celestica</td>
+<td>E1031</td>
+<td>Broadcom</td>
+<td>Helix4</td>
+<td>48x1G + 4x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Celestica</td>
+<td>midstone-200i</td>
+<td>Innovium</td>
+<td>Teralynx 7</td>
+<td>128x100G</td>
+<td>&nbsp;</td>
+</tr>
+<tr>
+<td>Celestica</td>
+<td>Silverstone</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>32x400G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Centec</td>
+<td>E582-48X2Q</td>
+<td>Centec</td>
+<td>Goldengate</td>
+<td>48x10G + 2x40G + 4x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+</tr>
+<tr>
+<td>Centec</td>
+<td>E582-48X6Q</td>
+<td>Centec</td>
+<td>Goldengate</td>
+<td>48x10G + 6x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+</tr>
+<tr>
+<td>Cig</td>
+<td>CS6436-56P</td>
+<td>Nephos</td>
+<td>Taurus</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>S5232F-C32</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>S6000-ON</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>32x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>S6100-ON</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>64x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>Z9100-C32</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>Z9264</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>AG5648</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>AG6248C</td>
+<td>Broadcom</td>
+<td>Helix 4</td>
+<td>48x1G + 2x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>AG9032V1</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>AG9032V2</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G + 1x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>AG9064</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>et-c032if</td>
+<td>Innovium</td>
+<td>Teralynx 7</td>
+<td>32x400G</td>
+<td>&nbsp;</td>
+</tr>
+<tr>
+<td>Delta</td>
+<td>ET-6448M</td>
+<td>Marvell</td>
+<td>Prestera 98DX3255</td>
+<td>48xGE + 4x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+</tr>
+<tr>
+<td>Embedway</td>
+<td>ES6220 (48x10G)</td>
+<td>Centec</td>
+<td>Goldengate</td>
+<td>48x10G + 2x40G + 4x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+</tr>
+<tr>
+<td>Embedway</td>
+<td>ES6428A-X48Q2H4</td>
+<td>Centec</td>
+<td>Goldengate</td>
+<td>4x100G + 2x40G + 48x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+</tr>
+<tr>
+<td>Facebook</td>
+<td>Wedge 100-32X</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S8810-32Q</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>32x40G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S8900-54XC</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S8900-64XC</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 16x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9100-32X</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9130-32X</td>
+<td>Nephos</td>
+<td>Taurus</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9180-32X</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9200-64X</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9230-64X</td>
+<td>Nephos</td>
+<td>Taurus</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+</tr>
+<tr>
+<td>Ingrasys</td>
+<td>S9280-64X</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D6254QS</td>
+<td>Broadcom</td>
+<td>Trident 2</td>
+<td>72x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D6356</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D6556</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D7032Q</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D7054Q</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Inventec</td>
+<td>D7264Q</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Juniper Networks</td>
+<td>QFX5210-64C</td>
+<td>Broadcom</td>
+<td>Tomahawk 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Marvell</td>
+<td>RD-ARM-48XG6CG-A4</td>
+<td>Marvell</td>
+<td>Prestera 98EX54xx</td>
+<td>6x100G+48x10G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+</tr>
+<tr>
+<td>Marvell</td>
+<td>RD-BC3-4825G6CG-A4</td>
+<td>Marvell</td>
+<td>Prestera 98CX84xx</td>
+<td>6x100G+48x25G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN2010</td>
+<td>Mellanox</td>
+<td>Spectrum</td>
+<td>4x100G+18x25G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN2100</td>
+<td>Mellanox</td>
+<td>Spectrum</td>
+<td>16x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN2410</td>
+<td>Mellanox</td>
+<td>Spectrum</td>
+<td>48x25G+8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN2700</td>
+<td>Mellanox</td>
+<td>Spectrum</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN2740</td>
+<td>Mellanox</td>
+<td>Spectrum</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN3700</td>
+<td>Mellanox</td>
+<td>Spectrum 2</td>
+<td>32x200G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN3700C</td>
+<td>Mellanox</td>
+<td>Spectrum 2</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mellanox</td>
+<td>SN3800</td>
+<td>Mellanox</td>
+<td>Spectrum 2</td>
+<td>64x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Mellanox</a></td>
+</tr>
+<tr>
+<td>Mitac</td>
+<td>LY1200-B32H0-C3</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Pegatron</td>
+<td>Porsche</td>
+<td>Nephos</td>
+<td>Taurus</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+</tr>
+<tr>
+<td>Quanta</td>
+<td>T3032-IX7</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Quanta</td>
+<td>T4048-IX8</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Quanta</td>
+<td>T4048-IX8C</td>
+<td>Broadcom</td>
+<td>Trident 3</td>
+<td>48x25G + 8x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Quanta</td>
+<td>T7032-IX1B</td>
+<td>Broadcom</td>
+<td>Tomahawk</td>
+<td>32x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Quanta</td>
+<td>T9032-IX9</td>
+<td>Broadcom</td>
+<td>Tomahawk 3</td>
+<td>32x400G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+</tr>
+<tr>
+<td>Wnc</td>
+<td>OSW1800</td>
+<td>Barefoot</td>
+<td>Tofino</td>
+<td>48x25G + 6x100G</td>
+<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+</tr>
+</tbody>
+</table>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+ <p style="text-align: left; padding: 2em; font-family: Verdana, sans-serif; font-size: 17px;">
+Note:
+<br>
+<br>
+&nbsp;&nbsp;&nbsp;1.&nbsp;Dell S6100-ON is a modular switch that has different port configurations. Currently only the 64x40G port configuration is supported.</li>
+<br>
+<br>
+&nbsp;&nbsp;&nbsp;2.&nbsp;Arista devices use the Aboot boot loader instead of ONIE. It is normally pre-installed. To learn more about Aboot, please refer to their documentation&nbsp;<a href="https://www.arista.com/en/um-eos-4180f/eos-section-6-1-boot-loader--aboot" rel="nofollow">here</a>.</li>
+<br>
+<br>
+&nbsp;&nbsp;&nbsp;3.&nbsp;ONIE images are normally pre-installed. For DELL switches, you can find their ONIE images and instructions on Dell's website,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=H8TWD&amp;fileId=3477666073&amp;osCode=NAA&amp;productCode=force10-s6000-on&amp;languageCode=en&amp;categoryId=SM" rel="nofollow">S6000-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=XP77D&amp;fileId=3538637982&amp;osCode=NAA&amp;productCode=networking-s6100-on&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">S6100-ON</a>,&nbsp;<a href="http://www.dell.com/support/home/us/en/19/Drivers/DriversDetails?driverId=4T5CJ&amp;fileId=3500562904&amp;osCode=NAA&amp;productCode=networking-z9100&amp;languageCode=en&amp;categoryId=OS" rel="nofollow">Z9100-ON</a>.</li>
+<br>
+<br>
+&nbsp;&nbsp;&nbsp;4.&nbsp;Please contact Marvell for details of the SKU information.</li>
+<br>
+<br>
+&nbsp;&nbsp;&nbsp;5.&nbsp;Please contact vendors for support and SKU information.</li>
+
+<ul> <p style="padding: 1em; text-align: left; font-family: Verdana, sans-serif; font-size: 17px;">
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Inventec&nbsp;<a href="mailto:swsp@inventec.com">swsp@inventec.com</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Edgecore&nbsp;<a href="mailto:sales@edge-core.com">sales@edge-core.com</a>
+</ul>
+<br>
+<br>
+<br>
+<br>
+</p>
+  </div>
+</div>
+
+<head>
+<body>
