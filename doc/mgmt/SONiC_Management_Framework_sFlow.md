@@ -261,7 +261,7 @@ sonic# show sflow
 ---------------------------------------------------------
 Global sFlow Information
 ---------------------------------------------------------
-        admin state:       enabled
+        admin state:       up
         polling-interval:  20
         agent-id:          default
 sonic#
@@ -272,37 +272,37 @@ sonic# show sflow interface
 -----------------------------------------------------------
 sFlow interface configurations
    Interface            Admin State             Sampling Rate
-   Ethernet0            enabled                 4000
-   Ethernet1            enabled                 4000
-   Ethernet2            enabled                 4000
-   Ethernet3            enabled                 4000
-   Ethernet4            enabled                 4000
-   Ethernet5            enabled                 4000
-   Ethernet6            enabled                 4000
-   Ethernet7            enabled                 4000
-   Ethernet8            enabled                 4000
-   Ethernet9            enabled                 4000
-   Ethernet10           enabled                 4000
-   Ethernet11           enabled                 4000
-   Ethernet12           enabled                 4000
-   Ethernet13           enabled                 4000
-   Ethernet14           enabled                 4000
-   Ethernet15           enabled                 4000
-   Ethernet16           enabled                 4000
-   Ethernet17           enabled                 4000
-   Ethernet18           enabled                 4000
-   Ethernet19           enabled                 4000
-   Ethernet20           enabled                 4000
-   Ethernet21           enabled                 4000
+   Ethernet0            up                      4000
+   Ethernet1            up                      4000
+   Ethernet2            up                      4000
+   Ethernet3            up                      4000
+   Ethernet4            up                      4000
+   Ethernet5            up                      4000
+   Ethernet6            up                      4000
+   Ethernet7            up                      4000
+   Ethernet8            up                      4000
+   Ethernet9            up                      4000
+   Ethernet10           up                      4000
+   Ethernet11           up                      4000
+   Ethernet12           up                      4000
+   Ethernet13           up                      4000
+   Ethernet14           up                      4000
+   Ethernet15           up                      4000
+   Ethernet16           up                      4000
+   Ethernet17           up                      4000
+   Ethernet18           up                      4000
+   Ethernet19           up                      4000
+   Ethernet20           up                      4000
+   Ethernet21           up                      4000
 --more--
-   Ethernet22           enabled                 4000
-   Ethernet23           enabled                 4000
-   Ethernet24           enabled                 4000
-   Ethernet25           enabled                 4000
-   Ethernet26           enabled                 4000
-   Ethernet27           enabled                 4000
-   Ethernet28           enabled                 4000
-   Ethernet29           enabled                 4000
+   Ethernet22           up                      4000
+   Ethernet23           up                      4000
+   Ethernet24           up                      4000
+   Ethernet25           up                      4000
+   Ethernet26           up                      4000
+   Ethernet27           up                      4000
+   Ethernet28           up                      4000
+   Ethernet29           up                      4000
 sonic#
 ```
 
