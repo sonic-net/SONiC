@@ -49,39 +49,68 @@ Provide management framework GET support to existing SONiC capabilities with res
  - gNMI GET support for FDB
 
 ### 1.1.3 Scalability Requirements
+N/A
 ### 1.1.4 Warm Boot Requirements
+N/A
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
+Provide transformer methods in sonic-management-framework container for displaying MAC entries.
 ### 1.2.2 Container
+All code changes will be done in management-framework container
+
 ### 1.2.3 SAI Overview
+N/A
+
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
+show commands for dumping out the MAC entries present in system via gNMI, REST and CLI.
+
 ## 2.2 Functional Description
+Provide CLI show commands for displaying MAC entries.
+
 # 3 Design
 ## 3.1 Overview
+Enhancing the managerment framework backend code and transformer methods to add support for fetching and showing MAC entries present in the system.
+
+To support MAC entries GETs, data is fetched from "FDB_TABLE".
+
+For every CLI option, GET all will be done on FDB_TABLE and than as per the options provided by the user, CLI will filter out the response and will display appropriate results.
+
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
-### 3.2.2 APP DB
-### 3.2.3 STATE DB
-### 3.2.4 ASIC DB
-### 3.2.5 COUNTER DB
+N/A
 
+### 3.2.2 APP DB
+will be reading FDB_TABLE for show commands.
+
+### 3.2.3 STATE DB
+N/A
+### 3.2.4 ASIC DB
+N/A
+### 3.2.5 COUNTER DB
+N/A
 ## 3.3 Switch State Service Design
+N/A
 ### 3.3.1 Orchestration Agent
+N/A
 ### 3.3.2 Other Process
+N/A
 ## 3.4 SyncD
+N/A
 ## 3.5 SAI
+N/A
+
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 The following OpenConfig YANG model is used to implement GET support for FDB entries.
 [https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance-l2.yang#L292)
-```
+```diff
 module: openconfig-network-instance
     +--rw network-instances
-       +--rw network-instance* [name]
-          +--rw name                       -> ../config/name
-          +--rw fdb
++      +--rw network-instance* [name]
++         +--rw name                       -> ../config/name
++         +--rw fdb
           |  +--rw config
           |  |  +--rw mac-learning?      boolean
           |  |  +--rw mac-aging-time?    uint16
@@ -90,11 +119,11 @@ module: openconfig-network-instance
           |  |  +--ro mac-learning?      boolean
           |  |  +--ro mac-aging-time?    uint16
           |  |  +--ro maximum-entries?   uint16
-          |  +--rw mac-table
-          |     +--rw entries
-          |        +--rw entry* [mac-address vlan]
-          |           +--rw mac-address    -> ../config/mac-address
-          |           +--rw vlan           -> ../config/vlan
++         |  +--rw mac-table
++         |     +--rw entries
++         |        +--rw entry* [mac-address vlan]
++         |           +--rw mac-address    -> ../config/mac-address
++         |           +--rw vlan           -> ../config/vlan
           |           +--rw config
           |           |  +--rw mac-address?   yang:mac-address
           |           |  +--rw vlan?          -> ../../../../../../vlans/vlan/config/vlan-id
@@ -102,127 +131,218 @@ module: openconfig-network-instance
           |           |  +--ro mac-address?   yang:mac-address
           |           |  +--ro vlan?          -> ../../../../../../vlans/vlan/config/vlan-id
           |           |  +--ro age?           uint64
-          |           |  +--ro entry-type?    enumeration
++         |           |  +--ro entry-type?    enumeration
           |           +--rw interface
           |              +--rw interface-ref
           |                 +--rw config
           |                 |  +--rw interface?      -> /oc-if:interfaces/interface/name
           |                 |  +--rw subinterface?   -> /oc-if:interfaces/interface[oc-if:name=current()/../interface]/subinterfaces/subinterface/index
           |                 +--ro state
-          |                    +--ro interface?      -> /oc-if:interfaces/interface/name
++         |                    +--ro interface?      -> /oc-if:interfaces/interface/name
           |                    +--ro subinterface?   -> /oc-if:interfaces/interface[oc-if:name=current()/../interface]/subinterfaces/subinterface/index
 ```
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
+N/A
 #### 3.6.2.2 Show Commands
 The following CLI commands dump the output of internal FDB entries from STATE_DB with various options (filters), for example, filter based on MAC address, entry type (static/dynamic), VLAN interface, physical/port-channel interfaces and MAC address table count ..etc.
+
 ##### 3.6.2.2.1 show mac address-table
-Syntax
+This Command dumps all the MAC entries present in the system.
+```
+sonic# show mac address-table 
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+11          00:00:00:00:00:01   STATIC        Ethernet0           
+100         00:00:00:00:00:10   DYNAMIC       Ethernet36          
+20          00:00:00:00:00:02   DYNAMIC       Ethernet4           
+30          00:00:00:00:00:03   STATIC        Ethernet8           
+40          00:00:00:00:00:04   DYNAMIC       Ethernet12          
+50          00:00:00:00:00:05   STATIC        Ethernet16          
+60          00:00:00:00:00:06   DYNAMIC       Ethernet20          
+70          00:00:00:00:00:07   STATIC        Ethernet24          
+80          00:00:00:00:00:08   DYNAMIC       Ethernet28          
+90          00:00:00:00:00:09   STATIC        Ethernet32          
+10          00:00:00:00:00:98   STATIC        Ethernet0           
+99          00:00:00:00:00:99   STATIC        PortChannel10       
+```
 
-show mac address-table [address ``<mac>`` | count | dynamic { address ``<mac>`` | vlan ``<id>`` | interface { Ethernet ``<id>`` | Port-channel ``<id>`` }} | interface { Ethernet ``<id>`` | Port-channel ``<id>`` } | static { address ``<mac>`` | vlan ``<id>`` | interface { Ethernet ``<id>`` | Port-channel ``<id>`` }} | vlan ``<id>`` }]
+##### 3.6.2.2.2 show mac address-table address <48-bit mac-addres id>
+This Command provides the MAC entries matching the particular mac-id present in the system.
+```
+sonic# show mac address-table address 
+  nn:nn:nn:nn:nn:nn  48 bit MAC address
 
-Syntax Description:
+sonic# show mac address-table address 00:00:00:00:00:01
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+11          00:00:00:00:00:01   STATIC        Ethernet0           
+sonic# 
+```
 
-|    Keyword    | Description |
-|:-----------------:|:-----------:|
-| address `mac` | This option dumps the MACs matching the particular Mac
-| count | This option provides the no. of MAC entries present in the system
-| static | This option dumps the MAC entries matching the static entry type
-| dynamic | This option dumps the MAC entries matching the dynamic entry type
-| interface | This option dumps the MACs matching the particular physical/port-channel interface
-| vlan | This option dumps the MACs matching the particular VLAN
+##### 3.6.2.2.3 show mac address-table Vlan <vlan-id>
+This Command provides the MAC entries matching the particular vlan-id present in the system.
+```
+sonic# show mac address-table Vlan 10
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+10          00:00:00:00:00:101  STATIC        Ethernet0           
+```
 
-
-Command Mode: User EXEC
-
-Example:
-````
-sonic# show mac address-table
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-20      00:11:22:33:44:55       static          Ethernet0
-sonic#
-
+##### 3.6.2.2.4 show mac address-table count
+This Command provides the no. of MAC entries present in the system.
+```
 sonic# show mac address-table count
-MAC Entries for all vlans :
-Dynamic Address Count :                  1
-Static Address (User-defined) Count :    1
-Total MAC Addresses in Use:              2
-sonic#
+MAC Entries for all vlans :  13                  
+Dynamic Address Count :  5                   
+Static Address (User-defined) Count :  8                   
+Total MAC Addresses in Use: 13                  
+sonic# 
+```
 
+##### 3.6.2.2.5 show mac address-table interface Ethernet <port-id>
+This Command provides the no. of MAC entries matching the particular physical port-id present in the system.
+```
+sonic# show mac address-table interface Ethernet 0
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+11          00:00:00:00:00:01   STATIC        Ethernet0           
+10          00:00:00:00:00:98   STATIC        Ethernet0           
+sonic# 
+```
 
-sonic# show mac address-table address 00:11:22:33:44:55
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
-sonic#
+##### 3.6.2.2.6 show mac address-table interface PortChannel <portchannel-id>
+This Command provides the no. of MAC entries matching the particular physical portchannel-id present in the system.
+```
+sonic# show mac address-table interface PortChannel 10
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+99          00:00:00:00:00:99   STATIC        PortChannel10       
+```
 
-sonic# show mac address-table dynamic
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-sonic#
-
-sonic# show mac address-table dynamic address 90:b1:1c:f4:9d:83
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-
-sonic# show mac address-table vlan 1
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-
-sonic# show mac address-table interface Ethernet 1
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-sonic#
-
-sonic# show mac address-table interface Ethernet 1
-VlanId  Mac Address             Type            Interface
-1       90:b1:1c:f4:9d:83       dynamic         Ethernet1
-sonic#
-
+##### 3.6.2.2.7 show mac address-table interface static
+This Command provides the no. of static MAC entries matching present in the system.
+```
 sonic# show mac address-table static
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
-sonic#
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+11          00:00:00:00:00:01   STATIC        Ethernet0           
+30          00:00:00:00:00:03   STATIC        Ethernet8           
+50          00:00:00:00:00:05   STATIC        Ethernet16          
+70          00:00:00:00:00:07   STATIC        Ethernet24          
+90          00:00:00:00:00:09   STATIC        Ethernet32          
+10          00:00:00:00:00:98   STATIC        Ethernet0           
+99          00:00:00:00:00:99   STATIC        PortChannel10      
+```
 
-sonic# show mac address-table static address 00:11:22:33:44:55
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
-sonic#
+##### 3.6.2.2.8 show mac address-table interface dynamic
+This Command provides the no. of dynamic MAC entries matching present in the system.
+```
+sonic# show mac address-table dynamic
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+100         00:00:00:00:00:010  DYNAMIC       Ethernet36          
+20          00:00:00:00:00:02   DYNAMIC       Ethernet4           
+40          00:00:00:00:00:04   DYNAMIC       Ethernet12          
+60          00:00:00:00:00:06   DYNAMIC       Ethernet20          
+80          00:00:00:00:00:08   DYNAMIC       Ethernet28          
+```
 
-sonic# show mac address-table static vlan 20
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
+##### 3.6.2.2.9 show mac address-table interface static address <48 bit mac-address id>
+This Command provides the no. of static MAC entries matching the particular mac-address present in the system.
+```
+show mac address-table static address 00:00:00:00:00:01
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+10          00:00:00:00:00:01   STATIC        Ethernet0           
+11          00:00:00:00:00:01   STATIC        Ethernet0      
+```
 
-sonic# show mac address-table static interface Ethernet 1
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
-sonic#
+##### 3.6.2.2.10 show mac address-table interface dynamic address <48 bit mac-address id>
+This Command provides the no. of dynamic MAC entries matching the particular mac-address present in the system.
+```
+sonic# show mac address-table dynamic address 00:00:00:00:00:06
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+60          00:00:00:00:00:06   DYNAMIC       Ethernet20          
+```
 
-sonic# show mac address-table vlan 20
-VlanId  Mac Address             Type            Interface
-20      00:11:22:33:44:55       static          Ethernet1
-sonic#
+##### 3.6.2.2.11 show mac address-table interface static Vlan <id>
+This Command provides the no. of static MAC entries matching the particular vlan-id present in the system.
+```
+show mac address-table static Vlan 11
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+11          00:00:00:00:00:01   STATIC        Ethernet0      
+```
 
-````
+##### 3.6.2.2.12 show mac address-table interface dynamic Vlan <id>
+This Command provides the no. of dynamic MAC entries matching the particular Vlan-id present in the system.
+```
+sonic# show mac address-table dynamic Vlan 60
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+60          00:00:00:00:00:06   DYNAMIC       Ethernet20          
+```
+
+##### 3.6.2.2.13 show mac address-table interface static interface Ethernet <id>
+This Command provides the no. of static MAC entries matching the particular physical interface port-id present in the system.
+```
+show mac address-table static interface Ethernet 8
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+30          00:00:00:00:00:03   STATIC        Ethernet8          
+```
+
+##### 3.6.2.2.14 show mac address-table interface dynamic interface Ethernet <id>
+This Command provides the no. of dynamic MAC entries matching the particular physical interface port-id present in the system.
+```
+sonic# show mac address-table dynamic interface Ethernet 12
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+40          00:00:00:00:00:04   DYNAMIC       Ethernet12          
+```
+
+##### 3.6.2.2.15 show mac address-table interface static interface PortChannel <id>
+This Command provides the no. of static MAC entries matching the particular portchannel-id present in the system.
+```
+sonic# show mac address-table static interface PortChannel 10
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+99          00:00:00:00:00:99   STATIC        PortChannel10       
+```
+
+##### 3.6.2.2.16 show mac address-table interface dynamic interface PortChannel <id>
+This Command provides the no. of dynamic MAC entries matching the particular portchannel-id present in the system.
+```
+sonic# show mac address-table static interface PortChannel 11
+-----------------------------------------------------------
+VLAN         MAC-ADDRESS         TYPE         INTERFACE           
+-----------------------------------------------------------
+98          00:00:00:00:00:95   DYNAMIC       PortChannel11       
+```
+
 #### 3.6.2.3 Debug Commands
-#### 3.6.2.4 IS-CLI Compliance
-The following table maps SONIC CLI commands to corresponding IS-CLI commands. The compliance column identifies how the command comply to the IS-CLI syntax:
-
-- **IS-CLI drop-in replace**  – meaning that it follows exactly the format of a pre-existing IS-CLI command.
-- **IS-CLI-like**  – meaning that the exact format of the IS-CLI command could not be followed, but the command is similar to other commands for IS-CLI (e.g. IS-CLI may not offer the exact option, but the command can be positioned is a similar manner as others for the related feature).
-- **SONIC** - meaning that no IS-CLI-like command could be found, so the command is derived specifically for SONIC.
-
-|CLI Command|Compliance|IS-CLI Command (if applicable)| Link to the web site identifying the IS-CLI command (if applicable)|
-|:---:|:-----------:|:------------------:|-----------------------------------|
-|show mac address-table |IS-CLI drop-in replace | | |
-| show mac address-table count | IS-CLI drop-in replace |  | |
-| show mac address-table address `mac` | IS-CLI drop-in replace |  | |
-| show mac address-table dynamic  |IS-CLI drop-in replace | | |
-| show mac address-table static } |IS-CLI drop-in replace | | |
-| show mac address-table [interface { Ethernet/Port-channel } | IS-CLI drop-in replace | |
-| show mac address-table [vlan ``<id>`` | IS-CLI drop-in replace | |
-
-
+N/A
 
 ### 3.6.3 REST API Support
 #### 3.6.3.1 GET
@@ -235,14 +355,19 @@ The following table maps SONIC CLI commands to corresponding IS-CLI commands. Th
 
 
 # 4 Flow Diagrams
+N/A
 
 # 5 Error Handling
+N/A
 
 # 6 Serviceability and Debug
+N/A
 
 # 7 Warm Boot Support
+N/A
 
 # 8 Scalability
+N/A
 
 # 9 Unit Test
 The following test cases will be tested using CLI/REST/GNMI management interfaces.
@@ -261,5 +386,10 @@ The following test cases will be tested using CLI/REST/GNMI management interface
 
 7) Verify whether "show mac address-table vlan ``<id>``" dumps the MACs matching particular VLAN.
 
+8) Verify whether "show mac address-table static vlan <id>| address <mac-address>| interface {Ethernet <port-id> | PortChannel <id>}" dumps all the static MACs with either address or vlan id or interface id as a filter.
 
+8) Verify whether "show mac address-table dynamic vlan <id>| address <mac-address>| interface {Ethernet <port-id> | PortChannel <id>}" dumps all the dynamic MACs with either address or vlan id or interface id as a filter.
+
+ 
 # 10 Internal Design Information
+N/A
