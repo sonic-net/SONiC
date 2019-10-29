@@ -220,15 +220,14 @@ SSH Client              SONiC Device                     RADIUS Server
     |                 | user info.(3)   |                    |
     |                 |<----------------+                    |
     |                 |                 |                    |
-    |             (4) |                 |                    |
-    |                 |                 |                    |
     |                 |                                      |
-    |                 |         PAM Auth Request(5)          |
+    |                 |         Access-Request(4)            |
     |                 +------------------------------------->|
     |                 |                                      |
-    |                 |         PAM Auth Success(6)          |
+    |                 |         Access-Accept(5)             |
     |                 |<-------------------------------------+
     |                 |                                      |
+    |             (6) |                 |                    |
     |                 |                 |                    |
     |  Success(7)     |                 |                    |
     |<----------------+                 |                    |
