@@ -1,7 +1,7 @@
 # kdump
 
 ## High Level Design Document
-**Rev 0.1**
+**Rev 0.2**
 
 ## Table of Contents
 
@@ -53,6 +53,7 @@
 Rev   |   Date   |  Author   | Change Description
 :---: | :-----:  | :------:  | :---------
 0.1   | 10/28/19 | O. Singla | Initial version
+0.2   | 10/29/19 | O. Singla | Changed the memory allocated for kdump
 
 ## About this Manual
 
@@ -206,7 +207,7 @@ If the amount of memory is set too low, kdump will not be able to either:
  - or store the core dump information.
 
 The default value for the memory allocated for the capture memory is:
-*0M-2G:384M,2G-4G:512M,4G-8G:576M,8G-:640M*
+*0M-2G:256M,2G-4G:320M,4G-8G:384M,8G-:448M*
 
 Which translates into:
 |RAM size|crashkernel <br>parameter|
