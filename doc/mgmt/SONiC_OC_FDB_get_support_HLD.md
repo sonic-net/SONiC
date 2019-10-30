@@ -15,6 +15,8 @@ Implement GET support for FDB entries using CLI/REST/gNMI SONiC management frame
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
+[Table 2: FDB Test-cases](#table-2-fdb-test-cases)
+
 
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -371,7 +373,7 @@ N/A
 
 # 9 Unit Test
 The following test cases will be tested using CLI/REST/GNMI management interfaces.
-#### FDB test cases:
+### Table 2: FDB-Test-Cases
 | Test Name | Test Description |
 | :------ | :----- |
 | show mac address-table | Verify if all of the mac entries present in the system are being displayed. |
