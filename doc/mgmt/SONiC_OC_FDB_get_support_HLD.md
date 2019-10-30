@@ -71,7 +71,7 @@ Provide CLI show commands for displaying MAC entries.
 
 # 3 Design
 ## 3.1 Overview
-Enhancing the managerment framework backend code and transformer methods to add support for fetching and showing MAC entries present in the system.
+Enhancing the management framework backend code and transformer methods to add support for fetching and showing MAC entries present in the system.
 
 To support MAC entries GETs, data is fetched from "FDB_TABLE".
 
@@ -82,7 +82,7 @@ For every CLI option, GET all will be done on FDB_TABLE and than as per the opti
 N/A
 
 ### 3.2.2 APP DB
-will be reading FDB_TABLE for show commands.
+Will be reading FDB_TABLE for show commands.
 
 ### 3.2.3 STATE DB
 N/A
@@ -104,7 +104,7 @@ N/A
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 The following OpenConfig YANG model is used to implement GET support for FDB entries.
-[https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance-l2.yang#L292)
+[openconfig-network-instance-l2.yang](https://github.com/openconfig/public/blob/master/release/models/network-instance/openconfig-network-instance-l2.yang#L292)
 ```diff
 module: openconfig-network-instance
     +--rw network-instances
@@ -148,7 +148,7 @@ N/A
 The following CLI commands dump the output of internal FDB entries from STATE_DB with various options (filters), for example, filter based on MAC address, entry type (static/dynamic), VLAN interface, physical/port-channel interfaces and MAC address table count ..etc.
 
 ##### 3.6.2.2.1 show mac address-table
-This Command dumps all the MAC entries present in the system.
+This command dumps all the MAC entries present in the system.
 ```
 sonic# show mac address-table 
 -----------------------------------------------------------
@@ -170,7 +170,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.2 show mac address-table address <48-bit mac-addres id>
-This Command provides the MAC entries matching the particular mac-id present in the system.
+This command provides the MAC entries matching the particular mac-id present in the system.
 ```
 sonic# show mac address-table address 
   nn:nn:nn:nn:nn:nn  48 bit MAC address
@@ -185,7 +185,7 @@ sonic#
 ```
 
 ##### 3.6.2.2.3 show mac address-table Vlan <vlan-id>
-This Command provides the MAC entries matching the particular vlan-id present in the system.
+This command provides the MAC entries matching the particular vlan-id present in the system.
 ```
 sonic# show mac address-table Vlan 10
 -----------------------------------------------------------
@@ -196,7 +196,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.4 show mac address-table count
-This Command provides the no. of MAC entries present in the system.
+This command provides the number of MAC entries present in the system.
 ```
 sonic# show mac address-table count
 MAC Entries for all vlans :  13                  
@@ -207,7 +207,7 @@ sonic#
 ```
 
 ##### 3.6.2.2.5 show mac address-table interface Ethernet <port-id>
-This Command provides the no. of MAC entries matching the particular physical port-id present in the system.
+This command provides the number of MAC entries matching the particular physical port-id present in the system.
 ```
 sonic# show mac address-table interface Ethernet 0
 -----------------------------------------------------------
@@ -220,7 +220,7 @@ sonic#
 ```
 
 ##### 3.6.2.2.6 show mac address-table interface PortChannel <portchannel-id>
-This Command provides the no. of MAC entries matching the particular physical portchannel-id present in the system.
+This command provides the number of MAC entries matching the particular physical portchannel-id present in the system.
 ```
 sonic# show mac address-table interface PortChannel 10
 -----------------------------------------------------------
@@ -230,7 +230,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.7 show mac address-table interface static
-This Command provides the no. of static MAC entries matching present in the system.
+This command provides the number of static MAC entries matching present in the system.
 ```
 sonic# show mac address-table static
 -----------------------------------------------------------
@@ -247,7 +247,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.8 show mac address-table interface dynamic
-This Command provides the no. of dynamic MAC entries matching present in the system.
+This command provides the number of dynamic MAC entries matching present in the system.
 ```
 sonic# show mac address-table dynamic
 -----------------------------------------------------------
@@ -261,7 +261,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.9 show mac address-table interface static address <48 bit mac-address id>
-This Command provides the no. of static MAC entries matching the particular mac-address present in the system.
+This command provides the number of static MAC entries matching the particular mac-address present in the system.
 ```
 show mac address-table static address 00:00:00:00:00:01
 -----------------------------------------------------------
@@ -272,7 +272,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.10 show mac address-table interface dynamic address <48 bit mac-address id>
-This Command provides the no. of dynamic MAC entries matching the particular mac-address present in the system.
+This command provides the number of dynamic MAC entries matching the particular mac-address present in the system.
 ```
 sonic# show mac address-table dynamic address 00:00:00:00:00:06
 -----------------------------------------------------------
@@ -282,7 +282,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.11 show mac address-table interface static Vlan <id>
-This Command provides the no. of static MAC entries matching the particular vlan-id present in the system.
+This command provides the number of static MAC entries matching the particular vlan-id present in the system.
 ```
 show mac address-table static Vlan 11
 -----------------------------------------------------------
@@ -292,7 +292,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.12 show mac address-table interface dynamic Vlan <id>
-This Command provides the no. of dynamic MAC entries matching the particular Vlan-id present in the system.
+This command provides the number of dynamic MAC entries matching the particular Vlan-id present in the system.
 ```
 sonic# show mac address-table dynamic Vlan 60
 -----------------------------------------------------------
@@ -302,7 +302,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.13 show mac address-table interface static interface Ethernet <id>
-This Command provides the no. of static MAC entries matching the particular physical interface port-id present in the system.
+This command provides the number of static MAC entries matching the particular physical interface port-id present in the system.
 ```
 show mac address-table static interface Ethernet 8
 -----------------------------------------------------------
@@ -312,7 +312,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.14 show mac address-table interface dynamic interface Ethernet <id>
-This Command provides the no. of dynamic MAC entries matching the particular physical interface port-id present in the system.
+This command provides the number of dynamic MAC entries matching the particular physical interface port-id present in the system.
 ```
 sonic# show mac address-table dynamic interface Ethernet 12
 -----------------------------------------------------------
@@ -322,7 +322,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.15 show mac address-table interface static interface PortChannel <id>
-This Command provides the no. of static MAC entries matching the particular portchannel-id present in the system.
+This command provides the number of static MAC entries matching the particular portchannel-id present in the system.
 ```
 sonic# show mac address-table static interface PortChannel 10
 -----------------------------------------------------------
@@ -332,7 +332,7 @@ VLAN         MAC-ADDRESS         TYPE         INTERFACE
 ```
 
 ##### 3.6.2.2.16 show mac address-table interface dynamic interface PortChannel <id>
-This Command provides the no. of dynamic MAC entries matching the particular portchannel-id present in the system.
+This command provides the number of dynamic MAC entries matching the particular portchannel-id present in the system.
 ```
 sonic# show mac address-table static interface PortChannel 11
 -----------------------------------------------------------
@@ -372,24 +372,26 @@ N/A
 # 9 Unit Test
 The following test cases will be tested using CLI/REST/GNMI management interfaces.
 #### FDB test cases:
-1) Verify whether "show mac address-table" command dumps all the MAC entries
+| Test Name | Test Description |
+| :------ | :----- |
+| show mac address-table | Verify if all of the mac entries present in the system are being displayed. |
+| show mac address-table count | Verify number of static or dynamic MAC present and total MAC present in the system |
+| show mac address-table Vlan <id> | Verify if only MAC entries matching VLAN-id are displayed. |
+| show mac address-table interface Ethernet <port-id> | Verify if only MAC entries matching Ethernet port-id are displayed. |
+| show mac address-table interface PortChanel <port-id> | Verify if only MAC entries matching PortCahnell-id are displayed. |
+| show mac address-table interface address <mac-address-id> | Verify if only MAC entries matching mac-address are displayed. |
+| show mac address-table interface static | Verify if only static MAC entries are displayed. |
+| show mac address-table interface dynamic | Verify if only dynamic MAC entries are displayed. |
+| show mac address-table interface static address <mac-id> | Verify if only static MAC entries matching mac-id are displayed. |
+| show mac address-table interface dynamic address <mac-id> | Verify if only dynamic MAC entries matching mac-id are displayed. |
+| show mac address-table interface static Vlan <id> | Verify if only static MAC entries matching Vlan id are displayed. |
+| show mac address-table interface dynamic Vlan <id> | Verify if only dynamic MAC entries matching Vlan id are displayed. |
+| show mac address-table interface static interface Ethernet <id> | Verify if only static MAC entries matching Ethernet port-id are displayed. |
+| show mac address-table interface dynamic interface Ethernet <id> | Verify if only dynamic MAC entries matching Ethernet port-id are displayed. |
+| show mac address-table interface static interface PortChannel <id> | Verify if only static MAC entries matching PortChannel-id are displayed. |
+| show mac address-table interface dynamic interface PortChannel <id> | Verify if only dynamic MAC entries matching PortChannel-id are displayed. |
 
-2) Verify whether "show mac address-table count" command provides the no. of MAC entries present in the system
 
-3) Verify whether "show mac address-table address `mac`" dumps the MACs matching the particular MAC
-
-4) Verify whether "show mac address-table dynamic" dumps all the dynamic MACs and if the interface filter is given, dumps the MACs matching the particular interface.
-
-5) Verify whether "show mac address-table static" dumps all the static MACs and if the interface filter is given, dumps the MACs matching the particular interface.
-
-6) Verify whether "show mac address-table interface <ethernet/port-channel>" dumps the MACs matching particular interface.
-
-7) Verify whether "show mac address-table vlan ``<id>``" dumps the MACs matching particular VLAN.
-
-8) Verify whether "show mac address-table static vlan <id>| address <mac-address>| interface {Ethernet <port-id> | PortChannel <id>}" dumps all the static MACs with either address or vlan id or interface id as a filter.
-
-8) Verify whether "show mac address-table dynamic vlan <id>| address <mac-address>| interface {Ethernet <port-id> | PortChannel <id>}" dumps all the dynamic MACs with either address or vlan id or interface id as a filter.
-
+#### Configuration(PATCH) and GET via gNMI/REST
+- Verify the JSON response for GET requests
  
-# 10 Internal Design Information
-N/A
