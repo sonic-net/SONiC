@@ -210,39 +210,42 @@ sonic(config)#
 
 ### Create Management VRF
 ```
-sonic(config)#vrf
+sonic(config)#ip vrf
   management               Management VRF
   ...
-sonic(config)#vrf management
+sonic(config)#ip vrf management
 sonic(config)#
 ```
 
 ### Delete Management VRF
 ```
-sonic(config)#no vrf
+sonic(config)#no ip vrf
   management               Management VRF
   ...
-sonic(config)#no vrf management
+sonic(config)#no ip vrf management
 sonic(config)#
 ```
 
 #### 3.6.2.2 Show Commands
 ##### Show all VRFs
 ```
-sonic#show vrf
+sonic#show ip vrf
 VRF-Name                          Interfaces
+--------------------------------------------
 TENANT1                           Ethernet0
+
 mgmt                              eth0
 ```
 
 ##### Show Management VRF only
 ```
-sonic#show vrf
+sonic#show ip vrf
  management       Management VRF information
  ...
 
-sonic#show vrf management
+sonic#show ip vrf management
 VRF-Name                          Interfaces
+---------------------------------------------
 management                        eth0
 ```
 
@@ -279,7 +282,6 @@ The unit-test for this feature will include:
 | Delete Management VRF | Verify Management VRF is updated in configDB with mgmtVrfEnabled set to false |
 | show Management VRF | Verify Management VRF is displayed correctly |
 
-#### Show sFlow configuration via CLI
 
 #### Configuration via gNMI
 
