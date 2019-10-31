@@ -106,8 +106,8 @@ https://github.com/project-arlo/sonic-mgmt-framework/blob/94a7c70de961c5c9b59429
 
 module: sonic-ifa
     +--rw sonic-ifa
-       +--rw TAM_INT_FEATURE_TABLE
-       |  +--rw TAM_INT_FEATURE_TABLE_LIST* [feature]
+       +--rw TAM_INT_IFA_FEATURE_TABLE
+       |  +--rw TAM_INT_IFA_FEATURE_TABLE_LIST* [feature]
        |     +--rw feature    string
        |     +--rw enable?    boolean
        +--rw TAM_DEVICE_TABLE
