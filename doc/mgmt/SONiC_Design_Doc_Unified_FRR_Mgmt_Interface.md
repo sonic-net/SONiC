@@ -1,7 +1,6 @@
-Feature Name
-# Draft Version - SONiC FRR-BGP Extended Unified Configuration Management Framework
+# SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.1
+### Rev 0.2
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -57,6 +56,7 @@ Feature Name
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/25/2019  | Karthikeyan Arumugam | Initial version                 |
+| 0.2 | 10/30/2019  | Venkatesan Mahalingam | Config DB schema changes |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -187,38 +187,47 @@ Enhance following tables to configure additional attributes:
 
   * BGP Neighbor table
 
-#### 3.2.1.1 Add a BGP_INST_TABLE in CONFIG_DB
+#### 3.2.1.1 Add a BGP_GLOBALS in CONFIG_DB
 ```JSON
-;Defines BGP routing instance table
+;Defines BGP globals table
 ;
 ;Status: stable
 
-key                   = BGP_INST_TABLE:vrf_name ;
+key                   = BGP_GLOBALS|vrf ;
 local_asn             = uint32 ; Local ASN for the BGP instance
 router_id             = \*IPv4prefix ; Router ID IPv4 address
 load_balance_mp_relax = "true" / "false" ;
 grace_restart         = "true" / "false" ;
+always_compare_med    = "true" / "false" ;
+load_balance_mp_relax = "true" / "false" ;
+graceful_restart_enable = "true" / "false" ;
+gr_restart_time = uint16 ; {1..3600 };
+gr_stale_routes_time = uint16 ; {1..3600 };
+ebgp_route_distance = uint8 ; {1..255 };
+ibgp_route_distance = uint8 ; {1..255 };
+external_compare_router_id = "true" / "false" ;
+ignore_as_path_length  = "true" / "false" ;
+
 ```
 
 #### 3.2.1.2 Enhance BGP_NEIGHBOR table in CONFIG_DB
-> [TODO] check current BGP neighbor table definition and update for any additions to existing table.
 
 ```JSON
 ;Defines BGP neighbor table
 ;
 ;Status: stable
 
-key               = BGP_NEIGHBOR:vrf_name:IPprefix ;
-IPprefix          = IPv4Prefix / IPv6prefix ;
+key               = BGP_NEIGHBOR|vrf|neighbor_ip ;
+neighbor_ip       = IPv4Prefix / IPv6prefix ;
 local_asn         = uint32 ; Local ASN for the BGP neighbor
-descr             = 1*64VCHAR ; BGP neighbor description
-ebgp_mhop_count   = uint8 ; EBGP multihop count
+description       = 1*64VCHAR ; BGP neighbor description
+ebgp_multihop     = uint32 ; EBGP multihop count
 peer_asn          = uint32 ; Remote ASN
-admin             = "true" / "false" ; Neighbor admin status
+enabled             = "true" / "false" ; Neighbor admin status
 keepalive_intvl   = uint16 ; keepalive interval
 hold_time         = uint16 ; hold time
 local_address     = IPprefix ; local IP address
-peer_group        = 1*64VCHAR ; peer group name
+peer_group_name   = 1*64VCHAR ; peer group name
 ```
 #### 3.2.1.3 Add BGP_NEIGHBOR_AF table in CONFIG_DB
 ```JSON
@@ -226,7 +235,7 @@ peer_group        = 1*64VCHAR ; peer group name
 ;
 ;Status: stable
 
-key           = BGP_NEIGHBOR_AF:vrf_name:prefix:af ;
+key           = BGP_NEIGHBOR_AF|vrf|prefix|af ;
 admin         = "true" / "false" ; Neighbor admin status
 allow_asin    = uint8 ;  Number of occurences of ASN
 route_map     = 1*64VCHAR ; route map filter to apply for this neighbor
@@ -234,39 +243,49 @@ direction     = "in" / "out" ; direction to apply for this route map
 ```
 
 #### 3.2.1.4 Add BGP_PEER_GROUP table in CONFIG_DB
-> [TODO] check if there is any existing peer group DB.
 
 ```JSON
 ;Defines BGP peer group table
 ;
 ;Status: stable
 
-key              = BGP_PEER_GROUP:vrf_name:peer_group_name ;
-peer_group_name  = 1*64VCHAR ; alias name for the peer group template, must be unique
+key              = BGP_PEER_GROUP|vrf|pgrp_name ;
+pgrp_name  = 1*64VCHAR ; alias name for the peer group template, must be unique
 local_asn        = 1\*10DIGIT ; Local ASN for the BGP peer group
 descr             = 1*64VCHAR ; BGP peer group description
-ebgp_mhop_count   = uint8 ; EBGP multihop count
+ebgp_multihop     = uint8 ; EBGP multihop count
+ebgp_multihop_ttl = uint8 ;
+passwd            =  1*64VCHAR ;
 peer_asn          = uint32 ; Remote ASN
 admin             = "true" / "false" ; Peer group admin status
 keepalive_intvl   = uint16 ; keepalive interval
 hold_time         = uint16 ; hold time
 local_address     = IPprefix ; local IP address
+peer_type         = "INTERNAL" / "EXTERNAL";
+keepalive_intrvl = uint16 ; {1..3600}
+hold_time        = uint16 ; {1..3600}
+conn_retry       = uint16 ; {1..3600}
+min_adv_intrvl   = uint16 ; {1..3600}
+passive_mode     = "true" / "false" ;
 ```
-#### 3.2.1.5 Add BGP_AF_PEER_GROUP table in CONFIG_DB
-> [TODO] check if there is any existing peer group DB.
+#### 3.2.1.5 Add BGP_PEER_GROUP_AF table in CONFIG_DB
 
 ```JSON
 ;Defines BGP per address family peer group table
 ;
 ;Status: stable
 
-key               = BGP_AF_PEER_GROUP:vrf_name:af:peer_group_name ;
-af                = "IPv4" / "IPv6"  ; address family
-peer_group_name   = 1*64VCHAR ; alias name for the peer group template, must be unique
-admin             = "true" / "false" ; Peer group admin status
-allow_asin        = uint8 ;  Number of occurences of ASN
-route_map         = 1*64VCHAR ; route map filter to apply for this peer group
-direction         = "in" / "out" ; direction to apply for this route map
+key                   = BGP_PEER_GROUP_AF|vrf|afi_safi|pgrp_name" ;
+afi_safi              = "IPv4" / "IPv6"  ; address family
+pgrp_name             = 1*64VCHAR ; alias name for the peer group template, must be unique
+send_dflt_route       = "true" / "false" ;
+max_pfx_limit         = uint32 ;
+max_pfx_warn_only     = "true" / "false" ;
+max_pfx_warn_thrshld  = uint8 ; {0..100}
+max_pfx_restart_timer = uint16 ; {1..3600}
+route_map_in          =  1*64VCHAR ;
+route_map_out         =  1*64VCHAR ;
+admin                 = "true" / "false" ; Peer group admin status
 ```
 
 #### 3.2.1.6 Add BGP_AF table in CONFIG_DB
@@ -275,10 +294,12 @@ direction         = "in" / "out" ; direction to apply for this route map
 ;
 ;Status: stable
 
-key           = BGP_AF:vrf_name:af ;
-af            = "IPv4" / "IPv6"  ; address family
+key           = BGP_AF|vrf|af_name ;
+af_name       = "IPv4" / "IPv6"  ; address family
+max_ebgp_paths = uint32 ;
+max_ibgp_paths = uint32 ;
 source        = "connected" / "static" ; route types to redistribute
-route_map     = 1*64VCHAR ; route map filter to apply for redistribute
+route_map     = 1*64VCHAR ; route map filter to apply for redistribution
 ```
 
 #### 3.2.1.7 Add BGP_LISTEN_PREFIX table in CONFIG_DB
@@ -287,8 +308,45 @@ route_map     = 1*64VCHAR ; route map filter to apply for redistribute
 ;
 ;Status: stable
 
-key             = BGP_AF:vrf_name:IPprefix ;
+key             = BGP_AF|vrf|IPprefix ;
 peer_group_name = 1*64VCHAR ; Peer group this listen prefix is associated with
+```
+
+#### 3.2.1.8 Add ROUTE_MAP table in CONFIG_DB
+```JSON
+;Defines route map table
+;
+;Status: stable
+
+key           = ROUTE_MAP|route_map_name|stmt_name ;
+route_map_name = 1*64VCHAR ; route map name
+stmt_name     = 1*64VCHAR ; statment name
+route_operation = "ACCEPT" / "REJECT"
+match_interface = 1*64VCHAR ; Match interface name
+match_prefix_set = 1*64VCHAR ; Match prefix sets
+match_next_hop   = IPv4Prefix / IPv6prefix ;
+match_address_family = "IPv4" / "IPv6"  ; address family
+match_med = uint32 ;
+match_origin = 1*64VCHAR ;
+match_local_pref = 1*64VCHAR ;
+match_route_type = 1*64VCHAR ;
+match_community = 1*64VCHAR ;
+match_ext_community = 1*64VCHAR ;
+match_as_path = 1*64VCHAR ;
+call_route_map = 1*64VCHAR ;
+
+set_origin = 1*64VCHAR ;
+set_local_pref = 1*64VCHAR ;
+set_next_hop = 1*64VCHAR ;
+set_med = 1*64VCHAR ;
+set_repeat_asn = 1*64VCHAR ;
+set_asn = 1*64VCHAR ;
+set_community_inline = 1*64VCHAR ;
+set_community_ref = 1*64VCHAR ;
+set_ext_community_inline = 1*64VCHAR ;
+set_ext_community_ref = 1*64VCHAR ;
+
+
 ```
 
 ### 3.2.2 APP DB
