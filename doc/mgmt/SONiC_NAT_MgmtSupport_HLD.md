@@ -105,9 +105,15 @@ N/A
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 
+IETF NAT Yang (RFC 8512) is used for the north bound management interface support.
+https://tools.ietf.org/html/rfc8512#page-24
 
+SONic NAT Yang will be used for Config Validation purposes.
 
 ### 3.6.2 CLI
+SONiC NAT Click CLI based Configuration and Show Commands will be supported by management interface.
+Refer Section 3.8 from https://github.com/Azure/SONiC/blob/dc5d3a894618bcb07a3c5d2dd488caf3beb7479a/doc/nat/nat_design_spec.md
+
 #### 3.6.2.1 Configuration Commands
 
 #### Add static NAT entry
@@ -235,10 +241,7 @@ N/A
 
 #### 3.6.2.3 Debug Commands
 #### 3.6.2.4 IS-CLI Compliance
-| | | | |
-| | | | |
-| | | | |
-| | | | |
+N/A
 
 **Deviations from IS-CLI:**
 
@@ -260,7 +263,17 @@ N/A
 N/A
 
 # 9 Unit Test
-The following lists the unit test cases added for the north bound interfaces for NAT:
+The following lists the unit test cases added for the north bound interfaces for NAT
+1. Configure (Add/Remove) NAT entries and verify using it's appropriate show command.
+2. Configure (Add/Remove) NAPT entries and verify the same.
+3. Remove all static configurations and verify the same.
+4. Create/Remove NAT pools and verify the same.
+5. Create/Remove bindings between ACL and NAT pools and verify the same.
+6. Configure/Remove NAT Zone value on an interface and verify the same.
+7. Configure/Remove Basic NAT entry aging timeout in seconds and verify the same.
+8. Enable/Disable NAT feature and verify the same.
+9. Configure/Reset UDP NAT entry aging timeout in seconds and verify the same.
+10. Configure/Reset TCP NAT entry aging timeout in seconds and verify the same.
 
 
 # 10 Internal Design Information
