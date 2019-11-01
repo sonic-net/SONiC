@@ -107,8 +107,80 @@ N/A
 
 IETF NAT Yang (RFC 8512) is used for the north bound management interface support.
 https://tools.ietf.org/html/rfc8512#page-24
+https://github.com/project-arlo/sonic-mgmt-framework/blob/nat-impl/models/yang/ietf-nat.yang
+https://github.com/project-arlo/sonic-mgmt-framework/blob/nat-impl/models/yang/ietf-nat-ext.yang
+
+```
+Supported yang attributes:
+module: ietf-nat
+    +--rw nat
+       +--rw instances
+          +--rw instance* [id]
+             +--rw id                              uint32
+             +--rw name?                           string
+             +--rw enable?                         boolean
+             +--rw mapping-table
+             |  +--rw mapping-entry* [index]
+             |     +--rw index                        uint32
+             |     +--rw type?                        enumeration
+             |     +--rw transport-protocol?          uint8
+             |     +--rw internal-src-address?        inet:ip-prefix
+             |     +--rw internal-src-port
+             |     |  +--rw start-port-number?   inet:port-number
+             |     |  +--rw end-port-number?     inet:port-number
+             |     +--rw external-src-address?        inet:ip-prefix
+             |     +--rw external-src-port
+             |     |  +--rw start-port-number?   inet:port-number
+             |     |  +--rw end-port-number?     inet:port-number
+             |     +--rw internal-dst-address?        inet:ip-prefix
+             |     +--rw internal-dst-port
+             |     |  +--rw start-port-number?   inet:port-number
+             |     |  +--rw end-port-number?     inet:port-number
+             |     +--rw external-dst-address?        inet:ip-prefix
+             |     +--rw external-dst-port
+             |     |  +--rw start-port-number?   inet:port-number
+             |     |  +--rw end-port-number?     inet:port-number
+             |     +--rw lifetime?                    uint32
+             |     +--rw ietf-nat-ext:twice_nat_id?   uint16
+             |     +--ro ietf-nat-ext:statistics
+             |        +--ro ietf-nat-ext:dnat-translations-pkts?    yang:zero-based-counter64
+             |        +--ro ietf-nat-ext:dnat-translations-bytes?   yang:zero-based-counter64
+             |        +--ro ietf-nat-ext:snat-translations-pkts?    yang:zero-based-counter64
+             |        +--ro ietf-nat-ext:snat-translations-bytes?   yang:zero-based-counter64
+             +--rw ietf-nat-ext:nat_timeout?       uint32
+             +--rw ietf-nat-ext:nat_tcp_timeout?   uint32
+             +--rw ietf-nat-ext:nat_udp_timeout?   uint16
+             +--rw ietf-nat-ext:zone-counters
+             |  +--rw ietf-nat-ext:zone-counter-entry* [zone-id]
+             |     +--rw ietf-nat-ext:zone-id                        uint8
+             |     +--rw ietf-nat-ext:nat-dnat-discards?             yang:zero-based-counter64
+             |     +--rw ietf-nat-ext:nat-snat-discards?             yang:zero-based-counter64
+             |     +--rw ietf-nat-ext:nat-dnat-translation-needed?   yang:zero-based-counter64
+             |     +--rw ietf-nat-ext:nat-snat-translation-needed?   yang:zero-based-counter64
+             |     +--rw ietf-nat-ext:nat-dnat-translations?         yang:zero-based-counter64
+             |     +--rw ietf-nat-ext:nat-snat-translations?         yang:zero-based-counter64
+             +--rw ietf-nat-ext:nat-pool
+             |  +--rw ietf-nat-ext:nat-pool-entry* [pool-name]
+             |     +--rw ietf-nat-ext:pool-name           string
+             |     +--rw (ietf-nat-ext:nat-ip)?
+             |     |  +--:(ietf-nat-ext:ip-address)
+             |     |  |  +--rw ietf-nat-ext:IP-ADDRESS?         inet:ipv4-address
+             |     |  +--:(ietf-nat-ext:ip-address-range)
+             |     |     +--rw ietf-nat-ext:IP-ADDRESS-RANGE?   string
+             |     +--rw ietf-nat-ext:nat-port?           string
+             +--rw ietf-nat-ext:nat-bindings
+                +--rw ietf-nat-ext:nat-binding-entry* [binding-name]
+                   +--rw ietf-nat-ext:binding-name    string
+                   +--rw ietf-nat-ext:nat-pool        string
+                   +--rw ietf-nat-ext:access-list?    string
+                   +--rw ietf-nat-ext:nat-type?       enumeration
+                   +--rw ietf-nat-ext:twice-nat-id?   uint16
+
+```
 
 SONiC NAT Yang will be used for Config Validation purposes.
+
+https://github.com/project-arlo/sonic-mgmt-framework/blob/nat-impl/models/yang/sonic/sonic-nat.yang
 
 ### 3.6.2 CLI
 SONiC NAT Click CLI based Configuration and Show Commands will be supported by management framework.
