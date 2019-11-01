@@ -14,13 +14,15 @@ sFlow Support in Management Framework
 [Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 09/09/2019  |   Garrick He       | Initial version                   |
-| 0.2 | 10/04/2019  |   Garrick He       | Address review comments           |
-| 0.3 | 10/11/2019  |   Garrick He       | Address review comments           |
-| 0.4 | 10/15/2019  |   Garrick He       | Add information on default value  |
-|     |             |                    | and SONiC sFlow YANG              |
+| Rev |     Date    |       Author       | Change Description                       |
+|:---:|:-----------:|:------------------:|------------------------------------------|
+| 0.1 | 09/09/2019  |   Garrick He       | Initial version                          |
+| 0.2 | 10/04/2019  |   Garrick He       | Address review comments                  |
+| 0.3 | 10/11/2019  |   Garrick He       | Address review comments                  |
+| 0.4 | 10/15/2019  |   Garrick He       | Add information on default value and     |
+|     |             |                    | SONiC sFlow YANG                         |
+| 0.5 | 11/01/2019  |   Garrick He       | Add default values for polling intervals |
+|     |             |                    | and updated sFlow Data models            |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -94,12 +96,17 @@ This feature will allow the user to make/show sFlow configuration changes to CON
 There are no OpenConfig YANG models available for sFlow so additions were made to SONiC YANG.
 Supported SONiC YANG URIs available from Swagger WebUI:
 ```
-/sonic-sflow:sonic-sflow/SFLOW/GLOBAL
+/sonic-sflow:sonic-sflow/SFLOW
 {
-  "sonic-sflow:GLOBAL": {
-    "admin_state": "up",
-    "polling_interval": 0,
-    "agent_id": "string"
+  "sonic-sflow:SFLOW": {
+    "SFLOW_LIST": [
+      {
+        "sflow_key": "global",
+        "admin_state": "up",
+        "polling_interval": 0,
+        "agent_id": "string"
+      }
+    ]
   }
 }
 
@@ -126,6 +133,7 @@ Supported SONiC YANG URIs available from Swagger WebUI:
     }
   ]
 }
+
 ```
 
 ### 3.6.2 CLI
@@ -139,20 +147,20 @@ sonic(config)#
 
 ##### Enable sFlow
 ```
-sonic(config)# sflow enabled
+sonic(config)# sflow enable
 sonic(config)#
 ```
 
 ##### Disable sFlow
 ```
-sonic(config)# no sflow enabled
+sonic(config)# no sflow enable
 sonic(config)#
 ```
 
 ##### Add sFlow Collector
 Syntax:
 
-port# : [0 - 65535]
+port# : [0 - 65535] (default is: 6343)
 
 `sflow collector <collector name> <IPv4/IPv6 address> [port #]`
 
@@ -199,7 +207,7 @@ For more information, please refer to the sFlow HLD linked above.
 ##### Configure sFlow polling-interval
 Syntax:
 
-interval: [5 - 300] (0 to disable)
+interval: [5 - 300] (0 to disable, default is 20)
 
 `sflow polling-interval <interval #>`
 
@@ -244,6 +252,8 @@ rate: [256 - 8388608]
 sonic(conf-if-Ethernet0)# sflow sampling-rate 4400
 sonic(conf-if-Ethernet0)#
 ```
+The default value is based on the interface speed: (ifSpeed / 1e6) where ifSpeed is in bits/sec.
+For more information, please refer to the sFlow HLD linked above.
 
 ##### Reset sampling-rate to default
 ```
@@ -368,6 +378,4 @@ Same test as CLI configuration Test but using REST POST request
 #### Get configuration via REST (GET)
 
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
-
-# 10 Internal Design Information
 
