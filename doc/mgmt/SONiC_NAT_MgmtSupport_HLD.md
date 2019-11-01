@@ -108,135 +108,351 @@ N/A
 IETF NAT Yang (RFC 8512) is used for the north bound management interface support.
 https://tools.ietf.org/html/rfc8512#page-24
 
-SONic NAT Yang will be used for Config Validation purposes.
+SONiC NAT Yang will be used for Config Validation purposes.
 
 ### 3.6.2 CLI
-SONiC NAT Click CLI based Configuration and Show Commands will be supported by management interface.
+SONiC NAT Click CLI based Configuration and Show Commands will be supported by management framework.
 Refer Section 3.8 from https://github.com/Azure/SONiC/blob/dc5d3a894618bcb07a3c5d2dd488caf3beb7479a/doc/nat/nat_design_spec.md
 
 #### 3.6.2.1 Configuration Commands
 
-#### Add static NAT entry
+###### Add static NAT entry
 
-`sonic(config) # nat add static basic {global-ip} {local-ip} -nat_type {snat/dnat} -twice_nat_id {value}`
+`nat static basic <global-ip> <local-ip> {snat | dnat} { twice_nat_id <value> }`
 
-#### Remove static NAT entry
+```
+sonic# config t
+sonic(config)# nat static basic 20.0.0.2 65.55.45.8 snat twice_nat_id 1
+```
+###### Remove static NAT entry
 
-`sonic(config) # nat remove static basic {global-ip} {local-ip}`
+`sonic(config) # no nat static basic {global-ip} {local-ip}`
 
-#### Add static NAPT entry
+```
+sonic# config t
+sonic(config)# no nat static basic 20.0.0.2 65.55.45.8
+```
 
-`sonic(config) # nat add static {tcp | udp} {global-ip} {global-port} {local-ip} {local-port} -nat_type {snat/dnat} -twice_nat_id {value}`
+###### Add static NAPT entry
 
-#### Remove static NAPT entry
+`nat static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port> {snat | dnat} { twice_nat_id <value> }`
 
-`sonic(config) # nat remove static {tcp | udp} {global-ip} {global-port} {local-ip} {local-port}`
+```
+sonic# config t
+sonic(config)# nat static tcp 65.55.45.7 4000 20.0.0.1 4500 dnat twice_nat_id 1
+```
 
-#### Remove all static NAT/NAPT configuration
+###### Remove static NAPT entry
 
-`sonic(config) # nat remove static all`
+`no nat static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port>`
 
-#### Create NAT pool
+```
+sonic# config t
+sonic(config)# no nat static tcp 65.55.45.7 4000 20.0.0.1 4500
+```
 
-`sonic(config) # nat add pool {pool-name} {global-ip-range} {global-port-range}`
+###### Remove all static NAT/NAPT configuration
 
-#### Remove NAT pool
+`no nat static all`
 
-`sonic(config) # nat remove pool {pool-name}`
+```
+sonic# config t
+sonic(config) # no nat static all
+```
 
-#### Remove all NAT pool configuration
+###### Create NAT pool
 
-`sonic(config) # nat remove pools`
+`nat pool <pool-name> <global-ip-range> <global-port-range>`
 
-#### Create binding between an ACL and a NAT pool
+```
+sonic# config t
+sonic(config) nat pool Pool1 65.55.45.10-65.55.45.15 1024-65535
+```
 
-`sonic(config) # nat add binding {binding-name} {pool-name} {acl-name} -nat_type {snat/dnat} -twice_nat_id {value}`
+###### Remove NAT pool
 
-#### Remove binding between an ACL and a NAT pool
+`no nat pool <pool-name>`
 
-`sonic(config) # nat remove binding {binding-name}`
+```
+sonic# config t
+sonic(config) no nat pool Pool1
+```
 
-#### Remove all NAT binding configuration
+###### Remove all NAT pool configuration
 
-`sonic(config) # nat remove bindings`
+`no nat pools`
 
-#### Configure NAT zone value on an interface
+```
+sonic# config t
+sonic(config) no nat pools
+```
 
-`sonic(config) # nat add interface {interface-name} {-nat_zone {zone-value}}`
+###### Create binding between an ACL and a NAT pool
 
-#### Remove NAT configuration on interface
+`nat binding <binding-name> <pool-name> <acl-name> { snat | dnat } { twice_nat_id <value> }`
 
-`sonic(config) # nat remove interface {interface-name}`
+```
+sonic# config t
+sonic(config) nat binding Bind1 Pool1 Acl1 snat twice_nat_id 1
+```
 
-#### Remove NAT configuration on all L3 interfaces
+###### Remove binding between an ACL and a NAT pool
 
-`sonic(config) # nat remove interfaces`
+`no nat binding <binding-name>`
 
-#### Configure NAT entry aging timeout in seconds
+```
+sonic# config t
+sonic(config) no nat binding Bind1
+```
 
-`sonic(config) # nat set timeout {secs}`
+###### Remove all NAT binding configuration
 
-#### Reset NAT entry aging timeout to default value
+`no nat bindings`
 
-`sonic(config) # nat reset timeout`
+```
+sonic# config t
+sonic(config) no nat bindings
+```
 
-#### Enable or disable NAT feature
+###### Configure NAT zone value on an interface
 
-`sonic(config) # nat feature {enable/disable}`
+`nat { zone <zone-value> }`
 
-#### Configure UDP NAT entry aging timeout in seconds
+```
+sonic# config t
+sonic (config)# interface Ethernet 4
+sonic(conf-if-Ethernet4)# nat-zone 1
+```
 
-`sonic(config) # nat set udp-timeout {secs}`
+###### Remove NAT configuration on interface
 
-#### Reset UDP NAT entry aging timeout to default value
+`no nat`
 
-`sonic(config) # nat reset udp-timeout`
+```
+sonic# config t
+sonic (config)# interface Ethernet 4
+sonic(conf-if-Ethernet4)# no nat-zone
+```
 
-####  Configure TCP NAT entry aging timeout in seconds
+###### Remove NAT configuration on all L3 interfaces
 
-`sonic(config) # nat set tcp-timeout {secs}`
+`no nat interfaces`
 
-#### Reset TCP NAT entry aging timeout to default value
+```
+sonic# config t
+sonic (config)# no nat interfaces
+```
 
-`sonic(config) # nat reset tcp-timeout`
+###### Configure NAT entry aging timeout in seconds
+
+`timeout <secs>`
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# timeout 1200
+```
+
+###### Reset NAT entry aging timeout to default value
+
+`no timeout`
+
+Default value: 600 secs
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# no timeout
+```
+
+###### Enable or disable NAT feature
+
+`nat { enable | disable } `
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# enable
+```
+
+###### Configure UDP NAT entry aging timeout in seconds
+
+`udp-timeout <secs>`
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# udp-timeout 600
+```
+
+###### Reset UDP NAT entry aging timeout to default value
+
+`no udp-timeout`
+
+Default value: 300 secs
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# no udp-timeout
+```
+
+######  Configure TCP NAT entry aging timeout in seconds
+
+`tcp-timeout <secs>`
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# tcp-timeout 86460
+```
+
+###### Reset TCP NAT entry aging timeout to default value
+
+`no tcp-timeout`
+
+Default Value: 86400 secs
+
+```
+sonic# config t
+sonic (config)# nat
+sonic (config-nat)# no tcp-timeout
+```
 
 #### 3.6.2.2 Show Commands
 
-#### Show NAT translations table
+###### Show NAT translations table
 
-`sonic # show nat translations`
+`show nat translations`
 
-#### Display NAT translation statistics
+```
+sonic# show nat translations
 
-`sonic # show nat statistics`
+Protocol Source           Destination       Translated Source  Translated Destination
+-------- ---------        --------------    -----------------  ----------------------
+all      10.0.0.1         ---               65.55.42.2         ---
+all      ---              65.55.42.2        ---                10.0.0.1
+all      10.0.0.2         ---               65.55.42.3         ---
+all      ---              65.55.42.3        ---                10.0.0.2
+tcp      20.0.0.1:4500    ---               65.55.42.1:2000    ---
+tcp      ---              65.55.42.1:2000   ---                20.0.0.1:4500
+udp      20.0.0.1:4000    ---               65.55.42.1:1030    ---
+udp      ---              65.55.42.1:1030   ---                20.0.0.1:4000
+tcp      20.0.0.1:6000    ---               65.55.42.1:1024    ---
+tcp      ---              65.55.42.1:1024   ---                20.0.0.1:6000
+tcp      20.0.0.1:5000    65.55.42.1:2000   65.55.42.1:1025    20.0.0.1:4500
+tcp      20.0.0.1:4500    65.55.42.1:1025   65.55.42.1:2000    20.0.0.1:5000
 
-#### Display Static NAT/NAPT configuration
+```
 
-`sonic # show nat config static`
+###### Display NAT translation statistics
 
-#### Display NAT pools configuration
+`show nat statistics`
 
-`sonic # show nat config pool`
+```
+sonic# show nat statistics
 
-#### Display NAT bindings configuration
+Protocol Source           Destination          Packets          Bytes
+-------- ---------        --------------       -------------    -------------
+all      10.0.0.1         ---                            802          1009280
+all      10.0.0.2         ---                             23             5590
+tcp      20.0.0.1:4500    ---                            110            12460
+udp      20.0.0.1:4000    ---                           1156           789028
+tcp      20.0.0.1:6000    ---                             30            34800
+tcp      20.0.0.1:5000    65.55.42.1:2000                128           110204
+tcp      20.0.0.1:5500    65.55.42.1:2000                  8             3806
 
-`sonic # show nat config bindings`
+```
 
-#### Display global NAT configuration
+###### Display Static NAT/NAPT configuration
 
-`sonic # show nat config globalvalues	`
+`show nat config static`
 
-#### Display L3 interface zone values
+```
+sonic# show nat config static
 
-`sonic # show nat config zones`
+Nat Type  IP Protocol Global IP      Global L4 Port  Local IP       Local L4 Port  Twice-Nat Id
+--------  ----------- ------------   --------------  -------------  -------------  ------------
+dnat      all         65.55.45.5     ---             10.0.0.1       ---            ---
+dnat      all         65.55.45.6     ---             10.0.0.2       ---            ---
+dnat      tcp         65.55.45.7     2000            20.0.0.1       4500           1
+snat      tcp         20.0.0.2       4000            65.55.45.8     1030           1
 
-#### Display NAT entries count
+```
 
-`sonic # show nat translations count`
+###### Display NAT pools configuration
 
-#### Display all NAT configuration
+`show nat config pool`
 
-`sonic # show nat config`
+```
+sonic# show nat config pool
+
+Pool Name      Global IP Range             Global L4 Port Range
+------------   -------------------------   --------------------
+Pool1          65.55.45.5                  1024-65535
+Pool2          65.55.45.6-65.55.45.8       ---
+Pool3          65.55.45.10-65.55.45.15     500-1000
+
+```
+
+###### Display NAT bindings configuration
+
+`show nat config bindings`
+
+```
+sonic# show nat config bindings
+
+Binding Name   Pool Name      Access-List    Nat Type  Twice-Nat Id
+------------   ------------   ------------   --------  ------------
+Bind1          Pool1          ---            snat      ---
+Bind2          Pool2          1              snat      1
+Bind3          Pool3          2              snat      --
+
+```
+
+###### Display global NAT configuration
+
+`show nat config globalvalues	`
+
+```
+sonic# show nat config globalvalues
+
+Admin Mode     : enabled
+Global Timeout : 600 secs
+TCP Timeout    : 86400 secs
+UDP Timeout    : 300 secs
+
+```
+
+###### Display L3 interface zone values
+
+`show nat config zones`
+
+
+###### Display NAT entries count
+
+`show nat translations count`
+
+```
+sonic# show nat translations count
+
+Static NAT Entries        ................. 4
+Static NAPT Entries       ................. 2
+Dynamic NAT Entries       ................. 0
+Dynamic NAPT Entries      ................. 4
+Static Twice NAT Entries  ................. 0
+Static Twice NAPT Entries ................. 4
+Dynamic Twice NAT Entries  ................ 0
+Dynamic Twice NAPT Entries ................ 0
+Total SNAT/SNAPT Entries   ................ 9
+Total DNAT/DNAPT Entries   ................ 9
+Total Entries              ................ 14
+
+```
+
+###### Display all NAT configuration
+
+`show nat config`
 
 
 #### 3.6.2.3 Debug Commands
