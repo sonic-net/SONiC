@@ -1,5 +1,5 @@
 # NAT
-Management Interfaces for NAT Feature
+Management Support for NAT Feature
 
 # High Level Design Document
 #### Rev 0.1
@@ -190,100 +190,114 @@ Refer Section 3.8 from https://github.com/Azure/SONiC/blob/dc5d3a894618bcb07a3c5
 
 ###### Add static NAT entry
 
-`nat static basic <global-ip> <local-ip> {snat | dnat} { twice_nat_id <value> }`
+`static basic <global-ip> <local-ip> {snat | dnat} { twice_nat_id <value> }`
 
 ```
 sonic# config t
-sonic(config)# nat static basic 20.0.0.2 65.55.45.8 snat twice_nat_id 1
+sonic(config)# nat
+sonic(config-nat)# static basic 20.0.0.2 65.55.45.8 snat twice_nat_id 1
 ```
 ###### Remove static NAT entry
 
-`sonic(config) # no nat static basic {global-ip} {local-ip}`
+`
+sonic# config t
+sonic(config)# nat
+sonic(config-nat) # no static basic {global-ip} {local-ip}`
 
 ```
 sonic# config t
-sonic(config)# no nat static basic 20.0.0.2 65.55.45.8
+sonic(config)# nat
+sonic(config-nat)# no static basic 20.0.0.2 65.55.45.8
 ```
 
 ###### Add static NAPT entry
 
-`nat static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port> {snat | dnat} { twice_nat_id <value> }`
+`static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port> {snat | dnat} { twice_nat_id <value> }`
 
 ```
 sonic# config t
-sonic(config)# nat static tcp 65.55.45.7 4000 20.0.0.1 4500 dnat twice_nat_id 1
+sonic(config)# nat
+sonic(config-nat)# static tcp 65.55.45.7 4000 20.0.0.1 4500 dnat twice_nat_id 1
 ```
 
 ###### Remove static NAPT entry
 
-`no nat static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port>`
+`no static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port>`
 
 ```
 sonic# config t
-sonic(config)# no nat static tcp 65.55.45.7 4000 20.0.0.1 4500
+sonic(config)# nat
+sonic(config-nat)# no static tcp 65.55.45.7 4000 20.0.0.1 4500
 ```
 
 ###### Remove all static NAT/NAPT configuration
 
-`no nat static all`
+`no static all`
 
 ```
 sonic# config t
-sonic(config) # no nat static all
+sonic(config)# nat
+sonic(config-nat) # no static all
 ```
 
 ###### Create NAT pool
 
-`nat pool <pool-name> <global-ip-range> <global-port-range>`
+`pool <pool-name> <global-ip-range> <global-port-range>`
 
 ```
 sonic# config t
-sonic(config) nat pool Pool1 65.55.45.10-65.55.45.15 1024-65535
+sonic(config)# nat
+sonic(config-nat) pool Pool1 65.55.45.10-65.55.45.15 1024-65535
 ```
 
 ###### Remove NAT pool
 
-`no nat pool <pool-name>`
+`no pool <pool-name>`
 
 ```
 sonic# config t
-sonic(config) no nat pool Pool1
+sonic(config)# nat
+sonic(config-nat) no pool Pool1
 ```
 
 ###### Remove all NAT pool configuration
 
-`no nat pools`
+`no pools`
 
 ```
 sonic# config t
-sonic(config) no nat pools
+sonic(config)# nat
+sonic(config-nat) no pools
 ```
 
 ###### Create binding between an ACL and a NAT pool
 
-`nat binding <binding-name> <pool-name> <acl-name> { snat | dnat } { twice_nat_id <value> }`
+`binding <binding-name> <pool-name> <acl-name> { snat | dnat } { twice_nat_id <value> }`
 
 ```
 sonic# config t
-sonic(config) nat binding Bind1 Pool1 Acl1 snat twice_nat_id 1
+sonic(config)# nat
+sonic(config-nat) binding Bind1 Pool1 Acl1 snat twice_nat_id 1
 ```
 
 ###### Remove binding between an ACL and a NAT pool
 
-`no nat binding <binding-name>`
+`no binding <binding-name>`
 
 ```
 sonic# config t
-sonic(config) no nat binding Bind1
+sonic(config)# nat
+sonic(config-nat) no binding Bind1
 ```
 
 ###### Remove all NAT binding configuration
 
-`no nat bindings`
+`no bindings`
 
 ```
 sonic# config t
-sonic(config) no nat bindings
+sonic(config)# nat
+sonic(config-nat) no bindings
 ```
 
 ###### Configure NAT zone value on an interface
@@ -298,7 +312,7 @@ sonic(conf-if-Ethernet4)# nat-zone 1
 
 ###### Remove NAT configuration on interface
 
-`no nat`
+`no nat-zone`
 
 ```
 sonic# config t
