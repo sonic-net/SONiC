@@ -1,7 +1,7 @@
 # kdump
 
 ## High Level Design Document
-**Rev 0.2**
+**Rev 0.3**
 
 ## Table of Contents
 
@@ -54,6 +54,7 @@ Rev   |   Date   |  Author   | Change Description
 :---: | :-----:  | :------:  | :---------
 0.1   | 10/28/19 | O. Singla | Initial version
 0.2   | 10/29/19 | O. Singla | Changed the memory allocated for kdump
+0.3   | 11/04/19 | O. Singla | Minor changes
 
 ## About this Manual
 
@@ -212,12 +213,12 @@ The default value for the memory allocated for the capture memory is:
 Which translates into:
 |RAM size|crashkernel <br>parameter|
 | -----  | ---- |
-| <= 2GB  | 384 MB |
-| <= 4GB  | 512 MB |
-| <= 8GB  | 576 MB |
-| > 8GB | 640 MB |
+| <= 2GB  | 256 MB |
+| <= 4GB  | 320 MB |
+| <= 8GB  | 384 MB |
+| > 8GB | 448 MB |
 
-For instance, if the system has 8GB of RAM, the kernel will allocate 576MB of memory for the capture kernel.
+For instance, if the system has 8GB of RAM, the kernel will allocate 384 MB of memory for the capture kernel.
 
 #### config kdump num_dumps number
 
