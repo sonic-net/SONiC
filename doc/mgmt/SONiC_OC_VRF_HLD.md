@@ -370,8 +370,9 @@ module: sonic-interface
 
 ####case 3: apply/remove route-map to a VRF
 
-```
-diff
+Note that route-map and prefix set configuration will be done with openconfig-routing-policy.yang, which is not in the scope of this HLD.     
+
+```diff
 
 module: openconfig-network-instance
 +   +--rw network-instances
