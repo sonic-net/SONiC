@@ -371,6 +371,8 @@ module: sonic-interface
 ####case 3: apply/remove route-map to a VRF
 
 ```
+diff
+
 module: openconfig-network-instance
 +   +--rw network-instances
 +      +--rw network-instance* [name]
