@@ -1,7 +1,7 @@
 # Feature Name
 PVST
 # High Level Design Document
-#### Rev 0.3
+#### Rev 1.0
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -21,6 +21,7 @@ PVST
       * [DB Changes](#db-changes)
           * [CONFIG DB](#config-db)
           * [APP DB](#app-db)
+          * [STATE DB](#state-db)
       * [Switch State Service Design](#switch-state-service-design)
           * [Orchestration Agent](#orchestration-agent)
           * [STP Container](#stp-container)
@@ -35,17 +36,18 @@ PVST
   * [Warm Boot Support](#warm-boot-support)
   * [Scalability](#scalability)
   * [Unit Test](#unit-test)
-  
+
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
 | Rev |     Date    |       Author              | Change Description                |
 |:---:|:-----------:|:-------------------------:|-----------------------------------|
-| 0.1 | 05/02/2019  |     Sandeep, Praveen       | Initial version  |                
-| 0.2 | 05/02/2019  |     Sandeep, Praveen       | Incorporated Review comments  |                
-| 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments  |                
-                                              
+| 0.1 | 05/02/2019  |     Sandeep, Praveen       | Initial version  |
+| 0.2 | 05/02/2019  |     Sandeep, Praveen       | Incorporated Review comments  |
+| 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments  |
+| 1.0 | 10/15/2019  |     Sandeep, Praveen       | Minor changes post implementation |
+
 
 # About this Manual
 This document provides general information about the PVST (Per VLAN spanning tree) feature implementation in SONiC.
@@ -75,7 +77,7 @@ This document describes the high level design of PVST feature.
  8. DA MAC in case of PVST should be cisco pvst mac - 01:00:0C:CC:CC:CD
  9. Support protocol operation on static breakout ports
  10. Support protocol operation on Port-channel interfaces
- 
+
 
 ## 1.2 Configuration and Management Requirements
 This feature will support CLI and REST based configurations.
@@ -93,7 +95,7 @@ The scaling limit might differ depending on the platform and the CPU used, which
 
 Warm boot is not supported in this release. User is expected to do cold reboot when PVST is running so that topology will reconverge and traffic will be redirected via alternate paths.
 
-If PVST is enabled and user tries to perform warm reboot a warning will be displayed indicating PVST doesnt support warm reboot.
+If PVST is enabled and user tries to perform warm reboot an error will be displayed indicating PVST doesnt support warm reboot.
 
 
 # 2 Functionality
@@ -110,7 +112,7 @@ For each LAN, the switches that attach to the LAN select a designated switch tha
 PVST+ allows for running multiple instances of spanning tree on per VLAN basis. 
 
 One of the advantage with PVST is it allows for load-balancing of the traffic. When a single instance of spanning tree is run and a link is put into blocking state for avoiding the loop, it will result in inefficient bandwidth usage. With per VLAN spanning tree multiple instances can be run such that for some of the instances traffic is blocked over the link and for other instances traffic is forwared allowing for load balancing of traffic.
- 
+
 PVST+ support allows the device to interoperate with IEEE STP and also tunnel the PVST+ BPDUs transparently across IEEE STP region to potentially connect other PVST+ switches across the IEEE STP region. For interop with IEEE STP, PVST+ will send untagged IEEE BPDUs (MAC - 01:80:C2:00:00:00) with information corresponding to VLAN 1. The STP port must be a member of VLAN 1 for interoperating with IEEE STP.
 
 # 3 Design
@@ -182,7 +184,7 @@ Following config DB schemas are defined for supporting this feature.
     uplink_fast            = BIT                    ; Uplink fast is enabled or not
 
 ### 3.2.2 APP DB
-  
+
 ### STP_VLAN_TABLE
     ;Stores the STP per VLAN operational details
     ;Status: work in progress
@@ -249,7 +251,15 @@ Following config DB schemas are defined for supporting this feature.
     ;Status: work in progress
     key                 = STP_FASTAGEING_FLUSH_TABLE:"Vlan"vlanid       ; vlan id for which flush needs to be done
     state               = "true"                                          ; true perform flush  
- 
+
+### 3.2.3 STATE DB
+
+### STP_TABLE
+    ;Defines the global STP state table
+    ;Status: work in progress
+    key                 = STP_TABLE:GLOBAL       ; key
+    max_stp_inst        = 1*3DIGIT               ; Max STP instances supported by HW 
+
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
@@ -343,7 +353,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saihostif.h
 Openconfig STP yang model will be extended to support PVST.
 
 ### 3.6.2 Configuration Commands
- 
+
 ### 3.6.2.1 Global level 
 
 ### 3.6.2.1.1 Enabling or Disabling of PVST feature - Global spanning-tree mode
@@ -359,15 +369,15 @@ Note:
 This command allows enabling or disabling spanning-tree on a VLAN.
 
 **config spanning_tree vlan {enable|disable} <vlan\>**
- 
+
  ### 3.6.2.1.3 Root-guard timeout
- 
+
 This command allows configuring a root guard timeout value. Once superior BPDUs stop coming on the port, device will wait for a period until root guard timeout before moving the port to forwarding state(default = 30 secs), range 5-600.
 
 **config spanning_tree root_guard_timeout <value\>**
 
  ### 3.6.2.1.4 Forward-delay 
- 
+
 This command allows configuring the forward delay time in seconds (default = 15), range 4-30.
 
 **config spanning_tree forward_delay <value\>**
@@ -541,16 +551,16 @@ PortChannel15     20	      6           4          1
 
 
 ### 3.6.4 Debug Commands
-Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/syslog and packet logs can be viewed in /var/log/stp_dbg.log(in STP container)
-- debug spanning_tree config_bpdu
-- debug spanning_tree tcn_bpdu
+Following debug commands will be supported for enabling additional logging which can be viewed in /var/log/stpd.log, orchangent related logs can be viewed in /var/log/syslog.
+- debug spanning_tree - This command must be enabled for logs to be written to log file, after enabling any of the below commands.
+- debug spanning_tree bpdu [tx|rx]
 - debug spanning_tree event
 - debug spanning_tree interface <ifname\>
 - debug spanning_tree verbose
 - debug spanning_tree vlan <id\>
 
-To disable the debugging controls enabled '-d' or '--disable' option can be used, an example of disabling config_bpdu debugging is shown below -
-- debug spanning_tree config_bpdu -d
+To disable the debugging controls enabled '-d' or '--disable' option can be used, an example of disabling bpdu debugging is shown below -
+- debug spanning_tree bpdu -d
 
 Follow commands can be used to reset and display the debugging controls enabled respectively
 - debug spanning_tree reset
