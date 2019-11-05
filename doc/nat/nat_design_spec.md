@@ -606,8 +606,8 @@ INTERFACE|Ethernet15
 ```
 the following iptable rules are added for inbound and outbound directions in the nat table as below:
 ```
-iptables -t nat -A PREROUTING -i Ethernet15 -p tcp -j DNAT -d 65.55.42.1 --dport 1024 --to-destination 20.0.0.1:6000
-iptables -t nat -A POSTROUTING -o Ethernet15 -p tcp -j SNAT -s 20.0.0.1 --sport 6000 --to-source 65.55.42.1:1024
+iptables -t nat -A PREROUTING -m mark --mark 2 -p tcp -j DNAT -d 65.55.42.1 --dport 1024 --to-destination 20.0.0.1:6000
+iptables -t nat -A POSTROUTING -m mark --mark 2 -p tcp -j SNAT -s 20.0.0.1 --sport 6000 --to-source 65.55.42.1:1024
 ```
 They essentially tell the kernel to do the DNAT port translation for any incoming packets, and the SNAT port translation for the outgoing packets.
 
@@ -655,9 +655,9 @@ iptables -t nat -A POSTROUTING -p tcp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p udp -s 20.0.1.0/24 -j RETURN
 iptables -t nat -A POSTROUTING -p icmp -s 20.0.1.0/24 -j RETURN
 
-iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
-iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
-iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -o Ethernet15 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p tcp -s 20.0.0.0/16 -j SNAT -m mark --mark 2 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p udp -s 20.0.0.0/16 -j SNAT -m mark --mark 2 --to-source 65.55.42.1:1024-65535 --fullcone
+iptables -t nat -A POSTROUTING -p icmp -s 20.0.0.0/16 -j SNAT -m mark --mark 2 --to-source 65.55.42.1:1024-65535 --fullcone
 ```
 They tell the kernel to do the dynamic SNAT L4 port mapping or icmp query-id mapping dynamically for any incoming packets permitted by the ACL (20.0.0.0/16 subnet hosts excepting 20.0.1.0/24 subnet hosts), that are routed and before being sent out on the interface Ethernet15.
 
@@ -761,7 +761,7 @@ For the failed NAT entries, NatOrch removes the corresponding entries from the i
 When the administrator issues the clear command, NatOrch flushes the conntrack table, which in turn results in deleting the entries in the APP_DB by the Natsyncd daemon.
 
 ### 3.3.3.5 Max limit on the NAT entries
-NatOrch keeps track of the total number of static + dynamic entries created and limits the NAT'ted conntrack entries in the kernel to the supported max limit in the hardware. When a new translation notification is received beyond the maximum limit (due to new traffic that is being NAT'ted), the conntrack entry is removed in the kernel.
+NatOrch queries the maximum capacity of the NAT entries in the hardware on startup. It keeps track of the total number of static + dynamic entries created and limits the NAT'ted conntrack entries in the kernel to the supported max limit in the hardware. When a new translation notification is received beyond the maximum limit (due to new traffic that is being NAT'ted), the conntrack entry is removed in the kernel.
  
 ### 3.3.3.5 Block diagram
 The high level block diagram for NAT in SONiC is captured below.
@@ -784,16 +784,15 @@ After the L3 forwarding is done and before the packet is about to be sent out, t
 As long as the hardware entry is not installed, the NAT translation and forwarding is done in the Linux kernel using the iptables and conntrack entries.
 
 #### 3.4.1.1 No NAT Zones in the Kernel
-Similar to the zone per L3 interface that is programmed in the hardware, there is no concept of NAT zone on the interface in the Kernel. As a result, no zone checks can be done in the kernel when doing NAT. Matching is done against the outbound interface for the POSTROUTING/SNAT traffic and matching against the inbound interface for the PREROUTING/DNAT traffic. The outgoing interface parameter should be passed to the iptables rules to ensure that the NAT is done for the software routed traffic in the kernel only when the packet is sent on the interface corresponding to the outside zone. Without the interface parameter, any software routed packet can get NAT'ted.
+Similar to the zone per L3 interface that is programmed in the hardware, there is no concept of NAT zone on the interface in the Kernel. To achieve zone checks in the kernel, rules are added in the iptables 'mangle' tables to put a MARK on the packet at the ingress and the egress. The MARK value is derived from the zone value (mark = zone+1 to avoid using default 0 value as the MARK value). When the packet traverses the kernel, 'mangle' tables rules are executed before the 'nat' tables rules at every stage. Hence we can match on the MARK value in the 'nat' table rules after it is set by the 'mangle' table rule.
 
-For the static NAT/NAPT configurations, the iptables rules do the SNAT by matching against the outgoing interface and do the DNAT by matching against the incoming interface.
-For the dynamic SNAT/SNAPT configuration, the iptables rules do the SNAT by matching against the outgoing interface.
+Effectively the POSTROUTING/SNAT happens for packet that is going out on any interface in the same outbound zone, and the PREROUTING/DNAT happens for packet that is coming in on any interface in the same inbound zone
+
+For the static NAT/NAPT configurations, the iptables rules do the SNAT by matching against the outbound zone and do the DNAT by matching against the inbound zone.
+For the dynamic SNAT/SNAPT configuration, the iptables rules do the SNAT by matching against the outbound zone.
 
 #### 3.4.1.2 Loopback IP as Public IP
 In typical DC deployments, the Loopback interface IP addresses can be used as public IP in the static NAT/NAPT and dynamic Pool binding configurations. Reason being that the Loopback IP is always UP and reachable through one of the uplink physical interfaces and does not go down unlike the physical interfaces. To be used as the public IP, the Loopback interface should be configured with a zone value that is same as the zone value configured on the outside physical interfaces. Loopback interface zone configuration is not propagated to the hardware.
-
-The iptables rules added in case of loopback interface, match against the zone value instead of matching on the outgoing interface as in the case of physical interfaces. To achieve that, rules are added in the iptables mangle tables to put a MARK on the packet at the ingress and the egress. The MARK value is derived from the zone value (mark = zone+1 to avoid using default 0 value as the MARK value).
-When the packet traverses the kernel, 'mangle' tables rules are executed before the 'nat' tables rules. Hence we can match on the MARK value in the 'nat' table rule after it is set by the 'mangle' table rule.
 
 For example, if user configures the Loopback0 interface with the public IP to be source translated to, with 2 uplink outside interfaces Ethernet28, Vlan100 in the same zone as below: 
 
@@ -1327,7 +1326,7 @@ Router#show nat config globalvalues
 ### 3.8.5 Debug commands
 Debug commands will be available once the debug framework is approved.
 
-Debug command 'show debug component natorch' dumps the below information of NatOrch in the file /var/log/natorch_debug.log:
+Debug command 'show debug natorch' dumps the below information of NatOrch in the file /var/log/natorch_debug.log:
 - Internal cache of NAT, NAPT, Twice NAT, Twice NAPT entries
 - Nexthop resolution cache for the DNAT entries.
 
