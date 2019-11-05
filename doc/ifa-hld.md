@@ -51,8 +51,7 @@ device for one flow and intermediate device for another flow.
 2.0.0.3 TAM collector configuration that can be attached to IFA flow on egress device to forward telemetry
 data.
 3.0 UI commands available to configure TAM device identifier, TAM collector and IFA configuration.
-3.1 UI commands available to show TAM device identifier, TAM collector, IFA configuration, IFA status and
-IFA statistics.
+3.1 UI commands available to show TAM device identifier, TAM collector, IFA configuration
 3.2 UI commands available to clear IFA configuration
 4.0 The maximum number of IFA 􀃖ows are platform dependent.
 4.1 Only one collector can be con􀃕gured in a device.
@@ -165,16 +164,10 @@ The command is used to show TAM device identifier.
 Attribute    : { <name> | all }
 The command is used to show TAM collector information.
 
-3. Command   : show tam-int-ifa status
-The command is used to show current status of IFA: deviceid, number of flows and collectors, feature status.
-
-4. Command   : show tam-int-ifa flow
+3. Command   : show tam-int-ifa flow
 Attribute(s) : { <name> | all }
 The command is used to display configured IFA flow information.
 
-5. Command   : show tam-int-ifa statistics
-Attribute(s) : { <flow> | all }
-The command is used to display IFA statistics per/all flow(s)
 #### 3.6.2.3 Debug Commands
 N/A
 
@@ -271,9 +264,7 @@ N/A
 | Delete IFA flow | Verify IFA flow is deleted |
 | Show TAM Device | Verify configured device identifier is displayed with the show command |
 | Show TAM collector | Verify all collectors are displayed with 'all' keyword. Verify specified collector is displayed with the name. Verify command fails when an invalid flow name is used to display |
-| Show TAM INT IFA status | Verify nmber of flows/collectors correctly displayed; device id and feature status is correctly displayed |
 | Show TAM INT IFA flow | Verify all flow information is displayed when used with 'all'. Verify particular flow is displayed when name is supplied. Verify command fails when an non-existent flow name is given |
-| show TAM INT IFA statistics | Verify flow information and packet/byte count is displayed per each flow |
 | show tam int ifa supported | Verify feature status is correctly displayed |
 
 
