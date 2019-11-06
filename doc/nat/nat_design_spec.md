@@ -787,7 +787,6 @@ As long as the hardware entry is not installed, the NAT translation and forwardi
 Similar to the zone per L3 interface that is programmed in the hardware, there is no concept of NAT zone on the interface in the Kernel. To achieve zone checks in the kernel, rules are added in the iptables 'mangle' tables to put a MARK on the packet at the ingress and the egress. The MARK value is derived from the zone value (mark = zone+1 to avoid using default 0 value as the MARK value). When the packet traverses the kernel, 'mangle' tables rules are executed before the 'nat' tables rules at every stage. Hence we can match on the MARK value in the 'nat' table rules after it is set by the 'mangle' table rule.
 
 Effectively the POSTROUTING/SNAT happens for packet that is going out on any interface in the same outbound zone, and the PREROUTING/DNAT happens for packet that is coming in on any interface in the same inbound zone
-
 For the static NAT/NAPT configurations, the iptables rules do the SNAT by matching against the outbound zone and do the DNAT by matching against the inbound zone.
 For the dynamic SNAT/SNAPT configuration, the iptables rules do the SNAT by matching against the outbound zone.
 
