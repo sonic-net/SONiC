@@ -96,7 +96,7 @@ N/A
 ### 3.6.1 Data Models
 The following Sonic Yang model is used for implementation of this feature:
 
-module: sonic-show-techsupport
+```module: sonic-show-techsupport
 
   rpcs:
     +---x sonic-show-techsupport-info
@@ -106,28 +106,39 @@ module: sonic-show-techsupport
           +--ro output-filename?   string
 
 
+
+
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
 N/A
 #### 3.6.2.2 Show Commands
 
-show techsupport [since <DateTime>] — Gather information for troubleshooting. Display the name of a file containing the resulting group of collected information items in a compressed "tar" file.
+```
+Command syntax summary:
+
+show techsupport [since <DateTime\>]
+
+Command Description:
+
+Gather information for troubleshooting. Display the name of a file containing the resulting group of collected information items in a compressed "tar" file.
+
 
 Syntax Description:
 
 |    Keyword    | Description |
-|:-----------------|:-----------|
-| since DateTime | This option uses a text string (in the format returned by the Linux "date" command) to restrict the time scope for some of the information items to be collected (e.g. log files). It is passed to the host process and, if the date/time specification is valid, it is used during invocation of the applicable information gathering sub-functions.
+|:--------------|:----------- |
+| since <DateTime\> | This option uses a text string (in the format returned by the Linux "date" command) to restrict the time scope for some of the information items to be collected (e.g. log files). It is passed to the host process and, if the date/time specification is valid, it is used during invocation of the applicable information gathering sub-functions.|
 
 Command Mode: User EXEC
 
 Example:
 
+```
 sonic# show techsupport
 
-/var/dump/sonic_dump_sonic_20191008_082312.tar.gz
+Output stored in:  /var/dump/sonic_dump_sonic_20191008_082312.tar.gz
 
---------------------
+```
 
 
 #### 3.6.2.3 Debug Commands
@@ -162,7 +173,7 @@ TBD: (The base for RPC based Sonic Yang models is currently being developed.)
 N/A
 
 # 6 Serviceability and Debug
-Logging, counters, stats, trace considerations. Please make sure you have incorporated the debugging framework feature. e.g., ensure your code registers with the debugging framework and add your dump routines for any debug info you want to be collected.
+N/A
 
 # 7 Warm Boot Support
 N/A
@@ -171,18 +182,16 @@ N/A
 Refer to section 1.1.3
 
 # 9 Unit Test
-- Basic command execution:
-  - Trigger: Execute the "show techsupport" command with no parameters.
-  - Result: Confirm that the command is accepted without errors and a "result" file name is returned. Confirm that the result file contains the expected set of items. (Examine/expand the contents of the file to ensure that the top level directory tree is correct and that the number of sub-files within the tar file is correct.)
 
-- "since" option (postive test case)
-  - Trigger: Execute the command with the "--since" TEXT option with a valid date string specifying a time near the end of one of the  unfiltered output from the first test.
-  - Result: Same as the "Basic command execution" case. Additionally, confirm that the expected time filtering has occurred by examining one of the affected sub-files.
+|    Case    | Trigger | Result |
+|:-----------|:--------|:-------|
+| Basic command execution | Execute the "show techsupport" command with no parameters. | Confirm that the command is accepted without errors and a "result" file name is returned. Confirm that the result file contains the expected set of items. (Examine/expand the contents of the file to ensure that the top level directory tree is correct and that the number of sub-files within the tar file is correct.)|
+"since" option (postive test case) | Execute the command with the "--since" TEXT option with a valid date string specifying a time near the end of one of the  unfiltered output from the first test.| Same as the "Basic command execution" case. Additionally, confirm that the expected time filtering has occurred by examining one of the affected sub-files.|
+"since" option (negative test case #1)|Execute the command with the "--since" TEXT option with an invalid date string.|Verify that an error is returned.|
+"since" option (negative test case #2)|Execute the command with the "--since" TEXT option with an invalid date string.|Verify that an error is returned.|Execute the command with the "--since" option with no date string.| Verify that an error is returned.|
 
-- "since" option (negative test case)
-    - Trigger1: Execute the command with the "--since" TEXT option with an invalid date string.
-    - Trigger2: Execute the command with the "--since" option with no date string.
-    - Result: Verify that an error is returned.
+
+
 
 
 # 10 Internal Design Information
