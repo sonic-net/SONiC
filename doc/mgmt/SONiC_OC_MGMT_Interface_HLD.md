@@ -109,6 +109,9 @@ List of YANG models will be need to add support for physical and management inte
 1. openconfig-if-ethernet.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ethernet.yang)
 2. openconfig-if-ip.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-if-ip.yang)
 3. openconfig-interfaces.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/openconfig-interfaces.yang)
+4. openconfig-interfaces-ext.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/mgmt-intf-support/models/yang/openconfig-interfaces-ext.yang)
+5. sonic-mgmt-port.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/mgmt-intf-support/models/yang/sonic/sonic-mgmt-port.yang)
+6. sonic-mgmt-interface.yang (https://github.com/project-arlo/sonic-mgmt-framework/blob/mgmt-intf-support/models/yang/sonic/sonic-mgmt-interface.yang)
 
 Supported YANG objects and attributes:
 ```diff
