@@ -39,13 +39,13 @@ This document provides general information about the new approach for getting by
 This document describes the high level design of the feature.
 # Definitions/Abbreviation
 ###### Table 2: Abbreviations
-| Definitions/Abbreviation | Description                        |
-|----------------------------|------------------------------|
-| PPS                      | Packets per second                        |
-| BPS                      | Bytes   per second                         |
-| UTIL                     | Port utilization                               |
-| FC                        | Flex counter                                   |
-| vid                       | Virtual Object Id - object identifier used in counters DB |
+| Definitions/Abbreviation | Description                    |
+|--------------------------|--------------------------------|
+| PPS                      | Packets per second             |
+| BPS                      | Bytes   per second             |
+| UTIL                     | Port utilization               |
+| FC                       | Flex counter                   |
+| vid                      | Virtual Object Id - object identifier used in counters DB |
 
 # 1 Subsystem Requirements Overview
 
@@ -72,6 +72,12 @@ For interval configuration `counterpoll` utility will be extended:
 counterpoll [port_rates|rif_rates] interval <seconds>
 
 counterpoll [port_rates|rif_rates] [enable|disable]
+```
+
+To configure the smoothing interval of moving average new CLI will be intrduced:
+
+```
+config rate smoothing_interval [all|port|rif] <interval>
 ```
 
 ## 2 Implementation details
@@ -126,6 +132,21 @@ For RIF:
 [RX|TX]_UTIL = [RX|TX]_BPS/[PORT|RIF]_RATE
 ```
 
+### 2.2.4 Exponential moving average
+
+To make the rates and utilization values more smooth, exponential moving average will be calculated. EMA approximates moving average on a window siza that can be changed dynmically. More recent values are given more weight(imapct the average more, decreasing lag). EMA allows to calculate moving average without storing a set of values. Actually all the values in the series are impacting the EMA, but the weight of older values is infinitely decreasing.
+
+
+ALPHA (precalculated):
+
+```
+N = [PORT|RIF]_SMOOTH_INTERVAL
+
+ALPHA = 2/(N+1)
+
+EMA = ALPHA * VALUE + (1 - ALPHA) * EMA_last
+```
+
 
 # 3 Modules Design
 ## 3.1 Modules that need to be updated
@@ -134,7 +155,7 @@ For RIF:
 
 #### The following entries will store previous values of Port counters (for diff calculation):
 
-- "COUNTERS:port_vid"
+- "RATES:port_vid"
   - SAI_PORT_STAT_IF_IN_UCAST_PKTS_last
   - SAI_PORT_STAT_IF_IN_NON_UCAST_PKTS_last
   - SAI_PORT_STAT_IF_OUT_UCAST_PKTS_last
@@ -144,7 +165,7 @@ For RIF:
 
 ####  The following entries will store previous values of RIF counters (for diff calculation):
 
-- "COUNTERS:rif_vid"
+- "RATES:rif_vid"
   - SAI_ROUTER_INTERFACE_STAT_IN_OCTETS_last
   - SAI_ROUTER_INTERFACE_STAT_IN_PACKETS_last
   - SAI_ROUTER_INTERFACE_STAT_OUT_OCTETS_last
@@ -153,7 +174,7 @@ For RIF:
 
 #### The following entries will store rates & utilization values:
 
-- "COUNTERS:port_vid"
+- "RATES:port_vid"
   - RX_BPS
   - RX_PPS
   - TX_BPS
@@ -162,7 +183,7 @@ For RIF:
   - TX_UTIL
 
 
-- "COUNTERS:rif_vid"
+- "RATES:rif_vid"
   - RX_BPS
   - RX_PPS
   - TX_BPS
@@ -170,8 +191,18 @@ For RIF:
   - RX_UTIL
   - TX_UTIL
 
+### 3.1.2 Config DB
 
-### 3.1.2 Flex Counter
+#### The following entries will store moving smoothing interval and precalculated alpha
+
+- "RATES"
+  - PORT_SMOOTH_INTERVAL
+  - RIF_SMOOTH_INTERVAL
+  - PORT_ALPHA
+  - RIF_ALPHA
+
+
+### 3.1.3 Flex Counter
 
 Two new Flex Counter groups are introduced: PORT_RATES, RIF_RATES.
 The calculations are performed by lua plugins. The plugins are registered to the new FC groups.
@@ -180,7 +211,7 @@ For ports it is done in portsorch, for RIFs in intfsorch. The interfaces list re
 The new flex counter groups have own interval, allowing to calculate rate&util values on larger interval than the counters polling itself.
 By default, the interval should be the same as for counter polling(1s). 
 
-### 3.1.3 Lua Plugins 
+### 3.1.4 Lua Plugins 
 
 The Lua plugin logic is simple: 
 
@@ -192,7 +223,7 @@ The Lua plugin logic is simple:
 
 ![](img/flow.png)
 
-### 3.1.4 CLI Scripts
+### 3.1.5 CLI Scripts
 
 The `counterpoll` utility should return an error when user tries to enable rates when the corresponding counter polling is disabled.
 The `counterpoll` utility should returnwarn the user who is trying to configure rates intervall less than the corresponding counter polling interval,
