@@ -376,16 +376,16 @@ sonic(config)# no interface PortChannel 1
 `show PortChannel summary`
 ```
 sonic# show PortChannel summary
+Flags: D - Down
+       U - Up
 
-Flags:  D - Down, S - member selected
-        U - Up
 ---------------------------------------------------------------------------
 Group   PortChannel            Type    Protocol    Member Ports
 ---------------------------------------------------------------------------
-1       PortChannel1    (D)     Eth     DYNAMIC     Ethernet56(D)
-                                                    Ethernet60(D)
-10      PortChannel10   (D)     Eth     DYNAMIC
-111     PortChannel111  (D)     Eth     DYNAMIC
+1       PortChannel1    (D)     Eth      LACP       Ethernet56(D)
+                                                    Ethernet60(U)
+10      PortChannel10   (U)     Eth      LACP       Ethernet40(D)
+111     PortChannel111  (D)     Eth      LACP
 
 ```
 ### Show Interface status and configuration
@@ -417,16 +417,25 @@ N/A
 
 ### 3.6.3 REST API Support
 
-### Create/Delete a PortChannel 
-- `/openconfig-interfaces:interfaces/interface={name}`
+### **PATCH**
+#### Create a PortChannel
+- `/openconfig-interfaces:interfaces/interface={name}/config`
 #### Set min-links
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
 #### Set MTU/admin-status
 - `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
 #### Set IP
 - `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
-#### Add/Remove port member
+#### Add member
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
+
+### **DELETE**
+#### Delete a PortChannel
+- `/openconfig-interfaces:interfaces/interface={name}`
+#### Remove member
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
+
+### **GET**
 #### Get PortChannel details
 - `/openconfig-interfaces:interfaces/ interface={name}/state/[mtu|admin-status|oper-status]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member]`
