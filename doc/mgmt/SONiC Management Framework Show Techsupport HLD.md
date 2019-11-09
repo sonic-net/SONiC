@@ -104,7 +104,7 @@ The following Sonic Yang model is used for implementation of this feature:
        |  +---w date?   yang:date-and-time
        +--ro output
           +--ro output-filename?   string
-
+```
 
 
 
@@ -113,7 +113,6 @@ The following Sonic Yang model is used for implementation of this feature:
 N/A
 #### 3.6.2.2 Show Commands
 
-```
 Command syntax summary:
 
 show techsupport [since <DateTime\>]
@@ -139,33 +138,17 @@ sonic# show techsupport
 Output stored in:  /var/dump/sonic_dump_sonic_20191008_082312.tar.gz
 
 ```
-
+NOTE: See section 3.6.1 for a description of the limitations of the current implementation. A supplementary capability to transfer the tech support file and other diagnostic information files to the client via the Management Framework interface is highly desirable for a future release.
 
 #### 3.6.2.3 Debug Commands
 N/A
 #### 3.6.2.4 IS-CLI Compliance
-N/A (TBD)
+The current implementation differs from the IS-CLI.
 
-The following table maps SONIC CLI commands to corresponding IS-CLI commands. The compliance column identifies how the command comply to the IS-CLI syntax:
-
-- **IS-CLI drop-in replace**  – meaning that it follows exactly the format of a pre-existing IS-CLI command.
-- **IS-CLI-like**  – meaning that the exact format of the IS-CLI command could not be followed, but the command is similar to other commands for IS-CLI (e.g. IS-CLI may not offer the exact option, but the command can be positioned is a similar manner as others for the related feature).
-- **SONIC** - meaning that no IS-CLI-like command could be found, so the command is derived specifically for SONIC.
-
-|CLI Command|Compliance|IS-CLI Command (if applicable)| Link to the web site identifying the IS-CLI command (if applicable)|
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-
-**Deviations from IS-CLI:** If there is a deviation from IS-CLI, Please state the reason(s).
+ Instead of dumping the technical support information to the output buffer,  this implementation dumps the information to a compressed "tar" file and sends the name of the file to the output buffer. This implementation matches the current SONiC implementation. A supplementary capability to enable transfer of the specified file to the client is highly desirable for full functionality of this command when using a REST API or gNMI/gNOI client interface. Without this capability, it is necessary to open a shell on the host and use the SONiC host CLI interface to transfer the file.
 
 ### 3.6.3 REST API Support
-TBD: (The base for RPC based Sonic Yang models is currently being developed.)
+REST API support is provided. The REST API corresponds to the SONiC Yang model described in section 3.6.1.
 
 # 4 Flow Diagrams
 
