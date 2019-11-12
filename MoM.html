@@ -22,8 +22,7 @@
 
     <!-- Main style sheet -->
     <link href="assets/css/style.css" rel="stylesheet">    
-
-   
+       
     <!-- Google Fonts -->
     <link href='https://fonts.googleapis.com/css?family=Montserrat:400,700' rel='stylesheet' type='text/css'>
     <link href='https://fonts.googleapis.com/css?family=Roboto:400,400italic,300,300italic,500,700' rel='stylesheet' type='text/css'>
@@ -35,7 +34,20 @@
       <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
-
+<style> 
+            table, th, td { 
+                border: 2px solid blue; 
+                text-align:center; 
+            } 
+            th, td { 
+                padding: 10px; 
+                background-color:none; 
+            } 
+              
+            h1 { 
+            color:blue; 
+            } 
+        </style> 
   </head>
   <body> 
 
@@ -71,7 +83,7 @@
      <div class="row">
        <div class="col-md-12">
          <div class="mu-page-breadcrumb-area">
-           <h2>PREVIOUS PRESENTATIONS</h2>
+           <h2>SONiC community meeting minutes </h2>
          </div>
        </div>
      </div>
@@ -86,15 +98,35 @@
        <div class="col-md-12">
          <div class="mu-contact-area">
           <!-- start title -->
-          <div class="mu-title">
-		  	<p> <a href="https://www.youtube.com/embed/JVztj3u13yo"> OCP Japan 2019 Summit - Innovating the Cloud Network</a></p>
-			<p> <a href="https://www.youtube.com/watch?v=9QosRTupTek&feature=youtu.be"> OCP China 2019 Summit - SONiC Enable Fast Evolution Of Cloud Networking (Microsoft Video)</a></p>
-			<p>	<a href="https://www.youtube.com/watch?v=jPiEDzZBPic&feature=youtu.be"> OCP China 2019 Summit - Network Innovation - Collaboration With SONiC (Alibaba Video in Chinese)</a></p>
-			<p> <a href="https://www.youtube.com/embed/TLi5n0cZbz0"> OCP Summit 2018 - SONiC Programmability, Extensibility and Beyond</a></p>
-			<p> <a href="https://github.com/Azure/SONiC/wiki/SONiC-Workshop-in-Beijing-Oct-2018"> SONiC Workshop in Beijing 2018 October</a></p>
-			<p> <a href="https://www.youtube.com/embed/DvFTCpwnUQ4">SONiC - Enabling Fast Evolution in the Networks </a></p>
-			<p> <a href="https://github.com/Azure/SONiC/wiki/OCP-Summit-2018--and-SONiC-SAI-Workshop-Slide-Collection"> OCP Summit 2018 and SONiC/SAI Workshop Slides</a></p>	
-			<p> <a href="https://github.com/Azure/SONiC/wiki/files/talks/SAI-SONiC-OCP-Summit-Mar16-shared.pdf">OCP Summit 2016 SONiC Presentation Slides</a></p>
+          <div class="mu-title" >
+		  <table  border="2" align="center" >
+  <tr>
+    <th style="text-align: center; ">Date</th> 
+    <th style=" text-align: center; ">Links To Meeting Agenda</th>
+    <th style=" text-align: center; ">Links To Minutes Of The meeting</th>
+  </tr>
+    <tr>
+    <td style="">OCTOBER 29 2019</td>
+    <td style=" text-align: left; "><a href="https://groups.google.com/d/msg/sonicproject/kYhv22WnvxU/JRugzziRAwAJ">RADIUS HLD & DPKG local caching</a></td>
+    <td style=""><a href="https://groups.google.com/d/msg/sonicproject/gWZnvDRa0bI/utAq2wC2AwAJ">MoM</a></td>
+  </tr>
+    <tr>
+    <td style="">OCTOBER 22 2019</td>
+    <td style=" text-align: left; "><a href="https://groups.google.com/d/msg/sonicproject/9K8GJzf5OSY/tBP_toAzDAAJ">VRRP HLD & Release progress</a></td>
+    <td style=""><a href="https://groups.google.com/d/msg/sonicproject/gWZnvDRa0bI/N77TFQR3DAAJ">MoM</a></td>
+  </tr>
+   <tr>
+    <td style="">OCTOBER 15 2019</td>
+    <td style=" text-align: left; "><a href="https://groups.google.com/d/msg/sonicproject/9r6f05_mKJ4/4EY4DlPJDQAJ">Tech support data export and core file manager HLD</a></td>
+	<td style=""><a href="https://groups.google.com/d/msg/sonicproject/gWZnvDRa0bI/i6RKWL1YDgAJ">MoM</a></td>
+  </tr>
+  <tr>
+    <td style="">&nbsp;&nbsp;OCTOBER 08 2019&nbsp;&nbsp;</td>
+    <td style="text-align: left; "><a href="https://groups.google.com/d/msg/sonicproject/IUZofefxMM4/SCBf3q_7CgAJ">Review of 201910 release status</a></td>
+    <td style=""><a href="https://groups.google.com/d/msg/sonicproject/kST4pB3k-Hw/3awNfhoxCwAJ">MoM</a></td>
+  </tr>
+</table>
+
 		  </div>
           <!-- end title -->
          </div>
@@ -126,7 +158,7 @@
   
   <!-- jQuery library -->
   <script src="assets/js/jquery.min.js"></script>  
-    <script type="text/javascript">
+  <script type="text/javascript">
   $("#mu-menu").load("menu.html");
   </script>
   <!-- Include all compiled plugins (below), or include individual files as needed -->
