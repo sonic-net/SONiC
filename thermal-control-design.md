@@ -110,7 +110,7 @@ A thermal control daemon class will be deifined with above functions defined, ve
 
 ### 3.2 Policy management
 
-Policies are defined in a json file for each hwsku, it's including:
+Policies are defined in a json file for each hwsku, for example, one SKU want to apply below policies:
 
 - Thermal control algorithm control, enabled this hwsku or not, fan speed value to set if not running;
 
