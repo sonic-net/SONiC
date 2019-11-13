@@ -122,7 +122,7 @@ module: openconfig-interfaces
           +--rw oc-eth:ethernet
 +         |  +--rw oc-vlan:switched-vlan
 +         |     +--rw oc-vlan:config
-+         |     |  +--rw oc-vlan:interface-mode?   oc-vlan-types:vlan-mode-type
+          |     |  +--rw oc-vlan:interface-mode?   oc-vlan-types:vlan-mode-type
           |     |  +--rw oc-vlan:native-vlan?      oc-vlan-types:vlan-id
 +         |     |  +--rw oc-vlan:access-vlan?      oc-vlan-types:vlan-id
 +         |     |  +--rw oc-vlan:trunk-vlans*      union
@@ -134,7 +134,7 @@ module: openconfig-interfaces
           +--rw oc-if-aggregate:aggregation
 +         |  +--rw oc-vlan:switched-vlan
 +         |     +--rw oc-vlan:config
-+         |     |  +--rw oc-vlan:interface-mode?   oc-vlan-types:vlan-mode-type
+          |     |  +--rw oc-vlan:interface-mode?   oc-vlan-types:vlan-mode-type
           |     |  +--rw oc-vlan:native-vlan?      oc-vlan-types:vlan-id
 +         |     |  +--rw oc-vlan:access-vlan?      oc-vlan-types:vlan-id
 +         |     |  +--rw oc-vlan:trunk-vlans*      union
