@@ -400,6 +400,7 @@ MTU 1532 bytes, IP MTU 1500 bytes
 Minimum number of links to bring PortChannel up is 1
 LACP mode active, interval slow, priority 65535, address 90:b1:1c:f4:a8:7e
 Members in this channel: Ethernet56
+selected True
 LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
 LACP Partner port 0  address 00:00:00:00:00:00 key 0
 Input statistics:
