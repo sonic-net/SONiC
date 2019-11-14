@@ -115,7 +115,9 @@ N/A
 
 Command syntax summary:
 
+`
 show techsupport [since <DateTime\>]
+`
 
 Command Description:
 
