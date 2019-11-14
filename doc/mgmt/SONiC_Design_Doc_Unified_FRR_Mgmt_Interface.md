@@ -433,56 +433,56 @@ Supported yang objects and attributes:
 |Command Description |CLI Command      |
 |:-----------------|:---------------|
 |Enable BGP routing instance |sonic(config)# router bgp \<local_asn> [vrf \<vrf_name>] |
-|Override configured BGP router-id |sonic(config-router-bgp-\<local-asn>)# router-id \<IPv4> |
-|Configure default best path selection |sonic(config-router)# bgp bestpath as-path multipath-relax|
-|Configure graceful restart capability params |sonic(config-router)# bgp graceful-restart preserve-fw-state <br> sonic(config-router)# bgp graceful-restart restart-time <1-3600> <br> sonic(config-router)# bgp graceful-restart stalepath-time <1-3600>|
-|Configure BGP IPv4/IPv6 neighbor |sonic(config-router)# neighbor \<IP\> local-as \<1-4294967295>|
-|Configure BGP template |sonic(config-router)# template \<peer-group-name\>|
-|Enter address family command mode|sonic(config-router)# address-family { ipv4 \| ipv6 } unicast|
+|Override configured BGP router-id |sonic(config-router-bgp)# router-id \<IPv4> |
+|Configure default best path selection |sonic(config-router-bgp)# bestpath as-path multipath-relax|
+|Configure graceful restart capability params |sonic(config-router-bgp)# graceful-restart preserve-fw-state <br> sonic(config-router-bgp)# graceful-restart restart-time <1-3600> <br> sonic(config-router-bgp)# graceful-restart stalepath-time <1-3600>|
+|Configure BGP IPv4/IPv6 neighbor |sonic(config-router-bgp)# neighbor { \<IP\> \| \<intf> } |
+|Configure BGP peer group |sonic(config-router-bgp)# peer-group \<peer-group-name\>|
+|Enter address family command mode|sonic(config-router-bgp)# address-family { ipv4 unicast \| ipv6 unicast \| l2vpn evpn} |
 
 ##### 3.6.2.1.2 BGP Neighbor mode commands
 |Command Description |CLI Command      |
 |:-----------------|:---------------|
-|Configure neighbor description|sonic(config-router-neighbor)#description \<string\>|
-|Configure EBGP neighbors hop count |sonic(config-router-neighbor)#ebgp-multihop \<hop-count\>|
-|Configure a BGP neighbor ASN|sonic(config-router-neighbor)#remote-as \<ASN\>|
+|Configure neighbor description|sonic(config-router-bgp-neighbor)#description \<string\>|
+|Configure EBGP neighbors hop count |sonic(config-router-bgp-neighbor)#ebgp-multihop \<hop-count\>|
+|Configure a BGP neighbor ASN|sonic(config-router-bgp-neighbor)#remote-as \<ASN\>|
 |Administratively bring down a neighbor|sonic(config-router-neighbor)# shutdown|
-|Configure BGP neighbor timers|sonic(config-router-neighbor)#timers \<keepalive-time\> \<hold-time\>|
-|Configure source of routing updates|sonic(config-router-neighbor)#update-source \<IP-addr\>|
-|Specify the peer-group template to inherit for this neighbor|sonic(config-router-neighbor)#inherit template \<peer-group\>|
-|Specify address family for a BGP neighbor|sonic(config-router-neighbor)#address-family {ipv4 \| ipv6} unicast <br> sonic(config-router-neighbor)# address-family l2vpn evpn <br> |
+|Configure BGP neighbor timers|sonic(config-router-bgp-neighbor)#timers \<keepalive-time\> \<hold-time\>|
+|Configure source of routing updates|sonic(config-router-bgp-neighbor)#update-source \<IP-addr\>|
+|Specify the peer-group to inherit for this neighbor|sonic(config-router-bgp-neighbor)#peer-group \<peer-group\>|
+|Specify address family for a BGP neighbor|sonic(config-router-bgp-neighbor)#address-family {ipv4 \| ipv6} unicast <br> sonic(config-router-bgp-neighbor)# address-family l2vpn evpn <br> |
 
 
 ##### 3.6.2.1.3 BGP Neighbor Address family mode commands
 |Command Description |CLI Command    |
 |:-----------------|:---------------|
-|Activate a BGP neighor for a specific address family|sonic(config-router-neighbor-af)#activate|
-|Config as-path acceptance with own ASN|sonic(config-router-neighbor-af)#allowas-in \<AS occurrence count\> |
-|Specify route policy map to neighbor mapping|sonic(config-router-neighbor-af)#route-map \<name\> {in \| out} |
+|Activate a BGP neighor for a specific address family|sonic(config-router-bgp-neighbor-af)#activate|
+|Config as-path acceptance with own ASN|sonic(config-router-bgp-neighbor-af)#allowas-in \<AS occurrence count\> |
+|Specify route policy map to neighbor mapping|sonic(config-router-bgp-neighbor-af)#route-map \<name\> {in \| out} |
 
-##### 3.6.2.1.4 BGP Template mode commands
+##### 3.6.2.1.4 BGP Peer Group mode commands
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
-|Configure BGP template's description|sonic(config-router-template)#description \<string\>|
-|Configure BGP template's EBGP hop count|sonic(config-router-template)#ebgp-multihop \<hop-count\>|
-|Configure BGP template's remote ASN|sonic(config-router-template)#remote-as \<ASN\>|
-|Configure BGP template's admin status|sonic(config-router-template)# shutdown|
-|Configure BGP template's timers|sonic(config-router-template)#timers \<keepalive-time\> \<hold-time\>|
-|Configure BGP template's source of routing updates|sonic(config-router-template)#update-source \<IP-addr\>|
-|Configure BGP dynamic neighbors listen range|sonic(config-router-template)#listen \<prefix\> |
-|Specify address family for a BGP neighbor template|sonic(config-router-template)#address-family {ipv4 \| ipv6} unicast <br> sonic(config-router-template)# address-family l2vpn evpn <br> |
+|Configure BGP peer group's description|sonic(config-router-bgp-pg)#description \<string\>|
+|Configure BGP peer group's EBGP hop count|sonic(config-router-bgp-pg)#ebgp-multihop \<hop-count\>|
+|Configure BGP peer group's remote ASN|sonic(config-router-bgp-pg)#remote-as \<ASN\>|
+|Configure BGP peer group's admin status|sonic(config-router-bgp-pg)# shutdown|
+|Configure BGP peer group's timers|sonic(config-router-bgp-pg)#timers \<keepalive-time\> \<hold-time\>|
+|Configure BGP peer group's source of routing updates|sonic(config-router-bgp-pg)#update-source \<IP-addr\>|
+|Configure BGP dynamic neighbors listen range|sonic(config-router-bgp-pg)#listen \<prefix\> |
+|Specify address family for a BGP neighbor template|sonic(config-router-bgp-pg)#address-family {ipv4 \| ipv6} unicast <br> sonic(config-router-bgp-pg)# address-family l2vpn evpn <br> |
 
-##### 3.6.2.1.5 BGP Template Address family mode commands
+##### 3.6.2.1.5 BGP Peer Group Address family mode commands
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
-|Activate BGP template at an address family level|sonic(config-router-bgp-template-af)#  activate|
-|Configure as-path acceptance with own ASN at BGP template address family level|sonic(config-router-bgp-template-af)#allowas-in \<AS occurrence count\>|
-|Specify route policy map to BGP template mapping|sonic(config-router-bgp-template-af)#route-map \<name\> {in \| out} |
+|Activate BGP peer group at an address family level|sonic(config-router-bgp-pg-af)#  activate|
+|Configure as-path acceptance with own ASN at BGP peer group address family level|sonic(config-router-bgp-pg-af)#allowas-in \<AS occurrence count\>|
+|Specify route policy map to BGP peer group mapping|sonic(config-router-bgp-pg-af)#route-map \<name\> {in \| out} |
 
 ##### 3.6.2.1.6 BGP Router Address family mode commands
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
-|Configure route redistribution policy|sonic(config-router-bgpv4-af)# redistribute { static \| connected } [route-map \<route-map-name\>] <br> sonic(config-router-bgpv6-af)# redistribute { static \| connected } [route-map \<route-map-name\>] |
+|Configure route redistribution policy|sonic(config-router-bgp-af)# redistribute { static \| connected } [route-map \<route-map-name\>] <br> sonic(config-router-bgp-af)# redistribute { static \| connected } [route-map \<route-map-name\>] |
 
 ##### 3.6.2.1.7 Routing policy commands
 |Command Description|CLI Command      |
@@ -495,10 +495,19 @@ Supported yang objects and attributes:
 #### 3.6.2.2 Show Commands
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP neighbors|show ip bgp neighbors|
-|Display BGP summary|show ip bgp summary|
+|Display BGP routes information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } |
+|Display summary of all BGP neighbors information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } summary|
+|Display BGP specific route information|show ip bgp [vrf \<name>] { ipv4 \| ipv6 } \<prefix> \<nbr-ip> \<path-id> |
+|Display BGP neighbor information | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors [\<nbr-ip>] |
+| Display BGP neighbor received/advertised routes | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors { received-routes \| advertised-routes }|
+| Display peer-group information | show ip bgp [vrf \<name>] peer-group [\<pg-name>]|
+| Display route map information | show route-map |
+| Display IPv4 prefix list information | show ip prefix-list |
+| Display IPv6 prefix list information | show ipv6 prefix-list |
+| Display BGP community list information | show bgp community-list |
+| Display BGP extended community list information | show bgp ext-community-list |
+| Display BGP AS-Path list information | show bgp as-path-access-list |
 
-> [TODO] - update the show command list.
 
 #### 3.6.2.3 Debug Commands
 N/A
