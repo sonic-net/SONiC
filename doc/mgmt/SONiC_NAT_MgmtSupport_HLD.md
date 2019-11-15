@@ -17,7 +17,7 @@ Management Support for NAT Feature
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 10/30/2019  |   Ravi Vasantahm, Arthi Sivanantham      | Initial version                   |
+| 0.1 | 10/30/2019  |   Ravi Vasantham, Arthi Sivanantham      | Initial version                   |
 
 # About this Manual
 
@@ -190,7 +190,7 @@ Refer Section 3.8 from https://github.com/Azure/SONiC/blob/dc5d3a894618bcb07a3c5
 
 ###### Add static NAT entry
 
-`static basic <global-ip> <local-ip> {snat | dnat} { twice_nat_id <value> }`
+`static basic <global-ip> <local-ip> [snat | dnat] [ twice_nat_id <value> ]`
 
 ```
 sonic# config t
@@ -212,7 +212,7 @@ sonic(config-nat)# no static basic 20.0.0.2 65.55.45.8
 
 ###### Add static NAPT entry
 
-`static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port> {snat | dnat} { twice_nat_id <value> }`
+`static {tcp | udp} <global-ip> <global-port> <local-ip> <local-port> [snat | dnat ] [ twice_nat_id <value> ]`
 
 ```
 sonic# config t
@@ -242,7 +242,7 @@ sonic(config-nat) # no static all
 
 ###### Create NAT pool
 
-`pool <pool-name> <global-ip-range> <global-port-range>`
+`pool <pool-name> <global-ip-range> [ <global-port-range> ] `
 
 ```
 sonic# config t
@@ -272,7 +272,7 @@ sonic(config-nat) no pools
 
 ###### Create binding between an ACL and a NAT pool
 
-`binding <binding-name> <pool-name> <acl-name> { snat | dnat } { twice_nat_id <value> }`
+`binding <binding-name> <pool-name> <acl-name> [ snat | dnat ] [ twice_nat_id <value> ]`
 
 ```
 sonic# config t
@@ -302,7 +302,7 @@ sonic(config-nat) no bindings
 
 ###### Configure NAT zone value on an interface
 
-`nat { zone <zone-value> }`
+`nat-zone <zone-value>`
 
 ```
 sonic# config t
