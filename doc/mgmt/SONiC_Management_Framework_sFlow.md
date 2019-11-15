@@ -21,6 +21,7 @@ sFlow Support in Management Framework
 | 0.3 | 10/11/2019  |   Garrick He       | Address review comments                                                |
 | 0.4 | 10/15/2019  |   Garrick He       | Add information on default value and SONiC sFlow YANG                  |
 | 0.5 | 11/01/2019  |   Garrick He       | Add default values for polling intervals and updated sFlow Data models |
+| 0.6 | 11/15/2019  |   Garrick He       | Remove redundant 'port' keyword from CLI                               |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -169,7 +170,7 @@ sonic(config)#
 
 ##### Add sFlow Collector with port number
 ```
-sonic(config)# sflow collector col2 1.1.1.2 port 4451
+sonic(config)# sflow collector col2 1.1.1.2 4451
 sonic(config)#
 ```
 
