@@ -173,7 +173,7 @@ Refer to section 1.1.3
 | Basic command execution | Execute the "show techsupport" command with no parameters. | Confirm that the command is accepted without errors and a "result" file name is returned. Confirm that the result file contains the expected set of items. (Examine/expand the contents of the file to ensure that the top level directory tree is correct and that the number of sub-files within the tar file is correct.)|
 "since" option (postive test case) | Execute the command with the "--since" TEXT option with a valid date string specifying a time near the end of one of the  unfiltered output from the first test.| Same as the "Basic command execution" case. Additionally, confirm that the expected time filtering has occurred by examining one of the affected sub-files.|
 "since" option (negative test case #1)|Execute the command with the "--since" TEXT option with an invalid date string.|Verify that an error is returned.|
-"since" option (negative test case #2)|Execute the command with the "--since" TEXT option with an invalid date string.|Verify that an error is returned.|Execute the command with the "--since" option with no date string.| Verify that an error is returned.|
+"since" option (negative test case #2)|Execute the command with the "--since" TEXT option with no date string.|Verify that an error is returned.|Execute the command with the "--since" option with no date string.| Verify that an error is returned.|
 
 
 
