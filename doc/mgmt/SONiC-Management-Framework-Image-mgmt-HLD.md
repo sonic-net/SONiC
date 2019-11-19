@@ -79,26 +79,20 @@ This command displays information about currently installed images. It displays 
 
 This command is be used to change the image which can be loaded by default in all the subsequent reboots.
 
-**image set-next-boot**
-
-This command is used to change the image that can be loaded in the *next* reboot only. Note that it will fallback to current image in all other subsequent reboots after the next reboot.
-
 **image remove**
 
 This command is used to remove the unused SONiC image from the disk. Note that it's *not* allowed to remove currently running image.
 
-Note: The above text is taken from the sonic command line reference Wiki (https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#sonic-installer)
-
 ## 2.2 Functional Description
-After recieving the request from the client, via an RPC, the rest server will transfer the control to processAction method in the app module(inside traslib). This method will parse the target uri path and will branch to the corresponding function. These functions will call the python scripts in the host to perform image management related actions, like install, remove ..etc. The response from the output of the script is propagated back to processAction method and is converted to json. The json message is sent back to the client.
+After recieving the request from the client, via an RPC, the REST server will transfer the control to processAction method in the app module(inside trasformer). This method will parse the target uri path and will branch to the corresponding function. These functions will call the python scripts in the host to perform image management related actions, like install, remove ..etc. The response from the output of the script is propagated back to processAction method and is converted to json. The json message is sent back to the client.
 
 # 3 Design
 ## 3.1 Overview
-TBD
+Enhancing the management framework backend code and transformer methods to add support for Image management
 
 ## 3.2 DB Changes
+State DB
 
-N/A
 ### 3.2.1 CONFIG DB
 
 N/A
@@ -108,8 +102,8 @@ N/A
 N/A
 
 ### 3.2.3 STATE DB
+The State DB is populated with details regarding the currently used image, image to be in the next boot and the list of available images.
 
-N/A
 
 ### 3.2.4 ASIC DB
 
@@ -137,32 +131,37 @@ N/A
 ### 3.6.1 Data Models
 
 ```
- +---x image-install
+module: sonic-image-management
+    +--rw sonic-image-management
+       +--rw IMAGE_GLOBAL
+       |  +--rw IMAGE_GLOBAL_LIST* [img_key]
+       |     +--rw img_key      enumeration
+       |     +--rw current?     string
+       |     +--rw next-boot?   string
+       +--rw IMAGE_TABLE
+          +--rw IMAGE_TABLE_LIST* [image]
+             +--rw image    string
+
+  rpcs:
+    +---x image-install
     |  +---w input
-    |  |  +---w installer-arg-type?   string
-    |  |  +---w filename?             string
+    |  |  +---w imagename?   filename-uri-type
     |  +--ro output
     |     +--ro status?          int32
     |     +--ro status-detail?   string
     +---x image-remove
+    |  +---w input
+    |  |  +---w imagename?   string
     |  +--ro output
     |     +--ro status?          int32
     |     +--ro status-detail?   string
     +---x image-default
-    |  +---w input
-    |  |  +---w imagename?   string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x image-nextboot
-    |  +---w input
-    |  |  +---w imagename?   string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x image-list
+       +---w input
+       |  +---w imagename?   string
        +--ro output
-          +--ro images-found?   string
+          +--ro status?          int32
+          +--ro status-detail?   string
+
 ```
 
 ### 3.6.2 CLI
@@ -180,12 +179,6 @@ Done
 
 ```
 sonic# image set-default SONiC-OS-HEAD.XXXX
-```
-
-**image set-next-boot**
-
-```
-sonic# image set-next-boot SONiC-OS-HEAD.XXXX
 ```
 
 **image remove**
@@ -221,9 +214,10 @@ N/A
 N/A
 
 ### 3.6.3 REST API Support
-
-**TODO**
-TBD (Working on a custom Sonic yang).
+* get_sonic_image_management_sonic_image_management
+* rpc_sonic_image_management_image_install
+* rpc_sonic_image_management_image_remove
+* rpc_sonic_image_management_image_default
 
 # 4 Flow Diagrams
 N/A
@@ -246,5 +240,11 @@ N/A
 # 9 Unit Test
 List unit test cases added for this feature including warm boot.
 
+| Test Name | Test Description |
+| :------ | :----- |
+| Image install | Image installed successfully and an entry is added in grub.cfg |
+| Image remove | Image is removed and the corresponding entry is removed from grub.cfg  |
+| Image set default | Image is set as zeroth entry(entry for the default image) in grub.cfg |
+| Show image list | Image list shows all the entries present in grub.cfg |
 # 10 Internal Design Information
 
