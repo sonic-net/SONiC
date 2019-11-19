@@ -15,7 +15,7 @@
 The purpose of Thermal Control is to keep the switch at a proper temperature by using cooling devices, e.g., fan.
 Thermal control daemon need to monitor the temperature of devices (CPU, ASIC, optical modules, etc) and the running status of fan. It store temperature values fetched from sensors and thermal device running status to the DB, to make these data available to CLI and SNMP or other apps which interested. 
 
-Thermal control also enforce some environment related polices to help the thermal control algorithm inside Kernel to adjust the switch temperature.     
+Thermal control also enforce some environment related polices to help the thermal control algorithm to adjust the switch temperature.     
 
 ## 2. Thermal device monitoring
 
@@ -90,19 +90,17 @@ This cooling device control function can be disabled if the vendor have their ow
 It will be a routing function to check whether the policies was hit an the fan speed need to adjust, and also run vendor specific thermal control algorithm.
 
 
-Suggest below policies that will be applied:
+Below policies are examples that can be applied:
 
 - Set PWM to full speed if one of PS units is not present 
 
 - Set PWM to full speed if one of FAN drawers is not present or one of tachometers is broken present 
 
-- Set the fan speed to a consant value (60% of full speed) Kernel thermal control functions was disabled.
+- Set the fan speed to a consant value (60% of full speed) thermal control functions was disabled.
 
 FAN status led and PSU status led shall also be set accordingly when policy meet.
 
 Policy check functions will go through the device status and adjus the fan speed if necessary, these check will be preformed by calling the platform new API.
-
-Vendor specific init function and clean up function will be performed at the beginning of the task and at then end of the task.
 
 A thermal control daemon class will be deifined with above functions defined, vendors will be allowed to have their own implementation.
 
@@ -141,7 +139,7 @@ Below is an example for the policy configuration:
 	    }
 	}
 
-In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 10000, the thermal control algorithm will be suspended and fan status led shall be set to red ; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 10000 and psu status led shall be set to red.
+In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended and fan status led shall be set to red ; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100% and psu status led shall be set to red.
 
 During daemon start, this configuration json file will be loaded and parsed, daemon will handle the thermal control algorithm run and fan speed set when predefined policy meet.
 
@@ -202,8 +200,6 @@ The output of the command is like below:
 	-----  ---------  ---------
 	FAN 1  12919 RPM  Intake
 	FAN 2  13043 RPM  Exhaust
-
-## 5. Open Questions
 
 
 ## Appendix
