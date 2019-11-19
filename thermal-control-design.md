@@ -123,19 +123,19 @@ Below is an example for the policy configuration:
 	{
 	    "thermal_control_algorithm": {
 		"run_at_boot_up": true,
-		"fan_speed_when_suspend": 10000
+		"fan_speed_when_suspend": 60%
 	    },
 	    "fan_absence": {
 		"action": {
 		    "thermal_control_algorithm": "disable",
-		    "fan_speed": 10000,
+		    "fan_speed": 100%,
 		    "led_color": "red"
 		}
 	    },
 	    "psu_absence": {
 		"action": {
 		    "thermal_control_algorithm": "disable",
-		    "fan_speed": 10000,
+		    "fan_speed": 100%,
 		    "led_color": "red"
 		}
 	    }
@@ -164,7 +164,7 @@ During daemon start, this configuration json file will be loaded and parsed, dae
 	  psustatus    Show PSU status information
 	  summary      Show hardware platform information
 	  syseeprom    Show system EEPROM information
-	  temperature  Show fan status information
+	  temperature  Show device temperature information
 	  
 out put of the new CLI
 
