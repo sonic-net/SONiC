@@ -7,6 +7,7 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo      | Initial version                   |
+ | 0.2 |             |      Liu Kebo      | Revised after community review    |
 
 
   
@@ -25,7 +26,7 @@ Besides device temperature, shall also monitoring the fan running status.
 
 Thermal device monitoring will loop at a certain period, 60s can be a good value since usually temperature don't change much in a short period.
 
-## 2.1 Temperature monitoring 
+### 2.1 Temperature monitoring 
 
 In new platform API ThermalBase() class provides get_temperature(), get_high_threshold(),  get_low_threshold(), get_critical_high_threshold() and get_critical_low_threshold() functions, values for a thermal object can be fetched from them. Warning status can also be deduced. 
 
@@ -34,7 +35,8 @@ For the purpose of feeding CLI/SNMP or telemetry functions, these values and war
     ; Defines information for a thermal object
     key                     = TEMPERATURE_INFO|object_name   ; name of the thermal object(CPU, ASIC, optical modules...)
     ; field                 = value
-    temperature             = FLOAT                          ; current temperature value                        
+    temperature             = FLOAT                          ; current temperature value
+    timestamp               = STRING                         ; timestamp for the temperature fetched
     high_threshold          = FLOAT                          ; temperature high threshold
     critical_high_threshold = FLOAT                          ; temperature critical high threshold
     low_threshold           = FLOAT                          ; temperature low threshold
@@ -66,6 +68,7 @@ same as the temperature info, a [table for fan](https://github.com/Azure/SONiC/b
 	speed_tolerance         = INT                            ; fan speed tolerance
 	speed_target            = INT                            ; fan target speed
 	led_status              = STRING                         ; fan led status
+	timestamp               = STRING                         ; timestamp for the fan info fetched
 
 ### 2.3 Syslog for thermal control
 
@@ -116,6 +119,8 @@ Policies are defined in a json file for each hwsku, for example, one SKU want to
 
 - PSU absence action, suspend the algorithm or not, fan speed value to set.
 
+- All fans failed/absebce action, power down the  
+
 Below is an example for the policy configuration:
 
 	{
@@ -136,6 +141,11 @@ Below is an example for the policy configuration:
 		    "fan_speed": 100%,
 		    "led_color": "red"
 		}
+	    },
+	    "all_fan_failed": {
+	        "action": {
+		    "shutdown_switch": true
+		 }
 	    }
 	}
 
@@ -166,11 +176,11 @@ During daemon start, this configuration json file will be loaded and parsed, dae
 	  
 out put of the new CLI
 
-	admin@sonic# show platform temperature
-	NAME    Temperature    High Threshold    Low Threshold    Critical High Threshold   Critical Low Threshold   Warning Status
-	-----  -------------  ----------------  ---------------  ------------------------- ------------------------ ----------------
-	CPU        85              110              -10                 120                        -20                    false
-	ASIC       75              100               0                  110                        -10                    false
+    admin@sonic# show platform temperature
+    NAME Temperature       Timestamp       High Threshold   Low Threshold    Critical High Threshold   Critical Low Threshold   Warning Status
+    ---- -----------  ------------------   ---------------  --------------   ------------------------ ------------------------ ----------------
+    CPU      85        20191112 09:38:16        110              -10                 120                        -20                   false
+    ASIC     75        20191112 09:38:16        100               0                  110                        -10                   false
 
 An option '--major' provided by this CLI to only print out major device temp, if don't want show all of sensor temperatures.
 Major devices are CPU pack, cpu cores, ASIC and optical modules.
@@ -196,11 +206,16 @@ We don't have a CLI for fan status getting yet, new CLI for fan status could be 
 The output of the command is like below:
 
 	admin@sonic# show platform fanstatus
-	FAN    Speed      Direction
-	-----  ---------  ---------
-	FAN 1  12919 RPM  Intake
-	FAN 2  13043 RPM  Exhaust
+	FAN    Speed      Direction      Timestamp
+	-----  ---------  ---------  -----------------
+	FAN 1  12919 RPM  Intake     20191112 09:38:16
+	FAN 2  13043 RPM  Exhaust    20191112 09:38:16
 
+
+## 5. Potential ehhancement for Platform API
+1. Why can't we propose different change events for different cpu/fan/optics?
+2. Verbose on API definition on threshold levels about Average/Max/Snapshot.
+3. Is there any API exposed for fanTray contain more than one fan?
 
 ## Appendix
 
