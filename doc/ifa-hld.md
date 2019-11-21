@@ -101,31 +101,36 @@ IFA feature can be enabled or disabled.
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 
-https://github.com/project-arlo/sonic-mgmt-framework/blob/94a7c70de961c5c9b59429bc4acdba710a2592b8/models/yang/sonic/sonic-ifa.yang
+https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/sonic/sonic-ifa.yang
 
 module: sonic-ifa
     +--rw sonic-ifa
        +--rw TAM_INT_IFA_FEATURE_TABLE
-       |  +--rw TAM_INT_IFA_FEATURE_TABLE_LIST* [feature]
-       |     +--rw feature    string
-       |     +--rw enable?    boolean
-       +--rw TAM_DEVICE_TABLE
-       |  +--rw TAM_DEVICE_TABLE_LIST* [device]
-       |     +--rw device      string
-       |     +--rw deviceid?   uint16
-       +--rw TAM_COLLECTOR_TABLE
-       |  +--rw TAM_COLLECTOR_TABLE_LIST* [name]
-       |     +--rw name              string
-       |     +--rw ipaddress-type?   enumeration
-       |     +--rw ipaddress?        inet:ip-address
-       |     +--rw port?             uint16
+       |  +--rw TAM_INT_IFA_FEATURE_TABLE_LIST* [name]
+       |     +--rw name      enumeration
+       |     +--rw enable?   boolean
        +--rw TAM_INT_IFA_FLOW_TABLE
           +--rw TAM_INT_IFA_FLOW_TABLE_LIST* [name]
              +--rw name              string
-             +--rw acl-table-name?   -> /sacl:sonic-acl/ACL_TABLE/ACL_TABLE_LIST/aclname
-             +--rw acl-rule-name?    -> /sacl:sonic-acl/ACL_RULE/ACL_RULE_LIST/rulename
+             +--rw acl-table-name    string
+             +--rw acl-rule-name     string
              +--rw sampling-rate?    uint16
-             +--rw collector-name?   -> ../../../TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST/name
+             +--rw collector-name?   string
+
+https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/sonic/sonic-tam.yang
+
+module: sonic-tam
+    +--rw sonic-tam
+       +--rw TAM_DEVICE_TABLE
+       |  +--rw TAM_DEVICE_TABLE_LIST* [name]
+       |     +--rw name        enumeration
+       |     +--rw deviceid?   uint16
+       +--rw TAM_COLLECTOR_TABLE
+          +--rw TAM_COLLECTOR_TABLE_LIST* [name]
+             +--rw name              string
+             +--rw ipaddress-type?   enumeration
+             +--rw ipaddress?        inet:ip-address
+             +--rw port?             inet:port-number
 
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
@@ -137,11 +142,11 @@ The command is used to configure TAM device identifier.
 Attribute(s) : {collector-name} ip-type <ipv4 | ipv6> ip-addr <address> port <port>
 The command is used to configure TAM collector and IFA report will be forwarded to the collector.
 
-3. Command   : config tam-int-ifa feature
+3. Command   : config tam int-ifa feature
 Attribute    : <enable | disable>
 The command is used to enable or disable the IFA feature.
 
-4. Command   : config tam-int-ifa flow 
+4. Command   : config tam int-ifa flow 
 Attribute(s) : <flow-name> acl-rule <rule-name> acl-table <table-name> { sampling-rate <val> collector <name> }
 The command is used to specify flow criteria to match against incoming flow and tag with IFA data. When sampling rate is specified, one packet will be sampled out of its value. When collector is specified, IFA report will be forwarded to it.
 
@@ -164,9 +169,16 @@ The command is used to show TAM device identifier.
 Attribute    : { <name> | all }
 The command is used to show TAM collector information.
 
-3. Command   : show tam-int-ifa flow
+3. Command   : show tam int-ifa flow
 Attribute(s) : { <name> | all }
 The command is used to display configured IFA flow information.
+
+4. Command   : show tam int-ifa statistics
+Attribute(s) : { <name> | all }
+The command is used to display statisitcs of IFA flow.
+
+5. Command   : show tam int-ifa status
+The command is used to display status of TAM.
 
 #### 3.6.2.3 Debug Commands
 N/A
@@ -174,16 +186,16 @@ N/A
 ### 3.6.3 REST API Support
 
 1. Get Device Information
-sonic-ifa:sonic-ifa/TAM_DEVICE_TABLE
+sonic-tam:sonic-tam/TAM_DEVICE_TABLE
 
 2. Get Collector information
-sonic-ifa:sonic-ifa/TAM_COLLECTOR_TABLE
+sonic-tam:sonic-tam/TAM_COLLECTOR_TABLE
 
 3. Get particular collector information
-sonic-ifa:sonic-ifa/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST={name}
+sonic-tam:sonic-tam/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST={name}
 
 4. Get IFA feature information
-sonic-ifa:sonic-ifa/TAM_INT_FEATURE_TABLE
+sonic-ifa:sonic-ifa/TAM_INT_IFA_FEATURE_TABLE
 
 5. Get IFA flow information
 sonic-ifa:sonic-ifa/TAM_INT_IFA_FLOW_TABLE
@@ -192,15 +204,15 @@ sonic-ifa:sonic-ifa/TAM_INT_IFA_FLOW_TABLE
 sonic-ifa:sonic-ifa/TAM_INT_IFA_FLOW_TABLE/TAM_INT_IFA_FLOW_TABLE_LIST={name}
 
 7. Set device identifier
-sonic-ifa:sonic-ifa/TAM_DEVICE_TABLE/TAM_DEVICE_TABLE_LIST={device}/deviceid
+sonic-tam:sonic-tam/TAM_DEVICE_TABLE/TAM_DEVICE_TABLE_LIST={device}/deviceid
 {
-  "sonic-ifa:deviceid": 0
+  "sonic-tam:deviceid": 0
 }
 
 8. Set TAM collector
-sonic-ifa:sonic-ifa/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST
+sonic-tam:sonic-tam/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST
 {
-  "sonic-ifa:TAM_COLLECTOR_TABLE_LIST": [
+  "sonic-tam:TAM_COLLECTOR_TABLE_LIST": [
     {
       "name": "string",
       "ipaddress-type": "ipv4",
@@ -232,10 +244,10 @@ sonic-ifa:sonic-ifa/TAM_INT_IFA_FLOW_TABLE/TAM_INT_IFA_FLOW_TABLE_LIST={name}
 }
 
 11. Delete TAM device identifier
-sonic-ifa:sonic-ifa/TAM_DEVICE_TABLE/TAM_DEVICE_TABLE_LIST={device}/deviceid
+sonic-tam:sonic-tam/TAM_DEVICE_TABLE/TAM_DEVICE_TABLE_LIST={device}/deviceid
 
 12. Delete TAM collector
-sonic-ifa:sonic-ifa/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST={name}
+sonic-tam:sonic-tam/TAM_COLLECTOR_TABLE/TAM_COLLECTOR_TABLE_LIST={name}
 
 13. Delete IFA flow
 sonic-ifa:sonic-ifa/TAM_INT_IFA_FLOW_TABLE/TAM_INT_IFA_FLOW_TABLE_LIST={name}
