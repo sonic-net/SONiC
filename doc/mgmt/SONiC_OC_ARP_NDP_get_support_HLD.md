@@ -145,27 +145,27 @@ sonic# show ip arp
 ------------------------------------------------------------------------
 Address        Hardware address    Interface         Egress Interface
 ------------------------------------------------------------------------
-20.0.0.2       90:b1:1c:f4:9d:ba   vlan20            Ethernet0
-20.0.0.5       00:11:22:33:44:55   vlan20            Ethernet0
+20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
+20.0.0.5       00:11:22:33:44:55   Vlan20            Ethernet0
 
-sonic# sonic# show ip arp interface vlan 20
+sonic# sonic# show ip arp interface Vlan 20
 ------------------------------------------------------------------------
 Address        Hardware address    Interface         Egress Interface
 -------------------------------------------------------------------------
-20.0.0.2       90:b1:1c:f4:9d:ba   vlan20            Ethernet0
-20.0.0.5       00:11:22:33:44:55   vlan20            Ethernet0
+20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
+20.0.0.5       00:11:22:33:44:55   Vlan20            Ethernet0
 
 sonic# show ip arp 20.0.0.2
 ------------------------------------------------------------------------
 Address        Hardware address    Interface         Egress Interface
 -------------------------------------------------------------------------
-20.0.0.2       90:b1:1c:f4:9d:ba   vlan20            Ethernet0
+20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 
 sonic# show ip arp mac-address 90:b1:1c:f4:9d:ba
 ------------------------------------------------------------------------
 Address        Hardware address    Interface         Egress Interface
 ------------------------------------------------------------------------
-20.0.0.2       90:b1:1c:f4:9d:ba   vlan20            Ethernet0
+20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 
 sonic# show ip arp summary
 ---------------
@@ -174,7 +174,7 @@ Total Entries
      2
 ````
 ##### 3.6.2.2.2 show ipv6 neighbors
-show ipv6 neighbors [interface { ethernet ``<port>`` [summary]  | port-channel ``<id>`` [summary]  | vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary]
+show ipv6 neighbors [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary]
 
 Syntax Description:
 
@@ -193,21 +193,21 @@ sonic# show ipv6 neighbors
 ------------------------------------------------------------------------------------
 IPv6 Address                  Hardware Address   Interface          Egress Interface
 ------------------------------------------------------------------------------------
-20::2                         90:b1:1c:f4:9d:ba  vlan20             Ethernet0
+20::2                         90:b1:1c:f4:9d:ba  Vlan20             Ethernet0
 fe80::92b1:1cff:fef4:9d5d     90:b1:1c:f4:9d:5d  Ethernet0             -
-fe80::92b1:1cff:fef4:9dba     90:b1:1c:f4:9d:ba  vlan20             Ethernet0
+fe80::92b1:1cff:fef4:9dba     90:b1:1c:f4:9d:ba  Vlan20             Ethernet0
 
 sonic# show ipv6 neighbors 20::2
 -------------------------------------------------------------------------------------
 IPv6 Address                  Hardware Address    Interface         Egress Interface
 -------------------------------------------------------------------------------------
-20::2                         90:b1:1c:f4:9d:ba   vlan20            Ethernet0
+20::2                         90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 
 sonic# show ipv6 neighbors mac-address 90:b1:1c:f4:9d:ba
 ------------------------------------------------------------------------------------
 IPv6 Address                  Hardware Address    Interface         Egress Interface
 ------------------------------------------------------------------------------------
-20::2                         90:b1:1c:f4:9d:ba   vlan20            Ethernet0
+20::2                         90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 
 sonic# show ipv6 neighbors summary
 -------------
@@ -227,22 +227,22 @@ The following table maps SONiC CLI commands to corresponding IS-CLI commands. Th
 |:---:|:-----------:|:------------------:|-----------------------------------|
 |show ip arp |IS-CLI drop-in replace | | |
 | show ip arp summary | IS-CLI drop-in replace |  | |
-| show ip arp interface { ethernet/port-channel/vlan } |IS-CLI drop-in replace | | |
-|show ip arp interface { ethernet/port-channel/vlan } summary  | IS-CLI drop-in replace | | |
+| show ip arp interface { Ethernet/PortChannel/Vlan/Management } |IS-CLI drop-in replace | | |
+|show ip arp interface { Ethernet/PortChannel/Vlan/Management } summary  | IS-CLI drop-in replace | | |
 |show ip arp <A.B.C.D>  | IS-CLI drop-in replace | | |
 |show ip arp mac-address-value | IS-CLI drop-in replace | | |
 | | | | |
 |show ipv6 neighbors |IS-CLI drop-in replace | | |
 | show ipv6 neighbors summary | IS-CLI drop-in replace |  | |
-| show ipv6 neighbors interface { ethernet/port-channel/vlan } |IS-CLI drop-in replace | | |
-|show ipv6 neighbors interface { ethernet/port-channel/vlan } summary  | IS-CLI drop-in replace | | |
+| show ipv6 neighbors interface { Ethernet/PortChannel/Vlan/Management } |IS-CLI drop-in replace | | |
+|show ipv6 neighbors interface { Ethernet/PortChannel/Vlan/Management } summary  | IS-CLI drop-in replace | | |
 |show ipv6 neighbors ``<A::B>``  | IS-CLI drop-in replace | | |
 |show ip arp mac-address ``<mac>`` | SONiC | | In order to match ARP command options, having mac-address based filter for this command as well|
 
 ### 3.6.3 REST API Support
 #### 3.6.3.1 GET
 ##### Get all support for both ARPs and Neighbors
-/openconfig-interfaces:interfaces/interface
+/restconf/data/sonic-neigh:sonic-neigh/NEIGH_TABLE
 
 ##### ARPs get for matching particular interface
 /openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv4/neighbors
@@ -270,9 +270,9 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 #### ARP test cases:
 1) Verify whether "show ip arp" command dumps all the ARP entries
 
-2) Verify whether "show ip arp interface { ethernet/port-channel/vlan }" provides the dump of the ARPs learnt on the particular interface
+2) Verify whether "show ip arp interface { Ethernet/PortChannel/Vlan/Management }" provides the dump of the ARPs learnt on the particular interface
 
-3) Verify whether "show ip arp interface { ethernet/port-channel/vlan } summary" option provides the no. of ARPs learnt on the particular interface
+3) Verify whether "show ip arp interface { Ethernet/PortChannel/Vlan/Management } summary" option provides the no. of ARPs learnt on the particular interface
 
 4) Verify whether "show ip arp summary" option provides the no. of ARPs learnt in the system
 
@@ -283,9 +283,9 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 #### NDP test cases:
 1) Verify whether "show ipv6 neighbors" command dumps all the neighbor entries
 
-2) Verify whether "show ipv6 neighbors interface { ethernet/port-channel/vlan }" provides the dump of the neighbors learnt on the particular interface
+2) Verify whether "show ipv6 neighbors interface { Ethernet/PortChannel/Vlan/Management }" provides the dump of the neighbors learnt on the particular interface
 
-3) Verify whether "show ipv6 neighbors interface { ethernet/port-channel/vlan } summary" option provides the no. of neighbors learnt on the particular interface
+3) Verify whether "show ipv6 neighbors interface { Ethernet/PortChannel/Vlan/Management } summary" option provides the no. of neighbors learnt on the particular interface
 
 4) Verify whether "show ipv6 neighbors summary" option provides the no. of neighbors learnt in the system
 
