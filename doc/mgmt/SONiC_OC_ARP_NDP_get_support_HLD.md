@@ -105,8 +105,8 @@ augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface
        |        +--ro ip?                   oc-inet:ipv6-address
        |        +--ro link-layer-address    oc-yang:phys-address
 -      |        +--ro origin?               neighbor-origin
--      |        +--ro is-router?            empty (Not supported by SONiC)
--      |        +--ro neighbor-state?       enumeration (Not supported by SONiC)
+-      |        +--ro is-router?            empty
+-      |        +--ro neighbor-state?       enumeration
 ```
 Also sonic yang (sonic-neigh.yang) is defined for fetching all entries from the neighbors table:
 ```diff
@@ -126,14 +126,14 @@ The following CLI commands dump the output of internal ARP/NDP entries from APP_
 ##### 3.6.2.2.1 show ip arp
 Syntax
 
-show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }|Management ``<id>`` [summary]]  [<A.B.C.D>] [mac-address ``<mac>``] [summary]
+show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] |Management ``<id>`` [summary]}]  [<A.B.C.D>] [mac-address ``<mac>``] [summary]
 
 Syntax Description:
 
 |    Keyword    | Description |
 |:-----------------:|:-----------:|
-| interface Ethernet/Port-channel/VLAN | This option dumps the ARPs matching the particular interface and summary option provides the no. of ARP entries matching the particular interface.
-| A.B.C.B | This options dumps the ARP entry matching the particular IP
+| interface Ethernet/PortChannel/VLAN | This option dumps the ARPs matching the particular interface and summary option provides the no. of ARP entries matching the particular interface.
+| A.B.C.D | This options dumps the ARP entry matching the particular IP
 | mac-address | This options dumps the ARP entry matching the particular MAC Address|
 | summary | This provides the count of ARP entries present in the system
 
