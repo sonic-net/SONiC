@@ -126,7 +126,7 @@ The following CLI commands dump the output of internal ARP/NDP entries from APP_
 ##### 3.6.2.2.1 show ip arp
 Syntax
 
-show ip arp [interface { ethernet ``<port>`` [summary]  | port-channel ``<id>`` [summary]  | vlan ``<id>`` [summary] }]  [<A.B.C.D>] [mac-address ``<mac>``] [summary]
+show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }|Management ``<id>`` [summary]]  [<A.B.C.D>] [mac-address ``<mac>``] [summary]
 
 Syntax Description:
 
