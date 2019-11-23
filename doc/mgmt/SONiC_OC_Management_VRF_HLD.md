@@ -232,8 +232,7 @@ sonic(config)#
 sonic#show ip vrf
 VRF-Name                          Interfaces
 --------------------------------------------
-TENANT1                           Ethernet0
-
+Vrf_blue                          Ethernet0
 mgmt                              eth0
 ```
 
@@ -246,7 +245,7 @@ sonic#show ip vrf
 sonic#show ip vrf management
 VRF-Name                          Interfaces
 ---------------------------------------------
-management                        eth0
+mgmt                              eth0
 ```
 
 #### 3.6.2.3 Debug Commands
