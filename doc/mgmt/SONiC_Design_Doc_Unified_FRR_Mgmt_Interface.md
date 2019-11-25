@@ -146,10 +146,7 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 
 ![FRR-BGP Unified Mgmt Framework](images/FRR-BGP-Unified-mgmt-frmwrk.png)
 
-1. Transformer common app owns the Open config data models related to BGP (which means no separate app module required for handling BGP yang objects).
-
-    * openconfig-network-instance.yang
-    * openconfig-routing-policy.yang
+1. Transformer common app owns the Open config data models related to BGP (which means no separate app module required for handling BGP open-config and augmented YANG objects).
 
 2. Provide annotations for required objects so that transformer core and common app will take care of handling them.
 
@@ -157,10 +154,11 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 
 4. Define SONiC YANG and Redis ABNF schema for the supported Open Config BGP models & objects.
 
-5. In bgpcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP.
+5. KLISH CLI and REST clients provide extensive BGP configurations and hence there should not be any need for BGP configurations via vtysh.
 
-6. Update frr.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate frr.conf file.
+6. In bgpcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP, similarly, separate config daemons can be present to configure individual features like OSPF, BFD..etc
 
+7. Update /usr/share/sonic/templates/bgpd.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate /etc/frr/bgpd.conf file.
 
 ## 3.2 DB Changes
 Following section describes the changes to DB.
@@ -447,7 +445,7 @@ capability_orf_receive         = "true" / "false" ; Capability to send the outbo
 capability_orf_both            = "true" / "false" ; Capability to send and receive the outbound route filtering to/from this neighbor
 route-server-client            = "true" / "false" ; Configure a neighbor as Route Server client
 ```
-#### 3.2.1.8 Add ROUTE_MAP table in CONFIG_DB
+#### 3.2.1.8 ROUTE_MAP
 ```JSON
 ;Defines route map table
 ;
@@ -491,6 +489,63 @@ dst_protocol             = "bgp"
 addr_family              = "ipv4" / "ipv6"   
 route_map                = 1*64VCHAR ; route map filter to apply for redistribution
 ```
+
+### 3.2.1.9 IP_PREFIX_SET
+```JSON
+;Defines prefix set table
+;
+;Status: stable
+
+key           = IP_PREFIX_SET:name          ; prefix_set_name must be unique
+name          = 1*255VCHAR ; community set name  
+mode          = "IPv4"/"IPv6" ; mode of prefix set.
+
+````
+#### 3.2.1.9.1 IP_PREFIX
+```JSON
+;Defines prefix table
+;
+;Status: stable
+key              = IP_PREFIX:set_name:ip_prefix:masklength_range; an instance of this key will be repeated for each prefix
+                                                             ;  an instance of this key/value pair will be repeated for each prefix
+set_name         = 1*255VCHAR ; community set name                                                             
+ip_prefix        = IPv4prefix / IPv6prefix   ; prefix, example 1.1.1.1/32              
+masklength_range = 1*255VCHAR                ; exact or (masklength_range..low-masklength_range_high). example 8..16 or exact
+```
+### 3.2.1.10 BGP_COMMUNITY_SET
+```JSON
+;Defines community table
+;
+;Status: stable
+key              = BGP_COMMUNITY_SET|name  ; name must be unique
+set_type          = "STANDARD"/"EXPANDED"
+match_action      = "ANY/ALL"
+community_member = string list ; community member list
+                               ; Acceptable List of communities as ("AA:NN","local-AS", "no-advertise", "no-export" | regex)
+
+````
+### 3.2.1.11 BGP_EXT_COMMUNITY_SET
+```JSON
+;Defines extended community table
+;
+;Status: stable
+key               = BGP_EXT_COMMUNITY_SET|name          ; name must be unique
+set_type          = "STANDARD"/"EXPANDED"
+match_action      = "ANY/ALL"
+community_member = string list; community member list
+                              ; Acceptable List of communities as ("route-target/route-origin:AA:NN" or "IP_Address" or regex)
+````
+### 3.2.1.12 BGP_AS_PATH_SET
+```JSON
+;Defines extended community table
+;
+;Status: stable
+key           = AS_PATH_SET|name          ; name must be unique
+
+as_path_member = string list; AS path list
+                            ;Acceptable List of as paths "string, string"
+````
+
 ### 3.2.2 APP DB
 N/A
 
@@ -512,9 +567,9 @@ No changes to Orch agent.
 
 #### 3.3.2.1 FRR Template Changes
 
-FRR template must be enhanced to contain FRR-BGP related configuration that are supported via FRR-BGP extended unified config management framework.
+FRR template must be enhanced to contain FRR-BGP related configuration that are supported via FRR-BGP extended unified (Config DB is propagated to FRR config at startup) with non-integrated mode (FRR configuration is saved in individual files: “bgpd.conf”, “zebra.conf” and ospfd.conf....etc) config management framework.
 
-On startup sonic-cfggen will use frr.conf.j2 to generate frr.conf file.
+On startup, sonic-cfggen will use "/usr/share/sonic/templates/bgpd.conf.j2" to generate "/etc/frr/bgpd.conf".
 
 ## 3.4 SyncD
 No changes to SyncD
@@ -524,13 +579,14 @@ No changes to SAI APIs.
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
-List of  Open-config yang models required for FRR-BGP Unified Configuration and Management are,
+List of  Open-config YANG models required for FRR-BGP Unified Configuration and Management are,
 
     1) openconfig-network-instance.yang
 
     2) openconfig-routing-policy.yang
 
-Supported yang containers:
+BGP and "routing policy" related augmented and not-supported fields are available in openconfig-bgp-ext.yang and openconfig-routing-policy-ext.yang files respectively.
+Supported YANG containers:
 ```
 module: openconfig-network-instance
     +--rw network-instances
@@ -737,7 +793,18 @@ module: openconfig-routing-policy
 | Set default weight for routes from this neighbor |sonic(config-router-bgp-neighbor-af)# weight \<val> |
 | Maximum number of prefixes to accept from this peer | sonic(config-router-bgp-neighbor-af)# maximum-prefix \<max-prefix-val> {\<threshold-val> \| warning-only \| restart \<val>} |
 
-##### 3.6.2.1.7 Routing policy commands
+##### 3.6.2.1.7 Routing policy defined-sets commands
+|Command Description|CLI Command      |
+|:-----------------|:---------------|
+|Configure an IPv4 prefix list|sonic(config)# ip prefix-list <name> <ipv4-prefix> [ge min-prefix-length] [le max-prefix-length]|
+|Configure an IPv6 prefix list|sonic(config)# ipv6 prefix-list <name> <ipv6-prefix> [ge min-prefix-length] [le max-prefix-length]|
+|Configure a BGP standard community entry|sonic(config)#bgp community-list standard <name> {AA:NN  Community number in AA:NN format (where AA and NN are (0-65535)) or local-AS\|no-advertise\|no-export} {any/all}|
+|Configure a BGP expanded community entry|sonic(config)# bgp community-list expanded <name>  {LINE  An ordered list as a regular-expression}|
+|Configure a BGP standard extended community entry|sonic (config)# bgp extcommunity-list standard <name> { AA:NN  Extended community attribute in 'rt aa:nn_or_IPaddr:nn' OR 'soo aa:nn_or_IPaddr:nn' format} {any/all}|
+|Configure a BGP expanded extended community entry|sonic(config)# bgp extcommunity-list expanded <name> {LINE  An ordered list as a regular-expression}|
+|Configure a BGP autonomous system path|sonic(config)#bgp as-path-list <aspath-list-name> regex {REGEX-LINE } regular-expression (1234567890_(^\|[, {}() ]\|$)) to match the BGP AS paths |
+
+##### 3.6.2.1.8 Routing policy commands
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
 |Configure routing policy match criteria and associated actions|sonic(config)#route-map \<map-name\> { permit \| deny } \<sequence-number\> |
