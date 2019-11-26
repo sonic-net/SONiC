@@ -1,7 +1,8 @@
 # Feature Name
 PVST
 # High Level Design Document
-#### Rev 1.1
+#### Rev 1.0
+
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -48,6 +49,7 @@ PVST
 | 0.3 | 06/25/2019  |     Sandeep, Praveen       | Incorporated Review comments  |
 | 1.0 | 10/15/2019  |     Sandeep, Praveen       | Minor changes post implementation |
 | 1.1 | 11/26/2019  |     Sandeep, Praveen       | Change table names from INTF to PORT  |
+
 
 
 # About this Manual
@@ -206,6 +208,7 @@ Following config DB schemas are defined for supporting this feature.
     root_forward_delay    = 1*2DIGIT			        ; forward delay as per root bridge
     stp_instance          = 1*4DIGIT			        ; STP instance for this VLAN
 
+
 ### STP_VLAN_PORT_TABLE
     ;Stores STP VLAN port details 
     ;Status: work in progress
@@ -224,6 +227,7 @@ Following config DB schemas are defined for supporting this feature.
     tcn_sent            = 1*10DIGIT                             ; tcn transmitted
     tcn_received        = 1*10DIGIT                             ; tcn received
     root_guard_timer    = 1*3DIGIT                              ; root guard current timer value
+
 
 ### STP_PORT_TABLE
     ;Stores STP port details

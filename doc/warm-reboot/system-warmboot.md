@@ -184,10 +184,21 @@ ansible-playbook test_sonic.yml -i str --limit <DUT> --vault-password-file passw
    - Shutdown a downlink port. Remove the port name from /tmp/vlan_interfaces.json
    - Shutdown a up link port. Remove the DUT LAG node from /tmp/portchannel_interfaces.json
 
-6. Run the PTF command line on PTF server. You can find the command in playbook output in Step 2.
-```
-ptf --test-dir ptftests advanced-reboot.ReloadTest  --qlen=1000   --platform-dir ptftests  --platform remote  -t "verbose=True;dut_username=\"admin\";dut_hostname=\"<DUTIP>\";reboot_limit_in_seconds=30;reboot_type=\"warm-reboot\";portchannel_ports_file=\"/tmp/portchannel_interfaces.json\";vlan_ports_file=\"/tmp/vlan_interfaces.json\";ports_file=\"/tmp/ports.json\";dut_mac='<MAC>';dut_vlan_ip='192.168.0.1';default_ip_range='192.168.0.0/16';vlan_ip_range=\"192.168.0.0/21\";lo_v6_prefix=\"fc00:1::/64\";arista_vms=\"['10.64.247.135','10.64.247.134','10.64.247.132']\""
-```
+6. Run the PTF command line on PTF server.
+   - You can find the command in playbook output in Step 2 with below section
+   ```
+   TASK [test : PTF Test - Advanced-reboot test]
+   ```
+   ```
+   ptf --test-dir ptftests advanced-reboot.ReloadTest  --qlen=1000   --platform-dir ptftests  --platform remote  -t "verbose=True;dut_username=\"admin\";dut_hostname=\"<DUTIP>\";reboot_limit_in_seconds=30;reboot_type=\"warm-reboot\";portchannel_ports_file=\"/tmp/portchannel_interfaces.json\";vlan_ports_file=\"/tmp/vlan_interfaces.json\";ports_file=\"/tmp/ports.json\";dut_mac='<MAC>';dut_vlan_ip='192.168.0.1';default_ip_range='192.168.0.0/16';vlan_ip_range=\"192.168.0.0/21\";lo_v6_prefix=\"fc00:1::/64\";arista_vms=\"['10.64.247.135','10.64.247.134','10.64.247.132']\""
+   ```
+   - You can also find the PTF server IP one section below
+   ```
+   TASK [test : command]
+   Thursday 30 May 2019  12:45:19 +0000 (0:00:00.172)       0:00:21.280 ********** 
+   changed: [<DUT> -> <PTF_IP>]   
+   ```
+
 
 7. Carefully observe command output and seek for message like "Dut reboots: reboot start", switch to DUT ssh connection immediately and try hit enter keys several times. The ssh connnection will be no response after about 5 seconds. That's the time of shutdown.
 
