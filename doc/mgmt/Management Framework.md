@@ -128,9 +128,10 @@
 | 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview |
 | 0.8 | 08/15/2019  | Anand Kumar Subramanian | Addressed review comments     |
 | 0.9 | 08/19/2019  | Partha Dutta            | Addressed review comments related to CVL    |
-| 0.10 | 09/25/2019  | Kwangsuk Kim           | Updated Transformer section |
-| 0.11 | 09/30/2019  | Partha Dutta           | Updated as per SONiC YANG guideline    |
-| 0.12 | 10/19/2019  | Senthil Kumar Ganesan  | Added Appendix B    |
+| 0.10 | 09/25/2019 | Kwangsuk Kim            | Updated Transformer section |
+| 0.11 | 09/30/2019 | Partha Dutta            | Updated as per SONiC YANG guideline    |
+| 0.12 | 10/19/2019 | Senthil Kumar Ganesan   | Added Appendix B    |
+| 0.13 | 11/27/2019 | Anand Kumar Subramanian | Added new APIs in translib    |
 
 ## About this Manual
 
@@ -821,7 +822,7 @@ definition files (both YANG generated and manual) along with link to open Swagge
     |   |-- virtual_db.go
     |
     |-- transl_utils -------------------- ADDED
-        |-- transl_utils.go ------------- ADDED    (Layer for invoking Translib API's)
+        |-- transl_utils.go ------------- ADDED    (Layer for invoking Translib APIs)
 
 ###### 3.2.2.5.2 Sample Requests
 
@@ -840,37 +841,75 @@ Translib is a library that adapts management server requests to SONiC data provi
         func Replace(req SetRequest) (SetResponse, error)
         func Delete(req SetRequest) (SetResponse, error)
         func Get(req GetRequest) (GetResponse, error)
-        func Subscribe(paths []string, q *queue.PriorityQueue, stop chan struct{}) ([]*IsSubscribeResponse, error)
-        func IsSubscribeSupported(paths []string) ([]*IsSubscribeResponse, error)
+        func Action(req ActionRequest) (ActionResponse, error)
+        func Bulk(req BulkRequest) (BulkResponse, error)
+        func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error)
+        func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error)
         func GetModels() ([]ModelData, error)
 
         Translib Structures:
         type ErrSource int
 
-        const(
+        const (
             ProtoErr ErrSource = iota
             AppErr
         )
 
-        type SetRequest struct{
-            Path       string
-            Payload    []byte
+        type SetRequest struct {
+            Path    string
+            Payload []byte
+            User    string
         }
 
-        type SetResponse struct{
-            ErrSrc     ErrSource
+        type SetResponse struct {
+            ErrSrc ErrSource
+            Err    error
         }
 
-        type GetRequest struct{
-            Path       string
+        type GetRequest struct {
+            Path    string
+            User    string
         }
 
-        type GetResponse struct{
-            Payload    []byte
-            ErrSrc     ErrSource
+        type GetResponse struct {
+            Payload []byte
+            ErrSrc  ErrSource
         }
 
-        type SubscribeResponse struct{
+        type ActionRequest struct {
+            Path    string
+            Payload []byte
+            User    string
+        }
+
+        type ActionResponse struct {
+            Payload []byte
+            ErrSrc  ErrSource
+        }
+
+        type BulkRequest struct {
+            DeleteRequest  []SetRequest
+            ReplaceRequest []SetRequest
+            UpdateRequest  []SetRequest
+            CreateRequest  []SetRequest
+            User           string
+        }
+
+        type BulkResponse struct {
+            DeleteResponse  []SetResponse
+            ReplaceResponse []SetResponse
+            UpdateResponse  []SetResponse
+            CreateResponse  []SetResponse
+        }
+
+        type SubscribeRequest struct {
+            Paths           []string
+            Q               *queue.PriorityQueue
+            Stop            chan struct{}
+            User            string
+        }
+
+        type SubscribeResponse struct {
             Path         string
             Payload      []byte
             Timestamp    int64
@@ -880,23 +919,33 @@ Translib is a library that adapts management server requests to SONiC data provi
 
         type NotificationType int
 
-        const(
-            Sample  NotificationType = iota
+        const (
+            Sample NotificationType = iota
             OnChange
         )
 
-        type IsSubscribeResponse struct{
-            Path                    string
-            IsOnChangeSupported     bool
-            MinInterval             int
-            Err                     error
-            PreferredType           NotificationType
+        type IsSubscribeRequest struct {
+            Paths               []string
+            User                string
         }
 
-        type ModelData struct{
-            Name      string
-            Org       string
-            Ver       string
+        type IsSubscribeResponse struct {
+            Path                string
+            IsOnChangeSupported bool
+            MinInterval         int
+            Err                 error
+            PreferredType       NotificationType
+        }
+
+        type ModelData struct {
+            Name string
+            Org  string
+            Ver  string
+        }
+
+        type notificationOpts struct {
+            mInterval int
+            pType     NotificationType // for TARGET_DEFINED
         }
 
 Translib has the following sub modules to help in the translation of data
