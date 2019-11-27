@@ -571,7 +571,7 @@ Loglevel: The current log level of MCLAG.
 ```
 - `mclagdctl config loglevel -l <level>`
 
-    Set the log level of MCLAG. The <level> can be critical, err, warn, notice, info and debug, the default is notice.
+    Set the log level of MCLAG. Log level can be critical, err, warn, notice, info and debug, default is notice.
 
 ```shell
 
