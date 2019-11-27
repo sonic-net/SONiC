@@ -1,5 +1,4 @@
-# VLAN
-OpenConfig support for VLAN interfaces
+# OpenConfig support for logical interfaces
 # High Level Design Document
 #### Rev 0.1
 
@@ -16,14 +15,13 @@ OpenConfig support for VLAN interfaces
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 09/05/2019  |   Justine Jose      | Initial version                   |
+| 0.1 | 09/05/2019  |   Justine Jose, Tejaswi Goel, Arthi Sivanantham  | Initial version  |
 
 # About this Manual
-This document provides information about the northbound interface details for VLANs.
+1. This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" commands.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for VLANs based on OpenConfig yang
-and unit-test cases. It does not include the protocol design or protocol implementation details.
+This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and unit-test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -35,7 +33,7 @@ and unit-test cases. It does not include the protocol design or protocol impleme
 | LACP                     | Link Aggregation Control Protocol   |
 
 # 1 Feature Overview
-Add support for VLAN and PortChannel create/set/get via CLI, REST and gNMI using openconfig-interfaces.yang and sonic-mgmt-framework container
+Add support for VLAN, Loopback and PortChannel create/set/get via CLI, REST and gNMI using openconfig-interfaces.yang and sonic-mgmt-framework container.
 
 ## 1.1 Requirements
 Provide management framework capabilities to handle:
@@ -55,8 +53,13 @@ Provide management framework capabilities to handle:
 - Configure min-links, MTU, admin-status, IP address and LACP fallback on PortChannel
 - Show PortChannel details
 
+### Clear counters 
+- Support for clearing interface counters displayed by the "show interface" commands. User will be able to clear counters for all interfaces or given interface type or given interface name.  
+- Support for clearing interface counters values via CLI/REST/gNMI.
+
 ### 1.1.1 Functional Requirements
-Provide management framework support to existing SONiC capabilities with respect to VLAN and PortChannel.
+1. Provide management framework support to existing SONiC capabilities with respect to VLAN, Loopback and PortChannel.
+2. Clear Counters support for Ethernet and PortChannel interfaces.
 
 ### 1.1.2 Configuration and Management Requirements
 - CLI configuration and show commands
@@ -68,7 +71,8 @@ Details described in Section 3.
 ## 1.2 Design Overview
 
 ### 1.2.1 Basic Approach
-Provide transformer methods in sonic-mgmt-framework container for handling VLAN, PortChannel and Loopback.
+1. Provide transformer methods in sonic-mgmt-framework container for handling VLAN, PortChannel and Loopback.
+2. The "clear counters" command to be used for getting snapshot of COUNTERS table into COUNTERS_BACKUP table in COUNTERS_DB. Saved counter values establish a baseline upon which subsequent "show interface" commands counter values are calculated. 
 
 ### 1.2.2 Container
 All code changes will be done in management-framework container
@@ -80,7 +84,8 @@ N/A
 ## 2.1 Target Deployment Use Cases
 Manage/configure VLAN, PortChannel and Loopback interface via CLI, gNMI and REST interfaces
 ## 2.2 Functional Description
-Provide CLI, gNMI and REST support for VLAN, PortChannel and Loopback related commands handling
+1. Provide CLI, gNMI and REST support for VLAN, PortChannel and Loopback related commands handling.
+2. Provide CLI/REST/gNMI commands to reset interface statistics.
 
 # 3 Design
 ## 3.1 Overview
@@ -88,7 +93,7 @@ Provide CLI, gNMI and REST support for VLAN, PortChannel and Loopback related co
 Enhancing the management framework backend code and transformer methods to add support for VLAN handling
 
 ### PORTCHANNEL
-Enhancing the management framework backend code and transformer methods to add support for PortChannel interface handling.
+Enhancing the management framework backend code and transformer methods to add support for PortChannel interface handling.<br>
 To support PortChannel GETs, data is fetched from 3 different places:
 1. PortChannel data from LAG_TABLE and LAB_MEMBER_TABLE
 2. LACP data from Teamd
@@ -113,18 +118,24 @@ Now to support protocol specific configurations we would need to enhance:
 
 Due to the above mentioned reasons, LACP **protocol specific configuration is not supported** in the initial release.
 
+### Clear Counters support for PortChannel and Ethernet Interfaces
+1. Enhancing the management framework backend to support clearing of interface statistics. When user issues "clear counters" command, the current snapshot of COUNTERS table will be stored into a new table COUNTERS_BACKUP, with an extra key for each interface to store time stamp when counters were cleared.  
+2. For "show interface" commands, counter values will be calculated by doing a diff between the COUNTERS & COUNTERS_BACKUP tables.
+3. In contrast, click CLI "sonic-clear counters" command stores counter values from COUNTERS table into a **file** ( "/tmp/portstat<uid>" ) using python's pickle module, but we plan to go with a different approach of storing counter values in Redis DB to keep the backend code less complex.  
+
 ## 3.2 DB Changes
 
 ### 3.2.1 CONFIG DB
 No changes to CONFIG DB schema. 
 
 ### 3.2.2 APP DB
-Will be reading LAG_TABLE and LAG_MEMBER_TABLE for show commands.
+No changes to CONFIG DB schema. 
 
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
-Will be reading COUNTERS table.
+1. Will be adding a new table COUNTERS_BACKUP to save counter values and last reset time per interface. 
+2. Will be reading data from COUNTERS_PORT_NAME_MAP and COUNTERS tables.
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
@@ -149,7 +160,6 @@ N/A
 1. [openconfig-if-aggregate.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-aggregate.yang) 
 2. [openconfig-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang) 
 3. [openconfig-lacp.yang](https://github.com/openconfig/public/blob/master/release/models/lacp/openconfig-lacp.yang) 
-
 4. [sonic-portchannel-interface.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel-interface.yang)
 5. [sonic-portchannel.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel.yang)
 
@@ -264,11 +274,34 @@ module: openconfig-interfaces
 +         |  |  +--ro oc-lag:member*      oc-if:base-interface-ref
 +         |  |  +--ro if-agmnt:fallback?  boolean  //Augmented
 ```
+
+#### List of yang models required for Clear Counters support:
+1. [sonic-interface.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/models/yang/sonic/sonic-interface.yang)
+```diff
+module: sonic-interface
+    +--rw sonic-interface
+       +--rw INTERFACE
+          +--rw INTERFACE_LIST* [portname]
+          |  +--rw portname    -> /prt:sonic-port/PORT/PORT_LIST/ifname
+          |  +--rw vrf-name?   string
+          +--rw INTERFACE_IPADDR_LIST* [portname ip_prefix]
+             +--rw portname     -> /prt:sonic-port/PORT/PORT_LIST/ifname
+             +--rw ip_prefix    inet:ip-prefix
+
++  rpcs:
++    +---x clear_counters
++       +---w input
++       |  +---w interface-param?   string
++       +--ro output
++          +--ro status?   string
+
+```
+
 ### 3.6.2 CLI
 
 #### 3.6.2.1 Configuration Commands
 
-#### VLAN
+#### 3.6.2.1.1 VLAN
 #### VLAN Creation
 `interface Vlan <vlan-id>`
 ```
@@ -334,7 +367,7 @@ sonic(conf-if-po4)# switchport access Vlan 5
 sonic(conf-if-Ethernet4)# no switchport access Vlan
 sonic(conf-if-po4)# no switchport access Vlan
 ```
-#### PortChannel
+#### 3.6.2.1.2 PORTCHANNEL
 #### Create a PortChannel
 `interface PortChannel <channel-number>`<br>
 - *Supported channel-number range: 0-9999*<br>
@@ -429,8 +462,49 @@ sonic(conf-if-Ethernet4)# no channel-group
 ```
 sonic(config)# no interface PortChannel 1
 ```
-#### 3.2.2.2 Show Commands
-#### VLAN
+#### Clear counters commands support for Ethernet & PortChannel
+#### Clear all interface counters
+`clear counters interface all` <br>
+```
+sonic# clear ?
+  counters      Clear counters
+sonic# clear counters interface ?
+  Ethernet      Clear Ethernet interface counters
+  PortChannel   Clear PortChannel interface counters
+  all           Clear all interface counters
+```
+#### Clear counters for given interface type
+`clear counters interface Ethernet`
+`clear counters interface PortChannel`
+```
+sonic# clear counters interface Ethernet
+
+Clear all Ethernet interface counters [confirm y/N]: y
+
+sonic#
+```
+#### Clear counters for given interface 
+`clear counters interface Ethernet <port-id>` <br>
+`clear counters interface PortChannel <channel-id>`
+```
+sonic# clear counters interface Ethernet ?
+  Unsigned integer  Physical interface(Multiples of 4)
+sonic# clear counters interface Ethernet 0
+Clear counters on Ethernet0 [confirm y/N]: y
+
+sonic#
+
+sonic# clear counters interface PortChannel ?
+  <0-9999>  PortChannel identifier
+sonic# clear counters interface PortChannel 1
+
+Clear counters on PortChannel1 [confirm y/N]: y 
+
+sonic#
+```
+
+#### 3.6.2.2 Show Commands
+#### 3.6.2.2.1 VLAN
 - sonic-vlan.yang is used for CLI #show commands.
 #### Display VLAN Members detail
 `show Vlan`
@@ -477,8 +551,8 @@ Mode of IPv4 address assignment: MANUAL
 IPv6 address is a::b/64
 Mode of IPv6 address assignment: MANUAL
 ```
-
-##### Display summary information about PortChannels
+#### 3.6.2.2.2 PORTCHANNEL
+#### Display summary information about PortChannels
 - sonic-portchannel.yang and teamd used for CLI #show commands.
 `show PortChannel summary`
 ```
@@ -495,7 +569,7 @@ Group   PortChannel            Type    Protocol    Member Ports
 111     PortChannel111  (D)     Eth      LACP
 
 ```
-### Show Interface status and configuration
+#### Show PortChannel Interface status and configuration
 `show interface PortChannel` - Display details about all PortChannels.
 <br>
 `show interface PortChannel <id>` - Display details about a specific PortChannel.
@@ -520,13 +594,15 @@ Output statistics:
         0 error, 0 discarded
 ```
 
+**Note:** `show interface` commands to be updated to include: `Last clearing of “show interface” counters <time>` (to show last time clear counters command was issued on an interface since the switch was rebooted)
+
 #### 3.2.2.3 Debug Commands
 N/A
 
 #### 3.2.2.4 IS-CLI Compliance
 N/A
 
-### 3.2.3 REST API Support
+### 3.6.3 REST API Support
 #### VLAN
 **PATCH**
 - `/openconfig-interfaces:interfaces/ interface={name}`
@@ -574,6 +650,10 @@ N/A
 - `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/dell-intf-augments:fallback`
+
+### **POST**
+##### Clear interface statistics
+- rpc_sonic_interface_clear_counters: `sonic-interface:clear_counters`
 
 # 4 Flow Diagrams
 N/A
@@ -628,6 +708,23 @@ N/A
 | Remove IPv6 address from PortChannel | Verify IPv6 address is removed |
 | Remove ports from PortChannel| Verify Port removed using "show PortChannel summary command" <br> Verify error returned if given PortChannel does not exist |
 | Delete PortChannel| Verify PortChannnel removed using "show PortChannel summary command" and "teamshow" command |
+
+#### Clear Counters 
+The following test cases will be tested using CLI/REST/GNMI management interfaces.
+
+| Test Name | Test Description |
+| :------ | :----- |
+| View current interface stats using "show interface counters" | Verify counters values displayed for active ports |
+| Clear all interfaces stats | Verify there is a COUNTERS_BACKUP table in COUNTERS_DB |
+| View current interface stats using "show interface counters" | Verify counters values are updated |
+| Clear interface stats for all Ethernet interfaces | Verify counters values updated in COUNTERS_BACKUP table |
+| View current stats using "show interface Ethernet" | Verify counters values updated  |
+| Clear interface stats for all PortChannel interfaces | Verify counters values updated in COUNTERS_BACKUP table |
+| View current stats using "show interface PortChannel" | Verify counters values updated  |
+| Clear interface stats for given Ethernet interface | Verify counters values updated in COUNTERS_BACKUP table |
+| View current stats using "show interface Ethernet <port-id>" | Verify counters values updated |
+| Clear interface stats for given PortChannel interface | Verify counters values updated in COUNTERS_BACKUP table |
+| View current stats using "show interface PortChannel <channel-id>" | Verify counters values updated |
 
 #### Configuration and GET via gNMI and REST
 - Verify the OpenConfig command paths in section 3.6.3 <br> 
