@@ -23,7 +23,7 @@
     - [7.1.1. MC-LAG enabled interface up](#711-MC-LAG-enabled-interface-up)
     - [7.1.2. MC-LAG enabled interface down](#712-MC-LAG-enabled-interface-down)
     - [7.1.3. Link between peers](#713-Link-between-peers)
-    - [7.1.4. ARP sync-up between MC-LAG peers](#714-ARP-sync-up-between-MC-LAG-peers)
+    - [7.1.4. ARP and ND sync-up between MC-LAG peers](#714-ARP-and-ND-sync-up-between-MC-LAG-peers)
     - [7.1.5. L3 multicast](#715-L3-multicast)
   - [7.2. MC-LAG L2 scenario](#72-MC-LAG-L2-scenario)
     - [7.2.1. MC-LAG enabled interface up](#721-MC-LAG-enabled-interface-up)
@@ -72,6 +72,7 @@
 | v.06    | 06/10/2019 |Jianjun Dong, Jeffrey Zeng, Shine Chen | Add L2 forwarding description and more use cases |
 | v.07    | 06/19/2019 |Jianjun Dong, Jeffrey Zeng, Shine Chen | Revised per review meeting with SONIC community  |
 | v1.0    | 07/23/2019 |Jianjun Dong, Jeffrey Zeng, Shine Chen | Revised per review meeting with SONIC community  |
+| v1.01   | 11/27/2019 |Jianjun Dong            | Add ND sync description                          |
 
 # 2. Abbreviations
 
@@ -92,7 +93,7 @@ Diagram 3
 - Each system only join one MC-LAG domain
 - Supports Known Unicast and BUM traffic
 - L3 interface on MLAG ports will have vMAC generated from VRRP algorithm using the same IP address assigned to the L3 LIF (logical interface)；(Not supported currently)
-- ARP resolution and ARP response packet sync-up between MC-LAG peers
+- ARP reply and ND advertisement packet sync-up between MC-LAG peers
 - FDB sync-up between MC-LAG peers
 - Support pure L2 MC-LAG port and MC-LAG L3 routed port or MC-LAG L2 port joining L3 vlan interface
 
@@ -183,7 +184,7 @@ Following information are sync'ed up between ICCP lite peers.
 
 3 Aggregator State: Mainly exchanges MC-LAG enabled portchannel state (up/down) with AGG_ID. Generally, if the same named portchannels in each peer are both up, the data forwarding in the peer-link for that portchannel is disabled to prevent the data stream pass-through. When a portchannel of one peer is down, the peer-link is enabled for that portchannel to let the data stream pass-through.
 
-4 ARP information: ARP entries learned from kernel will be synced up with peer. The peer will update kernel as dynamically learned ARP once the ARP is synced via ICCP.
+4 ARP and ND information: ARP entries learned from kernel will be synced up with peer. The peer will update kernel as dynamically learned ARP once the ARP is synced via ICCP. ND is similar to ARP.
 
 5 FDB information: FDB entries will be synced up with peer.
 
@@ -270,10 +271,11 @@ Diagram 7.1.2
 - In this scenario, the direct-connected L3 peer link connecting the two peer devices is not required. When the MC-LAG member link is up, the direct route has the highest priority (e.g. longest prefix). If one of the MC-LAG member link is down, the direct route will be deleted, and the backup route will take effect.
 - In L3 scenario, IP reachability is controlled by routing protocol, peer link configuration is unnecessary.
 
-### 7.1.4. ARP sync-up between MC-LAG peers
+### 7.1.4. ARP and ND sync-up between MC-LAG peers
 
 - If one peer learns an ARP entry, it will send the ARP entry to the other peer via ICCP. For example, PEER1 learns ARP entry of CE1 from PortChannel0001, it will send this ARP to PEER2 via ICCP. PEER2 receives this ARP entry, and install it into Linux kernel, the learned interface name is PortChannel0001. This requires the name of MC-LAG enabled PortChannel interface in both peer devices must be the same.
 - ICCP don’t flood ARP entry to peer periodically. To prevent the ARP entry from aging, ICCP uses Netlink socket to monitor ARP reply received by Linux kernel. For example, when an ARP entry in PEER2 is aged, the Linux kernel will send an ARP request via PortChannel0001. CE1 receives the ARP request, and send back one ARP reply. For CE1, PEER1 and PEER2 are viewed as the same device, the ARP reply may send to PEER2 or PEER1. If PEER2 receives the ARP reply, the ARP entry is learned again and information is updated in the kernel. At the same time, PEER2 will notify PEER1 via ICCP sync message. If PEER1 receives the ARP reply, since the ARP entry already exists in the kernel, kernel will use Netlink to send the ARP packet to its applications, ICCP will collect the ARP information from the ARP reply packet and send to PEER2, so PEER2 can update the ARP entry in the Linux kernel.
+- ND sync-up is similar to ARP sync-up. ICCP uses Netlink socket to monitor ND advertisement received by Linux kernel.
 
 ### 7.1.5. L3 multicast
 
@@ -434,8 +436,7 @@ The acl hld has defined app_acl_table and app_acl_rule_table but did not impleme
     "ACL_TABLE": {
         "mclag": {
             "policy_desc" : "Mclag egress port isolate acl",
-            "type" : "L3",
-            "stage" : "egress"
+            "type" : "MCLAG",
             "ports" : [
                 "PortChannel0100"
                 ]
@@ -560,10 +561,22 @@ Peer Link Interface: Ethernet4
 Peer Link Mac: 6c:ec:5a:08:31:94
 Role: Active
 MCLAG Interface: PortChannel0002,PortChannel0001
+Loglevel: debug
 
 The MCLAG's keepalive is: 'OK' indicates the peer connection is established.
 Role: System compares local ip and peer ip to determine the role of the switch, the one with large IP address is the standby, and the lower is active.
 MCLAG Interface: The name of PortChannel interfaces that MCLAG enabled.
+Loglevel: The current log level of MCLAG.
+
+```
+- `mclagdctl config loglevel -l <level>`
+
+    Set the log level of MCLAG. The <level> can be critical, err, warn, notice, info and debug, the default is notice.
+
+```shell
+
+admin@sonic:~$ mclagdctl config loglevel -l err
+Config loglevel success!
 
 ```
 
@@ -640,6 +653,7 @@ Adding the following logics:
 - During warm-reboot, a USR1 signal is sent to ICCP. Then ICCP send a message to the peer to notify that this device will be warm-rebooted.
 - During warm-reboot, ICCP is also rebooted. During ICCP warm-reboot, ICCP doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual in the rebooting device.
 - During warm-reboot, the peer connection may be lost because of the keepalive timeout. In this scenario, during a defined time window, the remote peer doesn’t change any forwarding entry in ASIC such as route or MAC, so the data forwarding continues as usual.
+- During warm-reboot, MAC does not age.
 
 ## 9.15. teammgr changes
 
