@@ -298,9 +298,13 @@ URI format and payload is RESTCONF complaint and is based on the [RFC8040](https
 
 ##### 3.2.1.1.2 Supported HTTP verbs
 
-Following are the HTTP methods supported in first release.
+Following table lists the HTTP methods generated for different types of YANG nodes.
 
-POST, PUT, PATCH, GET and DELETE.
+ YANG node type         | HTTP methods
+------------------------|-----------------
+Configuration data      | POST, PUT, PATCH, DELETE, GET, HEAD
+Non configuration data  | GET, HEAD
+YANG RPC                | POST
 
 ##### 3.2.1.1.3 Supported Data Nodes
 
@@ -339,10 +343,8 @@ bits | integer
 
 ##### 3.2.1.1.5 Future enhancements
 
-* Support for additional Data nodes such as RPC, Actions, and notifications(if required).
+* Support for additional YANG actions and notifications(if required).
 * Support for RESTCONF query parameters such as depth, filter, etc
-* Support for other RESTCONF features such as capabilities.
-* Support for HTTPS with X.509v3 Certificates.
 * Support for a pattern in string, the range for integer types and other OpenAPI header objects defined in https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#header-object
 * Other misc OpenAPI related constraints will be added
 
