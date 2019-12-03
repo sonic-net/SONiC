@@ -30,6 +30,10 @@ Provide Management Framework functionality to process the "show techsupport" com
     - Create an aggregated file containing the information items needed for analysis and diagnosis of problems occurring during switch operations.
     - Support reduction of aggregated log file information via an optional "--since" parameter specifying the desired logging start time.
 
+NOTE: The underlying feature for which this Management Framework feature provides "front end" client interfaces is unchanged by the addition of these interfaces. (The "since <date>" option available through these interfaces, however, is restricted to the IETF/YANG date/time format.) Please refer to the following document for a description of the "show techsupport" base feature:
+
+https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#troubleshooting-commands    
+
 ## 1.1 Requirements
 
 ### 1.1.1 Functional Requirements
