@@ -34,18 +34,22 @@ Provide Management Framework functionality to process the "show techsupport" com
 
 ### 1.1.1 Functional Requirements
 
-Provide a Management Framework based implementation of the "show techsupport" command. Match the functionality currently provided for this command via a Click-based host interface.
+Provide a Management Framework based interface for the "show tech-support" command.
 
 ### 1.1.2 Configuration and Management Requirements
-- IS-CLI style implementation of  the "show techsupport" command
-- REST API support
-- gNMI Support
+Provide the ability to invoke the command via the following client interfaces:
+
+     - Management Framework CLI (same syntax as the existing Click-based
+        API except for tighter restriction of the "DateTime" format to
+        conform with the Yang/IETF DateTime standard)
+     - REST API
+     - gNOI
 
 (See Section 3 for additional details.)
 
 ### 1.1.3 Scalability Requirements
 
-Time and storage space constraints: The large number of information items collected and the potentially large size of some of the items (e.g. interface information display in a large system) present an exposure to the risk of long processing times and high demands on disk storage space. The current implementation (within the Click infrastructure mechanism) provides reasonable performance, executing within ~60 seconds on a typically scaled switch. It stores the information for a single dump of a typically scaled switch in a compressed "tar" file occupying ~2MB of storage space. The Management Framework implementation should strive to achieve similar performance and data storage targets.
+Time and storage space constraints: The large number of information items collected and the potentially large size of some of the items (e.g. interface information display in a large system) present an exposure to the risk of long processing times and significant demands on disk storage space. The Management Framework interface invokes the same command used for the Click-based interface. It adds no significant additional overhead or processing time. The storage space requirements are unchanged.
 ### 1.1.4 Warm Boot Requirements
 N/A
 ## 1.2 Design Overview
@@ -64,13 +68,48 @@ This feature provides a quick and simple mechanism for network administrators or
 ## 2.2 Functional Description
 The set of items to be gathered for a given software release is defined by the development team. It is specified in a way that enables run-time access to the desired set of information items to be collected. The definition of the set of information items to be collected includes specification of the access function to be used for each item in the list to gather the information, format it as needed, and pack it into the output file. The location of the resulting output file is provided to the requesting client at the completion of command execution.
 
+The output file name has the following form:
+
+`
+/var/dump/sonic_dump_sonic_YYYYMMDD_HHMMSS.tar.gz
+`
+
+Example:
+
+`/var/dump/sonic_dump_sonic_20191118_221625.tar.gz
+`
+See section 3.6.2.2 for an explanation of the output file name format.
+
+To view the contents of the file, the user must copy it to a local file in the client file system. If the file is to be extracted within the directory to which it is copied, the directory should have at least 50 MB of available space. To extract the file inside of the directory to which it has been copied while displaying a list of output files, the following command can be used:
+
+`
+tar xvzf filename.tar.gz
+`
+The files are extracted to a directory tree, organized based on the type of information contained in the files. Example file categories for which sub-directories are provided in the output file tree include:
+
+- log files ("log" directory )
+- Linux configuration files ("etc" directory)
+- generic application "dump" output ("dump" directory)
+- network hardware driver information ("sai" directory)
+- detailed information on various processes ("proc" directory).
+
+To extract the file contents to an alternate location, the following form of the "tar" command can be used:
+
+`
+ tar xvzf filename.tar.gz -C /path/to/destination/directory
+`
+Some of the larger "extracted" files will be compressed in gzip format. This includes log files and core files and also includes other files containing a large amount of output (e.g. a dump of all BGP tables). These files have a ".gz" file type. They can be extracted using:
+
+`
+gunzip <filename.gz>
+`
+
+
 # 3 Design
 ## 3.1 Overview
 The "show techsupport" command causes invocation of an RPC sent from the management framework to a process in the host to cause collection of a list of flexibly defined sets of diagnostic information (information "items"). The collected list of items is stored in a compressed "tar" file with a unique name. The command output provides the location of the resulting compressed tar file.
 
-The "since" option can be used, if desired, to restrict the time scope for some of the information items (e.g. logs) to be collected. This options are passed to the host process for use during invocation of the applicable information gathering sub-functions.
-
-Help information and syntax details are provided if the command is executed with the "-h", "--help" or "-?" option.
+The "since" option can be used, if desired, to restrict the time scope for log files and core files to be collected. This option is passed to the host process for use during invocation of the applicable information gathering sub-functions.
 
 ## 3.2 DB Changes
 N/A
@@ -128,11 +167,30 @@ Syntax Description:
 
 |    Keyword    | Description |
 |:--------------|:----------- |
-| since <DateTime\> | This option uses a text string (in the format returned by the Linux "date" command) to restrict the time scope for some of the information items to be collected (e.g. log files). It is passed to the host process and, if the date/time specification is valid, it is used during invocation of the applicable information gathering sub-functions.|
+| since <DateTime\> | This option uses a text string containing the desired starting Date/Time for collected log files and core files. The format of the Date/Time in the string is defined by the Yang/IETF date-and-time specification (REF http://www.netconfcentral.org/modules/ietf-yang-types, based on http://www.ietf.org/rfc/rfc6020.txt). If "since <DateTime> is specified, this value  is passed to the host process for use during invocation of the applicable log/core file gathering sub-functions.|
 
 Command Mode: User EXEC
 
+Output format example and summary:
+
+```
 Example:
+
+Output stored in:  /var/dump/sonic_dump_sonic_20191008_082312.tar.gz
+
+--------------------------------------------------
+
+Output file name sub-fields are defined a follows:
+
+- YYYY = Year
+- MM = Month (numeric)
+- DD = Day of the Month
+- HH = hour of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+- MM = minute of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+- SS = second of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+```
+
+Command execution example (basic command):
 
 ```
 sonic# show techsupport
@@ -140,6 +198,59 @@ sonic# show techsupport
 Output stored in:  /var/dump/sonic_dump_sonic_20191008_082312.tar.gz
 
 ```
+Command execution Example (using the "since" keyword/subcommand):
+
+```
+sonic# show tech-support
+  since  Collect logs and core files since a specified date/time
+  |      Pipe through a command
+  <cr>   
+
+sonic# show tech-support since
+  String  date/time in the format:
+
+ "YYYY-MM-DDTHH:MM:SS[.ddd...]Z" or
+ "YYYY-MM-DDTHH:MM:SS[.ddd...]+hh:mm" or
+ "YYYY-MM-DDTHH:MM:SS[.ddd...]-hh:mm" Where:
+
+ YYYY = year, MM = month, DD = day,
+ T (required before time),
+ HH = hours, MM = minutes, SS = seconds,
+ .ddd... = decimal fraction of a second (e.g. ".323")
+ Z indicates zero offset from local time
+ +/- hh:mm indicates hour:minute offset from local time
+
+sonic# show tech-support since 2019-11-27T22:02:00Z
+Output stored in:  /var/dump/sonic_dump_sonic_20191127_220334.tar.gz
+```
+Command execution example invocation via REST API:
+
+```
+REST request via CURL:
+
+curl -X POST "https://10.11.68.13/restconf/operations/sonic-show-techsupport:sonic-show-techsupport-info" -H  "accept: application/yang-data+json" -H  "Content-Type: application/yang-data+json" -d "{  \"sonic-show-techsupport:input\": {    \"date\": \"2019-11-27T22:02:00.314+03:08\"  }}"
+
+Request URL:
+
+https://10.11.68.13/restconf/operations/sonic-show-techsupport:sonic-show-techsupport-info
+
+Response Body:
+
+{
+  "sonic-show-techsupport:output": {
+    "output-filename": "/var/dump/sonic_dump_sonic_20191128_013141.tar.gz"
+  }
+}
+```
+
+Command execution example invocation via gNOI API:
+
+```
+root@sonic:/usr/sbin# ./gnoi_client -module Sonic -rpc showtechsupport -jsonin "{\"input\":{\"date\":\"2019-11-27T22:02:00Z\"}}" -insecure
+Sonic ShowTechsupport
+{"sonic-show-techsupport:output":{"output-filename":"/var/dump/sonic_dump_sonic_20191202_194856.tar.gz"}}
+```
+
 NOTE: See section 3.6.1 for a description of the limitations of the current implementation. A supplementary capability to transfer the tech support file and other diagnostic information files to the client via the Management Framework interface is highly desirable for a future release.
 
 #### 3.6.2.3 Debug Commands
@@ -158,7 +269,7 @@ REST API support is provided. The REST API corresponds to the SONiC Yang model d
 N/A
 
 # 6 Serviceability and Debug
-N/A
+Any errors encountered during execution of the "show tech-support" command that prevent retrieval or saving of information are reported in the command output at completion of the operation.
 
 # 7 Warm Boot Support
 N/A
