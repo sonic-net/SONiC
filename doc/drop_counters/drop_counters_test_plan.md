@@ -62,10 +62,11 @@ This test plan does not cover:
 | 4.2.3 | Individual Pipeline Drops | Verify that SIP_LINK_LOCAL is counted correctly | SIP_LINK_LOCAL |
 | 4.2.4 | Individual Pipeline Drops | Verify that DIP_LINK_LOCAL is counted correctly | DIP_LINK_LOCAL |
 | 4.2.5 | Individual Pipeline Drops | Verify that L3_EGRESS_LINK_DOWN is counted correctly | L3_EGRESS_LINK_DOWN |
-| 4.3.1 | Multiple Pipeline Drops | Verify that a counter with multiple drop reasons<br>still works correctly | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL<br>DIP_LINK_LOCAL |
-| 4.3.1 | Multiple Pipeline Drops | Verify that a packet that fulfills multiple drop<br>reasons is only counted once | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL<br>DIP_LINK_LOCAL |
-| 4.4.1 | Multiple Counters | Verify that two drop counters with different drop<br>reasons both count drops correctly | Counter 1:<br>SMAC_EQUALS_DMAC<br><br>Counter 2:<br>SIP_LINK_LOCAL<br>DIP_LINK_LOCAL |
-| 4.4.2 | Multiple Counters | Verify that two drop counters with overlapping drop<br>reasons both count drops correctly | Counter 1:<br>SMAC_EQUALS_DMAC<br><br>Counter 2:<br>SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL<br>DIP_LINK_LOCAL |
+| 4.2.6 | Individual Pipeline Drops | Verify that UNRESOLVED_NEXT_HOP is counted correctly | UNRESOLVED_NEXT_HOP |
+| 4.3.1 | Multiple Pipeline Drops | Verify that a counter with multiple drop reasons<br>still works correctly | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL |
+| 4.3.2 | Multiple Pipeline Drops | Verify that a packet that fulfills multiple drop<br>reasons is only counted once | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL |
+| 4.4.1 | Multiple Counters | Verify that two drop counters with different drop<br>reasons both count drops correctly | Counter 1:<br>SMAC_EQUALS_DMAC<br><br>Counter 2:<br>SIP_LINK_LOCAL |
+| 4.4.2 | Multiple Counters | Verify that two drop counters with overlapping drop<br>reasons both count drops correctly | Counter 1:<br>SMAC_EQUALS_DMAC<br><br>Counter 2:<br>SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL |
 | 4.5.1 | Configuration | Verify that a drop reason can be added to a counter<br>that has already been installed | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL |
 | 4.5.2 | Configuration | Verify that a drop reason can be removed from a counter<br>that has already been installed | SMAC_EQUALS_DMAC<br>SIP_LINK_LOCAL |
 | 4.5.3 | Configuration | Verify that counter values are not retained after a<br>counter is deleted and re-added | SMAC_EQUALS_DMAC |
@@ -291,6 +292,34 @@ For this test we need to shutdown the interface that packets destined for 4.4.4.
 
 We should also send some packets to that interface before shutting it down to ensure that everything is forwarding correctly before we modify the system.
 
+### 4.2.6. Verify that UNRESOLVED_NEXT_HOP is counted correctly
+#### Counters:
+```
+TEST_COUNTER
+    Type: INGRESS
+    Reasons: UNRESOLVED_NEXT_HOP
+```
+
+#### Sample Packets:
+```
+###[ Ethernet ]###
+  dst = [auto]
+  src = [auto]
+  type = 0x800
+###[ IP ]###
+    version = 4
+    ttl = [auto]
+    proto = tcp
+    src = 10.0.0.1
+    dst = 4.4.4.4
+...
+```
+
+#### Additional Steps:
+For this test we need to delete the route to 4.4.4.4 so that the next hop cannot be resolved. We will bring it back after the test has finished.
+
+We should also send some packets to that interface before shutting it down to ensure that everything is forwarding correctly before we modify the system.
+
 ## 4.3 Multiple Pipeline Drops
 
 ### 4.3.1. Verify that a counter with multiple drop reasons still works correctly
@@ -298,7 +327,7 @@ We should also send some packets to that interface before shutting it down to en
 ```
 TEST_COUNTER
     Type: INGRESS
-    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL, DIP_LINK_LOCAL
+    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL
 ```
 
 #### Sample Packets:
@@ -333,7 +362,7 @@ Packet B:
 ```
 TEST_COUNTER
     Type: INGRESS
-    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL, DIP_LINK_LOCAL
+    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL
 ```
 
 #### Sample Packets:
@@ -364,7 +393,7 @@ TEST_COUNTER_0
 
 TEST_COUNTER_1
     Type: INGRESS
-    Reasons: SIP_LINK_LOCAL, DIP_LINK_LOCAL
+    Reasons: SIP_LINK_LOCAL
 ```
 
 #### Sample Packets:
@@ -404,7 +433,7 @@ TEST_COUNTER_0
 
 TEST_COUNTER_1
     Type: INGRESS
-    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL, DIP_LINK_LOCAL
+    Reasons: SMAC_EQUALS_DMAC, SIP_LINK_LOCAL
 ```
 
 #### Sample Packets:
@@ -433,7 +462,9 @@ Packet B:
 ```
 
 #### Additional Steps:
-Because counter B includes all the drop reasons, the total in counter B should be equal to the total number of drops. Counter A should only be equal to the number of SMAC_EQUALS_DMAC packets sent.
+Because counter B includes both drop reasons, the total number of drops counted by counter B should equal the total number of packets sent for this test case. Counter A should only be equal to the number of SMAC_EQUALS_DMAC packets sent.
+
+**NOTE:** This test case is not supported on Mellanox devices as their counters do not allow overlapping drop reasons.
 
 ## 4.5 Configuration
 
@@ -474,7 +505,7 @@ Packet B:
 We essentially want to repeat the general testing procedure twice for this test. The procedure is as follows:
 1. Send SMAC_EQUALS_DMAC packets to the device, verify that the counts are correct.
 2. Add SIP_LINK_LOCAL as a drop reason to the counter, verify that it is cleared.
-3. Send both SMAC_EQUALS_DMAC and SIP_LINK_LOCAL packets to the device, verify that both are counted by the drop counter.
+3. Send both SMAC_EQUALS_DMAC and SIP_LINK_LOCAL packets to the device, verify that both are counted by TEST_COUNTER.
 
 ### 4.5.2. Verify that a drop reason can be removed from a counter that has already been installed
 #### Counters:
@@ -513,7 +544,7 @@ Packet B:
 We essentially want to repeat the general testing procedure twice for this test. The procedure is as follows:
 1. Send both SMAC_EQUALS_DMAC and SIP_LINK_LOCAL packets to the device, verify that the counts are correct.
 2. Remove SIP_LINK_LOCAL as a drop reason from the counter, verify that it is cleared.
-3. Send both SMAC_EQUALS_DMAC and SIP_LINK_LOCAL packets to the device, verify that both are counted by RX_DRP but only SMAC_EQUALS_DMAC is counted by the drop counter.
+3. Send both SMAC_EQUALS_DMAC and SIP_LINK_LOCAL packets to the device, verify that both are counted by RX_DRP but only SMAC_EQUALS_DMAC is counted by TEST_COUNTER.
 
 ### 4.5.3. Verify that counter values are not retained after a counter is deleted and re-added
 #### Counters:
