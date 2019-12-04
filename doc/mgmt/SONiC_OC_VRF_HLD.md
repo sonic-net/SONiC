@@ -52,12 +52,12 @@ Following table shows the requirements from the SONiC VRF HLD that should be sup
 | **SONiC HLD Requirements**              | **Mgmt Frmk Support**| **Dependency**                                 |
 |-----------------------------------------|----------------------|------------------------------------------------|
 |  Add or Delete VRF instance             |       yes            |     none                                       |
-|  Add IPv4 and IPv6 host addr on lo intf |       yes            |  lo intf config and IP addr on them            |
+|  Add IPv4 and IPv6 host addr on lo intf |       yes            |     none                                       |
 |  Bind L3 interface to a VRF             |                      |                                                |
 |          port interface                 |       yes            |     none                                       |
-|          vlan interface                 |       yes            |    `????`                                      |
-|          portchannel                    |       yes            |    `????`                                      |
-|          loopback interface             |      yes(must have)  |  lo intf with IP(V4&V6) must be avail          |
+|          vlan interface                 |       yes            |     none                                       |
+|          portchannel                    |       yes            |     none                                       |
+|          loopback interface             |       yes            |     none                                       |
 | `Static IP route with VRF`              |      `not in Buzznik`| `static route support in mgmt frmk`            |       
 |  Inter-VRF route leaking                |                      |                                                |
 |         `static VRF route leak`         |      `not in Buzznik`| `static route support in mgmt frmk`            |
@@ -190,13 +190,13 @@ VRF config DB schema provided by the SONiC VRF HLD is shown below,
 
 FRR CLI has configurations to enable the dynamic inter-vrf route leaking, the Management Framework should provide the mapping configurations as well. 
 Per discussion with Broadcom VRF developers, these configurations will be kept under per VRF BGP configuration. For completeness of this HLD, the FRR commands will be listed here. They are provided by the Broadcom VRF developers.
-
+     
 ```
 #### Option 1 
-```
- 
+``` 
 Use short cut configuration(import vrf) to import routes from other VRFs. RD and RT are auto-derived for this configuration and route-map configuration is optional.
-
+     
+```
 router bgp 100 vrf Vrf-1
  neighbor 24.24.24.2 remote-as 100
 !
@@ -220,13 +220,15 @@ ip prefix-list p1 seq 25 permit 2.2.2.4/32
 !
 route-map TEST permit 1
  match ip address prefix-list p1
-
+```
+       
 ```
 #### Option 2 
 ```
-
+     
 Start FRR 7.3+, source-vrf configuration is available in route-map. This command allows FRR to look at the originating VRF for when making a route-map decision.
-
+     
+```
 router bgp 100 vrf Vrf-1
  neighbor 24.24.24.2 remote-as 100
  !
@@ -265,7 +267,7 @@ route-map TEST permit 1
  match ip address prefix-list p1
  match source-vrf Vrf-1
 !
-
+```
 
    
 ## 3.4 SyncD
