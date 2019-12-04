@@ -37,10 +37,10 @@ The test assumes control plane traffic is disabled before test run by disabling 
 Destination IP address of the injected packet must be routable to ensure packet should not be routed via specific interface but dropped.
 
 ##### For Ethernet drop reasons:
-```show interfaces counters``` - check ```RX_DRP```
+```portstat -j``` - check ```RX_DRP```
 
 ##### For IP drop reasons:
-```show interface counters rif``` - check ```RX_ERR```
+```intfstat -j``` - check ```RX_ERR```
 
 ##### For ACL drop reasons:
 ```aclshow -a``` - check ```PACKETS COUNT```
@@ -88,31 +88,27 @@ Please refer to the test case for detailed description.
 #### Related DUT CLI commands
 | **Command**                                                      | **Comment** |
 |------------------------------------------------------------------|-------------|
-| show interfaces counters              | Check ```RX_DRP```                     |
+| counterpoll port enable               | Enable port counters                   |
 | counterpoll rif enable                | Enable RIF counters                    |
-| show interface counters rif           | Check ```RX_ERR```                     |
+| portstat -j                           | Check ```RX_DRP```                     |
+| intfstat -j                           | Check ```RX_ERR```                     |
 | aclshow -a                            | Check ```PACKETS COUNT```              |
 | sonic-clear counters                  | Clear counters                         |
+| sonic-clear rifcounters               | Clear RIF counters                     |
 
-Listed above commands can be different for different vendors. So there should be created appropriate parser for CLI command per vendor.
-There will be created a file with constant CLI commands per vendor. Then this mapping will be used by test cases automatically based on vendor info got from DUT.
-
-For example:
-```
-- Vendor X:
-    "get_l2_pkt_drops": "show interfaces counters"
-    "get_l3_pkt_drops": "show interfaces counters rif"
-    "get_acl_pkt_drops": "aclshow -a"
-    "parser": "path_to_the_parser_py"
-...
-```
+As different vendors can have diferent drop counters calculation, for example L2 and L3 drop counters can be combined and L2 drop counter will be increased for all ingress discards.
+So for valid drop counters verification there is a need to distinguish wheter drop counters are combined or not for current vendor.
+This can be done by checking platform name of the DUT.
 
 ##### Work need to be done based on this case
-- Create yml file which defines mapping of vendor to CLI commands for getting specific drop counters
-- Create helper, CLI command parser per vendor - python file which contains three functions:
-	- get_l2_pkt_drops
-	- get_l3_pkt_drops
-	- get_acl_pkt_drops
+Create yml file which will contain list of regular expressions which match platform name of specific vendor who has combined drop counters calculation. Internally test framework will use this regular expressions to match current DUT platform name to determine whether drop counters are combined or not.
+
+##### Example of file content:
+tests/drop_counters/combined_drop_counters.yml
+```
+- "[REGEXP FOR VENDOR X]"
+- "[REGEXP FOR VENDOR Y]"
+```
 
 #### SAI attributes
 ```SAI_PORT_STAT_IF_IN_DISCARDS``` - number of L2 discards
