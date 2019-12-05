@@ -83,8 +83,6 @@ This document describes the steps the feature developers need to follow to devel
 
 | Document |  Link  |
 |:--------:|:-------|
-| CLI Developer Guide | https://drive.google.com/open?id=1sk4TAVMt5FHHOewrbGYy1tu8Ya7pLKOl |
-| Developer Guide for Transformer | https://drive.google.com/open?id=15h410FVWxGxNB2jUhaPbOtRF8I-Jwluq |
 | SONiC YANG model guideline |  https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md |
 | SONiC Management Framework HLD | https://github.com/Azure/SONiC/pull/436 |
 | RFC 7950                  | August 2016         | https://tools.ietf.org/html/rfc7950 |
