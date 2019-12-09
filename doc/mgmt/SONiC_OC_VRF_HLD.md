@@ -408,7 +408,7 @@ sonic(config)#
 ```
 sonic(config)#ip vrf
   management                  Default management
-  String(Max: 32 characters)  VRF Name (max 32 chars)
+  String(Max: 15 characters)  VRF Name (max 15 chars)
 
 sonic(config)# ip vrf Vrf_red
 sonic(conf-vrf)#
@@ -419,7 +419,7 @@ sonic(conf-vrf)#
 ```
 sonic(config)# no ip vrf
   management                  Management vrf name
-  String(Max: 32 characters)  VRF Name (max 32 chars)
+  String(Max: 15 characters)  VRF Name (max 15 chars)
 
 sonic(config)# no ip vrf Vrf_red
 
@@ -457,7 +457,7 @@ sonic(conf-if-Ethernet100)# ip
 sonic(conf-if-Ethernet100)# ip vrf
     forwarding  Configure forwarding table
 sonic(conf-if-Ethernet100)# ip vrf forwarding 
-    String(Max: 32 characters)  VRF name (max 32 char)
+    String(Max: 15 characters)  VRF name (max 15 char)
 sonic(conf-if-Ethernet100)# ip vrf forwarding Vrf_red
 Success
 
