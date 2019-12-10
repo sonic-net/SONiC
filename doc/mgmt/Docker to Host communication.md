@@ -2,7 +2,7 @@
 Docker to Host communication
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -18,6 +18,8 @@ Docker to Host communication
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/28/2019  | Nirenjan Krishnan  | Initial version                   |
+| 0.2 | 12/08/2019  | Mike Lazar         | Add security and design info      |
+
 
 # About this Manual
 This document provides general information about the Docker to Host
