@@ -705,6 +705,21 @@ N/A
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/dell-intf-augments:fallback`
 
 ### **POST**
+
+#### LOOPBACK
+### **PATCH**
+- `/openconfig-interfaces:interfaces/interface={name}/config`
+- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv4/addresses/address={ip}`
+- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv6/addresses/address={ip}`
+
+**DELETE**
+- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv4/addresses/address={ip}`
+- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv6/addresses/address={ip}`
+- `/openconfig-interfaces:interfaces/interface={name}`
+
+**GET**
+- `/openconfig-interfaces:interfaces/ interface={name}`
+
 ##### Clear interface statistics
 - rpc_sonic_interface_clear_counters: `sonic-interface:clear_counters`
 
