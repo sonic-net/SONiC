@@ -53,8 +53,13 @@ Provide management framework capabilities to handle:
 - Configure min-links, MTU, admin-status, IP address and LACP fallback on PortChannel
 - Show PortChannel details
 
-### Clear counters 
-- Support for clearing interface counters displayed by the "show interface" commands. User will be able to clear counters for all interfaces or given interface type or given interface name.  
+### Loopback
+- Loopback creation and deletion
+- IPv4 / IPv6 address configuration
+- IPv4 / IPv6 address removal
+
+### Clear counters
+- Support for clearing interface counters displayed by the "show interface" commands. User will be able to clear counters for all interfaces or given interface type or given interface name.
 - Support for clearing interface counters values via CLI/REST/gNMI.
 
 ### 1.1.1 Functional Requirements
@@ -72,7 +77,7 @@ Details described in Section 3.
 
 ### 1.2.1 Basic Approach
 1. Provide transformer methods in sonic-mgmt-framework container for handling VLAN, PortChannel and Loopback.
-2. The "clear counters" command to be used for getting snapshot of COUNTERS table into COUNTERS_BACKUP table in COUNTERS_DB. Saved counter values establish a baseline upon which subsequent "show interface" commands counter values are calculated. 
+2. The "clear counters" command to be used for getting snapshot of COUNTERS table into COUNTERS_BACKUP table in COUNTERS_DB. Saved counter values establish a baseline upon which subsequent "show interface" commands counter values are calculated.
 
 ### 1.2.2 Container
 All code changes will be done in management-framework container
@@ -118,23 +123,26 @@ Now to support protocol specific configurations we would need to enhance:
 
 Due to the above mentioned reasons, LACP **protocol specific configuration is not supported** in the initial release.
 
+### LOOPBACK
+Enhancing the management framework backend code and transformer methods to add support for loopback handling
+
 ### Clear Counters support for PortChannel and Ethernet Interfaces
-1. Enhancing the management framework backend to support clearing of interface statistics. When user issues "clear counters" command, the current snapshot of COUNTERS table will be stored into a new table COUNTERS_BACKUP, with an extra key for each interface to store time stamp when counters were cleared.  
+1. Enhancing the management framework backend to support clearing of interface statistics. When user issues "clear counters" command, the current snapshot of COUNTERS table will be stored into a new table COUNTERS_BACKUP, with an extra key for each interface to store time stamp when counters were cleared.
 2. For "show interface" commands, counter values will be calculated by doing a diff between the COUNTERS & COUNTERS_BACKUP tables.
-3. In contrast, click CLI "sonic-clear counters" command stores counter values from COUNTERS table into a **file** ( "/tmp/portstat<uid>" ) using python's pickle module, but we plan to go with a different approach of storing counter values in Redis DB to keep the backend code less complex.  
+3. In contrast, click CLI "sonic-clear counters" command stores counter values from COUNTERS table into a **file** ( "/tmp/portstat<uid>" ) using python's pickle module, but we plan to go with a different approach of storing counter values in Redis DB to keep the backend code less complex.
 
 ## 3.2 DB Changes
 
 ### 3.2.1 CONFIG DB
-No changes to CONFIG DB schema. 
+No changes to CONFIG DB schema.
 
 ### 3.2.2 APP DB
-No changes to CONFIG DB schema. 
+No changes to CONFIG DB schema.
 
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
-1. Will be adding a new table COUNTERS_BACKUP to save counter values and last reset time per interface. 
+1. Will be adding a new table COUNTERS_BACKUP to save counter values and last reset time per interface.
 2. Will be reading data from COUNTERS_PORT_NAME_MAP and COUNTERS tables.
 
 ## 3.3 Switch State Service Design
@@ -157,11 +165,16 @@ N/A
 
 
 #### List of yang models required for PortChannel interface management:
-1. [openconfig-if-aggregate.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-aggregate.yang) 
-2. [openconfig-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang) 
-3. [openconfig-lacp.yang](https://github.com/openconfig/public/blob/master/release/models/lacp/openconfig-lacp.yang) 
+1. [openconfig-if-aggregate.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-aggregate.yang)
+2. [openconfig-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang)
+3. [openconfig-lacp.yang](https://github.com/openconfig/public/blob/master/release/models/lacp/openconfig-lacp.yang)
 4. [sonic-portchannel-interface.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel-interface.yang)
 5. [sonic-portchannel.yang](https://github.com/project-arlo/sonic-mgmt-framework/blob/master/src/cvl/testdata/schema/sonic-portchannel.yang)
+
+#### List of yang models required for Loopback interface management:
+1. [openconfig-if-interfaces.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-interfaces.yang)
+2. [openconfig-if-ip.yang](https://github.com/openconfig/public/blob/master/release/models/interfaces/openconfig-if-ip.yang)
+
 
 Supported yang objects and attributes are highlighted in green:
 ```diff
@@ -296,7 +309,6 @@ module: sonic-interface
 +          +--ro status?   string
 
 ```
-
 ### 3.6.2 CLI
 
 #### 3.6.2.1 Configuration Commands
@@ -386,7 +398,7 @@ sonic(conf-if-po1)# minimum-links 1
 #### Remove min-links
 `no minimum-links` --> Reset to default value of 0
 ```
-sonic(conf-if-po1)# no minimum-links 
+sonic(conf-if-po1)# no minimum-links
 ```
 #### Configure MTU
 `mtu <mtu-val>`
@@ -399,12 +411,12 @@ sonic(conf-if-po1)# mtu 9000
 sonic(conf-if-po1)# no mtu
 ```
 #### Enable PortChannel
-`no shutdown` 
+`no shutdown`
 ```
 sonic(conf-if-po1)# no shutdown
 ```
 #### Disable PortChannel
-`shutdown` 
+`shutdown`
 ```
 sonic(conf-if-po1)# shutdown
 ```
@@ -419,17 +431,17 @@ sonic(conf-if-po1)# fallback enable
 ```
 sonic(conf-if-po1)# no fallback
 ```
-#### Configures an IPv4 address 
+#### Configures an IPv4 address
 `ip address <ip-address/mask>`
 ```
 sonic(conf-if-po1)# ip address 2.2.2.2/24
 ```
-#### Remove IPv4 address 
+#### Remove IPv4 address
 `no ip address <ip-address>`
 ```
 sonic(conf-if-po1)# no ip address 2.2.2.2
 ```
-#### Configure an IPv6 address 
+#### Configure an IPv6 address
 `ipv6 address <ipv6-address/mask>`
 ```
 sonic(conf-if-po1)# ipv6 address a::e/64
@@ -483,7 +495,7 @@ Clear all Ethernet interface counters [confirm y/N]: y
 
 sonic#
 ```
-#### Clear counters for given interface 
+#### Clear counters for given interface
 `clear counters interface Ethernet <port-id>` <br>
 `clear counters interface PortChannel <channel-id>`
 ```
@@ -498,9 +510,40 @@ sonic# clear counters interface PortChannel ?
   <0-9999>  PortChannel identifier
 sonic# clear counters interface PortChannel 1
 
-Clear counters on PortChannel1 [confirm y/N]: y 
+Clear counters on PortChannel1 [confirm y/N]: y
 
 sonic#
+```
+#### 3.6.2.1.1 LOOPBACK
+#### LOOPBACK Creation
+`interface loopback <lo-id>`
+```
+sonic(config)# interface loopback 5
+```
+#### LOOPBACK Deletion
+`no interface loopback <lo-id>`
+```
+sonic(config)# no interface loopback 5
+```
+#### Configures an IPv4 address
+`ip address <ip-address/mask>`
+```
+sonic(conf-if-lo1)# ip address 2.2.2.2/24
+```
+#### Remove IPv4 address
+`no ip address <ip-address>`
+```
+sonic(conf-if-lo1)# no ip address 2.2.2.2
+```
+#### Configure an IPv6 address
+`ipv6 address <ipv6-address/mask>`
+```
+sonic(conf-if-lo1)# ipv6 address a::e/64
+```
+#### Remove IPv6 address
+`no ipv6 address <ipv6-address>`
+```
+sonic(conf-if-lo1)# no ipv6 address a::e
 ```
 
 #### 3.6.2.2 Show Commands
@@ -596,6 +639,16 @@ Output statistics:
 
 **Note:** `show interface` commands to be updated to include: `Last clearing of “show interface” counters <time>` (to show last time clear counters command was issued on an interface since the switch was rebooted)
 
+#### 3.6.2.2.3 LOOPBACK
+#### Display specific LOOPBACK Information
+`show interface Loopback <lo-id>`
+```sonic# show interface Vlan 10
+Loopback10 is up
+IPv4 address is 10.0.0.20/31
+Mode of IPv4 address assignment: MANUAL
+IPv6 address is a::b/64
+Mode of IPv6 address assignment: MANUAL
+```
 #### 3.2.2.3 Debug Commands
 N/A
 
@@ -709,7 +762,17 @@ N/A
 | Remove ports from PortChannel| Verify Port removed using "show PortChannel summary command" <br> Verify error returned if given PortChannel does not exist |
 | Delete PortChannel| Verify PortChannnel removed using "show PortChannel summary command" and "teamshow" command |
 
-#### Clear Counters 
+#### LOOPBACK
+| Test Name | Test Description |
+| :------ | :----- |
+| Create Loopback | Verify Loopback is configured |
+| Configure IPv4 address | Verify IPv4 address is configured |
+| Configure IPv6 address | Verify IPv6 address is configured |
+| Remove IPv4 address from Loopback | Verify IPv4 address is removed |
+| Remove IPv6 address from Loopback | Verify IPv6 address is removed |
+| Delete Loopback | Verify the Loopback is deleted |
+
+#### Clear Counters
 The following test cases will be tested using CLI/REST/GNMI management interfaces.
 
 | Test Name | Test Description |
@@ -727,7 +790,7 @@ The following test cases will be tested using CLI/REST/GNMI management interface
 | View current stats using "show interface PortChannel <channel-id>" | Verify counters values updated |
 
 #### Configuration and GET via gNMI and REST
-- Verify the OpenConfig command paths in section 3.6.3 <br> 
+- Verify the OpenConfig command paths in section 3.6.3 <br>
 - Verify the JSON response for GET requests
 
 # 10 Internal Design Information
