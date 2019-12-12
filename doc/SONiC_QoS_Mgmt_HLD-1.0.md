@@ -273,13 +273,47 @@ sonic(conf-wred-<name>)# random-detect ecn
 - Show QoS statistics
 
 ````
-  > show queue statistics interface ethernet <name> queue {ucast|mcast} <qid>
+  > show queue counters {interface ethernet <name> {queue <qid>}}
   Sample Output:
-    	> show queue statistics interface ethernet 1/1/1 queue 3
-	Interface ethernet1/1/1:  
-	Queue | Packets | Bytes | DroppedPackets | Dropped-Bytes
-	---   | ---     | ---   | ---            | ---
-	3     | 0       | 0     | 0              | 0
+
+
+sonic$ show queue counters
+     Port    TxQ    Counter/pkts    Counter/bytes    Drop/pkts    Drop/bytes
+---------  -----  --------------  ---------------  -----------  ------------
+Ethernet0    UC0               0                0            0             0
+Ethernet0    UC1               0                0            0             0
+Ethernet0    UC2               0                0            0             0
+Ethernet0    UC3               0                0            0             0
+Ethernet0    UC4               0                0            0             0
+Ethernet0    UC5               0                0            0             0
+Ethernet0    UC6               0                0            0             0
+Ethernet0    UC7               0                0            0             0
+Ethernet0    UC8               0                0            0             0
+Ethernet0    UC9               0                0            0             0
+Ethernet0    MC0               0                0            0             0
+Ethernet0    MC1               0                0            0             0
+Ethernet0    MC2               0                0            0             0
+Ethernet0    MC3               0                0            0             0
+Ethernet0    MC4               0                0            0             0
+Ethernet0    MC5               0                0            0             0
+Ethernet0    MC6               0                0            0             0
+Ethernet0    MC7               0                0            0             0
+Ethernet0    MC8               0                0            0             0
+Ethernet0    MC9               0                0            0             0
+Ethernet4    UC0               0                0            0             0
+Ethernet4    UC1               0                0            0             0
+Ethernet4    UC2               0                0            0             0
+Ethernet4    UC3               0                0            0             0
+...
+
+
+   Sample output:
+
+sonic# show queue counters Ethernet 0 queue 3
+-------------------------------------------------------------------
+TxQ  Counter/pkts   Counter/bytes  Drop/pkts   Drop/bytes
+-------------------------------------------------------------------
+UC3  0              0              0           0
 
 
   > show queue wred statistics interface ethernet <name> queue <qid> (*) 
@@ -295,14 +329,18 @@ sonic(conf-wred-<name>)# random-detect ecn
 	ECN marked count 0 0
   (*) WRED statistics is not supported in SONiC. It is not supported in Buzznik release.
 
-  > show queue buffer-watermark interface ethernet <name> queue {ucast|mcast} <qid>
-  Sample Output:
-        >show queue buffer-watermark interface ethernet 1/1/1 queue 3
-        Egress shared pool occupancy in bytes:
-        Queue | Watermark | Persistent-Watermark
-        ---   | --------- | --------------------
-        UC3   | 2124      | 3500
-        MC3   | 1520      | 3140
+   > show  queue (watermark|persistent-watermark) (multicast | unicast) [<interface-name>]
+
+Sample output
+sonic$ show queue  watermark unicast
+Egress shared pool occupancy per unicast queue:
+       Port    UC0    UC1    UC2    UC3    UC4    UC5    UC6    UC7
+-----------  -----  -----  -----  -----  -----  -----  -----  -----
+  Ethernet0      0      0      0      0      0      0      0      0
+  Ethernet4      0      0      0      0      0      0      0      0
+  Ethernet8      0      0      0      0      0      0      0      0
+  Ethernet12     0      0      0      0      0      0      0      0
+
 
    > show queue buffer-threshold-breaches
    Sample Output:
@@ -311,6 +349,20 @@ sonic(conf-wred-<name>)# random-detect ecn
         Ethernet0 | UC3  | 82           | 8100            | 2019-06-14 - 11:29:33 
         Ethernet1 | UC1  | 80           | 8100            | 2019-06-14 - 11:20:19
         ...
+
+  > show priority-group (watermark | persistent-watermark) (headroom | shared) [<interface-name>]
+
+    Sample Output:
+
+sonic$ show priority-group  watermark shared
+Ingress shared pool occupancy per PG:
+       Port    PG0    PG1    PG2    PG3    PG4    PG5    PG6    PG7
+-----------  -----  -----  -----  -----  -----  -----  -----  -----
+  Ethernet0      0      0      0      0      0      0      0      0
+  Ethernet4      0      0      0      0      0      0      0      0
+  Ethernet8      0      0      0      0      0      0      0      0
+  Ethernet12     0      0      0      0      0      0      0      0
+
 
 ````
 #### 3.2.2.3 Clear QoS statistis
