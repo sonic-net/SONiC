@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.11
+### Rev 0.14
 
 ## Table of Contents
 
@@ -132,6 +132,7 @@
 | 0.11 | 09/30/2019 | Partha Dutta            | Updated as per SONiC YANG guideline    |
 | 0.12 | 10/19/2019 | Senthil Kumar Ganesan   | Added Appendix B    |
 | 0.13 | 11/27/2019 | Anand Kumar Subramanian | Added new APIs in translib    |
+| 0.14 | 12/03/2019 | Sachin Holla            | RESTCONF yang library and other enhancements |
 
 ## About this Manual
 
@@ -297,9 +298,13 @@ URI format and payload is RESTCONF complaint and is based on the [RFC8040](https
 
 ##### 3.2.1.1.2 Supported HTTP verbs
 
-Following are the HTTP methods supported in first release.
+Following table lists the HTTP methods generated for different types of YANG nodes.
 
-POST, PUT, PATCH, GET and DELETE.
+ YANG node type         | HTTP methods
+------------------------|-----------------
+Configuration data      | POST, PUT, PATCH, DELETE, GET, HEAD
+Non configuration data  | GET, HEAD
+YANG RPC                | POST
 
 ##### 3.2.1.1.3 Supported Data Nodes
 
@@ -338,10 +343,8 @@ bits | integer
 
 ##### 3.2.1.1.5 Future enhancements
 
-* Support for additional Data nodes such as RPC, Actions, and notifications(if required).
+* Support for additional YANG actions and notifications(if required).
 * Support for RESTCONF query parameters such as depth, filter, etc
-* Support for other RESTCONF features such as capabilities.
-* Support for HTTPS with X.509v3 Certificates.
 * Support for a pattern in string, the range for integer types and other OpenAPI header objects defined in https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#header-object
 * Other misc OpenAPI related constraints will be added
 
@@ -613,13 +616,20 @@ Below is the mapping of HTTP operations to Translib APIs:
 
  HTTP Method | Translib API     | Request data  | Response data
 -------------|------------------|---------------|---------------
- GET         | Translib.Get     | path          | status, payload
- POST        | Translib.Create  | path, payload | status
- PATCH       | Translib.Update  | path, payload | status
- PUT         | Translib.Replace | path, payload | status
- DELETE      | Translib.Delete  | path          | status
+ GET         | translib.Get     | path          | status, payload
+ POST        | translib.Create  | path, payload | status
+ POST (for YANG RPC) | translib.Action  | path, payload | status, payload
+ PATCH       | translib.Update  | path, payload | status
+ PUT         | translib.Replace | path, payload | status
+ DELETE      | translib.Delete  | path          | status
+ HEAD        | translib.Get     | path          | status, (payload ignored)
+ OPTIONS     | -                | -             | -
 
 More details about Translib APIs are in section [3.2.2.6](#3_2_2_6-Translib).
+
+REST OPTIONS requests do not invoke any Translib API. They return list of supported HTTP methods
+for requested path in the "Allow" response header. If PATCH method was supported, the response
+will also include an "Accept-Patch" header with the value "application/yang-data+json".
 
 ###### 3.2.2.4.3 Media Types
 
@@ -662,14 +672,58 @@ For YANG defined RESTCONF APIs, the version is the latest YANG revision date. Fo
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
-REST server will support RESTCONF entity-tag and last-modified timestamps in next release. server will not process or send corresponding request, response headers in first release.
-Note that entity-tag and last-modified timestamps will be supported only for top level datastore node (/restconf/data). Per resource entity tags and timestamps will not be supported. Global entity tag and timestamp are used for configuration resources.
+REST server does not maintain entity-tag and last-modified timestamp for configuration data nodes.
+GET and HEAD responses does not include "ETag" and "Last-Modified" headers.
+
+[RFC7232](https://tools.ietf.org/html/rfc7232) style HTTP conditional requests is also not supported.
+REST server ignores "If-Match", "If-Modified-Since" like conditional request headers.
 
 ###### 3.2.2.4.8 RESTCONF Discovery
 
-server will support RESTCONF root resource discovery as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18). RESTCONF root resource will be "/restconf".
+REST server supports following APIs for clients to discover various RESTCONF protocol features
+as described in [RFC8040](https://tools.ietf.org/html/rfc8040).
 
-YANG module library discovery as per [RFC7895](https://tools.ietf.org/html/rfc7895) will be supported in a future release.
+Method | Path                                           | Purpose
+-------|------------------------------------------------|---------------------------
+GET    | /.well-known/host-meta                         | RESTCONF root path
+GET    | /restconf/yang-library-version                 | YANG library version
+GET    | /restconf/data/ietf-yang-library:modules-state | RFC7895 YANG module library
+GET    | /restconf/data/ietf-restconf-monitoring:restconf-state/capabilities | RESTCONF Capabilities
+GET    | /models/yang/{filename}                        | YANG download
+
+###### 3.2.2.4.8.1 RESTCONF root
+
+Server supports RESTCONF root path discovery through "GET /.well-known/host-meta" API
+as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18).
+RESTCONF root path is "/restconf".
+
+###### 3.2.2.4.8.2 Yang library version
+
+REST server supports "GET /restconf/yang-library-version" API to advertise YANG library version.
+Response will indicate version "2016-06-21" as described in [RFC8040, section 3.3.3](https://tools.ietf.org/html/rfc8040#section-3.3.3).
+This advertises that the server supports [RFC7895](https://tools.ietf.org/html/rfc7895) compliant
+YANG library operations.
+
+###### 3.2.2.4.8.3 YANG module library
+
+REST server allows clients to discover and download all YANG modules supported by the server
+via "GET /restconf/data/ietf-yang-library:modules-state" API. Response data includes YANG module
+information as per [RFC7895](https://tools.ietf.org/html/rfc7895) requirements.
+
+REST server allows clients to download the YANG files via "GET /models/yang/{filename}" API.
+YANG module library response includes full download URL for every YANG module entry.
+
+Note - RFC7895 has been recently obsoleted by [RFC8525](https://tools.ietf.org/html/rfc8525).
+It supports YANG library with multi data stores and data store schemas. However these features
+are not available in SONiC. Hence REST server does not implement RFC8525 YANG library APIs (for now).
+
+###### 3.2.2.4.8.4 RESTCONF capabilities
+
+REST server supports "GET /restconf/data/ietf-restconf-monitoring:restconf-state/capabilities" API to
+advertise its capabilities as described in [RFC8040, section 9.1](https://tools.ietf.org/html/rfc8040#section-9.1).
+REsponse includes below mentioned capability information.
+
+    urn:ietf:params:restconf:capability:defaults:1.0?basic-mode=report-all
 
 ###### 3.2.2.4.9 RESTCONF Query Parameters
 
@@ -677,7 +731,13 @@ RESTCONF Query Parameters will be supported in future release. All query paramet
 
 ###### 3.2.2.4.10 RESTCONF Operations
 
-RESTCONF operations via YANG RPC are not supported in this release. They can be supported in future releases.
+REST server supports invoking YANG RPCs through "POST /restconf/operations/{rpc_name}" API
+as described in [RFC8040, section 4.4.2](https://tools.ietf.org/html/rfc8040#section-4.4.2).
+Operations modeled through YANG v1.1 action statement are not supported in this release.
+
+YGOT binding objects are not available for YANG RPC input and output data model.
+Hence payload validation is not performed by REST server or Translib for these APIs.
+App modules will receive raw JSON data.
 
 ###### 3.2.2.4.11 RESTCONF Notifications
 
@@ -781,7 +841,7 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST se
     client_auth = "none"/"user"/"cert"  ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
-                                        ;       for debugging. Default.
+                                        ;       for debugging.
                                         ; user: Username/password authentication
                                         ;       via PAM.
                                         ; cert: Certificate based authentication.
@@ -793,7 +853,7 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST se
 
 REST server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
 documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
-URL **https://*REST_SERVER_IP*/ui** in a browser. This page will list all supported OpenAPI
+URL **https://REST_SERVER_IP/ui** in a browser. This page will list all supported OpenAPI
 definition files (both YANG generated and manual) along with link to open Swagger UI for them.
 
 
