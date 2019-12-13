@@ -18,7 +18,7 @@
 | 0.1 | 09/05/2019  |   Justine Jose, Tejaswi Goel, Arthi Sivanantham  | Initial version  |
 
 # About this Manual
-1. This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" commands.
+This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" commands.
 
 # Scope
 This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and unit-test cases. It does not include the protocol design or protocol implementation details.
@@ -33,10 +33,18 @@ This document covers the "configuration" and "show" commands supported for VLAN,
 | LACP                     | Link Aggregation Control Protocol   |
 
 # 1 Feature Overview
-Add support for VLAN, Loopback and PortChannel create/set/get via CLI, REST and gNMI using openconfig-interfaces.yang and sonic-mgmt-framework container.
+Add support for Ethernet, VLAN, Loopback and PortChannel create/set/get via CLI, REST and gNMI using openconfig-interfaces.yang and sonic-mgmt-framework container.
 
 ## 1.1 Requirements
 Provide management framework capabilities to handle:
+
+### ETHERNET
+- MTU, IPv4 / IPv6, sflow, admin-status, description, nat-zone, <br />
+  spanning-tree, switchport, channel-group and udld configuration
+- Associated show commands
+- Support clearing Ethernet counter values displayed by the "show interface" commands. <br />
+  User will be able to clear counters for all interfaces or given interface type or given interface name.
+
 ### VLAN
 - VLAN creation and deletion
 - MTU configuration
@@ -50,20 +58,18 @@ Provide management framework capabilities to handle:
 - PortChannel creation and deletion
 - Addition of ports to PortChannel
 - Removal of ports from PortChannel
-- Configure min-links, MTU, admin-status, IP address and LACP fallback on PortChannel
-- Show PortChannel details
+- MTU, min-links, admin-status, IP address and LACP fallback configuration
+- Associated show commands
+- Support clearing PortChannel counter values.
 
 ### Loopback
 - Loopback creation and deletion
 - IPv4 / IPv6 address configuration
 - IPv4 / IPv6 address removal
-
-### Clear counters
-- Support for clearing interface counters displayed by the "show interface" commands. User will be able to clear counters for all interfaces or given interface type or given interface name.
-- Support for clearing interface counters values via CLI/REST/gNMI.
+- Associated show commands
 
 ### 1.1.1 Functional Requirements
-1. Provide management framework support to existing SONiC capabilities with respect to VLAN, Loopback and PortChannel.
+1. Provide management framework support to existing SONiC capabilities with respect to Ethernet, VLAN, Loopback and PortChannel.
 2. Clear Counters support for Ethernet and PortChannel interfaces.
 
 ### 1.1.2 Configuration and Management Requirements
@@ -76,8 +82,8 @@ Details described in Section 3.
 ## 1.2 Design Overview
 
 ### 1.2.1 Basic Approach
-1. Provide transformer methods in sonic-mgmt-framework container for handling VLAN, PortChannel and Loopback.
-2. The "clear counters" command to be used for getting snapshot of COUNTERS table into COUNTERS_BACKUP table in COUNTERS_DB. Saved counter values establish a baseline upon which subsequent "show interface" commands counter values are calculated.
+1. Provide transformer methods in sonic-mgmt-framework container for handling Ethernet, VLAN, PortChannel and Loopback.
+2. The "clear counters" commands to be used for getting snapshot of COUNTERS table into COUNTERS_BACKUP table in COUNTERS_DB. Saved counter values establish a baseline upon which subsequent "show interface" commands counter values are calculated.
 
 ### 1.2.2 Container
 All code changes will be done in management-framework container
@@ -134,11 +140,7 @@ Enhancing the management framework backend code and transformer methods to add s
 ## 3.2 DB Changes
 
 ### 3.2.1 CONFIG DB
-No changes to CONFIG DB schema.
-
 ### 3.2.2 APP DB
-No changes to CONFIG DB schema.
-
 ### 3.2.3 STATE DB
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
@@ -306,7 +308,8 @@ module: sonic-interface
 +       +---w input
 +       |  +---w interface-param?   string
 +       +--ro output
-+          +--ro status?   string
++          +--ro status?   int32
++          +--ro status-detail?   string
 
 ```
 ### 3.6.2 CLI
@@ -474,7 +477,7 @@ sonic(conf-if-Ethernet4)# no channel-group
 ```
 sonic(config)# no interface PortChannel 1
 ```
-#### Clear counters commands support for Ethernet & PortChannel
+#### Clear counters commands
 #### Clear all interface counters
 `clear counters interface all` <br>
 ```
@@ -680,31 +683,22 @@ N/A
 
 #### PORTCHANNEL
 ### **PATCH**
-#### Create a PortChannel
-- `/openconfig-interfaces:interfaces/interface={name}/config`
-#### Set min-links
-- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
-#### Set MTU/admin-status
-- `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
-#### Set IP
-- `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
-#### Add member
-- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
+- Create a PortChannel: `/openconfig-interfaces:interfaces/interface={name}/config`
+- Set min-links: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
+- Set MTU/admin-status: `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
+- Set IP: `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
+- Add member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 
 ### **DELETE**
-#### Delete a PortChannel
-- `/openconfig-interfaces:interfaces/interface={name}`
-#### Remove member
-- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
+- Delete a PortChannel: `/openconfig-interfaces:interfaces/interface={name}`
+- Remove member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 
 ### **GET**
-#### Get PortChannel details
+Get PortChannel details: 
 - `/openconfig-interfaces:interfaces/interface={name}`
 - `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/dell-intf-augments:fallback`
-
-### **POST**
 
 #### LOOPBACK
 ### **PATCH**
@@ -788,7 +782,7 @@ N/A
 | Delete Loopback | Verify the Loopback is deleted |
 
 #### Clear Counters
-The following test cases will be tested using CLI/REST/GNMI management interfaces.
+The following test cases will be tested using CLI/REST/gNMI management interfaces.
 
 | Test Name | Test Description |
 | :------ | :----- |
