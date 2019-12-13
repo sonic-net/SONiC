@@ -1,4 +1,4 @@
-# OpenConfig support for logical interfaces
+# OpenConfig support for interfaces
 # High Level Design Document
 #### Rev 0.1
 
@@ -21,7 +21,7 @@
 This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" commands.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and unit-test cases. It does not include the protocol design or protocol implementation details.
+This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and the associated unit-test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -37,7 +37,6 @@ Add support for Ethernet, VLAN, Loopback and PortChannel create/set/get via CLI,
 
 ## 1.1 Requirements
 Provide management framework capabilities to handle:
-
 ### ETHERNET
 - MTU, IPv4 / IPv6, sflow, admin-status, description, nat-zone, <br />
   spanning-tree, switchport, channel-group and udld configuration
@@ -359,16 +358,16 @@ sonic(conf-if-vlan20)# ipv6 address a::b/64
 sonic(conf-if-vlan20)# no ipv6 address a::b
 ```
 #### Trunk VLAN addition to Member Port (Ethernet / Port-Channel)
-`switchport trunk allowed Vlan <vlan-id>`
+`switchport trunk allowed Vlan <vlan_list>`
 ```
-sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan 5
-sonic(conf-if-po4)# switchport trunk allowed Vlan 5
+sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan 20-22,40
+sonic(conf-if-po4)# switchport trunk allowed Vlan 50,40
 ```
 #### Trunk VLAN removal from Member Port (Ethernet / Port-Channel)
-`no switchport trunk allowed Vlan <vlan-id>`
+`no switchport trunk allowed Vlan <vlan_list>`
 ```
-sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan 5
-sonic(conf-if-po4)# no switchport trunk allowed Vlan 5
+sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan 20-22,40
+sonic(conf-if-po4)# no switchport trunk allowed Vlan 50,40
 ```
 #### Access VLAN addition to Member Port (Ethernet / Port-Channel)
 `switchport access Vlan <vlan-id>`
@@ -630,6 +629,7 @@ Members in this channel: Ethernet56
 selected True
 LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
 LACP Partner port 0  address 00:00:00:00:00:00 key 0
+Last clearing of "show interface" counters: 2019-12-06 21:23:20
 Input statistics:
         6224 packets, 1787177 octets
         2855 Multicasts, 3369 Broadcasts, 0 Unicasts
@@ -639,8 +639,6 @@ Output statistics:
         70186 Multicasts, 3983 Broadcasts, 0 Unicasts
         0 error, 0 discarded
 ```
-
-**Note:** `show interface` commands to be updated to include: `Last clearing of “show interface” counters <time>` (to show last time clear counters command was issued on an interface since the switch was rebooted)
 
 #### 3.6.2.2.3 LOOPBACK
 #### Display specific LOOPBACK Information
@@ -682,18 +680,18 @@ N/A
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan/State/[access-vlan | trunk-vlans]`
 
 #### PORTCHANNEL
-### **PATCH**
+**PATCH**
 - Create a PortChannel: `/openconfig-interfaces:interfaces/interface={name}/config`
 - Set min-links: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
 - Set MTU/admin-status: `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
 - Set IP: `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
 - Add member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 
-### **DELETE**
+**DELETE**
 - Delete a PortChannel: `/openconfig-interfaces:interfaces/interface={name}`
 - Remove member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 
-### **GET**
+**GET**
 Get PortChannel details: 
 - `/openconfig-interfaces:interfaces/interface={name}`
 - `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
@@ -701,7 +699,7 @@ Get PortChannel details:
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/dell-intf-augments:fallback`
 
 #### LOOPBACK
-### **PATCH**
+**PATCH**
 - `/openconfig-interfaces:interfaces/interface={name}/config`
 - `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv4/addresses/address={ip}`
 - `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface={index}/openconfig-if-ip:ipv6/addresses/address={ip}`
