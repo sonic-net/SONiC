@@ -672,17 +672,11 @@ For YANG defined RESTCONF APIs, the version is the latest YANG revision date. Fo
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
-REST server maintains an entity-tag and last-modified timestamp for the RESTCONF top level datastore
-node "/restconf/data" as described in [RFC8040, section 3.4.1](https://tools.ietf.org/html/rfc8040#section-3.4.1).
-All YANG defined configuration data nodes also reuse this entity-tag and last-modified timestamp value.
-Maintaining individual tags for each of the configuration data is not practical in SONiC environment.
-Top level entity-tag and timestamp are updated for every update to CONFIG_DB tables.
+REST server does not maintain entity-tag and last-modified timestamp for configuration data nodes.
+GET and HEAD responses does not include "ETag" and "Last-Modified" headers.
 
-GET and HEAD response for configuration data will include "ETag" and "Last-Modified" headers.
-HTTP conditional requests are supported throgh "If-Match", "If-None-Match", "If-Modified-Since"
-and "If-Unmodified-Since" request headers as described in [RFC7232](https://tools.ietf.org/html/rfc7232).
-
-Entity-tag and last-modified timestamp are not supported for OpenAPI defined REST APIs.
+[RFC7232](https://tools.ietf.org/html/rfc7232) style HTTP conditional requests is also not supported.
+REST server ignores "If-Match", "If-Modified-Since" like conditional request headers.
 
 ###### 3.2.2.4.8 RESTCONF Discovery
 
