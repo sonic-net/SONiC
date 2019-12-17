@@ -2,7 +2,7 @@
 Docker to Host communication
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -19,7 +19,9 @@ Docker to Host communication
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/28/2019  | Nirenjan Krishnan  | Initial version                   |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.2 | 12/16/2019  | Mike Lazar         | Add details about architecture    |
+| 0.2 | 12/08/2019  | Mike Lazar         | Add details about architecture    |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.3 | 12/16/2019  | Mike Lazar         | Add security and logging info     |
 
 
 # About this Manual
@@ -80,7 +82,7 @@ N/A
 
 The code will extend the existing Translib modules to provide a D-Bus based
 query API to issue requests to the host. The host service will be a Python based
-application which listens on known D-Bus endpoints.
+application which listens on known D-Bus endpoints.https://en.wikipedia.org/wiki/D-Bus
 
 The individual app modules can extend the host service by providing a small
 Python snippet that will register against their application endpoint.
