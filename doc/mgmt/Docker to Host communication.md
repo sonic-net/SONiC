@@ -18,6 +18,9 @@ Docker to Host communication
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/28/2019  | Nirenjan Krishnan  | Initial version                   |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.2 | 12/16/2019  | Mike Lazar         | Add details about architecture    |
+
 
 # About this Manual
 This document provides general information about the Docker to Host
@@ -31,9 +34,9 @@ however, it does not describe the individual host-specific features.
 # Definition/Abbreviation
 
 ### Table 1: Abbreviations
-| **Term**                 | **Meaning**                         |
-|--------------------------|-------------------------------------|
-| XYZ                      | Term description                    |
+| **Term**                 | **Meaning**                                       |
+|--------------------------|---------------------------------------------------|
+| D-Bus                    | Desktop Bus: https://en.wikipedia.org/wiki/D-Bus  |
 
 # 1 Feature Overview
 
@@ -56,6 +59,9 @@ the Docker container and the host.
   host.
 * The host communication API shall be available in Translib, and shall provide
   both synchronous and asynchronous communication methods.
+* It shall be possible to configure the identity of the Linux user accounts who have access to a D-Bus socket.
+* It shall be possible to configure containers in such a way that only certain containers (e.g. SONiC Mgmt.)
+  have access to the D-Bus socket.
 
 ### 1.1.2 Configuration and Management Requirements
 
@@ -94,9 +100,13 @@ All deployments
 
 ## 2.2 Functional Description
 
-This feature enables applications such as image management, ZTP, etc. to issue
-requests to the host to perform actions such as image install, ZTP
-enable/disable, etc.
+This feature enables management applications to issue
+requests to the host to perform actions such as:
+* image install / upgrade
+* ZTP enable/disable
+* initiate reboot and warm reboot using existing scripts
+* create show-tech tar file using existing show-tech script
+* config save/reload using existing scripts
 
 # 3 Design
 ## 3.1 Overview
@@ -109,6 +119,25 @@ in the container can use the APIs provided in Translib to send the request to
 the host, and either wait for the response (if the request was synchronous), or
 receive a channel and wait for the request to return the response on the
 channel (asynchronous request).
+
+The architecture of a D-Bus host service in a SONiC environment is illustrated in the diagram below:
+![](images/docker-to-host-services-architecture.jpg)
+
+Note. The Linux D-Bus implementation uses Unix domain sockets for client to D-Bus service communications.
+All containers that use D-Bus services will bind mount
+(-v /var/run/dbus:/var/run/dbus:rw) the host directory where D-Bus service sockets are created.
+This ensures that only the desired containers access the D-Bus host services.
+
+D-Bus provides a reliable communication channel between client (SONiC management container) and service (native host OS) – all actions are acknowledged and can provide return values. It should be noted that acknowledgements are important for operations such as “image upgrade” or “config-save”. In addition, D-Bus methods can return values of many types – not just ACKs. For instance, they can return strings, useful to return the output of a command.
+
+### 3.1.1 Security of D-Bus Communications
+In addition to standard Linux security mechanisms for file/Unix socket access rights (read/write), D-Bus provides a separate security layer, using the D-Bus service configuration files.
+This allows finer grain access control to D-Bus objects and methods - D-Bus can restrict access only to certain Linux users.
+
+### 3.1.2 Command Logging
+
+It is possible to track and log the user name and the command that the user has requested.
+The log record is created in the system log.
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
