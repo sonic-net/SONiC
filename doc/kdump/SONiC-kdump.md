@@ -1,7 +1,7 @@
 # kdump
 
 ## High Level Design Document
-**Rev 0.3**
+**Rev 0.4**
 
 ## Table of Contents
 
@@ -28,7 +28,7 @@
 	- [Kernel core-dump service](#kernel-core-dump-service)
 	- [SONiC Code Changes](#sonic-code-changes)
 	- [Configuration commands:](#configuration-commands)
-		- [config kdump <enable|disable> [-y] [-n]](#config-kdump-enabledisable-y-n)
+		- [config kdump <enable|disable>](#config-kdump-enabledisable)
 		- [config kdump memory string](#config-kdump-memory-string)
 		- [config kdump num_dumps number](#config-kdump-numdumps-number)
 		- [show kdump [status]](#show-kdump-status)
@@ -55,6 +55,7 @@ Rev   |   Date   |  Author   | Change Description
 0.1   | 10/28/19 | O. Singla | Initial version
 0.2   | 10/29/19 | O. Singla | Changed the memory allocated for kdump
 0.3   | 11/04/19 | O. Singla | Minor changes
+0.4   | 12/17/19 | O. Singla | Removed the option to force reboot
 
 ## About this Manual
 
@@ -187,7 +188,7 @@ Changes to be done in *sonic-buildimage/build_debian.sh*
 
 For SONiC switches, the following CLI commands are provided to manage core files.
 
-#### config kdump <enable|disable> [-y] [-n]
+#### config kdump <enable|disable>
 
 Enable or disable kernel core dump functionality.
 
@@ -195,7 +196,7 @@ Administrative state of kdump is stored in ConfigDB.
 
 The variable *USE_KDUMP* in the file /etc/default/kdump-tools is set to 0 to disable kdump, and set to 1 to enable kdump.
 
-Since this command might require changing the kernel parameters to specify the amount of memory reserved for the capture kernel (the kernel parameters which are exported through */proc/cmdline*), a reboot is necessary. By default, the command displays a message showing that kdump functionality will be either enabled or disabled following the next reboot, unless the optional parameter *-n* has been provided. The optional parameter *-y* allows to automatically perform the reboot without asking for a confirmation. In this case, the command "config save -y" will be automatically performed prior to the reboot.
+Since this command might require changing the kernel parameters to specify the amount of memory reserved for the capture kernel (the kernel parameters which are exported through */proc/cmdline*), a reboot is necessary. The command displays a message showing that kdump functionality will be either enabled or disabled following the next reboot.
 
 #### config kdump memory string
 
@@ -287,7 +288,7 @@ The second step consists of installing the debug version of the kernel:
  - **do not install** the Debian package, but instead extract its contents:
    - use 'ar x' command to extract the files from the .deb archive;
    - usr tar command to extract the files from archive data.tar.xz
-     this will provide the file *vmlinux-4.9.0-9-2-amd64* under *usr/lib/debug/reboot*
+     this will provide the file *vmlinux-4.9.0-9-2-amd64* under *usr/lib/debug/boot*
 
 ### Analyzing the core dump
 
