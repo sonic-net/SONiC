@@ -17,9 +17,10 @@ TACACS+ Support in Management Framework
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/29/2019  |   Joyas Joseph     | Initial version                   |
+| 0.2 | 12/26/2019  |   Srinadh Penugonda| Updated with CLI, yang tree       |
 
 # About this Manual
-This document provides general information about TACACS+ support in SONiC Management Framework
+This document provides general information about Terminal Access Controller Access Control Service Plus (TACACS+) support in SONiC Management Framework
 # Scope
 The scope of this document is within the bounds of the functionality provided by the new SONiC Management Framework. The underlying TACACS+
 support in SONiC is provided by this high-level design document:
@@ -33,25 +34,26 @@ support in SONiC is provided by this high-level design document:
 
 
 # 1 Feature Overview
-This feature allows the user to configure TACACS+ Authentication using NBI (CLI/REST/gNMI) provided by SONiC Management Framework. Configuration changes from the user are pushed to CONFIG DB. The implementation is contained within the Management Framework container.
+This feature allows the user to configure TACACS+ Authentication using NBI (CLI/REST/gNMI) provided by SONiC Management Framework. 
+Configuration changes from the user are pushed to CONFIG DB. The implementation is contained within the Management Framework container.
 
 ## 1.1 Requirements
 
-
 ### 1.1.1 Functional Requirements
+1. Support TACACS+ login authentication for SSH and console.
+2. Source IP address for TACACS+ packets can be specified.
+3. Support multiple TACACS+ server, and the priority of the server can be configured.
+4. Support to set the order of local authentication and TACACS+ authentication.
+5. Support fail_through mechanism for authentication. If a TACACS+ server authentication fails, the next TACACS+ server authentication will be performed.
 
 ### 1.1.2 Configuration and Management Requirements
 1. CLI configuration/show support
 2. REST API support
 3. gNMI support
 
-### 1.1.3 Scalability Requirements
-
-### 1.1.4 Warm Boot Requirements
-
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-1. Implement TACACS+ support using transformer in sonic-mgmt-framework.
+1. Implement TACACS+ support using transformer in sonic-mgmt-framework by using openconfig-system.yang.
 
 ### 1.2.2 Container
 The changes are in the sonic-mgmt-framework container. There will be additional files added.
@@ -62,45 +64,75 @@ The changes are in the sonic-mgmt-framework container. There will be additional 
 	a. openconfig-aaa.yang and its dependents
 	b. openconfig-tacacs.yang and its dependents
 
-### 1.2.3 SAI Overview
-
-
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
+TACACS+ is a security protocol used in AAA framework to provide centralised authentication for users who want to gain access to the network. 
+TACACS+ provides authorization control by allowing a network administrator to define what commands a user may run.
 
 ## 2.2 Functional Description
+Since openconfig-system.yang is being used, both radius and tacacs+ configuration would be sharing same configuration parameters. They are
+differentiated with the help of server-groups. server-group by name "TACACS" will be used to store tacacs+ specific configuration.
+
+The configuration supports global parameters, namely: timeout, source ip address for outgoing packets, type of authentication method to use for messages, 
+a shared secret for encryption.
+The configuration allows configuring tacacs host, identifiable through an IP address. Each host will contain its tcp port, shared secret for encryption,
+authentication type for messages, server priority and time value. Properties specified with a particular tacacs host takes precedence over
+global tacacs properties.
+
+In addition, this feature also supports configuration for aaa authentication: an authentication method, which is ordered. Currently only local and tacacs+ 
+are supported.
+Failthrough mechanism can be enabled or disabled. 
 
 
 # 3 Design
 ## 3.1 Overview
+Tacacs configuration is segregated with the help of server-group. /openconfig-system:system/aaa/server-groups/ supports list of server-groups.
+Tacacs configuration is identified with the help of server-group by case sensitive name "TACACS".
+Radius (which is covered in another HLD) configuration will be identified with the help of server-group by case sensitive name "RADIUS".
+
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 This feature will allow the user to make/show TACACS+ configuration changes to CONFIG DB
-### 3.2.2 APP DB
-### 3.2.3 STATE DB
-### 3.2.4 ASIC DB
-### 3.2.5 COUNTER DB
 
-## 3.3 Switch State Service Design
-### 3.3.1 Orchestration Agent
-### 3.3.2 Other Process
+## 3.3 User Interface
+### 3.3.1 Data Models
+openconfig-system.yang is used by augmenting whereever applicable with openconfig-system-ext.yang.
 
+Sonic version of the yang is as below:
 
-## 3.4 SyncD
+module: sonic-system-aaa
+    +--rw sonic-system-aaa
+       +--rw AAA
+          +--rw AAA_LIST* [type]
+             +--rw type           enumeration
+             +--rw login*         string
+             +--rw failthrough?   boolean
 
+module: sonic-system-tacacs
+    +--rw sonic-system-tacacs
+       +--rw TACPLUS_SERVER
+       |  +--rw TACPLUS_SERVER_LIST* [ipaddress]
+       |     +--rw ipaddress    inet:ip-address
+       |     +--rw priority?    uint8
+       |     +--rw tcp_port?    inet:port-number
+       |     +--rw timeout?     uint16
+       |     +--rw auth_type?   auth_type_enumeration
+       |     +--rw passkey?     string
+       +--rw TACPLUS
+          +--rw TACPLUS_LIST* [type]
+             +--rw type         enumeration
+             +--rw auth_type?   auth_type_enumeration
+             +--rw timeout?     uint16
+             +--rw passkey?     string
+             +--rw src_ip?      inet:ip-address
 
-## 3.5 SAI
-
-
-## 3.6 User Interface
-### 3.6.1 Data Models
 
 ```
 ```
 
-### 3.6.2 CLI
+### 3.3.2 CLI
 
-#### 3.6.2.1 Configuration Commands
+#### 3.3.2.1 Configuration Commands
 All commands are executed in `configuration-view`:
 ```
 sonic# configure terminal
@@ -109,58 +141,109 @@ sonic(config)#
 #### **AAA configuration**
 
 ##### Configure authentication methods and order
-`aaa authentication login {local | tacacs+}`
+`aaa authentication login-method {local | tacacs+}`
 
 The command allows the user to specify the authentication methods (local/tacacs+). Authentication will be attempted based on the order of the methods specified.
 
 Examples:
 
 ```
-sonic(config)# aaa authentication login local
-sonic(config)# aaa authentication login local tacacs+
-sonic(config)# aaa authentication login tacacs+
-sonic(config)# aaa authentication login tacacs+ local
+sonic(config)# aaa authentication login-method local
+sonic(config)# aaa authentication login-method local tacacs+
+sonic(config)# aaa authentication login-method tacacs+
+sonic(config)# aaa authentication login-method tacacs+ local
 
 ```
-
 
 ##### Set authentication method to default
 ```
-sonic(config)# no aaa authentication login
+sonic(config)# no aaa authentication login-method
 ```
 
 ##### Enable/disable failthrough
-`[no] aaa authentication failthrough`
 
 ```
 sonic(config)# aaa authentication failthrough
+  enable|disable  failthrough status (enable/disable)
+
+```
+
+`[no] aaa authentication failthrough`
+
+#### **TACACS global configuration**
+```
+sonic(config)# tacacs-server
+  auth-type  Configure global authentication type for TACACS
+  key        Configure global shared secret for TACACS
+  source-ip  Configure global source ip for TACACS
+  timeout    Configure global timeout for TACACS
+sonic(config)# tacacs-server auth-type
+pap    chap   mschap
+sonic(config)# tacacs-server key
+  (Valid Chars: [0-9A-Za-z], Max Len: 32) shared secret
+sonic(config)# tacacs-server source-ip
+  A.B.C.D/A::B
+sonic(config)# tacacs-server timeout
+  seconds  timeout (default: 5) (0..60)
+
 ```
 
 #### **TACACS server configuration**
 ##### Add TACACS+ server
-`tacacs-server host <address> {port <1-65535> | timeout <0-60> | key <TEXT> }`
+`tacacs-server host <address> {port <1-65535> | timeout <0-60> | key <TEXT> | type <pap|chap|mschap> priority <1-65535>}`
 
 ```
 sonic(config)# tacas-server host 1.1.1.1 key Pass
 sonic(config)# tacas-server host 1.1.1.2 port 1234 timeout 5 key Pass
 ```
 
-#### 3.6.2.2 Show Commands
+#### 3.3.2.2 Show Commands
 ##### Show AAA configurations
 ```
-sonic# show aaa
-sonic#
+---------------------------------------------------------
+AAA Authentication Information
+---------------------------------------------------------
+failthrough  : True
+login-method : local, tacacs+
+
 ```
 ##### Show TACACS+ configurations
 ```
-sonic# show tacacs
+sonic# show tacacs-server global
+---------------------------------------------------------
+TACACS Global Configuration
+---------------------------------------------------------
+source-ip  : 2.2.2.2
+timeout    : 4
+auth-type  : mschap
+key        : mykey
 sonic#
+
+sonic# show tacacs-server host
+  A.B.C.D  IP address of the tacacs server
+  |        Pipe through a command
+  <cr>
+sonic# show tacacs-server host 9.9.9.9
+------------------------------------------------------------------------------------------------
+HOST                AUTH-TYPE      KEY       PORT      PRIORITY  TIMEOUT
+------------------------------------------------------------------------------------------------
+9.9.9.9             pap            mykey     90        10        10
+sonic# show tacacs-server host
+------------------------------------------------------------------------------------------------
+HOST                AUTH-TYPE      KEY       PORT      PRIORITY  TIMEOUT
+------------------------------------------------------------------------------------------------
+1.1.1.1             pap            mykey     10        10        10
+1.3.5.7             pap            mykey2    20        20        20
+9.9.9.9             pap            mykey     90        10        10
+
 ```
 
-#### 3.6.2.3 Debug Commands
-#### 3.6.2.4 IS-CLI Compliance
+#### 3.3.2.3 Debug Commands
+N/A
+#### 3.3.2.4 IS-CLI Compliance
+Yes
 
-### 3.6.3 REST API Support
+### 3.3.3 REST API Support
 ```
 GET - Get existing TACACS+ configuration information from CONFIG DB.
 POST - Add a new TACACS+  configuration into CONFIG DB.
