@@ -159,6 +159,7 @@ sonic(config)# aaa authentication login-method tacacs+ local
 ```
 sonic(config)# no aaa authentication login-method
 ```
+Default is local.
 
 ##### Enable/disable failthrough
 
@@ -170,6 +171,8 @@ sonic(config)# aaa authentication failthrough
 
 `[no] aaa authentication failthrough`
 
+Default is disable.
+
 #### **TACACS global configuration**
 ```
 sonic(config)# tacacs-server
@@ -179,12 +182,27 @@ sonic(config)# tacacs-server
   timeout    Configure global timeout for TACACS
 sonic(config)# tacacs-server auth-type
 pap    chap   mschap
+sonic(config)# no tacacs-server auth-type
+  <cr>
+
 sonic(config)# tacacs-server key
   (Valid Chars: [0-9A-Za-z], Max Len: 32) shared secret
+
+sonic(config)# no tacacs-server key
+  <cr>
+
 sonic(config)# tacacs-server source-ip
   A.B.C.D/A::B
+
+sonic(config)# no tacacs-server source-ip
+  <cr>
+
 sonic(config)# tacacs-server timeout
   seconds  timeout (default: 5) (0..60)
+
+sonic(config)# no tacacs-server timeout
+  <cr>
+Defaults to 0.
 
 ```
 
@@ -195,6 +213,10 @@ sonic(config)# tacacs-server timeout
 ```
 sonic(config)# tacas-server host 1.1.1.1 key Pass
 sonic(config)# tacas-server host 1.1.1.2 port 1234 timeout 5 key Pass
+
+sonic(config)# no tacacs-server host
+  A.B.C.D/A::B  server ip address
+
 ```
 
 #### 3.3.2.2 Show Commands
