@@ -100,9 +100,13 @@ All deployments
 
 ## 2.2 Functional Description
 
-This feature enables applications such as image management, ZTP, etc. to issue
-requests to the host to perform actions such as image install, ZTP
-enable/disable, etc.
+This feature enables management applications to issue
+requests to the host to perform actions such as:
+* image install / upgrade
+* ZTP enable/disable
+* initiate reboot and warm reboot using existing scripts
+* create show-tech tar file using existing show-tech script
+* config save/reload using existing scripts
 
 # 3 Design
 ## 3.1 Overview
