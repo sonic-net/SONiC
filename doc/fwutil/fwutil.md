@@ -27,7 +27,7 @@
             - [2.2.2.3 Update commands](#2223-update-commands)
                 - [2.2.2.3.1 Overview](#22231-overview)
                 - [2.2.2.3.2 Description](#22232-description)
-- [4 Flows](#3-flows)
+- [3 Flows](#3-flows)
     - [3.1 Show components status](#31-show-components-status)
     - [3.2 Install component FW](#32-install-component-fw)
         - [3.2.1 Non modular chassis platform](#321-non-modular-chassis-platform)
@@ -46,6 +46,7 @@ This document provides general information about FW utility implementation in SO
 | 0.1 | 21/08/2019 | Nazarii Hnydyn | Initial version                   |
 | 0.2 | 10/09/2019 | Nazarii Hnydyn | Review feedback and other changes |
 | 0.3 | 17/09/2019 | Nazarii Hnydyn | Align flows with the platform API |
+| 0.4 | 18/12/2019 | Nazarii Hnydyn | CLI review feedback               |
 
 ## Abbreviations
 
@@ -160,7 +161,7 @@ Modular chassis platforms may contain only one chassis.
 A chassis may contain one or more modules and it's own set of components.  
 Each module may contain it's own set of components.
 
-Basically each chassis/module may contain one or more components (e.g., BIOS/ASIC/CPLD/FPGA).
+Basically each chassis/module may contain one or more components (e.g., BIOS/CPLD/FPGA).
 
 SONiC platform API provides an interface for FW maintenance operations for both modular and  
 non modular chassis platforms. Both modular and non modular chassis platforms share the same platform API,  
@@ -178,13 +179,16 @@ fwutil
 |--- show
 |    |--- status
 |    |--- version
+|
 |--- install
-|    |--- chassis <chassis_name>
+|    |--- chassis
+|    |    |--- component <component_name>
+|    |         |--- fw -y|--yes <fw_path>
+|    |
+|    |--- module <module_name>
 |         |--- component <component_name>
-|         |    |--- fw -y|--yes <fw_path>
-|         |--- module <module_name>
-|              |--- component <component_name>
-|                   |--- fw -y|--yes <fw_path>
+|              |--- fw -y|--yes <fw_path>
+|
 |--- update -y|--yes -f|--force -i|--image=<current|next>
 ```
 
@@ -213,7 +217,7 @@ fwutil version 1.0.0.0
 ```bash
 root@sonic:~# fwutil show status
 Chassis   Module   Component   Version             Description
---------  -------  ----------  --------            ------------
+--------  -------  ----------  ------------------  ------------
 Chassis1  N/A      BIOS        0ACLH003_02.02.007  Chassis BIOS
                    CPLD        5                   Chassis CPLD
                    FPGA        5                   Chassis FPGA
@@ -223,12 +227,11 @@ Chassis1  N/A      BIOS        0ACLH003_02.02.007  Chassis BIOS
 ```bash
 root@sonic:~# fwutil show status
 Chassis   Module   Component   Version             Description
---------  -------  ----------  --------            ------------
+--------  -------  ----------  ------------------  ------------
 Chassis1           BIOS        0ACLH004_02.02.007  Chassis BIOS
                    CPLD        5                   Chassis CPLD
                    FPGA        5                   Chassis FPGA
-          Module1  ASIC        29.2000.1886        Module ASIC
-                   CPLD        5                   Module CPLD
+          Module1  CPLD        5                   Module CPLD
                    FPGA        5                   Module FPGA
 ```
 
@@ -244,17 +247,17 @@ for manual FW update of various platform components.
 **The following command installs FW:**
 1. Non modular chassis platform
 ```bash
-root@sonic:~# fwutil install chassis Chassis1 component BIOS fw --yes <image_path>/bios.bin
+root@sonic:~# fwutil install chassis component BIOS fw --yes <image_path>/bios.bin
 ...
 FW update in progress ...
 ...
 Warning: Cold reboot is required!
-root@sonic:~# fwutil install chassis Chassis1 component CPLD fw --yes <image_path>/cpld.bin
+root@sonic:~# fwutil install chassis component CPLD fw --yes <image_path>/cpld.bin
 ...
 FW update in progress ...
 ...
 Warning: Power cycle is required!
-root@sonic:~# fwutil install chassis Chassis1 component FPGA fw --yes <image_path>/fpga.bin
+root@sonic:~# fwutil install chassis component FPGA fw --yes <image_path>/fpga.bin
 ...
 FW update in progress ...
 ...
@@ -263,23 +266,20 @@ Warning: Power cycle is required!
 
 2. Modular chassis platform
 ```bash
-root@sonic:~# fwutil install chassis Chassis1 component BIOS fw <image_path>/bios.bin
-New FW will be installed, continue? [y/n]: n
+root@sonic:~# fwutil install chassis component BIOS fw <image_path>/bios.bin
+New FW will be installed, continue? [y/N]: N
 Aborted!
-root@sonic:~# fwutil install chassis Chassis1 component CPLD fw <image_path>/cpld.bin
-New FW will be installed, continue? [y/n]: n
+root@sonic:~# fwutil install chassis component CPLD fw <image_path>/cpld.bin
+New FW will be installed, continue? [y/N]: N
 Aborted!
-root@sonic:~# fwutil install chassis Chassis1 component FPGA fw <image_path>/fpga.bin
-New FW will be installed, continue? [y/n]: n
+root@sonic:~# fwutil install chassis component FPGA fw <image_path>/fpga.bin
+New FW will be installed, continue? [y/N]: N
 Aborted!
-root@sonic:~# fwutil install chassis Chassis1 module Module1 component ASIC fw <image_path>/asic.bin
-New FW will be installed, continue? [y/n]: n
+root@sonic:~# fwutil install module Module1 component CPLD fw <image_path>/cpld.bin
+New FW will be installed, continue? [y/N]: N
 Aborted!
-root@sonic:~# fwutil install chassis Chassis1 module Module1 component CPLD fw <image_path>/cpld.bin
-New FW will be installed, continue? [y/n]: n
-Aborted!
-root@sonic:~# fwutil install chassis Chassis1 module Module1 component FPGA fw <image_path>/fpga.bin
-New FW will be installed, continue? [y/n]: n
+root@sonic:~# fwutil install module Module1 component FPGA fw <image_path>/fpga.bin
+New FW will be installed, continue? [y/N]: N
 Aborted!
 ```
 
@@ -297,46 +297,26 @@ Automatic FW update requires platform_components.json to be created and placed a
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 
 **Example:**
+1. Non modular chassis platform
 ```json
 {
     "chassis": {
         "Chassis1": {
             "component": {
                 "BIOS": {
-                    "image": "/etc/<platform_name>/fw/chassis1/bios/bios.bin",
-                    "firmware": "0ACLH003_02.02.010",
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/bios.bin",
+                    "version": "0ACLH003_02.02.010",
                     "info": "Cold reboot is required"
                 },
                 "CPLD": {
-                    "image": "/etc/<platform_name>/fw/chassis1/cpld/cpld.bin",
-                    "firmware": "10",
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/cpld.bin",
+                    "version": "10",
                     "info": "Power cycle is required"
                 },
                 "FPGA": {
-                    "image": "/etc/<platform_name>/fw/chassis1/fpga/fpga.bin",
-                    "firmware": "5",
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/fpga.bin",
+                    "version": "5",
                     "info": "Power cycle is required"
-                }
-            },
-            "module": {
-                "Module1": {
-                    "component": {
-                        "ASIC": {
-                            "image": "/etc/<platform_name>/fw/chassis1/module1/asic/asic.bin",
-                            "firmware": "29.2000.1894",
-                            "info": "Cold reboot is required"
-                        },
-                        "CPLD": {
-                            "image": "/etc/<platform_name>/fw/chassis1/module1/cpld/cpld.bin",
-                            "firmware": "10",
-                            "info": "Power cycle is required"
-                        },
-                        "FPGA": {
-                            "image": "/etc/<platform_name>/fw/chassis1/module1/fpga/fpga.bin",
-                            "firmware": "5",
-                            "info": "Power cycle is required"
-                        }
-                    }
                 }
             }
         }
@@ -344,7 +324,50 @@ _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.jso
 }
 ```
 
-**Note:** FW update will be skipped if path is not specified (e.g., 'image': "")
+2. Modular chassis platform
+```json
+{
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "BIOS": {
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/bios.bin",
+                    "version": "0ACLH003_02.02.010",
+                    "info": "Cold reboot is required"
+                },
+                "CPLD": {
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/cpld.bin",
+                    "version": "10",
+                    "info": "Power cycle is required"
+                },
+                "FPGA": {
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/fpga.bin",
+                    "version": "5",
+                    "info": "Power cycle is required"
+                }
+            }
+        }
+    },
+    "module": {
+        "Module1": {
+            "component": {
+                "CPLD": {
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/module1/cpld.bin",
+                    "version": "10",
+                    "info": "Power cycle is required"
+                },
+                "FPGA": {
+                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/module1/fpga.bin",
+                    "version": "5",
+                    "info": "Power cycle is required"
+                }
+            }
+        }
+    }
+}
+```
+
+**Note:** FW update will be skipped if component definition is not provided (e.g., 'BIOS': { })
 
 ##### 2.2.2.3.2 Description
 
@@ -352,12 +375,12 @@ _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.jso
 1. Non modular chassis platform
 ```bash
 root@sonic:~# fwutil update --image=next
-Chassis   Module   Component   Version             Image                  Firmware            Status          Info
---------  -------  ----------  --------            ------                 ---------           -------         -----
-Chassis1  N/A      BIOS        0ACLH004_02.02.007  <image_path>/bios.bin  0ACLH004_02.02.010  pending update  Cold reboot is required
-                   CPLD        5                   <image_path>/cpld.bin  10                  pending update  Power cycle is required
-                   FPGA        5                   <image_path>/fpga.bin  5                   up to date      Power cycle is required
-New FW will be installed, continue? [y/n]: y
+Chassis   Module   Component   Firmware               Version                                  Status              Info
+--------  -------  ----------  ---------------------  ---------------------------------------  ------------------  -----------------------
+Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH004_02.02.010  update is required  Cold reboot is required
+                   CPLD        <image_path>/cpld.bin  5 / 10                                   update is required  Power cycle is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date          Power cycle is required
+New FW will be installed, continue? [y/N]: y
 
 ...
 FW update in progress ...
@@ -366,24 +389,23 @@ FW update in progress ...
 Summary:
 
 Chassis   Module   Component   Status
---------  -------  ----------  -------
-Chassis1  N/A      BIOS        update successful
-                   CPLD        update failed
-                   FPGA        up to date
+--------  -------  ----------  ----------
+Chassis1  N/A      BIOS        success
+                   CPLD        failure
+                   FPGA        up-to-date
 ```
 
 2. Modular chassis platform
 ```bash
 root@sonic:~# fwutil update --image=next
-Chassis   Module   Component   Version             Image                  Firmware            Status          Info
---------  -------  ----------  --------            ------                 ---------           -------         -----
-Chassis1           BIOS        0ACLH004_02.02.007  <image_path>/bios.bin  0ACLH004_02.02.010  pending update  Cold reboot is required
-                   CPLD        5                   <image_path>/cpld.bin  10                  pending update  Power cycle is required
-                   FPGA        5                   <image_path>/fpga.bin  5                   up to date      Power cycle is required
-          Module1  ASIC        29.2000.1886        <image_path>/asic.bin  29.2000.1894        pending update  Cold reboot is required
-                   CPLD        5                   <image_path>/cpld.bin  10                  pending update  Power cycle is required
-                   FPGA        5                   <image_path>/fpga.bin  5                   up to date      Power cycle is required
-New FW will be installed, continue? [y/n]: y
+Chassis   Module   Component   Firmware               Version                                  Status              Info
+--------  -------  ----------  ---------------------  ---------------------------------------  ------------------  -----------------------
+Chassis1           BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH004_02.02.010  update is required  Cold reboot is required
+                   CPLD        <image_path>/cpld.bin  5 / 10                                   update is required  Power cycle is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date          Power cycle is required
+          Module1  CPLD        <image_path>/cpld.bin  5 / 10                                   update is required  Power cycle is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date          Power cycle is required
+New FW will be installed, continue? [y/N]: y
 
 ...
 FW update in progress ...
@@ -392,13 +414,12 @@ FW update in progress ...
 Summary:
 
 Chassis   Module   Component   Status
---------  -------  ----------  -------
-Chassis1           BIOS        update successful
-                   CPLD        update successful
-                   FPGA        up to date
-          Module1  ASIC        update successful
-                   CPLD        update failed
-                   FPGA        up to date
+--------  -------  ----------  ----------
+Chassis1           BIOS        success
+                   CPLD        success
+                   FPGA        up-to-date
+          Module1  CPLD        failure
+                   FPGA        up-to-date
 ```
 
 **Supported options:**
@@ -438,4 +459,4 @@ Chassis1           BIOS        update successful
 2. Show components status
 3. Install new BIOS/CPLD/FPGA FW on non modular chassis
 4. Install new BIOS/CPLD/FPGA FW on modular chassis
-5. Update FW on all available chassis components
+5. Update FW on all available platform components
