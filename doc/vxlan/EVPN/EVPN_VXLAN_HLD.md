@@ -284,14 +284,11 @@ No new container is added. The changes are added to existing containers such as 
 
 ### 4.1.3 SAI Overview
 
-To support this feature, SAI will be extended as below:
+To support this feature, SAI will be extended as described in the SAI PRs below:
 
-- **sai_fdb_entry_type_t** - will be enhanced to have a new enum. 
-  - SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE - This will be used when a MAC should not be aged out but a MAC move should be allowed. An example is remote MAC learnt by EVPN procedures which can be subjected to a MAC move from remote to local.
-- **sai_tunnel_attr_t** - It will be enhanced to have one new attribute
-  - SAI_TUNNEL_ATTR_ENCAP_DEST_IP - New tunnel attribute will be added to specify the tunnel destination IP address. This will be used to support warm reboot. Currently only the SIP is part of the tunnel attributes which does not allow for unique set of attributes when there are multiple tunnels with same SIP and different DIPs. The unique set of attributes is required for reconcilation during a warm reboot.  bridgeport associated with a tunnel also requires the tunnel id to be reconcilable post warm restart. Hence, it is required as part of the sai_tunnel_attr_t list.
-- **sai_vlan_attr_t** - It will be enhanced to have one new attribute
-  - SAI_VLAN_ATTR_NEIGH_SUPP_MODE - By default this value will be FALSE. Reason for this new attribute is due to recent changes in ARP behaviour. Microsoft has modified the default arp behavior in copp file from trap to copy(as part of commit -5e4b71d4). But for ARP Suppression, we need Pkt to get trapped instead of copy to avoid flooding of packets over vxlan tunnel.So a differentiated tcam rule for these arp suppressed vlans will redirect the ARP pkts to cpu instead of copy.
+- [Support for MAC Move](https://github.com/opencomputeproject/SAI/pull/1024)
+- [Support for L2VXLAN](https://github.com/opencomputeproject/SAI/pull/1025)
+- [Support for ARP/ND Suppression](https://github.com/opencomputeproject/SAI/pull/1026)
 
 ## 4.2 DB Changes
 
