@@ -1,6 +1,6 @@
 # SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.3
+### Rev 0.4
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -58,6 +58,7 @@
 | 0.1 | 09/25/2019  | Karthikeyan Arumugam | Initial version                 |
 | 0.2 | 10/30/2019  | Venkatesan Mahalingam | Config DB schema changes |
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
+| 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -358,6 +359,7 @@ route-server-client            = "true" / "false" ; Configure a neighbor as Rout
 ```
 
 #### 3.2.1.6 BGP_PEER_GROUP
+The existing BGP_PEER_RANGE (peer group) table does not have vrf-name as the key (but added as the field in the table as per VRF HLD) but FRR and open config models have the peer-group under VRF context, so, the new table BGP_PEER_GROUP has been introduced for configurations from management framework (This is not a backward compatible change, expecting the user to migrate to this table in the near future).
 
 ```JSON
 ;Defines BGP peer group table
@@ -637,13 +639,11 @@ module: openconfig-routing-policy
 
   5. For show commands that requires retrieval of the data that doesn't contain any state information (information only based on the configuration), the backend callback will fetch the data from CONFIG_DB.
 
-  6. For show commands that requires retrieval of state or statistics information the backend callback will fetch the data from FRR-BGP.
+  6. For show commands that requires retrieval of state or statistics information the backend, managemnt framework executes the FRR CLI using "docker exec bgp vtysh -c <cmds>" to fetch the data in JSON format from FRR-BGP.
 
-  7. State/stats information is retried from FRR-BGP by issuing a show command to FRR BGP container and the output is returned in JSON format.
+  7. At transformer the JSON output (retrived from FRR BGP) is converted back to corresponding open config objects and returned to the caller.
 
-  8. At transformer this JSON output is now converted back to corresponding OC objects and returned to the caller.
-
-  9. For CLI show, the output returned in object format is then translated back to CLI Jinga template for output display in CLI.
+  8. For CLI show, the output returned in object format is then translated back to CLI Jinga template for output display in CLI.
 
 
 #### 3.6.2.1 Configuration Commands
@@ -773,25 +773,25 @@ module: openconfig-routing-policy
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
 |Activate BGP peer group at an address family level|sonic(config-router-bgp-pg-af)#  activate|
-|Config as-path acceptance with own ASN|sonic(config-router-bgp-neighbor-af)#allowas-in \<AS occurrence count\> [origin] |
-|Specify route policy map to neighbor mapping|sonic(config-router-bgp-neighbor-af)#route-map \<name\> {in \| out} |
-| Use addpath to advertise all paths to a neighbor |sonic(config-router-bgp-neighbor-af)# addpath-tx-all-paths |
-| Use addpath to advertise the bestpath per each neighboring AS |sonic(config-router-bgp-neighbor-af)# addpath-tx-bestpath-per-AS |
-| Override ASNs in outbound updates if aspath equals remote-as |sonic(config-router-bgp-neighbor-af)# as-override |
-| BGP attribute is propagated unchanged to this neighbor |sonic(config-router-bgp-neighbor-af)# attribute-unchanged {as-path \| med \| next-hop}  |
-| Advertise capability to the peer |sonic(config-router-bgp-neighbor-af)# capability capability orf prefix-list {send \| receive \| both} |
-| Originate default route to this neighbor |sonic(config-router-bgp-neighbor-af)# default-originate [route-map \<route-map]  |
-| Establish BGP filters |sonic(config-router-bgp-neighbor-af)# filter-list \<list> { in \| out} |
-| Disable the next hop calculation for this neighbor |sonic(config-router-bgp-neighbor-af)# next-hop-self [force] |
-| Filter updates to/from this neighbor |sonic(config-router-bgp-neighbor-af)# prefix-list \<list> { in \| out }|
-| Remove private ASNs in outbound updates |sonic(config-router-bgp-neighbor-af)# remove-private-AS [all] [replace-AS] |
-| Configure a neighbor as Route Reflector client |sonic(config-router-bgp-neighbor-af)# route-reflector-client |
-| Configure a neighbor as Route Server client |sonic(config-router-bgp-neighbor-af)# route-server-client |
-| Send Community attribute to this neighbor |sonic(config-router-bgp-neighbor-af)# send-community { standard \| extended \| both}|
-| Per neighbor soft reconfiguration |sonic(config-router-bgp-neighbor-af)# soft-reconfiguration inbound |
-| Route-map to selectively unsuppress suppressed routes |sonic(config-router-bgp-neighbor-af)# unsuppress-map \<map>|
-| Set default weight for routes from this neighbor |sonic(config-router-bgp-neighbor-af)# weight \<val> |
-| Maximum number of prefixes to accept from this peer | sonic(config-router-bgp-neighbor-af)# maximum-prefix \<max-prefix-val> {\<threshold-val> \| warning-only \| restart \<val>} |
+|Config as-path acceptance with own ASN|sonic(config-router-bgp-pg-af)#allowas-in \<AS occurrence count\> [origin] |
+|Specify route policy map to neighbor mapping|sonic(config-router-bgp-pg-af)#route-map \<name\> {in \| out} |
+| Use addpath to advertise all paths to a neighbor |sonic(config-router-bgp-pg-af)# addpath-tx-all-paths |
+| Use addpath to advertise the bestpath per each neighboring AS |sonic(config-router-bgp-pg-af)# addpath-tx-bestpath-per-AS |
+| Override ASNs in outbound updates if aspath equals remote-as |sonic(config-router-bgp-pg-af)# as-override |
+| BGP attribute is propagated unchanged to this neighbor |sonic(config-router-bgp-pg-af)# attribute-unchanged {as-path \| med \| next-hop}  |
+| Advertise capability to the peer |sonic(config-router-bgp-pg-af)# capability capability orf prefix-list {send \| receive \| both} |
+| Originate default route to this neighbor |sonic(config-router-bgp-pg-af)# default-originate [route-map \<route-map]  |
+| Establish BGP filters |sonic(config-router-bgp-pg-af)# filter-list \<list> { in \| out} |
+| Disable the next hop calculation for this neighbor |sonic(config-router-bgp-pg-af)# next-hop-self [force] |
+| Filter updates to/from this neighbor |sonic(config-router-bgp-pg-af)# prefix-list \<list> { in \| out }|
+| Remove private ASNs in outbound updates |sonic(config-router-bgp-pg-af)# remove-private-AS [all] [replace-AS] |
+| Configure a neighbor as Route Reflector client |sonic(config-router-bgp-pg-af)# route-reflector-client |
+| Configure a neighbor as Route Server client |sonic(config-router-bgp-pg-af)# route-server-client |
+| Send Community attribute to this neighbor |sonic(config-router-bgp-pg-af)# send-community { standard \| extended \| both}|
+| Per neighbor soft reconfiguration |sonic(config-router-bgp-pg-af)# soft-reconfiguration inbound |
+| Route-map to selectively unsuppress suppressed routes |sonic(config-router-bgp-pg-af)# unsuppress-map \<map>|
+| Set default weight for routes from this neighbor |sonic(config-router-bgp-pg-af)# weight \<val> |
+| Maximum number of prefixes to accept from this peer | sonic(config-router-bgp-pg-af)# maximum-prefix \<max-prefix-val> {\<threshold-val> \| warning-only \| restart \<val>} |
 
 ##### 3.6.2.1.7 Routing policy defined-sets commands
 |Command Description|CLI Command      |
@@ -808,25 +808,215 @@ module: openconfig-routing-policy
 |Command Description|CLI Command      |
 |:-----------------|:---------------|
 |Configure routing policy match criteria and associated actions|sonic(config)#route-map \<map-name\> { permit \| deny } \<sequence-number\> |
-|Configure routing policy match criteria|sonic(config-route-map)# match as-path \<list\> <br> sonic(config-route-map)# match community \<list\> <br> sonic(config-route-map)# match ext-community \<list\> <br> sonic(config-route-map)# match interface \<intf-name\> <br> sonic(config-route-map)# match ip address prefix-list \<name\> <br> sonic(config-route-map)# match ipv6 address prefix-list \<name\> <br> sonic(config-route-map)# match metric \<val\> <br> sonic(config-route-map)# match route-type { internal \| external } <br> sonic(config-route-map)# match origin { egp \| igp \| incomplete } <br> sonic(config-route-map)# tag \<value\>|
-|Configure routing policy actions|sonic(config-route-map)# set as-path prepend \<list\> <br> sonic(config-route-map)# set comm-list \<name\> { add \| del } <br> sonic(config-route-map)# set community \<options\> <br> sonic(config-route-map)# set ext-community <br> sonic(config-route-map)# set ip next-hop <br> sonic(config-route-map)# set ipv6 next-hop <br> sonic(config-route-map)# set local-preference \<val\> <br> sonic(config-route-map)# set metric \<val\> <br> sonic(config-route-map)#set origin { igp \| egp \| incomplete } <br> sonic(config-route-map)# set tag \<value\> |
+|Configure routing policy match criteria|sonic(config-route-map)# match as-path \<list\> <br> sonic(config-route-map)# match community \<list\> <br> sonic(config-route-map)# match ext-community \<list\> <br> sonic(config-route-map)# match interface \<intf-name\> <br> sonic(config-route-map)# match ip address prefix-list \<name\> <br> sonic(config-route-map)# match ipv6 address prefix-list \<name\> <br> sonic(config-route-map)# match metric \<val\> <br> sonic(config-route-map)# match route-type { internal \| external } <br> sonic(config-route-map)# match origin { egp \| igp \| incomplete } <br> sonic(config-route-map)# tag \<value\> <br> sonic(config-route-map)# match local-preference \<val> <br> sonic(config-route-map)# match peer \<IP> <br> sonic(config-route-map)# match ip next-hop prefix-list \<name> <br> sonic(config-route-map)# call \<route-map> <br> sonic(config-route-map)# match source-protocol { bgp \| ospf \| ospf3 \| static \| connected } |
+|Configure routing policy actions|sonic(config-route-map)# set as-path prepend \<list\> <br> sonic(config-route-map)# set comm-list \<name\> { add \| del } <br> sonic(config-route-map)# set community \<options\> <br> sonic(config-route-map)# set ext-community <br> sonic(config-route-map)# set ip next-hop \<val> <br> sonic(config-route-map)# set ipv6 next-hop \<val> <br> sonic(config-route-map)# set local-preference \<val\> <br> sonic(config-route-map)# set origin { igp \| egp \| incomplete } <br> sonic(config-route-map)# set tag \<value\> |
 
 
 #### 3.6.2.2 Show Commands
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
 |Display BGP routes information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } |
+
+```
+sonic# show ip bgp
+BGP routing table information for VRF default
+Router identifier 20.0.0.1, local AS number 100
+Route status codes: * - valid, > - active, e - ECMP
+Origin codes: i - IGP, e - EGP, ? - incomplete
+AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL Nexthop - Link Local Nexthop
+
+        Network        Next Hop     Metric     LocPref     Weight     Path
+* >    3.0.0.1/32     1.1.1.2        0          100         0          300 i
+*      3.0.0.1/32     1.0.0.2        0          100         0          200 ?
+* >    3.0.0.2/32     1.1.1.2        0          100         0          300 i
+*      3.0.0.2/32     1.0.0.2        0          100         0          200 ?
+* >    3.0.0.3/32     1.1.1.2        0          100         0          300 i
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 |Display summary of all BGP neighbors information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } summary|
-|Display BGP specific route information|show ip bgp [vrf \<name>] { ipv4 \| ipv6 } \<prefix> \<nbr-ip> \<path-id> |
+
+```
+sonic#show ip bgp summary
+BGP summary information for VRF default
+Router identifier 20.0.0.1, local AS number 100
+  Neighbor         V  AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down  State   PfxRcd PfxAcc
+  10.1.0.100       4  200           1075      1083    0    0    00:04:04 Connect
+  10.2.0.101       4  200           1079      1088    0    0    00:04:14 Connect
+sonic#
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+|Display BGP specific route information|show ip bgp [vrf \<name>] { ipv4 \| ipv6 } \<prefix> |
+
+```
+Router# show ip bgp 30.0.0.0/24
+
+BGP routing table entry for 30.0.0.0/24, version 35
+Paths: (3 available, best #2, table default)
+Multipath: eBGP
+Flag: 0x860
+  Advertised to update-groups:
+     1
+  200
+    50.0.0.1 from 50.0.0.1 (20.0.0.1)
+      Origin incomplete, localpref 100, valid, external, backup/repair
+      Only allowed to recurse through connected route
+  200
+    60.0.0.1 from 60.0.0.1 (20.0.0.1)
+      Origin incomplete, localpref 100, weight 100, valid, external, best
+      Only allowed to recurse through connected route
+  200
+    70.0.0.1 from 70.0.0.1 (40.0.0.1)
+      Origin incomplete, localpref 100, valid, external,
+      Only allowed to recurse through connected route
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 |Display BGP neighbor information | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors [\<nbr-ip>] |
+
+```
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display BGP neighbor received/advertised routes | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors \<nbr-ip> { received-routes \| advertised-routes }|
+
+```
+sonic#show ip bgp neighbors 10.3.0.103 advertised-routes
+BGP routing table information for VRF default
+Router identifier 10.0.0.102, local AS number 64500
+Route status codes: s - suppressed, * - valid, > - active, # - not installed, E - ECMP head, e - ECMP
+                    S - Stale, c - Contributing to ECMP, b - backup, L - labeled-unicast
+Origin codes: i - IGP, e - EGP, ? - incomplete
+AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL Nexthop - Link Local Nexthop
+
+         Network                Next Hop            Metric  LocPref Weight  Path
+* >     10.1.0.0/24            10.3.0.102            -       100     -       i
+* >     10.2.0.0/24            10.3.0.102            -       100     -       i
+* >     10.3.0.0/24            10.3.0.102            -       100     -       i
+* >     10.100.0.0/24          10.1.0.100            200     100     -       64496 i
+* >     10.100.1.0/24          10.1.0.100            -       100     -       64496 64497 65536 i
+* >     10.100.2.0/24          10.1.0.100            42      100     -       64496 ?
+* >     10.101.0.0/24          10.2.0.101            -       100     -       64510 i
+* >     10.101.1.0/24          10.2.0.101            -       100     -       64510 i
+* >     10.101.2.0/24          10.2.0.101            -       100     -       64510 i
+sonic#
+
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display peer-group information | show ip bgp [vrf \<name>] peer-group [\<pg-name>]|
+
+```
+sonic#show ip bgp peer-group
+BGP peer-group is EXTERNAL
+  BGP version 4
+  Static peer-group members:
+    VRF default:
+      10.1.0.100, state: Connect
+        Negotiated MP Capabilities:
+            IPv4 Unicast: No
+            IPv6 Unicast: No
+      10.2.0.101, state: Connect
+        Negotiated MP Capabilities:
+            IPv4 Unicast: No
+            IPv6 Unicast: No
+
+BGP peer-group is INTERNAL
+  BGP version 4
+  Listen-range subnets:
+    VRF default:
+      10.3.0.0/24, remote AS 64500
+  Dynamic peer-group members:
+    VRF default:
+sonic#
+
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
+
+```
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display route map information | show route-map |
+
+```
+sonic# show route-map
+Route map map1:
+   permit, sequence 10
+    Match clauses:
+    Set clauses:
+      local preference 10
+    Call clauses:
+    Actions:
+      Exit routemap
+Route map map2:
+   permit, sequence 2
+    Match clauses:
+      med 10
+    Set clauses:
+    Call clauses:
+    Actions:
+      Exit routemap
+sonic#
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display IPv4 prefix list information | show ip prefix-list |
+
+```
+sonic# show ip prefix-list
+IP prefix list pref1:
+     permit 20.0.0.0/8
+sonic#
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display IPv6 prefix list information | show ipv6 prefix-list |
+
+```
+sonic# show ipv6 prefix-list
+IPv6 prefix list pref2:
+     permit 2222::/64 ge 65 le 65
+     permit 2223::/64 ge 65 le 128
+sonic#
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display BGP community list information | show bgp community-list |
+
+```
+sonic# show bgp community-list
+Standard community list com1:  match: ANY
+     local-AS
+Expanded community list com2:   match: ANY
+     Extended1
+sonic#
+```
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display BGP extended community list information | show bgp ext-community-list |
+
+```
+sonic# show bgp ext-community-list
+Standard extended community list extcom1:  match: ANY
+     rt:2:2
+Expanded extended community list extcom2:  match: ANY
+     extcom
+sonic#
+```
+
+|Command Description|CLI Command      |
+|:------------------|:-----------------|
 | Display BGP AS-Path list information | show bgp as-path-access-list |
+
+```
+sonic# show bgp as-path-access-list
+AS path list aspath1:
+   members: 1:1+
+sonic#
+```
 
 
 #### 3.6.2.3 Debug Commands
@@ -860,7 +1050,7 @@ Various REST operations (POST/PUT/PATCH/GET/DELETE) are supported for the BGP an
 
 # 5 Error Handling
 
-Validation is done at both north bound interface and against database schema. Appropriate error code is returned for invalid configuration or on failures due to a dependency. All application errors are logged into syslog.
+The complete validation of BGP parameters is performed in the SONiC management framework based on open config BGP/Routing policy YANGs and against corresponding SONiC YANGs. Appropriate error code is returned for invalid configurations or on failures due to a dependency from management framework and bgpcfgd modules and the same is logged into the syslog, it is not expected for bgpcfgd (FRR CLI command execution) to return validation errors. However, such errors are logged into syslog for debugging purposes.
 
 # 6 Serviceability and Debug
 
@@ -875,5 +1065,5 @@ This enhancement to FRR-BGP Unified management framework does not disrupt data p
 # 8 Scalability
 
 # 9 Unit Test
-
+Testing of the configuration changes is manual and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template.
 # 10 Appendix
