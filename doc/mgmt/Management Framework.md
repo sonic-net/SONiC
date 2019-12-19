@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.14
+### Rev 0.15
 
 ## Table of Contents
 
@@ -133,6 +133,7 @@
 | 0.12 | 10/19/2019 | Senthil Kumar Ganesan   | Added Appendix B    |
 | 0.13 | 11/27/2019 | Anand Kumar Subramanian | Added new APIs in translib    |
 | 0.14 | 12/03/2019 | Sachin Holla            | RESTCONF yang library and other enhancements |
+| 0.15 | 12/19/2019 | Partha Dutta            | Added new CVL API, platform and custom validation details |
 
 ## About this Manual
 
@@ -1614,16 +1615,34 @@ There can be two types of platform constraint validation
 
 Example of 'deviation' :
 
-	 deviation /svlan:sonic-vlan/svlan:VLAN/svlan:name {
-                deviate replace {
-                        type string {
-                                // Supports 3K VLANs in a specific platform
-                                pattern "Vlan([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[1-9])";
-                        }
-                }
-        }
+```
+module sonic-acl-deviation {
+	......
+	......
+	deviation /sacl:sonic-acl/sacl:ACL_TABLE/sacl:ACL_TABLE_LIST {
+		deviate add {
+			max-elements 3;
+		}
+	}
 
-* Deviation models are compiled along with corresponding SONiC YANG model and new constraints are added or overwritten in the compiled schema.
+	deviation /sacl:sonic-acl/sacl:ACL_RULE/sacl:ACL_RULE_LIST {
+		deviate add {
+			max-elements 768;
+		}
+	}
+}
+```
+
+* All deviation models are compiled along with corresponding CVL YANG model and are placed in platform specific schema folder. At runtime based on detected platform from provisioned  “DEVICE_METADATA:platform” field, deviation files are applied.
+
+* Here is the sample folder structure for platform specific deviation files.
+```
+	models/yang/sonic/platform/
+	|-- accton_as5712
+	|   |--- sonic-acl-deviation.yang
+	|-- quanta_ix8
+	    |--- sonic-acl-deviation.yang
+```
 
 ###### 3.2.2.8.2.3.2  Dynamic Platform Constraint Validation
 
@@ -1634,11 +1653,24 @@ Example of 'deviation' :
 ###### 3.2.2.8.2.3.2.2 Platform data is available through APIs
 
 * If constraints cannot be expressed using YANG syntax or platform data is available through feature/component API (APIs exposed by a feature to query platform specific constants, resource limitation etc.), custom validation needs to be hooked up in SONiC YANG model through custom YANG extension.
-* CVL will generate stub code for custom validation. Feature developer populates the stub functions with functional validation code. The validation function should call feature/component API and fetch required parameter for checking constraints.
-* Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated.
+* Feature developer implements the custom validation functions with functional validation code. The validation function may call feature/component API and fetch required parameter for checking constraints.
+* Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated. Below is the custom validation context structure definition.
 
+```
+	//Custom validation context passed to custom validation function
+	type CustValidationCtxt struct {
+		ReqData []CVLEditConfigData //All request data
+		CurCfg *CVLEditConfigData //Current request data for which validation should be done
+		YNodeName string //YANG node name
+		YNodeVal string  //YANG node value, leaf-list will have "," separated value
+		YCur *xmlquery.Node //YANG data tree
+		RClient *redis.Client //Redis client
+	}
+```
+ 
 ###### 3.2.2.8.3 CVL APIs
 
+```
         //Structure for key and data in API
         type CVLEditConfigData struct {
                 VType CVLValidateType //Validation type
@@ -1686,13 +1718,38 @@ Example of 'deviation' :
                 CVL_INTERNAL_UNKNOWN /*Internal unknown error */
                 CVL_FAILURE          /* Generic failure */
         )
+```	
 
-1. Initialize() - Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
-2. Finish()  - Clean up the library resources. This should ideally be called when no more validation is needed or process is about to exit.
-3. ValidateConfig(jsonData string) - Just validates json buffer containing multiple row instances of the same table, data instance from different tables. All dependency are provided in the payload. This is useful for bulk data validation.
-4. ValidateEditConfig(cfgData []CVLEditConfigData) - Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as dependent data for validation to be succesful.
-5. ValidateKey(key string) - Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
-6. ValidateField(key, field, value string)  - Just validates the field:value pair in table. Key should have table name as prefix.
+1. func Initialize() CVLRetCode
+	- Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
+
+2. func Finish()
+	- Clean up the library resources. This should ideally be called when no more validation is needed or process is about to exit.
+
+3. func (c *CVL) ValidateConfig(jsonData string) CVLRetCode
+	- Just validates json buffer containing multiple row instances of the same table, data instance from different tables. All dependency are provided in the payload. This is useful for bulk data validation.
+	
+4. func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorInfo, ret CVLRetCode)
+	- Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as dependent data for validation to be successful.
+
+5. func (c *CVL) ValidateKeys(key []string) CVLRetCode
+	- Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
+	
+6. func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode
+	- Just validates the field:value pair in table. Key should have table name as prefix.
+	
+7. func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode)
+	- Sort the list of given tables as per their dependency imposed by leafref.
+
+8. func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) 
+	- Get the sorted list of tables in a given YANG module based on leafref relation.
+
+9. func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode)
+	- Get the list of dependent tables for a given table in a YANG module.
+
+10. func (c *CVL) GetDepDataForDelete(redisKey string) ([]string, []string)
+	- Get the dependent data (Redis keys) to be deleted or modified for a given entry getting deleted.
+
 
 ##### 3.2.2.9 Redis DB
 
@@ -2138,6 +2195,18 @@ Manageability framework will be scalable to handle huge payloads conforming to t
 69. Check if CVL Finish operation is successful
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
+72. Check if CVL validation passes when 'leafref' points to a key in another table having multiple keys.
+73. Check if CVL validation passes when 'leafref' points to non-key in another table.
+74. Check if CVL validation passes when 'leafref' points to a key which is drived in predicate from another table in cascaded fashion. 
+75. Check if CVL validation passes when 'must' condition involves checking with fields having default value which are not provided in request a data.
+76. Check if CVL validation passes when 'must' condition has predicate field/key value derived from another table using another predicate in cascaded fashion.
+77. Check if CVL validation passes for 'when' condition present within a leaf/leaf-list.
+78. Check if CVL validation passes for 'when' condition present in choice/case node.
+79. Check if CVL validation passes if 'max-elements' is present in a YANG list.
+80. Check if CVL can sort the list of given tables as per their dependency imposed by leafref.
+81. Check if CVL can return sorted list of tables in a given YANG module based on leafref relation.
+82. Check if CVL can return the list of dependent tables for a given table in a YANG module.
+83. Check if CVL can return the dependent data(Redis keys) to be deleted or modified for a given entry getting deleted.
 
 ## 11 Appendix A
 
