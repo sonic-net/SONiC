@@ -24,7 +24,7 @@ This test is targeting a running SONIC system with fully functioning configurati
 
 ### Setup Configuration
 
-Since this feature is not related to traffic and network topology, default configuration on a T0 topology is good enough for this test.
+Since this feature is not related to traffic and network topology, all current topology is good for this test.
 
 ### Ansible and Pytest
 
@@ -141,10 +141,17 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Stop a PSU.
-5. Verify target speed of all Fans are set to value according to valid_policy.json.
-6. Resume the PSU.
-7. Verify target speed of all Fans are set to value according to valid_policy.json.
+4. Stop two PSUs.
+5. Wait for at least 60 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
+6. Resume one PSU.
+7. Wait for at least 60 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
+8. Resume all PSU.
+9. Verify target speed of all Fans are set to 60% according to valid_policy.json.
+
+#### Note
+
+- The reason that we wait at least 60 seconds is that thermal policy run every 60 seconds according to design.
+- For switch who has only one PSU, step 6 and step 7 will be ignored.
 
 ### Invalid Policy Format Load Test
 
