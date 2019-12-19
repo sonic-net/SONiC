@@ -178,9 +178,9 @@ Setup of SONIC DUT will be done by Ansible script. During setup Ansible will cop
 
 test_mclag.py test mclag l2 scenario, and test_mclag_l3.py test mclag l3 scenario.
 
-- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag-16 --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag.py
+- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag.py
 
-- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag-16 --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag_l3.py
+- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag_l3.py
 
 ## PTF Test
 
