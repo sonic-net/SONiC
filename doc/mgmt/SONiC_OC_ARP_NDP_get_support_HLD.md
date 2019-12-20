@@ -147,7 +147,7 @@ augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface
 -      |        +--ro neighbor-state?       enumeration
 ```
 Also sonic yang (sonic-arp-ndp.yang) is defined for fetching all entries from the NEIGH_TABLE and
-also for the RPC:
+for the RPC for clearing ARP/NDP entries:
 ```diff
 module: sonic-arp-ndp
     +--rw sonic-arp-ndp
@@ -161,6 +161,7 @@ module: sonic-arp-ndp
   rpcs:
     +---x clear_arp_ndp
        +---w input
+       |  +---w force?    boolean
        |  +---w family?   enumeration
        |  +---w (option)?
        |     +--:(all)
@@ -179,7 +180,7 @@ module: sonic-arp-ndp
 Syntax:
 
 `
-clear ip arp [interface { Ethernet <port> | PortChannel <id> | Vlan <id> | Management <id> }] [<A.B.C.D>]
+clear ip arp [interface { Ethernet <port> | PortChannel <id> | Vlan <id> | Management <id> }] [<A.B.C.D>] [force]
 `
 
 The command returns a non-empty string in case of any error; for e.g. if the interface is not found or the IP address is not available in ARP or NDP table.
@@ -213,7 +214,7 @@ sonic#
 Syntax:
 
 `
-clear ipv6 neighbors [interface { Ethernet <port> | PortChannel <id> | Vlan <id> | Management <id> }] [<A::B>]
+clear ipv6 neighbors [interface { Ethernet <port> | PortChannel <id> | Vlan <id> | Management <id> }] [<A::B>] [force]
 `
 
 Syntax Description:
