@@ -8,23 +8,32 @@
   - [Setup Configuration](#setup-configuration)
   - [Ansible and Pytest](#ansible-and-pytest)
 - [Test Cases](#test-cases)
+  - [Show FAN Status Test](#show-fan-status-test)
+  - [Show Thermal Status Test](#show-thermal-status-test)
   - [PSU Absence Test](#psu-absence-test)
-  - [Invalid Policy Test](#invalid-policy-test)
+  - [Invalid Policy Format Load Test](#invalid-policy-format-load-test)
+  - [Invalid Policy Value Load Test](#invalid-policy-value-load-test)
 
 
 ## Overview
 
-The purpose is to test functionality of thermal control policy on the SONIC switch DUT. The thermal control policy is defined in a JSON file and loaded by thermal control daemon in pmon docker. Thermal control daemon collects thermal information and matches thermal conditions. Once some thermal conditions match, related thermal actions will be triggered. More detail on thermal control feature can be found in this [document](https://github.com/keboliu/SONiC/blob/thermal_control_design/thermal-control-design.md).
+The purpose is to test functionality of thermal control feature on the SONIC switch DUT. The thermal control feature contains 3 major functions: FAN status monitor, thermal status monitor and thermal control policy management.
+
+- FAN status monitor read FAN status via platform API every 60 seconds and save it to redis database. User can watch FAN status via command line `show platform fanstatus`.
+- Thermal status monitor read thermal status via platform API every 60 seconds and save it to redis database. User can watch thermal status via command line `show platform temperature`.
+- The thermal control policy is defined in a JSON file and loaded by thermal control daemon in pmon docker. Thermal control daemon collects thermal information and matches thermal conditions. Once some thermal conditions match, related thermal actions will be triggered. 
+
+More detail on thermal control feature can be found in this [document](https://github.com/keboliu/SONiC/blob/thermal_control_design/thermal-control-design.md).
 
 ## Scope
 
-This test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONIC system, making sure that correct actions are executed once predefined conditions match.
+This test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONIC system, making sure that FAN status and thermal status can shown to user and correct actions are executed once predefined thermal policy conditions match.
 
 ## Test Structure
 
 ### Setup Configuration
 
-Since this feature is not related to traffic and network topology, all current topology is good for this test.
+Since this feature is not related to traffic and network topology, all current topology can be applied for this test.
 
 ### Ansible and Pytest
 
@@ -32,10 +41,10 @@ No new Ansible YAML test case will be added. The test will reuse current [platfo
 
 #### Valid policy file
 
-In the valid policy file, two policies are defined. One is for "any PSU absence", the other is for "all PSU presence".
+In the valid policy file, two policies are defined. One is for "any PSU absence", the other is for "all FAN and PSU presence".
 
 - For "any PSU absence", all FAN speed need be set to 100% and thermal control algorithm need to be disabled.
-- For "all PSU absence", thermal control algorithm need to be enabled and FAN speed should be adjusted by it.
+- For "all FAN and PSU presence", thermal control algorithm need to be enabled and FAN speed should be adjusted by it.
 
 The valid_policy.json file content is like:
 
@@ -99,7 +108,7 @@ In invalid_format_policy.json, the file content is not valid JSON at all. A file
 
 #### Invalid value policy file
 
-In invalid_value_policy.json, the file content contains minus value of target speed. The invalid_value_policy.json content is like:
+In invalid_value_policy.json, the file content contains minus value of target speed. We couldn't cover all invalid value here because there are too many possibilities. The major purpose of this configuration file is to verify thermal control daemon would not crash while loading such an invalid configuration files. For other negative test cases, they are already covered by unit test. The invalid_value_policy.json content is like:
 
 ```json
 {
@@ -132,6 +141,34 @@ In invalid_value_policy.json, the file content contains minus value of target sp
 
 ## Test Cases
 
+### Show FAN Status Test
+
+Show FAN status test verifies that all FAN related information can be shown correctly via `show platform fanstatus`.
+
+#### Procedure
+
+1. Testbed setup.
+2. Issue command `show platform fanstatus`.
+3. Read the command output.
+4. Read FAN status via sysfs.
+5. Verify that command output matches FAN status from sysfs.
+
+> Note: FAN status monitor update FAN status every 60 seconds, so the command output might not match FAN status from sysfs exactly. We may introduce some tolerance.
+
+### Show Thermal Status Test
+
+Show thermal status test verifies that all thermal related information can be shown correctly via `show platform temperature`.
+
+#### Procedure
+
+1. Testbed setup
+2. Issue command `show platform temperature`.
+3. Record the command output
+4. Read thermal status via sysfs.
+5. Verify that command output matches thermal status from sysfs.
+
+> Note: Thermal status monitor update FAN status every 60 seconds, so the command output might not match FAN status from sysfs exactly. We may introduce some tolerance.
+
 ### PSU Absence Test
 
 PSU absence test verifies that once any PSU absence, all FAN speed will be set to proper value according to policy file.
@@ -148,31 +185,29 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 8. Resume all PSU.
 9. Verify target speed of all Fans are set to 60% according to valid_policy.json.
 
-#### Note
-
-- The reason that we wait at least 60 seconds is that thermal policy run every 60 seconds according to design.
-- For switch who has only one PSU, step 6 and step 7 will be ignored.
+> Note: The reason that we wait at least 60 seconds is that thermal policy run every 60 seconds according to design.
+> For switch who has only one PSU, step 6 and step 7 will be ignored.
 
 ### Invalid Policy Format Load Test
 
-Invalid policy format test verifies that thermal control daemon does not exit when loading a invalid_format_policy.json file. The thermal control daemon cannot perform any thermal policy in this case, but FAN monitor and Temperature monitor should still work.
+Invalid policy format test verifies that thermal control daemon does not exit when loading a invalid_format_policy.json file. The thermal control daemon cannot perform any thermal policy in this case, but FAN monitor and thermal monitor should still work.
 
 #### Procedure
 
 1. Testbed setup.
 2. Copy invalid_format_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Verify FAN status and temperature status still display normally. (By check command output of "show platform fanstatus" and "show platform temperature")
+4. Verify FAN status and thermal status still display normally. (By check command output of `show platform fanstatus` and `show platform temperature`)
 5. Recover the original policy configuration file and restart pmon service
 
 ### Invalid Policy Value Load Test
 
-Invalid policy format test verifies that thermal control daemon does not exit when loading a invalid_value_policy.json file. The thermal control daemon cannot perform any thermal policy in this case, but FAN monitor and Temperature monitor should still work.
+Invalid policy value test verifies that thermal control daemon does not exit when loading a invalid_value_policy.json file. The thermal control daemon cannot perform any thermal policy in this case, but FAN monitor and thermal monitor should still work.
 
 #### Procedure
 
 1. Testbed setup.
 2. Copy invalid_value_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Verify FAN status and temperature status still display normally. (By check command output of "show platform fanstatus" and "show platform temperature")
+4. Verify FAN status and thermal status still display normally. (By check command output of `show platform fanstatus` and `show platform temperature`)
 5. Recover the original policy configuration file and restart pmon service
