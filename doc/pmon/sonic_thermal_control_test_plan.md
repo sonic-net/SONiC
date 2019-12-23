@@ -10,6 +10,7 @@
 - [Test Cases](#test-cases)
   - [Show FAN Status Test](#show-fan-status-test)
   - [Show Thermal Status Test](#show-thermal-status-test)
+  - [FAN Test](#fan-test)
   - [PSU Absence Test](#psu-absence-test)
   - [Invalid Policy Format Load Test](#invalid-policy-format-load-test)
   - [Invalid Policy Value Load Test](#invalid-policy-value-load-test)
@@ -61,6 +62,24 @@ The valid_policy.json file content is like:
     "policies": [
         {
             "name": "any PSU absence",
+            "conditions": [
+                {
+                    "type": "fan.any.absence"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "thermal_control.control",
+                    "status": "false"
+                },
+                {
+                    "type": "fan.all.set_speed",
+                    "speed": "100"
+                }
+            ]
+        },
+        {
+            "name": "any FAN absence",
             "conditions": [
                 {
                     "type": "fan.any.absence"
@@ -148,12 +167,11 @@ Show FAN status test verifies that all FAN related information can be shown corr
 #### Procedure
 
 1. Testbed setup.
-2. Issue command `show platform fanstatus`.
-3. Read the command output.
-4. Read FAN status via sysfs.
-5. Verify that command output matches FAN status from sysfs.
-
-> Note: FAN status monitor update FAN status every 60 seconds, so the command output might not match FAN status from sysfs exactly. We may introduce some tolerance.
+2. Unlink FAN related sysfs and fill fake data for "presence", "speed", "status", "target_speed", "led status".
+3. Issue command `show platform fanstatus`.
+4. Record the command output.
+5. Verify that command output matches the fake data.
+6. Link FAN related sysfs.
 
 ### Show Thermal Status Test
 
@@ -161,13 +179,31 @@ Show thermal status test verifies that all thermal related information can be sh
 
 #### Procedure
 
-1. Testbed setup
-2. Issue command `show platform temperature`.
-3. Record the command output
-4. Read thermal status via sysfs.
-5. Verify that command output matches thermal status from sysfs.
+1. Testbed setup.
+2. Unlink thermal related sysfs and fill fake data for "temperature", "high_threshold", "high_critical_threshold".
+3. Issue command `show platform temperature`.
+4. Record the command output.
+5. Verify that command output matches the fake data.
+6. Link thermal related sysfs.
 
-> Note: Thermal status monitor update FAN status every 60 seconds, so the command output might not match FAN status from sysfs exactly. We may introduce some tolerance.
+### FAN Test
+
+FAN test verifies that proper action should be taken for conditions including: FAN absence, FAN over speed, FAN under speed.
+
+#### Procedure
+
+1. Testbed setup.
+2. Copy valid_policy.json to pmon docker and backup the original one.
+3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
+4. Unlink FAN related sysfs and make fake data: first FAN absence.
+5. Wait for at least 60 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. 
+6. Make fake data: first FAN presence.
+7. Wait for at least 60 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json. 
+8. Make fake data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed theshold(speed > target speed).
+9. Wait for at least 60 seconds. Veify led turns to red for first and second FAN.
+10. Make fack data: first and second FAN speed recover to normal.
+11. Wait for at least 60 seconds. Veify led turns to green for first and second FAN.
+12. Link FAN related sysfs. Restore the original policy file.
 
 ### PSU Absence Test
 
@@ -184,6 +220,7 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 7. Wait for at least 60 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
 8. Resume all PSU.
 9. Verify target speed of all Fans are set to 60% according to valid_policy.json.
+10. Restore the original policy file.
 
 > Note: The reason that we wait at least 60 seconds is that thermal policy run every 60 seconds according to design.
 > For switch who has only one PSU, step 6 and step 7 will be ignored.
