@@ -101,15 +101,15 @@ Testbeds t0-mclag is modified based on the Testbeds t0.
 
 #### L2 scenario
 
-All links to server ports are L2 mode, and peer-link must allow all vlans to be used. DUT is the gateway of the servers. DUT binds MCLAG's vlan interface IP address to be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will build through BGP route.
+All links to server ports are L2 mode, and peer-link must allow all vlans to be used. DUT is the gateway of the servers. DUT binds MCLAG's vlan interface IP address to be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will be established through a separate link.
 
 #### L3 scenario
 
-All links to server ports are L3 mode, the peer-link is optional. DUT is the gateway of the servers. DUT binds MCLAG's interface ip address must be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will build through BGP route.
+All links to server ports are L3 mode, the peer-link is optional. DUT is the gateway of the servers. DUT binds MCLAG's interface ip address must be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will be established through a separate link.
 
 #### VXLAN scenario
 
-All links to server ports are L2 mode. DUT is the gateway of the servers. DUT binds MCLAG's vlan interface IP address to be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will build through BGP route.
+All links to server ports are L2 mode. DUT is the gateway of the servers. DUT binds MCLAG's vlan interface IP address to be the same except peer-link. Establish BGP neighbors between the VMs and two DUTs. MCLAG keepalive link will be established through a separate link.
 
 ## Setup configuration
 
@@ -178,9 +178,9 @@ Setup of SONIC DUT will be done by Ansible script. During setup Ansible will cop
 
 test_mclag.py test mclag l2 scenario, and test_mclag_l3.py test mclag l3 scenario.
 
-- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag.py
+- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag-16 --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag.py
 
-- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag_l3.py
+- pytest -vvv --disable_loganalyzer --inventory veos --host-pattern all --user admin --testbed vms-t0-mclag-16 --testbed_file testbed.csv  --duration=0 --show-capture=stdout  test_mclag_l3.py
 
 ## PTF Test
 
@@ -345,13 +345,13 @@ Verify data forwarding is correct when keepalive link status change.
 
 ##### Test steps <!-- omit in toc -->
 
-1. Keepalive link status change to down(shutdown ports connect with VMs).
+1. Keepalive link status change to down(shutdown keepalive link).
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
 3. Verify standby device changes its LACP system ID to the local default
 4. Servers(exclude ports which link to standby device of mclag) send packets to others Servers(Send L2 packets to servers that belong to the same vlan and L3 packets to servers that belong to other vlans). All packets must be received on the correct destination ports.
 5. "show mac" command verify the macs learned on standby device orphan ports will be deleted.
 6. "show arp" command verify the arps learned on standby device orphan ports will be deleted.
-7. Keepalive link status recover to up(startup ports connect with VMs).
+7. Keepalive link status recover to up(startup keepalive link).
 8. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 9. Servers send packets to others Servers and VMs(send L2 packets to servers that belong to the same vlan, and send L3 packets to VMs and servers belonging to other vlans). All packets must be received on the correct destination ports.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
@@ -367,13 +367,13 @@ Verify data forwarding is correct when peer-link and keepalive link status both 
 
 ##### Test steps <!-- omit in toc -->
 
-1. Peer-link and keepalive link status change to down(shutdown the peer-link and those ports connected to the VMs).
+1. Peer-link and keepalive link status change to down(shutdown the peer-link and keepalive link).
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
 3. Verify standby device changes its LACP system ID to the local default
 4. Servers(exclude orphan ports and those ports link to standby device of mclag) send packets to others Servers and VMs(send L2 packets to servers that belong to the same vlan, and send L3 packets to VMs and servers belonging to other vlans). All packets must be received on the correct destination ports.
 5. "show mac" command verify the macs learned on standby device orphan ports will be deleted.
 6. "show arp" command verify the arps learned on standby device orphan ports will be deleted.
-7. Peer-link and keepalive link status recover to up(startup the peer-link and those ports connected to the VMs).
+7. Peer-link and keepalive link status recover to up(startup the peer-link and keepalive link).
 8. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 9. Servers send packets to others Servers and VMs(send L2 packets to servers that belong to the same vlan, and send L3 packets to VMs and servers belonging to other vlans). All packets must be received on the correct destination ports.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
@@ -605,11 +605,11 @@ Verify data forwarding is correct when keepalive link status change.
 
 ##### Test steps <!-- omit in toc -->
 
-1. Keepalive link status change to down(shutdown ports connect with VMs).
+1. Keepalive link status change to down(shutdown keepalive link).
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
 3. Verify standby device changes its LACP system ID to the local default
 4. Servers(exclude ports which link to standby device of mclag) send packets to others Servers(send L3 packets to other servers). All packets must be received on the correct destination ports.
-5. Keepalive link status recover to up(startup ports connect with VMs).
+5. Keepalive link status recover to up(startup keepalive link).
 6. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 7. Servers send packets to others Servers and VMs(send L3 packets to other servers and VMs). All packets must be received on the correct destination ports.
 
@@ -765,13 +765,13 @@ Verify data forwarding is correct when keepalive link status change.
 
 ##### Test steps <!-- omit in toc -->
 
-1. Keepalive link status change to down(shutdown ports connect with VMs).
+1. Keepalive link status change to down(shutdown keepalive link).
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
 3. Verify standby device changes its LACP system ID to the local default
 4. Servers(exclude ports which link to standby device of mclag) send packets to others Servers(send L2 packets to servers that belong to the same VNI, and send L3 packets to VMs and servers belonging to other VNI). All packets must be received on the correct destination ports.
 5. "show mac" command verify the macs learned on standby device orphan ports will be deleted.
 6. "show arp" command verify the arps learned on standby device orphan ports will be deleted.
-7. Keepalive link status recover to up(startup ports connect with VMs).
+7. Keepalive link status recover to up(startup keepalive link).
 8. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 9. Servers send packets to others Servers. All packets must be received on the correct destination ports.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
@@ -787,13 +787,13 @@ Verify data forwarding is correct when peer-link and keepalive link status both 
 
 ##### Test steps <!-- omit in toc -->
 
-1. Peer-link and Keepalive link status change to down(shutdown the peer-link and those ports connected to the VMs, but not support shutdown the peer-link now).
+1. Peer-link and Keepalive link status change to down(shutdown the peer-link and keepalive link, but not support shutdown the peer-link now).
 2. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to error.
 3. Verify standby device changes its LACP system ID to the local default
 4. Servers(exclude orphan ports and those ports link to standby device of mclag) send packets to others Servers(send L2 packets to servers that belong to the same VNI, and send L3 packets to VMs and servers belonging to other VNI). All packets must be received on the correct destination ports.
 5. "show mac" command verify the macs learned on standby device orphan ports will be deleted.
 6. "show arp" command verify the arps learned on standby device orphan ports will be deleted.
-7. Peer-link and keepalive link status recover to up(startup the peer-link and those ports connected to the VMs, but not support startup the peer-link now).
+7. Peer-link and keepalive link status recover to up(startup the peer-link and keepalive link, but not support startup the peer-link now).
 8. "mclagdctl -i \<mclag-id\> dump state" command verify mclag keepalive change to ok.
 9. Servers send packets to others Servers. All packets must be received on the correct destination ports.
 10. "show mac" command verify the macs learned on mclag enabled interface are the same on both mclag device. The macs learned on orphan ports will point to the peer-link on another device.
