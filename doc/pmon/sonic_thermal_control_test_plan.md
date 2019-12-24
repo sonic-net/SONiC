@@ -18,17 +18,17 @@
 
 ## Overview
 
-The purpose is to test functionality of thermal control feature on the SONIC switch DUT. The thermal control feature contains 3 major functions: FAN status monitor, thermal status monitor and thermal control policy management.
+The purpose is to test functionality of thermal control feature on the SONiC switch DUT. The thermal control feature contains 3 major functions: FAN status monitor, thermal status monitor and thermal control policy management.
 
-- FAN status monitor read FAN status via platform API every 60 seconds and save it to redis database. User can watch FAN status via command line `show platform fanstatus`.
-- Thermal status monitor read thermal status via platform API every 60 seconds and save it to redis database. User can watch thermal status via command line `show platform temperature`.
+- FAN status monitor read FAN status via platform API every 60 seconds and save it to redis database. User can fetch FAN status via command line `show platform fanstatus`.
+- Thermal status monitor read thermal status via platform API every 60 seconds and save it to redis database. User can fetch thermal status via command line `show platform temperature`.
 - The thermal control policy is defined in a JSON file and loaded by thermal control daemon in pmon docker. Thermal control daemon collects thermal information and matches thermal conditions. Once some thermal conditions match, related thermal actions will be triggered. 
 
 More detail on thermal control feature can be found in this [document](https://github.com/keboliu/SONiC/blob/thermal_control_design/thermal-control-design.md).
 
 ## Scope
 
-This test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONIC system, making sure that FAN status and thermal status can be shown to user and correct actions are executed once predefined thermal policy conditions match.
+This test is targeting a running SONiC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONiC system, making sure that FAN status and thermal status can be shown to user and correct actions are executed once predefined thermal policy conditions match.
 
 ## Test Structure
 
@@ -38,7 +38,7 @@ Since this feature is not related to traffic and network topology, all current t
 
 ### Ansible and Pytest
 
-No new Ansible YAML test case will be added. The test will reuse current [platform test](https://github.com/Azure/sonic-mgmt/tree/master/tests/platform) in sonic-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/Azure/sonic-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
+No new Ansible YAML test case will be added. The test will reuse current [platform test](https://github.com/Azure/SONiC-mgmt/tree/master/tests/platform) in SONiC-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/Azure/SONiC-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
 
 #### Valid policy file
 
@@ -167,11 +167,11 @@ Show FAN status test verifies that all FAN related information can be shown corr
 #### Procedure
 
 1. Testbed setup.
-2. Unlink FAN related sysfs and fill fake data for "presence", "speed", "status", "target_speed", "led status".
+2. Unlink FAN related sysfs and fill mock data for "presence", "speed", "status", "target_speed", "led status".
 3. Issue command `show platform fanstatus`.
 4. Record the command output.
-5. Verify that command output matches the fake data.
-6. Link FAN related sysfs.
+5. Verify that command output matches the mock data.
+6. Restore FAN related soft links in sysfs.
 
 ### Show Thermal Status Test
 
@@ -180,11 +180,11 @@ Show thermal status test verifies that all thermal related information can be sh
 #### Procedure
 
 1. Testbed setup.
-2. Unlink thermal related sysfs and fill fake data for "temperature", "high_threshold", "high_critical_threshold".
+2. Unlink thermal related sysfs and fill mock data for "temperature", "high_threshold", "high_critical_threshold".
 3. Issue command `show platform temperature`.
 4. Record the command output.
-5. Verify that command output matches the fake data.
-6. Link thermal related sysfs.
+5. Verify that command output matches the mock data.
+6. Restore FAN related soft links in sysfs.
 
 ### FAN Test
 
@@ -194,16 +194,16 @@ FAN test verifies that proper action should be taken for conditions including: F
 
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
-3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Unlink FAN related sysfs and make fake data: first FAN absence.
-5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
-6. Make fake data: first FAN presence.
-7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json.
-8. Make fake data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed threshold(speed > target speed).
-9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN.
-10. Make fake data: first and second FAN speed recover to normal.
-11. Wait for at least 65 seconds. Verify led turns to green for first and second FAN.
-12. Link FAN related sysfs. Restore the original policy file.
+3. Restart pmon service by command `systemctl restart pmon` to trigger thermal control daemon reload policy configuration file.
+4. Unlink FAN related sysfs and make mock data: first FAN absence.
+5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. Verify there is a warning log for FAN absence.
+6. Make mock data: first FAN presence.
+7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json. Verify there is a notice log for FAN presence.
+8. Make mock data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed threshold(speed > target speed).
+9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN. Verify there is a warning log for over speed and a warning speed for under speed.
+10. Make mock data: first and second FAN speed recover to normal.
+11. Wait for at least 65 seconds. Verify led turns to green for first and second FAN. Verify there are two notice logs for speed recovery.
+12. Restore FAN related soft links in sysfs. Restore the original policy file.
 
 ### PSU Absence Test
 
