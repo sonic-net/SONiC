@@ -28,7 +28,7 @@ More detail on thermal control feature can be found in this [document](https://g
 
 ## Scope
 
-This test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONIC system, making sure that FAN status and thermal status can shown to user and correct actions are executed once predefined thermal policy conditions match.
+This test is targeting a running SONIC system with fully functioning configuration. The purpose of the test is functional testing of thermal control on SONIC system, making sure that FAN status and thermal status can be shown to user and correct actions are executed once predefined thermal policy conditions match.
 
 ## Test Structure
 
@@ -196,13 +196,13 @@ FAN test verifies that proper action should be taken for conditions including: F
 2. Copy valid_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
 4. Unlink FAN related sysfs and make fake data: first FAN absence.
-5. Wait for at least 60 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. 
+5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
 6. Make fake data: first FAN presence.
-7. Wait for at least 60 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json. 
-8. Make fake data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed theshold(speed > target speed).
-9. Wait for at least 60 seconds. Veify led turns to red for first and second FAN.
-10. Make fack data: first and second FAN speed recover to normal.
-11. Wait for at least 60 seconds. Veify led turns to green for first and second FAN.
+7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json.
+8. Make fake data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed threshold(speed > target speed).
+9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN.
+10. Make fake data: first and second FAN speed recover to normal.
+11. Wait for at least 65 seconds. Verify led turns to green for first and second FAN.
 12. Link FAN related sysfs. Restore the original policy file.
 
 ### PSU Absence Test
@@ -214,15 +214,15 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Stop two PSUs.
-5. Wait for at least 60 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
-6. Resume one PSU.
-7. Wait for at least 60 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
-8. Resume all PSU.
+4. Turn off two PSUs.
+5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
+6. Turn on one PSU.
+7. Wait for at least 65 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
+8. Turn on all PSU.
 9. Verify target speed of all Fans are set to 60% according to valid_policy.json.
 10. Restore the original policy file.
 
-> Note: The reason that we wait at least 60 seconds is that thermal policy run every 60 seconds according to design.
+> Note: The reason that we wait at least 65 seconds is that thermal policy run every 60 seconds according to design.
 > For switch who has only one PSU, step 6 and step 7 will be ignored.
 
 ### Invalid Policy Format Load Test
