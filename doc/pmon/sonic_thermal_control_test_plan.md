@@ -20,11 +20,11 @@
 
 The purpose is to test functionality of thermal control feature on the SONiC switch DUT. The thermal control feature contains 3 major functions: FAN status monitor, thermal status monitor and thermal control policy management.
 
-- FAN status monitor read FAN status via platform API every 60 seconds and save it to redis database. User can fetch FAN status via command line `show platform fanstatus`.
-- Thermal status monitor read thermal status via platform API every 60 seconds and save it to redis database. User can fetch thermal status via command line `show platform temperature`.
+- "FAN status monitor" reads FAN status via platform API every 60 seconds and saves it to redis database. User can fetch FAN status via command line `show platform fanstatus`.
+- "Thermal status monitor" reads thermal status via platform API every 60 seconds and saves it to redis database. User can fetch thermal status via command line `show platform temperature`.
 - The thermal control policy is defined in a JSON file and loaded by thermal control daemon in pmon docker. Thermal control daemon collects thermal information and matches thermal conditions. Once some thermal conditions match, related thermal actions will be triggered. 
 
-More detail on thermal control feature can be found in this [document](https://github.com/keboliu/SONiC/blob/thermal_control_design/thermal-control-design.md).
+A more detailed design and function description can be found in this [document](https://github.com/keboliu/SONiC/blob/thermal_control_design/thermal-control-design.md).
 
 ## Scope
 
@@ -38,14 +38,14 @@ Since this feature is not related to traffic and network topology, all current t
 
 ### Ansible and Pytest
 
-No new Ansible YAML test case will be added. The test will reuse current [platform test](https://github.com/Azure/SONiC-mgmt/tree/master/tests/platform) in SONiC-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/Azure/SONiC-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
+This test plan is based on platform test infrastructure as additional cases. The test will reuse current [platform test](https://github.com/Azure/SONiC-mgmt/tree/master/tests/platform) in SONiC-mgmt. New pytest test cases will be added to [test_platform_info.py](https://github.com/Azure/SONiC-mgmt/blob/master/tests/platform/test_platform_info.py). In addition, valid_policy.json,  invalid_format_policy.json and invalid_value_policy.json will be added as thermal policy configuration file for test purpose.
 
 #### Valid policy file
 
 In the valid policy file, two policies are defined. One is for "any PSU absence", the other is for "all FAN and PSU presence".
 
-- For "any PSU absence", all FAN speed need be set to 100% and thermal control algorithm need to be disabled.
-- For "all FAN and PSU presence", thermal control algorithm need to be enabled and FAN speed should be adjusted by it.
+- In the case of "any PSU absence", the expected behavior based on the design and implementation is that FAN speed is set to 100% and thermal control algorithm is disabled.
+- In the case of "all FAN and PSU presence", the thermal control algorithm is enabled and the FAN speed is being adjusted by the thermal control.
 
 The valid_policy.json file content is like:
 
@@ -113,7 +113,7 @@ The valid_policy.json file content is like:
                 },
                 {
                     "type": "fan.all.set_speed",
-                    "speed": "60"
+                    "speed": "65"
                 }
             ]
         }
@@ -198,7 +198,7 @@ FAN test verifies that proper action should be taken for conditions including: F
 4. Unlink FAN related sysfs and make mock data: first FAN absence.
 5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. Verify there is a warning log for FAN absence.
 6. Make mock data: first FAN presence.
-7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 60% according to valid_policy.json. Verify there is a notice log for FAN presence.
+7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 65% according to valid_policy.json. Verify there is a notice log for FAN presence.
 8. Make mock data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed threshold(speed > target speed).
 9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN. Verify there is a warning log for over speed and a warning speed for under speed.
 10. Make mock data: first and second FAN speed recover to normal.
@@ -219,7 +219,7 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 6. Turn on one PSU.
 7. Wait for at least 65 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
 8. Turn on all PSU.
-9. Verify target speed of all Fans are set to 60% according to valid_policy.json.
+9. Verify target speed of all Fans are set to 65% according to valid_policy.json.
 10. Restore the original policy file.
 
 > Note: The reason that we wait at least 65 seconds is that thermal policy run every 60 seconds according to design.
