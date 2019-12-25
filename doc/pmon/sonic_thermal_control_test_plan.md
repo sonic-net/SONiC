@@ -214,12 +214,12 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Turn off two PSUs.
+4. Turn off one PSUs.
 5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
-6. Turn on one PSU.
-7. Wait for at least 65 seconds. Verify target speed of all FANs are still 100% because there is still one PSU absence.
-8. Turn on all PSU.
-9. Verify target speed of all Fans are set to 65% according to valid_policy.json.
+6. Turn on one PSU and turn off the other PSU.
+7. Wait for at least 65 seconds. Verify target speed of all FANs are still 100% according to valid_policy.json.
+8. Turn on all PSUs.
+9. Wait for at least 65 seconds. Verify target speed of all Fans are set to 65% according to valid_policy.json.
 10. Restore the original policy file.
 
 > Note: The reason that we wait at least 65 seconds is that thermal policy run every 60 seconds according to design.
