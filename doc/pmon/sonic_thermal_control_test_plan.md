@@ -51,6 +51,10 @@ The valid_policy.json file content is like:
 
 ```json
 {
+    "thermal_control_algorithm": {
+        "run_at_boot_up": "false",
+        "fan_speed_when_suspend": "60"
+    },
     "info_types": [
         {
             "type": "fan_info"
