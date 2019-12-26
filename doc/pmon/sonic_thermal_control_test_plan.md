@@ -198,7 +198,7 @@ FAN test verifies that proper action should be taken for conditions including: F
 
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
-3. Restart pmon service by command `systemctl restart pmon` to trigger thermal control daemon reload policy configuration file.
+3. Restart pmon service by command `systemctl restart pmon` to trigger thermal control daemon reload policy configuration file. Verify thermal algorithm is disabled and FAN speed is set to 60% according to configuration file.
 4. Unlink FAN related sysfs and make mock data: first FAN absence.
 5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. Verify there is a warning log for FAN absence.
 6. Make mock data: first FAN presence.
