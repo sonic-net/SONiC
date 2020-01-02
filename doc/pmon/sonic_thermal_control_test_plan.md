@@ -238,7 +238,7 @@ Invalid policy format test verifies that thermal control daemon does not exit wh
 1. Testbed setup.
 2. Copy invalid_format_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Verify FAN status and thermal status still display normally. (By check command output of `show platform fanstatus` and `show platform temperature`)
+4. Verify thermal control daemon can be started up. Verify error log about loading invalid policy file is output.
 5. Recover the original policy configuration file and restart pmon service
 
 ### Invalid Policy Value Load Test
@@ -250,5 +250,5 @@ Invalid policy value test verifies that thermal control daemon does not exit whe
 1. Testbed setup.
 2. Copy invalid_value_policy.json to pmon docker and backup the original one.
 3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
-4. Verify FAN status and thermal status still display normally. (By check command output of `show platform fanstatus` and `show platform temperature`)
+4. Verify thermal control daemon can be started up. Verify error log about loading invalid policy file is output.
 5. Recover the original policy configuration file and restart pmon service
