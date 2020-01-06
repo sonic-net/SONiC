@@ -171,11 +171,11 @@ Show FAN status test verifies that all FAN related information can be shown corr
 #### Procedure
 
 1. Testbed setup.
-2. Unlink FAN related sysfs and fill mock data for "presence", "speed", "status", "target_speed", "led status".
+2. Mock random data for "presence", "speed", "status", "target_speed", "led status".
 3. Issue command `show platform fanstatus`.
 4. Record the command output.
 5. Verify that command output matches the mock data.
-6. Restore FAN related soft links in sysfs.
+6. Restore mock data.
 
 ### Show Thermal Status Test
 
@@ -184,11 +184,11 @@ Show thermal status test verifies that all thermal related information can be sh
 #### Procedure
 
 1. Testbed setup.
-2. Unlink thermal related sysfs and fill mock data for "temperature", "high_threshold", "high_critical_threshold".
+2. Fill mock data for "temperature", "high_threshold", "high_critical_threshold".
 3. Issue command `show platform temperature`.
 4. Record the command output.
 5. Verify that command output matches the mock data.
-6. Restore FAN related soft links in sysfs.
+6. Restore mock data.
 
 ### FAN Test
 
@@ -198,16 +198,18 @@ FAN test verifies that proper action should be taken for conditions including: F
 
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
-3. Restart pmon service by command `systemctl restart pmon` to trigger thermal control daemon reload policy configuration file. Verify thermal algorithm is disabled and FAN speed is set to 60% according to configuration file.
-4. Unlink FAN related sysfs and make mock data: first FAN absence.
+3. Restart thermal control daemon to reload policy configuration file. Verify thermal algorithm is disabled and FAN speed is set to 60% according to configuration file.
+4. Make mock data: first FAN absence.
 5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json. Verify there is a warning log for FAN absence.
 6. Make mock data: first FAN presence.
 7. Wait for at least 65 seconds. Verify target speed of all FANs are set to 65% according to valid_policy.json. Verify there is a notice log for FAN presence.
 8. Make mock data: first FAN speed exceed threshold(speed < target speed), second FAN speed exceed threshold(speed > target speed).
-9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN. Verify there is a warning log for over speed and a warning speed for under speed.
+9. Wait for at least 65 seconds. Verify led turns to red for first and second FAN. Verify there is a warning log for over speed and a warning log for under speed.
 10. Make mock data: first and second FAN speed recover to normal.
 11. Wait for at least 65 seconds. Verify led turns to green for first and second FAN. Verify there are two notice logs for speed recovery.
-12. Restore FAN related soft links in sysfs. Restore the original policy file.
+12. Restore the original policy file. Restore mock data.
+
+> Note: The reason that we wait at least 65 seconds is that thermal policy run every 60 seconds according to design.
 
 ### PSU Absence Test
 
@@ -217,7 +219,7 @@ PSU absence test verifies that once any PSU absence, all FAN speed will be set t
 
 1. Testbed setup.
 2. Copy valid_policy.json to pmon docker and backup the original one.
-3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
+3. Restart thermal control daemon to reload policy configuration file.
 4. Turn off one PSUs.
 5. Wait for at least 65 seconds. Verify target speed of all FANs are set to 100% according to valid_policy.json.
 6. Turn on one PSU and turn off the other PSU.
@@ -237,9 +239,9 @@ Invalid policy format test verifies that thermal control daemon does not exit wh
 
 1. Testbed setup.
 2. Copy invalid_format_policy.json to pmon docker and backup the original one.
-3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
+3. Restart thermal control daemon to reload policy configuration file.
 4. Verify thermal control daemon can be started up. Verify error log about loading invalid policy file is output.
-5. Recover the original policy configuration file and restart pmon service
+5. Restore the original policy file.
 
 ### Invalid Policy Value Load Test
 
@@ -249,6 +251,6 @@ Invalid policy value test verifies that thermal control daemon does not exit whe
 
 1. Testbed setup.
 2. Copy invalid_value_policy.json to pmon docker and backup the original one.
-3. Restart pmon service to trigger thermal control daemon reload policy configuration file.
+3. Restart thermal control daemon to reload policy configuration file.
 4. Verify thermal control daemon can be started up. Verify error log about loading invalid policy file is output.
-5. Recover the original policy configuration file and restart pmon service
+5. Restore the original policy file.
