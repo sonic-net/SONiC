@@ -6,17 +6,19 @@
   - [1.4 Check xcvrd information in DB](#14-check-xcvrd-information-in-db)
   - [1.5 Sequential syncd/swss restart](#15-sequential-syncdswss-restart)
   - [1.6 Reload configuration](#16-reload-configuration)
-  - [1.7 COLD/WARM/FAST reboot](#17-coldwarmfast-reboot)
+  - [1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot](#17-coldwarmfastpower-offwatchdog-reboot)
   - [1.8 Check thermal sensors output using new OPTIC cables](#18-check-thermal-sensors-output-using-new-optic-cables)
   - [1.9 Manually plug in and pull out PSU modules](#19-manually-plug-in-and-pull-out-psu-modules)
   - [1.10 Manually plug in and pull out PSU power cord](#110-manually-plug-in-and-pull-out-psu-power-cord)
   - [1.11 Manually plug in and pull out FAN modules](#111-manually-plug-in-and-pull-out-fan-modules)
   - [1.12 Manually plug in and pull out optical cables](#112-manually-plug-in-and-pull-out-optical-cables)
+  - [1.13 Check platform daemon status](#113-check-platform-daemon-status)
 - [Mellanox Specific Test Cases](#mellanox-specific-test-cases)
   - [2.1 Ensure that the hw-management service is running properly](#21-ensure-that-the-hw-management-service-is-running-properly)
   - [2.2 Check SFP using ethtool](#22-check-sfp-using-ethtool)
   - [2.3 Check SYSFS](#23-check-sysfs)
   - [2.4 Verify that `/var/run/hw-management` is mapped to docker pmon](#24-verify-that-varrunhw-management-is-mapped-to-docker-pmon)
+  - [2.5 Check SFP presence](#25-check-sfp-presence)
 - [Automation Design](#automation-design)
   - [Folder Structure and Script Files](#folder-structure-and-script-files)
   - [Scripts to be implemented in phase1](#scripts-to-be-implemented-in-phase1)
@@ -24,6 +26,7 @@
   - [Helper scripts](#helper-scripts)
   - [Vendor specific steps](#vendor-specific-steps)
 
+2.5 Check SFP presence
 # Introduction
 
 This test plan is to check the functionalities of platform related software components. These software components are for managing platform hardware, including FANs, thermal sensors, SFP, transceivers, pmon, etc.
@@ -354,14 +357,26 @@ New automation required
 ### Automation
 Partly covered by existing automation. New automation required.
 
-## 1.7 COLD/WARM/FAST reboot
+## 1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot
 
 ### Steps
-* Perform cold/warm/fast reboot
+* Perform cold/warm/fast/power off/watchdog reboot
+  * cold/warm/fast reboot
+    * Make use of commands to reboot the switch
+  * watchdog reboot
+    * Make use of new platform api to reboot the switch
+  * power off reboot
+    * Make use of PDUs to power on/off DUT.
+    * Power on/off the DUT for (number of PSUs + 1) * 2 times
+      * Power on each PSU solely
+      * Power on all the PSUs simultaneously
+      * Delay 5 and 15 seconds between powering off and on in each test
 * After reboot, check:
   * status of services: syncd, swss
     * `sudo systemctl status syncd`
     * `sudo systemctl status swss`
+  * reboot cause:
+    * `show reboot-cause`
   * status of hw-management - **Mellanox specific**
     * `sudo systemctl status hw-management`
   * status of interfaces and port channels
@@ -375,6 +390,7 @@ Partly covered by existing automation. New automation required.
 ### Pass/Fail Criteria
 * After reboot, status of services, interfaces and transceivers should be normal:
   *  Services syncd and swss should be active(running)
+  *  Reboot cause should be correct
   *  Service hw-management should be active(exited) - **Mellanox specific**
   *  All interface and port-channel status should comply with current topology.
   *  All transcevers of ports specified in lab connection graph (`ansible/files/lab_connection_graph.xml`) should present.
@@ -564,6 +580,21 @@ Expected results of checking varous status:
 ### Automation
 Manual intervention required, not automatable
 
+## 1.13 Check platform daemon status
+
+This test case will check the all daemon running status inside pmon(ledd no included) if they are supposed to to be running on this platform.
+* Using command `docker exec pmon supervisorctl status | grep {daemon}` to get the status of the daemon
+
+Expected results of checking daemon status:
+* the status of the daemon should be `RUNNING`
+
+### Steps
+* Get the running daemon list from the configuration file `/usr/share/sonic/device/{platform}/{hwsku}/pmon_daemon_control.json`
+* Check all the daemons running status in the daemon list
+
+### Pass/Fail Criteria
+* All the daemon status in the list shall be `RUNNING`
+
 # Mellanox Specific Test Cases
 
 ## 2.1 Ensure that the hw-management service is running properly
@@ -675,11 +706,32 @@ New automation required
 
 ### Pass/Fail Criteria
 * Verify that symbolic links are created under `/var/run/hw-management`. Ensure that there are no invalid symbolic link
+* Check current FAN speed against max and min fan speed, also check the the fan speed tolerance, insure it's in the range
+* Check thermal valules(CPU, SFP, PSU,...) against the max and min value to make sure they are in the range.
 
 ### Automation
 New automation required
 
 ## 2.4 Verify that `/var/run/hw-management` is mapped to docker pmon
+
+### Steps
+* Go to docker pmon: `docker exec -it pmon /bin/bash`
+* Go to `/var/run` of docker container, verify that host directory `/var/run/hw-management` is mapped to docker `pmon`
+
+### Pass/Fail Criteria
+* Host directory `/var/run/hw-management` should be mapped to docker pmon
+
+### Automation
+New automation required
+
+## 2.5 Check SFP presence
+
+### Steps
+* Get all the connected interfaces
+* Check the presence of the SFP on each interface and corss check the SFP status from the sysfs
+
+### Pass/Fail Criteria
+* All th SFP shall be presence and SFP status shall be OK.
 
 ### Steps
 * Go to docker pmon: `docker exec -it pmon /bin/bash`
