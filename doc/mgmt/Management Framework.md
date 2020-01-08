@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.11
+### Rev 0.15
 
 ## Table of Contents
 
@@ -128,9 +128,12 @@
 | 0.7 | 08/09/2019  | Partha Dutta            | Updated Basic Approach under Design Overview |
 | 0.8 | 08/15/2019  | Anand Kumar Subramanian | Addressed review comments     |
 | 0.9 | 08/19/2019  | Partha Dutta            | Addressed review comments related to CVL    |
-| 0.10 | 09/25/2019  | Kwangsuk Kim           | Updated Transformer section |
-| 0.11 | 09/30/2019  | Partha Dutta           | Updated as per SONiC YANG guideline    |
-| 0.12 | 10/19/2019  | Senthil Kumar Ganesan  | Added Appendix B    |
+| 0.10 | 09/25/2019 | Kwangsuk Kim            | Updated Transformer section |
+| 0.11 | 09/30/2019 | Partha Dutta            | Updated as per SONiC YANG guideline    |
+| 0.12 | 10/19/2019 | Senthil Kumar Ganesan   | Added Appendix B    |
+| 0.13 | 11/27/2019 | Anand Kumar Subramanian | Added new APIs in translib    |
+| 0.14 | 12/03/2019 | Sachin Holla            | RESTCONF yang library and other enhancements |
+| 0.15 | 12/19/2019 | Partha Dutta            | Added new CVL API, platform and custom validation details |
 
 ## About this Manual
 
@@ -296,9 +299,13 @@ URI format and payload is RESTCONF complaint and is based on the [RFC8040](https
 
 ##### 3.2.1.1.2 Supported HTTP verbs
 
-Following are the HTTP methods supported in first release.
+Following table lists the HTTP methods generated for different types of YANG nodes.
 
-POST, PUT, PATCH, GET and DELETE.
+ YANG node type         | HTTP methods
+------------------------|-----------------
+Configuration data      | POST, PUT, PATCH, DELETE, GET, HEAD
+Non configuration data  | GET, HEAD
+YANG RPC                | POST
 
 ##### 3.2.1.1.3 Supported Data Nodes
 
@@ -337,10 +344,8 @@ bits | integer
 
 ##### 3.2.1.1.5 Future enhancements
 
-* Support for additional Data nodes such as RPC, Actions, and notifications(if required).
+* Support for additional YANG actions and notifications(if required).
 * Support for RESTCONF query parameters such as depth, filter, etc
-* Support for other RESTCONF features such as capabilities.
-* Support for HTTPS with X.509v3 Certificates.
 * Support for a pattern in string, the range for integer types and other OpenAPI header objects defined in https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#header-object
 * Other misc OpenAPI related constraints will be added
 
@@ -508,11 +513,10 @@ The actioner script receives the JSON output from the swagger client API and inv
 Example: "show acl"
 
 ```
-{\% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] \%}
-   {\% for acl_set in acl_sets \%}
+{% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] %}
+   {% for acl_set in acl_sets %}
        Name:  {{ acl_set['state']['description'] }}
-   {\% endfor \%}
-   NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual jinja2 code in SONiC.
+   {% endfor %}
 ```
 
 ###### 3.2.2.1.7 Workflow (to add a new CLI)
@@ -613,13 +617,20 @@ Below is the mapping of HTTP operations to Translib APIs:
 
  HTTP Method | Translib API     | Request data  | Response data
 -------------|------------------|---------------|---------------
- GET         | Translib.Get     | path          | status, payload
- POST        | Translib.Create  | path, payload | status
- PATCH       | Translib.Update  | path, payload | status
- PUT         | Translib.Replace | path, payload | status
- DELETE      | Translib.Delete  | path          | status
+ GET         | translib.Get     | path          | status, payload
+ POST        | translib.Create  | path, payload | status
+ POST (for YANG RPC) | translib.Action  | path, payload | status, payload
+ PATCH       | translib.Update  | path, payload | status
+ PUT         | translib.Replace | path, payload | status
+ DELETE      | translib.Delete  | path          | status
+ HEAD        | translib.Get     | path          | status, (payload ignored)
+ OPTIONS     | -                | -             | -
 
 More details about Translib APIs are in section [3.2.2.6](#3_2_2_6-Translib).
+
+REST OPTIONS requests do not invoke any Translib API. They return list of supported HTTP methods
+for requested path in the "Allow" response header. If PATCH method was supported, the response
+will also include an "Accept-Patch" header with the value "application/yang-data+json".
 
 ###### 3.2.2.4.3 Media Types
 
@@ -662,14 +673,58 @@ For YANG defined RESTCONF APIs, the version is the latest YANG revision date. Fo
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
-REST server will support RESTCONF entity-tag and last-modified timestamps in next release. server will not process or send corresponding request, response headers in first release.
-Note that entity-tag and last-modified timestamps will be supported only for top level datastore node (/restconf/data). Per resource entity tags and timestamps will not be supported. Global entity tag and timestamp are used for configuration resources.
+REST server does not maintain entity-tag and last-modified timestamp for configuration data nodes.
+GET and HEAD responses does not include "ETag" and "Last-Modified" headers.
+
+[RFC7232](https://tools.ietf.org/html/rfc7232) style HTTP conditional requests is also not supported.
+REST server ignores "If-Match", "If-Modified-Since" like conditional request headers.
 
 ###### 3.2.2.4.8 RESTCONF Discovery
 
-server will support RESTCONF root resource discovery as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18). RESTCONF root resource will be "/restconf".
+REST server supports following APIs for clients to discover various RESTCONF protocol features
+as described in [RFC8040](https://tools.ietf.org/html/rfc8040).
 
-YANG module library discovery as per [RFC7895](https://tools.ietf.org/html/rfc7895) will be supported in a future release.
+Method | Path                                           | Purpose
+-------|------------------------------------------------|---------------------------
+GET    | /.well-known/host-meta                         | RESTCONF root path
+GET    | /restconf/yang-library-version                 | YANG library version
+GET    | /restconf/data/ietf-yang-library:modules-state | RFC7895 YANG module library
+GET    | /restconf/data/ietf-restconf-monitoring:restconf-state/capabilities | RESTCONF Capabilities
+GET    | /models/yang/{filename}                        | YANG download
+
+###### 3.2.2.4.8.1 RESTCONF root
+
+Server supports RESTCONF root path discovery through "GET /.well-known/host-meta" API
+as described in [RFC8040, section 3.1](https://tools.ietf.org/html/rfc8040#page-18).
+RESTCONF root path is "/restconf".
+
+###### 3.2.2.4.8.2 Yang library version
+
+REST server supports "GET /restconf/yang-library-version" API to advertise YANG library version.
+Response will indicate version "2016-06-21" as described in [RFC8040, section 3.3.3](https://tools.ietf.org/html/rfc8040#section-3.3.3).
+This advertises that the server supports [RFC7895](https://tools.ietf.org/html/rfc7895) compliant
+YANG library operations.
+
+###### 3.2.2.4.8.3 YANG module library
+
+REST server allows clients to discover and download all YANG modules supported by the server
+via "GET /restconf/data/ietf-yang-library:modules-state" API. Response data includes YANG module
+information as per [RFC7895](https://tools.ietf.org/html/rfc7895) requirements.
+
+REST server allows clients to download the YANG files via "GET /models/yang/{filename}" API.
+YANG module library response includes full download URL for every YANG module entry.
+
+Note - RFC7895 has been recently obsoleted by [RFC8525](https://tools.ietf.org/html/rfc8525).
+It supports YANG library with multi data stores and data store schemas. However these features
+are not available in SONiC. Hence REST server does not implement RFC8525 YANG library APIs (for now).
+
+###### 3.2.2.4.8.4 RESTCONF capabilities
+
+REST server supports "GET /restconf/data/ietf-restconf-monitoring:restconf-state/capabilities" API to
+advertise its capabilities as described in [RFC8040, section 9.1](https://tools.ietf.org/html/rfc8040#section-9.1).
+REsponse includes below mentioned capability information.
+
+    urn:ietf:params:restconf:capability:defaults:1.0?basic-mode=report-all
 
 ###### 3.2.2.4.9 RESTCONF Query Parameters
 
@@ -677,7 +732,13 @@ RESTCONF Query Parameters will be supported in future release. All query paramet
 
 ###### 3.2.2.4.10 RESTCONF Operations
 
-RESTCONF operations via YANG RPC are not supported in this release. They can be supported in future releases.
+REST server supports invoking YANG RPCs through "POST /restconf/operations/{rpc_name}" API
+as described in [RFC8040, section 4.4.2](https://tools.ietf.org/html/rfc8040#section-4.4.2).
+Operations modeled through YANG v1.1 action statement are not supported in this release.
+
+YGOT binding objects are not available for YANG RPC input and output data model.
+Hence payload validation is not performed by REST server or Translib for these APIs.
+App modules will receive raw JSON data.
 
 ###### 3.2.2.4.11 RESTCONF Notifications
 
@@ -781,7 +842,7 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST se
     client_auth = "none"/"user"/"cert"  ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
-                                        ;       for debugging. Default.
+                                        ;       for debugging.
                                         ; user: Username/password authentication
                                         ;       via PAM.
                                         ; cert: Certificate based authentication.
@@ -793,7 +854,7 @@ A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST se
 
 REST server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
 documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
-URL **https://*REST_SERVER_IP*/ui** in a browser. This page will list all supported OpenAPI
+URL **https://REST_SERVER_IP/ui** in a browser. This page will list all supported OpenAPI
 definition files (both YANG generated and manual) along with link to open Swagger UI for them.
 
 
@@ -822,7 +883,7 @@ definition files (both YANG generated and manual) along with link to open Swagge
     |   |-- virtual_db.go
     |
     |-- transl_utils -------------------- ADDED
-        |-- transl_utils.go ------------- ADDED    (Layer for invoking Translib API's)
+        |-- transl_utils.go ------------- ADDED    (Layer for invoking Translib APIs)
 
 ###### 3.2.2.5.2 Sample Requests
 
@@ -841,37 +902,75 @@ Translib is a library that adapts management server requests to SONiC data provi
         func Replace(req SetRequest) (SetResponse, error)
         func Delete(req SetRequest) (SetResponse, error)
         func Get(req GetRequest) (GetResponse, error)
-        func Subscribe(paths []string, q *queue.PriorityQueue, stop chan struct{}) ([]*IsSubscribeResponse, error)
-        func IsSubscribeSupported(paths []string) ([]*IsSubscribeResponse, error)
+        func Action(req ActionRequest) (ActionResponse, error)
+        func Bulk(req BulkRequest) (BulkResponse, error)
+        func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error)
+        func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error)
         func GetModels() ([]ModelData, error)
 
         Translib Structures:
         type ErrSource int
 
-        const(
+        const (
             ProtoErr ErrSource = iota
             AppErr
         )
 
-        type SetRequest struct{
-            Path       string
-            Payload    []byte
+        type SetRequest struct {
+            Path    string
+            Payload []byte
+            User    string
         }
 
-        type SetResponse struct{
-            ErrSrc     ErrSource
+        type SetResponse struct {
+            ErrSrc ErrSource
+            Err    error
         }
 
-        type GetRequest struct{
-            Path       string
+        type GetRequest struct {
+            Path    string
+            User    string
         }
 
-        type GetResponse struct{
-            Payload    []byte
-            ErrSrc     ErrSource
+        type GetResponse struct {
+            Payload []byte
+            ErrSrc  ErrSource
         }
 
-        type SubscribeResponse struct{
+        type ActionRequest struct {
+            Path    string
+            Payload []byte
+            User    string
+        }
+
+        type ActionResponse struct {
+            Payload []byte
+            ErrSrc  ErrSource
+        }
+
+        type BulkRequest struct {
+            DeleteRequest  []SetRequest
+            ReplaceRequest []SetRequest
+            UpdateRequest  []SetRequest
+            CreateRequest  []SetRequest
+            User           string
+        }
+
+        type BulkResponse struct {
+            DeleteResponse  []SetResponse
+            ReplaceResponse []SetResponse
+            UpdateResponse  []SetResponse
+            CreateResponse  []SetResponse
+        }
+
+        type SubscribeRequest struct {
+            Paths           []string
+            Q               *queue.PriorityQueue
+            Stop            chan struct{}
+            User            string
+        }
+
+        type SubscribeResponse struct {
             Path         string
             Payload      []byte
             Timestamp    int64
@@ -881,23 +980,33 @@ Translib is a library that adapts management server requests to SONiC data provi
 
         type NotificationType int
 
-        const(
-            Sample  NotificationType = iota
+        const (
+            Sample NotificationType = iota
             OnChange
         )
 
-        type IsSubscribeResponse struct{
-            Path                    string
-            IsOnChangeSupported     bool
-            MinInterval             int
-            Err                     error
-            PreferredType           NotificationType
+        type IsSubscribeRequest struct {
+            Paths               []string
+            User                string
         }
 
-        type ModelData struct{
-            Name      string
-            Org       string
-            Ver       string
+        type IsSubscribeResponse struct {
+            Path                string
+            IsOnChangeSupported bool
+            MinInterval         int
+            Err                 error
+            PreferredType       NotificationType
+        }
+
+        type ModelData struct {
+            Name string
+            Org  string
+            Ver  string
+        }
+
+        type notificationOpts struct {
+            mInterval int
+            pType     NotificationType // for TARGET_DEFINED
         }
 
 Translib has the following sub modules to help in the translation of data
@@ -1506,16 +1615,34 @@ There can be two types of platform constraint validation
 
 Example of 'deviation' :
 
-	 deviation /svlan:sonic-vlan/svlan:VLAN/svlan:name {
-                deviate replace {
-                        type string {
-                                // Supports 3K VLANs in a specific platform
-                                pattern "Vlan([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[1-9])";
-                        }
-                }
-        }
+```
+module sonic-acl-deviation {
+	......
+	......
+	deviation /sacl:sonic-acl/sacl:ACL_TABLE/sacl:ACL_TABLE_LIST {
+		deviate add {
+			max-elements 3;
+		}
+	}
 
-* Deviation models are compiled along with corresponding SONiC YANG model and new constraints are added or overwritten in the compiled schema.
+	deviation /sacl:sonic-acl/sacl:ACL_RULE/sacl:ACL_RULE_LIST {
+		deviate add {
+			max-elements 768;
+		}
+	}
+}
+```
+
+* All deviation models are compiled along with corresponding CVL YANG model and are placed in platform specific schema folder. At runtime based on detected platform from provisioned  “DEVICE_METADATA:platform” field, deviation files are applied.
+
+* Here is the sample folder structure for platform specific deviation files.
+```
+	models/yang/sonic/platform/
+	|-- accton_as5712
+	|   |--- sonic-acl-deviation.yang
+	|-- quanta_ix8
+	    |--- sonic-acl-deviation.yang
+```
 
 ###### 3.2.2.8.2.3.2  Dynamic Platform Constraint Validation
 
@@ -1526,11 +1653,24 @@ Example of 'deviation' :
 ###### 3.2.2.8.2.3.2.2 Platform data is available through APIs
 
 * If constraints cannot be expressed using YANG syntax or platform data is available through feature/component API (APIs exposed by a feature to query platform specific constants, resource limitation etc.), custom validation needs to be hooked up in SONiC YANG model through custom YANG extension.
-* CVL will generate stub code for custom validation. Feature developer populates the stub functions with functional validation code. The validation function should call feature/component API and fetch required parameter for checking constraints.
-* Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated.
+* Feature developer implements the custom validation functions with functional validation code. The validation function may call feature/component API and fetch required parameter for checking constraints.
+* Based on YANG extension syntax, CVL will call the appropriate custom validation function along with YANG instance data to be validated. Below is the custom validation context structure definition.
 
+```
+	//Custom validation context passed to custom validation function
+	type CustValidationCtxt struct {
+		ReqData []CVLEditConfigData //All request data
+		CurCfg *CVLEditConfigData //Current request data for which validation should be done
+		YNodeName string //YANG node name
+		YNodeVal string  //YANG node value, leaf-list will have "," separated value
+		YCur *xmlquery.Node //YANG data tree
+		RClient *redis.Client //Redis client
+	}
+```
+ 
 ###### 3.2.2.8.3 CVL APIs
 
+```
         //Structure for key and data in API
         type CVLEditConfigData struct {
                 VType CVLValidateType //Validation type
@@ -1578,13 +1718,38 @@ Example of 'deviation' :
                 CVL_INTERNAL_UNKNOWN /*Internal unknown error */
                 CVL_FAILURE          /* Generic failure */
         )
+```	
 
-1. Initialize() - Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
-2. Finish()  - Clean up the library resources. This should ideally be called when no more validation is needed or process is about to exit.
-3. ValidateConfig(jsonData string) - Just validates json buffer containing multiple row instances of the same table, data instance from different tables. All dependency are provided in the payload. This is useful for bulk data validation.
-4. ValidateEditConfig(cfgData []CVLEditConfigData) - Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as dependent data for validation to be succesful.
-5. ValidateKey(key string) - Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
-6. ValidateField(key, field, value string)  - Just validates the field:value pair in table. Key should have table name as prefix.
+1. func Initialize() CVLRetCode
+	- Initialize the library only once, subsequent calls does not affect once library is already initialized . This automatically called when if ‘cvl’ package is imported.
+
+2. func Finish()
+	- Clean up the library resources. This should ideally be called when no more validation is needed or process is about to exit.
+
+3. func (c *CVL) ValidateConfig(jsonData string) CVLRetCode
+	- Just validates json buffer containing multiple row instances of the same table, data instance from different tables. All dependency are provided in the payload. This is useful for bulk data validation.
+	
+4. func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorInfo, ret CVLRetCode)
+	- Validates the JSON data for create/update/delete operation. Syntax or Semantics Validation can be done separately or together. Related data should be given as dependent data for validation to be successful.
+
+5. func (c *CVL) ValidateKeys(key []string) CVLRetCode
+	- Just validates the key and checks if it exists in the DB. It checks whether the key value is following schema format. Key should have table name as prefix.
+	
+6. func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode
+	- Just validates the field:value pair in table. Key should have table name as prefix.
+	
+7. func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode)
+	- Sort the list of given tables as per their dependency imposed by leafref.
+
+8. func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) 
+	- Get the sorted list of tables in a given YANG module based on leafref relation.
+
+9. func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode)
+	- Get the list of dependent tables for a given table in a YANG module.
+
+10. func (c *CVL) GetDepDataForDelete(redisKey string) ([]string, []string)
+	- Get the dependent data (Redis keys) to be deleted or modified for a given entry getting deleted.
+
 
 ##### 3.2.2.9 Redis DB
 
@@ -2030,6 +2195,18 @@ Manageability framework will be scalable to handle huge payloads conforming to t
 69. Check if CVL Finish operation is successful
 70. Check if CVL validation passes when Entry can be deleted and created in same transaction
 71. Check if CVL validation passes when two UPDATE operation are given
+72. Check if CVL validation passes when 'leafref' points to a key in another table having multiple keys.
+73. Check if CVL validation passes when 'leafref' points to non-key in another table.
+74. Check if CVL validation passes when 'leafref' points to a key which is drived in predicate from another table in cascaded fashion. 
+75. Check if CVL validation passes when 'must' condition involves checking with fields having default value which are not provided in request a data.
+76. Check if CVL validation passes when 'must' condition has predicate field/key value derived from another table using another predicate in cascaded fashion.
+77. Check if CVL validation passes for 'when' condition present within a leaf/leaf-list.
+78. Check if CVL validation passes for 'when' condition present in choice/case node.
+79. Check if CVL validation passes if 'max-elements' is present in a YANG list.
+80. Check if CVL can sort the list of given tables as per their dependency imposed by leafref.
+81. Check if CVL can return sorted list of tables in a given YANG module based on leafref relation.
+82. Check if CVL can return the list of dependent tables for a given table in a YANG module.
+83. Check if CVL can return the dependent data(Redis keys) to be deleted or modified for a given entry getting deleted.
 
 ## 11 Appendix A
 
