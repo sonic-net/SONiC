@@ -146,11 +146,11 @@ augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface
 -      |        +--ro is-router?            empty
 -      |        +--ro neighbor-state?       enumeration
 ```
-Also sonic yang (sonic-arp-ndp.yang) is defined for fetching all entries from the NEIGH_TABLE and
+Also sonic yang (sonic-neighbor.yang) is defined for fetching all entries from the NEIGH_TABLE and
 for the RPC for clearing ARP/NDP entries:
 ```diff
-module: sonic-arp-ndp
-    +--rw sonic-arp-ndp
+module: sonic-neighbor
+    +--rw sonic-neighbor
        +--ro NEIGH_TABLE
           +--ro NEIGH_TABLE_LIST* [ifname ip]
              +--ro ifname    union
@@ -159,7 +159,7 @@ module: sonic-arp-ndp
              +--ro family?   enumeration
 
   rpcs:
-    +---x clear_arp_ndp
+    +---x clear-neighbors
        +---w input
        |  +---w force?    boolean
        |  +---w family?   enumeration
