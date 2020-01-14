@@ -45,7 +45,7 @@ Function: This file is used to fulfill the main interfaces including functions
 * **dump_conf_yaml()**
     * To generate pcie.yaml which used to record the original pcie info
     
-##Command Output
+## Command Output
 
     root@sonic:~# show platform pcieinfo
     ==============================Display PCIe Device===============================
