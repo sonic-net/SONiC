@@ -1,14 +1,16 @@
 ## Motivation
-Add a PCIe Diag tool for SONiC. This tool including three commands.
-###Commands added:
+Add a PCIe Diag tool for SONiC. This tool including three commands    
+### Commands
+
     show platform pcieinfo     -----> Show current device PCIe info
-    show platform pcieinfo -c  -----> Check whether the PCIe info is correct
+    show platform pcieinfo -c  -----> Check whether the PCIe info is correct   
     pcieutil pcie_generate     -----> Generate an PCIe info congfig file
 
 ## Implementation 
 ###show utility update
 New item under menu `platform` in `show/main.py`  
 It will execute `pcieutil [options]`command
+
 **Syntax**
 
      show  platform pcieinfo         ---->  pcieutil pcie_show
@@ -31,7 +33,9 @@ This command will compare the pcie info it got currently with config file pcie.y
 This command will generate pcie.yaml which used to record the original pcie info,to avoid use it by mistake,this command can not be executed by `show platform pcieinfo` command,but you can use it alone
 
 **Common API**
- Location: `sonic_platform_base/sonic_pice/pcie_common.py`
+
+Location: `sonic_platform_base/sonic_pice/pcie_common.py`
+
 Function: This file is used to fulfill the main interfaces including functions
 
 * **get_pcie_device()**
@@ -40,7 +44,9 @@ Function: This file is used to fulfill the main interfaces including functions
     * Return a list including compare the result of comparison,if not found the config file pcie.yaml .it will raise a system erron and exit
 * **dump_conf_yaml()**
     * To generate pcie.yaml which used to record the original pcie info
+    
 ##Command Output
+
     root@sonic:~# show platform pcieinfo
     ==============================Display PCIe Device===============================
     ......
