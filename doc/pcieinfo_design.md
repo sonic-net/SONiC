@@ -7,7 +7,7 @@ Add a PCIe Diag tool for SONiC. This tool including three commands
     pcieutil pcie_generate     -----> Generate an PCIe info congfig file
 
 ## Implementation 
-###show utility update
+### show utility update
 New item under menu `platform` in `show/main.py`  
 It will execute `pcieutil [options]`command
 
