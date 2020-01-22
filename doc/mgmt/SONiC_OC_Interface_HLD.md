@@ -383,25 +383,25 @@ sonic(conf-if-po4)# no switchport access Vlan
 ```
 #### 3.6.2.1.2 PORTCHANNEL
 #### Create a PortChannel
-`interface PortChannel <channel-number>`<br>
+`interface PortChannel <channel-number> [mode <active | on>] [ min-links <value> ] [fallback] `<br>
 - *Supported channel-number range: 0-9999*<br>
-- *By default, the admin status is UP and MTU is 9100*
+- *Supported Min links range: 1-255*<br>
+- Default values:<br>
+   admin status - UP<br>
+   MTU - 9100<br>
+   mode - active<br>
+   min-links - 0<br>
+   fallback - disabled<br>
 ```
-sonic(config)# interface PortChannel 1
+sonic(config)# interface PortChannel 1 mode active min-links 2 fallback
 ```
-#### Configure min-links
-`minimum-links <number>`
-<br>
-- *As per [teamd](https://www.systutorials.com/docs/linux/man/5-teamd.conf/), supported range: 1-255 & default value:0*
 ```
-sonic(config)# interface PortChannel 1
-sonic(conf-if-po1)# minimum-links 1
+sonic(config)# interface PortChannel 2 mode active fallback
 ```
-#### Remove min-links
-`no minimum-links` --> Reset to default value of 0
 ```
-sonic(conf-if-po1)# no minimum-links
+sonic(config)# interface PortChannel 3 mode on min-links 3
 ```
+
 #### Configure MTU
 `mtu <mtu-val>`
 ```
@@ -421,17 +421,6 @@ sonic(conf-if-po1)# no shutdown
 `shutdown`
 ```
 sonic(conf-if-po1)# shutdown
-```
-#### Enable Fallback
-`fallback enable`<br>
-- *By default, LACP fallback is disabled*
-```
-sonic(conf-if-po1)# fallback enable
-```
-#### Disable Fallback
-`no fallback`
-```
-sonic(conf-if-po1)# no fallback
 ```
 #### Configures an IPv4 address
 `ip address <ip-address/mask>`
@@ -458,13 +447,6 @@ sonic(conf-if-po1)# no ipv6 address a::e
 ```
 sonic(config)# interface Ethernet4
 sonic(conf-if-Ethernet4)# channel-group 1
-```
-#### Configure the port mode for the link in a PortChannel
-`channel-group <channel-number> mode [active|on]`
-- active — Sets Channeling mode to Active
-- on — Sets Channeling mode to static
-```
-sonic(conf-if-Ethernet4)# channel-group 1 mode active
 ```
 #### Remove a port member
 `no channel-group`
