@@ -22,8 +22,10 @@ Configuration is created from https://github.com/Azure/SONiC/wiki/L2-Switch-mode
 
 The following is an example script to create config file for Mellanox platform
 ```
-sonic-cfggen -t /usr/local/lib/python2.7/dist-packages/usr/share/sonic/templates/l2switch.j2 -p -k Mellanox-SN2700-D48C8
+sonic-cfggen -H -p -k $HWSKU --preset l2
 ```
+
+We make sure that the config has a mac by providing `-H` option, and correct ports (based on port_config.ini) by providing HWSKU to `-k` and `-p` options.
 The config contains all the ports set to admin-up and configure as untagged member ports of Vlan 1000.
 
 Test cases
@@ -32,10 +34,11 @@ Test cases
 ### Test case \#1
 
 #### Test objective
-Verify basic sanity 
+Verify basic sanity. This checks if the orchagent and syncd processes are running and the links are up.
+ Triggered before and after each test case
 
 #### Test description
-Run sanity test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/base_sanity.yml
+Run sanity check - https://github.com/Azure/sonic-mgmt/blob/master/tests/common/sanity_check.py
 
 ### Test case \#2
 
@@ -43,17 +46,18 @@ Run sanity test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/
 Verify FDB learning happens on all ports.
 
 #### Test description
-Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/fdb.yml 
+Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/tests/fdb/test_fdb.py
 
 ### Test case \#3
 
 #### Test objective
-Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two parts - vlan_configure and vlan_test. vlan_configure cannot be run on BSL without modification as it takes into account port-channels. This must be modified to run on BSL configuration. Test must also configure an IP address on Vlan interface. 
+Verify Vlan configurations, ARP and PING. The current vlan test (vlantb) has two parts - vlan_configure and vlan_test. vlan_configure cannot be run on BSL without modification as it takes into account port-channels. Test must also configure an IP address on Vlan interface. 
 
 This test covers Vlan, ARP and PING tests.
 
 #### Test description
-Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/vlantb.yml
+Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/tests/vlan/test_vlan.py
+
 
 
 ### Test case \#4
@@ -61,14 +65,17 @@ Run fdb test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/tes
 #### Test objective
 Verify SNMP. This [document](https://github.com/Azure/SONiC/wiki/How-to-Check-SNMP-Configuration) can be referred for basic SNMP verification and configuring public community string
 
-The current SNMP test must be modified for BSL. The BSL test can cover to get 
+ The BSL test can cover to get 
   1. MAC table
   2. Interface table
   3. CPU
   4. PSU
 
 #### Test description
-Run SNMP test - https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/snmp.yml
+Run SNMP tests:
+ - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_interfaces.py
+ - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_cpu.py
+ - https://github.com/Azure/sonic-mgmt/tree/master/tests/snmp/test_snmp_psu.py
 
 | **\#** | **Test Description** | **Expected Result** |
 |--------|----------------------|---------------------|
