@@ -1,6 +1,6 @@
 # SONiC Thermal Control Design #
 
-### Rev 0.1 ###
+### Rev 0.3 ###
 
 ### Revision ###
 
