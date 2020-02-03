@@ -8,6 +8,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo      | Initial version                   |
  | 0.2 |             |      Liu Kebo      | Revised after community review    |
+ | 0.3 |             |      Junchao Chen  | Revised after code review         |
 
 
   
@@ -62,7 +63,6 @@ same as the temperature info, a [table for fan](https://github.com/Azure/SONiC/b
 	model                   = STRING                         ; model name of the fan
 	serial                  = STRING                         ; serial number of the fan
 	status                  = BOOLEAN                        ; status of the fan
-	change_event            = STRING                         ; change event of the fan
 	direction               = STRING                         ; direction of the fan 
 	speed                   = INT                            ; fan speed
 	speed_tolerance         = INT                            ; fan speed tolerance
@@ -75,7 +75,7 @@ same as the temperature info, a [table for fan](https://github.com/Azure/SONiC/b
 If there was warning raised or warning cleared, log shall be generated:
 
 	High temperature warning: PSU 1 current temperature 85C, high threshold 80C！
-	High temperature warning cleared, PSU1 temperature restore to 75C, high threshold 80C
+	High temperature warning cleared, PSU 1 temperature restore to 75C, high threshold 80C
 
 If fan broken or become up present, log shall be generated：
 
@@ -115,41 +115,92 @@ Policies are defined in a json file for each hwsku, for example, one SKU want to
 
 - Thermal control algorithm control, enabled this hwsku or not, fan speed value to set if not running;
 
+- Thermal information need to be collected;
+
 - FAN absence action, suspend the algorithm or not, fan speed value to set;
 
-- PSU absence action, suspend the algorithm or not, fan speed value to set.
+- PSU absence action, suspend the algorithm or not, fan speed value to set;
 
-- All fans failed/absebce action, power down the  
+- All FAN and PSU presence action, suspend the algorithm or not, fan speed value to set.
 
 Below is an example for the policy configuration:
 
-	{
-	    "thermal_control_algorithm": {
-		"run_at_boot_up": true,
-		"fan_speed_when_suspend": 60%
-	    },
-	    "fan_absence": {
-		"action": {
-		    "thermal_control_algorithm": "disable",
-		    "fan_speed": 100%,
-		    "led_color": "red"
-		}
-	    },
-	    "psu_absence": {
-		"action": {
-		    "thermal_control_algorithm": "disable",
-		    "fan_speed": 100%,
-		    "led_color": "red"
-		}
-	    },
-	    "all_fan_failed": {
-	        "action": {
-		    "shutdown_switch": true
-		 }
-	    }
-	}
+```
+{   
+    "thermal_control_algorithm": {
+        "run_at_boot_up": "false",
+        "fan_speed_when_suspend": "60"
+    },
+    "info_types": [
+        {
+            "type": "fan_info"
+        },
+        {
+            "type": "psu_info"
+        },
+        {
+            "type": "chassis_info"
+        }
+    ],
+    "policies": [
+        {
+            "name": "any fan absence",
+            "conditions": [
+                {
+                    "type": "fan.any.absence"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "thermal_control.control",
+                    "status": "false"
+                },
+                {
+                    "type": "fan.all.set_speed",
+                    "speed": "100"
+                }
+            ]
+        },
+        {
+            "name": "any psu absence",
+            "conditions": [
+                {
+                    "type": "psu.any.absence"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "thermal_control.control",
+                    "status": "false"
+                },
+                {
+                    "type": "fan.all.set_speed",
+                    "speed": "100"
+                }
+            ]
+        },
+        {
+            "name": "all fan and psu presence",
+            "conditions": [
+                {
+                    "type": "fan.all.presence"
+                },
+                {
+                    "type": "psu.all.presence"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "fan.all.set_speed",
+                    "speed": "60"
+                }
+            ]
+        }
+    ]
+}
+```
 
-In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended and fan status led shall be set to red ; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100% and psu status led shall be set to red.
+In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100%.
 
 During daemon start, this configuration json file will be loaded and parsed, daemon will handle the thermal control algorithm run and fan speed set when predefined policy meet.
 
@@ -198,18 +249,18 @@ We don't have a CLI for fan status getting yet, new CLI for fan status could be 
 	  -?, -h, --help  Show this message and exit.
 
 	Commands:
-	  fanstatus  Show fan status information
+	  fan        Show fan status information
 	  mlnx       Mellanox platform specific configuration...
 	  psustatus  Show PSU status information
 	  summary    Show hardware platform information
 	  syseeprom  Show system EEPROM information
 The output of the command is like below:
 
-	admin@sonic# show platform fanstatus
-	FAN    Speed      Direction      Timestamp
-	-----  ---------  ---------  -----------------
-	FAN 1  12919 RPM  Intake     20191112 09:38:16
-	FAN 2  13043 RPM  Exhaust    20191112 09:38:16
+	admin@sonic# show platform fan
+	FAN    Speed      Direction  Presence     Status  Timestamp
+	-----  ---------  ---------  -----------  ------  -----------------
+	FAN 1  85%        Intake     Present      OK      20191112 09:38:16
+	FAN 2  60%        Exhaust    Not Present  Not OK  20191112 09:38:16
 
 
 ## 5. Potential ehhancement for Platform API
