@@ -178,7 +178,7 @@ module: ietf-nat
 
 ```
 
-SONiC NAT Yang will be used for Config Validation purposes.
+SONiC NAT Yang will be used for Config Validation purposes and has RPC for clear commands.
 
 https://github.com/project-arlo/sonic-mgmt-framework/blob/nat-impl/models/yang/sonic/sonic-nat.yang
 
@@ -405,7 +405,28 @@ sonic (config)# nat
 sonic (config-nat)# no tcp-timeout
 ```
 
-#### 3.6.2.2 Show Commands
+#### 3.6.2.2 Clear Commands
+
+###### Clear dynamic NAT translations
+
+`clear nat translations`
+
+```
+sonic# clear nat translations
+
+```
+
+###### Clear NAT statistics
+
+`clear nat statistics`
+
+```
+sonic# clear nat statistics
+
+```
+
+
+#### 3.6.2.3 Show Commands
 
 ###### Show NAT translations table
 
@@ -576,6 +597,8 @@ The following lists the unit test cases added for the north bound interfaces for
 8. Enable/Disable NAT feature and verify the same.
 9. Configure/Reset UDP NAT entry aging timeout in seconds and verify the same.
 10. Configure/Reset TCP NAT entry aging timeout in seconds and verify the same.
+11. Clear NAT dynamic translations and verify the same in DB.
+12. Clear NAT statistics and verify the same in DB.
 
 
 # 10 Internal Design Information
