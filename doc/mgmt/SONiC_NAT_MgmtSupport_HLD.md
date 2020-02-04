@@ -535,6 +535,18 @@ UDP Timeout    : 300 secs
 
 `show nat config zones`
 
+```
+sonic# show nat config zones
+Port                Zone
+-------------------------------------------------
+Ethernet0           1
+Vlan2               3
+Loopback1           0
+PortChannel1        2
+sonic#
+
+```
+
 
 ###### Display NAT entries count
 
@@ -560,6 +572,58 @@ Total Entries              ................ 14
 ###### Display all NAT configuration
 
 `show nat config`
+
+```
+sonic# show nat config
+Global Values
+
+Admin Mode     : enabled
+Global Timeout : 650 secs
+TCP Timeout    : 86450 secs
+UDP Timeout    : 325 secs
+
+Static Entries
+
+----------------------------------------------------------------------------------------------------------------------------
+Nat Type       IP Protocol         Global IP                     Global L4 Port      Local IP                      Local L4 Port       Twice-Nat Id
+----------------------------------------------------------------------------------------------------------------------------
+snat           all                 100.100.100.100               ----                15.15.15.15                   ----                5
+dnat           all                 138.76.28.1                   ----                12.12.12.14                   ----                ----
+dnat           all                 200.200.200.5                 ----                17.17.17.17                   ----                5
+snat           tcp                 100.100.101.101               251                 15.15.16.16                   1201                5
+dnat           tcp                 138.76.29.2                   250                 12.12.15.15                   1200                ----
+dnat           tcp                 200.200.201.6                 276                 17.17.18.18                   1251                5
+
+Pool Entries
+
+Pool Name           Global IP Range               Global L4 Port Range
+----------------------------------------------------------------------------------------------------------------------------
+Pool1               19.19.19.19                   ----
+Pool2               20.0.0.7                      1024-65535
+--more--
+Pool3               65.55.45.10-65.55.45.15       500-1000
+Pool4               65.55.43.5-65.55.43.15        300-1024
+
+NAT Bindings
+
+Binding Name        Pool Name                     Access-List         Nat Type       Twice-Nat Id
+----------------------------------------------------------------------------------------------------------------------------
+Bind1               Pool1                         10_ACL_IPV4         ----           ----
+Bind2               Pool2                         12_ACL_IPV4         snat           25
+Bind3               Pool3                         15_ACL_IPV4         dnat           25
+Bind4               Pool4                         ----                ----           ----
+
+NAT Zones
+
+Port                Zone
+-------------------------------------------------
+Ethernet0           1
+Vlan2               3
+Loopback1           0
+PortChannel1        2
+sonic#
+
+```
 
 
 #### 3.6.2.3 Debug Commands
