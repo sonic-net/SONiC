@@ -34,61 +34,61 @@ DUT try to load a new images
 
     ```json
     {
-    "INSTANCES": {
-        "redis":{
-            "hostname" : "127.0.0.1",
-            "port" : 6379,
-            "unix_socket_path" : "/var/run/redis/redis.sock"
-        }
-    },
-    "DATABASES" : {
-        "APPL_DB" : {
-            "id" : 0,
-            "separator": ":",
-            "instance" : "redis"
+        "INSTANCES": {
+            "redis":{
+                "hostname" : "127.0.0.1",
+                "port" : 6379,
+                "unix_socket_path" : "/var/run/redis/redis.sock"
+            }
         },
-        "ASIC_DB" : {
-            "id" : 1,
-            "separator": ":",
-            "instance" : "redis"
+        "DATABASES" : {
+            "APPL_DB" : {
+                "id" : 0,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "ASIC_DB" : {
+                "id" : 1,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "COUNTERS_DB" : {
+                "id" : 2,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "LOGLEVEL_DB" : {
+                "id" : 3,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "CONFIG_DB" : {
+                "id" : 4,
+                "separator": "|",
+                "instance" : "redis"
+            },
+            "PFC_WD_DB" : {
+                "id" : 5,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "FLEX_COUNTER_DB" : {
+                "id" : 5,
+                "separator": ":",
+                "instance" : "redis"
+            },
+            "STATE_DB" : {
+                "id" : 6,
+                "separator": "|",
+                "instance" : "redis"
+            },
+            "SNMP_OVERLAY_DB" : {
+                "id" : 7,
+                "separator": "|",
+                "instance" : "redis"
+            }
         },
-        "COUNTERS_DB" : {
-            "id" : 2,
-            "separator": ":",
-            "instance" : "redis"
-        },
-        "LOGLEVEL_DB" : {
-            "id" : 3,
-            "separator": ":",
-            "instance" : "redis"
-        },
-        "CONFIG_DB" : {
-            "id" : 4,
-            "separator": "|",
-            "instance" : "redis"
-        },
-        "PFC_WD_DB" : {
-            "id" : 5,
-            "separator": ":",
-            "instance" : "redis"
-        },
-        "FLEX_COUNTER_DB" : {
-            "id" : 5,
-            "separator": ":",
-            "instance" : "redis"
-        },
-        "STATE_DB" : {
-            "id" : 6,
-            "separator": "|",
-            "instance" : "redis"
-        },
-        "SNMP_OVERLAY_DB" : {
-            "id" : 7,
-            "separator": "|",
-            "instance" : "redis"
-        }
-    },
-    "VERSION" : "1.0"
+        "VERSION" : "1.0"
     }
     ```
 
