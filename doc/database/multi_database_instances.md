@@ -2,7 +2,7 @@
 
 ## Motivation
 
-​        Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL\_DB, ASIC\_DB, CONF\_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very  busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL\_DB or ASIC\_DB  via multiple database instances.
+​        Today SONiC only has one redis database instance created and all the databases use this unique database instance, like APPL\_DB, ASIC\_DB, CONF\_DB and so on.  We found when there are huge writes operations during a short time period (like huge routes created), this only database instance is very busy. We tried to create two database instances and separate the huge write into two database instances. The test result shows the performance (time) improved 20-30%. Also creating multiple database instances help us to separate the databases based on their operation frequency or their role in the whole SONiC system, for example, like state database and loglevel database are not key features, we can avoid them affecting read and write APPL\_DB or ASIC\_DB  via multiple database instances.
 
 ## Current implementation
 
@@ -28,72 +28,91 @@ DUT try to load a new images
 
 ## New Design of Database Startup
 
-* We introduce a new configuration file at /etc/sonic/database\_config.json
+* We introduce a new configuration file.
 
-* This file contains how many database instances and on each instance what the configuration is
+* This file contains how many redis instances and databases , also the configration of each database , including instance, dbid, separator.
 
     ```json
     {
-        "DATABASE": {
-            "redis_ins_001":{
-                "port": 6380,
-                "databases" : ["LOGLEVEL_DB","SYSMON_DB","COUNTERS_DB"]
-            },
-            "redis_ins_002":{
-                "port": 6381,
-                "databases" : ["APPL_DB"]
-            },
-            "redis_ins_003":{
-                "port": 6382,
-                "databases" : ["STATE_DB","FLEX_COUNTER_DB","PFC_WD_DB"]
-            },
-            "redis_ins_004":{
-                "port": 6383,
-                "databases" : ["ASIC_DB"]
-            },
-            "redis_ins_005":{
-                "port": 6384,
-                "databases" : ["CONFIG_DB"]
-            }
+    "INSTANCES": {
+        "redis":{
+            "hostname" : "127.0.0.1",
+            "port" : 6379,
+            "unix_socket_path" : "/var/run/redis/redis.sock"
         }
+    },
+    "DATABASES" : {
+        "APPL_DB" : {
+            "id" : 0,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "ASIC_DB" : {
+            "id" : 1,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "COUNTERS_DB" : {
+            "id" : 2,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "LOGLEVEL_DB" : {
+            "id" : 3,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "CONFIG_DB" : {
+            "id" : 4,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "PFC_WD_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "FLEX_COUNTER_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "STATE_DB" : {
+            "id" : 6,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "SNMP_OVERLAY_DB" : {
+            "id" : 7,
+            "separator": "|",
+            "instance" : "redis"
+        }
+    },
+    "VERSION" : "1.0"
     }
     ```
 
-* By default, each image has one database\_config.json file in SONiC file system at /etc/sonic/
+* By default, each image has one default startup database\_config.json file in SONiC file system at /etc/default/sonic-db/.
 
-* The users is able to modify this config file (e.g. adding a new DB instance) on switch and reload the setup to make it take effect. New image will copy this database config file to overwrite the default one on the new image while rebooting.
+* The users is able to use the customized database configration, what needs to do is creating a database\_config.josn file and place it at /etc/sonic/
 
-* At least one database instance will run
-    * [x] If we don't have any DATABASE configuration in database\_config.json, the default redis instance with port 6379 will start and behaves the same as what it does today.
-    * [x] If we have some DATABASE configuration in database\_config.json, we create these redis database instances.
-    * [x] So the user needs to remember : DON'T delete database_config.json file
+* We changed the database Docker ENTRYPOINT to docker-database-init.sh which is new added.
 
-* All database related configuration(redis.conf, redis.sock, redis.pid, supervisord.conf, database ping/pong script) will be decided/generated at the very beginning when starting database docker,  we will use database\_config.json to generate necessary config and start database instances.
+* We also change supervisord.conf into j2 template mode, since we want to generate supervisord.conf using database\_config.json on runtime
 
-* We add one start.sh  programs in supervisord.conf , and the supervisord will run it.
-
-* in start.sh, we call "create_all_redis_conf" script to generate all redis conf files
-
-* still in start.sh, we generate another supervisord_database.conf based on the database_config.json file
-
-* finally, we supervisorctl reread and update to make this  new added supervisord_database.conf take effect. At this point, all the redis servers are running. Supervisord manage all redis servers.
-
-![center](./img/newDesign.png)
-
-1. DUT try to load a new images (no changes)
+Detail steps as below:
+1. DUT try to load an images (no changes)
     * [x] if configuration at /etc/sonic/ exists, copy /etc/sonic/ to /host/old\_config as usual
 2. rc.local service (no changes)
     * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/ as usual
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
-    * [x] **if database\_config.json is in old_config, then copy it to /etc/sonic/ to overwrite the default one**
-    * [x] **otherwise use the default one**
-    * [x] **database.sh start**
-        * [x] **Entry Point is still supervisord**
-        * [x] **database\_config.json should always exist**
-        * [x] **generate all necessary redis conf files and supervisord_database.conf file**
-        * [x] **supervisorctl reread and update to start all redis servers**
-    * [x] **check if database instances are running via ping/PONG check script**
+    * [x] **database docker start, entrypoint docker-database-init.sh
+    * [x] **if database\_config.json is found at /ect/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
+    * [x] **if database\_config.json is NOT found at /ect/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.
+    * [x] **using supervisord.conf.j2 to generate supervisord.conf**
+    * [x] **execute the previous entrypoint program /usr/bin/supervisord, then all the services will start based on the new supervisord.conf, which including starting how many redis instances**
+    * [x] **check if redis instances are running or NOT via ping_pong_db_insts script**
 4. updategraph service (no changes)
     * [x] depends on rc.local and database
     * [x] restore selected files /etc/sonic/old\_config to /etc/sonic/, if any
@@ -205,50 +224,68 @@ DBConnector(int dbId, const std::string &hostname, int port, unsigned int timeou
 DBConnector(int dbId, const std::string &unixPath, unsigned int timeout);
 ```
 
-The new design introduce a new class DBConnectorDB which is used to read database\_config.json file and store the database configuration information once. We declare a static member of DBConnectorDB class in original DBConnector which make sure it is only read the configuration file once.
+The new design introduce a new class SonicDBConfig which is used to read database\_config.json file and store the database configuration information.
 
-Also we introduce a new API to create DBConnector object without socket/port parameter. The socket/port will be decided via lookup using DBConnectorDB static member.
+Also we introduce new APIs to create DBConnector object without socket/port parameter. The socket/port will be decided via lookup function in SonicDBConfig class.
 
 dbconnector.h
 
 ```c++
-class DBConnectorDB
+class SonicDBConfig
 {
 public:
-    const std::string DB_CONFIG_FILE = "/etc/sonic/database_config.json";
-    const std::string DB_MAPPING_FILE = "/usr/local/lib/python2.7/dist-packages/swsssdk/config/database.json";
-    const std::string DB_DEFAULT_SOCK = "/var/run/redis/redis.sock";
-    const std::string DB_DEFAULT_SOCK_PATH = "/var/run/redis/";
-    const int DB_DEFAULT_PORT = 6379;
-    DBConnectorDB();
-    std::string getSock(int dbId);
-    int getPort(int dbId);
+    static void initialize(const std::string &file = DEFAULT_SONIC_DB_CONFIG_FILE);
+    static std::string getDbInst(const std::string &dbName);
+    static int getDbId(const std::string &dbName);
+    static std::string getDbSock(const std::string &dbName);
+    static std::string getDbHostname(const std::string &dbName);
+    static int getDbPort(const std::string &dbName);
+    static bool isInit() { return m_init; };
 
 private:
-    std::unordered_map<int, std::pair<std::string, int>> db2sockport;
-    std::unordered_map<std::string, int> dbstr2num;
+    static constexpr const char *DEFAULT_SONIC_DB_CONFIG_FILE = "/var/run/redis/sonic-db/database_config.json";
+    // { instName, { unix_socket_path, {hostname, port} } }
+    static std::unordered_map<std::string, std::pair<std::string, std::pair<std::string, int>>> m_inst_info;
+    // { dbName, {instName, dbId} }
+    static std::unordered_map<std::string, std::pair<std::string, int>> m_db_info;
+    static bool m_init;
 };
+
 
 class DBConnector
 {
 public:
     static constexpr const char *DEFAULT_UNIXSOCKET = "/var/run/redis/redis.sock";
+
+    /*
+     * Connect to Redis DB wither with a hostname:port or unix socket
+     * Select the database index provided by "db"
+     *
+     * Timeout - The time in milisecond until exception is been thrown. For
+     *           infinite wait, set this value to 0
+     */
     DBConnector(int dbId, const std::string &hostname, int port, unsigned int timeout);
     DBConnector(int dbId, const std::string &unixPath, unsigned int timeout);
-    DBConnector(int dbId, unsigned int timeout);
+    DBConnector(const std::string &dbName, unsigned int timeout, bool isTcpConn = false);
+
     ~DBConnector();
-    redisContext *getContext();
-    int getDbId();
+
+    redisContext *getContext() const;
+    int getDbId() const;
+
     static void select(DBConnector *db);
-    DBConnector *newConnector(unsigned int timeout);
+
+    /* Create new context to DB */
+    DBConnector *newConnector(unsigned int timeout) const;
+
 private:
     redisContext *m_conn;
     int m_dbId;
-    static DBConnectorDB dbconndb;
 };
+
 ```
 
-The last step is to replace the places where using the old DBConnector() with the new DBConnector() API.
+When we having these APIs , we need to replace all the places where using the old DBConnector() with the new DBConnector() API.
 
 dbconnector.cpp
 
@@ -256,19 +293,29 @@ dbconnector.cpp
 //swss::DBConnector db(ASIC_DB, DBConnector::DEFAULT_UNIXSOCKET, 0);
 swss::DBConnector db(ASIC_DB, 0);
 
-DBConnector::DBConnector(int dbId, unsigned int timeout) :
-    m_dbId(dbId)
+DBConnector::DBConnector(const string& dbName, unsigned int timeout, bool isTcpConn) :
+    m_dbId(SonicDBConfig::getDbId(dbName))
 {
     struct timeval tv = {0, (suseconds_t)timeout * 1000};
 
     if (timeout)
-        m_conn = redisConnectUnixWithTimeout(dbconndb.getSock(dbId).c_str(), tv);
+    {
+        if (isTcpConn)
+            m_conn = redisConnectWithTimeout(SonicDBConfig::getDbHostname(dbName).c_str(), SonicDBConfig::getDbPort(dbName), tv);
+        else
+            m_conn = redisConnectUnixWithTimeout(SonicDBConfig::getDbSock(dbName).c_str(), tv);
+    }
     else
-        m_conn = redisConnectUnix(dbconndb.getSock(dbId).c_str());
+    {
+        if (isTcpConn)
+            m_conn = redisConnect(SonicDBConfig::getDbHostname(dbName).c_str(), SonicDBConfig::getDbPort(dbName));
+        else
+            m_conn = redisConnectUnix(SonicDBConfig::getDbSock(dbName).c_str());
+    }
 
     if (m_conn->err)
         throw system_error(make_error_code(errc::address_not_available),
-                           "Unable to connect to redis (unixs-socket)");
+                           "Unable to connect to redis");
 
     select(this);
 }
@@ -280,81 +327,204 @@ Python DBConnector() is auto generated via C++ Codes. No need to change.
 
 ## New Design of Python Interface: SonicV2Connector()
 
-Today the usage is to accept parameter in SonicV2Connector() init and then call connect() to create connection to default redis instance.
+Today the usage is to accept parameter in SonicV2Connector()->init() and then call connect() to create connection to default redis instance.
 
 ```python
  self.appdb = SonicV2Connector(host="127.0.0.1")
  self.appdb.connect(self.appdb.APPL_DB)
 ```
 
-We first add the codes/API into \_\_init\_\_.py in swsssdk package to read database\_config.json file and store the database configuration information at the very beginning. Later when importing swsssdk package, other python modules can use this information which is similar to existing  \_connector\_map.
+The new design is similar to what we did for C++. We introduce a new class SonicDBConfig hich is used to read database\_config.json file and store the database configuration information.
 
-\_\_init\_\_.py
-
-```python
-DEFAULT_REDIS_SOCK_PATH = "/var/run/redis/"
-DEFAULT_REDIS_SOCK = DEFAULT_REDIS_SOCK_PATH + "redis.sock"
-DEFAULT_REDIS_PORT = 6379
-
-def _parse_db_inst_mapping():
-    global _dbnm2port
-    global _dbnm2sock
-    global _db_inst_map
-    if 'DATABASE' in _db_inst_map:
-        for item in _db_inst_map["DATABASE"]:
-            inst = item
-            _port = _db_inst_map"DATABASE"["port"]
-            for db in _db_inst_map"DATABASE"["databases"]:
-                _sock = DEFAULT_REDIS_SOCK_PATH + inst + ".sock"
-                _dbnm2port[db] = _port
-                _dbnm2sock[db] = _sock
-
-def _get_redis_sock(db_name):
-    if db_name in _dbnm2sock:
-        return _dbnm2sock[db_name]
-    else:
-        return DEFAULT_REDIS_SOCK
-
-def _get_redis_port(db_name):
-    if db_name in _dbnm2port:
-        return _dbnm2port[db_name]
-    else:
-        return DEFAULT_REDIS_PORT
-
-_dbnm2port = {}
-_dbnm2sock = {}
-_db_inst_map = {}
-_connector_map = {}
-_load_connector_map()
-_parse_db_inst_mapping()
-```
-
-Then when connecting database in the connect() function in [interface.py](http://interface.py) , we choose the database
-instance based on database id instead of using the default redis instance.
+Then we modify the existing class SonicV2Connector, we use SonicDBConfig to get the database inforamtion in SonicV2Connector before we connect the redis instances.
 
 interface.py
 
 ```python
-def _onetime_connect(self, db_name):
-    """
-    Connect to named database.
-    self.redis_kwargs = {'unix_socket_path': _get_redis_sock(db_name)}
-    self.redis_kwargs = {'host': "127.0.0.1", 'port': _get_redis_port(db_name)}
-    """
-    db_id = self.get_dbid(db_name)
-    if db_id is None:
-        raise ValueError("No database ID configured for '{}'".format(db_name))
+class SonicDBConfig(object):
+    SONIC_DB_CONFIG_FILE = "/var/run/redis/sonic-db/database_config.json"
+    _sonic_db_config_init = False
+    _sonic_db_config = {}
 
-    self.redis_kwargs = {'host': "127.0.0.1", 'port': _get_redis_port(db_name)}
+    @staticmethod
+    def load_sonic_db_config(sonic_db_file_path=SONIC_DB_CONFIG_FILE):
+        """
+        Get multiple database config from the database_config.json
+        """
+        if SonicDBConfig._sonic_db_config_init == True:
+            return
 
-    client = redis.StrictRedis(db=self.db_map[db_name]['db'], **self.redis_kwargs)
+        try:
+            if os.path.isfile(sonic_db_file_path) == False:
+                msg = "'{}' is not found, it is not expected in production devices!!".format(sonic_db_file_path)
+                logger.warning(msg)
+                sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
+            with open(sonic_db_file_path, "r") as read_file:
+                SonicDBConfig._sonic_db_config = json.load(read_file)
+        except (OSError, IOError):
+            msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
+            logger.exception(msg)
+            raise RuntimeError(msg)
+        SonicDBConfig._sonic_db_config_init = True
 
-    # Enable the notification mechanism for keyspace events in Redis
-    client.config_set('notify-keyspace-events', self.KEYSPACE_EVENTS)
-    self.redis_clients[db_name] = client
+    @staticmethod
+    def db_name_validation(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        if db_name not in SonicDBConfig._sonic_db_config["DATABASES"]:
+            msg = "{} is not a valid database name in configuration file".format(db_name)
+            logger.exception(msg)
+            raise RuntimeError(msg)
+
+    @staticmethod
+    def inst_name_validation(inst_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        if inst_name not in SonicDBConfig._sonic_db_config["INSTANCES"]:
+            msg = "{} is not a valid instance name in configuration file".format(inst_name)
+            logger.exception(msg)
+            raise RuntimeError(msg)
+
+    @staticmethod
+    def get_dblist():
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        return SonicDBConfig._sonic_db_config["DATABASES"].keys()
+
+    @staticmethod
+    def get_instance(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        inst_name = SonicDBConfig._sonic_db_config["DATABASES"][db_name]["instance"]
+        SonicDBConfig.inst_name_validation(inst_name)
+        return SonicDBConfig._sonic_db_config["INSTANCES"][inst_name]
+
+    @staticmethod
+    def get_socket(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        return SonicDBConfig.get_instance(db_name)["unix_socket_path"]
+
+    @staticmethod
+    def get_hostname(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        return SonicDBConfig.get_instance(db_name)["hostname"]
+
+    @staticmethod
+    def get_port(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        return SonicDBConfig.get_instance(db_name)["port"]
+
+    @staticmethod
+    def get_dbid(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        return SonicDBConfig._sonic_db_config["DATABASES"][db_name]["id"]
+
+    @staticmethod
+    def get_separator(db_name):
+        if SonicDBConfig._sonic_db_config_init == False:
+            SonicDBConfig.load_sonic_db_config()
+        SonicDBConfig.db_name_validation(db_name)
+        return SonicDBConfig._sonic_db_config["DATABASES"][db_name]["separator"]
+
+class SonicV2Connector(DBInterface):
+    def __init__(self, use_unix_socket_path=False, **kwargs):
+        super(SonicV2Connector, self).__init__(**kwargs)
+        self.use_unix_socket_path = use_unix_socket_path
+        for db_name in self.get_db_list():
+            # set a database name as a constant value attribute.
+            setattr(self, db_name, db_name)
+
+    def connect(self, db_name, retry_on=True):
+        if self.use_unix_socket_path:
+            self.redis_kwargs["unix_socket_path"] = self.get_db_socket(db_name)
+            self.redis_kwargs["host"] = None
+            self.redis_kwargs["port"] = None
+        else:
+            self.redis_kwargs["host"] = self.get_db_hostname(db_name)
+            self.redis_kwargs["port"] = self.get_db_port(db_name)
+            self.redis_kwargs["unix_socket_path"] = None
+        db_id = self.get_dbid(db_name)
+        super(SonicV2Connector, self).connect(db_id, retry_on)
+
+    def close(self, db_name):
+        db_id = self.get_dbid(db_name)
+        super(SonicV2Connector, self).close(db_id)
+
+    def get_db_list(self):
+        return SonicDBConfig.get_dblist()
+
+    def get_db_instance(self, db_name):
+        return SonicDBConfig.get_instance(db_name)
+
+    def get_db_socket(self, db_name):
+        return SonicDBConfig.get_socket(db_name)
+
+    def get_db_hostname(self, db_name):
+        return SonicDBConfig.get_hostname(db_name)
+
+    def get_db_port(self, db_name):
+        return SonicDBConfig.get_port(db_name)
+
+    def get_dbid(self, db_name):
+        return SonicDBConfig.get_dbid(db_name)
+
+    def get_db_separator(self, db_name):
+        return SonicDBConfig.get_separator(db_name)
+
+    def get_redis_client(self, db_name):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).get_redis_client(db_id)
+
+    def publish(self, db_name, channel, message):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).publish(db_id, channel, message)
+
+    def expire(self, db_name, key, timeout_sec):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).expire(db_id, key, timeout_sec)
+
+    def exists(self, db_name, key):
+        db_id = self.get_dbid(db_name)
+        return  super(SonicV2Connector, self).exists(db_id, key)
+
+    def keys(self, db_name, pattern='*', *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).keys(db_id, pattern, *args, **kwargs)
+
+    def get(self, db_name, _hash, key, *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).get(db_id, _hash, key, *args, **kwargs)
+
+    def get_all(self, db_name, _hash, *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).get_all(db_id, _hash, *args, **kwargs)
+
+    def set(self, db_name, _hash, key, val, *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).set(db_id, _hash, key, val, *args, **kwargs)
+
+    def delete(self, db_name, key, *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        return super(SonicV2Connector, self).delete(db_id, key, *args, **kwargs)
+
+    def delete_all_by_pattern(self, db_name, pattern, *args, **kwargs):
+        db_id = self.get_dbid(db_name)
+        super(SonicV2Connector, self).delete_all_by_pattern(db_id, pattern, *args, **kwargs)
+
+    pass
+
 ```
 
-For this part, the current code where uses parameters in SonicV2Connector(port/socket) is not necessary anymore. We need to remove them though there is no effect for now.
+For this part, the current code where uses parameters in SonicV2Connector(port/socket) is not necessary anymore.
 
 ```python
  # self.appdb = SonicV2Connector(host="127.0.0.1")
@@ -365,8 +535,6 @@ For this part, the current code where uses parameters in SonicV2Connector(port/s
 ## Golang:  initialize DB connection Design
 
 Today we create all database connection at init time using default redis instance and later we just use it.
-
-db\_client.go
 
 ```go
 // Client package prepare redis clients to all DBs automatically
@@ -389,98 +557,229 @@ func init() {
 } 
 ```
 
-In the new Design, similar to C++ changes, in the init time , we first add function to read database\_config.json file and store the database information.   Later we use the API to get the information when we want to use it.
+In the new Design, we added a new package at sonic\_db\_config/db\_config.go, which parse database\_config.json file and provided get APIs.
 
-db\_client.go
+Similar to C++ changes, when new package imported, database\_config.json file information is read and stored. 
+
+Later we use these get API to get the information when we want to use it.
+
+sonic\_db\_config/db\_config.go
 
 ```go
-const (
-        // indentString represents the default indentation string used for
-        // JSON. Two spaces are used here.
-        indentString                 string = "  "
-        Default_REDIS_UNIXSOCKET     string = "/var/run/redis/redis.sock"
-        Default_REDIS_LOCAL_TCP_PORT string = "localhost:6379"
-        Default_REDIS_DATABASE_CONF_FILE string = "/etc/sonic/database_config.json"
+package dbconfig
+
+import (
+    "encoding/json"
+    "fmt"
+    "strconv"
+    io "io/ioutil"
 )
 
-func GetRedisSock(db_name string)(string) {
-    v, ok := DbName2RedisSock[db_name]
-    if ok {
-        log.V(1).Infof("Created %s socket on %s", v, db_name)
-        return v
+const (
+    SONIC_DB_CONFIG_FILE string = "/var/run/redis/sonic-db/database_config.json"
+)
+
+var sonic_db_config = make(map[string]interface{})
+var sonic_db_init bool
+
+func GetDbList()(map[string]interface{}) {
+    if !sonic_db_init {
+        DbInit()
     }
-    log.V(1).Infof("Created %s socket on %s", Default_REDIS_UNIXSOCKET,db_name)
-    return Default_REDIS_UNIXSOCKET
+    db_list, ok := sonic_db_config["DATABASES"].(map[string]interface{})
+    if !ok {
+        panic(fmt.Errorf("DATABASES' is not valid key in database_config.json file!"))
+    }
+    return db_list
 }
 
-func GetRedisPort(db_name string)(string) {
-    v, ok := DbName2RedisPort[db_name]
-    if ok {
-        log.V(1).Infof("Created %s port on %s", v, db_name)
-        return v
+func GetDbInst(db_name string)(map[string]interface{}) {
+    if !sonic_db_init {
+        DbInit()
     }
-    log.V(1).Infof("Created %s port on %s", Default_REDIS_LOCAL_TCP_PORT, db_name)
-    return Default_REDIS_LOCAL_TCP_PORT
+    db, ok := sonic_db_config["DATABASES"].(map[string]interface{})[db_name]
+    if !ok {
+        panic(fmt.Errorf("database name '%v' is not valid in database_config.json file!", db_name))
+    }
+    inst_name, ok := db.(map[string]interface{})["instance"]
+    if !ok {
+        panic(fmt.Errorf("'instance' is not a valid field in database_config.json file!"))
+    }
+    inst, ok := sonic_db_config["INSTANCES"].(map[string]interface{})[inst_name.(string)]
+    if !ok {
+        panic(fmt.Errorf("instance name '%v' is not valid in database_config.json file!", inst_name))
+    }
+    return inst.(map[string]interface{})
 }
 
-func db_init() {
-    data, err := io.ReadFile(Default_REDIS_DATABASE_CONF_FILE)
-    if err != nil {
-        fmt.Println(err)
+func GetDbSeparator(db_name string)(string) {
+    if !sonic_db_init {
+        DbInit()
     }
-    var dat map[string]interface{}
-    err = json.Unmarshal([]byte(data), &dat)
-    if err != nil {
-        fmt.Println(err)
+    db_list := GetDbList()
+    separator, ok := db_list[db_name].(map[string]interface{})["separator"]
+    if !ok {
+        panic(fmt.Errorf("'separator' is not a valid field in database_config.json file!"))
     }
-    if v, ok := dat["DATABASE"]; ok {
-       insts := v.(map[string]interface{})
-       for instName,val := range insts {
-           paras := val.(map[string]interface{})
-           port := paras["port"].(float64)
-           dbnames := paras["databases"].([]interface{})
-           for i := range dbnames {
-               DbName2RedisSock[dbnames[i].(string)] = "/var/run/redis/" + instName + ".sock"
-               str_port := fmt.Sprintf("%.0f", port)
-               DbName2RedisPort[dbnames[i].(string)] = "localhost:" + str_port
-           }
-       }
+    return separator.(string)
+}
+
+func GetDbId(db_name string)(int) {
+    if !sonic_db_init {
+        DbInit()
+    }
+    db_list := GetDbList()
+    id, ok := db_list[db_name].(map[string]interface{})["id"]
+    if !ok {
+        panic(fmt.Errorf("'id' is not a valid field in database_config.json file!"))
+    }
+    return int(id.(float64))
+}
+
+func GetDbSock(db_name string)(string) {
+    if !sonic_db_init {
+        DbInit()
+    }
+    inst := GetDbInst(db_name)
+    unix_socket_path, ok := inst["unix_socket_path"]
+    if !ok {
+        panic(fmt.Errorf("'unix_socket_path' is not a valid field in database_config.json file!"))
+    }
+    return unix_socket_path.(string)
+}
+
+func GetDbHostName(db_name string)(string) {
+    if !sonic_db_init {
+        DbInit()
+    }
+    inst := GetDbInst(db_name)
+    hostname, ok := inst["hostname"]
+    if !ok {
+        panic(fmt.Errorf("'hostname' is not a valid field in database_config.json file!"))
+    }
+    return hostname.(string)
+}
+
+func GetDbPort(db_name string)(int) {
+    if !sonic_db_init {
+        DbInit()
+    }
+    inst := GetDbInst(db_name)
+    port, ok := inst["port"]
+    if !ok {
+        panic(fmt.Errorf("'port' is not a valid field in database_config.json file!"))
+    }
+    return int(port.(float64))
+}
+
+func GetDbTcpAddr(db_name string)(string) {
+    if !sonic_db_init {
+        DbInit()
+    }
+    hostname := GetDbHostName(db_name)
+    port := GetDbPort(db_name)
+    return hostname + ":" + strconv.Itoa(port)
+}
+
+func DbInit() {
+    if sonic_db_init {
+        return
+    }
+    data, err := io.ReadFile(SONIC_DB_CONFIG_FILE)
+    if err != nil {
+        panic(err)
+    } else {
+        err = json.Unmarshal([]byte(data), &sonic_db_config)
+        if err != nil {
+            panic(err)
+        }
+        sonic_db_init = true
     }
 }
+
+func init() {
+    sonic_db_init = false
+}
+
 ```
 
-The last step is to replace the hard coded socket/port with the API
+When we having these APIS, we need to replace the hard coded socket/port with these get APIs.
 
 db\_client.go
 
 ```go
 // Client package prepare redis clients to all DBs automatically
 func init() {
-    db_init()
-    for dbName, dbn := range spb.Target_value {
-        if dbName != "OTHERS" {
-            // DB connector for direct redis operation
-            var redisDb *redis.Client
-            redisDb = redis.NewClient(&redis.Options{
-                        Network:     "unix",
-                        Addr:  GetRedisSock(dbName),//Default_REDIS_UNIXSOCKET,
-                        Password:    "", // no password set
-                        DB:          int(dbn),
-                        DialTimeout: 0,
-                })
-                Target2RedisDb[dbName] = redisDb
-        }
-    }
+	for dbName, dbn := range spb.Target_value {
+		if dbName != "OTHERS" {
+			// DB connector for direct redis operation
+			var redisDb *redis.Client
+
+			redisDb = redis.NewClient(&redis.Options{
+				Network:     "unix",
+				Addr:        sdcfg.GetDbSock(dbName),
+				Password:    "", // no password set
+				DB:          int(dbn),
+				DialTimeout: 0,
+			})
+			Target2RedisDb[dbName] = redisDb
+		}
+	}
 }
 ```
 
-## New Design of Script:   insert -p/-s while using redis-cli cmd
+## New Design of Script:   mimic redis-cli cmd , we added a new sonic-db-cli cmd which accept DB name as first parameter
 
 For the script, today we just use the default redis instance and there is no -p/-s option.
 
 The scripts is used in shell, python, c and c++ system call, we need to change all these places.
 
-we just used the python API we added earlier in \_\_init\_\_.py in swsssdk package to achieve this .
+We added a new sonic-db-cli which is written in python, the function is the same as redis-cli, the only difference is to accept db name as the first parameter instead of '-n x' for redis-cli. 
+
+Form the db name, we can using exising python swsssdk library to look up the db information and use them. This new sonic-db-cli is in swsssdk as well and will be installed where ever swsssdk is installed.
+
+```python
+#!/usr/bin/python
+import sys
+import swsssdk
+
+argc = len(sys.argv)
+if argc == 2 and sys.argv[1] == '-h':
+    print("""
+Example 1: sonic-db-cli CONFIG_DB keys *
+Example 2: sonic-db-cli APPL_DB HGETALL VLAN_TABLE:Vlan10
+Example 3: sonic-db-cli APPL_DB HGET VLAN_TABLE:Vlan10 mtu
+Example 4: sonic-db-cli APPL_DB EVAL "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" 2 k1 k2 v1 v2
+""")
+elif argc < 3:
+    msg = "'Usage: sonic-db-cli <db_name> <cmd> [arg [arg ...]]'. See 'sonic-db-cli -h' for detail examples."
+    print >> sys.stderr, msg
+else:
+    dbname = sys.argv[1]
+    dbconn = swsssdk.SonicV2Connector(use_unix_socket_path=False)
+    try:
+        dbconn.connect(dbname)
+    except RuntimeError:
+        msg = "Invalid database name input : '{}'".format(sys.argv[1])
+        print >> sys.stderr, msg
+    else:
+        client = dbconn.get_redis_client(dbname)
+        args = sys.argv[2:]
+        resp = client.execute_command(*args)
+        """
+        sonic-db-cli output format mimic the non-tty mode output format from redis-cli
+        based on our usage in SONiC, None and list type output from python API needs to be modified
+        with these changes, it is enough for us to mimic redis-cli in SONiC so far since no application uses tty mode redis-cli output
+        """
+        if resp is None:
+            print ""
+        elif isinstance(resp, list):
+            print "\n".join(resp)
+        else:
+            print resp
+```
+
+The replacement examples :
 
 Shell e.g.:
 
@@ -489,31 +788,27 @@ arp_to_host_flag=$(echo $(redis-cli -n 4 hget "ARP|arp2host" enable) | tr [a-z][
 ```
 
 ```shell
- arp_to_host_flag=$(echo $(redis-cli -p `python -c 'from swsssdk import _get_redis_port; print
-_get_redis_port("CONFIG_DB")'` -n 4 hget "ARP|arp2host" enable) | tr [a-z][A-Z])
+arp_to_host_flag=$(echo $(sonic-db-cli CONFIG_DB hget "ARP|arp2host" enable) | tr [a-z][A-Z])
 ```
 
 python e.g.:
 
 ```python
-proc = Popen("docker exec -i database redis-cli --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE,
-shell=True
+proc = Popen("docker exec -i database redis-cli -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE, shell=True
 ```
 
 ```python
-from swsssdk import _get_redis_port_
-
-_proc = Popen("docker exec -i database redis-cli -p " + str(_get_redis_port("COUNTERS_DB")) + " --raw -n 2 KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE, shell=True
+proc = Popen("sonic-db-cli COUNTERS_DB KEYS *CRM:ACL_TABLE_STATS*", stdout=PIPE, stderr=PIPE, shell=True
 ```
 
 C/C++ e.g.:
 
 ```c++
 //string redis_cmd_db = "redis-cli -p -n ";
-string redis_cmd_db = "redis-cli -p `python -c \"from swsssdk import _get_redis_port; print
-_get_redis_port(\\\"CONFIG_DB\\\")\"` -n ";
+string redis_cmd_db = "sonic-db-cli ";
 
-redis_cmd_db += std::to_string(CONFIG_DB) + " ";
+//redis_cmd_db += std::to_string(CONFIG_DB) + " ";
+redis_cmd_db += "CONFIG_DB ";
 
 redis_cmd = redis_cmd_db + " KEYS " + redis_cmd_keys;
 redis_cmd += " | xargs -n 1  -I %   sh -c 'echo \"%\"; ";
@@ -524,7 +819,7 @@ EXEC_WITH_ERROR_THROW(cmd, res);
 
 ## Programming Language
 
-One  suggestion during SONiC meeting discussion is to write one DB_ID <-> DB_INST mapping function in C++, and then to generate the codes in Python and Go, which could avoid introduce the same mapping function for all  the programming languages. 
+One suggestion during SONiC meeting discussion is to write one DB_ID <-> DB_INST mapping function in C++, and then to generate the codes in Python and Go, which could avoid introduce the same mapping function for all the programming languages. 
 
 ## Warm-reboot
 
@@ -534,10 +829,14 @@ Then restore it when database instance is up.
 
 ![center](./img/db_redis_save.png)
 
-For the new design, the database instances is changed in new version, so after the warm-reboot, it will restore data into the single default database only. We need to do something to move to databases into correct database instances according to the database\_config.json. I am think we can use "redis-cli MIGRATE" to place the database into the correct instance after database restore but before we start to use it. 
+For the new design, the database instances is changed in new version, so after the warm-reboot, it will restore data into the single default database only. We need to do something to move to databases into correct database instances according to the database\_config.json. I am think we can use "redis-cli MIGRATE" to place the database into the correct instance after database restore but before we start to use it.
 ```powershell
 redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
 ```
+
+OR we need to restore all the new isntances with the same data in old isntances before warm-reboot and delete the unecessary ones via rdb files.
+
+Discussed with Guohan's team offline, we won't support all the warmreboot cases when the database\_config.json file changed. We only want to accept the database instances spliting situation. For example , before warmrebbot, there is two instances and after there are four isntances, we can use rdb file to restoring all data in four instances and then write a logic to flush uncessary database on each instance. This logic will be done in a new script which will be executed after warmreboot database restoration.  
 
 ![center](./img/db_restore_new.png)
 
@@ -547,11 +846,15 @@ redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1
 
 ## Platform VS
 
-platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. For vs test, it is enough to use on database instance. 
+platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. We provided database\_config.json in vs docker at /var/run/redis/sonic-db/, hence all the application can read database information. For vs test, it is enough to use on database instance at this moment. 
 
 From the feedback in SONiC meeting, docker platform vs is suggested to have multiple database instances as well.  
 
-## Testing
+## Other unit testing
+
+SONiC has many unit testing runing when building images or after submmitting PR. Those test cases are not running under database docker environment, hence for those local test cases, we add some static database\_config.josn under each tests directory or isntalled via library(swss and swsssdk). These database\_config.json files are used for testing only.
+
+## DUT Testing
 
 We apply this changes on our local switches at labs. All the database are assigned to different database instances based on configuration.  So far, for the real traffic things looks great, all the tables , entries work properly. We will keep doing tests and running with traffic and see. Also all the vs tests passed.
 
