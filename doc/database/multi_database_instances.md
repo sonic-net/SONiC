@@ -107,9 +107,9 @@ Detail steps as below:
     * [x] if /host/old\_config/ exists, copy /host/old\_config/ to /etc/sonic/ as usual
     * [x] if no folder /host/old\_config/, copy some default xmls and etc. as usual
 3. **database service**
-    * [x] **database docker start, entrypoint docker-database-init.sh
+    * [x] **database docker start, entrypoint docker-database-init.sh**
     * [x] **if database\_config.json is found at /ect/sonic/, that means there is customized database config, we copy this config file to /var/run/redis/sonic-db/, which is the running database config file location, all the applications will read databse information from this file**
-    * [x] **if database\_config.json is NOT found at /ect/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.
+    * [x] **if database\_config.json is NOT found at /ect/sonic/, that means there is no customized database config, we copy this config file at /etc/default/ to /var/run/redis/sonic-db/, this is the default startuo config in the image itself.**
     * [x] **using supervisord.conf.j2 to generate supervisord.conf**
     * [x] **execute the previous entrypoint program /usr/bin/supervisord, then all the services will start based on the new supervisord.conf, which including starting how many redis instances**
     * [x] **check if redis instances are running or NOT via ping_pong_db_insts script**
@@ -291,7 +291,7 @@ dbconnector.cpp
 
 ```c++
 //swss::DBConnector db(ASIC_DB, DBConnector::DEFAULT_UNIXSOCKET, 0);
-swss::DBConnector db(ASIC_DB, 0);
+swss::DBConnector db("ASIC_DB", 0);
 
 DBConnector::DBConnector(const string& dbName, unsigned int timeout, bool isTcpConn) :
     m_dbId(SonicDBConfig::getDbId(dbName))
@@ -334,7 +334,7 @@ Today the usage is to accept parameter in SonicV2Connector()->init() and then ca
  self.appdb.connect(self.appdb.APPL_DB)
 ```
 
-The new design is similar to what we did for C++. We introduce a new class SonicDBConfig hich is used to read database\_config.json file and store the database configuration information.
+The new design is similar to what we did for C++. We introduce a new class SonicDBConfig which is used to read database\_config.json file and store the database configuration information.
 
 Then we modify the existing class SonicV2Connector, we use SonicDBConfig to get the database inforamtion in SonicV2Connector before we connect the redis instances.
 
@@ -738,6 +738,7 @@ We added a new sonic-db-cli which is written in python, the function is the same
 
 Form the db name, we can using exising python swsssdk library to look up the db information and use them. This new sonic-db-cli is in swsssdk as well and will be installed where ever swsssdk is installed.
 
+swsssdk/src/script/sonic-db-cli
 ```python
 #!/usr/bin/python
 import sys
@@ -836,7 +837,7 @@ redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1
 
 OR we need to restore all the new isntances with the same data in old isntances before warm-reboot and delete the unecessary ones via rdb files.
 
-Discussed with Guohan's team offline, we won't support all the warmreboot cases when the database\_config.json file changed. We only want to accept the database instances spliting situation. For example , before warmrebbot, there is two instances and after there are four isntances, we can use rdb file to restoring all data in four instances and then write a logic to flush uncessary database on each instance. This logic will be done in a new script which will be executed after warmreboot database restoration.  
+Discussed with Guohan's team offline, we won't support all the warmreboot cases when the database\_config.json file changed. We only want to accept the database instances spliting situation. For example , before warmrebbot, there is two instances and after there are four isntances, we can use rdb file to restoring all data in four instances and then write a logic to flush unnecessary database on each instance. This logic will be done in a new script which will be executed after warmreboot database restoration.  
 
 ![center](./img/db_restore_new.png)
 
