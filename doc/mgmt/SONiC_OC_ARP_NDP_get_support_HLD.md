@@ -312,6 +312,7 @@ Syntax Description:
 | mac-address |This options dumps the neighbor entry matching the particular MAC Address|
 | summary |This provides the count of neighbor entries present in the system|
 | vrf | show ARP entries belong to the given VRF name
+
 Command Mode: User EXEC
 
 Example:
