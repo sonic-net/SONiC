@@ -148,6 +148,7 @@ augment /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface
 ```
 Also sonic yang (sonic-neighbor.yang) is defined for fetching all entries from the NEIGH_TABLE and
 for the RPC for clearing ARP/NDP entries:
+
 ```diff
 module: sonic-neighbor
     +--rw sonic-neighbor
@@ -164,8 +165,6 @@ module: sonic-neighbor
        |  +---w force?    boolean
        |  +---w family?   enumeration
        |  +---w (option)?
-       |     +--:(all)
-       |     |  +---w all?      boolean
        |     +--:(ip)
        |     |  +---w ip?       inet:ip-prefix
        |     +--:(ifname)
@@ -245,7 +244,7 @@ The following CLI commands dump the output of internal ARP/NDP entries from APP_
 ##### 3.6.2.2.1 show ip arp
 Syntax
 
-show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] |Management ``<id>`` [summary]}]  [<A.B.C.D>] [mac-address ``<mac>``] [summary]
+show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] |Management ``<id>`` [summary]}]  [<A.B.C.D>] [mac-address ``<mac>``] [summary] [vrf <vrf name>]
 
 Syntax Description:
 
@@ -254,7 +253,8 @@ Syntax Description:
 | interface Ethernet/PortChannel/VLAN/Management* | This option dumps the ARPs matching the particular interface and summary option provides the no. of ARP entries matching the particular interface.
 | A.B.C.D | This options dumps the ARP entry matching the particular IP
 | mac-address | This options dumps the ARP entry matching the particular MAC Address|
-| summary | This provides the count of ARP entries present in the system
+| summary | This provides the count of ARP entries present in the system|
+| vrf | show ARP entries belong to the given VRF name
 
 Command Mode: User EXEC
 
@@ -267,7 +267,7 @@ Address        Hardware address    Interface         Egress Interface
 20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 20.0.0.5       00:11:22:33:44:55   Vlan20            Ethernet0
 
-sonic# sonic# show ip arp interface Vlan 20
+sonic# show ip arp interface Vlan 20
 ------------------------------------------------------------------------
 Address        Hardware address    Interface         Egress Interface
 -------------------------------------------------------------------------
@@ -286,6 +286,14 @@ Address        Hardware address    Interface         Egress Interface
 ------------------------------------------------------------------------
 20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
 
+sonic# show ip arp vrf Vrf_1
+------------------------------------------------------------------------
+Address        Hardware address    Interface         Egress Interface
+------------------------------------------------------------------------
+20.0.0.2       90:b1:1c:f4:9d:ba   Vlan20            Ethernet0
+20.0.0.5       00:11:22:33:44:55   Vlan20            Ethernet0
+
+
 sonic# show ip arp summary
 ---------------
 Total Entries
@@ -293,17 +301,17 @@ Total Entries
      2
 ````
 ##### 3.6.2.2.2 show ipv6 neighbors
-show ipv6 neighbors [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary]
+show ipv6 neighbors [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary] [vrf <vrf name>]
 
 Syntax Description:
 
 |    Keyword    | Description |
 |:-----------------:|:-----------:|
-| interface Ethernet/Port-channel/VLAN/Management* |This option dumps the neighbors matching the particular interface and summary option provides the no. of neighbor entries matching the particular interface.
+| interface Ethernet/PortChannel/VLAN/Management* |This option dumps the neighbors matching the particular interface and summary option provides the no. of neighbor entries matching the particular interface.
 | A::B |This options dumps the neighbor entry matching the particular IP
 | mac-address |This options dumps the neighbor entry matching the particular MAC Address|
-| summary |This provides the count of neighbor entries present in the system
-
+| summary |This provides the count of neighbor entries present in the system|
+| vrf | show ARP entries belong to the given VRF name
 Command Mode: User EXEC
 
 Example:
@@ -334,8 +342,6 @@ Total Entries
 -------------
      3
 ````
-
-
 
 #### 3.6.2.3 Debug Commands
 #### 3.6.2.4 IS-CLI Compliance
@@ -397,6 +403,7 @@ The following table maps SONiC CLI commands to corresponding IS-CLI commands. Th
 
 # 9 Unit Test
 The following test cases will be tested using CLI/REST/gNMI management interfaces.
+
 #### ARP test cases:
 1) Verify whether "show ip arp" command dumps all the ARP entries
 
@@ -409,6 +416,8 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 5) Verify whether "show ip arp <A.B.C.D> " option provides the ARP entry matching the particular IP.
 
 6) Verify whether "show ip arp mac-address" option provides the ARP entries matching the particular MAC.
+
+7) Verify whether "show ip arp vrf"  option provides the ARP entries matching the given VRF name.
 
 #### NDP test cases:
 1) Verify whether "show ipv6 neighbors" command dumps all the neighbor entries
@@ -423,16 +432,17 @@ The following test cases will be tested using CLI/REST/gNMI management interface
 
 6) Verify whether "show ipv6 neighbors mac-address" option provides the neighbor entries matching the particular MAC.
 
-#### ARP test cases:
+7) Verify whether "show ipv6 neighbors vrf"  option provides the NDP entries matching the given VRF name.
+
+#### clear test cases:
 1) Verify whether "clear ip arp" command clears all the ARP entries
 
 2) Verify whether "clear ip arp interface { ethernet/port-channel/vlan }" clears the ARPs learnt on the particular interface
 
 3) Verify whether "clear ip arp <A.B.C.D> " clears the ARP entry matching the particular IP.
 
-#### NDP test cases:
-1) Verify whether "clear ipv6 neighbors" command clears all the neighbors entries
+4) Verify whether "clear ipv6 neighbors" command clears all the neighbors entries
 
-2) Verify whether "clear ipv6 neighbors interface {Ethernet/PortChannel/Vlan/Management}" clears the neighbor's learnt on the particular interface
+5) Verify whether "clear ipv6 neighbors interface {Ethernet/PortChannel/Vlan/Management}" clears the neighbor's learnt on the particular interface
 
-3) Verify whether "clear ipv6 neighbors <A::B>" clears the neighbor entry matching the particular IP.
+6) Verify whether "clear ipv6 neighbors <A::B>" clears the neighbor entry matching the particular IP.
