@@ -244,7 +244,7 @@ The following CLI commands dump the output of internal ARP/NDP entries from APP_
 ##### 3.6.2.2.1 show ip arp
 Syntax
 
-show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] |Management ``<id>`` [summary]}]  [<A.B.C.D>] [mac-address ``<mac>``] [summary] [vrf <vrf name>]
+show ip arp [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] |Management ``<id>`` [summary]}]  [<A.B.C.D>] [mac-address ``<mac>``] [summary] [vrf ``<vrf name>``]
 
 Syntax Description:
 
@@ -301,7 +301,7 @@ Total Entries
      2
 ````
 ##### 3.6.2.2.2 show ipv6 neighbors
-show ipv6 neighbors [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary] [vrf <vrf name>]
+show ipv6 neighbors [interface { Ethernet ``<port>`` [summary]  | PortChannel ``<id>`` [summary]  | Vlan ``<id>`` [summary] }]  [<A::B>] [mac-address ``<mac>``] [summary] [vrf ``<vrf name>``]
 
 Syntax Description:
 
