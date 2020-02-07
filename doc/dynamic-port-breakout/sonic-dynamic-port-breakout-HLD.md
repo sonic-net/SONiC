@@ -59,6 +59,7 @@
 | 0.1 | 07/15/2019  | Zhenggen Xu           | Initial version                   |
 | 0.2 | 08/16/2019  | Zhenggen Xu           | Second version                   |
 | 0.3 | 08/16/2019  | Zhenggen Xu           | Review feedback and other changes                   |
+| 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
 
@@ -127,28 +128,29 @@ Ethernet0 (lane 0/1/2/3)
 Note, it will be similar if we want to support 8 lanes mode for newer devices.
 
 ## Platform capability design
-A capability file for a platform with port breakout capabilities is provided. It defines the initial configurations like lanes, speed, alias etc. This file will be used for CLI later to pick the parent port and breakout mode. It can be used for speed checks based on the current mode. It will also replace the functionality of the current existing port_config.ini.
+A capability file for a platform with port breakout capabilities is provided. It defines the initial configurations like lanes, speed, alias etc. This file will be used for CLI later to pick the parent port and breakout mode. It can be used for speed checks based on the current mode. It (in conjunction with `hwsku.json` talked later) will also replace the functionality of the current existing port_config.ini.
 
-The capability file is named `platform.json` and should be provided to each platform if we need support DPB.
+The capability file is named `platform.json` and should be provided to each platform if we need support DPB. Also to support more properties in this table we make the interfaces related capabilities into one section:
 
 `platform.json` looks like this:
-```
-"Ethernet0": {
-    "index": "1,1,1,1",
-    "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_brkout_mode": "1x100G[40G]"
- },
 
- "Ethernet4": {
-    "index": "2,2,2,2",
-    "lanes": "4,5,6,7",
-    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_brkout_mode": "1x100G[40G]"
+```
+"interfaces": {
+	"Ethernet0": {
+	    "index": "1,1,1,1",
+	    "lanes": "0,1,2,3",
+	    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
+	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	 },
+
+	 "Ethernet4": {
+	    "index": "2,2,2,2",
+	    "lanes": "4,5,6,7",
+	    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
+	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	 }
+ 	 ...
  }
- ...
 ```
 In this file, only the parent ports (e,g, Ethernet0/4) are defined, the child ports would be generated from them. For each parent port, it defines fields as below:
 - "index": the indexes for individual lanes. This usually matches the front panel port #, and is used by platform plugins for optical module queries.
@@ -195,11 +197,10 @@ We will have a new table `BREAKOUT_CFG` in configDB to present the current runni
 BREAKOUT_CFG:
 {
     "Ethernet0": {
-        "current_brkout_mode": "1x100G[40G]"
+        "brkout_mode": "1x100G[40G]"
     },
-
     "Ethernet4": {
-        "current_brkout_mode": "2x50G"
+        "brkout_mode": "2x50G"
      }
     ...
 }
@@ -207,30 +208,23 @@ BREAKOUT_CFG:
 
 The configDB will have the final port breakout settings for individual ports, the format/schema is the same as before. Above table is used for CLI to quickly know what breakout mode the system is on, and thus delete/add relevant ports if we are going to change the breakout mode. Also, it could be used by backend daemons like `PMON` to know the breakout mode and change the port layout for port based events and LED changes etc.
 
-After dynamic port breakout support, we won’t need different HWSKUs for the same platform. If for any reason (e,g, keep backwards compatibility) the user still wants to have HWSKUs, we would put the `platform.json` into each HWSKU with the desired breakout modes:
+After dynamic port breakout support, we won’t need different HWSKUs for the same platform. If for any reason (e,g, keep backwards compatibility) the user still wants to have HWSKUs, we would put the `hwsku.json` into each HWSKU with the desired default breakout modes:
 ```
-"Ethernet0": {
-    "index": "1,1,1,1",
-    "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_brkout_mode": "1x100G[40G]"
- },
-
- "Ethernet4": {
-    "index": "2,2,2,2",
-    "lanes": "4,5,6,7",
-    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_brkout_mode": "2x50G"
- }
-…
+"interfaces": {
+	"Ethernet0": {
+	    "default_brkout_mode": "1x100G[40G]"
+	 },
+	 "Ethernet4": {
+	    "default_brkout_mode": "2x50G"
+	 }
+	…
+}
 ```
-The file will will have precedence over the `platform.json` at platform level, and it will be used for port breakout during the initialization phase
+The file will work in conjuction with the `platform.json` at platform level, and it will be used for port breakout during the initialization phase.
 
-Above `platform.json` will deprecate the old port_config.ini file in the current SONiC design.
+Above `platform.json` and `hwsku.json` files will deprecate the old port_config.ini file in the current SONiC design.
 
-To keep backwards compatibility, we will modify the current code which is using port_config.ini to read from `platform.json` first, if it doesn't exist, it will read the port_config.ini as usual. To support the breakout feature, the json files will be required. In case they are missing, DPB changes would fail at CLI phase.
+To keep backwards compatibility, we will modify the current code which is using port_config.ini to read from `platform.json` and `hwsku.json` first, if they don't exist, it will read the port_config.ini as usual. To support the breakout feature, the json files will be required. In case they are missing, DPB changes would fail at CLI phase.
 
 ### Special HW capability consideration
 On some platforms, there are some limitations about the number of port/mac available for the total count or for a particular group. For example, on some platforms, there were limitations where only 4 port/MAC are available for 8 lanes, in this case, we could define the `platform.json` to fit that platform. e,g:
@@ -239,8 +233,7 @@ On some platforms, there are some limitations about the number of port/mac avail
     "index": "1,1,1,1,2,2,2,2",
     "lanes": "0,1,2,3,4,5,6,7",
     "alias_at_lanes":"Eth1/1, Eth1/2, Eth1/3, Eth1/4, Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "2x100G[40G],4x50G,1x100G[40G](4)+2x50G(4),2x50G(4)+1x100G[40G](4),4x25G[10G](4), None(4)+4x25G[10G](4)",
-    "default_brkout_mode": "2x100G[40G]"
+    "breakout_modes": "2x100G[40G],4x50G,1x100G[40G](4)+2x50G(4),2x50G(4)+1x100G[40G](4),4x25G[10G](4), None(4)+4x25G[10G](4)"
  }
  ...
 ```
@@ -251,23 +244,21 @@ On some platforms, the serdes connection to front panel port might not be the as
     "index": "1, 1",
     "lanes": "0,1",
     "alias_at_lanes": "Eth1/1, Eth1/2",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]",
-    "default_brkout_mode": "1x50G"
+    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
  },
 
  "Ethernet2": {
     "index": "2, 2",
     "lanes": "2,3",
     "alias_at_lanes": "Eth2/1, Eth2/1",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]",
-     "default_brkout_mode": "1x50G"
+    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
  }
  ...
 ```
 
 ## CLI design
 ### General design
-As mentioned above, when we change the configuration by CLI, we also keep a running breakout mode in configDB to know the current mode and do platform validation. The `platform.json` will be used to generate new configurations after we breakout the ports to a different mode. The format/schema of the configDB for port table is not changed in this design. Also, we will introduce a lock for config CLI so only one can change the configuration at time to prevent inconsistency.
+As mentioned above, when we change the configuration by CLI, we also keep a running breakout mode in configDB to know the current mode and do platform validation. The `platform.json` will be used to generate new configurations after we breakout the ports to a different mode. The format/schema of the configDB for port table is not changed in this design. Also, we will introduce a lock for config CLI so only one can change the configuration at a time to prevent inconsistency.
 
 Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with Ethernet1/2/3 in the same group:
 ```
@@ -275,20 +266,19 @@ Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with E
     "index": "1,1,1,1",
     "lanes": "0,1,2,3",
     "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G,2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
-    "default_brkout_mode": "1x100G[40G]"
+    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G,2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
  }
 ```
 CLI will look like below:
 
 Config port to 100G/40G from 4x25G/10G mode:
 ```
-> config interface Ethernet0 breakout 1x100G[40G]
+> config interface breakout Ethernet0 1x100G[40G]
 ```
 Or
 ```
-> config interface Ethernet0 breakout 1x100G[40G]
-> config interface Ethernet0 speed 40G
+> config interface breakout Ethernet0 1x100G[40G]
+> config interface breakout Ethernet0 speed 40G
 ```
 CLI will query the configDB to get the current mode of `4x25G[10G]` for Ethernet0. If port name in the CLI (e,g, Ethernet0) is not found in json, we will fail the CLI.
 
@@ -314,13 +304,13 @@ Similar CLI for different modes, examples as below:
 
 Config port to 2x50G
 ```
-> config interface Ethernet0 breakout 2x50G
+> config interface breakout Ethernet0 2x50G
 ```
 We should now get Ethernet0/2 as 50G. Ethernet1/3 are removed if existed before.
 
 Config port to 4x25G/10G mix speeds:
 ```
-> config interface Ethernet0 breakout 4x25G[10G]
+> config interface breakout Ethernet0 4x25G[10G]
 > config interface Ethernet0 speed 10G
 > config interface Ethernet3 speed 10G
 ```
@@ -328,7 +318,7 @@ We should now get Ethernet0/1/2/3 with either 25G or 10G as configured by speed.
 
 Config port to 25G/50G mix speeds:
 ```
-> config interface Ethernet0 breakout 2x25G(2)+1x50G(2)
+> config interface breakout Ethernet0 2x25G(2)+1x50G(2)
 ```
 We should now get Ethernet0/1 with 25G and Ethernet2 with 50G. Ethernet3 are removed if existed before.
 
@@ -356,10 +346,13 @@ During the port breakout removing port process, it will communicate with configu
 - If yes, it will continue to push the configuration to configDB to delete the port.
 - If no, it will provide error messages and print the dependencies list. We also provide a `“--force-remove-dependencies/-f”` option to CLI, which will remove the configuration dependencies automatically.
 
-During the adding port process, CLI will determine the physical lanes for each breakout port based on `platform.json` and the target breakout mode. It will generate multiple individual ports with proper lanes, alias, speed etc info to configDB,
+During the adding port process, CLI will determine the physical lanes for each breakout port based on `platform.json` and the target breakout mode. It will generate multiple individual ports with proper lanes, alias, speed etc info to configDB.
+
+To eliminate the chance that the adding port could fail (e,g, validation failure), we will finish all the validation of delete/add data in memory before we even start to delete ports into configDB.
 
 ### Show CLI
 Show interface command should be able to show the ports capability and the current breakout mode.
+
 ```
 > show interfaces breakout
 "Ethernet0": {
@@ -368,7 +361,7 @@ Show interface command should be able to show the ports capability and the curre
     "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
     "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
     "default_brkout_mode": "1x100G[40G]",
-    "current_brkout_mode": "4x25G[10G]"
+    "brkout_mode": "4x25G[10G]"
  },
 
  "Ethernet4": {
@@ -377,7 +370,7 @@ Show interface command should be able to show the ports capability and the curre
     "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
     "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
     "default_brkout_mode": "1x100G[40G]",
-    "current_brkout_mode": "2x50G"
+    "brkout_mode": "2x50G"
  }
 
 ```
@@ -397,8 +390,8 @@ High level configuration flow is as below:
 
 Interfaces in the figure:
 1. CLI will utilize `platform.json` and configDB to find out what ports to be deleted and then generate the individual port configurations into configDB. When port-breakout was changed successfully, CLI will update the configDB for `BREAKOUT_CFG` table.
-2. CLI will call the config management library to load configDB data into Yang instance data after generic translation, then during the port delete, it will find all the dependencies and optionally remove them automatically. It then translates the Yang instance data to configDB data. This interface is also used for config validate like syntax checks and dependency checks, whenever we are pushing data to configDB, e,g, during the port adding process.
-3. CLI will use existing RedisDB APIs or utilities like sonic-cfggen to read/write data to configDB.
+2. CLI will call the config management library to load configDB data into Yang instance data after generic translation, then during the port delete, it will find all the dependencies and optionally remove them automatically. It then translates the Yang instance data to configDB data. This interface is also used for config validate like syntax checks and dependency checks, whenever we are pushing data to configDB, e,g, during the port adding process. Note: CLI is also leaveraged to verfiy the port deletion completeness before adding the new ports.
+3. CLI will use existing RedisDB APIs or utilities to read/write data to configDB.
 4. This is the RedisDB interface.
 
 ### Yang model examples
@@ -721,7 +714,7 @@ The configDB data is as below initially:
 
 When we issue CLI:
 
-` > config interface Ethernet0 breakout 2x50G `
+` > config interface breakout Ethernet0 2x50G `
 
 It will find out the dependencies on Ethernet0, and print out the list as below:
 /sonic-vlan:VLAN/VLAN_LIST[vlanid='100']/members[.='Ethernet0']
@@ -731,7 +724,7 @@ It will find out the dependencies on Ethernet0, and print out the list as below:
 
 If we use -f option as below:
 
-`> config interface Ethernet0 breakout 2x50G -f`
+`> config interface breakout Ethernet0 2x50G -f`
 
 CLI will generate the below diff and push to the configDB:
 
@@ -911,28 +904,18 @@ As mentioned above, we will leverage CLI and config libs to remove the dependenc
 
 For runtime dependencies removal, after the validation was done and configuration dependencies were removed, we will shutdown the physical port before we remove it. This will help to remove the FDB, neighbors etc dynamic entries on the PORT. Code will be changed also to handle dynamic dependencies like host interface, flex counter etc.
 
+As mentioned before, CLI is also helping to simplify the backend process of removing and adding ports. It will verify the port deletion happened in the backend (ASIC-DB) before it will issue the add ports changes.
+
 ## Orchagent changes
 Orchagent is in the central location of the system, it listens the data from appDB and resolves the dependencies and then translates the actions into SAI API calls to create/delete/modify SAI objects in sai-redis and HW. Orchagent sometimes listens on the configDB directly if the configuration sync daemons are not present for such features.
 
 Orchagent is organized in a way that it splits tables into features, and each feature will have one or a few C++ classes associated with it,  which will deal with the corresponding table changes.
 
-### Data structure changes
-We will add these flags/fields into Port class to track dependencies information.
-```
-bool    m_mirror_configured;
-bool    m_buffer_configured;
-bool    m_qos_configured;
-bool    m_intf_configured;
-bool    m_dtel_configured;
-uint32_t  m_fdb_ref_cnt;
-uint32_t  m_routes_ref_cnt;
-uint32_t  m_neighbor_ref_cnt;
-```
-They will be set if we configure the relevant features, and cleared once the configurations or dynamic dependencies are removed.  The orchagent will check them to be cleared before removing the port itself.
+Sairedis library used by Orchagent does track the dependencies for objects. The DPB design will leverage that tracking to make sure the dependencies were removed on the port before we remove the port itself, to avoid any errors for Sairedis call. In case such dependencies are not removed, orchagent will wait for that.
 
 ### PORT
 PortsOrch::doPortTask will be called based on APP_PORT_TABLE changes, it will set port properties like MTU, Speed, FEC etc. Also, if the appDB lane mapping information is changed, it will create or delete the port.  In case of dynamic port breakout feature support, CLI/configMgr system should have made changes to the port and lanes etc in the configDB, this will be picked up by PortMgrd and push to AppDB, this class in the orchagent will pick up the appDB changes and delete and/or add ports.
-We need to add the PORT deletion action in this portsync.cpp code. We need to check all dependencies in port class above before we move the port.
+We need to add the PORT deletion action in portsync.cpp code. We need to check dependencies for the sairedis meta data on the port before we move the port.
 
 ### Host interface
 Host interface was created during the initialization. However, it was never deleted when the port is deleted today. Changes are needed to make the dynamic port breakout to work.  We should remove the host interface before we can delete the port itself to not violate the dependency checks at SAI level.
@@ -964,7 +947,7 @@ AclOrch::addAclTable -> createBindAclTable -> AclTable::bind() -> PortsOrch::bin
 
 This is only called when adding the ACL table. Since aclorch does have a local copy of the ACL table, we will add  a flow where we compare the binding port map (AclTable::portSet) from the configDB to local copy, and then add the new port to  the binding map and/or remove the missing port from the binding map.
 
-It is expected to have CLI or configMgr remove the ACL from port binding before removing the port itself, with above workflow, the ACL should be removed from the port to be deleted. To avoid any timing issue, we will leverage “m_ingress_acl_table_group_id” and “m_egress_acl_table_group_id” fields on the Port class. They are set when ACLs are bind to port and cleared if the ACLs are unbind from port at orchagent.  Orchagent need check these fields to be cleared before it can remove the port itself.
+It is expected to have CLI or configMgr remove the ACL from port binding before removing the port itself, with above workflow, the ACL should be removed from the port to be deleted. 
 
 ### Buffer
 For IngressBufferProfile (IBP) and EgressBufferProfile (EBP) settings
@@ -974,8 +957,6 @@ To support dynamic port breakout feature where we could delete the port itself, 
 
 To make the configuration in sync from top to bottom,  If there was any configurations done by user, it should have been removed by CLI or configMgr system.  BufferOrch in the orchagent will get the queue and prioritygroup from configDB and break the association.
 
-To avoid any timing issue and make sure the dependencies were removed before removing the port itself, we will add “queue-setting”, “pg-setting”, and “buffer-setting” flags in the Port Class, the flags were set when BufferOrch changed the settings from configuration, and will be cleared when the configuration were removed.  And when we delete the port, the orchagent should check the flags to be cleared before removing it and retry.
-
 
 ### Port counter and Queue counter
 Orchagent is passing a flex counter map to syncd to pull the counters periodically. Whenever we remove/add ports, we should update that counter map.
@@ -983,38 +964,33 @@ Orchagent is passing a flex counter map to syncd to pull the counters periodical
 ### FDB
 FDB is learnt on HW and will send notification to this process and it will add back to SAI objects. In case the port is going to be deleted, we should remove the bridgePort itself in PortOrch, it should automatically remove all the FDB entries on the port.
 
-To avoid any timing issue, we should keep a reference counter in the Port class for FDB entries on the port. The reference counters should be cleared if all entries are gone and orchagent need read the counter and validate it before removing the port.
 
 ### Interface handling
 This process get the Interface information from APP_INTF_TABLE, and it will add router interface and ip2me routes if there are IPs available on the interface/Port. Once all IPs are removed from the interface/Port, the router interface and ip2me routes will be removed.
 
 CLI or ConfigMgr system should handle this dependencies at configuration level.  I,E, it will remove any IPs and let this process to remove the router interface and ip2me routes dependencies on the port.
 
-To avoid any timing issue, we will leverage the m_rif_id in Port class, this field will be read and validated before removing port itself.
+Sairedis check of the port dependencies should gate the remove port process before interface is removed.
 
 ### Mirror
 Mirror session could point to a destination with port or LAG.  If the port to be detected are configured as the mirror session destination port.  We will have to remove the session itself or we need update the port (e,g, to a different port in the LAG).
 
 CLI or ConfigMgr system will handle this dependency, and remove the session if the port is configured as the destination port.  In case of LAG, it should track the LAG member and if the port is the only member of the LAG, it should remove the mirror session as well, otherwise, we need the mirror session to update the port info in the LAG.
 
-To avoid timing issues, we will add a “m_mirror_session” field to the Port class, where if any mirror session was configured on Port it should be set, and if the mirror session is deleted, this field should be cleared. This field should be checked before we remove a port.
 
 ### Neighbor
 When the hostif is removed at the time when port is deleted,  Linux kernel will withdraw the neighbor entries, but that might be too late as we would hit the violation of dependencies during the port deletion since neighbors are depending on it.
 
-To avoid any timing issue, we will add a reference counter for neighbor entries on port (Port class),  and a check of the reference counter is required before removing the port itself.
 
 ### Routes
 When the hostif is removed when port is deleted, protocol stack will withdraw the routes, but that might be too late as we would hit the violation of dependencies during the port deletion since routes are depending on it.
 
-To avoid any timing issue, we will add a reference counter for routes entries on port (Port class),  and a check of the reference counter is required before removing the port itself.
 
 ### QoS
 This process handles DSCP-to-TC, TC-to-pg, TC-to-queue mappings, Queue setting, WRED setting, scheduler etc.
 
 Before remove port, we should remove the Qos settings on port, this should be initiated by CLI or configMgr system.  This daemon will listen on those tables and apply the “null” objects to the port.  When adding back the port,the qos setting need to be re-applied,  however this process was done at init time only with J2 template, we will need to change that so we can dynamically apply Qos per port.
 
-To avoid any timing issue, we need to add “Qos” flag to Port class, and it will be set when we apply the Qos settings and cleared if Qos settings are removed.  Orchagent will check this flag to be cleared before it can remove the port itself.
 
 
 ## SAI-Redis and Syncd considerations
@@ -1156,6 +1132,8 @@ create_neighbor_entry
 remove_next_hop
 remove_neighbor_entry
 ```
+
+All thee attribute that coud be changed in orchagent should be able to be brought back to default state. e,g, set the attribute to null.
 
 # Warm reboot support
 Syncd changes are required as mentioned above. The PR need to be merged and tested.
