@@ -22,6 +22,10 @@ Docker to Host communication
 | 0.2 | 12/08/2019  | Mike Lazar         | Add details about architecture    |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.3 | 12/16/2019  | Mike Lazar         | Add security and logging info     |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.4 | 02/07/2020  | Mike Lazar         | More information about security   |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+
 
 
 # About this Manual
@@ -133,13 +137,53 @@ This ensures that only the desired containers access the D-Bus host services.
 D-Bus provides a reliable communication channel between client (SONiC management container) and service (native host OS) – all actions are acknowledged and can provide return values. It should be noted that acknowledgements are important for operations such as “image upgrade” or “config-save”. In addition, D-Bus methods can return values of many types – not just ACKs. For instance, they can return strings, useful to return the output of a command.
 
 ### 3.1.1 Security of D-Bus Communications
-In addition to standard Linux security mechanisms for file/Unix socket access rights (read/write), D-Bus provides a separate security layer, using the D-Bus service configuration files.
-This allows finer grain access control to D-Bus objects and methods - D-Bus can restrict access only to certain Linux users.
+In addition to standard Linux security mechanisms for file/Unix socket access rights (read/write), D-Bus provides a separate security layer, using the D-Bus service configuration files, for defining security policies. This allows finer grain access control to D-Bus objects and methods - D-Bus can restrict access only to certain Linux users. This is achieved by using the "Host Service" configuration file:
+/etc/dbus-1/system.d/org.sonic.hostservice.conf
+
+For instance, assuming that the rest-service provided by the SONiC management framework is executed as a system user ("mgmtuser"), the configuration can allow this user access to all Host Services:
+<pre><code>
+  <policy user="mgmtuser">
+    <allow send_destination="org.SONiC.HostService"/>
+    <allow receive_sender="org.SONiC.HostService"/>
+  </policy>
+</code></pre>
+Assuming that the telemetry service is executed as a "telemetry" system user, that account may only be allowed access to a restricted set of services, and denied access to all others (e.g. ztp, configuration save/restore):
+
+<pre><code>
+  <policy user="telemetry">
+    <deny send_destination="org.SONiC.HostService"/>
+    <deny receive_sender="org.SONiC.HostService"/>
+    <allow send_destination="org.SONiC.HostService.showtech"/>
+    <allow receive_sender="org.SONiC.HostService.showtech"/>
+  </policy>
+</code></pre>
+
+Note. Furthermore, D-Bus allows security policies to be set per Linux user group as well:
+<pre><code>
+  <policy group="admin">
+    <allow send_destination="org.SONiC.HostService"/>
+    <allow receive_sender="org.SONiC.HostService"/>
+  </policy>
+</code></pre>
+
+<pre><code>
+  <policy group="operator">
+    <deny send_destination="org.SONiC.HostService"/>
+    <deny receive_sender="org.SONiC.HostService"/>
+    <allow send_destination="org.SONiC.HostService.showtech"/>
+    <allow receive_sender="org.SONiC.HostService.showtech"/>
+  </policy>
+</code></pre>
+
 
 ### 3.1.2 Command Logging
 
 It is possible to track and log the user name and the command that the user has requested.
 The log record is created in the system log.
+
+### 3.1.3 Backwards Compatibility and Upgrades
+
+D-Bus provides a means ("introspection") for client applications to query the objects and methods that service APIs provide. This allows client applications (e.g. management and telemetry containers) and services (D-Bus host service) to be upgraded independently. The client applications will query the APIs provided by the D-Bus Host Service, and adapt to the available functionality of the Host Service.
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
