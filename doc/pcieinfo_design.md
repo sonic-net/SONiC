@@ -15,6 +15,7 @@ It will execute `pcieutil [options]`command
 
      show  platform pcieinfo         ---->  pcieutil pcie_show
      show  platform pcieinfo --check ---->  pcieutil pcie_check
+     show  platform pcieinfo -c      ---->  pcieutil pcie_check
 
 
 ### pcieutil utility
@@ -45,6 +46,36 @@ Function: This file is used to fulfill the main interfaces including functions
 * **dump_conf_yaml()**
     * To generate pcie.yaml which used to record the original pcie info
     
+**Config file**
+
+Location: `device/Platofrm/plugins/pcie.yaml`
+
+Function: This file is used to as a standard to distinguish the device PCIe info. for different platform, config file will locate in differnet path
+
+***Format***
+
+    - bus: '00'
+      dev: '00'
+      fn: '0'
+      id: 1f0c
+      name: 'Host bridge: Intel Corporation Atom processor C2000 SoC Transaction Router'
+    - bus: '00'
+      dev: '01'
+      fn: '0'
+      id: 1f10
+      name: 'PCI bridge: Intel Corporation Atom processor C2000 PCIe Root Port 1'
+    - bus: '00'
+      dev: '02'
+      fn: '0'
+      id: 1f11
+      name: 'PCI bridge: Intel Corporation Atom processor C2000 PCIe Root Port 2'
+    - bus: '00'
+      dev: '03'
+      fn: '0'
+      id: 1f12
+      name: 'PCI bridge: Intel Corporation Atom processor C2000 PCIe Root Port 3'
+    ......
+
 ## Command Output
 
     root@sonic:~# show platform pcieinfo
