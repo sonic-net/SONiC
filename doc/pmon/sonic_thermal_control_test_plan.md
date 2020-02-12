@@ -1,6 +1,6 @@
 # Thermal Control Test Plan
 
-## Table of Content
+## Table of Contents
 
 - [Overview](#overview)
 - [Scope](#scope)
