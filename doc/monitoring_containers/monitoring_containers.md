@@ -80,12 +80,12 @@ critical processes in each docker container are the key not only for this docker
 container working correctly but also for the intended functionalities of whole SONiC switch.
 On the other hand, profiling the resource usages and performance of each docker
 container are also important for us to understand whether this container is in healthy state
-or not and to provide us with deep insight about networking traffic.
+or not and furtherly to provide us with deep insight about networking traffic.
 
 The main purpose of this feature includes two parts: the first part is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
 of each docker container.
-The second part in this feature is docker containers can be automatically shut down and
+The second part is docker containers can be automatically shut down and
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
