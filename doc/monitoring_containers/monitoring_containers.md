@@ -117,8 +117,8 @@ We implemented this feature by employing the existing monit and supervisord syst
 
 ### 1.1.2 Configuration and Management Requirements
 Configuration of the auto-restart feature can be done via:
-* init_cfg.json
-* CLI
+1. init_cfg.json
+2. CLI
 
 ### 1.1.3 Scalability Requirements
 
@@ -132,12 +132,31 @@ the critical processes in SONiC. However, monit only gives the method to monitor
 usage per process level not container level. As such, monitoring the resource usage of a docker 
 container will be an interesting and challenging problem. In our design, we adopted the way
 that monit will check the returned value of a script which reads the resource usage of docker 
-container, compares it with pre-defined threshold and then exited. The value 0 signified that
+container, compares it with pre-defined threshold and then exited. 
+
+We employed the mechanism of event listener in supervisord to achieve auto-restarting of docker 
+container. Currently supervisord will monitor the running status of each process in SONiC
+docker containers. If one critical process exited unexpectedly, supervisord will catch such signal
+and send it to event listener. Then event listener will kill the process supervisord and
+the entire docker container will be shut down and restarted.
+
+# 2 Functionality
+## 2.1 Target Deployment Use Cases
+This feature is used to perform the following functions:
+1. Monit will write an alert message into syslog if one if critical process exited unexpectedly.
+2. Monit will write an alert message into syslog if the usage of memory is larger than the
+    pre-defined threshold for a docker container.
+3. A docker container will auto-restart if one of its critical processes crashed or exited
+    unexpectedly.
+
+## 2.2 Functional Description
+
+
+### 2.2.1 Monitoring Critical Processes
+The value 0 signified that
 the resource usage is less than threshold and non-zero means we should send an alert since
 current usage is larger than threshold.
 
-
-# 2 Functionality
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
@@ -168,8 +187,7 @@ PORT_INGRESS_DROPS:
       SIP_LINK_LOCAL
       DIP_LINK_LOCAL
       UNRESOLVED_NEXT_HOP
-      DECAP_ERROR
-
+      DECAP_ERROR 
 SWITCH_EGRESS_DROPS:
       L2_ANY
       L3_ANY
