@@ -76,8 +76,11 @@ the unhealthy of docker containers.
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP and SNMP. Each application usually includes several processes which are 
 working together to provide the services for other modules. As such, the healthy of
-critical processes in each docker container are the key for the intended functionalities of
-SONiC switch.
+critical processes in each docker container are the key not only for this docker
+container working correctly but also for the intended functionalities of whole SONiC switch.
+On the other hand, profiling the resource usages and performance of each docker
+container are also important for us to understand whether it is in healthy state
+and more importantly to provide us with deep insight about networking traffic.
 
 The main purpose of this feature includes two parts: the first part is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
@@ -116,9 +119,9 @@ Configuration of the auto-restart feature can be done via:
 
 ### 1.1.3 Scalability Requirements
 
-# 2 Design
+## 1.2 Design
 
-## 2.1 Basic Approach
+### 1.2.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
 are heavily depended on the monit system tool. Since monit already provided the mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
@@ -134,6 +137,8 @@ The second part in this feature is docker containers can be automatically shut d
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
+
+# 2 Functionality
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
