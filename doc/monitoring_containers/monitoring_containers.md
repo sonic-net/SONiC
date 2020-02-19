@@ -1,4 +1,4 @@
-# Monitoring and Auto-mitigating the Unhealthy of Containers in SONiC
+# Monitoring and Auto-Mitigating the Unhealthy of Containers in SONiC
 
 # High Level Design Document
 #### Rev 0.1
@@ -54,17 +54,17 @@
 * [Figure 1: General Flow](#41-general-flow)
 
 # Revision
-| Rev |   Date   |          Author        |     Change Description    |
-|:---:|:--------:|:----------------------:|---------------------------|
-| 0.1 | 02/18/20 | Yong Zhao, Joe Leveque |      Initial version      |
+| Rev |    Date    |          Author        |     Change Description    |
+|:---:|:----------:|:----------------------:|---------------------------|
+| 0.1 | 02/18/2020 | Yong Zhao, Joe Leveque |      Initial version      |
 
 # About this Manual
 This document provides the design and implementation of monitoring and auto-mitigating
-the unhealthy of containers in SONiC.
+the unhealthy of docker containers in SONiC.
 
 # Scope
 This document describes the high level design of the feature to monitor and auto-mitigate
-the unhealthy of containers.
+the unhealthy of docker containers.
 
 # Definitions/Abbreviation
 | Abbreviation |         Description          |
@@ -72,7 +72,7 @@ the unhealthy of containers.
 | Config DB    | SONiC Configuration Database |
 | CLI          | Command Line Interface       |
 
-# 1 Overview
+# 1 Feature Overview
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP and SNMP. Each application usually includes several processes which are 
 working together to provide the services for other modules. As such, the healthy of
@@ -105,27 +105,25 @@ We implemented this feature by employing the existing monit and supervisord syst
     container.. 
 5. Users can access this auto-restart information via a CLI tool
     1. Users can see current auto-restart status for docker containers.
-    1. Users can change auto-restart status for a specific docker container.
+    2. Users can change auto-restart status for a specific docker container.
 
-## 2.2 Configuration and Management Requirements
-Configuration of the drop counters can be done via:
-* config_db.json
+### 1.1.2 Configuration and Management Requirements
+Configuration of the auto-restart feature can be done via:
+* init_cfg.json
 * CLI
 
-## 2.3 Scalability Requirements
-Users must be able to use all debug counters and drop reasons provided by the underlying hardware.
+### 1.1.3 Scalability Requirements
 
-Interacting with debug counters will not interfere with existing hardware counters (e.g. portstat). Likewise, interacting with existing hardware counters will not interfere with debug counter behavior.
+# 2 Design
 
-## 2.4 Supported Debug Counters
-* PORT_INGRESS_DROPS: port-level ingress drop counters
-* PORT_EGRESS_DROPS: port-level egress drop counters
-* SWITCH_INGRESS_DROPS: switch-level ingress drop counters
-* SWITCH_EGRESS_DROPS: switch-level egress drop counters
+## 2.1 Basic Approach
+Monitoring the running status of critical processes and resource usage of docker containers
+are heavily depended on the monit system tool. Since monit already provided the mechanism
+to check whether a process is running or not, it will be easy to integrate this to monitor the
+critical processes in SONiC. Currently we only used monit to monitor the memory usage of each
+docker container,
 
-# 3 Design
-
-## 3.1 CLI (and usage example)
+## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
 * See available drop counter capabilities: `show dropcounters capabilities`
 * See drop counter config: `show dropcounters configuration`
