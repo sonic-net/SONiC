@@ -91,11 +91,11 @@ the entire container ensures that configuration is reloaded and all processes in
 get restarted, thus increasing the likelihood of entering a healthy state.
 
 We implemented this feature by employing the existing monit and supervisord system tools.
-* we used monit system tool to detect whether a process is running or not and whether 
+1. We used monit system tool to detect whether a process is running or not and whether 
   the resource usage of a docker container is beyond the pre-defined threshold.
-* we leveraged the mechanism of event listener in supervisord to auto-restart a docker container
+2. We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
   if one of its critical processes exited unexpectedly. 
-* we also added a knob to make this auto-restart feature dynamically configurable.
+3. We also added a knob to make this auto-restart feature dynamically configurable.
   Specifically users can run CLI to configure this feature residing in Config_DB as
   enabled/disabled state.
 
@@ -153,6 +153,32 @@ This feature is used to perform the following functions:
 
 
 ### 2.2.1 Monitoring Critical Processes
+Monit has implemented the mechanism to monitor whether a process is running or not. In detail,
+monit will periodically read the configuration file trying to match the target process in 
+the process tree.
+
+Below is an example of monit configuration file to check the critical processes in lldp
+container.
+
+*/etc/monit/conf.d/monit_lldp*
+```bash
+###############################################################################
+# Monit configuration file for lldp container
+# Process list:
+#   lldpd
+#   lldp_syncd
+#   lldpmgrd
+###############################################################################
+check process lldp_monitor matching "lldpd: "
+    if does not exit for 5 times within 5 cycles then alert
+check process lldp_syncd matching "python2 -m lldp_syncd"
+    if does not exit for 5 times within 5 cycles then alert
+check process lldpmgrd matching "python /usr/bin/lldpmgrd"
+    if does not exit for 5 times within 5 cycles then alert
+```
+
+### 2.2.2 Monitoring Critical Resource Usage
+
 The value 0 signified that
 the resource usage is less than threshold and non-zero means we should send an alert since
 current usage is larger than threshold.
