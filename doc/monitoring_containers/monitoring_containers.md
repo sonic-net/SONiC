@@ -105,7 +105,7 @@ We implemented this feature by employing the existing monit and supervisord syst
     container.
 4. CONFIG_DB can be configured to enable/disable this auto-restart feature for each docker
     container.. 
-5. Users can access this auto-restart information via a CLI tool
+5. Users can access this auto-restart information via the CLI utility
     1. Users can see current auto-restart status for docker containers.
     2. Users can change auto-restart status for a specific docker container.
 
@@ -121,10 +121,12 @@ Configuration of the auto-restart feature can be done via:
 ## 2.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
 are heavily depended on the monit system tool. Since monit already provided the mechanism
-to check whether a process is running or not, it will be easy to integrate this into monitoring 
-the critical processes in SONiC. However, monit only presented the method to monitor the resource
-usage per process level not container level. As such, monitoring the resource usage of docker 
-container will be a challenging problem. 
+to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
+the critical processes in SONiC. However, monit only gives the method to monitor the resource
+usage per process level not container level. As such, monitoring the resource usage of a docker 
+container will be an interesting and challenging problem. In our design, we adopted the way
+that monit will check the exit code of a script which reads the resource usage of docker 
+containers, compares it with threshold and then return different value.
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
