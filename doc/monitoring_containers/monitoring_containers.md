@@ -79,13 +79,16 @@ working together to provide the services for other modules. As such, the healthy
 critical processes in each docker container are the key not only for this docker
 container working correctly but also for the intended functionalities of whole SONiC switch.
 On the other hand, profiling the resource usages and performance of each docker
-container are also important for us to understand whether it is in healthy state
-and more importantly to provide us with deep insight about networking traffic.
+container are also important for us to understand whether this container is in healthy state
+or not and to provide us with deep insight about networking traffic.
 
 The main purpose of this feature includes two parts: the first part is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
-of each docker container. The second part is to auto-mitigate the unhealthy of docker
-container if one of its critical process crashed or exited unexpectedly.
+of each docker container.
+The second part in this feature is docker containers can be automatically shut down and
+restarted if one of critical processes running in the container exits unexpectedly. Restarting
+the entire container ensures that configuration is reloaded and all processes in the container
+get restarted, thus increasing the likelihood of entering a healthy state.
 
 We implemented this feature by employing the existing monit and supervisord system tools.
 * we used monit system tool to detect whether a process is running or not and whether 
@@ -133,10 +136,6 @@ container, compares it with pre-defined threshold and then exited. The value 0 s
 the resource usage is less than threshold and non-zero means we should send an alert since
 current usage is larger than threshold.
 
-The second part in this feature is docker containers can be automatically shut down and
-restarted if one of critical processes running in the container exits unexpectedly. Restarting
-the entire container ensures that configuration is reloaded and all processes in the container
-get restarted, thus increasing the likelihood of entering a healthy state.
 
 # 2 Functionality
 
