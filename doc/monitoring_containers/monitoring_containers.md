@@ -90,8 +90,8 @@ restarted if one of critical processes running in the container exits unexpected
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
 
-We implemented this feature by employing the existing monit and supervisord system tools.
-1. We used monit system tool to detect whether a process is running or not and whether 
+We implemented this feature by employing the existing Monit and supervisord system tools.
+1. We used Monit system tool to detect whether a process is running or not and whether 
   the resource usage of a docker container is beyond the pre-defined threshold.
 2. We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
   if one of its critical processes exited unexpectedly. 
@@ -102,9 +102,9 @@ We implemented this feature by employing the existing monit and supervisord syst
 ## 1.1 Requirements
 
 ### 1.1.1 Functional Requirements
-1. The monit must provide the ability to generate an alert when a critical process is not
+1. The Monit must provide the ability to generate an alert when a critical process is not
     running.
-2. The monit must provide the ability to generate an alert when the resource usage of
+2. The Monit must provide the ability to generate an alert when the resource usage of
     a docker contaier is larger than the pre-defined threshold.
 3. The event listener in supervisord must receive the signal when a critical process in 
     a docker container crashed or exited unexpectedly and then restart this docker 
@@ -126,12 +126,12 @@ Configuration of the auto-restart feature can be done via:
 
 ### 1.2.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
-are heavily depended on the monit system tool. Since monit already provided the mechanism
+are heavily depended on the Monit system tool. Since Monit already provided the mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
-the critical processes in SONiC. However, monit only gives the method to monitor the resource
+the critical processes in SONiC. However, Monit only gives the method to monitor the resource
 usage per process level not container level. As such, monitoring the resource usage of a docker 
 container will be an interesting and challenging problem. In our design, we adopted the way
-that monit will check the returned value of a script which reads the resource usage of docker 
+that Monit will check the returned value of a script which reads the resource usage of docker 
 container, compares it with pre-defined threshold and then exited. 
 
 We employed the mechanism of event listener in supervisord to achieve auto-restarting of docker 
@@ -154,10 +154,10 @@ This feature is used to perform the following functions:
 
 ### 2.2.1 Monitoring Critical Processes
 Monit has implemented the mechanism to monitor whether a process is running or not. In detail,
-monit will periodically read the target processes from configuration file and tries to match 
+Monit will periodically read the target processes from configuration file and tries to match 
 those process with the processes tree in Linux kernel.
 
-Below is an example of monit configuration file to monitor the critical processes in lldp
+Below is an example of Monit configuration file to monitor the critical processes in lldp
 container.
 
 */etc/monit/conf.d/monit_lldp*
@@ -178,15 +178,22 @@ check process lldpmgrd matching "python /usr/bin/lldpmgrd"
 ```
 
 ### 2.2.2 Monitoring Critical Resource Usage
-Similar to monitoring the critical processes, we can employ monit to monitor the resource usage
-such as CPU, memory and disk for each process. Unfortunately monit is unable to do the resource monitoring
-in the container level. Thus we developed a new method to achieve this base on monit.
-
-
-The value 0 signified that
-the resource usage is less than threshold and non-zero means we should send an alert since
+Similar to monitoring the critical processes, we can employ Monit to monitor the resource usage
+such as CPU, memory and disk for each process. Unfortunately Monit is unable to do the resource monitoring
+in the container level. Thus we developed a new method to achieve such monitoring base on Monit.
+Specifically Monit will monitor a script and check its exit status. This script
+will correspondingly read the resource usage of docker containers, compare it with
+pre-defined threshold and then return a value. The value 0 signified that
+the resource usage is less than threshold and non-zero means Monit will send an alert since
 current usage is larger than threshold.
 
+Below is an example of Monit configuration file for lldp container to pass the pre-defined 
+threshold (bytes) to the script and check it exiting value.
+
+```bash
+check program memory_checker with path "/usr/bin/memory_checker lldp 104857600"
+    if status != 0 then alert
+```
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
