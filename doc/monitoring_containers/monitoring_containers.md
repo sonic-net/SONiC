@@ -81,15 +81,17 @@ SONiC switch.
 
 The main purpose of this feature includes two parts: the first part is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
-of each docker container. The second part is to auto-mitigate the unhealthy state of docker
+of each docker container. The second part is to auto-mitigate the unhealthy of docker
 container if one of its critical process crashed or exited unexpectedly.
 
 We implemented this feature by employing the existing monit and supervisord system tools.
 * we used monit system tool to detect whether a process is running or not and whether 
   the resource usage of a docker container is beyond the pre-defined threshold.
-* we used the mechanism of event listener in supervisord to auto-restart a docker container
+* we leveraged the mechanism of event listener in supervisord to auto-restart a docker container
   if one of its critical processes exited unexpectedly. 
 * we also added a knob to make this auto-restart feature dynamically configurable.
+  Specifically users can run CLI to configure this feature residing in Config_DB as
+  enabled/disabled state.
 
 ## 1.1 Requirements
 
