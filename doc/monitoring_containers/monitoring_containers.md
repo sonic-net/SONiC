@@ -70,13 +70,14 @@ the unhealthy of containers.
 | Abbreviation |         Description          |
 |--------------|------------------------------|
 | Config DB    | SONiC Configuration Database |
+| CLI          | Command Line Interface       |
 
 # 1 Overview
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP and SNMP. Each application usually includes several processes which are 
 working together to provide the services for other modules. As such, the healthy of
-critical processes in each docker container are the key for the functionality of whole
-SONiC systems.
+critical processes in each docker container are the key for the intended functionalities of
+SONiC switch.
 
 The main purpose of this feature includes two parts: the first part is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
@@ -88,46 +89,23 @@ We implemented this feature by employing the existing monit and supervisord syst
   the resource usage of a docker container is beyond the pre-defined threshold.
 * we used the mechanism of event listener in supervisord to auto-restart a docker container
   if one of its critical processes exited unexpectedly. 
-* We also added a knob to make this auto-restart feature dynamically configurable.
+* we also added a knob to make this auto-restart feature dynamically configurable.
 
-## 1.1 Use Cases
-There are a couple of potential use cases for these drop counters.
+## 1.1 Requirements
 
-### 1.1.1 A flexible "drop filter"
-One potential use case is to use the drop counters to create a filter of sorts for the standard STAT_IF_IN/OUT_DISCARDS counters. Say, for example:
-- Packets X, Y, and Z exist in our system
-- Our switches should drop X, Y, and Z when they receive them
-
-We can configure a drop counter (call it "EXPECTED_DROPS", for example) that counts X, Y, and Z. If STAT_IF_IN_DISCARDS = EXPECTED_DROPS, then we know our switch is healthy and that everything is working as intended. If the counts don't match up, then there may be a problem.
-
-### 1.1.2 A helpful debugging tool
-Another potential use case is to configure the counters on the fly in order to help debug packet loss issues. For example, if we're consistently experiencing packet loss in your system, we might try:
-- Creating a counter that tracks L2_ANY and a counter that tracks L3_ANY
-- L2_ANY is incrementing, so we delete these two counters and create MAC_COUNTER that tracks MAC-related reasons (SMAC_EQUALS_DMAC, DMAC_RESERVED, etc.), VLAN_COUNTER that tracks VLAN related reasons, (INGRESS_VLAN_FILTER, VLAN_TAG_NOT_ALLOWED), and OTHER_COUNTER that tracks everything else (EXCEEDS_L2_MTU, FDB_UC_DISCARD, etc.)
-- OTHER_COUNTER is incrementing, so we delete the previous counters and create a counter that tracks the individual reasons from OTHER_COUNTER
-- We discover that the EXCEEDS_L2_MTU counter is increasing. There might be an MTU mismatch somewhere in our system!
-
-### 1.1.3 More sophisticated monitoring schemes
-Some have suggested other deployment schemes to try to sample the specific types of packet drops that are occurring in their system. Some of these ideas include:
-- Periodically (e.g. every 30s) cycling through different sets of drop counters on a given device
-- "Striping" drop counters across different devices in the system (e.g. these 3 switches are tracking VLAN drops, these 3 switches are tracking ACL drops, etc.)
-- An automatic version of [1.1.2](#112-a-helpful-debugging-tool) that adapts the drop counter configuration based on which counters are incrementing
-
-# 2 Requirements
-
-## 2.1 Functional Requirements
-1. CONFIG_DB can be configured to create debug counters
-2. STATE_DB can be queried for debug counter capabilities
-3. Users can access drop counter information via a CLI tool
-    1. Users can see what capabilities are available to them
-        1. Types of counters (i.e. port-level and/or switch-level)
-        2. Number of counters
-        3. Supported drop reasons
-    2. Users can see what types of drops each configured counter contains
-    3. Users can add and remove drop reasons from each counter
-    4. Users can read the current value of each counter
-    5. Users can assign aliases to counters
-    6. Users can clear counters
+### 1.1.1 Functional Requirements
+1. The monit must provide the ability to generate an alert when a critical process is not
+    running.
+2. The monit must provide the ability to generate an alert when the resource usage of
+    a docker contaier is larger than the pre-defined threshold.
+3. The event listener in supervisord must receive the signal when a critical process in 
+    a docker container crashed or exited unexpectedly and then restart this docker 
+    container.
+4. CONFIG_DB can be configured to enable/disable this auto-restart feature for each docker
+    container.. 
+5. Users can access this auto-restart information via a CLI tool
+    1. Users can see current auto-restart status for docker containers.
+    1. Users can change auto-restart status for a specific docker container.
 
 ## 2.2 Configuration and Management Requirements
 Configuration of the drop counters can be done via:
