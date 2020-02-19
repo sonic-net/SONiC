@@ -125,8 +125,15 @@ to check whether a process is running or not, it will be straightforward to inte
 the critical processes in SONiC. However, monit only gives the method to monitor the resource
 usage per process level not container level. As such, monitoring the resource usage of a docker 
 container will be an interesting and challenging problem. In our design, we adopted the way
-that monit will check the exit code of a script which reads the resource usage of docker 
-containers, compares it with threshold and then return different value.
+that monit will check the returned value of a script which reads the resource usage of docker 
+container, compares it with pre-defined threshold and then exited. The value 0 signified that
+the resource usage is less than threshold and non-zero means we should send an alert since
+current usage is larger than threshold.
+
+The second part in this feature is docker containers can be automatically shut down and
+restarted if one of critical processes running in the container exits unexpectedly. Restarting
+the entire container ensures that configuration is reloaded and all processes in the container
+get restarted, thus increasing the likelihood of entering a healthy state.
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
