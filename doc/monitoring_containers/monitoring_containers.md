@@ -154,10 +154,10 @@ This feature is used to perform the following functions:
 
 ### 2.2.1 Monitoring Critical Processes
 Monit has implemented the mechanism to monitor whether a process is running or not. In detail,
-monit will periodically read the configuration file trying to match the target process in 
-the process tree.
+monit will periodically read the target processes from configuration file and tries to match 
+those process with the processes tree in Linux kernel.
 
-Below is an example of monit configuration file to check the critical processes in lldp
+Below is an example of monit configuration file to monitor the critical processes in lldp
 container.
 
 */etc/monit/conf.d/monit_lldp*
@@ -178,6 +178,10 @@ check process lldpmgrd matching "python /usr/bin/lldpmgrd"
 ```
 
 ### 2.2.2 Monitoring Critical Resource Usage
+Similar to monitoring the critical processes, we can employ monit to monitor the resource usage
+such as CPU, memory and disk for each process. Unfortunately monit is unable to do the resource monitoring
+in the container level. Thus we developed a new method to achieve this base on monit.
+
 
 The value 0 signified that
 the resource usage is less than threshold and non-zero means we should send an alert since
