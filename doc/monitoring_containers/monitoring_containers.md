@@ -120,8 +120,9 @@ Configuration of the auto-restart feature can be done via:
 Monitoring the running status of critical processes and resource usage of docker containers
 are heavily depended on the monit system tool. Since monit already provided the mechanism
 to check whether a process is running or not, it will be easy to integrate this to monitor the
-critical processes in SONiC. Currently we only used monit to monitor the memory usage of each
-docker container,
+critical processes in SONiC. However, monit only provided the mechanism to monitor the resource
+usage per process level not container level. As such, monitoring the resource usage of docker 
+container will be a challenging problem. 
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
