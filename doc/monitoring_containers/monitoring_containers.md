@@ -87,8 +87,8 @@ We implemented this feature by employing the existing monit and supervisord syst
 * we used monit system tool to detect whether a process is running or not and whether 
   the resource usage of a docker container is beyond the pre-defined threshold.
 * we used the mechanism of event listener in supervisord to auto-restart a docker container
-  if one of its critical processes exited unexpectedly. We also added a knob to make
-  this auto-restart feature dynamically configurable.
+  if one of its critical processes exited unexpectedly. 
+* We also added a knob to make this auto-restart feature dynamically configurable.
 
 ## 1.1 Use Cases
 There are a couple of potential use cases for these drop counters.
