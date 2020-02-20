@@ -53,8 +53,8 @@ the unhealthy of docker containers.
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP and SNMP. Each application usually includes several processes which are 
 working together to provide the services for other modules. As such, the healthy of
-critical processes in each docker container are the key not only for this docker
-container working correctly but also for the intended functionalities of whole SONiC switch.
+critical processes in each docker container are the key not only for the docker
+container working correctly but also for the intended functionalities of entire SONiC switch.
 On the other hand, profiling the resource usages and performance of each docker
 container are also important for us to understand whether this container is in healthy state
 or not and furtherly to provide us with deep insight about networking traffic.
@@ -74,7 +74,7 @@ We implemented this feature by employing the existing Monit and supervisord syst
   if one of its critical processes exited unexpectedly. 
 3. We also added a knob to make this auto-restart feature dynamically configurable.
   Specifically users can run CLI to configure this feature residing in Config_DB as
-  enabled/disabled state.
+  enabled/disabled status.
 
 ## 1.1 Requirements
 
@@ -90,7 +90,7 @@ We implemented this feature by employing the existing Monit and supervisord syst
     container.. 
 5. Users can access this auto-restart information via the CLI utility
     1. Users can see current auto-restart status for docker containers.
-    2. Users can change auto-restart status for a specific docker container.
+    2. Users can configure auto-restart status for a specific docker container.
 
 ### 1.1.2 Configuration and Management Requirements
 Configuration of the auto-restart feature can be done via:
@@ -169,7 +169,7 @@ Below is an example of Monit configuration file for lldp container to pass the p
 threshold (bytes) to the script and check the exiting value.
 
 ```bash
-check program memory_checker with path "/usr/bin/memory_checker lldp 104857600"
+check program container_memory_lldp with path "/usr/bin/memory_checker lldp 104857600"
     if status != 0 then alert
 ```
 
