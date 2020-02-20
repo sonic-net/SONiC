@@ -180,7 +180,7 @@ check process lldpmgrd matching "python /usr/bin/lldpmgrd"
 ### 2.2.2 Monitoring Critical Resource Usage
 Similar to monitoring the critical processes, we can employ Monit to monitor the resource usage
 such as CPU, memory and disk for each process. Unfortunately Monit is unable to do the resource monitoring
-in the container level. Thus we developed a new method to achieve such monitoring base on Monit.
+in the container level. Thus we propose a new design to achieve such monitoring based on Monit.
 Specifically Monit will monitor a script and check its exit status. This script
 will correspondingly read the resource usage of docker containers, compare it with
 pre-defined threshold and then return a value. The value 0 signified that
@@ -188,12 +188,28 @@ the resource usage is less than threshold and non-zero means Monit will send an 
 current usage is larger than threshold.
 
 Below is an example of Monit configuration file for lldp container to pass the pre-defined 
-threshold (bytes) to the script and check it exiting value.
+threshold (bytes) to the script and check the exiting value.
 
 ```bash
 check program memory_checker with path "/usr/bin/memory_checker lldp 104857600"
     if status != 0 then alert
 ```
+
+### 2.2.3 Auto-restart Docker Container
+The design principle behind this auto-restart feature is that docker containers can be automatically shut down and
+restarted if one of critical processes running in the container exits unexpectedly. Restarting
+the entire container ensures that configuration is reloaded and all processes in the container
+get restarted, thus increasing the likelihood of entering a healthy state.
+
+Currently SONiC used superviord system tool to manage the processes in each
+docker container. Actually auto-restarting docker container is based on the process 
+monitoring/notification framework provided by supervisord. Specifically
+if the state of process changes for example from running to exited,
+an event notification `PROCESS_STATE_STOPPED` will be emitted by supervisord.
+This event will be received event listener. After that event listener will
+terminate supervisord and the container will be stopped and restarted 
+if the exited process is critical one.
+
 
 ## 2.1 CLI (and usage example)
 The CLI tool will provide the following functionality:
