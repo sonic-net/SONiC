@@ -21,10 +21,10 @@
     - [2.2 Functional Description](#22-functional-description)
         - [2.2.1 Monitoring Critical Processes](#221-monitoring-critical-processes)
         - [2.2.2 Monitoring Critical Resource Usage](#222-monitoring-critical-resource-usage)
-        - [2.2.3 Auto-restart Docker Container](#223-autorestart-docker-container)
+        - [2.2.3 Auto-restart Docker Container](#223-auto-restart-docker-container)
             - [2.2.3.1 CLI (and usage example)](#2231-cli-and-usage-example)
-                - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-autorestart)
-                - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-autorestart)
+                - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-auto-restart)
+                - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-auto-restart)
                 - [2.2.3.1.3 CONTAINER_FEATURE Table](#22313-container-feature-table)
 
 # List of Tables
