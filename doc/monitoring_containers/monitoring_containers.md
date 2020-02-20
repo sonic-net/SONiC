@@ -25,7 +25,7 @@
             - [2.2.3.1 CLI (and usage example)](#2231-cli-and-usage-example)
                 - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-auto-restart)
                 - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-auto-restart)
-                - [2.2.3.1.3 CONTAINER_FEATURE Table](#22313-container-feature-table)
+                - [2.2.3.1.3 CONTAINER_FEATURE Table](#22313-container_feature-table)
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
