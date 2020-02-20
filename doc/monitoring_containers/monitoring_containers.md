@@ -5,7 +5,6 @@
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
-* [List of Figures](#list-of-figures)
 * [Revision](#revision)
 * [About this Manual](#about-this-manual)
 * [Scope](#scope)
@@ -23,14 +22,13 @@
         - [2.2.1 Monitoring Critical Processes](#221-monitoring-critical-processes)
         - [2.2.2 Monitoring Critical Resource Usage](#222-monitoring-critical-resource-usage)
         - [2.2.3 Auto-restart Docker Container](#223-autorestart-docker-container)
-        - [3.1.4 Clearing the counts](#314-clearing-the-counts)
-        - [3.1.5 Configuring counters from the CLI](#315-configuring-counters-from-the-CLI)
+            - [2.2.3.1 CLI (and usage example)](#2231-cli-and-usage-example)
+                - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-autorestart)
+                - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-autorestart)
+                - [2.2.3.1.3 CONTAINER_FEATURE Table](#22313-container-feature-table)
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
-
-# List of Figures
-* [Figure 1: General Flow](#41-general-flow)
 
 # Revision
 | Rev |    Date    |          Author        |     Change Description    |
@@ -202,7 +200,7 @@ The CLI tool will provide the following functionality:
 1. Show current status of auto-restart feature for docker containers.
 2. Configure the status of a specific docker container.
 
-##### 2.2.3.1.1 Show the status of auto-restart
+##### 2.2.3.1.1 Show the Status of Auto-restart
 ```
 admin@sonic:~$ show container feature autorestart
 Container Name         Status 
@@ -222,13 +220,13 @@ syncd                  enabled
 swss                   disabled
 ```
 
-##### 2.2.3.1.2 Configure the status of auto-restart
+##### 2.2.3.1.2 Configure the Status of Auto-restart
 ```
 admin@sonic:~$ sudo config container feature autorestart database enabled
 ```
 
 
-### 3.2.1 DEBUG_COUNTER Table
+##### 2.2.3.1.3 CONTAINER_FEATURE Table
 Example:
 ```
 {
