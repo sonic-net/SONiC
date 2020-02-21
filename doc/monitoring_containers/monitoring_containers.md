@@ -1,4 +1,4 @@
-# Monitoring and Auto-Mitigating the Unhealthy of Containers in SONiC
+# Monitoring and Auto-Mitigating the Unhealthy of Docker Containers in SONiC
 
 # High Level Design Document
 #### Rev 0.1
@@ -36,11 +36,11 @@
 | 0.1 | 02/18/2020 | Yong Zhao, Joe Leveque |      Initial version      |
 
 # About this Manual
-This document provides the design and implementation of monitoring and auto-mitigating
+This document presents the design and implementation of feature to monitor and auto-mitigate
 the unhealthy of docker containers in SONiC.
 
 # Scope
-This document describes the high level design of the feature to monitor and auto-mitigate
+This document describes the high level design of feature to monitor and auto-mitigate
 the unhealthy of docker containers.
 
 # Definitions/Abbreviation
@@ -51,8 +51,8 @@ the unhealthy of docker containers.
 
 # 1 Feature Overview
 SONiC is a collection of various switch applications which are held in docker containers
-such as BGP and SNMP. Each application usually includes several processes which are 
-working together to provide the services for other modules. As such, the healthy of
+such as BGP container and SNMP container. Each application usually includes several processes which are 
+working together to provide and receive the services from other modules. As such, the healthy of
 critical processes in each docker container are the key not only for the docker
 container working correctly but also for the intended functionalities of entire SONiC switch.
 On the other hand, profiling the resource usages and performance of each docker
@@ -185,14 +185,14 @@ monitoring/notification framework. Specifically
 if the state of process changes for example from running to exited,
 an event notification `PROCESS_STATE_STOPPED` will be emitted by supervisord.
 This event will be received by event listener. If the exited process is critical
-one, then the event listener will terminate supervisord and the container will be stopped 
+one, then the event listener will terminate supervisord and the container will be shut down
 and restarted.
 
 We also introduced a knob which can enable or disable this auto-restart feature
 dynamically according to the requirement of users. In detail, we created a table 
 named `CONTAINER_FEATURE` in Config_DB and this table includes the status of
 auto-restart feature for each docker container. Users can easily use CLI to
-see and configure the corresponding status.
+check and configure the corresponding docker container status.
 
 
 #### 2.2.3.1 CLI (and usage example)
