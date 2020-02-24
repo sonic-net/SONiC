@@ -107,15 +107,15 @@ container will be an interesting and challenging problem. In our design, we adop
 that Monit will check the returned value of a script which reads the resource usage of docker 
 container, compares it with pre-defined threshold and then exited. 
 
-We employed the mechanism of event listener in supervisord to achieve auto-restarting of docker 
-container. Currently supervisord will monitor the running status of each process in SONiC
+We employed the mechanism of event listener in supervisord to achieve auto-restarting docker 
+containers. Currently supervisord will monitor the running status of critical processes in SONiC
 docker containers. If one critical process exited unexpectedly, supervisord will catch such signal
 and send it to event listener. Then event listener will kill the process supervisord and
 the entire docker container will be shut down and restarted.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-This feature is used to perform the following functions:
+These two features are used to perform the following functions:
 1. Monit will write an alert message into syslog if one if critical process has not been
     alive for 5 minutes.
 2. Monit will write an alert message into syslog if the usage of memory is larger than the
@@ -128,7 +128,7 @@ This feature is used to perform the following functions:
 
 ### 2.2.1 Monitoring Critical Processes
 Monit has implemented the mechanism to monitor whether a process is running or not. In detail,
-Monit will periodically read the target processes from configuration file and tries to match 
+Monit will periodically read the target processes from configuration file and try to match 
 those process with the processes tree in Linux kernel.
 
 Below is an example of Monit configuration file to monitor the critical processes in lldp
