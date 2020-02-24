@@ -15,7 +15,7 @@
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
         - [1.3.3 Scalability Requirements](#133-scalability-requirements)
-    - [1.4 Design](#12-design)
+    - [1.4 Design](#14-design)
         - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
     - [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
@@ -34,11 +34,11 @@
 # Revision
 | Rev |    Date    |          Author        |     Change Description    |
 |:---:|:----------:|:----------------------:|---------------------------|
-| 0.1 | 02/18/2020 | Yong Zhao, Joe Leveque |      Initial version      |
+| 0.1 | 02/18/2020 | Yong Zhao, Joe Leveque |       Initial version     |
 
 # Scope
-This document describes the high level design of feature to monitor and auto-mitigate
-the unhealthy of docker containers.
+This document describes the high level design of features to monitor and auto-mitigate
+the unhealthy containers in SONiC.
 
 # Definitions/Abbreviation
 | Abbreviation |         Description          |
@@ -50,21 +50,21 @@ the unhealthy of docker containers.
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP container and SNMP container. Each application usually includes several processes which are 
 working together to provide and receive the services from other modules. As such, the health of
-critical processes in each docker container is imperitive not only for the docker
+critical processes in each docker container is imperative not only for the docker
 container working correctly but also for the intended functionalities of entire SONiC switch.
 
 ## 1.1 Monitoring
-This feature is used to monitor the running status of each process and critical resource 
+This feature is used to monitor the running status of critical processes and critical resource 
 usage such as CPU, memory and disk of each docker container.
 
-We used Monit system tool to detect whether a process is running or not and whether 
+We used Monit system tool to detect whether a critical process is running or not and whether 
 the resource usage of a docker container is beyond the pre-defined threshold.
 
 ## 1.2 Auto-Mitigating
-This feature demonstrated docker containers can be automatically shut down and
-restarted if one of critical processes running in the container exits unexpectedly. Restarting
-the entire container ensures that configuration is reloaded and all processes in the container
-get restarted, thus increasing the likelihood of entering a healthy state.
+This feature demonstrated docker container can be automatically shut down and
+restarted if one of critical processes running in docker container exits unexpectedly. Restarting
+the entire docker container ensures that configuration is reloaded and all processes in 
+docker container get restarted, thus increasing the likelihood of entering a healthy state.
 
 We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
 if one of its critical processes exited unexpectedly. We also added a configuration option to make this 
