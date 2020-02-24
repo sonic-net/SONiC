@@ -74,8 +74,8 @@ feature residing in Config_DB as enabled/disabled status.
 ## 1.3 Requirements
 
 ### 1.3.1 Functional Requirements
-1. The Monit must provide the ability to generate an alert when a critical process is not
-    running.
+1. The Monit must provide the ability to generate an alert when a critical process has not
+    been alive for 5 minutes.
 2. The Monit must provide the ability to generate an alert when the resource usage of
     a docker contaier is larger than the pre-defined threshold.
 3. The event listener in supervisord must receive the signal when a critical process in 
@@ -83,7 +83,7 @@ feature residing in Config_DB as enabled/disabled status.
     container.
 4. CONFIG_DB can be configured to enable/disable this auto-restart feature for each docker
     container.. 
-5. Users can access this auto-restart information via the CLI utility
+5. Users can access the status of auto-restart feature via the CLI utility
     1. Users can see current auto-restart status for docker containers.
     2. Users can configure auto-restart status for a specific docker container.
 
