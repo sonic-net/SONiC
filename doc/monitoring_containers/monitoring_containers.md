@@ -9,12 +9,14 @@
 * [Scope](#scope)
 * [Defintions/Abbreviation](#definitionsabbreviation)
 * [1 Feature Overview](#1-feature-overview)
-    - [1.1 Requirements](#11-requirements)
-        - [1.1.1 Functional Requirements](#111-functional-requirements)
-        - [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
-        - [1.1.3 Scalability Requirements](#113-scalability-requirements)
-    - [1.2 Design](#12-design)
-        - [1.2.1 Basic Approach](#121-basic-approach)
+    - [1.1 Monitoring](#11-monitoring)
+    - [1.2 Auto-mitigating](#12-auto-mitigating)
+    - [1.3 Requirements](#13-requirements)
+        - [1.3.1 Functional Requirements](#131-functional-requirements)
+        - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
+        - [1.3.3 Scalability Requirements](#133-scalability-requirements)
+    - [1.4 Design](#12-design)
+        - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
     - [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
     - [2.2 Functional Description](#22-functional-description)
@@ -52,28 +54,26 @@ critical processes in each docker container is imperitive not only for the docke
 container working correctly but also for the intended functionalities of entire SONiC switch.
 
 ## 1.1 Monitoring
-This feature is to monitor the
-running status of each process and critical resource usage such as CPU, memory and disk
-of each docker container.
+This feature is used to monitor the running status of each process and critical resource 
+usage such as CPU, memory and disk of each docker container.
+
+We used Monit system tool to detect whether a process is running or not and whether 
+the resource usage of a docker container is beyond the pre-defined threshold.
 
 ## 1.2 Auto-Mitigating
-This feature is docker containers can be automatically shut down and
+This feature demonstrated docker containers can be automatically shut down and
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
 
-We implemented these two feature by employing the existing Monit and supervisord system tools.
-1. We used Monit system tool to detect whether a process is running or not and whether 
-  the resource usage of a docker container is beyond the pre-defined threshold.
-2. We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
-  if one of its critical processes exited unexpectedly. 
-3. We also added a knob to make this auto-restart feature dynamically configurable.
-  Specifically users can run CLI to configure this feature residing in Config_DB as
-  enabled/disabled status.
+We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
+if one of its critical processes exited unexpectedly. We also added a configuration option to make this 
+auto-restart feature dynamically configurable. Specifically users can run CLI to configure this 
+feature residing in Config_DB as enabled/disabled status.
 
-## 1.1 Requirements
+## 1.3 Requirements
 
-### 1.1.1 Functional Requirements
+### 1.3.1 Functional Requirements
 1. The Monit must provide the ability to generate an alert when a critical process is not
     running.
 2. The Monit must provide the ability to generate an alert when the resource usage of
@@ -87,17 +87,17 @@ We implemented these two feature by employing the existing Monit and supervisord
     1. Users can see current auto-restart status for docker containers.
     2. Users can configure auto-restart status for a specific docker container.
 
-### 1.1.2 Configuration and Management Requirements
+### 1.3.2 Configuration and Management Requirements
 Configuration of the auto-restart feature can be done via:
 1. init_cfg.json
 2. CLI
 
-### 1.1.3 Scalability Requirements
+### 1.3.3 Scalability Requirements
 `Place holder`
 
-## 1.2 Design
+## 1.4 Design
 
-### 1.2.1 Basic Approach
+### 1.4.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
 are heavily depended on the Monit system tool. Since Monit already provided the mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
@@ -116,7 +116,8 @@ the entire docker container will be shut down and restarted.
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
 This feature is used to perform the following functions:
-1. Monit will write an alert message into syslog if one if critical process exited unexpectedly.
+1. Monit will write an alert message into syslog if one if critical process has not been
+    alive for 5 minutes.
 2. Monit will write an alert message into syslog if the usage of memory is larger than the
     pre-defined threshold for a docker container.
 3. A docker container will auto-restart if one of its critical processes crashed or exited
@@ -174,7 +175,7 @@ restarted if one of critical processes running in the container exits unexpected
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
 
-Currently SONiC used superviord system tool to manage the processes in each
+Currently SONiC used supervisord system tool to manage the processes in each
 docker container. Actually auto-restarting docker container is based on the process 
 monitoring/notification framework. Specifically
 if the state of process changes for example from running to exited,
@@ -183,7 +184,7 @@ This event will be received by event listener. If the exited process is critical
 one, then the event listener will terminate supervisord and the container will be shut down
 and restarted.
 
-We also introduced a knob which can enable or disable this auto-restart feature
+We also introduced a configuration option which can enable or disable this auto-restart feature
 dynamically according to the requirement of users. In detail, we created a table 
 named `CONTAINER_FEATURE` in Config_DB and this table includes the status of
 auto-restart feature for each docker container. Users can easily use CLI to
@@ -265,7 +266,6 @@ Example:
         "swss": {
             "auto_restart": "disabled",
         },
-   
     }
 }
 ```
