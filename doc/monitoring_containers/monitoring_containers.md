@@ -14,7 +14,6 @@
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
-        - [1.3.3 Scalability Requirements](#133-scalability-requirements)
     - [1.4 Design](#14-design)
         - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
@@ -74,10 +73,10 @@ feature residing in Config_DB as enabled/disabled status.
 ## 1.3 Requirements
 
 ### 1.3.1 Functional Requirements
-1. The Monit must provide the ability to generate an alert when a critical process has not
+1. Monit must provide the ability to generate an alert when a critical process has not
     been alive for 5 minutes.
-2. The Monit must provide the ability to generate an alert when the resource usage of
-    a docker contaier is larger than the pre-defined threshold.
+2. Monit must provide the ability to generate an alert when the resource usage of
+    a docker container is larger than the pre-defined threshold.
 3. The event listener in supervisord must receive the signal when a critical process in 
     a docker container crashed or exited unexpectedly and then restart this docker 
     container.
@@ -90,28 +89,33 @@ feature residing in Config_DB as enabled/disabled status.
 ### 1.3.2 Configuration and Management Requirements
 Configuration of the auto-restart feature can be done via:
 1. init_cfg.json
-2. CLI
-
-### 1.3.3 Scalability Requirements
-`Place holder`
+2. config_db.json
+3. CLI
 
 ## 1.4 Design
 
 ### 1.4.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
-are heavily depended on the Monit system tool. Since Monit already provided the mechanism
+are depended on the Monit system tool. Since Monit already provided the mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
 the critical processes in SONiC. However, Monit only gives the method to monitor the resource
 usage per process level not container level. As such, monitoring the resource usage of a docker 
-container will be an interesting and challenging problem. In our design, we adopted the way
-that Monit will check the returned value of a script which reads the resource usage of docker 
-container, compares it with pre-defined threshold and then exited. 
+container is not as straightforward. In our design, we propose to utilize the mechanism with
+which Monit can spawn a process and check the return value of the process. We will have Monit
+launch a script which reads the resource usage of the container and compares the resource usage
+with a configured threshold value for that container. If the current resource usage is less than
+the configured threshold value, the script will return 0 and Monit will not log a message.
+However, if the resource usage exceeds the threshold, the script will return a non-zero value
+and Monit will log an alert message to the syslog.
 
-We employed the mechanism of event listener in supervisord to achieve auto-restarting docker 
-containers. Currently supervisord will monitor the running status of critical processes in SONiC
-docker containers. If one critical process exited unexpectedly, supervisord will catch such signal
-and send it to event listener. Then event listener will kill the process supervisord and
-the entire docker container will be shut down and restarted.
+We employed event listener's mechanism in supervisord to achieve auto-restarting docker 
+containers. We configure our event listener to listen for process exit events. When a supervised
+process exits, supervisord will pass the event to our custom event listener. The event listener
+determines if the process is a critical process  and whether it exited unexpectedly. If both of
+these conditions are true, the event listener will kill the supervisord process. Since supervisord
+runs as PID 1 inside the containers, when supervisotd exits, the container will stop. When the
+container stops, the systemd service which manages the container will also stop, but it is
+configured to automatically restart the service, thus it will restart the container.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
@@ -127,7 +131,7 @@ These two features are used to perform the following functions:
 
 
 ### 2.2.1 Monitoring Critical Processes
-Monit has implemented the mechanism to monitor whether a process is running or not. In detail,
+Monit natively implements a mechanism to monitor whether a process is running or not. In detail,
 Monit will periodically read the target processes from configuration file and try to match 
 those process with the processes tree in Linux kernel.
 
@@ -180,9 +184,12 @@ docker container. Actually auto-restarting docker container is based on the proc
 monitoring/notification framework. Specifically
 if the state of process changes for example from running to exited,
 an event notification `PROCESS_STATE_STOPPED` will be emitted by supervisord.
-This event will be received by event listener. If the exited process is critical
-one, then the event listener will terminate supervisord and the container will be shut down
-and restarted.
+This event will be received by event listener. The event listener determines if the process is
+critical process and whether it exited unexpectedly. If both of
+these conditions are true, the event listener will kill the supervisord process. Since supervisord
+runs as PID 1 inside the containers, when supervisotd exits, the container will stop. When the
+container stops, the systemd service which manages the container will also stop, but it is
+configured to automatically restart the service, thus it will restart the container.
 
 We also introduced a configuration option which can enable or disable this auto-restart feature
 dynamically according to the requirement of users. In detail, we created a table 
