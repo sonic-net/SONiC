@@ -1,4 +1,4 @@
-# Monitoring and Auto-Mitigating the Unhealthy of Docker Containers in SONiC
+# Monitoring and Auto-Mitigating Unhealthy Containers in SONiC
 
 # High Level Design Document
 #### Rev 0.1
@@ -6,7 +6,6 @@
 # Table of Contents
 * [List of Tables](#list-of-tables)
 * [Revision](#revision)
-* [About this Manual](#about-this-manual)
 * [Scope](#scope)
 * [Defintions/Abbreviation](#definitionsabbreviation)
 * [1 Feature Overview](#1-feature-overview)
@@ -35,10 +34,6 @@
 |:---:|:----------:|:----------------------:|---------------------------|
 | 0.1 | 02/18/2020 | Yong Zhao, Joe Leveque |      Initial version      |
 
-# About this Manual
-This document presents the design and implementation of feature to monitor and auto-mitigate
-the unhealthy of docker containers in SONiC.
-
 # Scope
 This document describes the high level design of feature to monitor and auto-mitigate
 the unhealthy of docker containers.
@@ -52,22 +47,22 @@ the unhealthy of docker containers.
 # 1 Feature Overview
 SONiC is a collection of various switch applications which are held in docker containers
 such as BGP container and SNMP container. Each application usually includes several processes which are 
-working together to provide and receive the services from other modules. As such, the healthy of
-critical processes in each docker container are the key not only for the docker
+working together to provide and receive the services from other modules. As such, the health of
+critical processes in each docker container is imperitive not only for the docker
 container working correctly but also for the intended functionalities of entire SONiC switch.
-On the other hand, profiling the resource usages and performance of each docker
-container are also important for us to understand whether this container is in healthy state
-or not and furtherly to provide us with deep insight about networking traffic.
 
-The main purpose of this feature includes two parts: the first part is to monitor the
+## 1.1 Monitoring
+This feature is to monitor the
 running status of each process and critical resource usage such as CPU, memory and disk
 of each docker container.
-The second part is docker containers can be automatically shut down and
+
+## 1.2 Auto-Mitigating
+This feature is docker containers can be automatically shut down and
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
 get restarted, thus increasing the likelihood of entering a healthy state.
 
-We implemented this feature by employing the existing Monit and supervisord system tools.
+We implemented these two feature by employing the existing Monit and supervisord system tools.
 1. We used Monit system tool to detect whether a process is running or not and whether 
   the resource usage of a docker container is beyond the pre-defined threshold.
 2. We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
