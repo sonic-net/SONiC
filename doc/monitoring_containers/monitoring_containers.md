@@ -108,7 +108,7 @@ the configured threshold value, the script will return 0 and Monit will not log 
 However, if the resource usage exceeds the threshold, the script will return a non-zero value
 and Monit will log an alert message to the syslog.
 
-We employed event listener's mechanism in supervisord to achieve auto-restarting docker 
+We employed 'event listener' mechanism in supervisord to achieve auto-restarting docker 
 containers. We configure our event listener to listen for process exit events. When a supervised
 process exits, supervisord will pass the event to our custom event listener. The event listener
 determines if the process is a critical process  and whether it exited unexpectedly. If both of
