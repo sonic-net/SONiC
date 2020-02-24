@@ -113,7 +113,7 @@ containers. We configure our event listener to listen for process exit events. W
 process exits, supervisord will pass the event to our custom event listener. The event listener
 determines if the process is a critical process  and whether it exited unexpectedly. If both of
 these conditions are true, the event listener will kill the supervisord process. Since supervisord
-runs as PID 1 inside the containers, when supervisotd exits, the container will stop. When the
+runs as PID 1 inside the containers, when supervisord exits, the container will stop. When the
 container stops, the systemd service which manages the container will also stop, but it is
 configured to automatically restart the service, thus it will restart the container.
 
