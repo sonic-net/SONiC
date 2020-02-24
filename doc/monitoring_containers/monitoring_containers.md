@@ -183,7 +183,7 @@ Currently SONiC used supervisord system tool to manage the processes in each
 docker container. Actually auto-restarting docker container is based on the process 
 monitoring/notification framework. Specifically
 if the state of process changes for example from running to exited,
-an event notification `PROCESS_STATE_STOPPED` will be emitted by supervisord.
+an event notification `PROCESS_STATE_EXITED` will be emitted by supervisord.
 This event will be received by event listener. The event listener determines if the process is
 critical process and whether it exited unexpectedly. If both of
 these conditions are true, the event listener will kill the supervisord process. Since supervisord
