@@ -32,7 +32,6 @@ Following are the major design changes
 
 This is an example of the database_config.json with 3 external DB references in 3 namespaces refered with namespaceID "0", "1" & "2".
 
-    ```jinja
     {
         "INSTANCES": {
             "redis":{
@@ -68,7 +67,6 @@ This is an example of the database_config.json with 3 external DB references in 
             },
         "VERSION" : "1.1"
     }
-    ```
 
 * The database_config.json is made as a j2 template file with namespaceID and EXT_DB_REF count as arguments.
 
@@ -76,7 +74,6 @@ This is an example of the database_config.json with 3 external DB references in 
 
 The other argument we pass is the DB_REF_CNT for the EXT redis server references. It is significant for the "global DB" database service running in the linux host namespace, the DB_REF_CNT will be equal to the number of namespaces in the device. Currently we have a ASIC:namespace mapping of 1:1, and hence we pass the DB_REF count to be the number of NPU's.
 
-     ```jinja
     {
         "INSTANCES": {
             "redis":{
@@ -111,7 +108,6 @@ The other argument we pass is the DB_REF_CNT for the EXT redis server references
     {%- endif %}
         "VERSION" : "1.0"
     }
-    ```
 
 * In the database Docker ENTRYPOINT script "docker-database-init.sh", the database_config.json file is generated using the above j2 template and saved into the "working redis directory" /var/run/redis{NS}/sonic-db/. 
 
