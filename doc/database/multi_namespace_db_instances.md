@@ -6,7 +6,7 @@ The existing Multi-DB design approach needs to be extended to address the cases 
 
 ## The Multi NPU/namespace architecture 
 
-In the mulit NPU architecture, there is a database docker service started in the linux host, we call this the "global DB" service. The redis database spawned by this service is run in the linux host network namespace and stores the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. There will be addional network namespaces created and it would match the number of NPU's in the system. Each namespace will have the services to create docker instances for database, swss, syncd, teamd, bgp etc.
+In the mulit NPU architecture, there is a database docker service started in the linux host, we call this the "global DB" service. The redis database spawned by this service is run in the linux host network namespace and stores the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. There will be additional network namespaces created and it would match the number of NPU's in the system. Each namespace will have the services to create docker instances for database, swss, syncd, teamd, bgp etc.
 
 There will be a config_db.json file per database service, the naming would be config_db.json for the "global DB" and config_db{NS}.json for the database service in the {NS} namespace.
 
@@ -70,9 +70,9 @@ This is an example of the database_config.json with 3 external DB references in 
     }
     ```
 
-* The database_config.json is made as a j2 template file with variable namespace ID and EXT_DB_REF count.
+* The database_config.json is made as a j2 template file with namespaceID and EXT_DB_REF count as arguments.
 
-In the below format {NS} is the namespaceID and will be passed as argument to docker create in the /usr/bin/database.sh systemd startup script. This ID is passed to the docker ENTRYPOINT "docker-database-init.sh".
+{NS} is the namespaceID and will be passed as argument to docker create in the /usr/bin/database.sh systemd startup script. This ID is passed to the docker ENTRYPOINT "docker-database-init.sh".
 
 The other argument we pass is the DB_REF_CNT for the EXT redis server references. It is significant for the "global DB" database service running in the linux host namespace, the DB_REF_CNT will be equal to the number of namespaces in the device. Currently we have a ASIC:namespace mapping of 1:1, and hence we pass the DB_REF count to be the number of NPU's.
 
@@ -113,7 +113,7 @@ The other argument we pass is the DB_REF_CNT for the EXT redis server references
     }
     ```
 
-* In the database Docker ENTRYPOINT script "docker-database-init.sh", the namespaceID {NS} is used to generate the database_config.json file and save it in the "working redis directory" /var/run/redis{NS}/sonic-db/. 
+* In the database Docker ENTRYPOINT script "docker-database-init.sh", the database_config.json file is generated using the above j2 template and saved into the "working redis directory" /var/run/redis{NS}/sonic-db/. 
 
 * The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. {NS} would be the namespace ID. If this file is present, it would be copied to /var/run/redis{NS}/sonic-db/ instead of generating it from j2 template.
 
@@ -424,7 +424,7 @@ The tools like sonic-cfggen will have an additional argument "--namespace" for p
 ```
 Note: There are many other utilities which needs this additional parameter, will be updated in a similar fashion.
 
-## New Design of C++ Interface :  DBConnector()
+## Design of C++ Interface :  DBConnector()
 The C++ DBConnector interface is mainly used in the process context of swss/syncd etc in the dockers in their respective namespaces. In the namespaces currently we don't have any external DB refereces, hence not planning to extend the C++ DBConnector to handle multiple database_config.json files.
 
 Will be taken up as the next phase activity to get this class also at par with the python SonicDBConfig/SonicV2Connector modules.
