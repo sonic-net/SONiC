@@ -87,10 +87,10 @@ feature residing in Config_DB as enabled/disabled status.
     2. Users can configure auto-restart status for a specific docker container.
 
 ### 1.3.2 Configuration and Management Requirements
+Via the init_cfg.json file, these container features are disabled by default.
 Configuration of the auto-restart feature can be done via:
-1. init_cfg.json
-2. config_db.json
-3. CLI
+1. config_db.json
+2. CLI
 
 ## 1.4 Design
 
@@ -187,7 +187,7 @@ an event notification `PROCESS_STATE_EXITED` will be emitted by supervisord.
 This event will be received by event listener. The event listener determines if the process is
 critical process and whether it exited unexpectedly. If both of
 these conditions are true, the event listener will kill the supervisord process. Since supervisord
-runs as PID 1 inside the containers, when supervisotd exits, the container will stop. When the
+runs as PID 1 inside the containers, when supervisord exits, the container will stop. When the
 container stops, the systemd service which manages the container will also stop, but it is
 configured to automatically restart the service, thus it will restart the container.
 
