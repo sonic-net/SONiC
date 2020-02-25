@@ -20,12 +20,11 @@
     - [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
     - [2.2 Functional Description](#22-functional-description)
         - [2.2.1 Monitoring Critical Processes](#221-monitoring-critical-processes)
-        - [2.2.2 Monitoring Critical Resource Usage](#222-monitoring-critical-resource-usage)
-        - [2.2.3 Auto-restart Docker Container](#223-auto-restart-docker-container)
-            - [2.2.3.1 CLI (and usage example)](#2231-cli-and-usage-example)
-                - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-auto-restart)
-                - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-auto-restart)
-        - [2.2.4 Resource Alerting](#224-resource-alerting)
+        - [2.2.2 Auto-restart Docker Container](#222-auto-restart-docker-container)
+        - [2.2.3 Monitoring Critical Resource Usage](#223-monitoring-critical-resource-usage)
+        - [2.2.4 CLI (and usage example)](#2231-cli-and-usage-example)
+            - [2.2.4.1 Show the Status of Auto-restart](#2241-show-the-status-of-auto-restart)
+            - [2.2.4.2 Configure the Status of Auto-restart](#2242-configure-the-status-of-auto-restart)
         - [2.2.5 CONTAINER_FEATURE Table](#225-container_feature-table)
 
 # List of Tables
@@ -199,12 +198,12 @@ auto-restart feature for each docker container. Users can easily use CLI to
 check and configure the corresponding docker container status.
 
 
-#### 2.2.3.1 CLI (and usage example)
+### 2.2.4 CLI (and usage example)
 The CLI tool will provide the following functionality:
 1. Show current status of auto-restart feature for docker containers.
 2. Configure the status of a specific docker container.
 
-##### 2.2.3.1.1 Show the Status of Auto-restart
+#### 2.2.4.1 Show the Status of Auto-restart
 ```
 admin@sonic:~$ show container feature autorestart
 Container Name         Status 
@@ -224,13 +223,10 @@ syncd                  enabled
 swss                   disabled
 ```
 
-##### 2.2.3.1.2 Configure the Status of Auto-restart
+#### 2.2.4.2 Configure the Status of Auto-restart
 ```
 admin@sonic:~$ sudo config container feature autorestart database enabled
 ```
-
-### 2.2.4 Resource Alerting
-
 
 ### 2.2.5 CONTAINER_FEATURE Table
 Example:
@@ -239,81 +235,81 @@ Example:
     "CONTAINER_FEATURE": {
         "database": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "157286400",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "lldp": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "104857600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "radv": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "104857600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "pmon": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "104857600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "sflow": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "0",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "snmp": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "157286400",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "telemetry": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "0",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "bgp": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "314572800",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "dhcp_relay": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "104857600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "rest-api": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "0",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "teamd": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "104857600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "syncd": {
             "auto_restart": "enabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "629145600",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
         "swss": {
             "auto_restart": "disabled",
-            "high_mem_alert": "",
-            "high_cpu_alert": "",
-            "high_disk_alert": ""
+            "high_mem_alert": "157286400",
+            "high_cpu_alert": "0",
+            "high_disk_alert": "0"
         },
     }
 }
