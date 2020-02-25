@@ -197,11 +197,10 @@ check program container_memory_lldp with path "/usr/bin/memory_checker lldp 1048
     if status != 0 then alert
 ```
 
-We will employ similar mechanism for CPU and disk utilization. Currently the thresholds of
-memory usage for each docker container in CONTAINER_FEATURE table are decided after 
-we polled the memory usage of docker containers in 1970 production boxes. We also intend
-to use same method to obtain the thresholds of CPU and disk usage for each dock container. The value `0`
-in table represents the corresponding feature in the docker container is in `disabled` status.
+We will employ similar mechanism for CPU and disk utilization. Thresholds for each resource,
+per container can be determined by the operator by examining averages of resource usage in
+a production environment. The value `0` in table represents the corresponding feature in 
+the docker container is in `disabled` status.
 
 ### 2.2.4 CLI (and usage example)
 The CLI tool will provide the following functionality:
