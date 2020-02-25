@@ -22,7 +22,7 @@
         - [2.2.1 Monitoring Critical Processes](#221-monitoring-critical-processes)
         - [2.2.2 Auto-restart Docker Container](#222-auto-restart-docker-container)
         - [2.2.3 Monitoring Critical Resource Usage](#223-monitoring-critical-resource-usage)
-        - [2.2.4 CLI (and usage example)](#2231-cli-and-usage-example)
+        - [2.2.4 CLI (and usage example)](#224-cli-and-usage-example)
             - [2.2.4.1 Show the Status of Auto-restart](#2241-show-the-status-of-auto-restart)
             - [2.2.4.2 Configure the Status of Auto-restart](#2242-configure-the-status-of-auto-restart)
         - [2.2.5 CONTAINER_FEATURE Table](#225-container_feature-table)
@@ -155,25 +155,7 @@ check process lldpmgrd matching "python /usr/bin/lldpmgrd"
     if does not exit for 5 times within 5 cycles then alert
 ```
 
-### 2.2.2 Monitoring Critical Resource Usage
-Similar to monitoring the critical processes, we can employ Monit to monitor the resource usage
-such as CPU, memory and disk for each process. Unfortunately Monit is unable to do the resource monitoring
-in the container level. Thus we propose a new design to achieve such monitoring based on Monit.
-Specifically Monit will monitor a script and check its exit status. This script
-will correspondingly read the resource usage of docker containers, compare it with
-pre-defined threshold and then return a value. The value 0 signified that
-the resource usage is less than threshold and non-zero means Monit will send an alert since
-current usage is larger than threshold.
-
-Below is an example of Monit configuration file for lldp container to pass the pre-defined 
-threshold (bytes) to the script and check the exiting value.
-
-```bash
-check program container_memory_lldp with path "/usr/bin/memory_checker lldp 104857600"
-    if status != 0 then alert
-```
-
-### 2.2.3 Auto-restart Docker Container
+### 2.2.2 Auto-restart Docker Container
 The design principle behind this auto-restart feature is docker containers can be automatically shut down and
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
@@ -197,6 +179,28 @@ named `CONTAINER_FEATURE` in Config_DB and this table includes the status of
 auto-restart feature for each docker container. Users can easily use CLI to
 check and configure the corresponding docker container status.
 
+### 2.2.3 Monitoring Critical Resource Usage
+Similar to monitoring the critical processes, we can employ Monit to monitor the resource usage
+such as CPU, memory and disk for each process. Unfortunately Monit is unable to do the resource monitoring
+in the container level. Thus we propose a new design to achieve such monitoring based on Monit.
+Specifically Monit will monitor a script and check its exit status. This script
+will correspondingly read the resource usage of docker containers, compare it with
+pre-defined threshold and then return a value. The value 0 signified that
+the resource usage is less than threshold and non-zero means Monit will send an alert since
+current usage is larger than threshold.
+
+Below is an example of Monit configuration file for lldp container to pass the pre-defined 
+threshold (bytes) to the script and check the exiting value.
+
+```bash
+check program container_memory_lldp with path "/usr/bin/memory_checker lldp 104857600"
+    if status != 0 then alert
+```
+
+We will employ similar mechanism for CPU and disk utilization. Currently the threshold of
+memory usage for each docker container in CONTAINER_FEATURE table are decided after 
+we polled the memory usage of docker containers in 1970 production boxes. The value `0`
+in table represents the corresponding feature in the docker container is in `disabled` status.
 
 ### 2.2.4 CLI (and usage example)
 The CLI tool will provide the following functionality:
