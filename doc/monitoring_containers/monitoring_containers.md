@@ -88,7 +88,7 @@ feature residing in Config_DB as enabled/disabled status.
 
 ### 1.3.2 Configuration and Management Requirements
 Via the init_cfg.json file, these container features are disabled by default.
-Configuration of the auto-restart feature can be done via:
+Configuration of these features can be done via:
 1. config_db.json
 2. CLI
 
@@ -236,42 +236,81 @@ Example:
     "CONTAINER_FEATURE": {
         "database": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "lldp": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "radv": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "pmon": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "sflow": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "snmp": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "telemetry": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "bgp": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "dhcp_relay": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "rest-api": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "teamd": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "syncd": {
             "auto_restart": "enabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
         "swss": {
             "auto_restart": "disabled",
+            "high_mem_alert": "",
+            "high_cpu_alert": "",
+            "high_disk_alert": ""
         },
     }
 }
