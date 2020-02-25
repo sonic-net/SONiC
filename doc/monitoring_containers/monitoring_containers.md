@@ -25,7 +25,8 @@
             - [2.2.3.1 CLI (and usage example)](#2231-cli-and-usage-example)
                 - [2.2.3.1.1 Show the Status of Auto-restart](#22311-show-the-status-of-auto-restart)
                 - [2.2.3.1.2 Configure the Status of Auto-restart](#22312-configure-the-status-of-auto-restart)
-                - [2.2.3.1.3 CONTAINER_FEATURE Table](#22313-container_feature-table)
+        - [2.2.4 Resource Alerting](#224-resource-alerting)
+        - [2.2.5 CONTAINER_FEATURE Table](#225-container_feature-table)
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
@@ -96,7 +97,7 @@ Configuration of these features can be done via:
 
 ### 1.4.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of docker containers
-are depended on the Monit system tool. Since Monit already provided the mechanism
+depends on the Monit system tool. Since Monit natively provides a mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
 the critical processes in SONiC. However, Monit only provides a method to monitor the resource
 usage on a per-process level not a per-container level. As such, monitoring the resource usage of a docker 
@@ -228,8 +229,10 @@ swss                   disabled
 admin@sonic:~$ sudo config container feature autorestart database enabled
 ```
 
+### 2.2.4 Resource Alerting
 
-##### 2.2.3.1.3 CONTAINER_FEATURE Table
+
+### 2.2.5 CONTAINER_FEATURE Table
 Example:
 ```
 {
