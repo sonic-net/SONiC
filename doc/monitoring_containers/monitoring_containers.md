@@ -98,7 +98,7 @@ Configuration of the auto-restart feature can be done via:
 Monitoring the running status of critical processes and resource usage of docker containers
 are depended on the Monit system tool. Since Monit already provided the mechanism
 to check whether a process is running or not, it will be straightforward to integrate this into monitoring 
-the critical processes in SONiC. However, Monit only provides the method to monitor the resource
+the critical processes in SONiC. However, Monit only provides a method to monitor the resource
 usage on a per-process level not a per-container level. As such, monitoring the resource usage of a docker 
 container is not as straightforward. In our design, we propose to utilize the mechanism with
 which Monit can spawn a process and check the return value of the process. We will have Monit
@@ -108,7 +108,7 @@ the configured threshold value, the script will return 0 and Monit will not log 
 However, if the resource usage exceeds the threshold, the script will return a non-zero value
 and Monit will log an alert message to the syslog.
 
-We employed 'event listener' mechanism in supervisord to achieve auto-restarting docker 
+We employed the 'event listener' mechanism in supervisord to achieve auto-restarting docker 
 containers. We configure our event listener to listen for process exit events. When a supervised
 process exits, supervisord will pass the event to our custom event listener. The event listener
 determines if the process is a critical process  and whether it exited unexpectedly. If both of
