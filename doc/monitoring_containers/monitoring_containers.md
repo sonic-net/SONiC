@@ -65,7 +65,7 @@ restarted if one of critical processes running in docker container exits unexpec
 the entire docker container ensures that configuration is reloaded and all processes in 
 docker container get restarted, thus increasing the likelihood of entering a healthy state.
 
-We leveraged the mechanism of event listener in supervisord to auto-restart a docker container
+We leveraged the 'event listener' mechanism in supervisord to auto-restart a docker container
 if one of its critical processes exited unexpectedly. We also added a configuration option to make this 
 auto-restart feature dynamically configurable. Specifically users can run CLI to configure this 
 feature residing in Config_DB as enabled/disabled status.
