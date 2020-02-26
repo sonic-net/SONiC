@@ -2,13 +2,21 @@
 
 ## Design
 
-The existing Multi-DB design approach needs to be extended to address the cases where a sonic device will have multiple ASICs( NPUs ). Each NPU will have a network namespace created in linux host and services like database, swss, syncd etc running in the namespace.
+The existing Multi-DB design approach needs to be extended to take care of cases where a sonic device will have multiple ASICs( NPUs ). Each NPU will have a linux network namespaces exclusively created and services like database, swss, syncd etc running in that namespace. 
 
 ## The Multi NPU/namespace architecture 
 
-In the mulit NPU architecture, there is a database docker service started in the linux host, we call this the "global DB" service. The redis database spawned by this service is run in the linux host network namespace and stores the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. There will be additional network namespaces created and it would match the number of NPU's in the system. Each namespace will have the services to create docker instances for database, swss, syncd, teamd, bgp etc.
+In the Multi NPU devices there is two types of services 
 
-There will be a config_db.json file per database service, the naming would be config_db.json for the "global DB" and config_db{NS}.json for the database service in the {NS} namespace.
+	* Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host" network namespace.
+	* NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in the "new linux network namespace" 
+	  created. Currently it is assumed to be 1:1 mapping between NPUs and linux network namesapces.
+
+The database docker started in the linux "host" network namespace can be called the "global DB" service. The redis database instances here is used to store the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. 
+
+There is another set of database docker services which is started per "new linux network namespace" as well. The redis database instances here  will be used to store the interface/counters/state etc specific to the interfaces belonging to that ASIC. It contains the ASIC configuration and the APPL DB configuration as well used by services like swss/syncd.
+
+There will be a config_db.json file per database service, it will be saved as "/etc/sonic/config_db.json" for that belonging to "global DB" and as /etc/sonic/ config_db{NS}.json for the database service in the {NS} namespace.
 
 ## Enhancements to Multi-DB design to support Multiple namespaces
 In the current multi-DB approach, the file database_config.json contains the startup configuration used to dictate the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ).
@@ -32,15 +40,15 @@ Following are the major design changes
 
 This is an example of the database_config.json with 3 external DB references in 3 namespaces refered with namespaceID "0", "1" & "2".
 
-    {
-        "INSTANCES": {
-            "redis":{
-                "hostname" : "127.0.0.1",
-                "port" : 6379,
-                "unix_socket_path" : "/var/run/redis/redis.sock"
-            }
-        },
-        "DATABASES" : {
+{
+    "INSTANCES": {
+        "redis":{
+            "hostname" : "127.0.0.1",
+            "port" : 6379,
+            "unix_socket_path" : "/var/run/redis/redis.sock"
+        }
+    },
+    "DATABASES" : {
         "APPL_DB" : {
             "id" : 0,
             "separator": ":",
@@ -51,24 +59,52 @@ This is an example of the database_config.json with 3 external DB references in 
             "separator": ":",
             "instance" : "redis"
         },
-        .......
+        "COUNTERS_DB" : {
+            "id" : 2,
+            "separator": ":",
+            "instance" : "redis"
         },
-	"MAX_NS_INSTANCES" : 3,
-	"EXT_DB_REFS" : {
-            "0" : {
-                "path": "/var/run/redis0/sonic-db/database_config.json"
-                   },
-            "1" : {
-                "path": "/var/run/redis1/sonic-db/database_config.json"
-                   },
-            "2" : {
-                "path": "/var/run/redis2/sonic-db/database_config.json"
-                   } 
-            },
-        "VERSION" : "1.1"
-    }
+        "LOGLEVEL_DB" : {
+            "id" : 3,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "CONFIG_DB" : {
+            "id" : 4,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "PFC_WD_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "FLEX_COUNTER_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "STATE_DB" : {
+            "id" : 6,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "SNMP_OVERLAY_DB" : {
+            "id" : 7,
+            "separator": "|",
+            "instance" : "redis"
+        }
+    },
+    "INCLUDES" :
+        [
+	    {"NamespaceID" : "0", "Config" : ..//redis0/sonic-db/database_config.json"},
+	    {"NamespaceID" : "1", "Config" : ..//redis1/sonic-db/database_config.json"},
+	    {"NamespaceID" : "2", "Config" : ..//redis2/sonic-db/database_config.json"},
+	],
+    "VERSION" : "1.1"
+}
 
-* The database_config.json is made as a j2 template file with namespaceID and EXT_DB_REF count as arguments.
+* The database_config.json is made as a j2 template file as below.
 
 {NS} is the namespaceID and will be passed as argument to docker create in the /usr/bin/database.sh systemd startup script. This ID is passed to the docker ENTRYPOINT "docker-database-init.sh".
 
