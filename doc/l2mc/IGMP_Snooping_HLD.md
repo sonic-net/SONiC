@@ -649,7 +649,6 @@ Below L2MC entries scale will be tested to success on an ASIC with 512 L2MC grou
     25. Verify configuration save and verify after reload.
     26. Verify unsaved configuration loss after reload.
 
-
 ## 9.2 Rest API Test Cases
     Verify all REST commands
 
@@ -688,7 +687,6 @@ Below L2MC entries scale will be tested to success on an ASIC with 512 L2MC grou
     31. Verify updation of l2mc entries when Peer link goes down in Mclag 
     32. Verify updating of l2mc entries when Mclag interface goes down.
 
-
 ## 9.4 IGMPv1,V2 and V3 cases.
     
     Verify functional test cases for IGMPv1,V2 and V3.
@@ -701,4 +699,3 @@ Below L2MC entries scale will be tested to success on an ASIC with 512 L2MC grou
  
     1. Verify with Snooping configured on the maximum number of VLANs as specified in section 8.
     2. Verify maximum number of L2MC entries as specified in section 8.
-
