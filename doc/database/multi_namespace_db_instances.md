@@ -19,27 +19,24 @@ There is another set of database docker services which is started per "new linux
 There will be a config_db.json file per database service, it will be saved as "/etc/sonic/config_db.json" for that belonging to "global DB" and as /etc/sonic/ config_db{NS}.json for the database service in the {NS} namespace.
 
 ## Enhancements to Multi-DB design to support Multiple namespaces
-In the current multi-DB approach, the file database_config.json contains the startup configuration used to dictate the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ).
+In the current multi-DB approach, the file database_config.json contains the startup configuration used to dictate the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ). With the introduction of multiple namespaces, there is a need for separate database_config.json per namespace. This config file is created in the "working redis directories" during the database docker service startup. 
 
-With the introduction of multiple namespaces, there is a need for separate database_config.json per namespace. This config file is created in the "working redis directories" by the database docker service startup sequence. 
-
-The database docker service for namespace {NS} will use the /var/run/redis{NS} as the "working redis directory" to create the various files like redis.sock, sonic-db/database_config.json etc. For "globalDB" database service it would be /var/run/redis.
+The database docker service started in the linux network namespace {NS} will use the /var/run/redis{NS} as the "working redis directory" to create the various files like redis.sock, sonic-db/database_config.json etc. For "globalDB" database service it would be /var/run/redis.
 	
 ![center](./img/redis.png)
 
 Following are the major design changes
 
-* The startup config file database_config.json is modified to have 'local' DB instances + external references to the database instances present (if any) in database dockers running in other network namesapces. There are a few new attributes viz. 
+* The startup config file database_config.json is modified to have 'default' DB instances + external references to the database instances present (if any) in database dockers running in other linux network namesapces. There is a new attribute introduced, 
 
-	* "EXT_DB_REFS" to store external database_config.json file references. Each EXT_DB_REFS entry will contain the 
+	* "INCLUDES" to store external database_config.json file references. Each INCLUDES entry will contain the 
 	  "namespaceID" along with the "path" attributue which is the file location of database_config.json. 
-	  The EXT_DB_REFS attribute will be generated from the database_config.json.j2 template file at run time based on 
+	  The INCLUDES attribute will be generated from the database_config.json.j2 template file at run time based on 
 	  the number of namespaces created in the device.
-
-	* "MAX_NS_INSTANCES" to store the maximum number of external database config file references.
 
 This is an example of the database_config.json with 3 external DB references in 3 namespaces refered with namespaceID "0", "1" & "2".
 
+```json
 {
     "INSTANCES": {
         "redis":{
@@ -97,12 +94,13 @@ This is an example of the database_config.json with 3 external DB references in 
     },
     "INCLUDES" :
         [
-	    {"NamespaceID" : "0", "Config" : ..//redis0/sonic-db/database_config.json"},
-	    {"NamespaceID" : "1", "Config" : ..//redis1/sonic-db/database_config.json"},
-	    {"NamespaceID" : "2", "Config" : ..//redis2/sonic-db/database_config.json"},
+	    {"NamespaceID" : "0", "Config" : "..//redis0/sonic-db/database_config.json"},
+	    {"NamespaceID" : "1", "Config" : "..//redis1/sonic-db/database_config.json"},
+	    {"NamespaceID" : "2", "Config" : "..//redis2/sonic-db/database_config.json"},
 	],
     "VERSION" : "1.1"
 }
+```
 
 * The database_config.json is made as a j2 template file as below.
 
