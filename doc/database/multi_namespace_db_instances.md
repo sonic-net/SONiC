@@ -97,15 +97,15 @@ This is an example of the database_config.json with 3 external DB references in 
     },
     "INCLUDES" : [
         {
-	    "namespace_id" : 0,
+	    "namespace_id" : "0",
 	    "config" : "../redis0/sonic-db/database_config.json"
 	},
 	{
-	    "namespace_id" : 1,
+	    "namespace_id" : "1",
 	    "config" : "../redis1/sonic-db/database_config.json"
         },
 	{
-	    "namespace_id" : 2,
+	    "namespace_id" : "2",
 	    "config" : "../redis2/sonic-db/database_config.json"
         },
     ],
@@ -191,7 +191,7 @@ This is an example of the database_config.json with 3 external DB references in 
     "INCLUDES" : [
 {%- for ns in range(0,db_ref) %}
         {
-            "namespace_id" : {{ns}},
+            "namespace_id" : "{{ns}}",
             "config" : "../redis{{ns}}/sonic-db/database_config.json"
         },
 {%- endfor %}
