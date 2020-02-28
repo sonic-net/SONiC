@@ -201,6 +201,8 @@ This is an example of the database_config.json with 3 external DB references in 
 }
 ```
 
+* The redis instance unix socket path is kept unique system wide, so that the applications running in the "host" namespace will be able to talk to DB instances running in any "namespace". The hostname:port is kept local to the "namespace" where the database_config.json belongs.
+
 * In the database Docker ENTRYPOINT script (docker-database-init.sh), the database_config.json file is generated using the above j2 template and is saved into the "working redis directory" /var/run/redis{NS}/sonic-db/. 
 
 * The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. If this file is present, it would be copied to /var/run/redis{NS}/sonic-db/ instead of generating it from j2 template.
