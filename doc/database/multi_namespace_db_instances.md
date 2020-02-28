@@ -203,7 +203,7 @@ This is an example of the database_config.json with 3 external DB references in 
 
 * In the database Docker ENTRYPOINT script (docker-database-init.sh), the database_config.json file is generated using the above j2 template and is saved into the "working redis directory" /var/run/redis{NS}/sonic-db/. 
 
-* The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. If this file is present, it would be copied to /var/run/redis{NS}/sonic-db/ instead of generating it from j2 template. {NS} will be the namespaceID and have values ranging "", "0" ..."n" depending on the number of namepaces in the device.
+* The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. If this file is present, it would be copied to /var/run/redis{NS}/sonic-db/ instead of generating it from j2 template.
 
 ## New Design of Python Interface: SonicDBConfig()
 
@@ -212,7 +212,6 @@ The SonicDBConfig object needs to be enhanced to parse the new attributes like I
 The load_db_config() will load the database_config.json specified at SONIC_DB_CONFIG_FILE, save the DB instance's defined locally in instance 'default', and the database_config.json's defined in INCLUDES section.
 
 ```python
-
 class SonicDBConfig(object):
     _sonic_db_config_init = False
     _sonic_db_config = {}
@@ -229,7 +228,7 @@ class SonicDBConfig(object):
         SONIC_DB_CONFIG_FILE = "/var/run/redis/sonic-db/database_config.json"
         if SonicDBConfig._sonic_db_config_init == True:
             return
-	    
+
         try:
             if os.path.isfile(SONIC_DB_CONFIG_FILE) == False:
                 msg = "'{}' is not found, it is not expected in production devices!!".format(SONIC_DB_CONFIG_FILE)
@@ -246,7 +245,7 @@ class SonicDBConfig(object):
                         if os.path.isfile(db_config_file) == False:
                             msg = "'{}' is not found, it is not expected in production devices!!".format(db_config_file)
                             logger.warning(msg)
-			    continue
+                            continue
                         with open(db_config_file, "r") as read_file:
                             SonicDBConfig._sonic_db_config[ref['namespace_id']] = json.load(read_file)
                         db_ref_cnt += 1
@@ -258,8 +257,8 @@ class SonicDBConfig(object):
 
         SonicDBConfig._sonic_db_config_init = True
 
-   @staticmethod
-    def db_name_validation(db_name, ns_instance='default'):
+    @staticmethod
+    def db_name_validation(db_name, ns_instance):
         if SonicDBConfig._sonic_db_config_init == False:
             SonicDBConfig.load_sonic_db_config()
         data=SonicDBConfig._sonic_db_config[ns_instance]["DATABASES"]
@@ -269,7 +268,7 @@ class SonicDBConfig(object):
             raise RuntimeError(msg)
 
     @staticmethod
-    def inst_name_validation(inst_name, ns_instance='default'):
+    def inst_name_validation(inst_name, ns_instance):
         if SonicDBConfig._sonic_db_config_init == False:
             SonicDBConfig.load_sonic_db_config()
         if inst_name not in SonicDBConfig._sonic_db_config[ns_instance]["INSTANCES"]:
@@ -277,13 +276,6 @@ class SonicDBConfig(object):
             logger.exception(msg)
             raise RuntimeError(msg)
 
-    @staticmethod
-    def get_dblist(ns_instance='default'):
-        if SonicDBConfig._sonic_db_config_init == False:
-            SonicDBConfig.load_sonic_db_config()
-        return SonicDBConfig._sonic_db_config[ns_instance]["DATABASES"].keys()
-
-    # This will return the number of external db connections 
     @staticmethod
     def get_dbNumConnections():
         if SonicDBConfig._sonic_db_config_init == False:
@@ -297,11 +289,11 @@ class SonicDBConfig(object):
 The SonicV2Connector class will be extended to handle multiple DB connections by storing the DBInterface objects and redis clients as dictionaries. An additional parameter "namespace" is added to  SonicV2Connector API's.
 
 The "namespace" argument is the namespace instance ID and will take the following values
-	* "local", it connects to the local instance of "db_name".
-	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the EXT_DB_REFs.
-	* "all", [default] it connects to all "db_name" databases both local and in all namespaces added in EXT_DB_REFs.
+	* "default", it connects to the default instances of "db_name".
+	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
+	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
     
-The changes to SonicV2Connector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the localDB instances will be maintained. The use_unix_socket_path is set to True by default.
+The changes to SonicV2Connector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
 ```python
 class SonicV2Connector(DBInterface):
@@ -310,8 +302,8 @@ class SonicV2Connector(DBInterface):
         self.clients = {}
         self.connections = self.get_db_num_connections()
 
-        if self.check_instance_valid('local'):
-            self.db_intfs['local'] = DBInterface(**kwargs)
+        if self.check_instance_valid('default'):
+            self.db_intfs['default'] = DBInterface(**kwargs)
 
         for i in range(self.connections):
             if self.check_instance_valid(str(i)):
@@ -321,14 +313,11 @@ class SonicV2Connector(DBInterface):
 
         self.use_unix_socket_path = use_unix_socket_path
 
-        """
-        Commenting this out as I am not seeing the benefit now in case of multiple instance
         for db_name in self.get_db_list():
             #set a database name as a constant value attribute.
             setattr(self, db_name, db_name)
-        """
 
-    def db_connect(self, db_name, retry_on=True, instance='all'):
+    def db_connect(self, db_name, retry_on=True, instance='default'):
         if self.check_instance_valid(instance) == False:
             self.clients[instance] = None
             return
@@ -348,26 +337,33 @@ class SonicV2Connector(DBInterface):
 
     """
     Connect to the DB instance specified by the namespace parameter in database_config.json file.
-    if namespace="local", it connects to the local instance of "db_name".
+    if namespace="default", it connects to the default instance of "db_name".
     if namespace=<0...n>, any value between 0 and n,
-                          it connects to "db_name" instance in that namespace as per the EXT_DB_REFs.
-    if namespace="all", it connects to the global instance of "db_name" + namespace <0..n> as present in EXT_DB_REFs.
+                          it connects to "db_name" instance in that namespace as per the INCLUDES.
+    if namespace="all", it connects to the global instance of "db_name" + namespace <0..n> as present in INCLUDES.
     """
-    def connect(self, db_name, retry_on=True, namespace='all'):
+    def connect(self, db_name, retry_on=True, namespace='default'):
         if namespace == 'all':
-	    # Explicitly connect to the 'local' db instance and the ones if present in EXT_DB_REF
-            self.db_connect(db_name, retry_on, 'local')
+            self.db_connect(db_name, retry_on, 'default')
             for ns_idx in range(self.connections):
                 self.db_connect(db_name, retry_on, str(ns_idx))
         else:
             self.db_connect(db_name, retry_on, namespace)
 
-    def get_db_separator(self, db_name, namespace='default'):
-        return SonicDBConfig.get_separator(db_name, namespace)
+    def close(self, db_name, namespace='default'):
+        if namespace == 'all':
+            db_id = self.get_dbid(db_name, 'default')
+            self.db_intfs['default'].close(db_id)
+            for ns_idx in range(self.connections):
+                db_id = self.get_dbid(db_name, str(ns_idx))
+                self.db_intfs[str(ns_idx)].close(db_id)
+        else:
+      
+      db_id = self.get_dbid(db_name, namespace)
+            self.db_intfs[namespace].close(db_id)
 
-    # This will return the number of external db connections 
-    def get_db_num_connections(self):
-        return SonicDBConfig.get_dbNumConnections()
+    def check_instance_valid(self, namespace='default'):
+        return SonicDBConfig.is_instance_valid(namespace)
 
     def get_redis_client(self, db_name, namespace='default'):
         db_id = self.get_dbid(db_name, namespace)
@@ -386,11 +382,11 @@ class SonicV2Connector(DBInterface):
 The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete. An additional parameter "namespace" is added to ConfigDBConnector API's
 
 The "namespace" argument is the namespace instance ID and will take the following values
-	* "local", it connects to the local instance of "db_name".
-	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the EXT_DB_REFs.
-	* "all", [default] it connects to all "db_name" databases both local and in all namespaces added in EXT_DB_REFs.
+	* "default", it connects to the default instances of "db_name".
+	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
+	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
 
-The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the localDB instances will be maintained. The use_unix_socket_path is set to True by default.
+The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
 ```python
 class ConfigDBConnector(SonicV2Connector):
@@ -429,15 +425,15 @@ class ConfigDBConnector(SonicV2Connector):
                                 break
                 pubsub.punsubscribe(pattern)
 
-    def cfg_db_connect(self, dbname, wait_for_init=False, retry_on=False, namespace='all'):
+    def cfg_db_connect(self, dbname, wait_for_init=False, retry_on=False, namespace='default'):
         self.db_name = dbname
 
-        # Set the separators for 'local' instances as well are that for EXT_DB_REFs as per database_config file.
-        if(SonicV2Connector.check_instance_valid(self, 'local')):
-            ConfigDBConnector.separators['local'] = self.get_db_separator(self.db_name, 'local')
+        # Set the separators per namespace as per the database_config file.
+        if(SonicV2Connector.check_instance_valid(self, 'default')):
+            ConfigDBConnector.separators['default'] = self.get_db_separator(self.db_name, 'default')
         for ns_idx in range(self.connections):
             if(SonicV2Connector.check_instance_valid(self, str(ns_idx))):
-                ConfigDBConnector.separators[str(ns_idx)] = self.get_db_separator(self.db_name, str(ns_idx))
+               ConfigDBConnector.separators[str(ns_idx)] = self.get_db_separator(self.db_name, str(ns_idx))
             else:
                 ConfigDBConnector.separators[str(ns_idx)] = '|'
 
@@ -447,20 +443,19 @@ class ConfigDBConnector(SonicV2Connector):
 
     """
     Connect to the DB instance specified by the namespace parameter in database_config.json file.
-    if namespace="local", it connects to the local instance of "db_name".
-    if namespace=<0...n>, any value between 0 and n,
-                          it connects to "db_name" instance in that namespace as per the EXT_DB_REFs.
-    if namespace="all", it connects to the global instance of "db_name" + namespace <0..n> as present in EXT_DB_REFs.
+	* "default", it connects to the default instances of "db_name".
+	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
+	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
     """
-    def connect(self, wait_for_init=True, retry_on=False, namespace='all'):
+    def connect(self, wait_for_init=True, retry_on=False, namespace='default'):
         self.cfg_db_connect('CONFIG_DB', wait_for_init, retry_on, namespace)
 
-    def get_entry(self, table, key, namespace='all'):
+    def get_entry(self, table, key, namespace='default'):
         """Read a table entry from config db.
         Args:
             table: Table name.
             key: Key of table entry, or a tuple of keys if it is a multi-key table.
-        Returns: 
+        Returns:
             Table row data in a form of dictionary {'column_key': 'value', ...}
             Empty dictionary if table does not exist or entry does not exist.
         """
@@ -484,33 +479,6 @@ class ConfigDBConnector(SonicV2Connector):
 
         return got_data
 
-```
-
-## Sonic unitilities
-
-The tools like sonic-cfggen will have an additional argument "--namespace" for passing the namespaceID to talk to the redis database instance in a particular namespace. This is not a mandatory parameter, if not given it would take "default" as the namespace argument and talk to the local redis database instances available.
-
-```python
-
-   parser.add_argument("-ns", "--namespace", help="namespace instance 0,1,2,3..<n>")
-    args = parser.parse_args()
-
-    platform = get_platform_info(get_machine_info())
-
-    db_kwargs = {}
-    if args.redis_unix_sock_file != None:
-        db_kwargs['unix_socket_path'] = args.redis_unix_sock_file
-
-    namespace='local'
-    if args.namespace != None:
-        namespace = args.namespace
-
-    ........
-    
-    if args.write_to_db:
-        configdb = ConfigDBConnector(**db_kwargs)
-        configdb.connect(False, namespace=namespace)
-        configdb.mod_config(FormatConverter.output_to_db(data), namespace)
 
 ```
 Note: There are many other utilities which needs this additional parameter, will be updated in a similar fashion.
