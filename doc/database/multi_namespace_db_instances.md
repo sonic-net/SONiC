@@ -2,30 +2,29 @@
 
 ## Design
 
-The existing Multi-DB design approach needs to be extended to take care of cases where a sonic device will have multiple ASICs( NPUs ). Each NPU will have a linux network namespaces exclusively created and services like database, swss, syncd etc running in that namespace. 
+The existing Multi-DB design approach needs to be extended to take care of cases where a sonic device have multiple ASICs (NPUs). Each NPU will have a "namespaces" exclusively created and services like database, swss, syncd etc running in that namespace. 
 
 ## The Multi NPU/namespace architecture 
 
-In the Multi NPU devices there is two types of services 
+In the Multi NPU devices, the services could be broadly classified into
 
 	* Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host" network namespace.
+	
 	* NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. 
-	  Currently the linux network namespace is used to seggregate services per NPU and it is assumed to be 
-	  1:1 mapping between NPUs and linux network namesapces.
+	  The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one 
+	  mapping between the number of NPUs and linux network namesapces created.
 
-We concentrate on database docker servicein this document.
+This approach is backward compatible to the Sonic devices with single NPU. The "globalDB" service could be considered equivalent to the database docker started in the linux "host" network namespace in single NPU device. We will discuss more on the design details of database docker service in this document.
 
 The database docker started in the linux "host" namespace can be called the "global DB" service. The redis databases available here (decided by contents of database_config.json) would be APPL_DB, CONFIG_DB used to store the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. 
 
-There are also database docker started per NPU in a separate "namespace". The redis databases here will include all the DB's viz. APPL_DB, CONFIG_DB, ASIC_DB, COUNTERS_DB etc and is used to store the interface/counters/state etc specific to the interfaces/features on that NPU.
+There are also database docker started per NPU in a separate "namespace". The redis databases there will include all the DB's viz. APPL_DB, CONFIG_DB, ASIC_DB, COUNTERS_DB etc and is used to store the interface/counters/state etc specific to the interfaces/features on that NPU.
 
 There will be a config_db.json file per database service, it will be named "/etc/sonic/config_db.json" for the "global DB" and /etc/sonic/config_db{NS}.json for the database service in the {NS} namespace.
 
-Note: The "globalDB" service could be thought of as equivalent to the database docker started in the linux "host" network namespace currently in the single NPU sonic devices.
-
 ## Enhancements to Multi-DB design to support Multiple namespaces
 
-In the current multi-DB approach, the file database_config.json contains the startup configuration used to dictate the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ). With the introduction of multiple namespaces, there is a need for separate database_config.json per namespace. This config file is created in the "working redis directories" during the database docker service startup. 
+The file database_config.json contains the startup configuration which dictates the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ) etc. With the introduction of multiple namespaces, there is a need for separate database_config.json per namespace. This config file is created in the "working redis directories" during the database docker service startup. 
 
 The database docker service started in the linux network namespace {NS} will use the "/var/run/redis{NS}" as the "working redis directory" to create the various files like redis.sock, sonic-db/database_config.json etc. For "globalDB" database service it would be at "/var/run/redis".
 	
@@ -33,13 +32,11 @@ The database docker service started in the linux network namespace {NS} will use
 
 Following are the major design changes
 
-* The startup config file database_config.json is modified to have 'default' DB instances + external references to the database instances present (if any) in database dockers running in other linux network namesapces. There is a new attribute introduced, 
+* The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There is a new attribute introduced, 
 
 	* "INCLUDES" to store external database_config.json file references. Each INCLUDES entry will contain the 
-	  "namespaceID" along with the "path" which tells the file location of database_config.json. 
-	  The INCLUDES attribute will be generated from the database_config.json.j2 template file at run time based on 
-	  the number of namespaces created in the device.
-
+	  "namespaceID" along with the "relative path" which tells the file location of database_config.json. 
+	  
 This is an example of the database_config.json with 3 external DB references in 3 namespaces refered with namespaceID "0", "1" & "2".
 
 ```json
@@ -101,15 +98,15 @@ This is an example of the database_config.json with 3 external DB references in 
     "INCLUDES" : [
         {
 	    "namespace_id" : 0,
-	    "config" : "/var/run/redis0/sonic-db/database_config.json"
+	    "config" : "../redis0/sonic-db/database_config.json"
 	},
 	{
 	    "namespace_id" : 1,
-	    "config" : "/var/run/redis1/sonic-db/database_config.json"
+	    "config" : "../redis1/sonic-db/database_config.json"
         },
 	{
 	    "namespace_id" : 2,
-	    "config" : "/var/run/redis2/sonic-db/database_config.json"
+	    "config" : "../redis2/sonic-db/database_config.json"
         },
     ],
     "VERSION" : "1.1"
@@ -121,14 +118,13 @@ This is an example of the database_config.json with 3 external DB references in 
 	* {NS} is the namespaceID and will have values ranging "", "0" ..."n" depending on the number of namepaces in the device.
 	  The host linux namespace is mapped to empty string.
 	  
-	* {NS_TYPE} is the namespace type where the database json file belongs to. If it is in the linux host network namesapce, 
-	  we plan to have only APPL_DB, CONFIG_DB, SNMP_OVERLAY_DB .The NPU specific namesapces created will have all the databases.
-	  
-	  Note: databases included needs to be finalised.
+	* {NS_TYPE} is the namespace type where the database json file belongs to. We would decide on the database instances to be
+	   created based on this namespace type. Currently I have differentiated as database instances started in "host" namespace 
+	   and "NPU" specific namespaces.
 
 	* {DB_REF_CNT} is the count of EXT database docker service references. It is significant for "global DB" service running in 
 	  the linux host namespace, the DB_REF_CNT will be equal to the number of namespaces in the device. Currently we have a 
-	  ASIC:namespace mapping of 1:1, hence we pass the DB_REF_CNT to be the number of NPU's.
+	  NPU:namespace mapping of 1:1, hence we pass the DB_REF_CNT to be the number of NPU's.
 
 ```jinja
 {
@@ -145,7 +141,7 @@ This is an example of the database_config.json with 3 external DB references in 
             "separator": ":",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "default" %}
+{%- if NS_TYPE != "host" %}
         "ASIC_DB" : {
             "id" : 1,
             "separator": ":",
@@ -167,7 +163,7 @@ This is an example of the database_config.json with 3 external DB references in 
             "separator": "|",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "default" %}
+{%- if NS_TYPE != "host" %}
         "PFC_WD_DB" : {
             "id" : 5,
             "separator": ":",
@@ -490,13 +486,13 @@ class ConfigDBConnector(SonicV2Connector):
 
 ```
 
-## Sonic unitilities change
+## Sonic unitilities
 
-The tools like sonic-cfggen will have an additional argument "--namespace" for passing the namespace instance ID.
+The tools like sonic-cfggen will have an additional argument "--namespace" for passing the namespaceID to talk to the redis database instance in a particular namespace. This is not a mandatory parameter, if not given it would take "default" as the namespace argument and talk to the local redis database instances available.
 
 ```python
 
-   parser.add_argument("-ns", "--namespace", help="namespace instance")
+   parser.add_argument("-ns", "--namespace", help="namespace instance 0,1,2,3..<n>")
     args = parser.parse_args()
 
     platform = get_platform_info(get_machine_info())
@@ -523,3 +519,7 @@ Note: There are many other utilities which needs this additional parameter, will
 The C++ DBConnector interface is mainly used in the process context of swss/syncd etc in the dockers in their respective namespaces. In the namespaces currently we don't have any external DB refereces, hence not planning to extend the C++ DBConnector to handle multiple database_config.json files.
 
 Will be taken up as the next phase activity to get this class also at par with the python SonicDBConfig/SonicV2Connector modules.
+
+## Upgrade, Downgrade
+
+The database_config.json file would be created on bootup based on various parameters like the namespace, number of NPUs etc. Hence it should not dependent on the earlier version of database_config.json file on upgrade/downgrade.
