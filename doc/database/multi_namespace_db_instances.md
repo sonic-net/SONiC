@@ -52,7 +52,7 @@ Following are the major design changes
             "separator": ":",
             "instance" : "redis"
         },
-          "CONFIG_DB" : {
+        "CONFIG_DB" : {
             "id" : 4,
             "separator": "|",
             "instance" : "redis"
