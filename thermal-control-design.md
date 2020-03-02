@@ -95,15 +95,15 @@ It will be a routing function to check whether the policies was hit an the fan s
 
 Below policies are examples that can be applied:
 
-- Set PWM to full speed if one of PS units is not present 
+- Set PWM to full speed if one of PS units is not present
 
-- Set PWM to full speed if one of FAN drawers is not present or one of tachometers is broken present 
+- Set PWM to full speed if one of FAN drawers is not present or one of tachometers is broken present
 
 - Set the fan speed to a consant value (60% of full speed) thermal control functions was disabled.
 
 FAN status led and PSU status led shall also be set accordingly when policy meet.
 
-Policy check functions will go through the device status and adjus the fan speed if necessary, these check will be preformed by calling the platform new API.
+Policy check functions will go through the device status and adjust the fan speed if necessary, these check will be preformed by calling the platform new API.
 
 A thermal control daemon class will be deifined with above functions defined, vendors will be allowed to have their own implementation.
 
@@ -202,7 +202,156 @@ Below is an example for the policy configuration:
 
 In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100%.
 
-During daemon start, this configuration json file will be loaded and parsed, daemon will handle the thermal control algorithm run and fan speed set when predefined policy meet.
+During daemon start, this json configuration file will be loaded and parsed, daemon will handle the thermal control algorithm run and fan speed set when predefined policy meet.
+
+### 3.3 Policy implementation
+
+A few Python class will be added to sonic-platform-common to support thermal policy.
+
+- ThermalManagerBase is responsible for initializing thermal algorithm, loading the json configuration file, collecting thermal information and performing thermal policies. ThermalManagerBase is a singleton.
+- ThermalPolicy stores thermal conditions and thermal actions. For a ThermalPolicy instance, once all thermal conditions meet, all its thermal actions will be executed.
+- ThermalJsonObject provides abstract interface "load_from_json" to allow derived class de-serialize from json configuration file.
+- ThermalPolicyInfoBase inherits ThermalJsonObject, provides abstract interface "collect" to allow derived class collect information which will be used by thermal conditions and thermal actions.
+- ThermalPolicyConditionBase inherits ThermalJsonObject, provides abstract interface "is_match" to allow vendors define their own thermal conditions.
+- ThermalPolicyActionBase inherits ThermalJsonObject, provides abstract interface "execute" to allow vendors trigger their own thermal actions.
+
+#### 3.3.1 Thermal condition implementation
+
+To implement a concrete thermal condition class, vendor need inherit from ThermalPolicyConditionBase and implement the "is_match" and "load_from_json" interfaces. For example:
+
+```python
+@thermal_json_object('my.condition.name')
+class MyCondition(ThermalPolicyConditionBase):
+    def __init__(self):
+        self.member1 = None
+        self.member2 = None
+
+    def is_match(self, thermal_info_dict):
+        # the thermal_info_dict argument is a dictionary of concrete ThermalPolicyInfoBase instances.
+        # if bad:
+        #     return True
+        # else:
+        #     return False
+
+    def load_from_json(self, json_obj):
+        self.member1 = json_obj['member1']
+        self.member2 = json_obj['member1']
+```
+
+And the json configuration for MyCondition class is like:
+
+```json
+{
+    "type": "my.condition.name",
+    "member1": "1",
+    "member2": "true"
+}
+```
+
+The decorate "thermal_json_object" will register this new thermal condition type to a type dictionary with name "my.condition.name" so that this class can be de-serialized from json configuration.
+
+#### 3.3.2 Thermal action implementation
+
+To implement a concrete thermal action class, vendor need inherit from ThermalPolicyActionBase and implement the "execute" and "load_from_json" interfaces. For example:
+
+```python
+@thermal_json_object('my.action.name')
+class MyAction(ThermalPolicyActionBase):
+    def __init__(self):
+        self.speed = None
+
+    def execute(self, thermal_info_dict):
+        # the thermal_info_dict argument is a dictionary of concrete ThermalPolicyInfoBase instances.
+        fan_info_obj = thermal_info_dict['fan_info']
+        for fan in fan_info_obj.get_presence_fans():
+            fan.set_speed(self.speed)
+
+    def load_from_json(self, json_obj):
+        self.speed = json_obj['speed']
+```
+
+And the json configuration for MyAction class is like:
+
+```json
+{
+    "type": "my.action.name",
+    "speed": "60"
+}
+```
+
+The decorate "thermal_json_object" will register this new thermal action type to a type dictionary with name "my.action.name" so that this class can be de-serialized from json configuration.
+
+#### 3.3.3 Thermal information implementation
+
+To implement a concrete thermal information class, vendor need inherit from ThermalPolicyInfoBase and implement the "collect" and "load_from_json" interfaces. For example:
+
+
+```python
+@thermal_json_object('my.info.name')
+class MyInfo(ThermalPolicyInfoBase):
+    def __init__(self):
+        self.absence_fan = None
+        self.presence_fan = None
+
+    def collect(self, chassis):
+        self.absence_fan = []
+        self.presence_fan = []
+        for fan in chassis.get_all_fans():
+            if fan.get_presence():
+                self.presence_fan.append(fan)
+            else:
+                self.absence_fan.append(fan)
+
+    def load_from_json(self, json_obj):
+        pass
+```
+
+And the json configuration for MyInfo class is like:
+
+```json
+{
+    "type": "my.info.name"
+}
+```
+
+The decorate "thermal_json_object" will register this new thermal information type to a type dictionary with name "my.info.name" so that this class can be de-serialized from json configuration.
+
+After define concrete thermal condition, thermal action and thermal information class, the json configuration can use them like this:
+
+```json
+{   
+    "thermal_control_algorithm": {
+        "run_at_boot_up": "false",
+        "fan_speed_when_suspend": "60"
+    },
+    "info_types": [
+        {
+            "type": "my.info.name"
+        }
+    ],
+    "policies": [
+        {
+            "name": "my policy",
+            "conditions": [
+                {
+                    "type": "my.condition.name",
+                    "member1": "1",
+                    "member2": "true"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "my.action.name",
+                    "speed": "60"
+                }
+            ]
+        }
+    ]
+}
+```
+
+Once ThermalManagerBase loads this configuration file, it will de-serialize one MyInfo object, one ThermalPolicy object which contains one MyCondition object and one MyAction object. ThermalManagerBase will call MyInfo.collect every 60 seconds, and detect if MyCondition.is_match returns True, if MyCondition.is_match returns True, MyAction.execute will be called. This allow vendor to take different actions according to different conditions. Vendor can also define thermal information to assist actions and conditions.
+
 
 ## 4. CLI show command for temperature and fan design
 
@@ -228,13 +377,11 @@ During daemon start, this configuration json file will be loaded and parsed, dae
 out put of the new CLI
 
     admin@sonic# show platform temperature
-    NAME Temperature       Timestamp       High Threshold   Low Threshold    Critical High Threshold   Critical Low Threshold   Warning Status
+    NAME Temperature       Timestamp           High Th          Low Th           Crit High Th             Crit Low Th            Warning Status
     ---- -----------  ------------------   ---------------  --------------   ------------------------ ------------------------ ----------------
-    CPU      85        20191112 09:38:16        110              -10                 120                        -20                   false
-    ASIC     75        20191112 09:38:16        100               0                  110                        -10                   false
+    CPU      85        20191112 09:38:16        110              -10                 120                        -20                   False
+    ASIC     75        20191112 09:38:16        100               0                  110                        -10                   False
 
-An option '--major' provided by this CLI to only print out major device temp, if don't want show all of sensor temperatures.
-Major devices are CPU pack, cpu cores, ASIC and optical modules.
 
 ### 4.2 New show CLI for fan status
 
