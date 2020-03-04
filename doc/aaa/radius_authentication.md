@@ -1,7 +1,7 @@
 # RADIUS Management User Authentication
 
 ## High Level Design Document
-#### Rev 0.6
+#### Rev 0.7
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -40,6 +40,7 @@
 | 0.4 | 08/15/2019   |  Arun Barboza      | Addressing review comments        |
 | 0.5 | 10/02/2019   |  Arun Barboza      | Updates for SSH & test comments   |
 | 0.6 | 10/14/2019   |  Arun Barboza      | Updates for CLI & Openconfig Model|
+| 0.7 | 03/04/2020   |  Arun Barboza      | Code PR ready updates             |
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -344,6 +345,7 @@ aaa_key              = "authentication"   ; AAA type
 ; Attributes
 login                = LIST(1*32VCHAR)   ; pam modules for particular protocol, now only support login for (local, tacacs+, radius). Legal combinations are [ [local], [local, tacacs+ ], [local, radius], [tacacs+, local], [radius, local] ]
 failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
+debug                = "True" / "False"  ; debug logs for nss or pam modules
 ```
 
 Note(s):
@@ -358,7 +360,7 @@ Note(s):
 ; Key
 global_key           = "global"  ;  RADIUS global configuration
 ; Attributes
-passkey              = 1*32VCHAR  ; shared secret (Valid chars: [0-9A-Za-z])
+passkey              = 1*32VCHAR  ; shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
 auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
 src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the outgoing RADIUS packets
 timeout              = 1*2DIGIT
@@ -374,7 +376,7 @@ retransmit           = 1*2DIGIT
 server_key           = IPAddress;  RADIUS server's IP address (IPv4 or IPv6)
 ; Attributes
 auth_port            = 1*5DIGIT
-passkey              = 1*32VCHAR  ; per server shared secret (Valid chars: [0-9A-Za-z])
+passkey              = 1*32VCHAR  ; per server shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
 auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
 priority             = 1*2DIGIT  ; specify RADIUS server's priority
 timeout              = 1*2DIGIT
@@ -390,28 +392,34 @@ For configuring RADIUS, we will use [Openconfig AAA RADIUS](https://github.com/o
 Only certain config related parts will be implemented. The supported config
 paths are:
 
-- /oc-sys:system/oc-aaa:aaa/oc-aaa:server-groups/oc-aaa:server-group/oc-aaa:server-group=RADIUS_ALL/oc-aaa:servers/oc-aaa:server[address=IPAddress]/config
+- /oc-sys:system/oc-aaa:aaa/oc-aaa:server-groups/oc-aaa:server-group[name=RADIUS]/oc-aaa:servers/oc-aaa:server[address=IPAddress]/config
 
   The container's oc-aaa:acct-port leaf will not be  supported.
 
   The container will be augmented to support the following additional leaves:
 
-  - oc-aaa:auth-type
-  - oc-aaa:priority
-  - oc-aaa:vrf  (If specified, this can only take on the VrfMgmt value.)
+  - auth-type
+  - priority
+  - vrf
 
-  The oc-aaa:server[address=0.0.0.0]/config container will contain the RADIUS
-  global configuration attributes.  (i.e. values from the RADIUS table)
+  The oc-aaa:source-address will be supported only for global RADIUS conf.
 
-  The oc-aaa:source-address leaf will be valid only for the RADIUS global
-  configuration (oc-aaa:server[address=0.0.0.0]).
+  The oc-aaa:auth-port leaf will be supported only for per server conf.
 
-  The oc-aaa:auth-port leaf will be supported only for per server
-  (oc-aaa:server[address!=0.0.0.0]) configuration.
+- /oc-sys:system/oc-aaa:aaa/oc-aaa:server-groups/oc-aaa:server-group[name=RADIUS]/config
+
+  The container will be augmented to support the following additional leaves
+  for global RADIUS configuration:
+
+  - source-address
+  - auth-type
+  - secret-key
+  - timeout
+  - retransmit-attempts
 
 ### CLI
 
-The RADIUS commands will be implemented in KLISH using the available
+The RADIUS commands will be implemented in click, and KLISH using the available
 CLI framework.
 
 For TACACS+, the existing module click comands will continue to be available.
@@ -424,21 +432,21 @@ sonic# show aaa
 sonic# show radius
 
 sonic(config)# [no] radius-server source-ip <IPAddress(IPv4 or IPv6)>
-sonic(config)# [no] radius-server timeout <0 - 60>
+sonic(config)# [no] radius-server timeout <1 - 60>
 sonic(config)# [no] radius-server retransmit <0 - 10>
 sonic(config)# [no] radius-server auth-type [pap | chap | mschapv2]
 sonic(config)# [no] radius-server key <TEXT>
 sonic(config)# [no] radius-server host <IPAddress(IPv4 or IPv6)>        \
                                      auth-port <1 - 65535>              \
-                                     timeout <0 - 60>                   \
+                                     timeout <1 - 60>                   \
                                      retransmit <0 - 10>                \
                                      key <TEXT>                         \
                                      auth-type [pap | chap | mschapv2]  \
                                      priority <1 - 64>                  \
-                                     use-mgmt-vrf
+                                     vrf <TEXT>
 
-$ config aaa authentication login {local | tacacs+ | radius }
-$ config aaa authentication failthrough enable/disable
+sonic(config)# [no] aaa authentication login-method
+sonic(config)# aaa authentication failthrough [enable|disable]
 
 ```
 
@@ -467,7 +475,7 @@ like = similar to what is seen in industry, sonic = present in SONiC only.
 |                                  |     |                                    |
 | [no] radius-server host   ...    | yes | config radius {add or delete} ...  |
 |                                  |     |                                    |
-|         ----                     | --- | config aaa authentication login \  |
+| aaa authentication login-method..| --- | config aaa authentication login \  |
 |                                  |     |  {local or tacacs+ or radius or...}|
 |                                  |     |                                    |
 |         ----                     |sonic| config aaa authentication \        |
@@ -489,6 +497,11 @@ PAM and NSS modules return errors as per [Linux-PAM](#Linux-PAM), and
 [NSS](#NSS-Reference) respectively.
 
 # Serviceability and Debug
+
+The PAM and NSS modules for RADIUS can be debugged by enabling the debug
+field of the AAA|authentication redis key. (Please see ConfigDB AAA Table
+Schema). The modules can also be individually traced or debugged using
+the procedure given below.
 
 The pam_radius module can be debugged using the "debug" option specification
 on the rule which causes inclusion of the module in the authentication stack.
