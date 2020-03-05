@@ -9,12 +9,13 @@ The existing Multi-DB design approach needs to be extended to take care of cases
 In the Multi NPU devices, the services could be broadly classified into
 
 *  Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host" namespace.
+   We call it "global" namespace.
 	
-*  NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one mapping between the number of NPUs and linux network namesapces created.
+*  NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one mapping between the number of NPUs and linux network namesapces created. We call it "NPU" namespace.
 
-The database docker in the linux "host" namespace can be called the "global DB" service. The redis databases available here (decided by contents of database_config.json) would be APPL_DB, CONFIG_DB used to store the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. 
+The database docker in the "global" namespace can be called the "global DB" service. The redis databases available here (decided by contents of database_config.json) would be APPL_DB, CONFIG_DB used to store the system wide attributes like AAA, syslog, ASIC to interface name mapping etc. 
 
-There are also database docker per NPU in a separate "namespace". The redis databases there will include all the DB's viz. APPL_DB, CONFIG_DB, ASIC_DB, COUNTERS_DB etc and is used to store the interface/counters/state etc specific to the interfaces/features on that NPU.
+There are also database docker in the "NPU" namespace. The redis databases there will include all the DB's viz. APPL_DB, CONFIG_DB, ASIC_DB, COUNTERS_DB etc and is used to store the interface/counters/state etc specific to the interfaces/features on that NPU.
 
 This approach is backward compatible to the Sonic devices with single NPU. The "globalDB" service could be considered equivalent to the database docker started in the linux "host" network namespace in single NPU device. We will discuss more on the design details of database docker service in this document.
 
@@ -30,12 +31,12 @@ The database service for a NPU linux namespace {NS} will use "/var/run/redis{NS}
 
 Following are the major design changes
 
-* A new file database_global.json is introduced. It will contain the details of the namespaces in the device and the corresponsing database_config.json file. This file would be created by the "globalDB" service in the directory "/var/run/redis/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces refered with namespaceID "0", "1" & "2".
+* A new file **databases.json** is introduced. It will contain the details of the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces refered with namespaceID "0", "1" & "2".
 
 ```json
-{
+[
     {
-        "namespace" : "host",
+        "namespace" : "global",
         "config" : "../redis/sonic-db/database_config.json"
     },
     {
@@ -50,18 +51,18 @@ Following are the major design changes
         "namespace" : "2",
         "config" : "../redis2/sonic-db/database_config.json"
     }
-}
+]
 
 * The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There are a few attributes introduced, 
 
-	* "INCLUDES" to point to the path of the database_global.json file.
-	* "NAMESPACE" will store the namespace to which this database_config.json belongs
+	* "NAMESPACE" will store the namespace to which this database_config.json belongs.
+	* "INCLUDES" to point to the path of the databases.json file.
 
 * The database_config.json file for the "globalDB" service will have the "INSTANCES"/"DATABASES" (global DB service to have only APP_DB and CONFIG_DB) running localy in globalDB database docker on linux host namespace + INCLUDES attribute to refer to the external DB instances in the database docker services running in other NPU namespaces. The sample format is as below.
 
 ```json
 {
-    "NAMESPACE": "host",
+    "NAMESPACE": "global",
     "INSTANCES": {
         "redis":{
             "hostname" : "127.0.0.1",
@@ -81,12 +82,12 @@ Following are the major design changes
             "instance" : "redis"
         },
     },
-    "INCLUDES" : "../redis/database_global.json",
+    "INCLUDES" : "../redis/sonic-db/databases.json",
     "VERSION" : "1.1"
 }
 ```
 
-* The database_config.json file for the "NPU namespace" will have the "INSTANCES"/"DATABASES" ( NPU namespace DB service to have all DB instance types) running localy in the linux namespace. It doesn't have the INCLUDES attributes as the applications running in the NPU namespace will access only the local DB instances. The below example is for NPU namespace 3.
+* The database_config.json file for the "NPU" namespace will have the "INSTANCES"/"DATABASES" (this DB service have all DB instance types) running localy in the namespace. It doesn't have the INCLUDES attributes as the applications running in the NPU namespace will access only the local DB instances. The below example is for NPU namespace 3.
 
 ```json
 {
@@ -149,23 +150,26 @@ Following are the major design changes
 }
 ```
 
-* The database_config.json and database_global.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
-
-	* {NS} is the namespaceID and will have values ranging "host", "0" ..."n" depending on the number of namepaces in the device.
+* The database_config.json and databases.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
 	  
 	* {NS_TYPE} is the namespace type where the database json file belongs to. We would decide on the database instances to be
-	   created based on this namespace type. Currently I have differentiated as database instances started in "host" namespace 
-	   and "NPU" specific namespaces.
+	   created based on this namespace type. Currently I have called them as "global" namespace (linux host network namespace) 
+	   and "NPU" specific namespaces. 
+	   
+   	* {NS} is the namespaceID and will have values ranging "", "0" ..."n" depending on the number of namepaces in the device.
+	  For "global" namespace the ID is empty string and for "NPU" namespaces it is in range 0...<n>. 
 
 	* {DB_REF_CNT} is the count of EXT database docker service references. It is significant for "global DB" service running in 
 	  the linux host namespace, the DB_REF_CNT will be equal to the number of namespaces in the device. Currently we have a 
 	  NPU:namespace mapping of 1:1, hence we pass the DB_REF_CNT to be the number of NPU's.
 
-**database_global.json**
+  Additional variables to be introduced in future to make this more flecible like creating more redis INSTANCES, assosiating DATABASES to different redis instance etc.
+
+**databases.json**
 ```jinja
 {
     {
-        "namespace" : "host",
+        "namespace" : "global",
         "config" : "../redis/sonic-db/database_config.json"
     },
 {%- set db_ref = DB_REF_CNT|int %}
@@ -197,7 +201,7 @@ Following are the major design changes
             "separator": ":",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "host" %}
+{%- if NS_TYPE != "global" %}
         "ASIC_DB" : {
             "id" : 1,
             "separator": ":",
@@ -219,7 +223,7 @@ Following are the major design changes
             "separator": "|",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "host" %}
+{%- if NS_TYPE != "global" %}
         "PFC_WD_DB" : {
             "id" : 5,
             "separator": ":",
@@ -242,8 +246,8 @@ Following are the major design changes
         }
 {%- endif %}	
     },
-{%- if NS_TYPE == "host" %}
-    "INCLUDES" : "../redis/database_global.json",
+{%- if NS_TYPE == "global" %}
+    "INCLUDES" : "../redis/sonic-db/databases.json",
 {%- endif %}	
     "VERSION" : "1.1"
 }
@@ -263,45 +267,61 @@ The load_db_config() will load the database_config.json specified at SONIC_DB_CO
 
 ```python
 class SonicDBConfig(object):
+    SONIC_DB_BASE_DIR = "/var/run/redis"
+    SONIC_DB_CONFIG_FILE = SONIC_DB_BASE_DIR+"/sonic-db/database_config.json"
     _sonic_db_config_init = False
     _sonic_db_config = {}
     _sonic_db_connections = 0
 
     @staticmethod
-    def load_sonic_db_config():
+    def load_sonic_db_config(sonic_db_file_path=SONIC_DB_CONFIG_FILE):
         """
         Parse and load the database_config.json
         The attributes 'INSTANCES' and 'DATABASES' will be considered as 'default'
-        The attribute 'INCLUDES' will be parsed and the corresponding database_config.json ill be loaded at the
-        namespace ID specfied.
+        The attribute 'INCLUDES' will be parsed and the corresponding database_config.json will be loaded
+        and mapped to the namespace specfied.
         """
-        SONIC_DB_CONFIG_FILE = "/var/run/redis/sonic-db/database_config.json"
         if SonicDBConfig._sonic_db_config_init == True:
             return
 
         try:
-            if os.path.isfile(SONIC_DB_CONFIG_FILE) == False:
-                msg = "'{}' is not found, it is not expected in production devices!!".format(SONIC_DB_CONFIG_FILE)
+            if os.path.isfile(sonic_db_file_path) == False:
+                msg = "'{}' is not found, it is not expected in production devices!!".format(sonic_db_file_path)
                 logger.warning(msg)
-                SONIC_DB_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
-            with open(SONIC_DB_CONFIG_FILE, "r") as read_file:
+                sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
+
+            with open(sonic_db_file_path, "r") as read_file:
                 SonicDBConfig._sonic_db_config['default'] = json.load(read_file)
+                namespace = SonicDBConfig._sonic_db_config['default']['NAMESPACE']
+
                 if 'INCLUDES' in SonicDBConfig._sonic_db_config['default'].keys():
-                    ext_dbs = SonicDBConfig._sonic_db_config['default']['INCLUDES']
-                    db_ref_cnt = 0
-                    for ref in ext_dbs:
-                        db_config_file = ref['config']
-                        SonicDBConfig._sonic_db_config[ref['namespace']] = None
-                        if os.path.isfile(db_config_file) == False:
-                            msg = "'{}' is not found, it is not expected in production devices!!".format(db_config_file)
-                            logger.warning(msg)
-                            continue
-                        with open(db_config_file, "r") as read_file:
-                            SonicDBConfig._sonic_db_config[ref['namespace']] = json.load(read_file)
-                        db_ref_cnt += 1
-                    SonicDBConfig._sonic_db_connections = db_ref_cnt
+                    db_include_file = SonicDBConfig.SONIC_DB_BASE_DIR+SonicDBConfig._sonic_db_config['default']['INCLUDES']
+                    if os.path.isfile(db_include_file) == True:
+                        with open(db_include_file, "r") as inc_file:
+                            ext_dbs = json_load(inc_file)
+                            db_ref_cnt = 0
+                            for entry in ext_dbs:
+                                db_config_file = SonicDBConfig.SONIC_DB_BASE_DIR+entry['config']
+                                SonicDBConfig._sonic_db_config[entry['namespace']] = None
+
+                                # Not finding the database_config.json file for the namespace
+                                if os.path.isfile(db_config_file) == False:
+                                    msg = "'{}' file is not found !!".format(db_config_file)
+                                    logger.warning(msg)
+                                    continue
+                               #if the database_config.json reference is for same namespace, skip as 
+                                # weare storing the namespace we are in as 'default'
+                                if entry['namespace'] == namespace:
+                                    continue;
+
+                                with open(db_config_file, "r") as read_file:
+                                    SonicDBConfig._sonic_db_config[entry['namespace']] = json.load(read_file)
+                                db_ref_cnt += 1
+                            # Set the external DB connections count
+                            SonicDBConfig._sonic_db_connections = db_ref_cnt
+
         except (OSError, IOError):
-            msg = "Could not open sonic database config file '{}'".format(SONIC_DB_CONFIG_FILE)
+            msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
             logger.exception(msg)
             raise RuntimeError(msg)
 
