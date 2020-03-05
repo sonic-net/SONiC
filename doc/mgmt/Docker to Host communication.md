@@ -2,7 +2,7 @@
 Docker to Host communication
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.5
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -24,6 +24,9 @@ Docker to Host communication
 | 0.3 | 12/16/2019  | Mike Lazar         | Add security and logging info     |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.4 | 02/07/2020  | Mike Lazar         | More information about security   |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.5 | 03/05/2020  | Mike Lazar         | More D-Bus security info,         | 
+|     |             |                    | and fixed formatting              |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 
 
@@ -117,13 +120,10 @@ requests to the host to perform actions such as:
 # 3 Design
 ## 3.1 Overview
 
-The feature extends the SONiC management framework to add a D-Bus service on the
-host. This service will register against a known endpoint, and will service
-requests to the endpoint. Application modules will add snippets to the host
-service, which will automatically register their endpoints, and the app module
-in the container can use the APIs provided in Translib to send the request to
-the host, and either wait for the response (if the request was synchronous), or
-receive a channel and wait for the request to return the response on the
+The feature extends the SONiC management framework to add a D-Bus service on the host. This service will register against a known endpoint, and will service requests to the endpoint. Application modules will add "applets" to the host
+service, which will automatically register their endpoints (D-Bus objects and methods). 
+
+The client application module in a container (e.g. management or telemetry) can use the APIs provided in Translib to send the request to the host - essentially, make a (remote) D-Bus method call, and either wait for the response (if the request was synchronous), or receive a channel and wait for the request to return the response on the
 channel (asynchronous request).
 
 The architecture of a D-Bus host service in a SONiC environment is illustrated in the diagram below:
@@ -140,40 +140,27 @@ D-Bus provides a reliable communication channel between client (SONiC management
 In addition to standard Linux security mechanisms for file/Unix socket access rights (read/write), D-Bus provides a separate security layer, using the D-Bus service configuration files, for defining security policies. This allows finer grain access control to D-Bus objects and methods - D-Bus can restrict access only to certain Linux users. This is achieved by using the "Host Service" configuration file:
 /etc/dbus-1/system.d/org.sonic.hostservice.conf
 
-For instance, assuming that the rest-service provided by the SONiC management framework is executed as a system user ("mgmtuser"), the configuration can allow this user access to all Host Services:
-<pre><code>
-  <policy user="mgmtuser">
-    <allow send_destination="org.SONiC.HostService"/>
-    <allow receive_sender="org.SONiC.HostService"/>
-  </policy>
-</code></pre>
-Assuming that the telemetry service is executed as a "telemetry" system user, that account may only be allowed access to a restricted set of services, and denied access to all others (e.g. ztp, configuration save/restore):
+D-Bus allows security policies to be set per Linux user group or Linux user. The D-Bus framework is able to determine the user name and group of the client applications, and automatically enforces the access rules specified in the security policies.
 
-<pre><code>
-  <policy user="telemetry">
+For instance, assuming that the REST service provided by the SONiC management framework is executed as a system user ("mgmt") in its own group ("mgmt"), the configuration can allow this system user access to all Host Services - all objects and methods under "org.SONiC.HostService":
+
+```
+  <policy group="mgmt" />
+    <allow send_destination="org.SONiC.HostService" />
+    <allow receive_sender="org.SONiC.HostService" />
+  </policy>
+```
+
+Assuming that the telemetry service is executed as a "telemetry" system user (group "telemetry"), that account may only be allowed access to a restricted set of services ("showtech"), and denied access to all others (e.g. ztp, configuration save/restore):
+
+```
+  <policy group="telemetry">
     <deny send_destination="org.SONiC.HostService"/>
     <deny receive_sender="org.SONiC.HostService"/>
     <allow send_destination="org.SONiC.HostService.showtech"/>
     <allow receive_sender="org.SONiC.HostService.showtech"/>
   </policy>
-</code></pre>
-
-Note. Furthermore, D-Bus allows security policies to be set per Linux user group as well:
-<pre><code>
-  <policy group="admin">
-    <allow send_destination="org.SONiC.HostService"/>
-    <allow receive_sender="org.SONiC.HostService"/>
-  </policy>
-</code></pre>
-
-<pre><code>
-  <policy group="operator">
-    <deny send_destination="org.SONiC.HostService"/>
-    <deny receive_sender="org.SONiC.HostService"/>
-    <allow send_destination="org.SONiC.HostService.showtech"/>
-    <allow receive_sender="org.SONiC.HostService.showtech"/>
-  </policy>
-</code></pre>
+```
 
 
 ### 3.1.2 Command Logging
