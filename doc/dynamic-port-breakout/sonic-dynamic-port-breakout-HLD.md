@@ -60,6 +60,7 @@
 | 0.2 | 08/16/2019  | Zhenggen Xu           | Second version                   |
 | 0.3 | 08/16/2019  | Zhenggen Xu           | Review feedback and other changes                   |
 | 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
+| 0.5 | 3/5/2019    | Zhenggen Xu           | Clarification of port naming and breakout modes       |
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
 
@@ -102,6 +103,7 @@ We should be able to change port breakout mode at run time without affecting the
 - Internal immediate feedback mechanism from low level to user is not in scope of this design. Once the port is changed to different breakout mode to configDB, daemon status and log messages are used to check whether end-to-end is succeed for now.
 
 # Design
+## Port Naming
 SONiC will continue to use the current port naming convention, we reserve one lane per EthernetXX, and we can also group the lanes to one interface based on the mode:
 
 e,g, 4 serdes lanes for lane 0/1/2/3:
@@ -126,6 +128,12 @@ Ethernet0 (lane 0/1/2/3)
 ```
 
 Note, it will be similar if we want to support 8 lanes mode for newer devices.
+
+The new naming converntion like [SONiC port naming] (https://github.com/yxieca/SONiC-1/blob/b70bb0c7da38b490009b7dbdad8b83a264e8a07b/doc/sonic-port-name.md) is not used in this design.
+
+Also there was considerations of grouping port together for different purposes and also support or mix with FibreChannel ports with different naming convention, this will NOT be part of this design.
+
+For the naming changes, since the port naming will be in `platform.json` etc common files (check below section) and the parser function is common, the design will allow you to easiy improve this later.
 
 ## Platform capability design
 A capability file for a platform with port breakout capabilities is provided. It defines the initial configurations like lanes, speed, alias etc. This file will be used for CLI later to pick the parent port and breakout mode. It can be used for speed checks based on the current mode. It (in conjunction with `hwsku.json` talked later) will also replace the functionality of the current existing port_config.ini.
@@ -191,6 +199,8 @@ The speeds usually used today are:
 `10G, 20G, 25G, 50G, 100G, 200G, 400G` etc.
 However, the design is not limited to this list.
 
+Note: In some case, the `brkout_mode` only have one mode, this means it will not allow changing to different modes, e,g `1x100G[40G]` means it only support 100G[40G[ on this port, could mean no breakout to child ports.
+
 We will have a new table `BREAKOUT_CFG` in configDB to present the current running breakout mode, it will be saved to configDB after the initial breakout at boot time, and also updated whenever the port breakout is changed.
 
 ```
@@ -209,6 +219,7 @@ BREAKOUT_CFG:
 The configDB will have the final port breakout settings for individual ports, the format/schema is the same as before. Above table is used for CLI to quickly know what breakout mode the system is on, and thus delete/add relevant ports if we are going to change the breakout mode. Also, it could be used by backend daemons like `PMON` to know the breakout mode and change the port layout for port based events and LED changes etc.
 
 After dynamic port breakout support, we won’t need different HWSKUs for the same platform. If for any reason (e,g, keep backwards compatibility) the user still wants to have HWSKUs, we would put the `hwsku.json` into each HWSKU with the desired default breakout modes:
+
 ```
 "interfaces": {
 	"Ethernet0": {
@@ -220,6 +231,9 @@ After dynamic port breakout support, we won’t need different HWSKUs for the sa
 	…
 }
 ```
+
+The `default_brkout_mode` mode should be one of the modes in `brkout_mode` from the same port in `platform.json`.
+
 The file will work in conjuction with the `platform.json` at platform level, and it will be used for port breakout during the initialization phase.
 
 Above `platform.json` and `hwsku.json` files will deprecate the old port_config.ini file in the current SONiC design.
