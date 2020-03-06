@@ -26,7 +26,7 @@ The test is targeting a running SONIC system with fully functioning configuratio
 
 ### Testbed
 The test will run on the following testbeds:
-* T0
+* T0-x (all T0 configurations)
 
 ### DUT image
 RPC image is required
@@ -88,6 +88,7 @@ Preparation before test cases run will be executed in the following pytest fixtu
 - pfc_storm_template
 - pfc_storm_runner
 - deploy_pfc_gen
+- flush_neighbors
 
 
 ### deploy_pfc_gen (scope="module", autouse=True)
@@ -295,9 +296,15 @@ For every server port(setup["server_ports"]) execute command:
 
 ```config interface pfc asymmetric [SERVER_PORT] off```
 
+### flush_neighbors (scope="function", autouse=True)
+Perform ARP table clear before start of each test case by executing ```sonic-clear arp``` command.
+To help eliminate issues related to neighbors resolution.
+
 ## Test
 The purpose of the tests cases is to perform functional testing of Asymmetric PFC on SONIC system.
-General idea is to check how DUT behaves with enabled/disabled asymmetric PFC on server ports while DUT is overloaded with receiving PFC frames, which simulates that neighboars are overloaded by traffic.
+General idea is to check how DUT behaves with enabled/disabled asymmetric PFC on server ports while DUT is overloaded with receiving PFC frames, which simulates that neighbors are overloaded by traffic.
+
+To specify number of server ports to use can be used pytest option ```--server_ports_num```
 
 ## Test cases
 
