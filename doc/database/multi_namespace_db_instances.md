@@ -25,44 +25,36 @@ There will be a config_db.json file per database service, it will be named "/etc
 
 The file database_config.json contains the startup configuration which dictates the redis server host/port/unix_socket configurations + various available databases ( eg: APP_DB, CONFIG_DB ) etc. With the introduction of multiple namespaces, there is a need for separate database_config.json per namespace. This config file is created in the "working redis directories" during the database docker service startup. 
 
-The database service for a NPU linux namespace {NS} will use "/var/run/redis{NS}" as the "working redis directory" to create the various files like redis.sock, database_config.json etc. The "globalDB" database service would use "/var/run/redis" as the working directory.
+The database service for a NPU linux namespace {NS} will use "/var/run/redis_{NS}" as the "working redis directory" to create the various files like redis.sock, database_config.json etc. The "globalDB" database service would use "/var/run/redis" as the working directory.
 	
 ![center](./img/redis.png)
 
 Following are the major design changes
 
-* A new file **databases.json** is introduced. It will contain the details of the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces refered with namespaceID "0", "1" & "2".
+* A new file **databases.json** is introduced. It will contain the details of all the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2"
 
 ```json
 [
     {
-        "namespace" : "global",
-        "config" : "../redis/sonic-db/database_config.json"
-    },
-    {
-        "namespace" : "0",
+        "namespace" : "asic0",
         "config" : "../redis0/sonic-db/database_config.json"
     },
         {
-        "namespace" : "1",
+        "namespace" : "asic1",
         "config" : "../redis1/sonic-db/database_config.json"
     },
     {
-        "namespace" : "2",
+        "namespace" : "asic2",
         "config" : "../redis2/sonic-db/database_config.json"
     }
 ]
 
-* The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There are a few attributes introduced, 
+* The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There are is a new attribute "INCLUDES" to point to the path of the databases.json file.
 
-	* "NAMESPACE" will store the namespace to which this database_config.json belongs.
-	* "INCLUDES" to point to the path of the databases.json file.
-
-* The database_config.json file for the "globalDB" service will have the "INSTANCES"/"DATABASES" (global DB service to have only APP_DB and CONFIG_DB) running localy in globalDB database docker on linux host namespace + INCLUDES attribute to refer to the external DB instances in the database docker services running in other NPU namespaces. The sample format is as below.
+* The **database_config.json** file for the "globalDB" service will have the "INSTANCES"/"DATABASES" (global DB service to have only APP_DB, CONFIG_DB, STATE_DB etc) running localy in globalDB database docker on linux host namespace + INCLUDES attribute to refer to the external DB instances in the database docker services running in other NPU namespaces. The sample format is as below.
 
 ```json
 {
-    "NAMESPACE": "global",
     "INSTANCES": {
         "redis":{
             "hostname" : "127.0.0.1",
@@ -81,17 +73,21 @@ Following are the major design changes
             "separator": "|",
             "instance" : "redis"
         },
+	"STATE_DB" : {
+            "id" : 6,
+            "separator": "|",
+            "instance" : "redis"
+        }
     },
-    "INCLUDES" : "../redis/sonic-db/databases.json",
+    "INCLUDES" : "../redis/sonic-db/databases.json"
     "VERSION" : "1.1"
 }
 ```
 
-* The database_config.json file for the "NPU" namespace will have the "INSTANCES"/"DATABASES" (this DB service have all DB instance types) running localy in the namespace. It doesn't have the INCLUDES attributes as the applications running in the NPU namespace will access only the local DB instances. The below example is for NPU namespace 3.
+* The database_config.json file for the "NPU" namespace will also have the "INSTANCES"/"DATABASES" (this DB service have all DB instance types) running localy in the namespace. The below example is for NPU namespace "asic3".
 
 ```json
 {
-    "NAMESPACE": "3",
     "INSTANCES": {
         "redis":{
             "hostname" : "127.0.0.1",
@@ -150,44 +146,42 @@ Following are the major design changes
 }
 ```
 
-* The database_config.json and databases.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
-	  
-	* {NS_TYPE} is the namespace type where the database json file belongs to. We would decide on the database instances to be
-	   created based on this namespace type. Currently I have called them as "global" namespace (linux host network namespace) 
-	   and "NPU" specific namespaces. 
+* The databases.json and database_config.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
+
+   	* {NS} is the namespaceID and will have values ranging "", "asic0" ..."asicn" depending on the number of namespaces 
+	  in the device. For "global" namespace the ID is empty string. 
+	  	  
+	* {NS_PREFIX} is the namespace prefix. Currently it is "asic", but could be changes easily as it is being passed 
+	  as an environment string on docker create.
 	   
-   	* {NS} is the namespaceID and will have values ranging "", "0" ..."n" depending on the number of namepaces in the device.
-	  For "global" namespace the ID is empty string and for "NPU" namespaces it is in range 0...<n>. 
+	* {NS_REF_CNT} is the count of EXT database docker service references. It is significant for "global DB" service running in 
+	  the linux host namespace, the NS_REF_CNT will be equal to the number of namespaces in the device. Currently we have a 
+	  NPU:namespace mapping of 1:1, hence we pass the NS_REF_CNT to be the number of NPU's.
 
-	* {DB_REF_CNT} is the count of EXT database docker service references. It is significant for "global DB" service running in 
-	  the linux host namespace, the DB_REF_CNT will be equal to the number of namespaces in the device. Currently we have a 
-	  NPU:namespace mapping of 1:1, hence we pass the DB_REF_CNT to be the number of NPU's.
-
-  Additional variables to be introduced in future to make this more flecible like creating more redis INSTANCES, assosiating DATABASES to different redis instance etc.
+  Additional variables to be introduced in future to make this more flexible like creating more redis INSTANCES, assosiating DATABASES to different redis instances etc.
 
 **databases.json**
 ```jinja
-{
+{% set ns_ref = NS_REF_CNT|int %}
+{% if ns_ref > 1 %}
+[
+{% for ns in range(ns_ref) %}
     {
-        "namespace" : "global",
-        "config" : "../redis/sonic-db/database_config.json"
-    },
-{%- set db_ref = DB_REF_CNT|int %}
-{%- if db_ref > 1 %}
-{%- for ns in range(0,db_ref) %}
-    {
-        "namespace" : "{{ns}}",
+        "namespace" : "{{NS_PREFIX}}{{ns}}",
         "config" : "../redis{{ns}}/sonic-db/database_config.json"
+{% if ns == ns_ref-1  %}
+    }
+{% else %}
     },
-{%- endfor %}
-{%- endif %}
-}
+{% endif %}
+{% endfor %}
+]
+{% endif %}
 ```
 
 **database_config.json**
 ```jinja
 {
-    "NAMESPACE": "{{NS_TYPE}}"
     "INSTANCES": {
         "redis":{
             "hostname" : "127.0.0.1",
@@ -201,7 +195,7 @@ Following are the major design changes
             "separator": ":",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "global" %}
+{% if NS != "" %}
         "ASIC_DB" : {
             "id" : 1,
             "separator": ":",
@@ -217,13 +211,13 @@ Following are the major design changes
             "separator": ":",
             "instance" : "redis"
         },
-{%- endif %}
+{% endif %}
         "CONFIG_DB" : {
             "id" : 4,
             "separator": "|",
             "instance" : "redis"
         },
-{%- if NS_TYPE != "global" %}
+{% if NS != "" %}
         "PFC_WD_DB" : {
             "id" : 5,
             "separator": ":",
@@ -234,7 +228,8 @@ Following are the major design changes
             "separator": ":",
             "instance" : "redis"
         },
-        "STATE_DB" : {
+{% endif %}
+        "STATE_DB" : { 
             "id" : 6,
             "separator": "|",
             "instance" : "redis"
@@ -243,25 +238,24 @@ Following are the major design changes
             "id" : 7,
             "separator": "|",
             "instance" : "redis"
-        }
-{%- endif %}	
-    },
-{%- if NS_TYPE == "global" %}
+        }   
+    },  
+{% if NS == "" %}
     "INCLUDES" : "../redis/sonic-db/databases.json",
-{%- endif %}	
+{% endif %} 
     "VERSION" : "1.1"
 }
 ```
 
 * The redis instance unix socket path is kept unique system wide, so that the applications running in the "host" namespace will be able to talk to DB instances running in any "namespace". The hostname:port is kept local to the "namespace" where the database_config.json belongs.
 
-* In the database Docker ENTRYPOINT script (docker-database-init.sh), the database_config.json file is generated using the above j2 template and is saved into the "working redis directory" /var/run/redis{NS}/sonic-db/. 
+* In the database Docker ENTRYPOINT script (docker-database-init.sh), the database_config.json file is generated using the above j2 template and is saved into the "working redis directory" /var/run/redis_{NS}/sonic-db/. 
 
-* The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. If this file is present, it would be copied to /var/run/redis{NS}/sonic-db/ instead of generating it from j2 template.
+* The users can specify a customized database startup config, for which they need to create a database_config{NS}.json file in /etc/sonic/ directory. If this file is present, it would be copied to /var/run/redis_{NS}/sonic-db/ instead of generating it from j2 template.
 
 ## New Design of Python Interface: SonicDBConfig()
 
-The SonicDBConfig object needs to be enhanced to parse the new attributes like INCLUDES added to database_config.json. The _sonic_db_config is made into a dictionary. All the functions this class provides will have a new argument "ns_instance" which is the namespace ID. 
+The SonicDBConfig object needs to be enhanced to parse the new attributes like INCLUDES added to database_config.json. The _sonic_db_config is made into a dictionary. All the functions this class provides will have a new argument "ns_instance" which is the namespace. 
 
 The load_db_config() will load the database_config.json specified at SONIC_DB_CONFIG_FILE, save the DB instance's defined locally in instance 'default', and the database_config.json's defined in INCLUDES section.
 
@@ -278,8 +272,7 @@ class SonicDBConfig(object):
         """
         Parse and load the database_config.json
         The attributes 'INSTANCES' and 'DATABASES' will be considered as 'default'
-        The attribute 'INCLUDES' will be parsed and the corresponding database_config.json will be loaded
-        and mapped to the namespace specfied.
+        The attribute INCLUDES will point to the database_configs defined for namespaces.
         """
         if SonicDBConfig._sonic_db_config_init == True:
             return
@@ -292,14 +285,12 @@ class SonicDBConfig(object):
 
             with open(sonic_db_file_path, "r") as read_file:
                 SonicDBConfig._sonic_db_config['default'] = json.load(read_file)
-                namespace = SonicDBConfig._sonic_db_config['default']['NAMESPACE']
 
                 if 'INCLUDES' in SonicDBConfig._sonic_db_config['default'].keys():
                     db_include_file = SonicDBConfig.SONIC_DB_BASE_DIR+SonicDBConfig._sonic_db_config['default']['INCLUDES']
                     if os.path.isfile(db_include_file) == True:
                         with open(db_include_file, "r") as inc_file:
-                            ext_dbs = json_load(inc_file)
-                            db_ref_cnt = 0
+                            ext_dbs = json.load(inc_file)
                             for entry in ext_dbs:
                                 db_config_file = SonicDBConfig.SONIC_DB_BASE_DIR+entry['config']
                                 SonicDBConfig._sonic_db_config[entry['namespace']] = None
@@ -309,16 +300,9 @@ class SonicDBConfig(object):
                                     msg = "'{}' file is not found !!".format(db_config_file)
                                     logger.warning(msg)
                                     continue
-                               #if the database_config.json reference is for same namespace, skip as 
-                                # weare storing the namespace we are in as 'default'
-                                if entry['namespace'] == namespace:
-                                    continue;
 
                                 with open(db_config_file, "r") as read_file:
                                     SonicDBConfig._sonic_db_config[entry['namespace']] = json.load(read_file)
-                                db_ref_cnt += 1
-                            # Set the external DB connections count
-                            SonicDBConfig._sonic_db_connections = db_ref_cnt
 
         except (OSError, IOError):
             msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
@@ -360,7 +344,7 @@ The SonicV2Connector class will be extended to handle multiple DB connections by
 
 The "namespace" argument is the namespace instance ID and will take the following values
 	* "default", it connects to the default instances of "db_name".
-	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
+	* <asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace as per the INCLUDES
 	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
     
 The changes to SonicV2Connector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
@@ -408,9 +392,8 @@ class SonicV2Connector(DBInterface):
     """
     Connect to the DB instance specified by the namespace parameter in database_config.json file.
     if namespace="default", it connects to the default instance of "db_name".
-    if namespace=<0...n>, any value between 0 and n,
-                          it connects to "db_name" instance in that namespace as per the INCLUDES.
-    if namespace="all", it connects to the global instance of "db_name" + namespace <0..n> as present in INCLUDES.
+    if namespace=<asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace.
+    if namespace="all", it connects to the default instance of "db_name" + in all namespaces.
     """
     def connect(self, db_name, retry_on=True, namespace='default'):
         if namespace == 'all':
@@ -451,10 +434,12 @@ class SonicV2Connector(DBInterface):
 
 The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete. An additional parameter "namespace" is added to ConfigDBConnector API's
 
-The "namespace" argument is the namespace instance ID and will take the following values
-	* "default", it connects to the default instances of "db_name".
-	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
-	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
+    """
+    Connect to the DB instance specified by the namespace parameter in database_config.json file.
+    if namespace="default", it connects to the default instance of "db_name".
+    if namespace=<asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace.
+    if namespace="all", it connects to the default instance of "db_name" + in all namespaces.
+    """
 
 The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
