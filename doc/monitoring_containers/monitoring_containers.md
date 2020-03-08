@@ -14,6 +14,7 @@
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
+        - [1.3.3 Warm Reboot requirements](#133-warm-reboot-requirements)
     - [1.4 Design](#14-design)
         - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
@@ -92,6 +93,10 @@ Configuration of these features can be done via:
 1. config_db.json
 2. CLI
 
+### 1.3.3 Warm Reboot Requirements
+When switch reboots in the warm boot mode, auto-restart feature must ensure that systemd 
+service is stopped explicitly such that it will not affect warm reboot functionality. 
+
 ## 1.4 Design
 
 ### 1.4.1 Basic Approach
@@ -154,6 +159,15 @@ check process lldp_syncd matching "python2 -m lldp_syncd"
 check process lldpmgrd matching "python /usr/bin/lldpmgrd"
     if does not exit for 5 times within 5 cycles then alert
 ```
+However, Monit is unable to monitor multiple processes executing the same command but with
+different arguments. For example, in teamd container, there are multiple teamd processes 
+running the same command ```/usr/bin/teamd``` but using different port channel as argument.
+Since there exists 1:1 mapping between a port channel and a teamd process, we employ Monit to 
+monitor a script which retrieves all the port channels from Config_DB and then determine
+whether there exists a teamd process in Linux for each port channel. If succeed, that means
+all teamd processes are live. Otherwise, we will know at least teamd process exited unexpectedly
+and then Monit will write an alert message into syslog. Similarly we can also use this method
+to solve the issue in dhcp_relay container.
 
 ### 2.2.2 Auto-restart Docker Container
 The design principle behind this auto-restart feature is docker containers can be automatically shut down and
