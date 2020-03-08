@@ -48,6 +48,7 @@ Following are the major design changes
         "config" : "../redis2/sonic-db/database_config.json"
     }
 ]
+```
 
 * The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There are is a new attribute "INCLUDES" to point to the path of the databases.json file.
 
@@ -161,6 +162,7 @@ Following are the major design changes
   Additional variables to be introduced in future to make this more flexible like creating more redis INSTANCES, assosiating DATABASES to different redis instances etc.
 
 **databases.json**
+
 ```jinja
 {% set ns_ref = NS_REF_CNT|int %}
 {% if ns_ref > 1 %}
@@ -180,6 +182,7 @@ Following are the major design changes
 ```
 
 **database_config.json**
+
 ```jinja
 {
     "INSTANCES": {
