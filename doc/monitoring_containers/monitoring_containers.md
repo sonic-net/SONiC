@@ -167,7 +167,7 @@ monitor a script which retrieves all the port channels from Config_DB and then d
 whether there exists a teamd process in Linux for each port channel. If succeed, that means
 all teamd processes are live. Otherwise, we will know at least teamd process exited unexpectedly
 and then Monit will write an alert message into syslog. Similarly we can also use this method
-to solve the issue in dhcp_relay container.
+to solve the same issue in dhcp_relay container.
 
 ### 2.2.2 Auto-restart Docker Container
 The design principle behind this auto-restart feature is docker containers can be automatically shut down and
