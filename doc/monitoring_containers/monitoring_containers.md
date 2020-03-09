@@ -14,7 +14,7 @@
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
-        - [1.3.3 Fast-Reboot/Warm-Reboot requirements](#133-fast-reboot-warm-reboot-requirements)
+        - [1.3.3 Fast-Reboot/Warm-Reboot requirements](#133-fast-reboot/warm-reboot-requirements)
     - [1.4 Design](#14-design)
         - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
