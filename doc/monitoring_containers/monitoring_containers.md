@@ -14,7 +14,7 @@
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
-        - [1.3.3 Warm Reboot requirements](#133-warm-reboot-requirements)
+        - [1.3.3 Fast-Reboot/Warm-Reboot requirements](#133-fast-reboot-warm-reboot-requirements)
     - [1.4 Design](#14-design)
         - [1.4.1 Basic Approach](#141-basic-approach)
 * [2 Functionality](#2-functionality)
@@ -93,9 +93,16 @@ Configuration of these features can be done via:
 1. config_db.json
 2. CLI
 
-### 1.3.3 Warm Reboot Requirements
-When switch reboots in the warm boot mode, auto-restart feature must ensure that systemd 
-service is stopped explicitly such that it will not affect warm reboot functionality. 
+### 1.3.3 Fast-Reboot/Warm-Reboot Requirements
+During the fast-reboot/warm-reboot/warm-restart procedures in SONiC, a select number of processes
+and the containers they reside in are stopped in a special manner (via a signals or similar).
+In this situation, we need ensure these containers remain stopped until the fast-reboot/warm-reboot/warm-restart
+procedure is complete. Therefore, in order to prevent the auto-restart mechanism from restarting 
+the containers prematurely, it is the responsibility of the fast-reboot/warm-reboot/warm-restart 
+procedure to explicitly stop the systemd service which manages the container immediately after stopping
+and critical processes/container. Once the systemd service is explicitly stopped, it will not attempt
+to automatically restart the container.
+
 
 ## 1.4 Design
 
