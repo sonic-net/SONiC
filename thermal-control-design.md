@@ -59,6 +59,7 @@ same as the temperature info, a [table for fan](https://github.com/Azure/SONiC/b
 	; Defines information for a fan
 	key                     = FAN_INFO|fan_name              ; information for the fan
 	; field                 = value
+    drawer_name             = STRING                         ; information for the fan drawer
 	presence                = BOOLEAN                        ; presence of the fan
 	model                   = STRING                         ; model name of the fan
 	serial                  = STRING                         ; serial number of the fan
@@ -404,13 +405,24 @@ We don't have a CLI for fan status getting yet, new CLI for fan status could be 
 The output of the command is like below:
 
 	admin@sonic# show platform fan
-	FAN    Speed      Direction  Presence     Status  Timestamp
-	-----  ---------  ---------  -----------  ------  -----------------
-	FAN 1  85%        Intake     Present      OK      20191112 09:38:16
-	FAN 2  60%        Exhaust    Not Present  Not OK  20191112 09:38:16
+	Drawer     FAN    Speed      Direction  Presence     Status  Timestamp
+	--------   -----  ---------  ---------  -----------  ------  -----------------
+	Drawer 1   FAN 1  85%        intake     Present      OK      20191112 09:38:16
+	           FAN 2  60%        intake     Present      OK      20191112 09:38:16
+    Drawer 2   FAN 3  75%        exhaust    Present      Not OK  20191112 09:38:16
+               FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16
 
+The output for virtual drawer is like below:
 
-## 5. Fan led management
+   	admin@sonic# show platform fan
+	Drawer     FAN    Speed      Direction  Presence     Status  Timestamp
+	--------   -----  ---------  ---------  -----------  ------  -----------------
+	N/A        FAN 1  85%        intake     Present      OK      20191112 09:38:16
+	N/A        FAN 2  60%        intake     Present      OK      20191112 09:38:16
+    N/A        FAN 3  75%        exhaust    Present      Not OK  20191112 09:38:16
+    N/A        FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16 
+
+## 5. Fan drawer implementation
 
 In current implementation, fan led management API is based on fan object. However, in many hardware platform, multiple fans are put in a fan drawer, they share one fan led. In such case, to control fan led in a fan object might cause problem. For example, one fan drawer has fan1 and fan2, they share a fan led, fan1 is broken and set led to red via fan1 object, then fan2 just recovers from a bad state and set led to green via fan2 object, the final fan led state will be green which is incorrect. To avoid confusing user, a new abstract class FanDrawerBase is added to sonic_platform_common and vendors should implement it. The FanDrawerBase class will look like:
 
@@ -429,23 +441,23 @@ class FanDrawerBase(device_base.DeviceBase):
     def get_status_led(self, color):
         raise NotImplementedError
 
+    def is_virtual_drawer(self):
+        raise NotImplementedError
 ```
 
 The fan drawer object should follow:
 
-- If there are fans without drawer, we still add a drawer object for each of fan, and consider the drawer only has one fan.
-- If one fan drawer has more than one fan, drawer need to have internal logic to judge led color according to all its fan status, this is upon vendor’s implementation.
-- Thermal control daemon will go through all the drawer and then go though all the fans inside the drawer.
-- In the situation when need to set led, thermal control daemon will call fan led set API as well as it’s drawer’s led set api, vendor’s led implementation need to make sure there is no conflict or overwrite case.
-
-Existing platform API need changes:
-
+- If there are fans without drawer, we still add a virtual drawer object for each of fan, and consider the drawer only has one fan. We don't show virtual drawer in CLI.
 - Add two new member functions "get_num_fan_drawers" and "get_all_fan_drawers" to ChassisBase, vendor need to implement these two new functions to properly initialize chassis object with fan drawer objects.
 
-## 6. Potential ehhancement for Platform API
+## 6. FAN led management
+
+If multiple fans share a led in a drawer, drawer need to have internal logic to judge led color according to all its fan status, this is upon vendor’s implementation. For example, if one drawer has two fans, one is in bad state, the fan led color should be red. In the situation when need to set led, thermal control daemon will call fan led set API as well as it’s drawer’s led set api, vendor’s led implementation need to make sure there is no conflict or overwrite case.
+
+## 7. Potential ehhancement for Platform API
+
 1. Why can't we propose different change events for different cpu/fan/optics?
 2. Verbose on API definition on threshold levels about Average/Max/Snapshot.
-3. Is there any API exposed for fanTray contain more than one fan?
 
 ## Appendix
 
