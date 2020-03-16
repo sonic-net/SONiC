@@ -8,7 +8,7 @@ The existing Multi-DB design approach needs to be extended to take care of cases
 
 In the Multi NPU devices, the services could be broadly classified into
 
-*  Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host" namespace.
+*  Global services like database, snmp, pmon, telemetry running in the dockers running in the linux "host".
    We call it "global" namespace.
 	
 *  NPU specific services like database, swss, syncd, bgp, teamd, lldp etc which runs in a separate "namespace" created. The method used currently to seggregate services per NPU is "linux network namespace" and there is a one-to-one mapping between the number of NPUs and linux network namesapces created. We call it "NPU" namespace.
@@ -31,61 +31,30 @@ The database service for a NPU linux namespace {NS} will use "/var/run/redis_{NS
 
 Following are the major design changes
 
-* A new file **databases.json** is introduced. It will contain the details of all the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2"
+* A new file **database_global.json** is introduced. It will contain the details of all the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2". The first entry refers to the database_config.json file used by database docker running in linux host.
 
 ```json
 [
     {
-        "namespace" : "asic0",
-        "config" : "../redis0/sonic-db/database_config.json"
+        "include" : "../redis0/sonic-db/database_config.json"
     },
-        {
+    {
+        "namespace" : "asic0",
+        "include" : "../redis0/sonic-db/database_config.json"
+    },
+    {
         "namespace" : "asic1",
-        "config" : "../redis1/sonic-db/database_config.json"
+        "include" : "../redis1/sonic-db/database_config.json"
     },
     {
         "namespace" : "asic2",
-        "config" : "../redis2/sonic-db/database_config.json"
+        "include" : "../redis2/sonic-db/database_config.json"
     }
 ]
 ```
 
-* The startup config file database_config.json is modified to have 'default' namespace DB instances + external references to the database instances present (if any) in database dockers running in other namesapces. There are is a new attribute "INCLUDES" to point to the path of the databases.json file.
-
-* The **database_config.json** file for the "globalDB" service will have the "INSTANCES"/"DATABASES" (global DB service to have only APP_DB, CONFIG_DB, STATE_DB etc) running localy in globalDB database docker on linux host namespace + INCLUDES attribute to refer to the external DB instances in the database docker services running in other NPU namespaces. The sample format is as below.
-
-```json
-{
-    "INSTANCES": {
-        "redis":{
-            "hostname" : "127.0.0.1",
-            "port" : 6379,
-            "unix_socket_path" : "/var/run/redis/redis.sock"
-        }
-    },
-    "DATABASES" : {
-        "APPL_DB" : {
-            "id" : 0,
-            "separator": ":",
-            "instance" : "redis"
-        },
-        "CONFIG_DB" : {
-            "id" : 4,
-            "separator": "|",
-            "instance" : "redis"
-        },
-	"STATE_DB" : {
-            "id" : 6,
-            "separator": "|",
-            "instance" : "redis"
-        }
-    },
-    "INCLUDES" : "../redis/sonic-db/databases.json"
-    "VERSION" : "1.1"
-}
-```
-
-* The database_config.json file for the "NPU" namespace will also have the "INSTANCES"/"DATABASES" (this DB service have all DB instance types) running localy in the namespace. The below example is for NPU namespace "asic3".
+* The startup config file **database_config.json** file will have the "INSTANCES"/"DATABASES". 
+  The below example is for NPU namespace "asic3".
 
 ```json
 {
@@ -147,9 +116,9 @@ Following are the major design changes
 }
 ```
 
-* The databases.json and database_config.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
+* The database_global.json and database_config.json will be j2 template files as shown below. There are certain variables used to generate the json file at runtime. These will be passed as environment variable to docker create in the /usr/bin/database.sh systemd startup script.
 
-   	* {NS} is the namespaceID and will have values ranging "", "asic0" ..."asicn" depending on the number of namespaces 
+   	* {NS} is the namespaceID and will have values ranging "", "0" ..."n" depending on the number of namespaces 
 	  in the device. For "global" namespace the ID is empty string. 
 	  	  
 	* {NS_PREFIX} is the namespace prefix. Currently it is "asic", but could be changes easily as it is being passed 
@@ -161,16 +130,19 @@ Following are the major design changes
 
   Additional variables to be introduced in future to make this more flexible like creating more redis INSTANCES, assosiating DATABASES to different redis instances etc.
 
-**databases.json**
+**database_global.json**
 
 ```jinja
 {% set ns_ref = NS_REF_CNT|int %}
+[ 
+    {
+        "include" : "../redis/sonic-db/database_config.json"
+    },
 {% if ns_ref > 1 %}
-[
 {% for ns in range(ns_ref) %}
     {
-        "namespace" : "{{NS_PREFIX}}{{ns}}",
-        "config" : "../redis{{ns}}/sonic-db/database_config.json"
+        "namespace" : "{{PREFIX}}{{ns}}",
+        "include" : "../redis{{ns}}/sonic-db/database_config.json"
 {% if ns == ns_ref-1  %}
     }
 {% else %}
@@ -243,14 +215,11 @@ Following are the major design changes
             "instance" : "redis"
         }   
     },  
-{% if NS == "" %}
-    "INCLUDES" : "../redis/sonic-db/databases.json",
-{% endif %} 
     "VERSION" : "1.1"
 }
 ```
 
-* The redis instance unix socket path is kept unique system wide, so that the applications running in the "host" namespace will be able to talk to DB instances running in any "namespace". The hostname:port is kept local to the "namespace" where the database_config.json belongs.
+* The redis instance unix socket path is kept unique system wide, so that the applications running in the "host" namespace will be able to talk to DB instances running in any "namespace". The hostname:port is kept local to the "namespace" where the database_config.json belongs and hence the applications running on a different namespace or host cannot talk to the local DB using TCP connect.
 
 * In the database Docker ENTRYPOINT script (docker-database-init.sh), the database_config.json file is generated using the above j2 template and is saved into the "working redis directory" /var/run/redis_{NS}/sonic-db/. 
 
@@ -258,54 +227,61 @@ Following are the major design changes
 
 ## New Design of Python Interface: SonicDBConfig()
 
-The SonicDBConfig object needs to be enhanced to parse the new attributes like INCLUDES added to database_config.json. The _sonic_db_config is made into a dictionary. All the functions this class provides will have a new argument "ns_instance" which is the namespace. 
+The SonicDBConfig object needs to be enhanced to parse the new attributes to incorporate the namespace approach. The _sonic_db_config is made into a dictionary. All the functions this class provides will have a new argument "ns_instance" which is the namespace. 
 
-The load_db_config() will load the database_config.json specified at SONIC_DB_CONFIG_FILE, save the DB instance's defined locally in instance 'default', and the database_config.json's defined in INCLUDES section.
+The load_db_config() will check if the database_global.json file exists, if it exists we are in the "global" namespace and this library is being used by a application running there. If it doesn't exist, then we are in a "NPU" namespace and hence parse the database_config.json file.
+
+The keyword 'default' is used to load and save the database_config.json file in the _sonic_db_config dict object.
 
 ```python
+
 class SonicDBConfig(object):
-    SONIC_DB_BASE_DIR = "/var/run/redis"
-    SONIC_DB_CONFIG_FILE = SONIC_DB_BASE_DIR+"/sonic-db/database_config.json"
+    SONIC_DB_GLOBAL_CONFIG_FILE = "/var/run/redis/sonic-db/database_global.json"
+    SONIC_DB_CONFIG_FILE = "/var/run/redis/sonic-db/database_config.json"
+    SONIC_DB_BASE_DIR = "/var/run/redis/"
     _sonic_db_config_init = False
     _sonic_db_config = {}
-    _sonic_db_connections = 0
 
     @staticmethod
-    def load_sonic_db_config(sonic_db_file_path=SONIC_DB_CONFIG_FILE):
+    def load_sonic_db_config(sonic_db_file_path=SONIC_DB_GLOBAL_CONFIG_FILE):
         """
-        Parse and load the database_config.json
-        The attributes 'INSTANCES' and 'DATABASES' will be considered as 'default'
-        The attribute INCLUDES will point to the database_configs defined for namespaces.
+        Parse and load the database config json files
+        Check if either of SONIC_DB_GLOBAL_CONFIG_FILE or SONIC_DB_CONFIG_FILE is present, unless the
+        'sonic_db_file_path' is explicitly passed as parameter.
         """
         if SonicDBConfig._sonic_db_config_init == True:
             return
 
         try:
-            if os.path.isfile(sonic_db_file_path) == False:
-                msg = "'{}' is not found, it is not expected in production devices!!".format(sonic_db_file_path)
-                logger.warning(msg)
-                sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
+            if os.path.isfile(sonic_db_file_path) ==  True:
+                with open(sonic_db_file_path, "r") as read_file:
+                    all_dbs = json.load(read_file)
+                    for entry in all_dbs:
+                        if 'namespace' not in entry.keys():
+                            namespace = 'default'
+                        else:
+                            namespace = entry['namespace']
 
-            with open(sonic_db_file_path, "r") as read_file:
-                SonicDBConfig._sonic_db_config['default'] = json.load(read_file)
+                        db_include_file = SonicDBConfig.SONIC_DB_BASE_DIR+entry['include']
+                        SonicDBConfig._sonic_db_config[namespace] = None
 
-                if 'INCLUDES' in SonicDBConfig._sonic_db_config['default'].keys():
-                    db_include_file = SonicDBConfig.SONIC_DB_BASE_DIR+SonicDBConfig._sonic_db_config['default']['INCLUDES']
-                    if os.path.isfile(db_include_file) == True:
+                        # Not finding the database_config.json file for the namespace
+                        if os.path.isfile(db_include_file) == False:
+                            msg = "'{}' file is not found !!".format(db_include_file)
+                            logger.warning(msg)
+                            continue
+			    
                         with open(db_include_file, "r") as inc_file:
-                            ext_dbs = json.load(inc_file)
-                            for entry in ext_dbs:
-                                db_config_file = SonicDBConfig.SONIC_DB_BASE_DIR+entry['config']
-                                SonicDBConfig._sonic_db_config[entry['namespace']] = None
+                            SonicDBConfig._sonic_db_config[namespace] = json.load(inc_file)
+            else:
+                sonic_db_file_path = SonicDBConfig.SONIC_DB_CONFIG_FILE
+                if os.path.isfile(sonic_db_file_path) ==  False:
+                    msg = "'{}' is not found, it is not expected in production devices!!".format(sonic_db_file_path)
+                    logger.warning(msg)
+                    sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
 
-                                # Not finding the database_config.json file for the namespace
-                                if os.path.isfile(db_config_file) == False:
-                                    msg = "'{}' file is not found !!".format(db_config_file)
-                                    logger.warning(msg)
-                                    continue
-
-                                with open(db_config_file, "r") as read_file:
-                                    SonicDBConfig._sonic_db_config[entry['namespace']] = json.load(read_file)
+                with open(sonic_db_file_path, "r") as read_file:
+                    SonicDBConfig._sonic_db_config['default'] = json.load(read_file)
 
         except (OSError, IOError):
             msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
@@ -343,80 +319,95 @@ class SonicDBConfig(object):
 
 ## New Design of Python Interface: SonicV2Connector()
 
-The SonicV2Connector class will be extended to handle multiple DB connections by storing the DBInterface objects and redis clients as dictionaries. An additional parameter "namespace" is added to  SonicV2Connector API's.
-
-The "namespace" argument is the namespace instance ID and will take the following values
-	* "default", it connects to the default instances of "db_name".
-	* <asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace as per the INCLUDES
-	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
-    
+The SonicV2Connector class will be extended to handle multiple DB connections by storing the DBInterface objects and redis clients as dictionaries. Two additional parameters will be added to connect API used to connect to the databases,
+   * "namespace"
+        - 'default' : it connects to the local 'db_name' instance.
+        - <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
+   * "mode"
+        - 'exclusive' : connect exclusively to the db instance in the namespace specified.
+        - 'all' : connect to the db instance of the "db_name" in all namespaces.
+	
 The changes to SonicV2Connector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
 ```python
-class SonicV2Connector(DBInterface):
     def __init__(self, use_unix_socket_path=True, **kwargs):
         self.db_intfs = {}
         self.clients = {}
-        self.connections = self.get_db_num_connections()
+        self.ns_name = 'default'
+        self.mode = 'exclusive'
 
-        if self.check_instance_valid('default'):
-            self.db_intfs['default'] = DBInterface(**kwargs)
+        ns_instances = self.get_db_connection_instances()
+        for instance in ns_instances:
+            if self.check_instance_valid(instance):
+                self.db_intfs[instance] = DBInterface(**kwargs)
 
-        for i in range(self.connections):
-            if self.check_instance_valid(str(i)):
-                self.db_intfs[str(i)] = DBInterface(**kwargs)
+                #set a database name as a constant value attribute.
+                for db_name in self.get_db_list(instance):
+                    setattr(self, db_name, db_name)
             else:
-                self.db_intfs[str(i)] = None
-
+                self.db_intfs[instance] = None
         self.use_unix_socket_path = use_unix_socket_path
 
-        for db_name in self.get_db_list():
-            #set a database name as a constant value attribute.
-            setattr(self, db_name, db_name)
+    def db_connect(self, db_name, retry_on=True, namespace='default'):
+        # Check if the namespace is valid and has a database_config.json loaded.
+        if self.check_instance_valid(namespace) == False:
+            self.clients[namespace] = None
+            return
 
-    def db_connect(self, db_name, retry_on=True, instance='default'):
-        if self.check_instance_valid(instance) == False:
-            self.clients[instance] = None
+        # Check if the db_name is a valid database for that namespace.
+        if db_name not in self.get_db_list(namespace):
+            self.clients[namespace] = None
             return
 
         if self.use_unix_socket_path:
-            self.db_intfs[instance].redis_kwargs["unix_socket_path"] = self.get_db_socket(db_name, instance)
-            self.db_intfs[instance].redis_kwargs["host"] = None
-            self.db_intfs[instance].redis_kwargs["port"] = None
+            self.db_intfs[namespace].redis_kwargs["unix_socket_path"] = self.get_db_socket(db_name, namespace)
+            self.db_intfs[namespace].redis_kwargs["host"] = None
+            self.db_intfs[namespace].redis_kwargs["port"] = None
         else:
-            self.db_intfs[instance].redis_kwargs["host"] = self.get_db_hostname(db_name, instance)
-            self.db_intfs[instance].redis_kwargs["port"] = self.get_db_port(db_name, instance)
-            self.db_intfs[instance].redis_kwargs["unix_socket_path"] = None
-
-        db_id = self.get_dbid(db_name, instance)
-        self.db_intfs[instance].connect(db_id, retry_on)
-        self.clients[instance] = self.db_intfs[instance].get_redis_client(db_id)
+            self.db_intfs[namespace].redis_kwargs["host"] = self.get_db_hostname(db_name, namespace)
+            self.db_intfs[namespace].redis_kwargs["port"] = self.get_db_port(db_name, namespace)
+            self.db_intfs[namespace].redis_kwargs["unix_socket_path"] = None
+        db_id = self.get_dbid(db_name, namespace)
+        self.db_intfs[namespace].connect(db_id, retry_on)
+        self.clients[namespace] = self.db_intfs[namespace].get_redis_client(db_id)
 
     """
-    Connect to the DB instance specified by the namespace parameter in database_config.json file.
-    if namespace="default", it connects to the default instance of "db_name".
-    if namespace=<asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace.
-    if namespace="all", it connects to the default instance of "db_name" + in all namespaces.
+    Connect to the DB instance. The various parameters are
+    * "namespace"
+        - 'default' : it connects to the local 'db_name' instance.
+        - <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
+    * "mode"
+        - 'exclusive' : connect exclusively to the db instance in the namespace specified.
+        - 'all' : connect to the db instance of the "db_name" in all namespaces.
     """
-    def connect(self, db_name, retry_on=True, namespace='default'):
-        if namespace == 'all':
-            self.db_connect(db_name, retry_on, 'default')
-            for ns_idx in range(self.connections):
-                self.db_connect(db_name, retry_on, str(ns_idx))
+    def connect(self, db_name, retry_on=True, namespace='default', mode='exclusive'):
+        # The TCP connection to a different namespace other than my local default one is not implemented.
+        # Need to use the unix socket for connecting to DB in another namespace.
+        if mode == 'exclusive' and namespace != 'default' and self.use_unix_socket_path == False:
+            message = "TCP connectivity to the DB instance in a different namespace is not implemented!"
+            logger.exception(message)
+            raise NotImplementedError(message)
+
+        # Set the namespace and mode of connection.
+        self.ns_name = namespace
+        self.mode = mode
+
+        if self.mode == 'all':
+            ns_instances = self.get_db_connection_instances()
+            for instance in ns_instances:
+                self.db_connect(db_name, retry_on, instance)
         else:
             self.db_connect(db_name, retry_on, namespace)
 
-    def close(self, db_name, namespace='default'):
-        if namespace == 'all':
-            db_id = self.get_dbid(db_name, 'default')
-            self.db_intfs['default'].close(db_id)
-            for ns_idx in range(self.connections):
-                db_id = self.get_dbid(db_name, str(ns_idx))
-                self.db_intfs[str(ns_idx)].close(db_id)
+    def close(self, db_name):
+        if self.mode == 'all':
+            ns_instances = self.get_db_connection_instances()
+            for instance in ns_instances:
+                db_id = self.get_dbid(db_name, instance)
+                self.db_intfs[instance].close(db_id)
         else:
-      
-      db_id = self.get_dbid(db_name, namespace)
-            self.db_intfs[namespace].close(db_id)
+            db_id = self.get_dbid(db_name, self.ns_name)
+            self.db_intfs[self.ns_name].close(db_id)
 
     def check_instance_valid(self, namespace='default'):
         return SonicDBConfig.is_instance_valid(namespace)
@@ -432,18 +423,19 @@ class SonicV2Connector(DBInterface):
         return self.clients.keys()
 
 ```
-    
+
 ## New Design of Python Interface: ConfigDBConnector()
 
-The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete. An additional parameter "namespace" is added to ConfigDBConnector API's
+The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete.  
 
-    """
-    Connect to the DB instance specified by the namespace parameter in database_config.json file.
-    if namespace="default", it connects to the default instance of "db_name".
-    if namespace=<asic0,asic1 ...asicn>, it connects to "db_name" instance in that namespace.
-    if namespace="all", it connects to the default instance of "db_name" + in all namespaces.
-    """
-
+Two additional parameters will be added to connect API used to connect to the databases,
+    "namespace"
+        * 'default' : it connects to the local 'db_name' instance.
+        * <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
+    "mode"
+        * 'exclusive' : connect exclusively to the db instance in the namespace specified.
+        * 'all' : connect to the db instance of the "db_name" in all namespaces.
+	
 The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
 ```python
@@ -462,13 +454,16 @@ class ConfigDBConnector(SonicV2Connector):
         super(ConfigDBConnector, self).__init__(use_unix_socket_path=True, **kwargs)
         self.handlers = {}
 
-    def __wait_for_db_init(self):
-        instances = self.get_redis_client_instances()
-        for instance in instances:
+    def __wait_for_db_init(self, namespace, mode):
+        ns_instances = []
+        if mode == 'all':
+            ns_instances = super(ConfigDBConnector, self).get_db_connection_instances()
+        else:
+            ns_instances.append(namespace)
+        for instance in ns_instances:
             client = self.get_redis_client(self.db_name, instance)
             if client == None:
                 continue;
-
             pubsub = client.pubsub()
             initialized = client.get(self.INIT_INDICATOR)
             if not initialized:
@@ -483,32 +478,87 @@ class ConfigDBConnector(SonicV2Connector):
                                 break
                 pubsub.punsubscribe(pattern)
 
-    def cfg_db_connect(self, dbname, wait_for_init=False, retry_on=False, namespace='default'):
+    def cfg_db_connect(self, dbname, wait_for_init=False, retry_on=False, namespace='default', mode='exclusive'):
         self.db_name = dbname
 
         # Set the separators per namespace as per the database_config file.
-        if(SonicV2Connector.check_instance_valid(self, 'default')):
-            ConfigDBConnector.separators['default'] = self.get_db_separator(self.db_name, 'default')
-        for ns_idx in range(self.connections):
-            if(SonicV2Connector.check_instance_valid(self, str(ns_idx))):
-               ConfigDBConnector.separators[str(ns_idx)] = self.get_db_separator(self.db_name, str(ns_idx))
-            else:
-                ConfigDBConnector.separators[str(ns_idx)] = '|'
+        ns_instances = []
+        if mode == 'all':
+            ns_instances = super(ConfigDBConnector, self).get_db_connection_instances()
+        else:
+            ns_instances.append(namespace)
 
-        SonicV2Connector.connect(self, self.db_name, retry_on, namespace)
+        for instance in ns_instances:
+            if(super(ConfigDBConnector, self).check_instance_valid(instance)):
+                ConfigDBConnector.separators[instance] = self.get_db_separator(self.db_name, instance)
+
+        super(ConfigDBConnector, self).connect(self.db_name, retry_on, namespace, mode)
         if wait_for_init:
-            self.__wait_for_db_init()
+            self.__wait_for_db_init(namespace, mode)
 
     """
-    Connect to the DB instance specified by the namespace parameter in database_config.json file.
-	* "default", it connects to the default instances of "db_name".
-	* <0...n>, any value between 0 and n, it connects to "db_name" instance in that namespace as per the INCLUDES
-	* "all", it connects to all "db_name" databases both default and in all namespaces added in INCLUDES.
+    Connect to the DB instance. The various parameters are
+    "namespace"
+        * 'default' : it connects to the local 'db_name' instance.
+       * <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
+    "mode"
+        * 'exclusive' : connect exclusively to the db instance in the namespace specified.
+        * 'all' : connect to the db instance of the "db_name" in all namespaces.
     """
-    def connect(self, wait_for_init=True, retry_on=False, namespace='default'):
+    def connect(self, wait_for_init=True, retry_on=False, namespace='default', mode='exclusive'):
         self.cfg_db_connect('CONFIG_DB', wait_for_init, retry_on, namespace)
 
-    def get_entry(self, table, key, namespace='default'):
+    def subscribe(self, table, handler):
+        """Set a handler to handle config change in certain table.
+        Note that a single handler can be registered to different tables by
+        calling this fuction multiple times.
+        Args:
+            table: Table name.
+            handler: a handler function that has signature of handler(table_name, key, data)
+        """
+        self.handlers[table] = handler
+
+    def unsubscribe(self, table):
+        """Remove registered handler from a certain table.
+        Args:
+            table: Table name.
+        """
+        if self.handlers.has_key(table):
+            self.handlers.pop(table)
+
+    def __fire(self, table, key, data):
+        if self.handlers.has_key(table):
+            handler = self.handlers[table]
+            handler(table, key, data)
+
+    def listen(self, namespace=None):
+        """Start listen Redis keyspace events and will trigger corresponding handlers when content of a table changes.
+        """
+        if namespace is None:
+            namespace = self.ns_name
+
+        ns_instances = []
+        if self.mode == 'all':
+            ns_instances = self.get_redis_client_instances()
+        else:
+            ns_instances.append(namespace)
+
+        for instance in ns_instances:
+            self.pubsub = self.get_redis_client(self.db_name, instance).pubsub()
+           self.pubsub.psubscribe("__keyspace@{}__:*".format(self.get_dbid(self.db_name, instance)))
+            for item in self.pubsub.listen():
+                if item['type'] == 'pmessage':
+                    key = item['channel'].split(':', 1)[1]
+                    try:
+                        (table, row) = key.split(ConfigDBConnector.separators[instance], 1)
+                        if self.handlers.has_key(table):
+                            client = self.get_redis_client(self.db_name, instance)
+                            data = self.__raw_to_typed(client.hgetall(key))
+                            self.__fire(table, row, data)
+                    except ValueError:
+                        pass    #Ignore non table-formated redis entries
+
+   def get_entry(self, table, key, namespace=None):
         """Read a table entry from config db.
         Args:
             table: Table name.
@@ -517,14 +567,17 @@ class ConfigDBConnector(SonicV2Connector):
             Table row data in a form of dictionary {'column_key': 'value', ...}
             Empty dictionary if table does not exist or entry does not exist.
         """
-        got_data = {}
-        instances = []
-        if namespace == 'all':
-            instances = self.get_redis_client_instances()
-        else:
-            instances.append(namespace)
+        if namespace is None:
+            namespace = self.ns_name
 
-        for instance in instances:
+        got_data = {}
+        ns_instances = []
+        if self.mode == 'all':
+            ns_instances = self.get_redis_client_instances()
+        else:
+            ns_instances.append(namespace)
+
+        for instance in ns_instances:
             key = self.serialize_key(key, instance)
             _hash = '{}{}{}'.format(table.upper(), ConfigDBConnector.separators[instance], key)
             client = self.get_redis_client(self.db_name, instance)
@@ -536,7 +589,6 @@ class ConfigDBConnector(SonicV2Connector):
                got_data.update(data)
 
         return got_data
-
 
 ```
 Note: There are many other utilities which needs this additional parameter, will be updated in a similar fashion.
