@@ -426,15 +426,15 @@ The changes to SonicV2Connector is made in such a way that, if we don't pass any
 
 ## New Design of Python Interface: ConfigDBConnector()
 
-The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete.  
+The ConfigDBConnector class inherits the enhanced SonicV2Connector class. The API's here will be enhanced to loop through all the redis clients for various operations like get/set/mod/delete. 
 
 Two additional parameters will be added to connect API used to connect to the databases,
-    "namespace"
-        * 'default' : it connects to the local 'db_name' instance.
-        * <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
-    "mode"
-        * 'exclusive' : connect exclusively to the db instance in the namespace specified.
-        * 'all' : connect to the db instance of the "db_name" in all namespaces.
+   * "namespace"
+        - 'default' : it connects to the local 'db_name' instance.
+        - <asic0,asic1 ...asicn> : it connects to "db_name" instance in that namespace
+   * "mode"
+        - 'exclusive' : connect exclusively to the db instance in the namespace specified.
+        - 'all' : connect to the db instance of the "db_name" in all namespaces.
 	
 The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments in connect(), the current behaviour of connecting to the default DB instances will be maintained. The use_unix_socket_path is set to True by default.
 
