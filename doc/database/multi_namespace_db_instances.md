@@ -34,24 +34,26 @@ Following are the major design changes
 * A new file **database_global.json** is introduced. It will contain the details of all the namespaces and the corresponsing database_config.json files. This file would be created by the "globalDB" service in the directory "/var/run/redis/sonic-db/". In the below example, we consider a SONIC device with 3 NPUS's and hence have 3 namespaces referred as "asic0", "asic1", "asic2". The first entry refers to the database_config.json file used by database docker running in linux host.
 
 ```json
-[
-    {
-        "include" : "../redis/sonic-db/database_config.json"
-    },
-    {
-        "namespace" : "asic0",
-        "include" : "../redis0/sonic-db/database_config.json"
-    },
-    {
-        "namespace" : "asic1",
-        "include" : "../redis1/sonic-db/database_config.json"
-    },
-    {
-        "namespace" : "asic2",
-        "include" : "../redis2/sonic-db/database_config.json"
-    },
+{
+    "INCLUDES" : [
+        {
+            "include" : "../redis/sonic-db/database_config.json"
+        },
+        {
+            "namespace" : "asic0",
+            "include" : "../redis0/sonic-db/database_config.json"
+        },
+        {
+            "namespace" : "asic1",
+            "include" : "../redis1/sonic-db/database_config.json"
+        },
+        {
+            "namespace" : "asic2",
+            "include" : "../redis2/sonic-db/database_config.json"
+        }
+    ],
     "VERSION" : "1.0"
-]
+}
 ```
 
 * The startup config file **database_config.json** file will have the "INSTANCES"/"DATABASES". 
