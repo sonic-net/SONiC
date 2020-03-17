@@ -137,22 +137,25 @@ Following are the major design changes
 
 ```jinja
 {% set ns_ref = NS_REF_CNT|int %}
-[ 
-    {
-        "include" : "../redis/sonic-db/database_config.json"
-    },
+{
+    "INCLUDES" : [ 
+        {
+            "include" : "../redis/sonic-db/database_config.json"
+        },
 {% if ns_ref > 1 %}
 {% for ns in range(ns_ref) %}
-    {
-        "namespace" : "{{PREFIX}}{{ns}}",
-        "include" : "../redis{{ns}}/sonic-db/database_config.json"
+        {
+            "namespace" : "{{PREFIX}}{{ns}}",
+            "include" : "../redis{{ns}}/sonic-db/database_config.json"
 {% if ns == ns_ref-1  %}
-    }
+        }
 {% else %}
-    },
+        },
 {% endif %}
 {% endfor %}
-]
+    ],
+    "VERSION" : "1.0"
+}
 {% endif %}
 ```
 
