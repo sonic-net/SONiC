@@ -36,7 +36,7 @@ Following are the major design changes
 ```json
 [
     {
-        "include" : "../redis0/sonic-db/database_config.json"
+        "include" : "../redis/sonic-db/database_config.json"
     },
     {
         "namespace" : "asic0",
@@ -49,7 +49,8 @@ Following are the major design changes
     {
         "namespace" : "asic2",
         "include" : "../redis2/sonic-db/database_config.json"
-    }
+    },
+    "VERSION" : "1.0"
 ]
 ```
 
@@ -112,7 +113,7 @@ Following are the major design changes
             "instance" : "redis"
         }
     },
-    "VERSION" : "1.1"
+    "VERSION" : "1.0"
 }
 ```
 
@@ -215,7 +216,7 @@ Following are the major design changes
             "instance" : "redis"
         }   
     },  
-    "VERSION" : "1.1"
+    "VERSION" : "1.0"
 }
 ```
 
