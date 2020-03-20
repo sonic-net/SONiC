@@ -408,9 +408,9 @@ The output of the command is like below:
 	Drawer     FAN    Speed      Direction  Presence     Status  Timestamp
 	--------   -----  ---------  ---------  -----------  ------  -----------------
 	Drawer 1   FAN 1  85%        intake     Present      OK      20191112 09:38:16
-	           FAN 2  60%        intake     Present      OK      20191112 09:38:16
+	Drawer 1   FAN 2  60%        intake     Present      OK      20191112 09:38:16
     Drawer 2   FAN 3  75%        exhaust    Present      Not OK  20191112 09:38:16
-               FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16
+    Drawer 2   FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16
 
 The output for virtual drawer is like below:
 
@@ -424,7 +424,7 @@ The output for virtual drawer is like below:
 
 ## 5. Fan drawer implementation
 
-In current implementation, fan led management API is based on fan object. However, in many hardware platform, multiple fans are put in a fan drawer, they share one fan led. In such case, to control fan led in a fan object might cause problem. For example, one fan drawer has fan1 and fan2, they share a fan led, fan1 is broken and set led to red via fan1 object, then fan2 just recovers from a bad state and set led to green via fan2 object, the final fan led state will be green which is incorrect. To avoid confusing user, a new abstract class FanDrawerBase is added to sonic_platform_common and vendors should implement it. The FanDrawerBase class will look like:
+In many hardware platform, multiple fans are put in a fan drawer. We suggest to add a fan drawer object to reflect real hardware layout. It will help user better understand which fan are in which drawer. A new abstract class FanDrawerBase is added to sonic_platform_common and vendors should implement it. The FanDrawerBase class will look like:
 
 ```python
 
@@ -447,10 +447,12 @@ class FanDrawerBase(device_base.DeviceBase):
 
 The fan drawer object should follow:
 
-- If there are fans without drawer, we still add a virtual drawer object for each of fan, and consider the drawer only has one fan. We don't show virtual drawer in CLI.
+- If there are fans without drawer, we still add a virtual drawer object for each of fan, and consider the drawer only has one fan. thermalctld always loop fan drawer first, that's why we need virtual drawer. We don't show virtual drawer in CLI.
 - Add two new member functions "get_num_fan_drawers" and "get_all_fan_drawers" to ChassisBase, vendor need to implement these two new functions to properly initialize chassis object with fan drawer objects.
 
 ## 6. FAN led management
+
+In current implementation, fan led management API is based on fan object. However, when there is a fan drawer, fans in the same drawer may share one fan led. In such case, to control fan led in a fan object might cause problem. For example, one fan drawer has fan1 and fan2, they share a fan led, fan1 is broken and set led to red via fan1 object, then fan2 just recovers from a bad state and set led to green via fan2 object, the final fan led state will be green which is incorrect.
 
 If multiple fans share a led in a drawer, drawer need to have internal logic to judge led color according to all its fan status, this is upon vendor’s implementation. For example, if one drawer has two fans, one is in bad state, the fan led color should be red. In the situation when need to set led, thermal control daemon will call fan led set API as well as it’s drawer’s led set api, vendor’s led implementation need to make sure there is no conflict or overwrite case.
 
