@@ -456,6 +456,13 @@ In current implementation, fan led management API is based on fan object. Howeve
 
 If multiple fans share a led in a drawer, drawer need to have internal logic to judge led color according to all its fan status, this is upon vendor’s implementation. For example, if one drawer has two fans, one is in bad state, the fan led color should be red. In the situation when need to set led, thermal control daemon will call fan led set API as well as it’s drawer’s led set api, vendor’s led implementation need to make sure there is no conflict or overwrite case.
 
+Consider following scenario:
+
+1. FAN speed is below 20% of maximum speed. In this case, set FAN led to red and alert a warning message "FAN speed warning: <fan_name> speed is below  minimal range". If the FAN speed back to normal, set FAN led to green and notice a message "FAN speed warning cleared: <fan_name> speed is back to normal".
+2. FAN is removed from switch. In this case, set FAN led to red and alert a warning message "Fan removed warning: <fan_name> was removed from the system, potential overheat hazard!". If the FAN is inserted back, set FAN led to green and notice a message "Fan removed warning cleared: Fan 1 was removed from the system, potential overheat hazard!".
+3. Insufficient number of working fans in the system. In this case, alert a warning message "Insufficient number of working FANs warning: <absence_fan_number> FANs are not present." If all FANs are present, notice a message "Insufficient number of working FANs warning cleared: all FANs are present".
+4. Any FAN is broken. In this case, set FAN led to red and alert a warning message "FAN fault warning: <fan_name> is broken.". If the FAN is back to normal, set FAN led to green and notice a message "FAN fault warning cleared: <fan_name> is back to normal".
+
 ## 7. Potential ehhancement for Platform API
 
 1. Why can't we propose different change events for different cpu/fan/optics?
