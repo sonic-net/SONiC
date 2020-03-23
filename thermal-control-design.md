@@ -440,9 +440,6 @@ class FanDrawerBase(device_base.DeviceBase):
 
     def get_status_led(self, color):
         raise NotImplementedError
-
-    def is_virtual_drawer(self):
-        raise NotImplementedError
 ```
 
 The fan drawer object should follow:
