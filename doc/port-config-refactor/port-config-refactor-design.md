@@ -34,3 +34,15 @@ There are also some vendor specified code contains "port_config.ini" related log
 
 1. For those modules who have build-time unit test, they may declare sonic-config-engine as a build-time dependency in make rules.
 2. For those modules who are installed in a docker, we must make sure sonic-config-engine is also installed in that docker, for example, pmon docker need reuse portconfig.py and it has sonic-config-engine installed.
+
+## 5. Test Plan
+
+This change should be verified on all Mellanox SKU with a stable 201911 image.
+
+1. Run regression on t0/t1-lag topology.
+2. Verify all sub-commands of "show interfaces".
+3. Verify all sub-commands of "sfputil".
+4. After system initialize, verify xcrvd pushed correct data to redis.
+5. Insert/Remove modules, verify modules status change accordingly.
+6. Kill xcrvd, verify related information is removed from redis database.
+7. Verify xcrvd update dom info correctly.
