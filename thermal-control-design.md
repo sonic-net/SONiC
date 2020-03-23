@@ -455,10 +455,11 @@ If multiple fans share a led in a drawer, drawer need to have internal logic to 
 
 Consider following scenario:
 
-1. FAN speed is below 20% of maximum speed. In this case, set FAN led to red and alert a warning message "FAN speed warning: <fan_name> speed is below  minimal range". If the FAN speed back to normal, set FAN led to green and notice a message "FAN speed warning cleared: <fan_name> speed is back to normal".
-2. FAN is removed from switch. In this case, set FAN led to red and alert a warning message "Fan removed warning: <fan_name> was removed from the system, potential overheat hazard!". If the FAN is inserted back, set FAN led to green and notice a message "Fan removed warning cleared: Fan 1 was removed from the system, potential overheat hazard!".
-3. Insufficient number of working fans in the system. In this case, alert a warning message "Insufficient number of working FANs warning: <absence_fan_number> FANs are not present." If all FANs are present, notice a message "Insufficient number of working FANs warning cleared: all FANs are present".
-4. Any FAN is broken. In this case, set FAN led to red and alert a warning message "FAN fault warning: <fan_name> is broken.". If the FAN is back to normal, set FAN led to green and notice a message "FAN fault warning cleared: <fan_name> is back to normal".
+1. FAN speed is below target speed than threshold. In this case, set FAN led to red and alert a warning message "Fan low speed warning: <fan_name> current speed=<current_speed>, target speed=<target_speed>, tolerance=<tolerance_value>.". If the FAN speed back to normal, set FAN led to green and notice a message "FAN low speed warning cleared: <fan_name> speed is back to normal".
+2. FAN speed is faster than target speed than threshold. In this case, set FAN led to red and alert a warning message "Fan high speed warning: <fan_name> current speed=<current_speed>, target speed=<target_speed>, tolerance=<tolerance_value>.". If the FAN speed back to normal, set FAN led to green and notice a message "FAN high speed warning cleared: <fan_name> speed is back to normal".
+3. FAN is removed from switch. In this case, set FAN led to red and alert a warning message "Fan removed warning: <fan_name> was removed from the system, potential overheat hazard!". If the FAN is inserted back, set FAN led to green and notice a message "Fan removed warning cleared: Fan 1 was removed from the system, potential overheat hazard!".
+4. Insufficient number of working fans in the system. In this case, alert a warning message "Insufficient number of working FANs warning: <absence_fan_number> FANs are not present." If all FANs are present, notice a message "Insufficient number of working FANs warning cleared: all FANs are present".
+5. Any FAN is broken. In this case, set FAN led to red and alert a warning message "FAN fault warning: <fan_name> is broken.". If the FAN is back to normal, set FAN led to green and notice a message "FAN fault warning cleared: <fan_name> is back to normal".
 
 ## 7. Potential ehhancement for Platform API
 
