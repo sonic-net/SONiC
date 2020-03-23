@@ -63,12 +63,12 @@ Lets define a mapping for MIB entries to the SAI counters (l2 & l3):
 
 The `ifType` for each of the interfaces: 
 
-| Interface  | IANA Iftype | Already implemented?  |
+| Interface  | IANA Iftype | Proposed implementation  |
 | ---------- |:--------------:| :---------:|
-| port       | 6 ethernetCsmacd       | +  |
-| RIF        | - | Need to add to port counters  |
-| Vlan Int   | 136 l3ipvlan           | -  |
-| Lag        | 161 ieee8023adLag      | +  |
+| port       | 6 ethernetCsmacd       | Already implemented |
+| RIF        | - | Add RIF counter values to port counters according to Table 3 |
+| Vlan Int   | 136 l3ipvlan           | Implement new interface with type 136 |
+| Lag        | 161 ieee8023adLag      | Already implemented |
 
 ## py-swsssdk changes
 
@@ -87,7 +87,7 @@ Example:
 
 Interface MIB's `InterfacesUpdater` will contain port to rif map. When counters are updated if RIF oid is present in the "COUNTERS" table of COUNTERS_DB,
 the counters are aggredated according to Table 3. If no l3 counters are present, behaviour remains unchanged.
-Vlan interface entry is introduced, with IANA ifType 136 (*Inernal review comment* This is how Mellanox Onyx implements it)
+Vlan interface entry is introduced, with IANA ifType 136
 
 Snmpagent is extended with functions to update vlan interface list and rif to port mapping (using py-swsssdk utility functions).
   
@@ -96,3 +96,4 @@ Snmpagent is extended with functions to update vlan interface list and rif to po
 `test_snmp_interfaces.py` is covering the MIB. The test will be updated according to the MIB changes.
 
 # Open questions
+
