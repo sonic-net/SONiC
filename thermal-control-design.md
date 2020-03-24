@@ -435,7 +435,7 @@ class FanDrawerBase(device_base.DeviceBase):
     def get_all_fans(self):
         raise NotImplementedError
 
-    def set_status_led(self, color):
+    def set_status_led(self, fan, color):
         raise NotImplementedError
 
     def get_status_led(self, color):
