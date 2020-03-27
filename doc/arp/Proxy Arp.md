@@ -10,7 +10,7 @@ The following are the high level requirements when an interface is enabled with 
 1. Proxy arp shall be set for the interface in kernel
 2. Hardware ARP packet action for that interface must be trap to CPU and not flooded/forwarded in hardware.
 
-When the interface is deleted, the corresponding configurations must be removed. A VS test is required to validate the configuration
+When the interface is deleted, the corresponding configurations must be removed. A VS and sonic-mgmt test is required to validate the configuration
 
 # Design Proposal
 
@@ -72,4 +72,4 @@ By default in Sonic, it is a copy action for ARP packets which means, packets ge
 3. Proxy ND is not planned as part of this feature but can be extended in future based on the same approach
 4. ```/proc/sys/net/ipv4/conf/Vlan2000/proxy_arp``` is not required to be set.
 5. Reference on Vnet/Vxlan design is [here](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
-
+6. Requires a sonic-mgmt test to verify the proxy-arp behaviour
