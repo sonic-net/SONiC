@@ -129,7 +129,7 @@ Below is an example for the policy configuration:
 ```
 {   
     "thermal_control_algorithm": {
-        "run_at_boot_up": "false",
+        "run_at_boot_up": "true",
         "fan_speed_when_suspend": "60"
     },
     "info_types": [
@@ -181,6 +181,24 @@ Below is an example for the policy configuration:
             ]
         },
         {
+            "name": "any fan broken",
+            "conditions": [
+                {
+                    "type": "fan.any.fault"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "thermal_control.control",
+                    "status": "false"
+                },
+                {
+                    "type": "fan.all.set_speed",
+                    "speed": "100"
+                }
+            ]
+        },
+        {
             "name": "all fan and psu presence",
             "conditions": [
                 {
@@ -192,8 +210,8 @@ Below is an example for the policy configuration:
             ],
             "actions": [
                 {
-                    "type": "fan.all.set_speed",
-                    "speed": "60"
+                    "type": "thermal_control.control",
+                    "status": "true"
                 }
             ]
         }
@@ -201,7 +219,7 @@ Below is an example for the policy configuration:
 }
 ```
 
-In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100%.
+In this configuration, thermal control algorithm will run on this device; in fan absence situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended; in psu absence situation, thermal control algorithm will be suspend, fan speed will be set to 100%; in fan broken situation, the fan speed need to be set to 100%, the thermal control algorithm will be suspended.
 
 During daemon start, this json configuration file will be loaded and parsed, daemon will handle the thermal control algorithm run and fan speed set when predefined policy meet.
 
