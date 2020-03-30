@@ -11,8 +11,6 @@
 
 ## 1. Overview
 
-When I write this document, SONiC already has a PSU daemon called psud running in pmon docker. There is already a high level design document which contains existing psud [design](https://github.com/Azure/SONiC/blob/master/doc/pmon/pmon-enhancement-design.md), but some of its content is out of date. This document will update the design of current PSU daemon implementation and add an enhancement about PSU led management.
-
 The purpose of PSU daemon is to collect platform PSU data and trigger proper actions if necessary. Major functions of psud include:
 
 - Collect constant PSU data during daemon boot up, such as PSU number.
@@ -23,7 +21,7 @@ The purpose of PSU daemon is to collect platform PSU data and trigger proper act
 
 PSU daemon data collection flow diagram:
 
-![](https://github.com/keboliu/SONiC/blob/master/doc/pmon/daemon-flow.svg)
+![](https://github.com/Azure/SONiC/blob/master/doc/pmon/daemon-flow.svg)
 
 Now psud collects PSU data via platform API, and it also support platform plugin for backward compatible. All PSU data will be saved to redis database for further usage.
 
