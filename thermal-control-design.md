@@ -206,6 +206,9 @@ Below is an example for the policy configuration:
                 },
                 {
                     "type": "psu.all.presence"
+                },
+                {
+                    "type": "fan.all.good"
                 }
             ],
             "actions": [
