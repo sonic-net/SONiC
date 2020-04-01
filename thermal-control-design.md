@@ -426,22 +426,22 @@ We don't have a CLI for fan status getting yet, new CLI for fan status could be 
 The output of the command is like below:
 
 	admin@sonic# show platform fan
-	Drawer     FAN    Speed      Direction  Presence     Status  Timestamp
-	--------   -----  ---------  ---------  -----------  ------  -----------------
-	Drawer 1   FAN 1  85%        intake     Present      OK      20191112 09:38:16
-	Drawer 1   FAN 2  60%        intake     Present      OK      20191112 09:38:16
-    Drawer 2   FAN 3  75%        exhaust    Present      Not OK  20191112 09:38:16
-    Drawer 2   FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16
+	Drawer     FAN    Speed      Direction  Presence     Status  LED    Timestamp
+	--------   -----  ---------  ---------  -----------  ------  -----  -----------------
+	Drawer 1   FAN 1  85%        intake     Present      OK      green  20191112 09:38:16
+	Drawer 1   FAN 2  60%        intake     Present      OK      green  20191112 09:38:16
+    Drawer 2   FAN 3  75%        exhaust    Present      Not OK  red    20191112 09:38:16
+    Drawer 2   FAN 4  65%        exhaust    Present      Not OK  red    20191112 09:38:16
 
 The output for virtual drawer is like below:
 
    	admin@sonic# show platform fan
-	Drawer     FAN    Speed      Direction  Presence     Status  Timestamp
-	--------   -----  ---------  ---------  -----------  ------  -----------------
-	N/A        FAN 1  85%        intake     Present      OK      20191112 09:38:16
-	N/A        FAN 2  60%        intake     Present      OK      20191112 09:38:16
-    N/A        FAN 3  75%        exhaust    Present      Not OK  20191112 09:38:16
-    N/A        FAN 4  65%        exhaust    Present      Not OK  20191112 09:38:16 
+	Drawer     FAN    Speed      Direction  Presence     Status  LED    Timestamp
+	--------   -----  ---------  ---------  -----------  ------  -----  -----------------
+	N/A        FAN 1  85%        intake     Present      OK      green  20191112 09:38:16
+	N/A        FAN 2  60%        intake     Present      OK      green  20191112 09:38:16
+    N/A        FAN 3  75%        exhaust    Present      Not OK  red    20191112 09:38:16
+    N/A        FAN 4  65%        exhaust    Present      Not OK  red    20191112 09:38:16 
 
 ## 5. Fan drawer implementation
 
