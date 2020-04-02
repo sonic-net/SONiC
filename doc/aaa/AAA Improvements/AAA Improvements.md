@@ -54,7 +54,9 @@ In a regular ssh session, a remote user, in this example, **bob**, uses a progra
 
   Furthermore, any user can invoke the login program at the shell. A remote user that logs in with ssh and then invokes login from the shell would then be granted access as a "console user," which is not what customers want.
 
-- **Sudo and su can only authenticate locally, and not with remote protocols**. Currently, only the "**login**" and "**sshd**" applications can authenticate with **RADIUS** or **TACACS+**. That's because **SONiC** only configures **PAM** for the "login" and "sshd" applications in `/etc/pam.d/sshd` and `/etc/pam.d/login`. As a result, users cannot be authenticated by RADIUS/TACACS+ when running programs such as "`sudo`" and "`su`," which use separate configuration files: `/etc/pam.d/sudo` and `/etc/pam.d/su`.
+- **Sudo and su can only authenticate locally, and not with remote protocols**. Currently, only the "**login**" and "**sshd**" applications can authenticate with **RADIUS** or **TACACS+**. That's because **SONiC** only configures **PAM** for the "login" and "sshd" applications in `/etc/pam.d/sshd` and `/etc/pam.d/login`. Therefore, users cannot be authenticated by RADIUS/TACACS+ when running programs such as "`sudo`" and "`su`," which use separate configuration files: `/etc/pam.d/sudo` and `/etc/pam.d/su`. 
+
+  By the way, SONiC modifies the standard `/etc/sudoers` configuration to allow members of the `sudo` group to run `sudo` without providing their password. This is non-standard and a security risk. We should restore the standard `/etc/sudoers` configuration that requires users to enter their password when running `sudo`.  
 
 - **Changes to `/etc/nsswitch.conf` may not take effect immediately**. For RADIUS/TACACS+ support, we add new NSS modules to `/etc/nsswitch.conf`. The RADIUS/TACACS+ NSS modules are added-to or removed-from `/etc/nsswitch.conf` at run-time when enabling or disabling RADIUS/TACACS+. Programs such as **sshd** and **login** need these NSS modules so that when they invoke `getpwnam()`, local Linux credentials (UID, GID) get automatically assigned to RADIUS/TACACS+ users.  
 
