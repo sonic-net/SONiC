@@ -434,7 +434,8 @@ class ConfigDBConnector(SonicV2Connector):
 ## Updates to the sonic-utilities
 The sonic-utilities like sonic-db-cli, sonic-cfggen, db_migrator etc and the scripts which is used in the show/config commands eg: portconfig needs to support the namespace as an argument. A sample change as shown below.
 
-+  -n     --namesapce           Namespace name
+```git
++    -n     --namesapce           Namespace name
 -    def __init__(self, verbose, port):
 +    def __init__(self, verbose, port, namespace):
 -        self.db.connect()
@@ -443,6 +444,7 @@ The sonic-utilities like sonic-db-cli, sonic-cfggen, db_migrator etc and the scr
 +                        help = 'The namespace whose DB instance we need to connect', default = '' )
 -        port = portconfig(args.verbose, args.port)
 +        port = portconfig(args.verbose, args.port, args.namespace)
+```
 
 ## Design of C++ Interface :  DBConnector()
 The C++ DBConnector interface needs to be extended to handle the INCLUDES attribute in the database_config.json file used to refer external database_config.json files.
