@@ -3,29 +3,30 @@
 SONiC Gearbox Manager
 
 # High Level Design Document
-#### Rev 0.2 (Draft)
+#### Rev 0.3 (Draft)
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [About This Manual](#about-this-manual)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#table-1-abbreviations)
-  * [Document/References](#table-2-references)
+  * [Definition/Abbreviation](#definition_abbreviation)
+  * [Document/References](#document_references)
   * [Requirement Overview](#1-requirement-overview)
-  * [Definition/Abbreviation](#definitionabbreviation)
 
 # List of Tables
-[Table 1: Abbreviations](#table-1-abbreviations)
-[Table 2: References](#table-2-references)
-[Table 3: Gearbox Configuration](#table-3-gearbox-configuration)
-[Table 4: PHY Configuration](#table-4-phy-configuration)
+- [Table 1: Abbreviations](#table-1-abbreviations)
+- [Table 2: References](#table-2-references)
+- [Table 3: SAI Port Mapping](#table-3-sai-port-mapping)
+- [Table 4: Platform Configuration](#table-4-platform-configuration)
+- [Table 5: PHY Configuration](#table-5-phy-configuration)
 
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/22/2019  | Dan Arsenault      | Initial Draft                     |
 | 0.2 | 12/12/2019  | Dan Arsenault      | Minor internal review edits       |
+| 0.3 | 03/19/2020  | Dan Arsenault      | New CLI, File, and Notifications  |
 
 
 # About this Manual
@@ -35,7 +36,8 @@ This document provides general information about the new Gearbox Manager functio
 This document describes the high level design of the Gearbox Manager feature. This feature primarily consists of two new processes or tasks running within the SWSS Docker which utilizes and depends on the availability of the new OCP External PHY Interface. Please refer to the OCP External PHY Abstraction Interface for additional information.
 
 # Definition/Abbreviation
-# Table 1: Abbreviations
+
+# Table 1 Abbreviations
 
 | **Term**         | **Meaning**                                                                |
 |------------------|----------------------------------------------------------------------------|
@@ -51,14 +53,16 @@ This document describes the high level design of the Gearbox Manager feature. Th
 | system-side      | Connection between the PHY and switching silicon                           |
 
 # Document/References
-# Table 2: References
+
+# Table 2 References
+
 | **Document**                       | **Location**  |
 |------------------------------------|---------------|
 | Gearbox Manager Requirements       | [Gearbox Manager Requirements](http://gerrit-lvn-07.lvn.broadcom.net:8083/plugins/gitiles/sonic/documents/+/refs/changes/34/12034/1/base/gearbox_mgr_req.md) |
 | External PHY Abstraction Interface | [External PHY Abstraction Interface](https://github.com/opencomputeproject/SAI/pull/1004) |
 
 # 1 Requirement Overview
-The Ethernet switches of today have evolved and are entering several key segments providing switch chips for enterprise, data-center, and carrier, as well as optical transceivers, Gearbox PHYs and 25Gbps  Re-timers. If the platform/hardware supports it, the PHY may be configurable to speeds including 10G, 25G, 40G, 50G, and 100G, and beyond. Some platforms contain an external PHY, while others have PHYs embedded in the switch ASIC (Internal PHY). An External PHY is used to serve different purposes like gearbox,  Re-timer, MACSEC and multi gigabit Ethernet PHY transceivers, etc. 
+The Ethernet switches of today have evolved and are entering several key segments providing switch chips for enterprise, data-center, and carrier, as well as optical transceivers, Gearbox PHYs and 25Gbps  Re-timers. If the platform/hardware supports it, the PHY may be configurable to speeds including 10G, 25G, 40G, 50G, and 100G, and beyond. Some platforms contain an external PHY, while others have PHYs embedded in the switch ASIC (Internal PHY). An External PHY is used to serve different purposes like gearbox,  Re-timer, MACSEC and multi gigabit Ethernet PHY transceivers, etc.
 
 The Abstraction Interface contains a set of SAI APIs providing new functionality in support of the most recent PHY advancements and requirements. Through utilizing this new external PHY interface, this project adds configuration and management capabilities for these new external PHY requirements.
 
@@ -86,7 +90,7 @@ Functionality should continue to work across warm boot.
 # 2 Functionality
 
 ## 2.1 Target Deployment Use Cases
-The Gearbox Manager infrastructure is used to manage and configure the external PHYs which are used to serve different purposes like gearbox,  Re-timer, and multi gigabit ethernet PHY transceivers, etc. 
+The Gearbox Manager infrastructure is used to manage and configure the external PHYs which are used to serve different purposes like gearbox,  Re-timer, and multi gigabit ethernet PHY transceivers, etc.
 
 ### 2.1.1 Gearbox Use Cases
 A gearbox is essentially a kind of multiplexer/de-multiplexer that's used to convert multiple serial data streams at one rate to multiple streams at another rate. Here is just a sample of possible gearbox use cases.
@@ -114,7 +118,7 @@ In order to isolate gearbox functionality and complexity, the Gearbox Manager im
 ![Gearbox Overview](images/gearbox_overview.png)
 
 ### 3.1.1 ORCHAGENT (modified)
-Upon startup or reboot, portsyncd is started as well as the new gearsyncd deamon. The Orchagent is still responsible for creating the ASIC switch and the associated host interfaces. The internal doPortTask has been modified to support both internal port and Gearbox related events.  
+Upon startup or reboot, portsyncd is started as well as the new gearsyncd deamon. The Orchagent is still responsible for creating the ASIC switch and the associated host interfaces. The internal doPortTask has been modified to support both internal port and Gearbox related events.
 
 ![Gearbox ORCHAGENT FLOW](images/gearbox_orchagent_flow.png)
 
@@ -137,57 +141,97 @@ The following sequence diagram shows the PHY initialization process; which also 
 
 ![Gearbox PORTSORCH & SAI Sequence](images/gearbox_portsorch_sequence.png)
 
+### 3.1.4.1 Port Parameter To SAI Port Mapping
+
+The following table identifies the available parameters and their associated SAI port attributes.
+
+# Table 3 SAI Port Mapping
+
+| **Parameter**     | **sai_port_attr_t**
+|-------------------|------------------------------------------------|
+| admin state       | SAI_PORT_ATTR_ADMIN_STATE                      |
+| speed             | SAI_PORT_ATTR_SPEED                            |
+| fec               | SAI_PORT_ATTR_FEC_MODE                         |
+| auto neg          | SAI_PORT_ATTR_AUTO_NEG_MODE                    |
+| interface type    | SAI_PORT_ATTR_INTERFACE_TYPE                   |
+| internal loopback | SAI_PORT_ATTR_INTERNAL_LOOPBACK_MODE           |
+| link training     | SAI_PORT_ATTR_LINK_TRAINING_ENABLE             |
+| media type        | SAI_PORT_ATTR_MEDIA_TYPE                       |
+| adver speed       | SAI_PORT_ATTR_ADVERTISED_SPEED                 |
+| adver fec         | SAI_PORT_ATTR_ADVERTISED_FEC_MODE              |
+| adver auto neg    | SAI_PORT_ATTR_ADVERTISED_AUTO_NEG_MODE         |
+| adver asym pause  | SAI_PORT_ATTR_ADVERTISED_ASYMMETRIC_PAUSE_MODE |
+| adver media type  | SAI_PORT_ATTR_ADVERTISED_MEDIA_TYPE            |
+| prbs polynomial   | SAI_PORT_ATTR_PRBS_POLYNOMIAL                  |
+| prbs config       | SAI_PORT_ATTR_PRBS_CONFIG                      |
+| ingess macsec     | SAI_PORT_ATTR_INGRESS_MACSEC_ACL               |
+| egress macsec     | SAI_PORT_ATTR_EGRESS_MACSEC_ACL                |
+
 ## 3.2 Gearbox Platform Configuration
 The Gearbox Platform configuration file includes one or more PHYs including its host interfaces. Each interface is linked to its associated PHY using the phy_id.
 
-### Table 3: Gearbox Platform Configuration
-| **Attribute**     | **Description**            | **Example**             |
-|-------------------|----------------------------|-------------------------|
-| **PHYs**          |                            |                         |
-| id                | Unique numeric identifier  | 0                       |
-| name              | Unique string identified   | "example-1"             |
-| address           | Unique Hex string          | "0x1000"                |
-| lib_name          | Name of shared object file | "example-1.so"          |
-| firmware_path     | FQN firmware location      | "/usr/../example-1.bin" |
-| config_file       | Detailed PHY specification | "ph1_config.json"       |
-| phy_access        | Platform Adaption          | "MDIO" or "I2C"         |
-| bus_id            | Unique numeric identifier  | 0                       |
-| **Interfaces**    |                            |                         |
-| index             | Unique interface key       | 0                       |
-| phy_id            | Unique PHY key             | 0                       |
-| system_lanes      | System-side lanes          | [38,39]                 |
-| system_lane_speed | System-side lane speed     | "50G"                   |
-| line_lanes        | Line-side lanes            | [30,31,32,33]           |
-| line_lane_speed   | Line-side lane speed       | "25G"                   |
+# Table 4 Platform Configuration
+
+The following table identifies the parameters specified in the Gearbox platform configuration files.
+Please note that all the parameters listed in the following table are mandatory.
+
+| **gearbox_config.json** | **Type** |  **Comments**                                             |
+|-------------------------|----------|-----------------------------------------------------------|
+| **phys**                |          |                                                           |
+| phy_id                  | integer  | Arbitrary, but unique index to map phy and its ports      |
+| name                    | string   | Vendor specific                                           |
+| address                 | hexstr   | Vendor specific, typically a hex based address            |
+| lib_name                | string   | FQN to shared object .so file                             |
+| firmware_path           | string   | FQN to firmware .bin file                                 |
+| config_file             | string   | FQN to PHY config .json file                              |
+| sai_init_config_file    | string   | FQN to SAI initialization file                            |
+| phy_access              | string   | "mdio", "i2c", or "cpld" ("" - not currently implemented) |
+| bus_id                  | integer  | Vendor specific                                           |
+| **interfaces**          |          |                                                           |
+| index                   | integer  | Physical interface index (same as port_config.ini)        |
+| phy_id                  | integer  | PHY index using gearbox_config.json id field              |
+| system_lanes            | string   | Comma delimited list of lane indexes                      |
+| line_lanes              | string   | Comma delimited list of lane indexes                      |
 
 ## 3.3 Gearbox PHY Configuration
 Multiple PHYs are supported. Each PHY is described in it's own configuration file. The configuration includes the individual lanes, as well as the logical port configuration consisting of multiple lanes and their lane maps. This file is used to construct the PHY system-side to line-side port hierarchy.
 
-### Table 4: Gearbox PHY Configuration
-| **Attribute**          | **Description**                | **Example**    |
-|------------------------|--------------------------------|----------------|
-| **PHY INFO**           |                                |                |
-| name                   | Unique string identified       | "example-1"    |
-| address                | Unique Hex string              | "0x1000"       |
-| mode                   | Operational mode               | "gearbox"      |
-| port_ref_clk           | Transceiver Frequency          | "600Mhz"       |
-| **LANES**              |                                |                |
-| id                     | Unique lane identifier         | 30             |
-| system_side            | System-side, else Line-side    | true or false  |
-| local_lane_id          | Internal unique identifier     | 0              |
-| line_tx_lanemap        | Transmit lane                  | 3              |
-| tx_polarity            | Transmit polarity (percentage) | 0              |
-| line_rx_lanemap        | Receiver lane                  | 3              |
-| rx_polarity            | Receiver polarity (percentage) | 0              |
-| line_to_system_lanemap | Internal unique identifier     | 38             |
-| mdio_addr              | Unique Hex string              | "0x1001"       |
-| **PORTS**              |                                |                |
-| id                     | Unique numeric identifier      | 0              |
-| system_side_lanes      | System-side lanes              | [34,35]        |
-| system_side_speed      | System-side lane speed         | "50G"          |
-| line_side_lanes        | Line-side lanes                | [30,31,32,33]  |
-| lane_side_speed        | Line-side lane speed           | "25G"          |
-| mdio_addr              | Unique Hex string              | "0x1002"       |
+# Table 5 PHY Configuration
+
+The following table identifies the parameters specified in the Gearbox PHY configuration files.
+Please note that all the parameters listed in the following table are mandatory.
+
+| **\<phy_config.json>** | **Type** | **Comments**                                                                                   |
+|------------------------|----------|------------------------------------------------------------------------------------------------|
+| **lanes**              |          |                                                                                                |
+| index                  | integer  | A PHY unique lane number                                                                       |
+| system_side            | boolean  | Set true if lane is a system-side lane                                                         |
+| line_to_system_lanemap | integer  | Reference to associated system lane number                                                     |
+| line_tx_lanemap        | integer  | Reference to associated TX lane (line-side only)                                               |
+| line_rx_lanemap        | integer  | Reference to associated RX lane                                                                |
+| tx_polarity            | integer  | TX polarity value ```0 - not currently implemented```                                          |
+| rx_polarity            | integer  | RX polarity value ```0 - not currently implemented```                                          |
+| mdio_address           | hexstr   | Vendor specific, typically a hex based address                                                 |
+| **ports**              |          |                                                                                                |
+| index                  | integer  | A PHY unique lane number                                                                       |
+| mdio_addr              | hexstr   | Vendor specific ```typically a hex based address```                                            |
+| system_speed           | integer  | System-side lane speed                                                                         |
+| system_fec             | string   | System-side FEC mode ```"none", "rs", or "fc"```                                               |
+| system_auto_neg        | boolean  | System-side auto-negotiation enabled ```true or false```                                       |
+| system_loopback        | boolean  | System-side loopback enabled ```"none", "phy", "mac"```                                        |
+| system_training        | boolean  | System-side link training mode enabled ```true or false```                                     |
+| line_speed             | integer  | Line-side lane speed                                                                           |
+| line_fec               | string   | Line-side FEC mode ```"none", "rs", or "fc"```                                                 |
+| line_auto_neg          | boolean  | Line-side auto-negotiation enabled ```true or false```                                         |
+| line_media_type        | string   | Line-side media type ```"not present", "unknown", "fiber", "copper", "backplane"```            |
+| line_intf_type         | string   | Line-side interface type ```"none", "cr", "cr4", "sr", "sr4", "lr", "lr4", "kr", "kr4"```      |
+| line_loopback          | boolean  | Line-side loopback enabled ```"none", "phy", "mac"```                                          |
+| line_training          | boolean  | Line-side link training mode enabled ```true or false```                                       |
+| line_adver_speed       | string   | Line-side advertised lane speed ```comma delimited list of speeds```                           |
+| line_adver_fec         | string   | Line-side advertised FEC mode ```comma delimited list of FEC```                                |
+| line_adver_auto_neg    | boolean  | Line-side advertised auto-negotiation enabled ```true or false```                              |
+| line_adver_asym_pause  | boolean  | Line-side advertised asymmetric pause mode ```true or false```                                 |
+| line_adver_media_type  | string   | Line-side advertised media type ```"not present", "unknown", "fiber", "copper", "backplane"``` |
 
 ## 3.4 DB Changes
 
@@ -195,88 +239,104 @@ Multiple PHYs are supported. Each PHY is described in it's own configuration fil
 No gearbox specific configurations are necessary at this time.
 
 ### 3.4.2 APP DB
-A new GEARBOX_TABLE has been added to the application database for the purpose of storing the related gearbox platform and PHY related configuration parameters. This table is populated by the new GEARSYNCD ORCHAGENT.
+A new GEARBOX_TABLE has been added to the application database for the purpose of storing the related gearbox
+platform and PHY related configuration parameters. This table is populated by the newly modified PORTSORCH.
 
 #### 3.4.2.1 GEARBOX_TABLE - Platform Instance
 
 REDIS example:
 ~~~
-_GEARBOX_TABLE:phy:example-1 =>
-  id
-  0
-  name
-  example-1
-  address
-  0x1000
-  lib_name
-  libsai_phy_example1.so
-  firmware_path
-  /tmp/phy-example1.bin
-  config_file
-  phy1_config.json
-  phy_access
-  MDIO(NPU)
-  bus_id
-  0
+redis-dump -d 0 -k "_GEARBOX_TABLE:phy:0" -y
+{
+  "_GEARBOX_TABLE:phy:0": {
+    "type": "hash",
+    "value": {
+      "address": "0x1000",
+      "bus_id": "0",
+      "config_file": "/usr/share/sonic/hwsku/sesto-1.json",
+      "firmware_path": "/tmp/phy-sesto-1.bin",
+      "lib_name": "libsai_phy_sesto-1.so",
+      "name": "sesto-1",
+      "phy_access": "",
+      "phy_id": "0",
+      "phy_oid": "1234",
+      "sai_init_config_file": "/usr/share/sonic/hwsku/sesto-1.bcm"
+    }
+  }
 ~~~
 
 #### 3.4.2.2 GEARBOX_TABLE - Platform Host Interfaces
 
 REDIS example:
 ~~~
-_GEARBOX_TABLE:interface:Ethernet0 =>                                                                                                                
-  index                                                                            
-  1                                                                                                                                                           
-  phy_id                                                                           
-  0                                                                                
-  system_lanes                                                                     
-  38,39                                                                            
-  system_lane_speed                                                                
-  50G                                                                              
-  line_lanes                                                                       
-  30,31,32,33                                                                      
-  line_lane_speed                                                                  
-  25G      
+redis-dump -d 0 -k "_GEARBOX_TABLE:interface:49" -y
+{
+  "_GEARBOX_TABLE:interface:49": {
+    "type": "hash",
+    "value": {
+      "index": "49",
+      "line_lanes": "204,205",
+      "phy_id": "0",
+      "system_lanes": "200,201,202,203"
+    }
+  }
+}
 ~~~
 
 #### 3.4.2.3 GEARBOX_TABLE - Platform PHY Lanes
 
 REDIS Example:
 ~~~
-_GEARBOX_TABLE:phy:phy1:lanes:32 =>                                             
-  id                                                                               
-  32                                                                               
-  system_side                                                                      
-  0                                                                                
-  local_lane_id                                                                    
-  1                                                                                
-  line_rx_lanemap                                                                  
-  1                                                                                
-  rx_polarity                                                                      
-  0                                                                                
-  line_to_system_lanemap                                                           
-  39                                                                               
-  mdio_addr                                                                        
-  0x1003   
+redis-dump -d 0 -k "_GEARBOX_TABLE:phy:0:lanes:200" -y
+{
+  "_GEARBOX_TABLE:phy:0:lanes:200": {
+    "type": "hash",
+    "value": {
+      "index": "200",
+      "line_rx_lanemap": "0",
+      "line_to_system_lanemap": "0",
+      "line_tx_lanemap": "0",
+      "local_lane_id": "0",
+      "mdio_addr": "0x0200",
+      "rx_polarity": "0",
+      "system_side": "true",
+      "tx_polarity": "0"
+    }
+  }
+}
 ~~~
 
 #### 3.4.2.4 GEARBOX_TABLE - Platform PHY Ports
 
 REDIS Example:
 ~~~
-_GEARBOX_TABLE:phy:phy1:ports:1 =>                                              
-  id                                                                               
-  1                                                                                
-  system_lane_speed                                                                
-  50G                                                                              
-  line_lanes                                                                       
-  34,35,36,37                                                                      
-  system_lanes                                                                     
-  40,41                                                                            
-  line_lane_speed                                                                  
-  25G                                                                              
-  mdio_addr                                                                        
-  0x3000     
+redis-dump -d 0 -k "_GEARBOX_TABLE:phy:0:ports:49" -y
+{
+  "_GEARBOX_TABLE:phy:0:ports:49": {
+    "type": "hash",
+    "value": {
+      "index": "49",
+      "line_adver_asym_pause": "false",
+      "line_adver_auto_neg": "false",
+      "line_adver_fec": "",
+      "line_adver_media_type": "fiber",
+      "line_adver_speed": "",
+      "line_auto_neg": "true",
+      "line_fec": "none",
+      "line_intf_type": "none",
+      "line_loopback": "none",
+      "line_media_type": "fiber",
+      "line_speed": "50000",
+      "line_training": "false",
+      "mdio_addr": "0x2000",
+      "system_auto_neg": "true",
+      "system_fec": "none",
+      "system_loopback": "none",
+      "system_speed": "25000",
+      "system_training": "false"
+    }
+  }
+}
 ~~~
 
 ### 3.4.3 STATE DB
@@ -288,10 +348,14 @@ No modifications made.
 ### 3.4.5 COUNTER DB
 No modifications made.
 
-## 3.5 Docker SYNCD (modified)
-The SYNCD Docker syncd daemon has been extended to support the new SAI APIs and callbacks introduced by the new External SAI Abstraction Interface.
+## 3.5 Docker SAIPHY SYNCD (new)
+A key feature of the External PHY Abstraction Interface is the separation and mapping of
+system-to-line side ports for each PHY (switch). The ability to configure and re-configure
+the ports are represented in a new object model where each port object is attached to each
+other by using a port connector object.
 
-A key feature of the External PHY Abstraction Interface is the separation and mapping of system-to-line side ports for each PHY (switch). The ability to configure and re-configure the ports are represented in a new object model where each port object is attached to each other by using a port connector object.
+A new SAIPHY SYNCD docker has been created to support multiple external PHYs. Each PHY is controlled
+by a separate physyncd daemon that has been extended to support the new SAI APIs.
 
 ~~~
 typedef enum _sai_api_t
@@ -319,20 +383,190 @@ The Gearbox Manager utilizes and is dependent on the new SAI library which shall
 ## 3.7 CLI
 ### 3.7.1 Data Models
 ### 3.7.2 Configuration Commands
-The Gearbox Manager has no dependency on the SONiC CLI.
 
-### 3.7.3 Show Commands
-Optionally, the CLI show command may provide additional information.
+### Existing Click-based CLI Command Modifications
 
-~~~
-show gearbox interfaces status (future)
+For convenience, if Gearbox is enabled, the Click-based interface startup and shutdown CLI commands have been modified
+to configure the associated Gearbox Line-side ports.
 
-   Interface    Lanes  Speed Sytems Lanes  System Speed       Line Lanes  Line Speed           Alias 
-   ---------  -------  ----- ------------  ------------  ---------------  ----------  --------------
-   Ethernet0  101,102  40000      200,201         20000  203,204,205,206       10000  fortyGigE1/1/1  
-   Ethernet1  103,104  40000      207,208         20000  209,210,211,212       10000  fortyGigE1/1/2
-~~~
-  
+**Gearbox Line-side Only**
+```
+config interface startup <interface_name>
+config interface shutdown <interface_name>
+```
+
+*The default behavior is to determine if the associated interface has Gearbox ports and will configure them accordingly;*
+1. The MAC-side port is applied for non-Gearbox ports
+2. The Line-side is applied for Gearbox ports
+
+```
+config interface fec   <interface_name> <fec>
+config interface speed <interface_name> <speed>
+```
+
+### New Click-based CLI Commands
+
+The following Click-based CLI commands have been added in order to extend general configuration capability which compliments
+the new Gearbox commands.
+
+*The default behavior is to determine if the associated interface has Gearbox ports and will configure them accordingly;*
+1. The MAC-side port is applied for non-Gearbox ports
+2. The Line-side is applied for Gearbox ports
+
+**Default Operational Commands**
+```
+config interface autoneg <interface_name> <autoneg>
+config interface loopback <interface_name> <loopback>
+config interface link-training <interface_name> <training>
+config interface media-type <interface_name>  <media>
+config interface interface-type <interface_name> <type>
+config interface advertised-speed <interface_name> <speed>
+config interface advertised-fec <interface_name>  <fec>
+config interface advertised-autoneg <interface_name> <autoneg>
+config interface advertised-asym-pause <interface_name> <pause>
+config interface advertised-media-type <interface_name> <type>
+```
+
+If desired, advanced commands are available to fine tune the ports.
+
+**Advanced Gearbox Commands (available for MAC, PHY, and Line-side ports)**
+```
+config interface speed <interface_name> [mac <speed>] [phy <speed>] [line <speed>]
+config interface autoneg <interface_name> [mac <autoneg>] [phy <autoneg>] [line <autoneg>]
+config interface fec <interface_name> [mac <fec>] [phy <fec>] [line <fec>]
+config interface loopback <interface_name> [mac <loopback>] [phy <loopback>] [line <loopback>]
+config interface link-training <interface_name> [mac <training>] [phy <training>] [line <training>]
+```
+
+**Advanced Gearbox Commands (available for MAC and Line-side ports only)**
+```
+config interface media-type <interface_name> [mac <type>] [line <type>]
+config interface interface-type <interface_name> [mac <type>] [line <type>]
+config interface advertised-speed <interface_name> [mac <speed>] [line <speed>]
+config interface advertised-fec <interface_name> [mac <fec>] [line <fec>]
+config interface advertised-autoneg <interface_name> [mac <autoneg>] [line <autoneg>]
+config interface advertised-asym-pause <interface_name> [mac <pause>] [line <pause>]
+config interface advertised-media-type <interface_name> [mac <type>] [line <type>]
+```
+
+**Gearbox Show**
+
+```
+show gearbox phys status
+
+Phy Id   Firmware       MAC Address         Name
+------   -------- -----------------  -----------
+     0        1.2 52:54:00:36:BF:6B      sesto-1
+     1       8.7a 00:00:00:00:00:01    th_32_100
+```
+
+New gearutil.py script obtains the attribute values from the source below;
+
+| Attribute | Source  |
+| --------- | --------|
+| phy_id    | APPL_DB |
+| firmware  | ASIC_DB |
+| MAC       | ASIC_DB |
+| name      | APPL_DB |
+
+```
+show gearbox interfaces status
+
+Phy Id       Name      Lanes   Speed  Line Lanes  Line Speed  System Lanes  System Speed  Oper  Admin
+------  ----------  --------  ------  ----------  ----------  ------------  ------------  ----  -----
+     0   Ethernet0   101,102     40G     200,201         20G           202           40G  down   down
+     0   Ethernet1   103,104     40G     203,204         20G           205           40G  down   down
+     1  Ethernet21       210    100G     212,213         50G       214,215           50G  down   down
+```
+
+The new gearutil.py script obtains all the interface status values from the APPL_DB database.
+
+```
+show gearbox interfaces counters (TBD)
+
+Phy Id       Name
+------  ----------  --------  ------  ----------  ----------  ------------  ------------  ----  -----
+     0   Ethernet0
+     0   Ethernet1
+     1  Ethernet21
+```
+
+### Existing Klish-based CLI Command Modifications
+
+If Gearbox is enabled, the following Klish-based CLI commands have been modified accordingly.
+
+*Please note: The command syntax is unchanged and the Line-side ports are automatically configured.*
+
+**Gearbox Line-side Only**
+```
+interface <port> [no]shutdown
+interface Ethernet <port> [no]mtu <mtu>
+```
+
+### New Klish-based CLI Commands
+
+The following Klish-based CLI commands have been added in order to extend general configuration capability which compliments
+the new Gearbox commands.
+
+*The default behaviour is to determine if the associated interface has Gearbox ports and will configure them accordingly;*
+1. The MAC-side port is applied for non-Gearbox ports
+2. The Line-side is applied for Gearbox ports
+
+**Default Operational Commands**
+```
+[no] interface Ethernet <port> speed <speed>
+[no] interface Ethernet <port> autoneg <autoneg>
+[no] interface Ethernet <port> fec <fec>
+[no] interface Ethernet <port> loopback <loopback>
+[no] interface Ethernet <port> link-training <training>
+[no] interface Ethernet <port> media-type <media>
+[no] interface Ethernet <port> interface-type <type>
+[no] interface Ethernet <port> advertised-speed <speed>
+[no] interface Ethernet <port> advertised-fec <fec>
+[no] interface Ethernet <port> advertised-autoneg <autoneg>
+[no] interface Ethernet <port> advertised-asym-pause <pause>
+[no] interface Ethernet <port> advertised-media-type <type>
+```
+
+If desired, advanced commands are available to fine tune the ports.
+
+**Advanced Gearbox Commands (available for MAC, PHY, and Line-side ports)**
+```
+[no] interface Ethernet <port> speed [mac <speed>] [phy <speed>] [line <speed>]
+[no] interface Ethernet <port> autoneg [mac <autoneg>] [phy <autoneg>] [line <autoneg>]
+[no] interface Ethernet <port> fec [mac <fec>] [phy <fec>] [line <fec>]
+[no] interface Ethernet <port> loopback [mac <loopback>] [phy <loopback>] [line <loopback>]
+[no] interface Ethernet <port> link-training [mac <training>] [phy <training>] [line <training>]
+```
+
+**Advanced Gearbox Commands (available for MAC and Line-side ports only)**
+```
+[no] interface Ethernet <port> media-type [mac <type>] [line <type>]
+[no] interface Ethernet <port> interface-type [mac <type>] [line <type>]
+[no] interface Ethernet <port> advertised-speed [mac <speed>] [line <speed>]
+[no] interface Ethernet <port> advertised-fec [mac <fec>] [line <fec>]
+[no] interface Ethernet <port> advertised-autoneg [mac <autoneg>] [line <autoneg>]
+[no] interface Ethernet <port> advertised-asym-pause [mac <pause>] [line <pause>]
+[no] interface Ethernet <port> advertised-media-type [mac <type>] [line <type>]
+```
+
+**Gearbox Show**
+```
+show interface Gearbox status
+-----------------------------------------------------------------------------------------------
+Name       Lanes    Speed  Line-Lanes  Line-Speed  System-Lanes  System-Speed  Oper  Admin
+---------------------------------------------------------------------------------------------
+Ethernet0  101,102  40G    200,201     20G         202           40G           down  down
+Ethernet1  103,104  40G    203,204     20G         205           40G           down  down
+```
+
+```
+show interface Gearbox counters
+-----------------------------------------------------------------------------------------------
+TBD
+-----------------------------------------------------------------------------------------------
+```
+
 ### 3.7.4 Debug Commands
 
 ### 3.7.5 REST API Support
@@ -347,7 +581,36 @@ Standard logging is instrumented for existing components (as well as the Gearbox
 # 5 Warm Boot Support
 The Gearbox configuration is present in the ASIC database and therefore should be compatible with existing SYNCD and its warm boot capabilities.
 
-# 6 Scalability
+# 6 PHY Init Notifications
+It may be desired to download new firmware and/or to re-initialize the PHY. PORTSORCH therefore listens for
+*SAI_SWITCH_ATTR_SWITCH_STATE_CHANGE_NOTIFY* notifications to include the new *SAI_SWITCH_OPER_STATUS_INITIALIZE*
+operational status. Upon notification, PORTSORCH will re-create the PHY with the newly specified configuration.
+
+~~~
+/**
+ * @brief Attribute data for #SAI_SWITCH_ATTR_OPER_STATUS
+ */
+typedef enum _sai_switch_oper_status_t
+{
+    /** Unknown */
+    SAI_SWITCH_OPER_STATUS_UNKNOWN,
+
+    /** Up */
+    SAI_SWITCH_OPER_STATUS_UP,
+
+    /** Down */
+    SAI_SWITCH_OPER_STATUS_DOWN,
+
+    /** Switch encountered a fatal error */
+    SAI_SWITCH_OPER_STATUS_FAILED,
+
+    /** Switch received initialization request */
+    SAI_SWITCH_OPER_STATUS_INITIALIZE,
+
+} sai_switch_oper_status_t;
+~~~
+
+# 7 Scalability
 - The Gearbox Manager and its implementation is not specific to any platform, but rather the existence of External PHYs.
 - Although untested (due to limited gearbox capabilities) the Gearbox Manager should be able to support multiply-connected gearbox PHYs.
 
