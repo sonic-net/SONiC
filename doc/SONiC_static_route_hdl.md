@@ -348,7 +348,7 @@ vrf Vrf-test
 !
 ```
 ### 3.7.2 Configuration Reload
-All static route configurations were persistently stored in config DB STATIC_ROUTE table. After BGP container restarts, the configuration in DB needs to be re-applied. This configuration reload is done by generating staticd.conf file before FRR staticd daemon started. A jinja template file will be used to map table entries to fill in staticd.conf file. The generated conf file is be loaded by FRR daemon to configure static routes to system.
+All static route configurations were persistently stored in config DB STATIC_ROUTE table. After BGP container restarts, the configuration in DB needs to be re-applied. This configuration reload is done by generating staticd.conf file before FRR staticd daemon starts. A jinja template file will be used to map table entries to fill in staticd.conf file. The generated conf file is be loaded by FRR daemon to configure static routes to system.
 
 # 4 Flow Diagrams
 
