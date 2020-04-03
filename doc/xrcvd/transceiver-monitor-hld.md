@@ -6,11 +6,11 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo      | Initial version                   |
-
+ | 1.1 |             |      Liu Kebo      | update error event handling       |
 ## About This Manual ##
 
 This document is intend to provide general information about the Transceiver and Sensor Monitoring implementation.
-The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/master/doc/OIDsforSensorandTransciver.MD)
+The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD)
 
 
 ## 1. Xcvrd design ##
@@ -21,7 +21,9 @@ For the transceiver it's self, the type, serial number, hardware version, etc. w
 
 The transceiver dom sensor information(temperature, power,voltage, etc.) can change frequently, these information need to be updated periodically, for now the time period temporarily set to 60s(see open question 1), this time period need to be adjusted according the later on test on all vendors platform.
 
-If there is transceiver and sensor status change, Xcvrd will write the new status to state DB, to store these information some new tables will be added to STATE_DB.
+If there is transceiver plug in or plug out, Xcvrd will response to the change event, write the new transceiver EEPROM into to state DB, or remove the staled info from the STATE_DB.
+
+Transceiver error event will also be handled when it raised to Xcvrd, currently if transceiver on a error status which blocking EEPROM access, Xcvrd will stop updating and remove the transceiver DOM info from DB until it recovered from the error, in this period transceiver static info will be kept.  
  
 ### 1.1 State DB Schema ###
 
@@ -30,22 +32,23 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 #### 1.1.1 Transceiver info Table ####
 
 	; Defines Transceiver information for a port
-	key                         = TRANSCEIVER_INFO|ifname          ; information for SFP on port
-	; field                     = value
-	type                        = 1*255VCHAR                       ; type of sfp
-	hardwarerev                 = 1*255VCHAR                       ; hardware version of sfp
-	serialnum                   = 1*255VCHAR                       ; serial number of the sfp
-	manufacturename             = 1*255VCHAR                       ; sfp venndor name
-	modelname                   = 1*255VCHAR                       ; sfp model name
-	Connector                   = 1*255VCHAR                       ; connector information
-	encoding                    = 1*255VCHAR                       ; encoding information
-	ext_identifier              = 1*255VCHAR                       ; extend identifier
-	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
-	cable_length                = INT                              ; cable length in m
-	nominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
-	specification_compliance    = 1*255VCHAR                       ; specification compliance
-	vendor_date                 = 1*255VCHAR                       ; vendor date
-	vendor_oui                  = 1*255VCHAR                       ; vendor OUI
+	key                          = TRANSCEIVER_INFO|ifname      ; information for SFP on port
+	; field                      = value
+	type                         = 1*255VCHAR                   ; type of sfp
+	hardwarerev                  = 1*255VCHAR                   ; hardware version of sfp
+	serialnum                    = 1*255VCHAR                   ; serial number of the sfp
+	manufacturename              = 1*255VCHAR                   ; sfp venndor name
+	modelname                    = 1*255VCHAR                   ; sfp model name
+    vendor_oui                   = 1*255VCHAR                   ; vendor organizationally unique identifier
+    vendor_date                  = 1*255VCHAR                   ; vendor's date code
+    Connector                    = 1*255VCHAR                   ; connector type
+    encoding                     = 1*255VCHAR                   ; serial encoding mechanism
+    ext_identifier               = 1*255VCHAR                   ; additional infomation about the sfp
+    ext_rateselect_compliance    = 1*255VCHAR                   ; additional rate select compliance information
+    cable_type                   = 1*255VCHAR                   ; cable type
+    cable_length                 = 1*255VCHAR                   ; cable length that supported
+    specification_compliance     = 1*255VCHAR                   ; electronic or optical interfaces that supported
+    nominal_bit_rate             = 1*255VCHAR                   ; nominal bit rate per channel
 
 #### 1.1.2 Transceiver DOM sensor Table ####
 
@@ -61,27 +64,64 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 	tx2bias                 = FLOAT                              ; tx2 bias in mA
 	tx3bias                 = FLOAT                              ; tx3 bias in mA
 	tx4bias                 = FLOAT                              ; tx4 bias in mA
+    temphighalarm           = FLOAT                              ; temperature high alarm threshold 
+    temphighwarning         = FLOAT                              ; temperature high warning threshold
+    templowalarm            = FLOAT                              ; temperature low alarm threshold
+    templowwarning          = FLOAT                              ; temperature low warning threshold
+    vcchighalarm            = FLOAT                              ; vcc high alarm threshold
+    vcchighwarning          = FLOAT                              ; vcc high warning threshold
+    vcclowalarm             = FLOAT                              ; vcc low alarm threshold
+    vcclowwarning           = FLOAT                              ; vcc low warning threshold
+    txpowerhighalarm        = FLOAT                              ; tx power high alarm threshold
+    txpowerlowalarm         = FLOAT                              ; tx power low alarm threshold
+    txpowerhighwarning      = FLOAT                              ; tx power high warning threshold
+    txpowerlowwarning       = FLOAT                              ; tx power low alarm threshold
+    rxpowerhighalarm        = FLOAT                              ; rx power high alarm threshold
+    rxpowerlowalarm         = FLOAT                              ; rx power low alarm threshold
+    rxpowerhighwarning      = FLOAT                              ; rx power high warning threshold
+    rxpowerlowwarning       = FLOAT                              ; rx power low warning threshold
+    txbiashighalarm         = FLOAT                              ; tx bias high alarm threshold
+    txbiaslowalarm          = FLOAT                              ; tx bias low alarm threshold
+    txbiashighwarning       = FLOAT                              ; tx bias high warning threshold
+    txbiaslowwarning        = FLOAT                              ; tx bias low warning threshold
+
+#### 1.1.# Transceiver Error Table ####
+
+	; Defines Transceiver Error info for a port
+	key                          = TRANSCEIVER_ERROR|ifname     ; Error information for SFP on port
+	; field                      = value
+	status                       = 1*255VCHAR                   ; code of the error status
 
 
-### 1.2 Access eeprom from platform container ###
+### 1.2 Accessing EEPROM from platform container ###
 
-Transceiver information eeprom can be accessed via read files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`), different vendors may have these files under different folders, these folder need to be mounted to platform container so Xcvrd can access them. 
+Transceiver information EEPROM can be accessed via read sysfs files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`) or other ways, this is upon vendor's own implementation. 
 
-
-For the convenience of implementation and reduce the time consuming, need to do enhancement to the `SfpUtilBase` class:
-
-1. `SfpUtilBase` internally should add the ability to read the eeprom and only pick up the interested bytes by given offset and number of bytes.
-
-2. `SfpUtilBase` will provide APIs `get_eeprom_sfp_info_dict(self, port_num)` and `get_eeprom_dom_info_dict(self, port_num)` to return `eeprom_if_dict` and `eeprom_dom_dict` separately, the interested values of these two dict are defined  in section 1.1.1 and 1.1.2.  In these two APIs can pick up these values from eeprom by provide the corresponding offset and number of bytes. 
+Transceiver EEPROM accessing can be achieved by legacy sfp plugin or new platform API, Xcvrd support both of these two methods. If platform API not yet implemented on some vendor's device, it will automatically fall back on sfp plugin.
 
 
-### 1.3 Transceiver plug in/out event ###
+### 1.3 Transceiver change event and vendor platform API###
 
-Xcvrd need to be triggered by transceiver plug in/out event to refresh the transceiver info table.
+#### 1.3.1 Transceiver change event ####
+
+Currently 7 transceiver events are defined as below. The first two are for plug in and plug out, others to reflect various error status, vendors can add new error event if they feel need. 
+
+    status='0' SFP removed,
+    status='1' SFP inserted,
+    status='2' I2C bus stuck,
+    status='3' Bad eeprom,
+    status='4' Unsupported cable,
+    status='5' High Temperature,
+    status='6' Bad cable.
+
+#### 1.3.2 API to get Transceiver change event from platform ####
+
+Xcvrd need to be triggered by transceiver change event to refresh the transceiver info table.
 
 How to get this event is various on different platform, there is no common implementation available. 
 
-Here we define a common platform API to wait for this event in class `SfpUtilBase`: 
+##### 1.3.2.1 Transceiver change event API in plugin #####
+In legacy sfp plugin a new API was defined to wait for this event in class `SfpUtilBase`: 
 
     @abc.abstractmethod
     def get_transceiver_change_event(self, timeout=0):
@@ -94,42 +134,110 @@ Here we define a common platform API to wait for this event in class `SfpUtilBas
 
 Each vendor need to implement this function in `SfpUtil` plugin.
 
-Xcvrd will call this API to wait for the sfp plug in/out event, following example code showing how this API will be called:
+##### 1.3.2.2 Transceiver change event API in new platform API #####
+In new platform API, similar change event API also defined, this API is not only for SFP, but also for other devices:
 
-    while True:
-        status, port_dict = platform_sfputil.get_transceiver_change_event()
-        if(status):
-            for key, value in port_dict.iteritems():
-                print("SFP on port: %s" was %s" % (key, value))
+    def get_change_event(self, timeout=0):
+        """
+        Returns a nested dictionary containing all devices which have
+        experienced a change at chassis level
+
+        Args:
+            timeout: Timeout in milliseconds (optional). If timeout == 0,
+                this method will block until a change is detected.
+
+        Returns:
+            (bool, dict):
+                - True if call successful, False if not;
+                - A nested dictionary where key is a device type,
+                  value is a dictionary with key:value pairs in the format of
+                  {'device_id':'device_event'}, 
+                  where device_id is the device ID for this device and
+                        device_event,
+                             status='1' represents device inserted,
+                             status='0' represents device removed.
+                  Ex. {'fan':{'0':'0', '2':'1'}, 'sfp':{'11':'0'}}
+                      indicates that fan 0 has been removed, fan 2
+                      has been inserted and sfp 11 has been removed.
+
+##### 1.3.2.3 Xcvrd wrapper for calling transceiver change event API #####
+Xcvrd using a wrapper to call one of the above two APIs depends on the implementation status on a specific platform  to wait for the sfp plug in/out event, following example code showing how these APIs will be called:
+
+    def _wrapper_get_transceiver_change_event(timeout):
+	    if platform_chassis is not None:
+	        try:
+	            status, events =  platform_chassis.get_change_event(timeout)
+	            sfp_events = events['sfp']
+	            return status, sfp_events
+	        except NotImplementedError:
+	            pass
+	    return platform_sfputil.get_transceiver_change_event(timeout)
                  
 It's possible that when received the plug in/out event, the transceiver eeprom is not ready for reading, so need to give another try if first reading failed. 
 
-#### 1.3.1 Transceiver plug in/out event implementation on mlnx platform ####
+#### 1.3.2 Transceiver plug in/out and error event implementation on Mellanox platform ####
 
-On mlnx platform the event is exposed by mlnx SDK which reside in syncd container. A dedicated daemon mlnx-sfpd is added to mlnx syncd container which will register to mlnx SDK and listen for the SFP plug/in out event.
+On Mellanox platform the SFP events is exposed by mlnx SDK, the API will open a channel and listening to the SDK for the events. 
 
-When mlnx-sfpd get the event, it will populate it to STATE_DB. get_transceiver_change_event on mlnx platform will subscribe to STATE_DB and waiting for it.
+During the API init phase(waiting for the channel with SDK created), if Xcvrd called this API and it will return SYSTEM_NOT_READY event. 
 
-Since xcvrd does not talk to mlnx-sfpd directly, need to have some mechanism to notify xcvrd when mlnx-sfpd fail, so xcvrd can handle accordingly. The intermediate will still be STATE_DB.
-
-mnlx-sfpd will populate error when:
-
-1. not able to get correct sfp change event from SDK
-2. mlnx-sfpd itself failed for some reason.
-
-mlnx-sfpd will have a liveness indication mechanisim to let xcvrd know that it is working or not. mlnx-sfpd use STATE_DB to convey it's liveness status to the outside.  
- 
-In the  mlnx implementation of 'get_transceiver_change_event',  it will check the STATE_DB to get the liveness status of mlnx-sfpd every time when being called, if mlnx-sfpd is not working anymore, it will return an error. Xcvrd will know that mlnx-sfpd failed by getting the error, as a result, it will stop polling the dom info and clean all the transceiver info in the DB.
+If SDK failed due to some reason and channel closed, API will raised error(SYSTEM_FAIL) to Xcvrd.
 
 ### 1.4 Xcvrd daemon flow ###
 
-Xcvrd will spawn a thread to wait for the SFP plug in/out event, when event received, it will update the DB entries accordingly.
+Xcvrd will spawn a new process(sfp_state_update_task) to wait for the SFP plug in/out event, when event received, it will update the DB entries accordingly.
 
-A timer will be started to periodically refresh the DOM sensor information . 
+A thread will be started to periodically refresh the DOM sensor information.
+
+In the main loop of the Xcvrd task, it periodically check the integrity the DB, if some SFP info missing, will be added back. 
 
 Detailed flow as showed in below chart: 
 
-![](https://github.com/Azure/SONiC/blob/master/images/transceiver_monitoring_hld/xcvrd_flow.svg)
+![](https://github.com/keboliu/SONiC/blob/master/images/xcvrd-flow.svg)
+
+#### 1.4.1 State machine of sfp\_state\_update\_task process ####
+
+In the process of handling SFP change event, a state machine is defined to handle events(including SFP change events) reported from platform level.
+
+        states definition
+          - Initial state: INIT, before receive system ready or a normal event
+          - Final state: EXIT
+          - Other state: NORMAL, after received system-ready or a normal event
+        
+        events definition
+          - SYSTEM_NOT_READY
+          - SYSTEM_BECOME_READY
+          - NORMAL_EVENT
+            - sfp insertion/removal event
+            - sfp error event
+            - timeout returned by sfputil.get_change_event with status = true
+          - SYSTEM_FAIL
+
+        state transition
+          State           event               next state
+          INIT            SYSTEM NOT READY    INIT / EXIT
+          INIT            SYSTEM FAIL         INIT / EXIT
+          INIT            SYSTEM BECOME READY NORMAL
+          NORMAL          SYSTEM BECOME READY NORMAL
+          NORMAL          SYSTEM FAIL         INIT
+          INIT/NORMAL     NORMAL EVENT        NORMAL
+          NORMAL          SYSTEM NOT READY    INIT
+          EXIT            -
+
+
+![](https://github.com/keboliu/SONiC/blob/master/images/xcvrd_state_mahine.svg)
+
+#### 1.4.2 Transceiver error events handling procedure ####
+
+When error events(defined in section 1.3.1) received from some transceiver, the related interface will be added to the TRANSCEIVER_ERROR table, and DOM information will be removed from the DB. 
+
+Before the DOM update thread update the DOM info, it will check the error table first, DOM info updating will be skipped if some port is in the error table. In the Xcvrd main task recovering missing interface info, same check will also be applied.
+
+Currently no explicit "error clear event" is defined, a plug in event will be considered as port recovered from error(on Mellanox platform it does send out a plug in event when recovered from error). 
+
+An explicit "error clear event" can be added if some vendor's platform do have this kind of event.
+
+On transceiver plug in or plug out events, the port will be removed from the error table.     
 
 ## 2. SNMP Agent Change ##
 
@@ -164,15 +272,8 @@ Another entPhySensorTable which is defined in [Entity Sensor MIB(RFC3433)](https
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | Show interfaces alias | DOM RX Power Sensor for DOM RX Power Sensor for Ethernet29/1 |
 
 
-More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/master/doc/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
-
-### 2.2 New connection to STATE_DB ###
-
-To get the transceiver and dom sensor status, SNMP agent need to connect to STATE\_DB and fetch information from TRNASCEIVER_TABLE which will be updated by Xcvrd when this is status change.
+More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
 
 
-## 3. Open Questions ##
-
-1. DOM sensor polling period may need to be adjusted after collecting enough data on various platform.
 
       
