@@ -21,13 +21,13 @@ For the transceiver it's self, the type, serial number, hardware version, etc. w
 
 The transceiver dom sensor information(temperature, power,voltage, etc.) can change frequently, these information need to be updated periodically, for now the time period temporarily set to 60s(see open question 1), this time period need to be adjusted according the later on test on all vendors platform.
 
-If there is transceiver plug in or plug out, Xcvrd will response to the change event, write the new transceiver EEPROM into to state DB, or remove the staled info from the STATE_DB.
+If there is transceiver plug in or plug out, Xcvrd will respond to the change event, write the new transceiver EEPROM into to state DB, or remove the staled info from the STATE_DB. 
 
 Transceiver error event will also be handled when it raised to Xcvrd, currently if transceiver on a error status which blocking EEPROM access, Xcvrd will stop updating and remove the transceiver DOM info from DB until it recovered from the error, in this period transceiver static info will be kept.  
  
 ### 1.1 State DB Schema ###
 
-New Transceiver info table and transceiver DOM sensor table will be added to state DB to store the transceiver and DOM sensor information. 
+New Transceiver info table and transceiver DOM sensor table will be added to state DB to store the transceiver and DOM sensor information. Transceiver status table will store the SFP status, plug in, plug out or in error status.
 
 #### 1.1.1 Transceiver info Table ####
 
@@ -85,26 +85,26 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
     txbiashighwarning       = FLOAT                              ; tx bias high warning threshold
     txbiaslowwarning        = FLOAT                              ; tx bias low warning threshold
 
-#### 1.1.# Transceiver Error Table ####
+#### 1.1.# Transceiver Status Table ####
 
-	; Defines Transceiver Error info for a port
-	key                          = TRANSCEIVER_ERROR|ifname     ; Error information for SFP on port
+	; Defines Transceiver Status info for a port
+	key                          = TRANSCEIVER_STATUS|ifname     ; Error information for SFP on port
 	; field                      = value
-	status                       = 1*255VCHAR                   ; code of the error status
+	status                       = 1*255VCHAR                    ; code of the SFP status (plug in, plug out or error)
 
 
 ### 1.2 Accessing EEPROM from platform container ###
 
-Transceiver information EEPROM can be accessed via read sysfs files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`) or other ways, this is upon vendor's own implementation. 
+Transceiver EEPROM information can be accessed via reading sysfs files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`) or other ways, this is upon vendor's own implementation. 
 
-Transceiver EEPROM accessing can be achieved by legacy sfp plugin or new platform API, Xcvrd support both of these two methods. If platform API not yet implemented on some vendor's device, it will automatically fall back on sfp plugin.
+Transceiver EEPROM accessing can be achieved by legacy sfputil.py plugin or new platform API, Xcvrd supports both of these two methods. If platform API not yet implemented on some vendor's device, it will automatically fall back on sfputil.py plugin.
 
 
 ### 1.3 Transceiver change event and vendor platform API###
 
 #### 1.3.1 Transceiver change event ####
 
-Currently 7 transceiver events are defined as below. The first two are for plug in and plug out, others to reflect various error status, vendors can add new error event if they feel need. 
+Currently 7 transceiver events are defined as below. The first two are for plug in and plug out, others to reflect various error status, vendors can add new error event if they support more. 
 
     status='0' SFP removed,
     status='1' SFP inserted,
@@ -121,7 +121,7 @@ Xcvrd need to be triggered by transceiver change event to refresh the transceive
 How to get this event is various on different platform, there is no common implementation available. 
 
 ##### 1.3.2.1 Transceiver change event API in plugin #####
-In legacy sfp plugin a new API was defined to wait for this event in class `SfpUtilBase`: 
+In legacy sfputil.py plugin a new API was defined to wait for this event in class `SfpUtilBase`: 
 
     @abc.abstractmethod
     def get_transceiver_change_event(self, timeout=0):
@@ -161,7 +161,7 @@ In new platform API, similar change event API also defined, this API is not only
                       has been inserted and sfp 11 has been removed.
 
 ##### 1.3.2.3 Xcvrd wrapper for calling transceiver change event API #####
-Xcvrd using a wrapper to call one of the above two APIs depends on the implementation status on a specific platform  to wait for the sfp plug in/out event, following example code showing how these APIs will be called:
+Xcvrd uses a wrapper to call one of the above two APIs depends on the implementation status on a specific platform  to wait for the sfp plug in/out event, following example code showing how these APIs will be called:
 
     def _wrapper_get_transceiver_change_event(timeout):
 	    if platform_chassis is not None:
@@ -229,15 +229,15 @@ In the process of handling SFP change event, a state machine is defined to handl
 
 #### 1.4.2 Transceiver error events handling procedure ####
 
-When error events(defined in section 1.3.1) received from some transceiver, the related interface will be added to the TRANSCEIVER_ERROR table, and DOM information will be removed from the DB. 
+When error events(defined in section 1.3.1) received from some transceiver, the related interface TRANSCEIVER_STATUS table will be updated with the error code , and DOM information will be removed from the DB. 
 
-Before the DOM update thread update the DOM info, it will check the error table first, DOM info updating will be skipped if some port is in the error table. In the Xcvrd main task recovering missing interface info, same check will also be applied.
+Before the DOM update thread update the DOM info, it will check the Transceiver status table first, DOM info updating will be skipped if some port is in the error status. In the Xcvrd main task recovering missing interface info, same check will also be applied.
 
 Currently no explicit "error clear event" is defined, a plug in event will be considered as port recovered from error(on Mellanox platform it does send out a plug in event when recovered from error). 
 
-An explicit "error clear event" can be added if some vendor's platform do have this kind of event.
+An explicit "error clear event" can be added if some vendor's platform supports this kind of event.
 
-On transceiver plug in or plug out events, the port will be removed from the error table.     
+On transceiver plug in or plug out events, the port error status will be cleared.     
 
 ## 2. SNMP Agent Change ##
 
