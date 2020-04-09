@@ -1568,6 +1568,8 @@ CVL uses SONiC YANG models written based on ABNF schema along with various const
 
 SONiC YANG can be used as Northbound YANG for management interface by adding other data definitions such as state data (read only data), RPC or Notification as needed.Such YANG models are called SONiC NBI YANG models. Since CVL validates configuration data only, these data definition statements are ignored by CVL. During build time CVL YANG is actually generated from SONiC NBI YANG models with the help of CVL specific pyang plugin. 
 
+CVL supports multiple user-defined Redis database instances based on the [Multi DB instance HLD](https://github.com/Azure/SONiC/blob/master/doc/database/multi_database_instances.md) specification. During CVL initialization time, the DB configuration file is read from the predefined location and details are stored in internal data structure. CVL implements internal API for connecting to a Redis DB instance using the details stored in its internal data structure.
+
 ###### 3.2.2.8.1 Architecture
 
 ![CVL architecture](images/CVL_Arch.jpg)
@@ -1690,6 +1692,37 @@ module sonic-acl-deviation {
                 ConstraintErrMsg  string  /* Constraint error message. */
         }
 
+        /* Structure for dependent entry to be deleted */
+        type CVLDepDataForDelete struct {
+                RefKey string /* Ref Key which is getting deleted */
+                Entry  map[string]map[string]string /* Entry or field which should be deleted as a result */
+        }
+
+       /* Maintain time stats for call to ValidateEditConfig(). */
+        type ValidationTimeStats struct {
+                Hits uint          /* Total number of times ValidateEditConfig() called */
+                Time time.Duration /* Total time spent in ValidateEditConfig() */
+                Peak time.Duration /* Highest time spent in ValidateEditConfig() */
+        }
+
+        /* Validation type */
+        type CVLValidateType uint
+        const (
+                VALIDATE_NONE CVLValidateType = iota //Data is used as dependent data
+                VALIDATE_SYNTAX //Syntax is checked and data is used as dependent data
+                VALIDATE_SEMANTICS //Semantics is checked
+                VALIDATE_ALL //Syntax and Semantics are checked
+        )
+	
+        /* Validation operation */	
+        type CVLOperation uint
+        const (
+                OP_NONE   CVLOperation = 0 //Used to just validate the config without any operation
+                OP_CREATE = 1 << 0//For Create operation
+                OP_UPDATE = 1 << 1//For Update operation
+                OP_DELETE = 1 << 2//For Delete operation
+        )
+
         /* Error code */
         type CVLRetCode int
         const (
@@ -1747,10 +1780,15 @@ module sonic-acl-deviation {
 9. func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode)
 	- Get the list of dependent tables for a given table in a YANG module.
 
-10. func (c *CVL) GetDepDataForDelete(redisKey string) ([]string, []string)
+10. func (c *CVL) GetDepDataForDelete(redisKey string) ([]CVLDepDataForDelete)
 	- Get the dependent data (Redis keys) to be deleted or modified for a given entry getting deleted.
-
-
+	
+11. func GetValidationTimeStats() (ValidationTimeStats)
+        - Provides statistics details of time spent in ValidateEditConfig().
+	
+12. func ClearValidationTimeStats() 
+        - Clears statistics details of time spent in ValidateEditConfig().
+	
 ##### 3.2.2.9 Redis DB
 
 Please see [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
