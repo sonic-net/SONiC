@@ -1,4 +1,7 @@
+
+
 # Authentication and Role-Based Access Control
+
 # High Level Design Document
 #### Rev 0.1
 
@@ -37,7 +40,6 @@
     + [3.2.3 STATE DB](#323-state-db)
     + [3.2.4 ASIC DB](#324-asic-db)
     + [3.2.5 COUNTER DB](#325-counter-db)
-    + [3.2.6 USER DB](#326-user-db)
   * [3.3 Switch State Service Design](#33-switch-state-service-design)
     + [3.3.1 Orchestration Agent](#331-orchestration-agent)
     + [3.3.2 Other Process](#332-other-process)
@@ -138,9 +140,9 @@ The Translib module in the [management framework](https://github.com/project-arl
 
 The CLI, REST, and gNMI will result in Translib calls with xpath and payload. Additionally, the REST and gNMI server modules must pass the username to the Translib. The RBAC checks will be enforced in the **Request Handler** of the Translib. The Request Handler processes the entire transaction atomically. Therefore, if even one operation in the transaction is not authorized, the entire transaction is rejected with the appropriate "Not authorized" error code. If the authorization succeeds, the transaction is passed to the Common Application module for further ‘transformation’ into the ABNF format. The rest of the flow of the transaction through the management framework is unmodified.
 
-At bootup time of the manageability framework (or gNMI container), it is recommended to cache the [User DB](#326-user-db) if not already cached. This is because every command needs to access the information in the User DB in order to access the information. Alternately, instead of caching the entire User DB, the information can be cached once the record is read from the DB. Additionally, the Translib must listen to change notifications on the User DB in order to keep its cache current.
+At bootup time of the manageability framework (or gNMI container), it is recommended to cache the Privilege, Tenant and Resource Tables(RBAC tables) stored in the Config DB. This is because every command needs to access the information in the RBAC tables in order to authorize the access for the information in other tables. Alternately, instead of caching the entire RBAC tables, the information can be cached once the record is read from the DB. Additionally, the Translib must listen to change notifications on these RBAC Tables in order to keep its cache current.
 
-As described in section [1.1.1.4 Linux Groups](#1114-linux-groups), the enforcement of the users and roles in Linux will be done via the Linux groups. A user can use Linux commands on the Linux shell and create users and Linux groups (which represent the roles). This will mean that the information in the User DB is no longer current. In order to keep the information in the User DB and the Linux `/etc/passwd` file in sync, a service must run on the host (not the container) to keep the databases in sync.
+As described in section [1.1.1.4 Linux Groups](#1114-linux-groups), the enforcement of the users and roles in Linux will be done via the Linux groups. A user can use Linux commands on the Linux shell and create users and Linux groups (which represent the roles). This will mean that the information in the RBAC tables is no longer current. In order to keep the information in the RBAC tables and the Linux `/etc/passwd` file in sync, a service must run on the host (not the container) to keep the databases in sync.
 
 Since Translib is the main authority on authorized operations, this means that the NBIs cannot render to the user what they are and are not allowed to do. The CLI, therefore, renders the entire command tree to a user, even the commands they are not authorized to execute.
 
@@ -179,7 +181,7 @@ The REST server must use the same certificate scheme as the gNMI server to valid
 #### 1.1.1.6 Local User Management and UserDB Sync
 An interface must be developed for local user management, so that administrators can add users and assign passwords and roles to them. Administrators with the appropriate role must be able to add/delete users, modify user passwords, and modify user roles. They must be able to do so through all of the NBIs, meaning that a YANG model and CLI tree must be developed.
 
-Users must be added to the Linux database (`/etc/passwd`, `/etc/group`, and optionally `/etc/shadow`). That's where a user is mapped to a Linux [User Identifier](https://en.wikipedia.org/wiki/User_identifier) (UID) and primary [Group Identifier](https://en.wikipedia.org/wiki/Group_identifier) (GID). When users are created they also need to be assigned roles. Roles are simply defined as Linux groups (`/etc/group`) and assigned to users as [Supplementary GIDs](https://en.wikipedia.org/wiki/Group_identifier#Supplementary_groups).  
+Users must be added to the Linux database (`/etc/passwd`, `/etc/group`, and optionally `/etc/shadow`). That is where a user is mapped to a Linux [User Identifier](https://en.wikipedia.org/wiki/User_identifier) (UID) and primary [Group Identifier](https://en.wikipedia.org/wiki/Group_identifier) (GID). When users are created they also need to be assigned roles. Roles are simply defined as Linux groups (`/etc/group`) and assigned to users as [Supplementary GIDs](https://en.wikipedia.org/wiki/Group_identifier#Supplementary_groups).  
 
 When a user is created it also needs to be assigned certificates that will allow them to communicate with the REST server. Finally, all users need to be added to the REDIS database (see [section 3.2.6]()) where additional information about each user can be stored (e.g. *tenant*).
 
@@ -187,9 +189,9 @@ Since these operations (i.e. creating Linux users, assigning certificates, etc.)
 
 ##### 1.1.1.6.1 Host Account Management Daemon (hamd)
 
-The hamd process runs on the host. It is accessed via a DBus interface that provides the ability to access and/or modify the host's Linux database (`/etc/passwd`, `/etc/group`, and optionally `/etc/shadow`). Since DBus is a secured interface we can control which processes will be allowed to access hamd. 
+The **hamd** process runs on the host. It is accessed via a DBus interface that provides the ability to access and/or modify the host's Linux database (`/etc/passwd`, `/etc/group`, and optionally `/etc/shadow`). Since DBus is a secured interface we can control which processes will be allowed to access **hamd**. 
 
-The hamd process will provide the following APIs to create/modify/delete user and group (role) accounts:
+The **hamd** process will provide the following DBus APIs to create/modify/delete user and group (role) accounts:
 
 - **useradd**: To create new users (similar to GNU [useradd](http://man7.org/linux/man-pages/man8/useradd.8.html))
 - **userdel**: To delete a user (similar to GNU [userdel](http://man7.org/linux/man-pages/man8/userdel.8.html))
@@ -198,16 +200,59 @@ The hamd process will provide the following APIs to create/modify/delete user an
 - **groupadd**: To create new groups/roles (similar to GNU [groupadd](http://man7.org/linux/man-pages/man8/groupadd.8.html))
 - **groupdel**: To delete groups/roles (similar to GNU [groupdel](http://man7.org/linux/man-pages/man8/groupdel.8.html))
 
-##### 1.1.1.6.2 Name Service Switch
+##### 1.1.1.6.2 User management with hamd 
 
-In addition to providing APIs to create/modify/delete user and group (role) accounts, hamd also provides APIs to simply read user and group (role) accounts. Here's the list:
+Applications that need to manage users (for example **click** or **klish**) can do so by using **hamd**'s DBus **ham.accounts** interface. DBus services such as **hamd** publish their interfaces. This can be retrieved and analyzed at runtime in order to understand the used implementation. The resulting introspection data is in XML format. DBus debug tools such as **qdbus** can be used to retrieve this data. At the time this document was written, the DBus XML definition for the APIs defined in the previous section was:
+
+> ```xml
+>   <interface name="ham.accounts">
+>       <method name="useradd">
+>           <arg direction="in"  type="s"  name="login"/>
+>           <arg direction="in"  type="as" name="roles"/>
+>           <arg direction="in"  type="s"  name="hashed_pw"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>       <method name="userdel">
+>           <arg direction="in"  type="s"  name="login"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>       <method name="passwd">
+>           <arg direction="in"  type="s"  name="login"/>
+>           <arg direction="in"  type="s"  name="hashed_pw"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>       <method name="set_roles">
+>           <arg direction="in"  type="s"  name="login"/>
+>           <arg direction="in"  type="as" name="roles"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>       <method name="groupadd">
+>           <arg direction="in"  type="s" name="group"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>       <method name="groupdel">
+>           <arg direction="in"  type="s" name="group"/>
+>           <arg direction="out" type="(bs)" name="(success, errmsg)" />
+>       </method>
+>   </interface>
+> ```
+
+##### 1.1.1.6.3 The hamctl shell program
+
+A utility program, **hamctl**, is provided to make it easier for operators to interact with **hamd** from a Linux shell (e.g. bash). This is primarily a debug tool and <u>*should not be invoked from other programs*</u>. Programs should use the DBus interface described above. 
+
+Users logged in at a shell terminal can control **hamd** (e.g. ask it to create or delete a user) with **hamctl**. **hamctl** is sell-documented. Simply invoke "**hamctl --help**" to get the list of commands available.
+
+##### 1.1.1.6.4 Name Service Switch
+
+In addition to providing APIs to create/modify/delete user and group (role) accounts, **hamd** also provides APIs to simply read user and group (role) accounts. Here's the list:
 
 - **getpwnam**: To retrieve user credentials (similar to POSIX [getpwnam](http://man7.org/linux/man-pages/man3/getpwnam.3.html))
 - **getpwuid**: To retrieve user credentials (similar to POSIX [getpwuid](http://man7.org/linux/man-pages/man3/getpwnam.3.html))
 - **getgrnam**: To retrieve group/role credentials (similar to POSIX [getgrnam](http://man7.org/linux/man-pages/man3/getgrnam.3.html))
 - **getgrgid**: To retrieve group/role credentials (similar to POSIX [getgrgid](http://man7.org/linux/man-pages/man3/getgrnam.3.html))
 
-These APIs, however, are meant to be invoked through [NSS](https://en.wikipedia.org/wiki/Name_Service_Switch) (name service switch).  That is, applications running in containers can simply continue invoking the standard POSIX APIs (`getpwnam()`, `getgrnam()`, etc) and a Host Account Management NSS module will ensure that the credentials get retrieved from hamd running on the host. The HAM NSS module (`libnss_ham.so.2`) need be installed and configured (`/etc/nsswitch.conf`) in the containers that require access to the host's Linux database. 
+These APIs, however, are meant to be invoked through [NSS](https://en.wikipedia.org/wiki/Name_Service_Switch) (name service switch).  That is, applications running in containers can simply continue invoking the standard POSIX APIs (`getpwnam()`, `getgrnam()`, etc) and a Host Account Management NSS module will ensure that the credentials get retrieved from **hamd** running on the host. The HAM NSS module (`libnss_ham.so.2`) need be installed and configured (`/etc/nsswitch.conf`) in the containers that require access to the host's Linux database. 
 
 ### 1.1.2 Configuration and Management Requirements
 An interface and accompanying CLI must be developed for local user management. Local users should be configurable like any other feature: via CLI, REST, and gNMI. Additionally, users may also be created and managed via Linux commands in the Bash shell. This will add additional complexity and require a service to sync between the Redis DB and the Linux user database.
@@ -239,7 +284,7 @@ The gNMI server, which currently exists in the sonic-telemetry repository, needs
 
 The Translib code (also in sonic-mgmt-framework) will be extended to support RBAC via Linux Groups. It will receive username data from the REST/gNMI NBIs and perform the Group lookup for a given user.
 
-For user management, a service must run on the host to sync the Redis User DB with the Linux user database and vice-versa.
+For user management, a service must run on the host to sync the Redis RBAC tables with the Linux user database and vice-versa.
 
 ### 1.2.2 Container
 SONiC Management Framework, gNMI Telemetry containers
@@ -266,22 +311,7 @@ Users and their role (group) assignments may be managed via Linux tools or the N
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
-N/A
-
-### 3.2.2 APP DB
-N/A
-
-### 3.2.3 STATE DB
-N/A
-
-### 3.2.4 ASIC DB
-N/A
-
-### 3.2.5 COUNTER DB
-N/A
-
-### 3.2.6 USER DB
-A new Redis DB will be introduced to hold RBAC related tables. The User DB will have the following tables :
+To support this the following tables will be introduced in the CONFIG DB :
 * **UserTable**
 
   This table contains the username to role mapping needed for enforcing the authorization checks.  It has the following columns :
@@ -320,6 +350,18 @@ A new Redis DB will be introduced to hold RBAC related tables. The User DB will 
     * *tenant* : The tenant for which the resource partitioning is being done. This is a string.
     * *instances* : The instances of the *resource* allocated to this *tenant*. This is a list of instances.
   The TenantTable is keyed on <***resource, tenant***>
+
+### 3.2.2 APP DB
+N/A
+
+### 3.2.3 STATE DB
+N/A
+
+### 3.2.4 ASIC DB
+N/A
+
+### 3.2.5 COUNTER DB
+N/A
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
