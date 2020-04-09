@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.15
+### Rev 0.16
 
 ## Table of Contents
 
@@ -64,8 +64,8 @@
                 * [3.2.2.6.1 App Interface](#32261-app-interface)
                 * [3.2.2.6.2 Translib Request Handler](#32262-Translib-request-handler)
                 * [3.2.2.6.3 YGOT request binder](#32263-YGOT-request-binder)
-                * [3.2.2.6.4 DB access layer](#32264-db-access-layer)
-                * [3.2.2.6.5 App Modules](#32265-app-modules)
+                * [3.2.2.6.4 YANG Model Versioning](#32264-yang-model-versioning)
+                * [3.2.2.6.5 DB access layer](#32265-db-access-layer)
 			* [3.2.2.7 Transformer](#3227-transformer)
 				* [3.2.2.7.1 Components](#32271-components)
 				* [3.2.2.7.2 Design](#32272-design)
@@ -134,6 +134,7 @@
 | 0.13 | 11/27/2019 | Anand Kumar Subramanian | Added new APIs in translib    |
 | 0.14 | 12/03/2019 | Sachin Holla            | RESTCONF yang library and other enhancements |
 | 0.15 | 12/19/2019 | Partha Dutta            | Added new CVL API, platform and custom validation details |
+| 0.16 | 04/08/2020 | Sachin Holla            | API versioning enhancement |
 
 ## About this Manual
 
@@ -601,13 +602,13 @@ It supports following operations:
 ###### 3.2.2.4.1 Transport options
 
 REST server supports only HTTPS transport and listens on default port 443.
-Server port can be changed through an entry in CONFIG_DB REST_SERVER table.
-Details are in [DB Schema](#3_2_2_4_14-db-schema) section.
+Server port can be changed through an entry in ConfigDB REST_SERVER table.
 
-HTTPS certificates are managed similar to that of existing gNMI Telemetry program.
-Server key, certificate and CA certificate file paths are configured in CONFIG_DB
-DEVICE_METATDATA table entry. Same certificate is used by both gNMI Telemetry and
-REST server.
+By default a temporary self signed certificate is used as TLS server certificate.
+It can be overridden by specifiying a valid TLS private key and certificate file
+paths through the REST_SERVER table.
+
+REST_SERVER table schema is described in [DB Schema](#322414-db-schema) section.
 
 ###### 3.2.2.4.2 Translib linking
 
@@ -662,14 +663,23 @@ REST server will accept concurrent requests. Translib provides appropriate locki
 
 ###### 3.2.2.4.6 API Versioning
 
-REST server will allow clients to specify API version through a custom HTTP header "Accept-Version". However API versioning feature will be supported only in a future release. The server will ignore the version information in current release.
+REST server will allow clients to specify API version through a custom HTTP header **Accept-Version**.
 
-    Accept-Version: 2019-06-20
     Accept-Version: 1.0.3
 
-REST server will extract version text from the request header and pass it to the Translib API as metadata. App modules can inspect the version information and act accordingly.
+Version text should be in **MAJOR.MINOR.PATCH** format. REST server will extract version text from
+the request header and pass it to the Translib API as **ClientVersion** argument.
+Section [3.2.2.6.4.2](#322642-version-checks) explains Translib version checking logic.
 
-For YANG defined RESTCONF APIs, the version is the latest YANG revision date. For manual OpenAPI definitions developer can define version text in any appropriate format.
+Version checks are bypassed if Accept-Version header is not present in the request.
+
+For YANG defined RESTCONF APIs, the server's version can be discovered through the standard YANG
+module library API "GET /restconf/data/ietf-yang-library:modules-state/module-set-id".
+Client should not pass Accept-Version header for this API! This is safe since module-set-id
+is a standard API defined by [RFC7895](https://tools.ietf.org/html/rfc7895) for this very purpose.
+
+API Versioning is not supported for manual OpenAPI definitions in this release.
+Accept-Version header value will be ignored even if specified.
 
 ###### 3.2.2.4.7 RESTCONF Entity-tag
 
@@ -746,29 +756,18 @@ RESTCONF Notification are not supported by framework. Clients can use gNMI for m
 
 ###### 3.2.2.4.12 Authentication
 
-REST server will support below 3 authentication modes.
+REST server supporsts following authentication modes.
 
-* No authentication
+* HTTP Basic authentication (username/password authentication)
+* HTTP Bearer token authentication with JSON Web Token (JWT) format.
 * TLS Certificate authentication
-* Username/password authentication
+* Any combination of above 3 modes
+* No authentication
 
-Only one mode can be active at a time. Administrator can choose the authentication mode through ConfigDB REST_SERVER table entry. See [DB Schema](#3_2_2_4_14-db-schema) section.
+Details are in [SONiC RBAC HLD](https://github.com/project-arlo/SONiC/blob/master/doc/aaa/SONiC%20RBAC%20HLD.md).
 
-###### 3.2.2.4.12.1 No Authentication
-
-This is the default mode. REST server will not authenticate the client; all requests will be processed. It should not be used in production.
-
-###### 3.2.2.4.12.2 Certificate Authentication
-
-In this mode TLS public certificate of the client will be used to authenticate the client. Administrator will have to pre-provision the CA certificate in ConfigDB DEVICE_METADATA|x509 entry. REST server will accept a request only if the client TLS certificate is signed by that CA.
-
-###### 3.2.2.4.12.3 User Authentication
-
-In this mode REST server expects the client to provide user credentials in every request. server will support HTTP Basic Authentication method to accept user credentials.
-
-REST server will integrate with Linux PAM to authenticate and authorize the user. PAM may internally use native user database or TACACS+ server based on system configuration. REST write requests will be allowed only if the user belong to admin group. Only read operations will be allowed for other users.
-
-Performing TACACS+ authentication for every REST request can slow down the APIs. This will be optimized through JSON Web Token (JWT) or a similar mechanism in future release.
+By default HTTP Baisc and bearer token authentication modes are enabled.
+It can be overridden through ConfigDB [REST_SERVER table](#322414-db-schema) entry.
 
 ###### 3.2.2.4.13 Error Response
 
@@ -822,6 +821,8 @@ Method  | Error condition          | Status | error-type  | error-tag        | e
 *any*   | Invalid user credentials    | 401 | protocol    | access-denied    | Authentication failed
 *write* | User is not an admin        | 403 | protocol    | access-denied    | Authorization failed
 *write* | Translib commit failure     | 409 | protocol    | in-use           |
+*any*   | Bad Accept-Version value    | 400 | protocol    | invalid-value    | Invalid Accept-Version
+*any*   | Version ckeck fails         | 400 | protocol    | operation-not-supported    | Unsupported client version *X.Y.Z*
 *any*   | Unknown HTTP server failure | 500 | protocol    | operation-failed | Internal error
 *any*   | Not supported by App module | 405 | application | operation-not-supported | *App module returned message*
 *any*   | Incorrect payload           | 400 | application | invalid-value    | *App module returned message*
@@ -834,21 +835,33 @@ POST    | Resource exists             | 409 | application | resource-denied  | *
 
 ###### 3.2.2.4.14 DB Schema
 
-A new table "REST_SERVER" will be introduced in ConfigDB for maintaining REST server configurations. Below is the schema for this table.
+A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server configurations.
 
     key         = REST_SERVER:default   ; REST server configurations.
     ;field      = value
     port        = 1*5DIGIT              ; server port - defaults to 443
-    client_auth = "none"/"user"/"cert"  ; Client authentication mode.
+    client_auth = "none"/"password"/"jwt"/"cert"  
+                                        ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
                                         ;       for debugging.
-                                        ; user: Username/password authentication
-                                        ;       via PAM.
+                                        ; password: HTTP Basic authentication.
+                                        ; jwt : HTTP Bearer Token authentication with
+                                        ;       JSON Web Token format.
                                         ; cert: Certificate based authentication.
-                                        ;       Client's public certificate should
-                                        ;       be registered on this server.
+                                        ;       Requires REST_SERVER['certs']['ca_crt'] configuration.
+                                        ; Any combination of "password", "jwt" and "cert" modes can be
+                                        ; enabled by specifying a comma separated values.
+                                        ; Eg: "password,jwt" enables both password and jwt modes.
     log_level   = DIGIT                 ; Verbosity for glog.V logs
+
+
+    key         = REST_SERVER:certs     ; Server certificate configurations
+    ;field      = value
+    server_crt  = STRING                ; Path to TLS certificate file
+    server_key  = STRING                ; Path to TLS private key file
+    ca_crt      = STRING                ; Path to the CA certificate to be used for
+                                        ; client certificate validation.
 
 ###### 3.2.2.4.15 API Documentation
 
@@ -920,6 +933,7 @@ Translib is a library that adapts management server requests to SONiC data provi
             Path    string
             Payload []byte
             User    string
+            ClientVersion Version
         }
 
         type SetResponse struct {
@@ -930,6 +944,7 @@ Translib is a library that adapts management server requests to SONiC data provi
         type GetRequest struct {
             Path    string
             User    string
+            ClientVersion Version
         }
 
         type GetResponse struct {
@@ -941,6 +956,7 @@ Translib is a library that adapts management server requests to SONiC data provi
             Path    string
             Payload []byte
             User    string
+            ClientVersion Version
         }
 
         type ActionResponse struct {
@@ -954,6 +970,7 @@ Translib is a library that adapts management server requests to SONiC data provi
             UpdateRequest  []SetRequest
             CreateRequest  []SetRequest
             User           string
+            ClientVersion  Version
         }
 
         type BulkResponse struct {
@@ -968,6 +985,7 @@ Translib is a library that adapts management server requests to SONiC data provi
             Q               *queue.PriorityQueue
             Stop            chan struct{}
             User            string
+            ClientVersion   Version
         }
 
         type SubscribeResponse struct {
@@ -1007,6 +1025,12 @@ Translib is a library that adapts management server requests to SONiC data provi
         type notificationOpts struct {
             mInterval int
             pType     NotificationType // for TARGET_DEFINED
+        }
+
+        type Version struct {
+            Major uint32
+            Minor uint32
+            Patch uint32
         }
 
 Translib has the following sub modules to help in the translation of data
@@ -1138,7 +1162,58 @@ These utilities methods provides below mentioned common operations on the YGOT s
         string - object field name of the given target object
         error - error object to describe the error if this methods fails to perform the desired operation, otherwise nil
 
-###### 3.2.2.6.4 DB access layer
+###### 3.2.2.6.4 YANG Model Versioning
+
+###### 3.2.2.6.4.1 Version Management
+
+Translib maintains a "YANG bundle version" which is the collective version number for all the YANG
+modules deployed in the Management Framework Service. This version is maintained in a configuration
+file. It uses **MAJOR.MINOR.PATCH** syntax as per [Sematic Versioning](https://semver.org) specification.
+Developer will have to update the bundle version number when he makes any YANG change.
+
+**Major version** is fixed to 1 in this release.
+It will be incremented in future releases when any YANG model is changed in a non backward
+compatible manner. Following are the candidates:
+
+* Delete, rename or relocate data node
+* Change list key attributes
+* Change data type of a node to an incompatible type
+* Change leafref target
+
+**Minor version** is incremented if the YANG change modifies the API in a backward
+compatible way. Patch version is reset to 0.
+Candidate YANG changes for this category are:
+
+* Add new YANG module
+* Add new YANG data nodes
+* Mark a YANG data node as deprecated
+* Change data type of a node to a compatible type
+* Add new enum or identity
+
+**Patch version** is incremented for cosmetic fixes that do not change YANG API.
+Candidate YANG changes for this category are:
+
+* Change description, beautification.
+* Expand pattern or range of a node to wider set.
+* Change must expression to accept more cases.
+* Error message or error tag changes.
+
+###### 3.2.2.6.4.2 Version Checks
+
+Version check ensures that translib processes the requests only from compatible clients.
+All translib APIs accept an optional **ClientVersion** argument.
+Clients can pass the YANG bundle version that they are capable of handling through this argument.
+If specified, request will be processed only if below criteria is satisfied.
+
+    Base_Version <= ClientVersion <= YANG_Bundle_Version
+
+Base Version is **1.0.0** for current release.
+It will change in a future release when major version is incremented.
+
+Version check is bypassed if client does not send its version number in the request.
+However some requests may succeed and some may fail due to input or schema mismatch.
+
+###### 3.2.2.6.5 DB access layer
 
 The DB access layer implements a wrapper over the [go-redis](https://github.com/go-redis/redis) package
 enhancing the  functionality in the following ways:
@@ -1791,7 +1866,7 @@ module sonic-acl-deviation {
 	
 ##### 3.2.2.9 Redis DB
 
-Please see [3.2.2.6.4 DB access layer](#3_2_2_6_4-db-access-layer)
+Please see [3.2.2.6.5 DB access layer](#32265-db-access-layer)
 
 ##### 3.2.2.10 Non DB data provider
 
