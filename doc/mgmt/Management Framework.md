@@ -756,29 +756,18 @@ RESTCONF Notification are not supported by framework. Clients can use gNMI for m
 
 ###### 3.2.2.4.12 Authentication
 
-REST server will support below 3 authentication modes.
+REST server supporsts following authentication modes.
 
-* No authentication
+* HTTP Basic authentication (username/password authentication)
+* HTTP Bearer token authentication with JSON Web Token (JWT) format.
 * TLS Certificate authentication
-* Username/password authentication
+* Any combination of above 3 modes
+* No authentication
 
-Only one mode can be active at a time. Administrator can choose the authentication mode through ConfigDB REST_SERVER table entry. See [DB Schema](#322414-db-schema) section.
+Details are in [SONiC RBAC HLD](https://github.com/project-arlo/SONiC/blob/master/doc/aaa/SONiC%20RBAC%20HLD.md).
 
-###### 3.2.2.4.12.1 No Authentication
-
-This is the default mode. REST server will not authenticate the client; all requests will be processed. It should not be used in production.
-
-###### 3.2.2.4.12.2 Certificate Authentication
-
-In this mode TLS public certificate of the client will be used to authenticate the client. Administrator will have to pre-provision the CA certificate in ConfigDB 'REST_SERVER|certs' entry. REST server will accept a request only if the client TLS certificate is signed by that CA.
-
-###### 3.2.2.4.12.3 User Authentication
-
-In this mode REST server expects the client to provide user credentials in every request. server will support HTTP Basic Authentication method to accept user credentials.
-
-REST server will integrate with Linux PAM to authenticate and authorize the user. PAM may internally use native user database or TACACS+ server based on system configuration. REST write requests will be allowed only if the user belong to admin group. Only read operations will be allowed for other users.
-
-Performing TACACS+ authentication for every REST request can slow down the APIs. This will be optimized through JSON Web Token (JWT) or a similar mechanism in future release.
+By default HTTP Baisc and bearer token authentication modes are enabled.
+It can be overridden through ConfigDB [REST_SERVER table](#322414-db-schema) entry.
 
 ###### 3.2.2.4.13 Error Response
 
@@ -851,15 +840,19 @@ A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server 
     key         = REST_SERVER:default   ; REST server configurations.
     ;field      = value
     port        = 1*5DIGIT              ; server port - defaults to 443
-    client_auth = "none"/"user"/"cert"  ; Client authentication mode.
+    client_auth = "none"/"password"/"jwt"/"cert"  
+                                        ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
                                         ;       for debugging.
-                                        ; user: Username/password authentication
-                                        ;       via PAM.
+                                        ; password: HTTP Basic authentication.
+                                        ; jwt : HTTP Bearer Token authentication with
+                                        ;       JSON Web Token format.
                                         ; cert: Certificate based authentication.
-                                        ;       Client's public certificate should
-                                        ;       be registered on this server.
+                                        ;       Requires REST_SERVER['certs']['ca_crt'] configuration.
+                                        ; Any combination of "password", "jwt" and "cert" modes can be
+                                        ; enabled by specifying a comma separated values.
+                                        ; Eg: "password,jwt" enables both password and jwt modes.
     log_level   = DIGIT                 ; Verbosity for glog.V logs
 
 
