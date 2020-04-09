@@ -235,7 +235,7 @@ Following are the major design changes
 
 The SonicDBConfig object needs to be enhanced to parse the new attributes to incorporate the namespace approach. The _sonic_db_config is made into a dictionary. All the functions this class provides will have a new argument "namespace". 
 
-There is a few APIs introduced to load the database_global.json viz load_sonic_global_db_config() and load_sonic_db_configs(). load_sonic_global_db_config() is used to parse the database_global.json file. load_sonic_db_configs() needs to be explicitly called from the SonicV2Connector class for loading both the global database json file if present and the local database json file.
+There is a few APIs introduced viz. load_sonic_global_db_config(), namespace_validation() etc. The load_sonic_global_db_config() is used to parse the database_global.json file, the namespace_validation() API validates the given namespace using the data populated by load_sonic_global_db_config().
 
 The namespace '' (empty string) is used to refer the local namespace.
 
@@ -249,6 +249,12 @@ class SonicDBConfig(object):
     _sonic_db_config_init = False
     _sonic_db_config = {}
 
+    """This is the database_global.json parse and load API. This file has the namespace name and
+       the corresponsing database_config.json file. The global file is significant for the
+       applications running in the linux host namespace, like eg: config/show cli, snmp etc which
+       needs to connect to databases running in other namesacpes. If the "namespace" attribute is not
+       specified for an "include" attribute, it referes to the linux host namespace.
+    """
     @staticmethod
     def load_sonic_global_db_config(global_db_file_path=SONIC_DB_GLOBAL_CONFIG_FILE):
         """
@@ -256,6 +262,7 @@ class SonicDBConfig(object):
         """
         if SonicDBConfig._sonic_db_global_config_init == True:
             return
+
         if os.path.isfile(global_db_file_path) ==  True:
             global_db_config_dir = os.path.dirname(global_db_file_path)
             with open(global_db_file_path, "r") as read_file:
@@ -265,6 +272,12 @@ class SonicDBConfig(object):
                         ns = ''
                     else:
                         ns = entry['namespace']
+
+                    # Check if _sonic_db_config already have this namespace present
+                    if ns in SonicDBConfig._sonic_db_config:
+                       msg = "The database_config for this namespace '{}' is already parsed. !!".format(ns)
+                        logger.warning(msg)
+                        continue
 
                     db_include_file = os.path.join(global_db_config_dir, entry['include'])
 
@@ -278,7 +291,7 @@ class SonicDBConfig(object):
                         SonicDBConfig._sonic_db_config[ns] = json.load(inc_file)
 
         SonicDBConfig._sonic_db_global_config_init = True
-	
+
     @staticmethod
     def load_sonic_db_config(sonic_db_file_path=SONIC_DB_CONFIG_FILE):
         """
@@ -293,6 +306,7 @@ class SonicDBConfig(object):
                 logger.warning(msg)
                 sonic_db_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'database_config.json')
             with open(sonic_db_file_path, "r") as read_file:
+                # The database_config.json is loaded into the '' index, which referes to the local namespace.
                 SonicDBConfig._sonic_db_config[''] = json.load(read_file)
         except (OSError, IOError):
             msg = "Could not open sonic database config file '{}'".format(sonic_db_file_path)
@@ -301,14 +315,10 @@ class SonicDBConfig(object):
         SonicDBConfig._sonic_db_config_init = True
 
     @staticmethod
-    def load_sonic_db_configs():
-        if SonicDBConfig._sonic_db_global_config_init == False:
-            SonicDBConfig.load_sonic_global_db_config()
-        if SonicDBConfig._sonic_db_config_init == False:
-            SonicDBConfig.load_sonic_db_config()
-
-    @staticmethod
     def namespace_validation(namespace):
+        # Load global config if the namespace is an external one.
+        if namespace != '' and SonicDBConfig._sonic_db_global_config_init == False:
+            SonicDBConfig.load_sonic_global_db_config()
         if SonicDBConfig._sonic_db_config_init == False:
             SonicDBConfig.load_sonic_db_config()
         if namespace not in SonicDBConfig._sonic_db_config:
@@ -317,137 +327,74 @@ class SonicDBConfig(object):
             raise RuntimeError(msg)
 
     @staticmethod
-    def get_dblist(namespace):
+    def db_name_validation(db_name, namespace=''):
         if SonicDBConfig._sonic_db_config_init == False:
             SonicDBConfig.load_sonic_db_config()
         SonicDBConfig.namespace_validation(namespace)
-        return SonicDBConfig._sonic_db_config[namespace]["DATABASES"].keys()
-
-    @staticmethod
-    def get_ns_list():
-        if SonicDBConfig._sonic_db_config_init == False:
-            SonicDBConfig.load_sonic_db_config()
-        return SonicDBConfig._sonic_db_config.keys()
-
-    @staticmethod
-    def get_instance(db_name, namespace):
-        if SonicDBConfig._sonic_db_config_init == False:
-            SonicDBConfig.load_sonic_db_config()
-        SonicDBConfig.db_name_validation(db_name, namespace)
-        inst_name = SonicDBConfig._sonic_db_config[namespace]["DATABASES"][db_name]["instance"]
-        SonicDBConfig.inst_name_validation(inst_name, namespace)
-        return SonicDBConfig._sonic_db_config[namespace]["INSTANCES"][inst_name]
-
-    @staticmethod
-    def get_socket(db_name, namespace):
-        if SonicDBConfig._sonic_db_config_init == False:
-            SonicDBConfig.load_sonic_db_config()
-        return SonicDBConfig.get_instance(db_name, namespace)["unix_socket_path"]
-
+        db=SonicDBConfig._sonic_db_config[namespace]["DATABASES"]
+        if db_name not in db:
+            msg = "{} is not a valid database name in configuration file".format(db_name)
+            logger.warning(msg)
+            raise RuntimeError(msg)
 ```
 
 ## New Design of Python Interface: SonicV2Connector()
 
-The SonicV2Connector class will be extended to connect to the Database in a particular namespace.
+The SonicV2Connector class will be extended to connect to the Database in a particular namespace. The additional argument "namespace" can be passed while creating the class instance. The default value is '', if the user didn't specify a namespace explicitly and it connects to the DB in the local namespace (namespace where we are running the script which uses this class )
 
-The additional argument "namespace" is introduced to the connect() API to connect to the DB in a particular namespace. The default value is '' if the user didn't specify a namespace explicitly and it connects to the DB in the local namespace (namespace where we are running the script which uses this class )
-
-The changes to SonicV2Connector is made in such a way that, if we don't pass any arguments to connect(), the existing behaviour is maintained. The use_unix_socket_path is set to True by default.
+The changes to SonicV2Connector is made in such a way that, if we don't pass any namespace argument, the existing behaviour is maintained. The use_unix_socket_path is set to False by default.
 
 ```python
+
 class SonicV2Connector(DBInterface):
-    def __init__(self, use_unix_socket_path=True, **kwargs):
+    def __init__(self, use_unix_socket_path=False, namespace='', **kwargs):
         super(SonicV2Connector, self).__init__(**kwargs)
         self.use_unix_socket_path = use_unix_socket_path
-        self.namespace = ''
+        self.namespace = namespace
 
-        # Load sonic DB configs
-        self.load_db_configs()
-
-        for db_name in self.get_db_list():
-            # set a database name as a constant value attribute.
-            setattr(self, db_name, db_name)
-
-    def connect(self, db_name, retry_on=True, namespace=''):
-        if namespace == None:
+        """If the user don't give the namespace as input, it takes the default value of ''
+           '' (empty string) referes to the local namespace where this class is used.
+           (It could be a network namespace or linux host namesapce)
+        """
+        if not isinstance(namespace, str):
             msg = "{} is not a valid namespace name".format(namespace)
             logger.warning(msg)
             raise RuntimeError(msg)
 
-        # The TCP connection to a DB in different namespace in not supported.
-        if namespace != '' and self.use_unix_socket_path == False:
+        # The TCP connection to a DB in another namespace in not supported.
+        if namespace != '' and use_unix_socket_path == False:
             message = "TCP connectivity to the DB instance in a different namespace is not implemented!"
             raise NotImplementedError(message)
 
-        self.namespace = namespace
-        for dbname in self.get_db_list():
+        for db_name in self.get_db_list():
             # set a database name as a constant value attribute.
-            setattr(self, dbname, dbname)
-
-        if self.use_unix_socket_path:
-            self.redis_kwargs["unix_socket_path"] = self.get_db_socket(db_name)
-            self.redis_kwargs["host"] = None
-            self.redis_kwargs["port"] = None
-        else:
-            self.redis_kwargs["host"] = self.get_db_hostname(db_name)
-            self.redis_kwargs["port"] = self.get_db_port(db_name)
-            self.redis_kwargs["unix_socket_path"] = None
-        db_id = self.get_dbid(db_name)
-        super(SonicV2Connector, self).connect(db_id, retry_on)
-
+            setattr(self, db_name, db_name)
 ```
 
 ## New Design of Python Interface: ConfigDBConnector()
 
-The ConfigDBConnector class will be extended to connect to the Database in a particular namespace.
-
-The additional argument "namespace" is introduced to the connect() API to connect to the DB in a particular namespace. The default value is '' if the user didn't specify a namespace explicitly and it connects to the DB in the local namespace (namespace where we are running the script which uses this class )
-
-The changes to ConfigDBConnector is made in such a way that, if we don't pass any arguments to connect(), the existing behaviour is maintained. The use_unix_socket_path is set to True by default.
-
-```python
-class ConfigDBConnector(SonicV2Connector):
-
-    INIT_INDICATOR = 'CONFIG_DB_INITIALIZED'
-    TABLE_NAME_SEPARATOR = '|'
-    KEY_SEPARATOR = '|'
-
-    def __init__(self, **kwargs):
-        # By default, connect to Redis through TCP, which does not requires root.
-        if len(kwargs) == 0:
-            kwargs['host'] = '127.0.0.1'
-        super(ConfigDBConnector, self).__init__(**kwargs)
-        self.handlers = {}
-
-    def db_connect(self, dbname, wait_for_init=False, retry_on=False, namespace=''):
-        self.db_name = dbname
-        self.KEY_SEPARATOR = self.TABLE_NAME_SEPARATOR = self.get_db_separator(self.db_name)
-        SonicV2Connector.connect(self, self.db_name, retry_on, namespace)
-        if wait_for_init:
-            self.__wait_for_db_init()
-
-    def connect(self, wait_for_init=True, retry_on=False, namespace=''):
-        self.db_connect('CONFIG_DB', wait_for_init, retry_on, namespace)
-
-```
+The ConfigDBConnector class will also be be extended to connect to the Database in a particular namespace. The additional argument "namespace" can be passed while creating the class instance. This will be used to init the parent class SonicV2Connector for the required namespace. The default value is '', if the user didn't specify a namespace explicitly and it connects to the DB in the local namespace.
 
 ## Updates to the sonic-utilities
+
 The sonic-utilities like sonic-db-cli, sonic-cfggen, db_migrator etc and the scripts which is used in the show/config commands eg: portconfig needs to support the namespace as an argument. A sample change as shown below.
 
+If the user specifies a namespace, this utility uses the unix_socket_path and connects to the database instance in that namespace, else it uses the TCP socket to connect to a local DB.
+
 ```git
-+    -n     --namesapce           Namespace name
--    def __init__(self, verbose, port):
-+    def __init__(self, verbose, port, namespace):
--        self.db.connect()
-+        self.db.connect(namespace=namespace)
-+    parser.add_argument('-n', '--namespace', metavar='namespace details', type = str, required = False,
-+                        help = 'The namespace whose DB instance we need to connect', default = '' )
--        port = portconfig(args.verbose, args.port)
-+        port = portconfig(args.verbose, args.port, args.namespace)
++            if args.namespace is None:
++                dbconn = swsssdk.SonicV2Connector()
++            else:
++                dbconn = swsssdk.SonicV2Connector(use_unix_socket_path=True, namespace=args.namespace)
++            dbconn.connect(args.database)
++        except RuntimeError:
++            msg = "Invalid database name input : {}".format(args.database)
++            print >> sys.stderr, msg
+
 ```
 
 ## Design of C++ Interface :  DBConnector()
-The C++ DBConnector interface needs to be extended to handle the INCLUDES attribute in the database_config.json file used to refer external database_config.json files.
+The C++ DBConnector interface needs to be extended to parse the database_global.json file to get the mapping of namespaces to their respective database_config.json files.
 
 ## Upgrade, Downgrade
 
