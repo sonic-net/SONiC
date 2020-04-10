@@ -216,6 +216,7 @@ Management framework makes use of the translation library (Translib) written in 
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
 The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
+Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-telemetry container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-telemetry repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
 
@@ -725,7 +726,7 @@ Supported RPC Operations:
 
 Example Client Operations:
 --------------------------
-Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-framework/tree/master/src/Translib/test
+Using opensource clients, these are example client operations. The .json test payload files are available here: https://github.com/project-arlo/sonic-mgmt-common/tree/master/src/Translib/test
 
 Get:
 ----
@@ -1194,11 +1195,6 @@ Translib is a library that adapts management server requests to SONiC data provi
             Name string
             Org  string
             Ver  string
-        }
-
-        type notificationOpts struct {
-            mInterval int
-            pType     NotificationType // for TARGET_DEFINED
         }
 
         type Version struct {
@@ -2217,12 +2213,12 @@ Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/mast
 
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
-* Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
+* Place the main YANG modules under sonic-mgmt-common/models/yang directory.
 	* By placing YANG module in this directory, on the next build, OpenAPI YAML (OpenAPI spec) is generated for the YANG.
-	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
-* Place all dependent YANG modules which are imported into the main YANG module such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
-	* By placing YANG module in this directory, OpenAPI YAML (OpenAPI spec) is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
-	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
+	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-common/models/yang directory itself.
+* Place all dependent YANG modules which are imported into the main YANG module such as submodules or YANGs which define typedefs, etc under sonic-mgmt-common/models/yang/common directory.
+	* By placing YANG module in this directory, OpenAPI YAML (OpenAPI spec) is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-common/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-common/models/yang/common.
 * Generation of REST server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
 #### 5.1.3 Config Translation App (Go language)
@@ -2282,12 +2278,12 @@ Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/mast
 
 #### 5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs
 
-* Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
+* Place the main YANG modules under sonic-mgmt-common/models/yang directory.
 	* By placing YANG module in this directory, YAML (OpenAPI spec) is generated for the YANG.
-	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
-* Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
-	* By placing YANG module in this directory, YAML (OpenAPI spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
-	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
+	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-common/models/yang directory itself.
+* Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-common/models/yang/common directory.
+	* By placing YANG module in this directory, YAML (OpenAPI spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-common/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-common/models/yang/common.
 * Generation of REST-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
 
@@ -2299,8 +2295,8 @@ Key features:
 * Go language.
 * YANG to Redis and vice-versa data translation is handled by Transformer. In order to facilitate data translation, the developer needs to provide just the YANG file for the data model
     * YANG file for the data model
-    * Optionally, a YANG annotation file (refer to [3.2.2.7.8 Utilities](#32278-utilities)) to define translation hints to map YANG objects to DB objects. These translation hints are external callbacks for performing complex translation whereas simple translations are handled by Transformer's built-in methods. The annotation file is also placed in `sonic-mgmt-framework/models/yang`
-    * Code to define the translation callbacks, in `sonic-mgmt-framework/src/translib/transformer`
+    * Optionally, a YANG annotation file (refer to [3.2.2.7.8 Utilities](#32278-utilities)) to define translation hints to map YANG objects to DB objects. These translation hints are external callbacks for performing complex translation whereas simple translations are handled by Transformer's built-in methods. The annotation file is also placed in `sonic-mgmt-common/models/yang`
+    * Code to define the translation callbacks, in `sonic-mgmt-common/src/translib/transformer`
 * The processing of data is taken care by App module
 	* App consumes/produces YANG data through [YGOT](https://github.com/openconfig/YGOT) structures.
 	* Framework provides Go language APIs for Redis DB access. APIs are similar to existing Python APIs defined in sonic-py-swsssdk repo.
