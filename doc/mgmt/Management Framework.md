@@ -274,7 +274,7 @@ GNMI service defines a gRPC-based protocol for the modification and retrieval of
 3. A new transl data client is added to process the incoming YANG-based request (either standard or proprietary)
 4. The new transl data client relies on Translib infra provided to translate, get, set of the YANG objects.
 
-More details onthe GNMI server, Client and workflow provided later in the document.
+More details on the GNMI server, Client and workflow provided later in the document.
 
 ### 3.2 SONiC Management Framework Components
 
@@ -566,12 +566,12 @@ Client applications can use swagger generated client SDK or any other REST clien
 
 ##### 3.2.2.3 gNMI Client
 
-SONiC Teleletry service provides the gNMI server, while the client must be provided by the user.
+SONiC Telemetry service provides the gNMI server, while the client must be provided by the user. gNMI is typically used as a programmatic interface and therefore it is typically called directly from programming language environments using their respective gRPC libraries (https://github.com/grpc/grpc). For testing and scripting purposes, several CLI programs are provided as well.
 
-GNMI client developed by JipanYANG.(github.com/jipanYANG/gnxi/gnmi_get, github.com/jipanYANG/gnxi/gnmi_set)
-is used for testing. gnmi_get and gnmi_set code has been changed to handle module name.
+GNMI clients developed by google and modified by JipanYANG.(github.com/jipanYANG/gnxi/gnmi_get, github.com/jipanYANG/gnxi/gnmi_set)
+was taken and further modified to support new features. gnmi_cli from openconfig (https://github.com/openconfig/gnmi/tree/master/cmd/gnmi_cli) is also taken for testing subscribe and capabilities operations. Finally, a new client was developed gnoi_client, for test gNOI RPC operations.
 
-Note: Although the GRPC protocol allows for many encodings and models to be used, our usage is restricted to JSON encoding.
+Note: Although the gRPC protocol allows for many encodings to be used, our usage is restricted to JSON_IETF encoding.
 
 Supported RPC Operations:
 -------------------------
@@ -580,12 +580,13 @@ Supported RPC Operations:
     + Update: List of one or more objects to update
     + Replace: List of one or objects to replace existing objects, any unspecified fields wil be defaulted.
     + Delete: List of one or more object paths to delete
-- Capabilities: Return gNMI version and list of supported models
+- Capabilities: Return gNMI version and list of supported models and model versions.
+    + A gNMI Extension field has been added as well to return the SONiC model "bundle version".
 - Subscribe:
     + Subscribe to paths using either streaming or poll, or once based subscription, with either full current state or updated values only.
         * Once: Get single subscription message.
         * Poll: Get one subscription message for each poll request from the client.
-        * Stream: Get one subscription message for each object update, or at each sample interval if using sample mode. target_defined uses the values pre-configured for that particular object.
+        * Stream: Get one subscription message for each object update (called ON_CHANGE mode), or at each sample interval if using sample mode. target_defined uses the values pre-configured for that particular object. Not all paths support ON_CHANGE mode due to performance considerations, while all paths will support sample mode and therefore target defined as well since it will default to sample if ON_CHANGE is not supported.
 
 
 Example Client Operations:
@@ -609,7 +610,7 @@ Subscribe:
 ----------
 Streaming sample based:
 -----------------------
-`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type s -streaming_sample_interval 3000000000 -streaming_type 2 -q /openconfig-acl:acl/ -v 0 -target YANG`
+`./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type s -streaming_sample_interval 3 -streaming_type SAMPLE -q /openconfig-acl:acl/ -v 0 -target YANG`
 
 Poll based:
 -----------
@@ -618,6 +619,17 @@ Poll based:
 Once based:
 -----------
 `./gnmi_cli -insecure -logtostderr -address 127.0.0.1:8080 -query_type o -q /openconfig-acl:acl/ -v 0 -target YANG`
+
+
+gNOI:
+--------------
+gNOI (gRPC Network Operations Interface) extends the gNMI server, adding new custom RPC's to execute management functions on the switch.
+
+gNOI Clear Neighbor:
+-------------------
+```
+gnoi_client -module Sonic -rpc clearNeighbors -jsonin '{"sonic-neighbor:input": {"force": true, "ip": "4.4.4.1"}}' -insecure
+```
 
 ##### 3.2.2.4 REST Server
 
