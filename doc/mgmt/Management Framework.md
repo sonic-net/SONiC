@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.16
+### Rev 0.17
 
 ## Table of Contents
 
@@ -32,9 +32,10 @@
                 * [3.2.1.1.1 Overview](#32111-overview)
                 * [3.2.1.1.2 Supported HTTP verbs](#32112-supported-http-verbs)
                 * [3.2.1.1.3 Supported Data Nodes](#32113-supported-data-nodes)
-                * [3.2.1.1.4 Data Type Mappings](#32114-data-type-mappings)
-                * [3.2.1.1.5 Future enhancements](#32115-future-enhancements)
-            * [3.2.1.2 swagger generator](#3212-swagger-generator)
+                * [3.2.1.1.4 Data Type Details](#32114-data-type-details)
+                * [3.2.1.1.5 Special Handling](#32115-special-handling)
+                * [3.2.1.1.6 Future enhancements](#32115-future-enhancements)                
+            * [3.2.1.2 OpenAPI generator](#3212-OpenAPI-generator)
             * [3.2.1.3 YGOT generator](#3213-YGOT-generator)
             * [3.2.1.4 pyang compiler](#3214-pyang-compiler)
         * [3.2.2 Run time components](#322-run-time-components)
@@ -135,7 +136,7 @@
 | 0.14 | 12/03/2019 | Sachin Holla            | RESTCONF yang library and other enhancements |
 | 0.15 | 12/19/2019 | Partha Dutta            | Added new CVL API, platform and custom validation details |
 | 0.16 | 04/08/2020 | Sachin Holla            | API versioning enhancement |
-
+| 0.17 | 04/08/2020 | Mohammed Faraaz         | OpenAPI 3.0 enhancements |
 ## About this Manual
 
 This document provides general information about the Management framework feature implementation in SONiC.
@@ -171,7 +172,7 @@ Management framework is a SONiC application which is responsible for providing v
     2. Custom YANG models ([SONiC YANG](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI / Cisco like CLI
 
-* Must provide support for [OpenAPI spec](https://swagger.io/specification/) to generate REST server side code
+* Must provide support for [OpenAPI spec](https://OpenAPI.io/specification/) to generate REST server side code
 * Must provide support for NBIs such as:
 
     1. CLI
@@ -243,22 +244,22 @@ The Developer starts by defining the desired management objects and the access A
 
 This can be an independent choice on an application by application basis. However note that using YANG allows for richer data modelling, and therefore superior data validation.
 
-1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate SONiC YANG model has to be written based on Redis ABNF schema for validating Redis configuration and transformer hints should be written in a deviation file for standard YANG model to Redis DB coversion and vice versa (refer to [3.2.2.7 Transformer](#3227-transformer) for details). However, if custom SONiC YANG model is written based on guidelines, CVL YANG is automatically derived from it and the same is used for validation purpose and there is no need of writing any deviation file for transformer hints. Based on the given YANG model as input, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the Swagger generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
+1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate SONiC YANG model has to be written based on Redis ABNF schema for validating Redis configuration and transformer hints should be written in a deviation file for standard YANG model to Redis DB coversion and vice versa (refer to [3.2.2.7 Transformer](#3227-transformer) for details). However, if custom SONiC YANG model is written based on guidelines, CVL YANG is automatically derived from it and the same is used for validation purpose and there is no need of writing any deviation file for transformer hints. Based on the given YANG model as input, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the OpenAPI generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
 
-2. In case of OpenAPI spec, it is directly given to the [Swagger](https://swagger.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, SONiC YANG model has to be written based on Redis ABNF schema. 
+2. In case of OpenAPI spec, it is directly given to the [OpenAPI](https://OpenAPI.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, SONiC YANG model has to be written based on Redis ABNF schema. 
 
 #### 3.1.2 Run time flow
 
 ##### 3.1.2.1 CLI
 
-1. CLI uses the KLISH framework to provide a CLI shell. The CLI request is converted to a corresponding REST client SDK request that was generated by the Swagger generator, and is given to the REST server.
-2. The Swagger generated REST server handles all the REST requests from the client SDK and invokes a common handler for all the create, update, replace, delete and get operations along with path and payload. This common handler converts all the requests into Translib arguments and invokes the corresponding Translib provided APIs.
+1. CLI uses the KLISH framework to provide a CLI shell. The CLI request is converted to a corresponding REST client SDK request that was generated by the OpenAPI generator, and is given to the REST server.
+2. The OpenAPI generated REST server handles all the REST requests from the client SDK and invokes a common handler for all the create, update, replace, delete and get operations along with path and payload. This common handler converts all the requests into Translib arguments and invokes the corresponding Translib provided APIs.
 3. Translib uses the value of the input (incoming) path/URI to determine the identity of the appropriate App module. It then calls that App module, passing the request as either a populated YGOT structure or as JSON, depending upon the data modelling method in use for the application (see section [3.1.1](#311-build-time-flow)).
 4. Further processing of CLI commands will be handled by Translib componenets that will be discussed in more detail in the later sections.
 
 ##### 3.1.2.2 REST
 
-1. REST client will use the Swagger generated client SDK to send the request to the REST server.
+1. REST client will use the OpenAPI generated client SDK to send the request to the REST server.
 2. From then on the flow is similar to the one seen in the CLI.
 
 ##### 3.1.2.3 gNMI
@@ -286,7 +287,7 @@ Management framework components can be classified into
 Following are the build time components of the management framework
 
 1. Pyang compiler (for YANG to OpenAPI conversion)
-2. Swagger generator
+2. OpenAPI generator
 3. YGOT generator
 4. pyang compiler (for YANG to YIN conversion)
 
@@ -294,7 +295,7 @@ Following are the build time components of the management framework
 
 ##### 3.2.1.1.1 Overview
 
-Open source Python-based YANG parser called pyang is used for YANG parsing and building a Python object dictionary. A custom plugin is developed to translate this Python object dictionary into an OpenAPI spec. As of now OpenAPI spec version, 2.0 is chosen considering the maturity of the toolset available in the open community.
+Open source Python-based YANG parser called pyang is used for YANG parsing and building a Python object dictionary. A custom plugin is developed to translate this Python object dictionary into an OpenAPI spec. The OpenAPI specs are [3.0](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.3.md#schemaObject) complaint.
 
 URI format and payload is RESTCONF complaint and is based on the [RFC8040](https://tools.ietf.org/html/rfc8040). The Request and Response body is in JSON format in this release.
 
@@ -310,53 +311,184 @@ YANG RPC                | POST
 
 ##### 3.2.1.1.3 Supported Data Nodes
 
-For each of the below-listed Data keywords nodes in the YANG model, the OpenAPI (path) will be generated in version 1
+For each of the below-listed Data keywords nodes in the YANG model, the OpenAPI (path) will be generated 
 
 * Container
 * List
 * Leaf
 * Leaf-list
+* Rpc
 
-##### 3.2.1.1.4 Data Type Mappings
+##### 3.2.1.1.4 Data Type Details
 
- YANG Type | OpenAPI Type
--------------|------------------
-int8 | Integer
-int16 | Integer
-int32 | Integer
-int64 | Integer
-uint8 | Integer
-uint16 | Integer
-uint32 | Integer
-uint64 | Integer
-decimal64 | Number
-String | string
-Enum | Enum
-Identityref | String (Future can be Enum)
-long | Integer
-Boolean | Boolean
-Binary | String with Format as Binary (<https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md>)
-bits | integer
+ YANG Type    | OpenAPI Type
+--------------|------------------
+int8          | Integer
+int16         | Integer
+int32         | Integer
+int64         | Integer
+uint8         | Integer
+uint16        | Integer
+uint32        | Integer
+uint64        | Integer
+decimal64     | Number
+String        | string
+Enum          | Enum
+Identityref   | String (Future can be Enum)
+long          | Integer
+Boolean       | Boolean
+Binary        | String with Format as Binary
+bits          | integer
 
 * All list keys will be made mandatory in the payload and URI
 * YANG mandatory statements will be mapped to the required statement in OpenAPI
 * Default values, Enums are mapped to Default and Enums statements of OpenAPI
-* Currently, Swagger/OpenAPI 2.0 Specification does NOT support JSON-schema anyOf and oneOfdirectives, which means that we cannot properly treat YANG choice/case statements during conversion. As a workaround, the current transform will simply serialize all configuration nodes from the choice/case sections into a flat list of properties.
+* Since OpenAPI spec does not provide a way to define an unsigned types, a custom vendor extension x-yang-type is introduced which will contain the actual yang data type of a leaf/leaf-list. This vendor extension will be part of type object.
 
-##### 3.2.1.1.5 Future enhancements
+Example below
+
+```
+  /restconf/data/ietf-snmp:snmp/tlstm/cert-to-name={id}:
+    put:
+      tags:
+      - ietf-snmp
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          format: int32
+          maximum: 4294967295
+          minimum: 0
+          type: integer
+          **x-yang-type: uint32**
+```
+* As seen in above example all Integer types will have maximum and minimum fields. If the range statement is defined on the YANG node, then the value for maximum and minimum is derived from the range statement otherwise default range specified by YANG will be considered. And also a custom vendor extension called x-range will include a copy of range statement's value. If a type has one more range statements (may be indirectly using typedefs) all the range statements will be included as part of x-range extension separated by '|' character.
+
+Exampe below
+```
+    - format: int32
+    **maximum: 2147483647**
+    **minimum: 1**
+    type: integer
+    **x-range: 1..2147483647 | 4..10**
+    x-yang-type: int32
+```
+* A string data types will have a vendor extension x-pattern whose value will be a regex. This field will only be present when the YANG node has it. Although OpenAPI 3.0 has a pattern field under schema object, but it is not used because the regex required for OpenAPI 3.0 is a W3C complaint regex but Openconfig models follow POSIX style regex. If a type has one more regex statements (may be indirectly using typedefs) all the regex statements will be included as part of x-pattern extension, they will be ANDed together.
+
+Example below
+```
+    - maxLength: 18446744073709551615
+    minLength: 0
+    type: string
+    **x-pattern: (([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\p{N}\p{L}]+)?**
+    x-yang-type: string
+```
+
+* As seen in above example all String types will have maxLength and minLength fields. If the length statement is defined on the YANG node, then the value for maxLength and minLength is derived from the length statement otherwise default length specified by YANG will be considered. And also a custom vendor extension called x-length will include a copy of length statement's value. If a type has one more length statements (may be indirectly using typedefs) all the length statements will be included as part of x-length extension separated by '|' character.
+
+* An Union data type is supported through oneOf directive. oneOf is a JSON schema directive supported by openAPI 3.0. It takes an array of objects and at any given time only one of item can be used. 
+
+Example below
+```
+    - name: security-model
+    in: path
+    required: true
+    schema:
+        oneOf:
+        - enum:
+        - v1
+        - v2c
+        - usm
+        - tsm
+        maxLength: 18446744073709551615
+        minLength: 0
+        type: string
+        x-yang-type: string
+        - format: int32
+        maximum: 2147483647
+        minimum: 1
+        type: integer
+        x-range: 1..2147483647
+        x-yang-type: int32
+```
+
+##### 3.2.1.1.5 Special handling
+
+* A list and leaf-list will have maxItems and minItems properties set if a YANG node defines max-elements and min-elements statements.
+
+Example below
+```
+    security-model:
+        type: array
+        items:
+        oneOf:
+        - enum:
+            - v1
+            - v2c
+            - usm
+            - tsm
+            maxLength: 18446744073709551615
+            minLength: 0
+            type: string
+            x-yang-type: string
+        - format: int32
+            maximum: 2147483647
+            minimum: -2147483648
+            type: integer
+            x-range: 1..2147483647
+            x-yang-type: int32
+        minItems: 1
+```
+* A Choice-case statement is supported using oneOf directive.
+
+Example below
+```
+    ietf-snmp:auth:
+        type: object
+        properties: {}
+        **oneOf:**
+        - type: object
+        properties:
+            md5:
+            type: object
+            properties:
+                key:
+                maxLength: 18446744073709551615
+                minLength: 0
+                type: string
+                x-pattern: ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?
+                x-yang-type: string
+            required:
+            - key
+        - type: object
+        properties:
+            sha:
+            type: object
+            properties:
+                key:
+                maxLength: 18446744073709551615
+                minLength: 0
+                type: string
+                x-pattern: ([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?
+                x-yang-type: string
+            required:
+            - key
+```
+
+##### 3.2.1.1.6 Future enhancements
 
 * Support for additional YANG actions and notifications(if required).
 * Support for RESTCONF query parameters such as depth, filter, etc
-* Support for a pattern in string, the range for integer types and other OpenAPI header objects defined in https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#header-object
-* Other misc OpenAPI related constraints will be added
+* Convert Yang identities in to enums
 
-##### 3.2.1.2 Swagger generator
+##### 3.2.1.2 OpenAPI generator
 
-Swagger-codegen tool (github.com/Swagger-api/Swagger-codegen) is used to generate REST server and client code from the OpenAPI definitions. It consumes the OpenAPI definitions generated from YANG files and any other manually written OpenAPI definition files.
+OpenAPI-codegen tool (github.com/OpenAPITools/openapi-generator) is used to generate REST server and client code from the OpenAPI definitions. It consumes the OpenAPI definitions generated from YANG files and any other manually written OpenAPI definition files.
 
-REST server is generated in Go language. Customized Swagger-codegen templates are used to make each server stub invoke a common request handler function. The common request handler will invoke Translib APIs to service the request.
+REST server is generated in Go language. Customized OpenAPI-codegen templates are used to make each server stub invoke a common request handler function. The common request handler will invoke Translib APIs to service the request.
 
-REST client is generated in Python language. Client applications can generate the REST client in any language using standard Swagger-codegen tool.
+REST client is generated in Python language. Client applications can generate the REST client in any language using standard OpenAPI-codegen tool.
 
 ##### 3.2.1.3 YGOT generator
 
@@ -364,7 +496,7 @@ YGOT generator generates Go binding structures for the management YANG. The gene
 
 ##### 3.2.1.4 pyang compiler
 
-Open source pyang tool is used to compile YANG models and generate output file in required format. For example SONiC YANG model is compiled and YIN schema file is generated for validation purpose. Similarly, after compiling YANG model, OpenAPI spec file is generated for generating REST client SDK and server code using Swagger-codegen.
+Open source pyang tool is used to compile YANG models and generate output file in required format. For example SONiC YANG model is compiled and YIN schema file is generated for validation purpose. Similarly, after compiling YANG model, OpenAPI spec file is generated for generating REST client SDK and server code using OpenAPI-codegen.
 
 #### 3.2.2 Run time components
 
@@ -388,8 +520,8 @@ Open source Klish is integrated into sonic-mgmt-framework container to provide t
 
 1. CLI command input from user
 2. Klish invokes the actioner script
-3. Actioner script invokes the Swagger Client SDK API to make a REST API call.
-4. Receive response fromSswagger client API and pass it to renderer scripts.
+3. Actioner script invokes the OpenAPI Client SDK API to make a REST API call.
+4. Receive response fromSOpenAPI client API and pass it to renderer scripts.
 5. Renderer scripts processes the JSON response from REST Client and optionally formats the output using a Jinja template
 6. CLI output is rendered to the console.
 
@@ -400,8 +532,8 @@ CLI consists of the following components.
 * **Open source Klish** - CLI parser framework to support Command Line Interface Shell
 * **XML files** to define CLI command line options and actions
   * Klish uses XML to define CLI commands to build the command tree. Klish provides modular CLI tree configurations to build command trees from multiple XML files. XML elements can be defined with macros and entity references, which are then preprocessed by utility scripts to generate the expanded XML files that are ultimately used by Klish.
-* **Actioner** - Python scripts defined as a command `action`, to form the request body and invoke the swagger client API
-* **Renderer** - Python scripts defined with Jinja templates. Receives the JSON response from Swagger API and use the jinja2 template file to render and format CLI output.
+* **Actioner** - Python scripts defined as a command `action`, to form the request body and invoke the OpenAPI client API
+* **Renderer** - Python scripts defined with Jinja templates. Receives the JSON response from OpenAPI API and use the jinja2 template file to render and format CLI output.
 * **Preprocess scripts** - Validates XML files and applies some processing from a developer-friendly form into a "raw" form that is compatible with Klish.
 
 ###### 3.2.2.1.2 Preprocessing XML files
@@ -480,12 +612,12 @@ The ENTITY name can be referenced in command definitions. For example, PTYPE for
 
 ###### 3.2.2.1.5 Actioner scripts
 
-The Actioner script is used to invoke the swagger client API. The script can be defined in the `<ACTION>` tag and run with shell commands. Klish spawns a sub-shell to interpret the instructions defined in a command's `<ACTION>` tag.
+The Actioner script is used to invoke the OpenAPI client API. The script can be defined in the `<ACTION>` tag and run with shell commands. Klish spawns a sub-shell to interpret the instructions defined in a command's `<ACTION>` tag.
 The sub-shell runs the wrapper script `sonic_cli_<module_name>.py`
 ```
-	sonic_cli_<module_name>.py <Swagger client method> [parameters . . .]
+	sonic_cli_<module_name>.py <OpenAPI client method> [parameters . . .]
 ```
-The `sonic_cli_<module_name>.py` has a dispatch function to call a Swagger client method with parameters passed from user input.
+The `sonic_cli_<module_name>.py` has a dispatch function to call a OpenAPI client method with parameters passed from user input.
 
 Example:
 ```XML
@@ -509,7 +641,7 @@ Example:
 
 ###### 3.2.2.1.6 Renderer scripts
 
-The actioner script receives the JSON output from the swagger client API and invokes the renderer script. The renderer script will send the JSON response to the jinja2 template file to parse the response and generate the CLI output.
+The actioner script receives the JSON output from the OpenAPI client API and invokes the renderer script. The renderer script will send the JSON response to the jinja2 template file to parse the response and generate the CLI output.
 
 Example: "show acl"
 
@@ -525,16 +657,16 @@ Example: "show acl"
 The following steps are to be followed when a new CLI is to be added.
 1.	Create an XML file that defines CLI command and parameters that the command requires.
 2.	Define the CLI help string to be displayed and datatype for the parameters. New parameter types (PTYPES), macros, and entities can be defined and used in the XML files. Valid XML tags are defined in the `sonic-clish.xsd` file.
-3.	Add the shell commands to `<ACTION>` tag to run the wrapper script with the Swagger client method name and parameters
+3.	Add the shell commands to `<ACTION>` tag to run the wrapper script with the OpenAPI client method name and parameters
 4.	Add the code to the wrapper script to construct the payload in `generate_body()` and handle the response
 5.	For ‘show’ commands, create a Jinja template to format the output
 
 
 ##### 3.2.2.2 REST Client SDK
 
-Framework provides swagger-codegen generated Python client SDK. Developers can generate client SDK code in other programming languages from the OpenAPI definitions as required.
+Framework provides OpenAPI-codegen generated Python client SDK. Developers can generate client SDK code in other programming languages from the OpenAPI definitions as required.
 
-Client applications can use swagger generated client SDK or any other REST client tool to communicate with the REST server.
+Client applications can use OpenAPI generated client SDK or any other REST client tool to communicate with the REST server.
 
 ##### 3.2.2.3 gNMI Client
 
@@ -865,10 +997,10 @@ A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server 
 
 ###### 3.2.2.4.15 API Documentation
 
-REST server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
+REST server will provide [OpenAPI UI](https://github.com/OpenAPI-api/OpenAPI-ui) based online
 documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
 URL **https://REST_SERVER_IP/ui** in a browser. This page will list all supported OpenAPI
-definition files (both YANG generated and manual) along with link to open Swagger UI for them.
+definition files (both YANG generated and manual) along with link to open OpenAPI UI for them.
 
 
 ##### 3.2.2.5 gNMI server
@@ -2018,10 +2150,10 @@ Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/mast
 #### 5.1.2 Generation of REST server stubs and Client SDKs for YANG based APIs
 
 * Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
-	* By placing YANG module in this directory, on the next build, OpenAPI YAML (swagger spec) is generated for the YANG.
+	* By placing YANG module in this directory, on the next build, OpenAPI YAML (OpenAPI spec) is generated for the YANG.
 	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
 * Place all dependent YANG modules which are imported into the main YANG module such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
-	* By placing YANG module in this directory, OpenAPI YAML (swagger spec) is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* By placing YANG module in this directory, OpenAPI YAML (OpenAPI spec) is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
 	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
 * Generation of REST server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
@@ -2083,10 +2215,10 @@ Please refer to [SONiC YANG Guidelines](https://github.com/Azure/SONiC/blob/mast
 #### 5.2.4 Generation of REST server stubs and Client SDKs for YANG based APIs
 
 * Place the main YANG modules under sonic-mgmt-framework/models/yang directory.
-	* By placing YANG module in this directory, YAML (swagger spec) is generated for the YANG.
+	* By placing YANG module in this directory, YAML (OpenAPI spec) is generated for the YANG.
 	* If there is YANG which is augmenting the main YANG module, this augmenting YANG should also be placed in sonic-mgmt-framework/models/yang directory itself.
 * Place all dependent YANG modules such as submodules or YANGs which define typedefs, etc under sonic-mgmt-framework/models/yang/common directory.
-	* By placing YANG module in this directory, YAML (swagger spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
+	* By placing YANG module in this directory, YAML (OpenAPI spec)  is not generated for the YANG modules, but the YANGs placed under sonic-mgmt-framework/models/yang can utilize or refer to types, and other YANG constraints from the YANG modules present in this directory.
 	* Example: ietf-inet-types.yang which mainly has typedefs used by other YANG models and generally we won't prefer having a YAML for this YANG, this type of YANG files can be placed under sonic-mgmt-framework/models/yang/common.
 * Generation of REST-server stubs and client SDKs will automatically happen when make command is executed as part of the build.
 
@@ -2327,7 +2459,7 @@ Following are the list of Open source tools used in Management framework
 
 1. [Gorilla/mux](https://github.com/gorilla/mux)
 2. [Go datastructures](https://github.com/Workiva/go-datastructures/tree/master/queue)
-3. [Swagger](https://swagger.io)
+3. [OpenAPI](https://OpenAPI.io)
 4. [gNMI client](https://github.com/jipanyang/gnxi)
 5. [goyang](https://github.com/openconfig/goyang)
 6. [YGOT](https://github.com/openconfig/ygot/ygot)
