@@ -1396,11 +1396,13 @@ enhancing the  functionality in the following ways:
 The APIs are broadly classified into the following areas:
 
     * Initialization/Close: NewDB(), DeleteDB()
-    * Read                : GetEntry(), GetKeys(), GetTable()
+    * Read                : GetEntry(), GetKeys(), GetKeysPattern(), GetTable()
     * Write               : SetEntry(), CreateEntry(), ModEntry(), DeleteEntry()
-    * Transactions        : StartTx(), CommitTx(), AbortTx()
+                            DeleteEntryField()
+    * Transactions        : StartTx(), CommitTx(), AbortTx(), AppendWatchTx()
     * Map                 : GetMap(), GetMapAll()
     * Subscriptions       : SubscribeDB(), UnsubscribeDB()
+    * Publish             : Publish()
 
 Detail Method Signature:
     Please refer to the code for the detailed method signatures.
@@ -1443,9 +1445,8 @@ DB access layer, Redis, CVL Interaction:
                     |                  |  previous HGETALL)|
                     |                  |                   |Else
                     |                  |                   | ValidateEditConfig(
-                    |                  |                   |  OP_UPDATE)
-                    |                  |                   | ValidateEditConfig(
-                    |                  |                   |  DEL_FIELDS)
+                    |                  |                   |  {OP_UPDATE,
+                    |                  |                   |  DEL_FIELDS})
     ----------------|------------------|-------------------|--------------------
     CreateEntry(k,v)|    none          | HMSET(fields in v)| ValidateEditConfig(
                     |                  |                   |  OP_CREATE)
@@ -1458,6 +1459,10 @@ DB access layer, Redis, CVL Interaction:
     ----------------|------------------|-------------------|--------------------
     DeleteEntryField|    none          | HDEL(fields)      | ValidateEditConfig(
     (k,v)           |                  |                   |   DEL_FIELDS)
+
+Notes:
+    1. SetEntry(), CreateEntry(), ModEntry() with empty fields in v, will map to
+       DeleteEntry(). [ There may be an option to disable this in the future. ]
 
 
 ##### 3.2.2.7 Transformer
