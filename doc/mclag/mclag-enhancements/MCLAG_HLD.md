@@ -6,6 +6,7 @@ Rev 0.1
 - **[Revision](#Revision)**
 - **[About this Manual](#About-this-Manual)**
 - **[Definition/Abbreviation](#DefinitionAbbreviation)**
+	
 	- [Table 1: Abbreviations](#Table-1:-Abbreviations)
 - **[1 Feature Overview](#1-Feature-Overview)**
 	- [1.1 Functional Requirements](#1_1-Functional-Requirements)
@@ -94,7 +95,8 @@ Rev 0.1
 	- [9.4 Port Isolation](#9_4-Port-Isolation)
 	- [9.5 MCLAG Interface Flap](#9_5-MCLAG-Interface-Flap)
 	- [9.6 MCLAG Unique IP enhancements](#9_6-MCLAG-Unique-IP-enhancements)
-- **[10 Internal Design Information](#10-Internal-Design-Information)**
+	
+	
 
 # List of Tables
 
@@ -804,10 +806,5 @@ Upgrade/downgrade from/to the older version is not supported with new enhanced v
 2. Verify IPv4 and IPv6 routing with traffic
 3. Veirfy Ping / Ping6 between Peer nodes VLAN interface
 4. Veirfy Ping / Ping6 between Peer node VLAN interface and MCLAG Client device
-5. Verify BGP session up on VLAN interface
-
-
-# 10 Internal Design Information
-
-NA
+5. Verify BGP session up on VLAN interface.
 
