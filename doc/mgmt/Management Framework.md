@@ -2,7 +2,7 @@
 
 ## High level design document
 
-### Rev 0.18
+### Rev 0.19
 
 ## Table of Contents
 
@@ -138,6 +138,7 @@
 | 0.16 | 04/08/2020 | Sachin Holla            | API versioning enhancement |
 | 0.17 | 04/08/2020 | Mohammed Faraaz         | OpenAPI 3.0 enhancements |
 | 0.18 | 04/09/2020 | Kwangsuk Kim            | Updated CLI and Transformer enhancement |
+| 0.19 | 04/15/2020 | Mohammed Faraaz         | Generic REST client for CLI |
 
 ## About this Manual
 
@@ -174,7 +175,7 @@ Management framework is a SONiC application which is responsible for providing v
     2. Custom YANG models ([SONiC YANG](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md))
     3. Industry-standard CLI / Cisco like CLI
 
-* Must provide support for [OpenAPI spec](https://OpenAPI.io/specification/) to generate REST server side code
+* Must provide support for [OpenAPI spec](http://spec.openapis.org/oas/v3.0.3) to generate REST server side code
 * Must provide support for NBIs such as:
 
     1. CLI
@@ -249,7 +250,7 @@ This can be an independent choice on an application by application basis. Howeve
 
 1. In case of YANG, if the developer chooses standard YANG model (Openconfig, IETF etc.), a separate SONiC YANG model has to be written based on Redis ABNF schema for validating Redis configuration and transformer hints should be written in a deviation file for standard YANG model to Redis DB coversion and vice versa (refer to [3.2.2.7 Transformer](#3227-transformer) for details). However, if custom SONiC YANG model is written based on guidelines, CVL YANG is automatically derived from it and the same is used for validation purpose and there is no need of writing any deviation file for transformer hints. Based on the given YANG model as input, the pyang compiler generates the corresponding OpenAPI spec which is in turn given to the OpenAPI generator to generate the REST client SDK and REST server stubs in golang. The YANG data model is also provided to the [YGOT](https://github.com/openconfig/YGOT) generator to create the YGOT bindings. These are used on the interface between Translib and the selected App module. Specifically, Translib populates the binding structures based upon the incoming server payload, and the App module processes the structure accordingly. Additionally, a YANG annotation file must also be provided, for data models that do not map directly to the SONiC YANG structure. The requests in this case will be populated into the YGOT structures and passed to App module for conversion. The App module uses the YANG annotations to help convert and map YANG objects to DB objects and vice-versa.
 
-2. In case of OpenAPI spec, it is directly given to the [OpenAPI](https://OpenAPI.io) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, SONiC YANG model has to be written based on Redis ABNF schema. 
+2. In case of OpenAPI spec, it is directly given to the [OpenAPI](https://openapi-generator.tech/docs/generators/python) generator to generate the REST client SDK and REST server stubs in golang. In this case the REST server takes care of validating the incoming request to be OpenAPI compliant before giving the same to Translib. There is no YANG, and therefore no YGOT bindings are generated or processed, and so the Translib infra will invoke the App module functions with the path and the raw JSON for App modules to convert. For configuration validation purpose, SONiC YANG model has to be written based on Redis ABNF schema. 
 
 #### 3.1.2 Run time flow
 
@@ -299,7 +300,7 @@ Following are the build time components of the management framework
 
 ##### 3.2.1.1.1 Overview
 
-Open source Python-based YANG parser called pyang is used for YANG parsing and building a Python object dictionary. A custom plugin is developed to translate this Python object dictionary into an OpenAPI spec. The OpenAPI specs are [3.0](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.3.md#schemaObject) complaint.
+Open source Python-based YANG parser called pyang is used for YANG parsing and building a Python object dictionary. A custom plugin is developed to translate this Python object dictionary into an OpenAPI spec. The OpenAPI specs are [3.0](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.3.md) complaint.
 
 URI format and payload is RESTCONF complaint and is based on the [RFC8040](https://tools.ietf.org/html/rfc8040). The Request and Response body is in JSON format in this release.
 
@@ -683,14 +684,20 @@ Example: "show acl"
    {% endfor %}
 ```
 
-###### 3.2.2.1.7 Workflow (to add a new CLI)
+###### 3.2.2.1.7 Generic REST Client for CLI
+
+Actioner scripts can use the generic rest client **cli_client.py** to communicate to REST Server.
+It is a replacement for OpenAPI Client SDKs.
+This client is tailor made to connect to local REST Server and handle the CLI actioner usecases.
+
+###### 3.2.2.1.8 Workflow (to add a new CLI)
 
 The following steps are to be followed when a new CLI is to be added.
 1.	Create an XML file that defines CLI command and parameters that the command requires.
 2.	Define the CLI help string to be displayed and datatype for the parameters. New parameter types (PTYPES), macros, and entities can be defined and used in the XML files. Valid XML tags are defined in the `sonic-clish.xsd` file.
-3.	Add the actioner to `<ACTION>` tag to run the wrapper script with the OpenAPI client method name and parameters
-4.  Add the code to the wrapper script to construct the payload in `generate_body()` and handle the response
-5.	For ‘show’ commands, create a Jinja template to format the output
+3.	Add the actioner to `<ACTION>` tag to run the wrapper script with the OpenAPI client method name and parameters or use the generic REST client to communicate with rest-server.
+4.  Add the code to the wrapper script to construct the payload in `generate_body()` and handle the response.
+5.	For ‘show’ commands, create a Jinja template to format the output.
 
 
 ##### 3.2.2.2 REST Client SDK
@@ -1040,10 +1047,10 @@ A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server 
 
 ###### 3.2.2.4.15 API Documentation
 
-REST server will provide [OpenAPI UI](https://github.com/OpenAPI-api/OpenAPI-ui) based online
+REST server will provide [Swagger UI](https://github.com/swagger-api/swagger-ui) based online
 documentation and test UI for all REST APIs it supports. Documentation can be accessed by launching
 URL **https://REST_SERVER_IP/ui** in a browser. This page will list all supported OpenAPI
-definition files (both YANG generated and manual) along with link to open OpenAPI UI for them.
+definition files (both YANG generated and manual) along with link to open Swagger UI for them.
 
 
 ##### 3.2.2.5 gNMI server
@@ -2541,6 +2548,7 @@ Following are the list of Open source tools used in Management framework
 13. [Sorting](https://github.com/facette/natsort)
 14. [pyangbind](https://github.com/robshakir/pyangbind)
 15. [libYang](https://github.com/CESNET/libyang)
+16. [OpenAPI](https://www.openapis.org/)
 
 
 ## 12 Appendix B
