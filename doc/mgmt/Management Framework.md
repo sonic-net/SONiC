@@ -597,7 +597,7 @@ Example: `platform_dummy.XML`
 ```XML
 <ENTITYLIST>
   <ENTITYNAME value="1">START_PORT_ID</ENTITYNAME>
-  <ENTITYNAME value="32">MAX_PORT_ID</ENTITYNAME>ma
+  <ENTITYNAME value="32">MAX_PORT_ID</ENTITYNAME>
   <ENTITYNAME value="1">START_SUB_PORT_ID</ENTITYNAME>
   <ENTITYNAME value="4">MAX_SUB_PORT_ID</ENTITYNAME>
   <ENTITYNAME value="9276">MAX_MTU</ENTITYNAME>
@@ -1019,10 +1019,10 @@ POST    | Resource exists             | 409 | application | resource-denied  | *
 
 A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server configurations.
 
-    key         = REST_SERVER:default   ; REST server configurations.
+    key         = REST_SERVER|default   ; REST server configurations.
     ;field      = value
     port        = 1*5DIGIT              ; server port - defaults to 443
-    client_auth = "none"/"password"/"jwt"/"cert"  
+    client_auth = "none" / "password" / "jwt" / "cert" 
                                         ; Client authentication mode.
                                         ; none: No authentication, all clients
                                         ;       are allowed. Should be used only
@@ -1031,18 +1031,14 @@ A new table "REST_SERVER" is introduced in ConfigDB for maintaining REST server 
                                         ; jwt : HTTP Bearer Token authentication with
                                         ;       JSON Web Token format.
                                         ; cert: Certificate based authentication.
-                                        ;       Requires REST_SERVER['certs']['ca_crt'] configuration.
+                                        ;       Requires ca_crt configuration.
                                         ; Any combination of "password", "jwt" and "cert" modes can be
                                         ; enabled by specifying a comma separated values.
                                         ; Eg: "password,jwt" enables both password and jwt modes.
     log_level   = DIGIT                 ; Verbosity for glog.V logs
-
-
-    key         = REST_SERVER:certs     ; Server certificate configurations
-    ;field      = value
-    server_crt  = STRING                ; Path to TLS certificate file
-    server_key  = STRING                ; Path to TLS private key file
-    ca_crt      = STRING                ; Path to the CA certificate to be used for
+    server_crt  = 1*VCHAR               ; Path to TLS certificate file
+    server_key  = 1*VCHAR               ; Path to TLS private key file
+    ca_crt      = 1*VCHAR               ; Path to the CA certificate to be used for
                                         ; client certificate validation.
 
 ###### 3.2.2.4.15 API Documentation
