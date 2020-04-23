@@ -2,7 +2,7 @@
 Docker to Host Communications
 
 # High Level Design Document
-#### Rev 0.6
+#### Rev 0.7
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -30,6 +30,9 @@ Docker to Host Communications
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.6 | 04/15/2020  | Mike Lazar         | Addressed questions about         | 
 |     |             |                    | logging and usage recommendations |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.7 | 04/23/2020  | Mike Lazar         | Added authentication failure      |
+|     |             |                    | log information                   |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 
 
@@ -145,7 +148,9 @@ D-Bus provides a reliable communication channel between client (SONiC management
 
 ### 3.1.1 Security of D-Bus Communications
 In addition to standard Linux security mechanisms for file/Unix socket access rights (read/write), D-Bus provides a separate security layer, using the D-Bus service configuration files, for defining security policies. This allows finer granularity access control to D-Bus objects and methods - D-Bus can restrict access only to certain Linux users or groups. This is achieved by using the "Host Service" configuration file:
+```
 /etc/dbus-1/system.d/org.sonic.hostservice.conf
+```
 
 D-Bus allows security policies to be set per Linux user group or Linux user. The D-Bus framework is able to determine the user name and group of the client applications, and automatically enforces the access rules specified in the security policies.
 
@@ -185,10 +190,25 @@ Note 2. In fact, the group and user account of DBus commands executed by a DBus 
   </policy>
 ```
 
-The host services framework will implement a generic logging framework, which automatically log all commands (DBus methods)
+The host services framework will implement a generic logging framework, which automatically logs all commands (DBus methods)
 invoked by client applications - e.g. or telemetry or management. The same approach applies to any other client application (not just management and framework), that may use the Host Services framework.  
 
 The log record is created in the system log.
+
+### 3.1.2.1 Logging D-Bus Authentication Failures
+
+D-Bus is setup by default to log all authentication failures (security policy violations). SONiC directs authentication failures to /var/log/auth.log 
+
+For instance, if an unauthorized user tries to execute the 'reboot' method, the following log record is generated in /var/log/auth.log:
+```
+Apr 23 15:25:53.381264 sonic NOTICE dbus[387]: [system] Rejected send message, 1 matched rules; type="method_call", sender=":1.9" (uid=1000 pid=7663 comm="dbus-send --session --dest=org.SONiC.HostService -") interface="org.SONiC.HostService" member="reboot" error name="(unset)" requested_reply="0" destination="org.SONiC.HostService" (uid=0 pid=402 comm="/usr/bin/python3 -u /usr/lib/sonic_host_service/so")
+```
+
+Note. The client application receives an error return code: 
+```
+Error org.freedesktop.DBus.Error.AccessDenied
+```
+
 
 ### 3.1.3 Backwards Compatibility and Upgrades
 
