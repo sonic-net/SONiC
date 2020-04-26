@@ -38,8 +38,8 @@ This document provides the high level design for the Fine Grained ECMP feature i
 Associated SAI proposal: https://github.com/opencomputeproject/SAI/blob/master/doc/ECMP/Ordered_and_Fine_Grained_ECMP.md
 # Scope
 This document describes the high level design of the Fine Grained ECMP feature as implemented in the application layer. 
-In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for dynamic routing and neighbor changes
-Out of scope: Fine grained ECMP can be used to achieve generic consistent hashing, and dynamically enabling consistent hashing for a router is beyond scope of this feature.
+- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for dynamic routing and neighbor changes
+- Out of scope: Fine grained ECMP can be used to achieve generic consistent hashing, and dynamically enabling consistent hashing for a router is beyond scope of this feature.
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
