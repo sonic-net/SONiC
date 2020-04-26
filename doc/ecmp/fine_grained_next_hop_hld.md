@@ -162,7 +162,7 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
  ### fgnhgorch
  This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch.
  
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/orch_flow.png)
+![](../../images/ecmp/orch_flow.png)
  
 The overall data flow diagram is capturedin Section 3 for all TABLE updates. 
 
@@ -183,9 +183,9 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 
 # 3 Flows
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/fg_nhg_config_changes.png)
+![](../../images/ecmp/fg_nhg_config_changes.png)
 
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/route_changes.png)
+![](../../images/ecmp/route_changes.png)
 
 # 4 Example configuration
 
@@ -237,10 +237,10 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 ```
 
 ### Sample scenario which highlights redistribution performed by fgNhgOrch during runtime scenarios:
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/nh_addition.png)
+![](../../images/ecmp/nh_addition.png)
 
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/nh_withdrawal.png)
+![](../../images/ecmp/nh_withdrawal.png)
 
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/vm_set_down.png)
+![](../../images/ecmp/vm_set_down.png)
 
-![](https://github.com/anish-n/SONiC/tree/anishn_fgnhg/images/ecmp/first_nh_addition.png)
+![](../../images/ecmp/first_nh_addition.png)
