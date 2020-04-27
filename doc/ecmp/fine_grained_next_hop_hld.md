@@ -11,6 +11,8 @@
 
   * [Scope](#scope)
 
+  * [Use case](#use-case)
+
   * [Definitions/Abbreviation](#definitionsabbreviation)
  
   * [1 Requirements Overview](#1-requirements-overview)
@@ -37,13 +39,21 @@
 This document provides the high level design for the Fine Grained ECMP feature implementation in SONiC
 Associated SAI proposal: https://github.com/opencomputeproject/SAI/blob/master/doc/ECMP/Ordered_and_Fine_Grained_ECMP.md
 # Scope
-This document describes the high level design of the Fine Grained ECMP feature as implemented in the application layer. 
-- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for dynamic routing and neighbor changes
-- Out of scope: Fine grained ECMP can be used to achieve generic consistent hashing, and dynamically enabling consistent hashing for a router is beyond scope of this feature.
+This document describes the high level design of a staic Fine Grained ECMP feature as implemented in the application layer. 
+- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for a static set of next-hops and prefixes as defined in configuration
+- Out of scope: Dynamic ways to enable and use fine grained ECMP
+# Use case
+![](../../images/ecmp/use_case.png)
+
+Firewall or other applications running on loadbalanced VMs which maintain state of flows running through them, such that:
+- There is shared state amongst some set of firewalls so that flows can be recovered, but flow recovery is expensive so we should limit flow redistributions
+- Give that not all firewalls share state, there is a need to redistribute flows only amongst the firewalls which share state
+- An entire firewall set can go down
+
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
-|                          |                                |
+| Abbreviation             | Meaning                        |
 |--------------------------|--------------------------------|
 | ECMP                     | Equal Cost MultiPath           |
 | FG                       | Fine Grained                   |
@@ -58,14 +68,13 @@ At a high level the following should be supported:
 
 Phase #1
 - Should be able to configure a Fine Grained ECMP group which defines a static means of redistribution of ECMP upon next-hop modifications based upon the fine grained ECMP SAI proposal
-- Hooked into the routeorch to function with standard route modifications via routing applications, such that any route changes involving prefixes with defined Fine grained ECMP has special ECMP behavior
+- Standard route modifications should enable special ECMP behavior for those prefixes which desire Fine Grained ECMP. For all other prefixes the standard ECMP behavior should apply. 
 - Ability to enable consistent hashing via Fine grained ECMP for a statically defined ECMP group
 - Ability to specify a group(bank) in which ECMP redistribution should be performed out of a set of available next-hops
 - Warm restart support(TBD)
 
 Phase #2
 - CLI commands to configure Fine Grained ECMP
-- Other potential ways to do traffic shaping such as assigning x% of traffic to specified next-hops via Fine Grained ECMP
 
 
 ## 1.2 Orchagent requirements
@@ -157,14 +166,15 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
 - fgnhgorch
 
  ### routeorch
- This is the swss orchetrator responsible for pushing routes down to the ASIC. It can create ECMP groups in the ASIC for cases where there are multiple next-hops. It can also add/remove next-hop members as neighbor availability changes(link up and down scnearios)
+ This is the swss orchetrator responsible for pushing routes down to the ASIC. It creates ECMP groups in the ASIC for cases where there are multiple next-hops. It also adds/removes next-hop members as neighbor availability changes(link up and down scnearios). It will evoke fgnhgorch for all prefixes which desire special ecmp behavior.
  	
  ### fgnhgorch
- This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch.
+ This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch. It creates ecmp groups with the new SAI components in Table 3 and will be the orchestrator responsible for achieving the use cases highlighted above by modifying hash buckets in a special manner.
  
 ![](../../images/ecmp/orch_flow.png)
  
-The overall data flow diagram is capturedin Section 3 for all TABLE updates. 
+The overall data flow diagram is captured in Section 3 for all TABLE updates. 
+Refer to section 4 for detailed information about redistribution performed during runtime scenarios. 
 
  
  
@@ -189,10 +199,10 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 # 4 Example configuration
 
-### Loadbalanced VM sets
-6 VMs where each set of 3 VMs form a group which share state, advertising VIP 10.10.10.10:
-- VM set 1 next-hops: 1.1.1.1, 1.1.1.2, 1.1.1.3
-- VM set 2 next-hops: 1.1.1.4, 1.1.1.5,	1.1.1.6	
+### Loadbalanced firewall sets
+6 Firewalls where each set of 3 firewalls form a group which share state, advertising VIP 10.10.10.10:
+- Firewall VM set 1 next-hops: 1.1.1.1, 1.1.1.2, 1.1.1.3
+- Firewall VM set 2 next-hops: 1.1.1.4, 1.1.1.5, 1.1.1.6	
 
 ### ConfigDB objects:
 ```
@@ -237,10 +247,11 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 ```
 
 ### Sample scenario which highlights redistribution performed by fgNhgOrch during runtime scenarios:
+- Next-hop additions:
 ![](../../images/ecmp/nh_addition.png)
-
+- Next-hop withdrawal:
 ![](../../images/ecmp/nh_withdrawal.png)
-
+- Entire VM/Firewall set down:
 ![](../../images/ecmp/vm_set_down.png)
-
+- First next-hop addition in set:
 ![](../../images/ecmp/first_nh_addition.png)
