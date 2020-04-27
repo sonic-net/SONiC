@@ -189,7 +189,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 # 4 Example configuration
 
-### Loadbalanced VMs with multiple NICs
+### Loadbalanced VM sets
 6 VMs where each set of 3 VMs form a group which share state, advertising VIP 10.10.10.10:
 - VM set 1 next-hops: 1.1.1.1, 1.1.1.2, 1.1.1.3
 - VM set 2 next-hops: 1.1.1.4, 1.1.1.5,	1.1.1.6	
