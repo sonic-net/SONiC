@@ -23,11 +23,13 @@
     * [1.5 Warm Restart requirements ](#15-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
-    * [2.1 CLI](#22-cli)
-    * [2.3 Orchestration Agent](#23-orchestration-agent)
-    * [2.4 SAI](#24-sai)
+    * [2.2 State DB](#22-state-db)
+    * [2.3 CLI](#22-cli)
+    * [2.4 Orchestration Agent](#23-orchestration-agent)
+    * [2.5 SAI](#24-sai)
   * [3 Flows](#3-flows)
   * [4 Example configuration](#4-example-configuration)
+  * [5 Warm boot support](#5-warm-boot-support)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -71,7 +73,7 @@ Phase #1
 - Standard route modifications should enable special ECMP behavior for those prefixes which desire Fine Grained ECMP. For all other prefixes the standard ECMP behavior should apply. 
 - Ability to enable consistent hashing via Fine grained ECMP for a statically defined ECMP group
 - Ability to specify a group(bank) in which ECMP redistribution should be performed out of a set of available next-hops
-- Warm restart support(TBD)
+- Warm restart support
 
 Phase #2
 - CLI commands to configure Fine Grained ECMP
@@ -97,11 +99,11 @@ Phase #2
 | Component                | Expected value              |
 |--------------------------|-----------------------------|
 | Size of hash bucket      | HW specific(can be 4k)      |
-| Number of FG ECMP groups | 128                         |
+| Number of FG ECMP groups | 8                           |
 
 
 ## 1.5 Warm Restart requirements
-Warm restart is planned for Phase #1, implementation details to follow.  
+Warm restart is required for this design since the solution would benefit from having non-disruptive reboot and upgrades.
 
 # 2 Modules Design
 
@@ -120,10 +122,10 @@ FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6)}}:
 ```
 
 
-### 2.1.3 ConfigDB Schemas
+### 2.1.1 ConfigDB Schemas
 ```
 ; Defines schema for FG NHG configuration attributes
-key                                   = FG_NHG:fg-nhg-group-name      ; FG_NHG group name
+key                                   = FG_NHG|fg-nhg-group-name      ; FG_NHG group name
 ; field                               = value
 BUCKET_SIZE                           = hash_bucket_size              ; total hash bucket size desired, recommended value of Lowest Common Multiple of 1..{max # of next-hops}
 		  
@@ -146,7 +148,29 @@ BANK                                  = DIGITS                                  
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
-## 2.2 CLI
+
+## 2.2 State DB
+Following new table will be added to State DB. Unless otherwise stated, the attributes are mandatory.
+FG_ROUTE_TABLE is used for some of the show commands associated with this feature as well as for warm boot support.
+```
+FG_ROUTE_TABLE|{{IPv4 OR IPv6 address}}:
+    "0": {{next-hop-key}}
+    "1": {{next-hop-key}}
+    ...
+    "{{hash_bucket_size -1}}": {{next-hop-key}}
+```
+
+
+### 2.2.1 StateDB Schemas
+```
+; Defines schema for FG ROUTE TABLE state db attributes
+key                                   = FG_ROUTE_TABLE|{{IPv4 OR IPv6 prefix}}      ; Prefix associated with this route
+; field                               = value
+INDEX                                 = next-hop-key                                ; index in hash bucket associated with the next-hop-key(IP addr,if alias) 
+```
+
+
+## 2.3 CLI
 
 Commands summary (Phase #2):
 CLI commands:
@@ -156,11 +180,13 @@ CLI commands:
 	config fg nhg member <add/del> <fg-nhg-group-name>  <next-hop-ip>
 	show fg nhg group <fg-nhg-group-name/all>
 	show fg nhg hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
-	show fg nhg active_hops <fg-nhg-group-name> (shows which set of next-hops are active) 
+	show fg nhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
 
+Show CLI commands of ```show fg nhg hash-view``` and ```show fg nhg active-hops``` are implemented as a view of the state db table described in section 2.2
 
-## 2.3 Orchestration Agent
+
+## 2.4 Orchestration Agent
 Following orchagents shall be modified. Flow diagrams are captured in a later section. 
 - routeorch
 - fgnhgorch
@@ -177,8 +203,7 @@ The overall data flow diagram is captured in Section 3 for all TABLE updates.
 Refer to section 4 for detailed information about redistribution performed during runtime scenarios. 
 
  
- 
-## 2.4 SAI
+## 2.5 SAI
 The below table represents main SAI attributes which shall be used for Fine Grained ECMP
 
 
@@ -248,10 +273,34 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 ### Sample scenario which highlights redistribution performed by fgNhgOrch during runtime scenarios:
 - Next-hop additions:
+
 ![](../../images/ecmp/nh_addition.png)
+
 - Next-hop withdrawal:
+
 ![](../../images/ecmp/nh_withdrawal.png)
+
 - Entire VM/Firewall set down:
+
 ![](../../images/ecmp/vm_set_down.png)
+
 - First next-hop addition in set:
+
 ![](../../images/ecmp/first_nh_addition.png)
+
+# 5 Warm boot support
+The following state is maintained for warm boot support and updated during regular runtime of fgNhgOrch:
+- State DB table FG_ROUTE_TABLE which maps the set of hash buckets to its associated next-hop member
+
+FG_ROUTE_TABLE is persisted via an updated fast-reboot script
+
+Warm boot requires special handling for fgNhgOrch since sequence of next-hop additions/modifictions lead to a non-deterministic state of fine grained membership indices in the ASIC, which we must recover in some way from persisted data. The saved mapping allows us to create ECMP groups identically during/after warm reboot.
+
+Warm boot works as follows:
+- Route addition gets pushed via the regular notification channel of APP DB
+- routeorch gets called for the route in APP_DB, which in turn calls fgNhgOrch
+- fgNhgOrch checks if this is a warm_boot scenario, if so, it queries FG_ROUTE_TABLE in state db and populates local structures of prefixes with special handling
+- If this is a prefix which requires special handling then further local structures are re-populated based on FG_ROUTE_TABLE and we create SAI ECMP groups and members based on mapping from FG_ROUTE_TABLE given that the next-hops are identical(we expect that this is the case since warm reboot should not cause a change in APP_DB routes during warm reboot)
+- If this is a non FG prefix then it continues to go through the regular routeorch processing
+- We receive config_db entries for FG_NHG* entries at some point and we update the local structure accordingly 
+- BGP comes up and any delta configuration gets pushed for routes and these go through the regular routeorch/fine grained behavior as usual
