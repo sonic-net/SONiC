@@ -24,12 +24,13 @@
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
     * [2.2 State DB](#22-state-db)
-    * [2.3 CLI](#22-cli)
-    * [2.4 Orchestration Agent](#23-orchestration-agent)
-    * [2.5 SAI](#24-sai)
+    * [2.3 CLI](#23-cli)
+    * [2.4 Orchestration Agent](#24-orchestration-agent)
+    * [2.5 SAI](#25-sai)
   * [3 Flows](#3-flows)
-  * [4 Example configuration](#4-example-configuration)
-  * [5 Warm boot support](#5-warm-boot-support)
+  * [4 Details](#4-details)
+  * [5 Example configuration](#5-example-configuration)
+  * [6 Warm boot support](#6-warm-boot-support)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -42,14 +43,15 @@ This document provides the high level design for the Fine Grained ECMP feature i
 Associated SAI proposal: https://github.com/opencomputeproject/SAI/blob/master/doc/ECMP/Ordered_and_Fine_Grained_ECMP.md
 # Scope
 This document describes the high level design of a staic Fine Grained ECMP feature as implemented in the application layer. 
-- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for a static set of next-hops and prefixes as defined in configuration
-- Out of scope: Dynamic ways to enable and use fine grained ECMP
+- In-scope: Modifying the behavior of ECMP to achieve fine grained handling of ECMP for a specifically identified prefix and associated next-hops in configuration
+- Out of scope: Dynamic ways to enable and use fine grained ECMP in a way that enables consistent ECMP for all possible prefixes
 # Use case
 ![](../../images/ecmp/use_case.png)
 
 Firewall or other applications running on loadbalanced VMs which maintain state of flows running through them, such that:
-- There is shared state amongst some set of firewalls so that flows can be recovered, but flow recovery is expensive so we should limit flow redistributions
-- Give that not all firewalls share state, there is a need to redistribute flows only amongst the firewalls which share state
+- There is shared state amongst some set of firewalls so that flows can be recovered if a flow transistions from 1 firewall to another in the same firewall set(bank). Flow transistions can occur when next-hops are added/withdrawn. In this example Firewall 1,2,3 form a firewall set(bank)
+- Flow recovery is expensive so we should limit the flow redistributions which occur during next-hop addition and removal
+- Given that not all firewalls share state, there is a need to redistribute flows only amongst the firewalls which share state
 - An entire firewall set can go down
 
 
@@ -113,10 +115,10 @@ Following new tables will be added to Config DB. Unless otherwise stated, the at
 FG_NHG|{{fg-nhg-group-name}}:
     "bucket_size": {{hash_bucket_size}}
 
-FG_NHG_PREFIX|{{IPv4 OR IPv6 address}}:
+FG_NHG_PREFIX|{{IPv4 OR IPv6 prefix}}:
     "FG_NHG":{{fg-nhg-group-name}}
 
-FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6)}}:
+FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6 address)}}:
     "FG_NHG":{{fg-nhg-group-name}}
     "Bank": {{an index which specifies a bank/group in which the redistribution is performed}} 
 ```
@@ -153,7 +155,7 @@ Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc
 Following new table will be added to State DB. Unless otherwise stated, the attributes are mandatory.
 FG_ROUTE_TABLE is used for some of the show commands associated with this feature as well as for warm boot support.
 ```
-FG_ROUTE_TABLE|{{IPv4 OR IPv6 address}}:
+FG_ROUTE_TABLE|{{IPv4 OR IPv6 prefix}}:
     "0": {{next-hop-key}}
     "1": {{next-hop-key}}
     ...
@@ -222,7 +224,14 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 ![](../../images/ecmp/route_changes.png)
 
-# 4 Example configuration
+# 4 Details
+- A key idea in achieving consistent ecmp and limiting redistributions to a bank(group) is the creation of many hash buckets(SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER) associated with an ecmp group and having a next-hop repeated multiple times within it. 
+- Now if a next-hop were to go down we would only change the hash buckets which are affected by the next-hop down event. This allows us to ensure that all flows are not affected by a next-hop change, thereby achieving consistent hashing
+- Further, by pushing configuration with next-hop bank membership, we can ensure that we only refill the affected hash buckets with those next-hops within the same bank. Thus achieving consistent hashing within a bank itself and meeting the requirement/use case above.  
+- A distiction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank defintion. Special logic is also present to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
+- A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3*2*1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3*2*1 + 3*2*1 = 12 hash buckets.
+
+# 5 Example configuration
 
 ### Loadbalanced firewall sets
 6 Firewalls where each set of 3 firewalls form a group which share state, advertising VIP 10.10.10.10:
@@ -288,7 +297,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 
 ![](../../images/ecmp/first_nh_addition.png)
 
-# 5 Warm boot support
+# 6 Warm boot support
 The following state is maintained for warm boot support and updated during regular runtime of fgNhgOrch:
 - State DB table FG_ROUTE_TABLE which maps the set of hash buckets to its associated next-hop member
 
