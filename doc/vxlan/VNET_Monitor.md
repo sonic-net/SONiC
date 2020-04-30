@@ -56,6 +56,23 @@ There are 3 possible packet events that can trigger the VNet mobitor to send the
 
 TBD
 
+CONFIG_DB:VNET_MONITOR_GLOBAL
+  * poll_interval
+  * wait_timeout
+  * enable
+  
+CONFIG_DB:VNET_MONITOR_PATH
+  * src_vlan_id
+  * src_ip
+  * dst_ip
+  * cookie
+  
+# Integration into SONiC
+
+TBD
+
+VNET monitor will be installed as a standalone container
+
 # Init flow
 
 ![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/Init.jpg)
