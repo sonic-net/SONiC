@@ -14,6 +14,9 @@ The following are the high level requirements for the VNET monitoring infrastruc
 The function of the SToR is to inject an overlay packet with the cookie for the DToR to trap and redirect back.
 The cookie must be known to DToR ahead of time.
 
+# DToR
+
+The function of the DToR is to detect a packet from SToR by the cookie, swap SIP and DIP, and inject the packet back using the same mecahnism as DToR.
 
 ## Kernel configuration
 
@@ -41,14 +44,30 @@ The VNET monitor supports packet injection into VLAN router interfaces.
 The single SToR may send multiple ping requests to one or more DTORs and needs to distinguish between the responces.
 For that a sequence number must be attached to the packet payload.
 
-# DToR
-
-TBD
 
 # Trigger mechanism
 
-TBD
+There are 3 possible packet events that can trigger the VNet mobitor to send the ping packet:
+1. Periodic timer event - for each VNet for each DToR registered in the SToR
+2. Controller event.
+3. Recieving the packet from other ToR and generatig a reply as described in DToR section.
 
 # Config DB Schema
 
 TBD
+
+# Init flow
+
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/Init.jpg)
+
+# Packet event flow
+
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/PKT_EVENT.jpg)
+
+# SToR packet walkthrough
+
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/DToR.jpg)
+
+# DToR packet walkthrough
+
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/SToR.jpg)
