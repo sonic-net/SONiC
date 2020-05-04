@@ -61,6 +61,7 @@ sequenceDiagram
   participant Database Service
   participant Buffer Orch
   participant SAI
+  participant Log
 
   System -->>+ Buffer Manager: Recalculate shared buffer pool size
   loop Iterate all port
@@ -78,6 +79,7 @@ sequenceDiagram
   Buffer Orch -->>+ SAI: set_buffer_pool_attribute
   Buffer Orch -->>- Database Service: Finish
   end
+  Buffer Manager -->> Log: Log the old and new size of the pool in INFO level
   end
   end
   Buffer Manager -->>- System: Finish
