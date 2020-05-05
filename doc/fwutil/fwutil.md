@@ -250,23 +250,23 @@ Chassis1           BIOS        0ACLH004_02.02.007  Chassis BIOS
 1. Non modular chassis platform
 ```bash
 root@sonic:~# fwutil show updates --image=next
-Chassis   Module   Component   Firmware               Version             Status
---------  -------  ----------  ---------------------  ------------------  ------------------
-Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.010  update is required
-                   CPLD        <image_path>/cpld.bin  10                  update is required
-                   FPGA        <image_path>/fpga.bin  5                   up-to-date
+Chassis   Module   Component   Firmware               Version (current/available)              Status
+--------  -------  ----------  ---------------------  ---------------------------------------  ------------------
+Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH004_02.02.010  update is required
+                   CPLD        <image_path>/cpld.bin  5 / 10                                   update is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date
 ```
 
 2. Modular chassis platform
 ```bash
 root@sonic:~# fwutil show updates --image=next
-Chassis   Module   Component   Firmware               Version             Status
---------  -------  ----------  ---------------------  ------------------  ------------------
-Chassis1           BIOS        <image_path>/bios.bin  0ACLH004_02.02.010  update is required
-                   CPLD        <image_path>/cpld.bin  10                  update is required
-                   FPGA        <image_path>/fpga.bin  5                   up-to-date
-          Module1  CPLD        <image_path>/cpld.bin  10                  update is required
-                   FPGA        <image_path>/fpga.bin  5                   up-to-date
+Chassis   Module   Component   Firmware               Version (current/available)              Status
+--------  -------  ----------  ---------------------  ---------------------------------------  ------------------
+Chassis1           BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH004_02.02.010  update is required
+                   CPLD        <image_path>/cpld.bin  5 / 10                                   update is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date
+          Module1  CPLD        <image_path>/cpld.bin  5 / 10                                   update is required
+                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date
 ```
 
 **Supported options:**
