@@ -5,7 +5,8 @@ Rev 0.1
 - **[List of Tables](#List-of-Tables)**
 - **[Revision](#Revision)**
 - **[About this Manual](#About-this-Manual)**
-- **[Definition/Abbreviation](#Definition_Abbreviation)**
+- **[Definition/Abbreviation](#DefinitionAbbreviation)**
+	
 	- [Table 1: Abbreviations](#Table-1:-Abbreviations)
 - **[1 Feature Overview](#1-Feature-Overview)**
 	- [1.1 Functional Requirements](#1_1-Functional-Requirements)
@@ -18,7 +19,7 @@ Rev 0.1
 	- [2.1 Functional Description](#2_1-Functional-Description)
 		- [2.1.1 Dynamic configuration of MCLAG](#2_1_1-Dynamic-configuration-of-MCLAG)
 		- [2.1.2 Dynamic configuration of mclag_interface](#2_1_2-Dynamic-configuration-of-mclag_interface)
-		- [2.1.3 Keep-alive timer configuration](#2_1_3-Keep_alive-timer-configuration)
+		- [2.1.3 Keep-alive timer configuration](#2_1_3-Keep-alive-timer-configuration)
 		- [2.1.4 Session timeout configuration](#2_1_4-Session-timeout-configuration)
 		- [2.1.5 Static MAC support](#2_1_5-Static-MAC-support)
 		- [2.1.6 Aging disable for ICCP learned MAC addresses](#2_1_6-Aging-disable-for-ICCP-learned-MAC-addresses)
@@ -86,7 +87,7 @@ Rev 0.1
 - **[5 Serviceability and Debug](#5-Serviceability-and-Debug)**
 - **[6 Warm Boot Support](#6-Warm-Boot-Support)**
 - **[7 Scalability](#7-Scalability)**
-- **[8 Upgrade/Downgrade considerations](#8-Upgrade_Downgrade-considerations)**
+- **[8 Upgrade/Downgrade considerations](#8-UpgradeDowngrade-considerations)**
 - **[9 Unit Test](#9-Unit-Test)**
 	- [9.1 DB table updates](#9_1-DB-table-updates)
 	- [9.2 FDB](#9_2-FDB)
@@ -94,7 +95,8 @@ Rev 0.1
 	- [9.4 Port Isolation](#9_4-Port-Isolation)
 	- [9.5 MCLAG Interface Flap](#9_5-MCLAG-Interface-Flap)
 	- [9.6 MCLAG Unique IP enhancements](#9_6-MCLAG-Unique-IP-enhancements)
-- **[10 Internal Design Information](#10-Internal-Design-Information)**
+	
+	
 
 # List of Tables
 
@@ -117,11 +119,10 @@ This document provides general information about SONiC MCLAG feature enhancement
 | MCLAG    | Multi-Chassis Link Aggregation Group |
 | ICCP     | Inter-Chassis Communication Protocol |
 | FDB      | Layer-2 (MAC) based forwarding table |
-| MHD      | Multi Home Device                    |
 
 # 1 Feature Overview
 
-This document captures the feature enhancements of SONiC ICCP MCLAG. This includes MCLAG configuration support, data structure changes, MAC event handling optimizations for scaling performance, support of static MAC address over MCLAG, support bridge-port isolation group for BUM control to MCLAG, and traffic recovery sequencing for traffic loop prevention. 
+This document captures the feature enhancements of SONiC ICCP MCLAG. This includes data structure changes, MAC event handling optimizations for scaling performance, support of static MAC address over MCLAG, Support bridge-port isolation group for BUM control to MCLAG, and traffic recovery sequencing for traffic loop prevention. 
 
 ## 1.1 Functional Requirements
 
@@ -131,15 +132,15 @@ This document captures the feature enhancements of SONiC ICCP MCLAG. This includ
 - Dynamic MAC move is prohibited on Static MAC over MCLAG
 
 ### 1.1.2 Configuration and Management Requirements
-- Configure MCLAG domain and corresponding attributes domain-id, local-ip-address and peer-ip-address
+- Add CLI to configure MCLAG domain and corresponding attributes domain-id, local-ip-address and peer-ip-address
 
-- Configure optional attribute [peer-interface] 
+- Add CLI to configure optional attribute [peer-interface] 
 
-- Configure keep-alive timer value
+- Add CLI to configure keep-alive timer value
 
-- Configure session-timeout value
+- Add CLI to configure session-timeout value
 
-- Add support for addition/deletion of mclag_interfaces under MCLAG domain
+- Add CLI to support addition/deletion of mclag_interfaces
 
 ### 1.1.3 Performance and Scalability Requirements
 - Optimize code flow and data structures to improve scaling performance
@@ -150,7 +151,7 @@ This document captures the feature enhancements of SONiC ICCP MCLAG. This includ
 - MCLAG peer nodes should reconcile the local FDB table upon completion of warm boot, as the MAC learn and age updates from peer would be lost during the time ICCP control session is down due to warm boot.
 
 ### 1.1.5 Unique IP for supporting L3 protocol over MCLAG VLAN interface Requirements
-- For VLAN's associated with MCLAG interface, allow configuration of Unique IP address on VLAN interface of Peer nodes.
+- For vlans associated with MCLAG interface, allow configuration of Unique IP address on VLAN interface of Peer nodes.
 - Provide mechanism for running L3 protocols such as BGP, BFD between both Peer nodes VLAN interface.
 - Provide mechanism for running L3 protocols such as BGP, BFD between Peer node VLAN interface and device connected to MCLAG Client.
 - For MCLAG gateway functionality (Data path) Static Anycast Gateway (SAG) or VRRP configuration will be mandatory, SAG is preferred for active-active forwarding. 
@@ -165,10 +166,10 @@ This document captures the feature enhancements of SONiC ICCP MCLAG. This includ
 - In the current implementation the mclag_interfaces configuration is generated from config_db.json file no CLI support is present, a new configuration command is introduced to dynamically add/delete the mclag_interfaces.
 
 ### 2.1.3 Keep-alive timer configuration
-- In current implementation the keep-alive timer is hardcoded to 1 second. A new CLI command will be introduced to allow the configuration range of values from 1 to 60 seconds for keep-alive timer.
+- In current implementation the keep-alive timer is hardcoded to 1 second. A new CLI command will be introduced to allow the configuration of range of values for keep-alive timer.
 
 ### 2.1.4 Session timeout configuration
-- In current implementation the session time out 15 seconds after the last keep-alive messages exchange, the timeout duration is hardcoded. A new CLI command will be added to allow a configurable duration for session timeout with the supported range of 3 to 3600 seconds. Session timeout has to be configured in multiples keep-alive timer value. 
+- In current implementation the session time out 15 seconds after the last keep-alive messages exchange, the timeout duration is hardcoded. A new CLI command will be added to allow a configurable duration for session timeout, session timeout has to be configured in multiples keep-alive timer value. 
 
 ### 2.1.5 Static MAC support
 - Current implementation does not support static MAC address over MCLAG. Static MAC information is not exchanged in the FDB TLV between the MCLAG peer nodes. Changes will be added to support Static MAC with TLV.
@@ -221,7 +222,7 @@ Below is the summary of the changes for each flow number mentioned in the above 
 7. MclagSyncd updates ICCP session and MCLAG remote interface state information to STATE_DB FDB_TABLE and MCLAG_REMOTE_INTF_TABLE
 8. MclagSyncd updates MAC addresses learned from peer MCLAG node to new  MCLAG FDB table .
 9. FdbOrch registers for new MCLAG FDB table updates to process MAC updates from peer MCLAG node, ISOGRP Orch process new updates from MclagSyncd.
-10. FdbOrch updates remote MAC addresses with new SAI attribute not to age them out. 
+10. FdbOrch updates remote MAC addresses with new SAI attribute not to age out them. 
 11. Syncd gets the ICCP learned remote MAC addresses with new SAI attribute SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE set .
 12. Syncd programs the remote MAC to HW
 13. FdbOrch registers with NeighborOrch for all the ICCP learned remote MAC addresses.
@@ -729,9 +730,7 @@ IfUpAck        4            3            0           0
 
 ```
 
-- MCLAG debug guide can be referred for trouble shooting issues. Below is the link to debug guide.
 
-  https://docs.google.com/document/d/1exNQ1po7TYmVtctq59aSUeBsZYKctbHMkwStNVNgSrU/edit 
 
 # 6 Warm Boot Support
 - After a warm boot is completed, the FDB table is reconciled with the MCLAG peer. ICCP is extended to advertise the local FDB table. 
@@ -784,7 +783,7 @@ Upgrade/downgrade from/to the older version is not supported with new enhanced v
 9. Verify adding MCLAG domain without peer interface
 10. Verify adding MCLAG peer interface later after adding MCLAG domain
 11. Verify deleting MCLAG interfaces with synced up MAC addresses and make sure behavior is similar to having MCLAG interface down
-12. Verify Unique IP configuration on VLAN interface
+12. Verify Unique IP configuration on vlan interface
 
 ## 9.4 Port Isolation
 
@@ -806,5 +805,5 @@ Upgrade/downgrade from/to the older version is not supported with new enhanced v
 2. Verify IPv4 and IPv6 routing with traffic
 3. Veirfy Ping / Ping6 between Peer nodes VLAN interface
 4. Veirfy Ping / Ping6 between Peer node VLAN interface and MCLAG Client device
-5. Verify BGP session up on VLAN interface
+5. Verify BGP session up on VLAN interface.
 
