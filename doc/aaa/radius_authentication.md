@@ -1,7 +1,7 @@
 # RADIUS Management User Authentication
 
 ## High Level Design Document
-#### Rev 0.7
+#### Rev 0.9
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -41,6 +41,8 @@
 | 0.5 | 10/02/2019   |  Arun Barboza      | Updates for SSH & test comments   |
 | 0.6 | 10/14/2019   |  Arun Barboza      | Updates for CLI & Openconfig Model|
 | 0.7 | 03/04/2020   |  Arun Barboza      | Code PR ready updates             |
+| 0.8 | 04/28/2020   |  Arun Barboza      | RADIUS statistics & NAS-IP-Address|
+| 0.9 | 05/04/2020   |  Arun Barboza      | Work In Progress server DNS name  |
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -363,6 +365,8 @@ global_key           = "global"  ;  RADIUS global configuration
 passkey              = 1*32VCHAR  ; shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
 auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
 src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the outgoing RADIUS packets
+nas_ip               = IPAddress  ;  NAS-IP|IPV6-Address for the outgoing pkts
+statistics           = "True" / "False" ;  Enable statistics collection
 timeout              = 1*2DIGIT
 retransmit           = 1*2DIGIT
 ```
@@ -373,7 +377,9 @@ retransmit           = 1*2DIGIT
 ```
 ; RADIUS per server configuration in the system.
 ; Key
-server_key           = IPAddress;  RADIUS server's IP address (IPv4 or IPv6)
+server_key           = NameOrIPAddress; RADIUS server's DNS name or IPv4|6 addr
+                                      ; * DNS name is Work In Progress(WIP) *
+                                      ; * in future phase                   *
 ; Attributes
 auth_port            = 1*5DIGIT
 passkey              = 1*32VCHAR  ; per server shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
@@ -416,6 +422,8 @@ paths are:
   - secret-key
   - timeout
   - retransmit-attempts
+  - nas-ip-address         (WIP in future phase)
+  - statistics             (WIP in future phase)
 
 ### CLI
 
@@ -432,6 +440,8 @@ sonic# show aaa
 sonic# show radius
 
 sonic(config)# [no] radius-server source-ip <IPAddress(IPv4 or IPv6)>
+sonic(config)# [no] radius-server nas-ip <IPAddress(IPv4 or IPv6)>
+sonic(config)# radius-server statistics [enable|disable] 
 sonic(config)# [no] radius-server timeout <1 - 60>
 sonic(config)# [no] radius-server retransmit <0 - 10>
 sonic(config)# [no] radius-server auth-type [pap | chap | mschapv2]
@@ -464,6 +474,10 @@ like = similar to what is seen in industry, sonic = present in SONiC only.
 | show radius                      | yes | show radius                        |
 |                                  |     |                                    |
 | [no] radius-server source-ip ... | like| config radius src_ip (see Note 1.) |
+|                                  |     |                                    |
+| [no] radius-server nas-ip ...    | like| config radius nas_ip               |
+|                                  |     |                                    |
+| radius-server statistics ...     |sonic| config radius statistics           |
 |                                  |     |                                    |
 | [no] radius-server retransmit ...| yes | config radius retransmit ...       |
 |                                  |     |                                    |
