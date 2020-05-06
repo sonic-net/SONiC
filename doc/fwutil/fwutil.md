@@ -29,9 +29,10 @@
                 - [2.2.2.3.2 Description](#22232-description)
 - [3 Flows](#3-flows)
     - [3.1 Show components status](#31-show-components-status)
-    - [3.2 Install component FW](#32-install-component-fw)
-        - [3.2.1 Non modular chassis platform](#321-non-modular-chassis-platform)
-        - [3.2.2 Modular chassis platform](#322-modular-chassis-platform)
+    - [3.2 Show available updates](#32-show-available-updates)
+    - [3.3 Install component FW](#33-install-component-fw)
+        - [3.3.1 Non modular chassis platform](#331-non-modular-chassis-platform)
+        - [3.3.2 Modular chassis platform](#332-modular-chassis-platform)
 - [4 Tests](#4-tests)
     - [4.1 Unit tests](#41-unit-tests)
 
@@ -72,8 +73,9 @@ This document provides general information about FW utility implementation in SO
 
 [Figure 1: FW utility High Level Design](#figure-1-fw-utility-high-level-design)  
 [Figure 2: Show components status flow](#figure-2-show-components-status-flow)  
-[Figure 3: FW install (non modular) flow](#figure-3-fw-install-non-modular-flow)  
-[Figure 4: FW install (modular) flow](#figure-4-fw-install-modular-flow)  
+[Figure 3: Show available updates flow](#figure-3-show-available-updates-flow)  
+[Figure 4: FW install (non modular) flow](#figure-4-fw-install-non-modular-flow)  
+[Figure 5: FW install (modular) flow](#figure-5-fw-install-modular-flow)  
 
 ## List of tables
 
@@ -468,19 +470,25 @@ Aborted!
 
 ###### Figure 2: Show components status flow
 
-## 3.2 Install component FW
+## 3.2 Show available updates
 
-### 3.2.1 Non modular chassis platform
+![Show available updates flow](images/show_updates_flow.svg "Figure 3: Show available updates flow")
 
-![FW install (non modular) flow](images/install_non_modular_flow.svg "Figure 3: FW install (non modular) flow")
+###### Figure 3: Show available updates flow
 
-###### Figure 3: FW install (non modular) flow
+## 3.3 Install component FW
 
-### 3.2.2 Modular chassis platform
+### 3.3.1 Non modular chassis platform
 
-![FW install (modular) flow](images/install_modular_flow.svg "Figure 4: FW install (modular) flow")
+![FW install (non modular) flow](images/install_non_modular_flow.svg "Figure 4: FW install (non modular) flow")
 
-###### Figure 4: FW install (modular) flow
+###### Figure 4: FW install (non modular) flow
+
+### 3.3.2 Modular chassis platform
+
+![FW install (modular) flow](images/install_modular_flow.svg "Figure 5: FW install (modular) flow")
+
+###### Figure 5: FW install (modular) flow
 
 # 4 Tests
 
