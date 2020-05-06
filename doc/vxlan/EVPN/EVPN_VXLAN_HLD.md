@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 0.7
+#### Rev 0.4
 
 # Table of Contents
 
@@ -812,7 +812,6 @@ Fdbsyncd listens to the above table and notifies Linux FDB which notifies to Zeb
 
 The above is applicable for locally added static MACs also. 
 
-
 ![Local MAC Handling](images/localmac.PNG "Figure : Local MAC handling")
 __Figure 9: Local MAC handling__
 
@@ -1157,6 +1156,80 @@ These will be stored in the counters DB for each tunnel.
 The existing logging mechanisms shall be used. Proposed debug framework shall be used for internal state dump.
 
 ## 7 Warm Reboot Support
+
+Warm reboot will support below requirements
+
+1. System Warm reboot for EVPN 
+   The goal of the system warm reboot is to achieve system software reload without impacting the data plane and graceful restart of the control plane (BGP).
+
+![System Warm reboot and reconciliation sequence](images/warmrebootseq.PNG "Figure 16: System Warm reboot and reconciliation sequence")
+
+__Figure 16: System Warm reboot and reconciliation sequence__
+
+During the system warm-reboot restoration/reconciliation, the fdbsyncd is dependent on Intf, Vlan, Vrf, Vxlan Mgrs to complete their data restoration to kernel. Before fdbsyncd can program the MACs to the kernel it needs to wait for these subsystems data replay to kernel. Without this the kernel programming for fdbsyncd will fail.  Subsequently if the FDB/VTEP info is not available in kernel/zebra for BGP to distribute to its peers, it will converge with premature info causing data-loss. To solve this dependency , we use a replay-done notification by each subsystem. The notification is passed between the subsystems by using the existing  WARM_RESTART_TABLE. A new state "replayed" in the data restoration flow  ( "state" = "replayed") is used by each subsystem to indicate it has replayed its data to kernel.
+
+The dependent subsystems use the WARM_RESTART_TABLE table to wait before attempting to program their info to the kernel.   fdbsyncd replays its info to kernel only after the data is replayed for Intf, Vlan, Vxlan and Vrf Mgrs.  BGP is configured/started only when FDB has replayed all its data to kernel. 
+
+There is also a requirement that the app_db entries are not modified by *syncd subsystems until the orchagent has reconciled its data after warm-reboot. To achieve this dependency, the *syncd applications which write data to the app_db wait till orchagent reports "reconciled" status in the WARM_RESTART_TABLE.
+
+fpmsyncd and fdbsyncd also need to wait for some time for the BGP protocol to converge and populate the routing info from peers, before they can reconcile their respective app_db entries. Hence they start a fixed 120 seconds timer once BGP is started. Once this timer expires and orchagent is reconciled, they start the app_db reconciliation process.
+
+The below detailed sequence diagram explains the interaction during the restore, replay and reconcile phase.
+
+![System Warm reboot and reconciliation sequence](images/warmrebootseq2.PNG "Figure 17: System Warm reboot and reconciliation sequence detail")
+
+__Figure 17: Warm reboot replay sequence__
+
+To achieve this dependency new states "replayed", "reconciled"  and "disabled" are added to the WARM_RESTART_TABLE  table in STATE_DB.  The value "disabled" is set when the subsystems perform a cold restart.
+
+Producer: multiple producers
+
+Consumer: multiple consumers
+
+Description:
+
+- Value "replayed" "reconciled"  and "disabled" are added to the existing "state" variable.
+
+Schema:
+
+```
+; Existing table
+key             = WARM_RESTART_TABLE|<application_name>   
+; field         = value
+restore_count   = number    ;uint32
+state           = "restored"/"replayed"/"reconciled"/"disabled" 
+```
+
+**Configuration for EVPN  Warm reboot** 
+
+To support EVPN Warm reboot, system warm reboot must be enabled and BGP-GR must be configured for BGP on all the BGP peer nodes.
+
+The BGP GR restart and stale-path timers have a default value of 240 seconds and 720 seconds respectively.  To scale the system higher, these values may need to be tuned .  The restart timer should be long enough for the system to warm reboot ,  the IP connectivity to be re-established in the control plane and the data replay of the subsystems to the kernel to be complete.
+
+```
+BGP GR configuration for FRR
+router bgp <AS-NUM>
+ bgp graceful-restart
+ bgp graceful-restart preserve-fw-state
+ bgp graceful-restart stalepath-time 600  ( default 720)
+ bgp graceful-restart restart-time 300    ( default 240)
+```
+
+
+
+2. BGP Docker Warm reboot for EVPN
+   The goal of the BGP Docker warm reboot is to achieve BGP docker restart without impacting the dataplane. This is achieved with the help of graceful restart of the control plane (BGP).  As soon as BGP docker restarts, zebra re-learns the EVPN entries from kernel and marks them as stale. BGP protocol then re-learns the entries from the BGP peers and marks them for reconcile in zebra.  At the end of retention timer zebra  sweeps stale entries from the kernel. The remaining reconciliation sequence is same as the system warm-reboot, except that in this case only BGP docker and related tables are involved and data is already available in the DB and kernel. 
+
+   ![System Warm reboot and reconciliation sequence](images/warmrebootseq3.PNG "Figure 18: BGP Docker Warm reboot and reconciliation sequence")
+   
+   __Figure 18: BGP Docker warm reboot sequence__
+   
+3. SWSS Docker Warm reboot for EVPN.
+   The goal of the SWSS Docker warm reboot is to achieve SWSS docker restart without impacting the dataplane and control plane (BGP).   In this case too the data is already available in the DB and follows similar reconciliation sequence.
+
+   ![System Warm reboot and reconciliation sequence](images/warmrebootseq4.PNG "Figure 19: SWSS Docker Warm reboot and reconciliation sequence")
+
+   __Figure 19: SWSS Docker warm reboot sequence__
 
 To support warm boot, all the sai_objects must be uniquely identifiable based on the corresponding attribute list. New attributes will be added to sai objects if the existing attributes cannot uniquely identify corresponding sai object. SAI_TUNNEL_ATTR_DST_IP is added to sai_tunnel_attr_t to identify multiple evpn discovered tunnels.
 
