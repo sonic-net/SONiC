@@ -136,7 +136,7 @@ Following are the major design changes
 **database_global.json**
 
 ```jinja
-{% set ns_ref = NS_REF_CNT|int %}
+{ % set ns_ref = NS_REF_CNT|int % }
 {
     "INCLUDES" : [ 
         {
