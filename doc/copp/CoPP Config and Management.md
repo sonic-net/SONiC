@@ -23,14 +23,12 @@ With the new proposal, the CoPP tables shall be loaded to Config DB instead of A
 
 ### Schema Changes
 
-### Config DB
+A new schema is defined for COPP tables that seperates Queue/Policer groups and Traps. More details are in the "Examples" section
 
+### Config DB
 ```
-key = "COPP|name"
-name_list     = name | name,name_list
+key = "COPP_GROUP|name"
 queue         = number; strict queue priority. Higher number means higher priority.
-trap_ids      = name_list; 
-trap_action   = packet_action; trap action which will be applied to all trap_ids.
 
 ;Settings for embedded policer. 
 meter_type  = "packets" | "bytes"
@@ -40,10 +38,14 @@ cbs         = number ;packets or bytes depending on the meter_type value
 cir         = number ;packets or bytes depending on the meter_type value
 pbs         = number ;packets or bytes depending on the meter_type value
 pir         = number ;packets or bytes depending on the meter_type value
-
 green_action         = packet_action
 yellow_action        = packet_action
 red_action           = packet_action
+```
+```
+key = "COPP_TRAP|name"
+trap_group    = name ; copp group name
+trap_action   = packet_action; trap action which will be applied to all trap_ids.
 genetlink_name       = genetlink_name ;[Optional] "psample" for sFlow 
 genetlink_mcgrp_name = multicast group name; ;[Optional] "packets" for sFlow 
 ```
@@ -51,15 +53,18 @@ genetlink_mcgrp_name = multicast group name; ;[Optional] "packets" for sFlow
 ### StateDB
 
 ```
-key = "COPP_TABLE|name"
+key = "COPP_GROUP_TABLE|name"
+state        = "ok"
+
+key = "COPP_TRAP_TABLE|name"
 state        = "ok"
 ```
 
 ### coppmgr
-Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. In case if the feature requires adding only few attributes to an existing CoPP Table, ```coppmgr``` shall add the respective attributes to APP DB entry when the feature is enabled. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB.
+Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB.
 
 ### copporch
-```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```
+```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table. 
 
 ### swssconfig
 Handling of CoPP config json file shall be removed from ```dockers/docker-orchagent/swssconfig.sh```
@@ -87,12 +92,19 @@ As part of the post start action, the Config DB shall be loaded with default CoP
 ```
 
 ## Warmboot and Backward Compatibility
-The implementation must ensure that backward compatibility is maintained. If the system is boot-up with an *old* config file, the default CoPP tables are to be loaded from ```init_cfg.json``` and expected to work seamlessly.
+It is desirable to have warmboot functionality from previous release versions of Sonic. Since the existing schema has COPP Group name/key with protocol names (e.g `"COPP_TABLE:trap.group.bgp.lacp"`, there is a limitation in adding any new protocol or trap to an existing CoPP group and seamlessly migrate. However, with this proposal, the implementation is to do a migration of APP DB entries to new schema.
 
-The implementation must ensure Warmboot functionality is working as expected. During warmboot, the CoPP tables shall be present in APP DB and system is restored from the APP DB entries. At the time of this proposal, existing APP DB entries are expected to be the default entries and shall not have a conflict with Config DB entries [*TBD*]
+In addition, the implementation must ensure that backward compatibility is maintained. If the system is boot-up with an *old* config file, the default CoPP tables are to be loaded from ```init_cfg.json``` and expected to work seamlessly.
 
 ## CLI
-CLI support to add/modify CoPP tables OR providing show commands to display existing CoPP entries is not scoped as part of this design and can be taken up as future activity.
+`show` commands to display CoPP group and CoPP entries shall be provided as part of this feature implementation.
+
+CLI support to add/modify CoPP tables is not scoped as part of this design. In future, the following commands shall be supported:
+
+1. User shall be able to change policer values for a queue
+2. User shall be able to change the queue for a protocol/trap
+3. User shall be able to delete a group/trap. 
+    *In the current proposal, this would mean to keep the key in config_db with empty attributes.
 
 # Flows
 
@@ -108,4 +120,92 @@ The following flow captures scenarios for ```boot-up``` sequence and ```config r
 
 The following flow captures CoPP manager functionality. 
 
-![](https://github.com/Azure/SONiC/blob/master/images/copp/copp_manager.png)
+![](https://github.com/Azure/SONiC/blob/master/images/copp/CoppManager_1.png)
+
+# Examples
+
+    {
+        "COPP_GROUP|default": {
+            "queue": "0",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"600",
+            "cbs":"600",
+            "red_action":"drop"
+        },
+
+        "COPP_GROUP|queue4_group1": {
+            "queue": "4",
+        },
+        
+        "COPP_GROUP|queue4_group2": {
+            "queue": "4",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"600",
+            "cbs":"600",
+            "red_action":"drop"
+        },
+
+        "COPP_TRAP|bgp": {
+            "trap_ids": "bgp,bgpv6",
+            "trap_action":"trap",
+            "trap_priority":"4",
+            "trap_group": "queue4_group1"
+        },
+
+        "COPP_TRAP|lldp": {
+            "trap_ids": "lldp",
+            "trap_action":"trap",
+            "trap_priority":"4",
+            "trap_group": "queue4_group1"
+        },
+       
+        "COPP_TRAP|arp": {
+            "trap_ids": "arp_req,arp_resp,neigh_discovery",
+            "trap_action":"copy",
+            "trap_priority":"4",
+            "trap_group": "queue4_group2"
+        },
+
+        "COPP_GROUP|queue1_group1": {
+            "queue": "1",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"6000",
+            "cbs":"6000",
+            "red_action":"drop"
+        },
+         
+        "COPP_TRAP|ip2me": {
+            "trap_ids": "ip2me",
+            "trap_action":"trap",
+            "trap_priority":"1",
+            "trap_group": "queue1_group1"
+        },
+        
+        "COPP_TRAP|nat": {
+            "trap_ids": "src_nat_miss,dest_nat_miss",
+            "trap_action":"trap",
+            "trap_priority":"1",
+            "trap_group": "queue1_group1"
+        },
+        
+        "COPP_GROUP|queue2_group1": {
+            "queue": "2",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"5000",
+            "cbs":"5000",
+            "red_action":"drop",
+        },
+
+        "COPP_TRAP|sflow": {
+            "trap_ids": "sample_packet",
+            "trap_action":"trap",
+            "trap_priority":"1",
+            "trap_group": "queue2_group1"
+            "genetlink_name":"psample",
+            "genetlink_mcgrp_name":"packets"
+        },
+    }
