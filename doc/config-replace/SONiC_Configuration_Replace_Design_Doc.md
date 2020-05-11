@@ -229,6 +229,7 @@ config vlan member add 30 Ethernet4
 
 **Equivalent Redis Commands for the config difference patch**
 
+```
 redis-cli -n 4 DEL "VLAN_MEMBER|Vlan20|Ethernet4"
 redis-cli -n 4 DEL "VLAN_MEMBER|Vlan10|Ethernet4"
 redis-cli -n 4 HSET "VLAN|Vlan10" members@ Ethernet0
@@ -239,6 +240,7 @@ redis-cli -n 4 HSET "VLAN|Vlan30" vlanid 30
 redis-cli -n 4 HSET "VLAN|Vlan30" members@ Ethernet4
 redis-cli -n 4 HSET "VLAN_MEMBER|Vlan30|Ethernet4" tagging_mode tagged
 redis-cli -n 4 HSET "VLAN_MEMBER|Vlan10|Ethernet0" tagging_mode tagged
+```
 
 
 
@@ -282,10 +284,12 @@ As per the JSON standard, the elements described in JSON format are  unordered. 
 
 The config replace command uses an ordering table which specifies the list of dependent tables that need to be processed before a table is processed. Below is an example depiction of two ConfigDB tables.
 
+```json
 {
   "VLAN" : ["VLAN_MEMBER", "VLAN_INTERFACE"],
   "PORTCHANNEL" : ["VLAN_MEMBERSHIP", "PORTCHANNEL_MEMBER"]
 }
+```
 
 A dependency graph is created for all the tables which are in the JSON patch file. The dependency graph  is then resolved to find the order in which the updates to tables in the JSON patch are performed. The JSON patch file is then sorted in the resolved order. 
 
@@ -378,6 +382,7 @@ After performing all the operations specified in the ConfigDB patch file, the JS
 
 There are a few SONiC applications which store its configuration in the ConfigDB. These applications do not subscribe to the ConfigDB change events. So any changes to their corresponding table entries as part of the patch apply process in the ConfigDB are not processed by the application immediately. In order to apply the configuration changes, corresponding service needs to be restarted. A list of such ConfigDB tables and corresponding systemd service is specified in the *config replace* command.  See below for an example.
 
+```json
 { 
 
  "COREDUMP" : "coredump-config",
@@ -389,6 +394,7 @@ There are a few SONiC applications which store its configuration in the ConfigDB
     "SYSLOG_SERVER" : "rsyslog-config"
 
 }
+```
 
 This table is used to restart corresponding systemd service when a patch operation has been perform on its corresponding ConfigDB table. 
 
