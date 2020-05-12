@@ -19,6 +19,7 @@ Domain Name System (DNS) support
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 05/05 |   Venkatesan Mahalingam         | Initial version                   |
+| 0.2 | 05/11 |   Venkatesan Mahalingam         | Added source interface support and addressed comments                   |
 
 
 # About this Manual
@@ -28,11 +29,11 @@ This document introduces the support of DNS in SONiC.
 # Scope
 
 This document covers the following,
-1) Click commands to configure DNS server & Source IP
+1) Click commands to configure DNS server & Source interface
 2) Click command to show DNS hosts
 3) New tables in config DB to handle DNS configs
 4) DNS table configuration and show based on OpenConfig YANG model
-5) KLISH commands to configure DNS server & Source IP
+5) KLISH commands to configure DNS server & Source interface
 6) KLISH commands to show DNS hosts
 7) Backend support to add DNS configs in "/etc/resolv.conf" file & iptable rules to change the source-IP of the DNS query packets
 8) Unit Testcases
@@ -50,9 +51,9 @@ This document covers the following,
 
 DNS stands for Domain Name System. It is used to translate human readable domain names into machine readable IP addresses.
 
-With this feature, users will be able to configure DNS servers and source IP using SONiC Click commands and north bound interface (KLISH/REST/gNMI) provided by management framework module using OpenConfig models.
+With this feature, users will be able to configure DNS servers and source interface using SONiC Click commands and north bound interface (KLISH/REST/gNMI) provided by management framework module using OpenConfig models.
 
-Also, backend support to handle new config DB table events to populate nameservers in "/etc/resolv.conf" and add iptable rules to change the source IP of the DNS query that is being sent to the DNS server.
+Also, backend support to handle new config DB table events to populate nameservers in "/etc/resolv.conf" and add iptable rules to change the source IP (present on the source interface) of the DNS query that is being sent to the DNS server.
 
 ## 1.1 Requirements
 
@@ -62,16 +63,16 @@ Also, backend support to handle new config DB table events to populate nameserve
 This requirement is to add/delete DNS name server information in the Redis ConfigDB (DNS_SERVER) using Click and mgmt-framework.
 The DNS server can be IPv4/IPv6 ipaddress and multiple DNS name servers can be configured.
 
-#### 1.1.1.2 add/delete DNS source IP
-This requirement is to add/delete the global DNS source IP information in the Redis ConfigDB (DNS) using Click and mgmt-framework.
+#### 1.1.1.2 add/delete DNS source interface
+This requirement is to add/delete the global DNS source interface information in the Redis ConfigDB (DNS) using Click and mgmt-framework.
 
-Only one DNS source IP can be configured in the global DNS table. A new source IP will override the existing DNS source IP.   
+Only one DNS source interface can be configured in the global DNS table. A new source interface will override the existing DNS source interface.   
 
 #### 1.1.1.4 add/delete VRF name
 No special handling is required in "/etc/resolv.conf" file to work on the management VRF (for this release).
 
 #### 1.1.1.5 Get DNS hosts
-This displays the output of the DNS source IP and nameservers.
+This displays the output of the DNS source interface and nameservers.
 
 ### 1.1.2 Backend mechanisms to support configuration and get
 
@@ -96,22 +97,22 @@ The creates or deletes a DNS server entry in the Redis ConfigDB.
 
 A change in the DNS_SERVER entry triggers hostcfgd to start the DNS configuration script, which in turn writes each DNS server to the resolv.conf and then restart the dns-config service.   
 
-#### 1.1.2.2 add/delete DNS source IP
+#### 1.1.2.2 add/delete DNS source interface
 
-This creates or deletes a global DNS source IP entry in the Redis ConfigDB.
+This creates or deletes a global DNS source interface entry in the Redis ConfigDB.
 
 ```
   "DNS|global": {
     "type": "hash",
     "value": {
-      "src_ip": "1.1.1.1"
+      "src_intf": "Loopback0"
     }
   }
 ```
 
 A change in this entry triggers hostcfgd to add iptables SNAT rule incase of IPv4 address and ip6tables SNAT rule in IPv6 source address.
 
-Only one global DNS source IP is allowed.
+Only one global DNS source interface is allowed.
 
 #### 1.1.2.4 get DNS hosts
 
@@ -123,7 +124,7 @@ Incase of Click commands, show commands directly fetches the information from DN
 
 Provide management framework support to    
 - configure DNS name server   
-- configure DNS source IP   
+- configure DNS source interface  
 
 ### 1.1.4 Configuration and Management Requirements
 - Click configuration and show commands
@@ -158,13 +159,13 @@ The front end code change will be done in management-framework container includi
 # 2 Functionality
 
 ## 2.1 Target Deployment Use Cases
-Manage/configure Management VRF via gNMI, REST and CLI interfaces
+Manage/configure DNS configurations via gNMI, REST and CLI interfaces
 
 ## 2.2 Functional Description
-Provide CLI, gNMI and REST supports for Management VRF handling
+Provide CLI, gNMI and REST support for DNS configurations.
 
 ## 2.3 Backend change to support new configurations
-Provide change in hostcfgd, dns config script, dns service script.
+Provide change in management framework and hostcfgd modules.
 
 # 3 Design
 
@@ -180,7 +181,7 @@ Enhancing the management framework backend code and transformer methods to add s
 ; Key
 global_key           = “global”  ;  TACACS+ global configuration
 ; Attributes
-src_ip               = IPAddress  ;  source IP address for the outgoing DNS packets
+src_intf               = ifname  ;  source interface address for the outgoing DNS packets
 
 ```
 
@@ -228,21 +229,21 @@ module: openconfig-system
       +--rw dns
            |  +--rw config
            |  |  +--rw search*                      oc-inet:domain-name
-+          |  |  +--rw oc-sys-ext:source-address?   inet:ip-address
+           |  |  +--rw oc-sys-ext:source-intf?   -> /oc-if:interfaces/interface/name
            |  +--ro state
            |  |  +--ro search*                      oc-inet:domain-name
-+          |  |  +--ro oc-sys-ext:source-address?   inet:ip-address
+           |  |  +--ro oc-sys-ext:source-intf?   -> /oc-if:interfaces/interface/name
            |  +--rw servers
            |  |  +--rw server* [address]
            |  |     +--rw address    -> ../config/address
            |  |     +--rw config
-+          |  |     |  +--rw address?   oc-inet:ip-address
+           |  |     |  +--rw address?   oc-inet:ip-address
            |  |     |  +--rw port?      oc-inet:port-number
            |  |     +--ro state
-+          |  |        +--ro address?   oc-inet:ip-address
+           |  |        +--ro address?   oc-inet:ip-address
            |  |        +--ro port?      oc-inet:port-number
 
-Above fields with '+' are supported as part of DNS feature.
+The above "source-intf" & "address" fields are supported in the scope of this work.
 
 module: sonic-system-dns
   +--rw sonic-system-dns
@@ -252,7 +253,7 @@ module: sonic-system-dns
      +--rw DNS
         +--rw DNS_LIST* [type]
            +--rw type      enumeration ('global')
-           +--rw src_ip?   inet:ip-address
+           +--rw src_intf?   union
 
 ```
 
@@ -269,14 +270,21 @@ sonic(config)#
 ##### 3.6.2.1.1 Configure DNS server & source IP
 ```
 sonic(config)# ip name-server
-  source-ip     Configure source IP to reach the name server
+  source-intf   Configure source interface to pick the source IP, used for the DNS query
   A.B.C.D/A::B  Domain name server
+
+sonic(config)# ip name-server source-intf
+    Ethernet     Ethernet interface
+    Loopback     Loopback interface
+    Management   Management interface
+    PortChannel  PortChannel interface
+    Vlan         Vlan interface
 
 sonic(config)# ip name-server 10.11.0.1
 
 sonic(config)# ip name-server 2001:aa:aa::a
 
-sonic(config)# ip name-server source-ip 1.1.1.1
+sonic(config)# ip name-server source-intf Loopback 0
 
 ```
 
@@ -284,24 +292,22 @@ sonic(config)# ip name-server source-ip 1.1.1.1
 
 ```
 sonic(config)# no ip name-server
-  source-ip     Configure source IP to reach the name server
+  source-intf   Configure source interface to pick the source IP, used for the DNS query
   A.B.C.D/A::B  Domain name server
 
 sonic(config)# no ip name-server 10.11.0.1
 
 sonic(config)# no ip name-server 2001:aa:aa::a
 
-sonic(config)# no ip name-server source-ip 1.1.1.1
+sonic(config)# no ip name-server source-intf
 
 ```
 #### 3.6.2.2 Show dns hosts
 
 ```
 sonic# show hosts
-Default domain is not configured
-Name/address lookup uses domain service
-Source IP  : 1.1.1.1
-Name servers are: 10.11.0.1 2001:aa:aa::a
+Source Interface : Loopback0
+Name servers are : 10.11.0.1, 2001:aa:aa::a
 sonic#
 ```
 
@@ -320,7 +326,7 @@ DELETE - Delete a existing DNS configuration from CONFIG DB.
 ### 3.6.4 Click command support
 #### 3.6.4.1 Configuration support
 Below click commands are supported for DNS configurations
-root@sonic:~# config dns
+oot@sonic:~# config dns
 Usage: config dns [OPTIONS] COMMAND [ARGS]...
 
   DNS command line
@@ -329,9 +335,22 @@ Options:
   -?, -h, --help  Show this message and exit.
 
 Commands:
-  add       Specify a DNS name server
-  delete    Delete a DNS name server
-  sourceip  Specify DNS server global source ip...
+  add          Specify a DNS name server
+  delete       Delete a DNS name server
+  source_intf  DNS source interface configurations
+root@sonic:~#
+root@sonic:~# config dns source_intf
+Usage: config dns source_intf [OPTIONS] COMMAND [ARGS]...
+
+  DNS source interface configurations
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  add     DNS source interface add configuration
+  delete  DNS source interface delete configuration
+root@sonic:~#
 ```
 root@sonic:~# ping www.yahoo.com
 ping: www.yahoo.com: Temporary failure in name resolution
@@ -353,9 +372,8 @@ root@sonic:~#
 Below Click command is used to dump the DNS configurations
 ```
 root@sonic:~# show hosts
-DNS global src_ip 1.1.1.1
-
-Name servers are: 10.11.0.1
+Source Interface : Loopback0
+Name servers are : 10.11.0.1, 2001:aa:aa::a
 root@sonic:~#
 ```
 # 4 Flow Diagrams
@@ -365,6 +383,7 @@ root@sonic:~#
 # 6 Serviceability and Debug
 
 # 7 Warm Boot Support
+This support is added in the hostcfgd and hence no explicit handling is needed.
 
 # 8 Scalability
 
@@ -377,10 +396,13 @@ The unit-test for this feature will include:
 | :-------- | :----- |
 | Configure DNS server | Verify DNS servers are present in the DNS_SERVER table (configDB) and the same is reflected in the resolv.conf file |
 | Delete DNS server | Verify DNS servers are not present in the DNS_SERVER table (configDB) and the same is reflected in the resolv.conf file  |
-| Configure DNS source IP| Verify DNS source IP is present in the DNS table (configDB) and DNS query packets are transmitted with the configured source IP |
-| Delete DNS source IP| Verify DNS source IP is not present in the DNS table (configDB) and DNS query packets are not transmitted with the configured source IP |
-| Configure mgmt VRF | verify that DNS query packets are transmitted based on nameservers present in resolv.conf file |
-| show hosts | Verify source IP and nameservers are displayed correctly |
+| Verify max DNS servers | Verify more than 6 servers are not allowed |
+| Configure DNS source interface | Verify source interface is present in the DNS table (configDB) and DNS query packets are transmitted with the source IP present in source interface |
+| Delete DNS source interface | Verify source interface is not present in the DNS table (configDB) and DNS query packets are not transmitted with the source IP present in source interface |
+| Configure mgmt VRF | Verify that DNS query packets (from mgmt VRF) are transmitted based on nameservers present in resolv.conf file |
+| Verify IPv4 DNS query is sent for ping to domain name | Verify whether DNS query is sent based on IPv4 source IP (based on source interface) & destination IP |
+| Verify IPv6 DNS query is sent for ping to domain name | Verify whether DNS query is sent based on IPv6 source IP (based on source interface) & destination IP |
+| show hosts | Verify source interface and nameservers are displayed correctly |
 
 #### Configuration via gNMI
 
@@ -397,6 +419,10 @@ Additional tests will be done to get DNS configuration and DNS states at differe
 Same test as CLI configuration Test but using REST POST request
 Additional tests will be done to set DNS configuration at different levels of Yang models.
 
+**URIs for REST configurations:**
+
+Source interface - /restconf/data/openconfig-system:system/dns/config/openconfig-system-ext:source-intf
+Name server - /restconf/data/openconfig-system:system/dns/servers/server[8.8.8.8]/config
 
 #### Get configuration via REST (GET)
 
