@@ -165,12 +165,14 @@ The  *ConfigDBConnector* class of the *sonic-py-swsssdk* is used to obtain the r
 
 Below  are the CLI commands which are indicative of the VLAN configuration stored in the ConfigDB.
 
+```
 config vlan add 10
 config vlan member add 10 Ethernet0 -u
 config vlan member add 10 Ethernet4
 
 config vlan add 20
 config vlan member add 20 Ethernet4
+```
 
 
 
@@ -178,11 +180,13 @@ config vlan member add 20 Ethernet4
 
 Below  are the CLI commands which are indicative of the VLAN configuration stored in the config_db.json file.
 
+```
 config vlan add 10
 config vlan member add 10 Ethernet0
 
 config vlan add 30
 config vlan member add 30 Ethernet4
+```
 
 
 
