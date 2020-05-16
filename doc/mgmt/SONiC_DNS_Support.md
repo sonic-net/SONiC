@@ -179,7 +179,7 @@ Enhancing the management framework backend code and transformer methods to add s
 ```
 ; DNS configuration attributes global to the system. Only one instance of the table exists in the system.
 ; Key
-global_key           = “global”  ;  TACACS+ global configuration
+global_key           = “global”  ;  DNS global configuration
 ; Attributes
 src_intf               = ifname  ;  source interface address for the outgoing DNS packets
 
