@@ -134,7 +134,7 @@ As a result, the `supervisor` setting will be:
 
 ```shell
 [program:buffermgrd]
-command=/usr/bin/buffermgrd -a 
+command=/usr/bin/buffermgrd -a <asic_table.json> -p <peripheral_table.json>
 priority=11
 autostart=false
 autorestart=false
@@ -149,6 +149,12 @@ The database schema for the dynamically buffer calculation is added on top of th
 
 In the rest part of this document, we will focus on the dynamically headroom calculation and the SONiC-to-SONiC upgrade process from the current solution to the new one.
 
+## SAI interface
+
+In this design, we need to add a new SAI port attribute:
+
+SAI_PORT_ATTR_MAXIMUM_HEADROOM_SIZE, which returns the maximum accumulative headroom a port can have.
+
 ## Data schema design
 
 The data schema design will be introduced in this section. Redis database tables releated to dynamically calculation will be introduced in this section. Hardware related parameters which are not saved in the database will also be introduced as they have a table-like organization which is similiar as database.
@@ -157,6 +163,7 @@ The data schema design will be introduced in this section. Redis database tables
    - `ASIC_TABLE` where the ASIC related parameters are stored.
    - `PERIPHERAL_TABLE` where the peripheral model parameters are stored, like gearbox.
    - `PORT_PERIPHERAL_TABLE` where the per-port peripheral model are stored.
+   - `BUFFER_MAX_PARAM` where the maxinum of some parameters regarding buffer are stored.
 2. The following tables are newly introduced and stored in `CONFIG_DB`, including:
    - `LOSSLESS_TRAFFIC_PATTERN` where the traffic pattern related parameters are stored.
    - `LOSSLESS_BUFFER_PARAM` where the default parameters used to generate `BUFFER_PROFILE` for lossless traffic is stored.
@@ -192,11 +199,6 @@ The key should be switch chip model name in captical letters.
     mac_phy_delay       = 1*6DIGIT                  ; Mandatory. Max/phy delay, in unit of Bytes.
     peer_response_time  = 1*6DIGIT                  ; Mandatory. The maximum of peer switch response time
                                                     ; in unit of kBytes.
-    ; The following fields are introduced to calculate the buffer pools
-    mmu_size            = 1*9DIGIT                  ; Total avaiable memory a buffer pool can occupy
-    max_headroom_size   = 1*6DIGIT                  ; Optional. The maxinum value of headroom size a physical port can have.
-                                                    ; The accumulative headroom size of a port should be less than this threshold.
-                                                    ; Not providing this field means no such limitation for the ASIC.
 ```
 
 ##### Initialization
@@ -339,6 +341,30 @@ For the platforms that have an identical gearbox model for all the ports, to pro
 For the platforms that have different gearbox models for different ports, the gearbox model should be provided on a per-port basis. In this case, the key should be port index. On this kind of systems, the buffer profile name convention has to be updated to reflect the gearbox installed for that port.
 
 For chassis systems the gearbox in variant line-cards can differ, which means a mapping from port/line-card to gearbox model is required to get the correct gearbox model for a port. As this part is still under discussion in community, we will not discuss this case for now.
+
+#### BUFFER_MAX_PARAM
+
+This table is introduced to store the maximum value of parameters regarding buffer settings.
+
+##### Schema
+
+The key should be switch chip model name in captical letters.
+
+```schema
+    mmu_size            = 1*9DIGIT                  ; Total avaiable memory a buffer pool can occupy
+    max_headroom_size   = 1*6DIGIT                  ; Optional. The maxinum value of headroom size a physical port can have.
+                                                    ; The accumulative headroom size of a port should be less than this threshold.
+                                                    ; Not providing this field means no such limitation for the ASIC.
+```
+
+##### Initialization
+
+These maximum values are read from SAI interface by orchagent and then exposed to `STATE_DB`.
+
+The following SAI attributes are required:
+
+- SAI_SWITCH_ATTR_TOTAL_BUFFER_SIZE for mmu_size
+- SAI_PORT_ATTR_MAXIMUM_HEADROOM_SIZE for max_headroom_size. This is newly introduced.
 
 #### Tables for current buffer state
 
@@ -509,11 +535,9 @@ Currently, there already are some fields in `BUFFER_PG` table. In this design, t
 
 ```schema
     key             = BUFFER_PG|<name>
-    headroom_type   = "static" / "dynamic"  ; Optional. Whether the profile is dynamically calculated or user configured.
-                                            ; Default value is "static"
     profile         = reference to BUFFER_PROFILE object
-                                            ; When headroom_type is "static", the profile should contains all headroom information.
-                                            ; When it's "dynamic", the profile should only contain dynamic_th.
+                                            ; When headroom_type of the profile is "static", the profile should contains all headroom information.
+                                            ; When it's "dynamic", the profile should only contain dynamic_th and all other headroom information should by dynamically calculated.
 ```
 
 ##### Initialization
@@ -574,7 +598,7 @@ Difference between `APPL_DB.BUFFER_PROFILE` and `CONFIG_DB.BUFFER_PROFILE` inclu
 
 #### BUFFER_PG
 
-The field `headroom_type` of `CONFIG_DB.BUFFER_PG` doesn't exist in `APPL_DB.BUFFER_PG`. Other fields are the same.
+The same as that in `CONFIG_DB`.
 
 ##### Schema
 
@@ -707,7 +731,7 @@ There are admin speed and operational speed in the system, which stand for the s
 
 1. Read the speed and cable length of the port
 2. Check the following conditions, exit on anyone fails:
-    - Check whether `headroom_type` in `CONFIG_DB.BUFFER_PG|<port>|<lossless PG>` is of `dynamic` which means dynamically calculating headroom is required for the port.
+    - Check whether `headroom_type` in the profile referenced by `CONFIG_DB.BUFFER_PROFILE|<port>|<lossless PG>` is of `dynamic` which means dynamically calculating headroom is required for the port.
     - Check whether there is a cable length configured for the port.
     - Check whether the headroom size calculated based on the speed, cable length pair is legal, which means it doesn't exceed the maxinum value.
 
@@ -791,8 +815,7 @@ When system cold reboot from current implementation to new one, `db_migrator` wi
 2. Convert the current data in `BUFFER_PROFILE` and `BUFFER_PG` into new format with `headroom_type` inserted via the following logic:
 
     - If a `BUFFER_PROFILE` entry has name convention of `pg_lossless_<speed>_<length>_profile` and the same `dynamic_th` value as `DEFAULT_LOSSLESS_BUFFER_PARAMETER.default_dynamic_th`, it will be treated as a dynamically generated profile based on the port's speed and cable length. In this case it will be removed from the `CONFIG_DB`.
-    - If a `BUFFER_PG` references a profile whose `headroom_type` is `dynamic`, it will be also treated as a dynamic buffer pg object and its `headroom_type` will be initialized as `dynamic`.
-    - If a `BUFFER_PROFILE` or `BUFFER_PG` item doesn't meet any of the above conditions, it will be treated as a `static` profile.
+    - If a `BUFFER_PROFILE` item doesn't meet any of the above conditions, it will be treated as a `static` profile.
 
 After that, `Buffer Manager` will start as normal flow which will be described in the next section.
 
@@ -923,9 +946,7 @@ In configure database there should be:
 ```json
     {
         "BUFFER_PG" : {
-            "Ethernet0|3-5" : {
-                "headroom_type" : "dynamic"
-            }
+            "Ethernet0|3-5" : {}
         }
     }
 ```
@@ -974,7 +995,6 @@ In configure database there should be:
         "BUFFER_PG" : {
             "Ethernet0|3-4" : {
                 "profile" : "[BUFFER_PROFILE|pg_lossless_100000_5m_customize_profile]",
-                "headroom_type" : "dynamic"
             }
         }
     }
@@ -1028,11 +1048,8 @@ In configure database there should be:
         "BUFFER_PG" : {
             "Ethernet0|3-4" : {
                 "profile" : "[BUFFER_PROFILE|pg_lossless_custom_profile]",
-                "headroom_type" : "static"
             },
-            "Ethernet0|6" : {
-                "headroom_type" : "dynamic"
-            }
+            "Ethernet0|6" : {}
         }
     }
 ```
