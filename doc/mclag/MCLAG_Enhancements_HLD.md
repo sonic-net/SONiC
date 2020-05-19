@@ -192,6 +192,8 @@ The following improvements are made in this enhancement:
 
 To control the BUM traffic towards the MHD bridge-port isolation groups is used. The isolation group is applied on the ingress side of peer-link port to filter traffic towards the MHD to avoid duplicate traffic received at MHD.
 
+Existing ACL based support will continue to support. 
+
 ### 2.1.9 Unique IP enhancements
 
 - Current design mandates configuring same IP address on the VLAN interface for each VLAN of which an MCLAG is a member. 
@@ -417,6 +419,8 @@ When MCLAG node learns a new MAC address via ICCP from peer MCLAG node ( MAC lea
 ### 3.3.4 Port Isolation changes
 In this enhancement, the port isolation logic is updated to use [SAI Port Isolation](https://github.com/opencomputeproject/SAI/blob/master/inc/saiisolationgroup.h) instead of Egress ACL. Using isolation group, unwanted traffic can be dropped at the ingress, i.e. before it gets queued etc. This will give better performance as unnecessary traffic will filtered at ingress. 
 
+MclagSyncd is enhanced to check the platform capabilities for Isolationgroup support, platform not supporting isolation group will continue to use existing approach of using ACL's.  
+
 ### 3.3.5 MCLAG Domain State
 To support applications running over MCLAG, MCLAG domain states such as ICCP state, active and standby role, system MAC, and remote MCLAG interface state are populated in the STATE_DB for applications to consume.
 
@@ -496,7 +500,9 @@ MclagSyncd will be enhanced to listen to CONFIG_DB changes in MCLAG domain table
 
 ## 3.7 SAI
 ### 3.7.1 Port Isolation
-The following SAI definitions will be used and no enhancements necessary
+For controlling the BUM traffic received on the peer_link towards MCLAG portChannels, one isolation group is allocated of type SAI_ISOLATION_GROUP_TYPE_BRIDGE_PORT. All MCLAG PortChannel member ports get added to MLCAG isolation group , ports are set with attribute SAI_BRIDGE_PORT_ATTR_ISOLATION_GROUP.
+
+The following SAI definitions will be used and no enhancements necessary.
 
 - https://github.com/opencomputeproject/SAI/blob/master/inc/saiisolationgroup.h
 
@@ -729,9 +735,7 @@ IfUpAck        4            3            0           0
 
 ```
 
-- MCLAG debug guide can be referred for trouble shooting issues. Below is the link to debug guide.
 
-  https://docs.google.com/document/d/1exNQ1po7TYmVtctq59aSUeBsZYKctbHMkwStNVNgSrU/edit 
 
 # 6 Warm Boot Support
 - After a warm boot is completed, the FDB table is reconciled with the MCLAG peer. ICCP is extended to advertise the local FDB table. 
