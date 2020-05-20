@@ -54,19 +54,34 @@ There are 3 possible packet events that can trigger the VNet mobitor to send the
 
 # Config DB Schema
 
-TBD
+```
+; Defines schema for Global configuration
+key                                   = VNET_MONITOR|GLOBAL           ; Global name
+; field                               = value
+POLL_INTERVAL                         = DIGITS                        ; Polling interval in seconds
+WAIT_TIMEOUT                          = DIGITS                        ; Wait for response timeout in seconds
+ENABLE                                = "true" / "false               ; Global enable toggle
+```
 
-CONFIG_DB:VNET_MONITOR_GLOBAL
-  * poll_interval
-  * wait_timeout
-  * enable
-  
-CONFIG_DB:VNET_MONITOR_PATH
-  * src_vlan_id
-  * src_ip
-  * dst_ip
-  * cookie
-  
+```
+; Defines the data for a STOR/DTOR pair
+key                                   = VNET_DTOR_IP|IP_PREFIX         ; DTOR overlay DST IP address
+; field                               = value
+SRC_VLAN                              = DIGITS                         ; Source VLAN ID
+SRC_IP                                = ip_address                     ; STOR overlay SRC IP address
+cookie                                = HEX                            ; Monitor packet identifier
+```
+
+# State DB Schema
+
+```
+; Defines schema VNET path state
+key                                   = VNET_DTOR_IP|IP_PREFIX        ; DTOR overlay DST IP address
+; field                               = value
+REACHABLE                             = "true" / "false"              ; Current path state
+NUM_FLAPS                             = DIGITS                        ; Aggregate number of times path changed state to unreachable
+```
+
 # Integration into SONiC
 
 TBD
