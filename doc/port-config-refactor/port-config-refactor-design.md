@@ -39,9 +39,9 @@ There are also some vendor specified code contains "port_config.ini" related log
 
 This change should be verified on all Mellanox SKU with a stable 201911 image.
 
-1. Run regression on t0/t1-lag topology.
-2. Verify all sub-commands of "show interfaces".
-3. Verify all sub-commands of "sfputil".
+1. Run regression on t0/t1-lag topology, verify that the change won't break any existing test cases.
+2. Test all sub-commands of "show interfaces". Compare sub-commands with/without this feature, verify the command outputs are the same.
+3. Test all sub-commands of "sfputil". Compare sub-commands with/without this feature, verify the command outputs are the same. Verify "sfputil lpmode" and "sfputil reset", make sure it works on the correct interface.
 4. After system initialize, verify xcrvd pushed correct data to redis.
 5. Insert/Remove modules, verify modules status change accordingly.
 6. Kill xcrvd, verify related information is removed from redis database.
