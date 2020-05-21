@@ -860,7 +860,7 @@ Now we see, the extra step for the new implementation is migrating all data into
   - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**
 
   ```shell
-redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
+  redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
   ```
 
   - [x] I also tried lua script as below, this way is the best, it takes about **~1s **when data size is **~40K** and **~2s** when data size is **~100K**.  Sample codes migratedb as below:
