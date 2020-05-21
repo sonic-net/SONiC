@@ -170,7 +170,7 @@ in SONiC.
 
 1. Support configuration of Source IP address of the VTEP. 
 2. Support configuration of a global VLAN-VNI map.
-3. Support configuration of L3VNI association with VRF. 
+3. Support configuration of L3VNI association with VRF. L3VNI can only be associated with non-default VRF.
 
 
 
@@ -1025,6 +1025,13 @@ These will be stored in the counters DB for each tunnel.
 
 3. show vxlan vrfvnimap 
    - Displays all the VRF VNI mappings.
+
+   +-------+-------+
+   | VRF   |   VNI |
+   +=======+=======+
+   | Vrf-1 |   104 |
+   +-------+-------+
+   Total count : 1
 
 4. show vxlan tunnel
    - lists all the discovered tunnels.  
