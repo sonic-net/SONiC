@@ -859,7 +859,7 @@ Now we see, the extra step for the new implementation is migrating all data into
   - [x] Third part script like redis-dump/load is very slow, usually takes **~23s** when data size is **~40K**
   - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**
 
-  ```powershell
+  ```shell
 redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
   ```
 
