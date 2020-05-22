@@ -47,6 +47,7 @@
     - [5.2.2 Show Commands](#522-show-commands)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
 - [7 Warm reboot Support](#7-warm-reboot-support)
+- [8 Unit Test Cases ](#8-unit-test-cases)
 
 # List of Tables
 
@@ -1046,9 +1047,9 @@ These will be stored in the counters DB for each tunnel.
    +---------+---------+-------------------+--------------+
    Total count : 2
 
-5. show vxlan remote_mac <remoteip/all>  <vlanid/all> 
-   - lists all the MACs learnt from the specified remote ip or all the remotes for the specified/all vlans. (APP DB view) 
-   - VLAN, MAC, RemoteVTEP,  VNI,  Type are the columns.
+5. show vxlan remote_mac <remoteip/all> 
+   - lists all the MACs learnt from the specified remote ip or all the remotes for all vlans. (APP DB view) 
+   - VLAN, MAC, RemoteVTEP, VNI, Type are the columns.
 
    show vxlan remote_mac all
    +---------+-------------------+--------------+-------+--------+
@@ -1111,20 +1112,15 @@ These will be stored in the counters DB for each tunnel.
 ```
 1. VTEP Source IP configuration
    - switch(config) interface vxlan <vtepname>
-   - switch(config-if-vtep1) [no] vxlan source-ip  <src_ipv4>
-   - <vtepname> is a string. 
+   - switch(config-if-vtep1) [no] source-ip  <src_ipv4>
    - <src_ipv4> is an IPV4 address in dotted notation A.B.C.D
-2. EVPN NVO configuration 
-   - switch(config) evpn <nvo_name>
-   - switch(config-evpn) nvo <vtepname>
-   - <nvoname> and <vtepname> are strings.
-3. VLAN VNI Mapping configuration
-   - switch(config-if-vtep1) [no] vxlan map vlan <vidstart> vni <vnistart>  count <n>
+2. VLAN VNI Mapping configuration
+   - switch(config-if-vtep1) [no] map vlan <vidstart> vni <vnistart>  count <n>
    - <n> is the number of mappings being configured. 
    - <vidstart>, <vnistart> are the starting VID and VNID. 
    - count is optional and when specified maps contigous sets of VIDs to contigous VNIDs
 4. VRF VNI Mapping configuration
-   - switch(config-if-vtep1) [no] vxlan map vrf VRF-Blue vni 10001
+   - switch(config-if-vtep1) [no] map vrf VRF-Blue vni 10001
 5. ARP suppression
    - TBD
 
@@ -1160,7 +1156,7 @@ These will be stored in the counters DB for each tunnel.
 
 ## 6 Serviceability and Debug
 
-The existing logging mechanisms shall be used. Proposed debug framework shall be used for internal state dump.
+The existing logging mechanisms shall be used. 
 
 ## 7 Warm Reboot Support
 
@@ -1239,4 +1235,60 @@ router bgp <AS-NUM>
    __Figure 19: SWSS Docker warm reboot sequence__
 
 To support warm boot, all the sai_objects must be uniquely identifiable based on the corresponding attribute list. New attributes will be added to sai objects if the existing attributes cannot uniquely identify corresponding sai object. SAI_TUNNEL_ATTR_DST_IP is added to sai_tunnel_attr_t to identify multiple evpn discovered tunnels.
+
+## 8 Unit Test Cases
+
+### 8.1 VxlanMgr and Orchagent 
+
+1. Add VXLAN_TUNNEL table in CFG_DB. Verify that the VXLAN_TUNNEL_TABLE in App DB is added.
+2. Add VXLAN_TUNNEL_MAP  table in CFG_DB. Verify the following tables.
+   - VXLAN_TUNNEL_MAP table in APP_DB. 
+   - verify kernel device created corresponding to the VNI. 
+   - The following ASIC DB entries are created.
+   - SAI_OBJECT_TYPE_TUNNEL_MAP entries for VLAN-VNI, VNI-VLAN, VRF-VNI, VNI-VRF are created.
+   - SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY created corresponding to the first vlan vni map entry.
+   - SAI_OBJECT_TYPE_TUNNEL with peer mode P2MP.
+   - SAI_OBJECT_TYPE_TUNNEL_TERM_TABLE_ENTRY of type P2MP is created.
+   - SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2MP tunnel.
+3. Add more VLAN-VNI mapping entries in addition to the first entry.
+   - SAI_OBJECT_TYPE_TUNNEL_MAP_ENTRY created corresponding to the above entries.
+   - verify kernel devices created corresponding to the VNI. 
+4. Remove VLAN-VNI mapping entries except the last one. 
+   - Verify that the SAI object and the kernel entry created in the above step are deleted.
+5. Remove last mapping entry and VXLAN_TUNNEL table entry in the CFG_DB.
+   - Verify that kernel device corresponding to this mapping entry is deleted.
+   - Verify that the APP DB entries created in the above steps are deleted.
+   - Verify that the ASIC DB entries created in the above steps are deleted.
+6. Repeat creation of the VXLAN_TUNNEL and VXLAN_TUNNEL_MAP entries in the config db. In addition create the EVPN_NVO table entry in the config db and REMOTE_VNI table entry corresponding to the create map entries. 
+  - Verify that the above mentioned kernel, APP DB, ASIC DB entries are created.
+  - Verify that there is a SAI_OBJECT_TYPE_TUNNEL entry with peer mode P2P.
+  - Verify that there is a SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2P tunnel.
+  - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
+7. Add more REMOTE_VNI table entries to different Remote IP.
+  - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created.
+8. Add more REMOTE_VNI table entries to the same Remote IP.
+  - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip.
+9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted.
+10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted.
+
+### 8.2 FdbOrch
+
+1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
+2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
+  - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
+3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
+4. Repeat above steps for remote static MACs.
+5. Add MAC in the ASIC DB and verify that the STATE_DB MAC_TABLE is updated.
+6. Repeat above for configured static MAC.
+7. MAC Move from Local to Remote. 
+  - Create a Local MAC by adding an entry in the ASIC DB.
+  - Add an entry in the VXLAN_REMOTE_MAC table with MAC address as in the above step.
+  - Verify that the ASIC DB is now populated with the MAC pointing to the remote ip and the bridgeport corresponding to the tunnel.
+  - Verify that the state DB does not have the entry corresponding to this MAC. 
+8. MAC Move from Remote to Local
+  - Create an entry in the VXLAN_REMOTE_MAC table.
+  - Create an entry in the ASIC DB for the MAC entry.
+  - Verify that the STATE DB has the MAC table entry added.
+9. MAC Move from Remote to Remote 
+  - Verify that the ASIC DB is updated with the new bridge port and remote IP.
 
