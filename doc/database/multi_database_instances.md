@@ -856,9 +856,40 @@ Now we see, the extra step for the new implementation is migrating all data into
 - For "flushdb" operations, it takes ~0.3 second. If we want to save this time as well , we can delay this operations until warmboot is done, otherwise we can add these operations during warmboot.
 
 - For the data migration, I did some test on local.
+  
+   The CPU on my local setup is as below, better CPU may have better performance:
+
+  ```shell
+  admin@ASW-7005:~$ lscpu
+  Architecture:        x86_64
+CPU op-mode(s):      32-bit, 64-bit
+  Byte Order:          Little Endian
+Address sizes:       36 bits physical, 48 bits virtual
+  CPU(s):              4
+  On-line CPU(s) list: 0-3
+  Thread(s) per core:  1
+  Core(s) per socket:  4
+  Socket(s):           1
+  NUMA node(s):        1
+Vendor ID:           GenuineIntel
+  CPU family:          6
+  Model:               77
+  Model name:          Intel(R) Atom(TM) CPU  C2558  @ 2.40GHz
+  Stepping:            8
+  CPU MHz:             2393.975
+  CPU max MHz:         2400.0000
+CPU min MHz:         1200.0000
+  BogoMIPS:            4787.94
+Virtualization:      VT-x
+  L1d cache:           24K
+  L1i cache:           32K
+  L2 cache:            1024K
+  NUMA node0 CPU(s):   0-3
+  ```
+  
   - [x] Third part script like redis-dump/load is very slow, usually takes **~23s** when data size is **~40K**
   - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**
-
+  
   ```shell
   redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
   ```
@@ -866,38 +897,38 @@ Now we see, the extra step for the new implementation is migrating all data into
   - [x] I also tried lua script as below, this way is the best, it takes about **~1s **when data size is **~40K** and **~2s** when data size is **~100K**.  Sample codes migratedb as below:
 
   ```python
-  #!/usr/bin/python
+#!/usr/bin/python
   from __future__ import print_function
   import sys
   import swsssdk
   import redis
-
+  
   dblists = swsssdk.SonicDBConfig.get_dblist()
   for dbname in dblists:
-      dbsocket = swsssdk.SonicDBConfig.get_socket(dbname)
+    dbsocket = swsssdk.SonicDBConfig.get_socket(dbname)
       #dbport = swsssdk.SonicDBConfig.get_port(dbname)
       dbid = swsssdk.SonicDBConfig.get_dbid(dbname)
       dbhost = swsssdk.SonicDBConfig.get_hostname(dbname)
 
       r = redis.Redis(host=dbhost, unix_socket_path=dbsocket, db=dbid)
-
-      script = """
+  
+    script = """
           local cursor = 0;
           local round = 0;
           repeat
-              local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
+            local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
   	    cursor = dat[1];
   	    round = round + 1;
               redis.call('MIGRATE', KEYS[1], KEYS[2], '', KEYS[3], 5000, 'REPLACE', 'KEYS', unpack(dat[2]));
-          until cursor == '0';
+        until cursor == '0';
           return round;
       """
       r.eval(script, 3, '127.0.0.1', 6381, dbid)
 
   ```
-
+  
   For example, migrating below four instances into one instance, total **data size ~100K, costs ~2.1s**
-
+  
   ```shell
   admin@ASW-7005:~$ redis-cli -p 6379 info | grep Keyspace -A 10
   # Keyspace
@@ -905,26 +936,26 @@ Now we see, the extra step for the new implementation is migrating all data into
   db4:keys=99,expires=0,avg_ttl=0
   db5:keys=3145,expires=0,avg_ttl=0
   db6:keys=365,expires=0,avg_ttl=0
-
+  
   admin@ASW-7005:~$ redis-cli -p 6380 info | grep Keyspace -A 10
   # Keyspace
   db1:keys=42834,expires=0,avg_ttl=0
-
+  
   admin@ASW-7005:~$ redis-cli -p 6381 info | grep Keyspace -A 10
   # Keyspace
-
+  
   admin@ASW-7005:~$ redis-cli -p 6382 info | grep Keyspace -A 10
   # Keyspace
   db2:keys=7191,expires=0,avg_ttl=0
-
+  
   admin@ASW-7005:~$ redis-cli -p 6383 info | grep Keyspace -A 10
   # Keyspace
   db3:keys=103,expires=0,avg_ttl=0
-
+  
   admin@ASW-7005:~$ date +"%T.%N" ; sudo /etc/sonic/migratedb ;  date +"%T.%N"
   23:15:08.350089582
   23:15:10.486322265
-
+  
   admin@ASW-7005:~$ redis-cli -p 6381 info | grep Keyspace -A 10
   # Keyspace
   db0:keys=40012,expires=0,avg_ttl=0
