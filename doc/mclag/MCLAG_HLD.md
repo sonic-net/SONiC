@@ -91,6 +91,7 @@ Rev 0.4
 				- *[3.8.2.1.1 MCLAG Domain configuration](#3_8_2_1_1-MCLAG-Domain-configuration)*
 				- *[3.8.2.1.2 MCLAG Interface configuration](#3_8_2_1_2-MCLAG-Interface-configuration)*
 				- *[3.8.2.1.3 MCLAG Gateway MAC configuration](#3_8_2_1_3-MCLAG-Gateway-MAC-configuration)*
+				- *[3.8.2.1.4 MCLAG Separate IP configuration](#3_8_2_1_3-MCLAG-Separate-IP-configuration)*
 			- *[3.8.2.2 Show commands](#3_8_2_2-Show-commands)*
 - **[4 Flow Diagrams](#4-Flow-Diagrams)**
 	- [4.1 FDB Flow Diagrams](#4_1-FDB-Flow-Diagrams)
@@ -269,7 +270,7 @@ To control the BUM traffic towards the MHD bridge-port isolation groups is used.
 
   As part of this enhancement, a new configurable gateway MAC is supported. 
   Same gateway MAC must be configured in both Active node and Standby Node. 
-  Gateway MAC configuration overrides default behavior of programing Active nodes MAC in Standby node's VLAN routing interface. 
+  Gateway MAC configuration overrides default behaviour of programing Active nodes MAC in Standby node's VLAN routing interface. 
 
 # 3 Design
 
@@ -753,6 +754,14 @@ To configure/unconfigure MCLAG Gateway MAC use following command.
 
 **sonic(config)# mclag# [no] mclag gateway-mac xx:xx:xx:xx:xx:xx
 
+##### 3.8.2.1.4 MCLAG Separate IP configuration
+
+To configure/unconfigure separate IP on Vlan interface for L3 protocol support over MCLAG.
+This is VLAN interface mode configuration.
+
+sonic(config)# interface Vlan 10
+sonic(conf-if-Vlan10)# [no] mclag-separate-ip
+
 #### 3.8.2.2 Show commands
 
 Following new KLISH based show commands are introduced
@@ -789,6 +798,18 @@ Sonic#show mclag brief
        Local/Remote Status           : Up/Up
        IsolateWithPeerLink            : Yes
        TrafficDisable                       : No
+```
+
+3. **Show mclag separate_ip_interfaces** 
+```
+Sonic#show mclag separate_ip_interfaces
+
+   Interface Name
+   ==============
+   Vlan10
+   ==============
+   Total count :    1
+   ==============
 ```
 
 # 4 Flow Diagrams
