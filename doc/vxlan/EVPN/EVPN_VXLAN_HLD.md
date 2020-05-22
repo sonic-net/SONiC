@@ -1260,14 +1260,14 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    - Verify that the APP DB entries created in the above steps are deleted.
    - Verify that the ASIC DB entries created in the above steps are deleted.
 6. Repeat creation of the VXLAN_TUNNEL and VXLAN_TUNNEL_MAP entries in the config db. In addition create the EVPN_NVO table entry in the config db and REMOTE_VNI table entry corresponding to the create map entries. 
-  - Verify that the above mentioned kernel, APP DB, ASIC DB entries are created.
-  - Verify that there is a SAI_OBJECT_TYPE_TUNNEL entry with peer mode P2P.
-  - Verify that there is a SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2P tunnel.
-  - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
+   - Verify that the above mentioned kernel, APP DB, ASIC DB entries are created.
+   - Verify that there is a SAI_OBJECT_TYPE_TUNNEL entry with peer mode P2P.
+   - Verify that there is a SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2P tunnel.
+   - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
 7. Add more REMOTE_VNI table entries to different Remote IP.
-  - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created.
+   - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created.
 8. Add more REMOTE_VNI table entries to the same Remote IP.
-  - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip.
+   - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip.
 9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted.
 10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted.
 
@@ -1275,20 +1275,20 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
-  - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
+   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
 3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
 4. Repeat above steps for remote static MACs.
 5. Add MAC in the ASIC DB and verify that the STATE_DB MAC_TABLE is updated.
 6. Repeat above for configured static MAC.
 7. MAC Move from Local to Remote. 
-  - Create a Local MAC by adding an entry in the ASIC DB.
-  - Add an entry in the VXLAN_REMOTE_MAC table with MAC address as in the above step.
-  - Verify that the ASIC DB is now populated with the MAC pointing to the remote ip and the bridgeport corresponding to the tunnel.
-  - Verify that the state DB does not have the entry corresponding to this MAC. 
+   - Create a Local MAC by adding an entry in the ASIC DB.
+   - Add an entry in the VXLAN_REMOTE_MAC table with MAC address as in the above step.
+   - Verify that the ASIC DB is now populated with the MAC pointing to the remote ip and the bridgeport corresponding to the tunnel.
+   - Verify that the state DB does not have the entry corresponding to this MAC. 
 8. MAC Move from Remote to Local
-  - Create an entry in the VXLAN_REMOTE_MAC table.
-  - Create an entry in the ASIC DB for the MAC entry.
-  - Verify that the STATE DB has the MAC table entry added.
+   - Create an entry in the VXLAN_REMOTE_MAC table.
+   - Create an entry in the ASIC DB for the MAC entry.
+   - Verify that the STATE DB has the MAC table entry added.
 9. MAC Move from Remote to Remote 
-  - Verify that the ASIC DB is updated with the new bridge port and remote IP.
+   - Verify that the ASIC DB is updated with the new bridge port and remote IP.
 
