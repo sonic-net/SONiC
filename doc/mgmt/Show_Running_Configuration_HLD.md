@@ -328,7 +328,7 @@ respective config xml using the newly introduced xml tags.
 ```
 The following link illustrates how the xml tag information
 is used for rendering.
-![Design](images/design.jpg)
+![Design](images/Show_Running_Configuration_design.png)
 
 
 #### 2.2 Container
