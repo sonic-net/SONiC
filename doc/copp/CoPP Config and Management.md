@@ -29,8 +29,8 @@ A new schema is defined for COPP tables that seperates Queue/Policer groups and 
 ```
 key = "COPP_GROUP|name"
 queue         = number; strict queue priority. Higher number means higher priority.
-action        = packet_action; trap action which will be applied to all trap_ids for this group.
-priority      = trap_priority
+trap_action   = packet_action; trap action which will be applied to all trap_ids for this group.
+trap_priority = trap_priority
 
 ;Settings for embedded policer. 
 meter_type  = "packets" | "bytes"
@@ -63,7 +63,7 @@ state        = "ok"
 ```
 
 ### coppmgr
-Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB.
+Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB. `coppmgrd` must be started by [supervisord.conf](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) first, before any other process is started in swss 
 
 ### copporch
 ```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table, and handle attribute value set for a trap group
@@ -131,6 +131,8 @@ The following flow captures CoPP manager functionality.
 
 # Examples
 
+### Config DB
+```
     {
         "COPP_GROUP|default": {
             "queue": "0",
@@ -143,14 +145,20 @@ The following flow captures CoPP manager functionality.
 
         "COPP_GROUP|queue4_group1": {
             "queue": "4",
-            "action":"trap",
-            "priority":"4",
+            "trap_action":"trap",
+            "trap_priority":"4",
         },
         
         "COPP_GROUP|queue4_group2": {
             "queue": "4",
-            "action":"copy",
-            "priority":"4",
+            "trap_action":"trap",
+            "trap_priority":"4",
+        },
+        
+        "COPP_GROUP|queue4_group3": {
+            "queue": "4",
+            "trap_action":"copy",
+            "trap_priority":"4",
             "meter_type":"packets",
             "mode":"sr_tcm",
             "cir":"600",
@@ -165,18 +173,18 @@ The following flow captures CoPP manager functionality.
 
         "COPP_TRAP|lldp": {
             "trap_ids": "lldp",
-            "trap_group": "queue4_group1"
+            "trap_group": "queue4_group2"
         },
        
         "COPP_TRAP|arp": {
             "trap_ids": "arp_req,arp_resp,neigh_discovery",
-            "trap_group": "queue4_group2"
+            "trap_group": "queue4_group3"
         },
 
         "COPP_GROUP|queue1_group1": {
             "queue": "1",
-            "action":"trap",
-            "priority":"1",
+            "trap_action":"trap",
+            "trap_priority":"1",
             "meter_type":"packets",
             "mode":"sr_tcm",
             "cir":"6000",
@@ -196,8 +204,8 @@ The following flow captures CoPP manager functionality.
         
         "COPP_GROUP|queue2_group1": {
             "queue": "2",
-            "action":"trap",
-            "priority":"1",
+            "trap_action":"trap",
+            "trap_priority":"1",
             "meter_type":"packets",
             "mode":"sr_tcm",
             "cir":"5000",
@@ -212,3 +220,103 @@ The following flow captures CoPP manager functionality.
             "genetlink_mcgrp_name":"packets"
         },
     }
+```
+
+ *queue4_group2 is added for backward compatibility. Refer "existing" APP_DB entries below 
+
+### APP DB
+
+The following sample APP DB entries shall be created by `coppmgr` by merging the above Config DB entries
+
+```
+        "COPP_TABLE:queue4_group1": {
+            "trap_ids": "bgp,bgpv6",
+            "queue": "4",
+            "trap_action":"trap",
+            "trap_priority":"4",
+        },
+        
+        "COPP_TABLE:queue4_group2": {
+            "trap_ids": "lldp",
+            "queue": "4",
+            "trap_action":"trap",
+            "trap_priority":"4",
+        },
+        
+        "COPP_TABLE:queue4_group3": {
+            "trap_ids": "arp_req,arp_resp,neigh_discovery",
+            "queue": "4",
+            "trap_action":"copy",
+            "trap_priority":"4",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"600",
+            "cbs":"600",
+            "red_action":"drop"
+        }       
+ ```
+ 
+ ### APP DB (Existing in swss, For reference purpose only)
+ 
+ ```
+ [
+    {
+        "COPP_TABLE:default": {
+            "queue": "0",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"600",
+            "cbs":"600",
+            "red_action":"drop"
+        },
+        "OP": "SET"
+    },
+    {
+        "COPP_TABLE:trap.group.bgp.lacp": {
+            "trap_ids": "bgp,bgpv6,lacp",
+            "trap_action":"trap",
+            "trap_priority":"4",
+            "queue": "4"
+        },
+        "OP": "SET"
+    },
+    {
+        "COPP_TABLE:trap.group.arp": {
+            "trap_ids": "arp_req,arp_resp,neigh_discovery",
+            "trap_action":"copy",
+            "trap_priority":"4",
+            "queue": "4",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"600",
+            "cbs":"600",
+            "red_action":"drop"
+        },
+        "OP": "SET"
+    },
+    {
+        "COPP_TABLE:trap.group.lldp.dhcp.dhcpv6.udld": {
+            "trap_ids": "lldp,dhcp,dhcpv6,udld",
+            "trap_action":"trap",
+            "trap_priority":"4",
+            "queue": "4"
+        },
+        "OP": "SET"
+    },
+    {
+        "COPP_TABLE:trap.group.nat.ip2me": {
+            "trap_ids": "ip2me,src_nat_miss,dest_nat_miss",
+            "trap_action":"trap",
+            "trap_priority":"1",
+            "queue": "1",
+            "meter_type":"packets",
+            "mode":"sr_tcm",
+            "cir":"6000",
+            "cbs":"6000",
+            "red_action":"drop"
+        },
+        "OP": "SET"
+    }
+]
+```
+ 
