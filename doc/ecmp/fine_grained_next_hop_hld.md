@@ -36,6 +36,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
+| 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
 
 
 # About this Manual
@@ -79,6 +80,9 @@ Phase #1
 
 Phase #2
 - CLI commands to configure Fine Grained ECMP
+
+Future Requirements:
+- Current implementation uses prefix to trigger fine grained ECMP functionality. If there are future use case requirements where next-hop based triggers for fine grained ECMP functionality are desired then a FG_NHG "mode" will be added into the CONFIG_DB schema. The "mode" value would either be "prefix" or "next-hop" and will drive the trigger for ECMP functionality. 
 
 
 ## 1.2 Orchagent requirements
@@ -213,7 +217,8 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 | FG_NHG component         | SAI attribute                                         |
 |--------------------------|-------------------------------------------------------|
 | Fine Grained ECMP type   | SAI_NEXT_HOP_GROUP_TYPE_FINE_GRAIN_ECMP               |
-| Length of ECMP group     | SAI_NEXT_HOP_GROUP_ATTR_CONFIGURED_SIZE               |
+| Configured group size    | SAI_NEXT_HOP_GROUP_ATTR_CONFIGURED_SIZE               |
+| Real group size          | SAI_NEXT_HOP_GROUP_ATTR_REAL_SIZE                     |
 | Next-hop ids             | SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID            |
 | Specify nh index         | SAI_NEXT_HOP_GROUP_MEMBER_ATTR_INDEX                  |
 
