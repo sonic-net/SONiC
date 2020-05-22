@@ -862,25 +862,25 @@ Now we see, the extra step for the new implementation is migrating all data into
   ```shell
   admin@ASW-7005:~$ lscpu
   Architecture:        x86_64
-CPU op-mode(s):      32-bit, 64-bit
+  CPU op-mode(s):      32-bit, 64-bit
   Byte Order:          Little Endian
-Address sizes:       36 bits physical, 48 bits virtual
+  Address sizes:       36 bits physical, 48 bits virtual
   CPU(s):              4
   On-line CPU(s) list: 0-3
   Thread(s) per core:  1
   Core(s) per socket:  4
   Socket(s):           1
   NUMA node(s):        1
-Vendor ID:           GenuineIntel
+  Vendor ID:           GenuineIntel
   CPU family:          6
   Model:               77
   Model name:          Intel(R) Atom(TM) CPU  C2558  @ 2.40GHz
   Stepping:            8
   CPU MHz:             2393.975
   CPU max MHz:         2400.0000
-CPU min MHz:         1200.0000
+  CPU min MHz:         1200.0000
   BogoMIPS:            4787.94
-Virtualization:      VT-x
+  Virtualization:      VT-x
   L1d cache:           24K
   L1i cache:           32K
   L2 cache:            1024K
@@ -897,7 +897,7 @@ Virtualization:      VT-x
   - [x] I also tried lua script as below, this way is the best, it takes about **~1s **when data size is **~40K** and **~2s** when data size is **~100K**.  Sample codes migratedb as below:
 
   ```python
-#!/usr/bin/python
+  #!/usr/bin/python
   from __future__ import print_function
   import sys
   import swsssdk
@@ -905,23 +905,20 @@ Virtualization:      VT-x
   
   dblists = swsssdk.SonicDBConfig.get_dblist()
   for dbname in dblists:
-    dbsocket = swsssdk.SonicDBConfig.get_socket(dbname)
+      dbsocket = swsssdk.SonicDBConfig.get_socket(dbname)
       #dbport = swsssdk.SonicDBConfig.get_port(dbname)
       dbid = swsssdk.SonicDBConfig.get_dbid(dbname)
       dbhost = swsssdk.SonicDBConfig.get_hostname(dbname)
 
       r = redis.Redis(host=dbhost, unix_socket_path=dbsocket, db=dbid)
   
-    script = """
+      script = """
           local cursor = 0;
-          local round = 0;
           repeat
-            local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
-  	    cursor = dat[1];
-  	    round = round + 1;
+              local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
+  	          cursor = dat[1];
               redis.call('MIGRATE', KEYS[1], KEYS[2], '', KEYS[3], 5000, 'REPLACE', 'KEYS', unpack(dat[2]));
-        until cursor == '0';
-          return round;
+          until cursor == '0';
       """
       r.eval(script, 3, '127.0.0.1', 6381, dbid)
 
