@@ -1121,8 +1121,10 @@ These will be stored in the counters DB for each tunnel.
    - count is optional and when specified maps contigous sets of VIDs to contigous VNIDs
 4. VRF VNI Mapping configuration
    - switch(config-if-vtep1) [no] map vrf VRF-Blue vni 10001
-5. ARP suppression
-   - TBD
+5. Neighbor suppression
+   - switch(config) interface Vlan <vlan-id-xxx>
+   - switch(conf-if-vlanxxx)# [no] neigh-suppress
+   - This command will suppress both ARP & ND flooding over the tunnel when Vlan is extended.
 
 ```
 
@@ -1138,6 +1140,9 @@ These will be stored in the counters DB for each tunnel.
 2. show mac /show mac -v will be enhanced for EVPN MACs.
    - Port column will display DIP. (ASIC DB view)
    - Type column will display EVPN_static/EVPN_dynamic
+
+3. show NeighbourSuppressStatus to display Neighbor suppression status.
+
 ```
 
 #### 5.2.3 Validations 
