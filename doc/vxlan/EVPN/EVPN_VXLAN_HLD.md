@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 0.4
+#### Rev 0.8
 
 # Table of Contents
 
@@ -87,7 +87,7 @@
 # About this Manual
 
 This document provides general information about the EVPN VXLAN feature implementation based on RFC 7432 and 8365 in SONiC. 
-This feature is incremental to the SONiC.201904 release which is referred to as current implementation in this document.
+This feature is incremental to the SONiC.201911 release which is referred to as current implementation in this document.
 
 
 # 1 Introduction and Scope
@@ -96,13 +96,13 @@ This document describes the Functionality and High level design of the EVPN VXLA
 
 The following are the benefits of an EVPN approach for VXLAN.
 
- - Auto discovery of remote VTEPs, Auto configuration of tunnels and Auto extension of VLANs over VXLAN tunnels.
- - Aids in VM mobility.
- - Aids in detecting duplicate MACs in the network.
+ - Standards based and Interoperable solution.
+ - Auto discovery of remote VTEPs, Auto provisioning of tunnels and VLANs over VXLAN tunnels.
+ - Support for L2 and L3 VPN services.
  - Allows for dual homing support.
  - Control plane MAC learning and ARP suppression leads to reduced flooding over an EVPN network.
- - Coexists with the current EVPN L3 VXLAN approach. The same tunnel can be used to carry both L2 and L3 overlay traffic.
  - Eases planning and configuration when supporting downstream assigned VNI for DCI usecases.
+ - Aids in VM mobility.
 
 In the current implementation, there is support for L3 forwarding over VXLAN and EVPN Type 5 route support based on VNET constructs. 
 
@@ -134,8 +134,6 @@ The following aspects are outside the scope of this document.
 - Multi-homing support described in the EVPN RFCs.
 
 
-
-
 # 2 Feature Requirements
 
 ## 2.1 Functional Requirements
@@ -156,14 +154,7 @@ Following requirements are addressed by the design presented in this document:
 10. Support ARP/ND suppression.
 11. Support Tunnel ECMP and underlay path failovers.
 12. Support a common VLAN-VNI map for all the EVPN tunnels.
-
-
-
-Following requirements will be attempted on a best effort basis. 
-
-1. Support monitoring and display of tunnel operational status.
-2. Support tunnel packet/octet  tx/rx counters.
-
+13. Support monitoring and display of tunnel operational status.
 
 
 ## 2.2 Configuration and Management Requirements
@@ -190,7 +181,7 @@ BGP EVPN configurations in FRR are referred wherever required in this document. 
 4. Total VNI per tunnel - 4K.
 5. Total EVPN participating VRF per switch - 512
 
-
+The numbers specified here serve as a general guideline. The actual scale numbers are dependent on the platform.
 
 ## 2.4 Warm Boot Requirements
 
@@ -199,7 +190,6 @@ Warm reboot is intended to be supported for the following cases:
 - Planned system warm reboot. 
 - Planned SwSS warm reboot.
 - Planned FRR warm reboot.
-
 
 
 # 3 Feature Description
@@ -291,7 +281,7 @@ To support this feature, SAI will be extended as described in the SAI PRs below:
 
 - [Support for MAC Move](https://github.com/opencomputeproject/SAI/pull/1024)
 - [Support for L2VXLAN](https://github.com/opencomputeproject/SAI/pull/1025)
-- [Support for ARP/ND Suppression](https://github.com/opencomputeproject/SAI/pull/1026)
+- [Support for ARP/ND Suppression](https://github.com/opencomputeproject/SAI/pull/1056)
 
 ## 4.2 DB Changes
 
@@ -560,7 +550,7 @@ The corresponding CONFIG_DB entries are as follows.
 
 
 ```
-VXLAN_TABLE|{{source_vtep_name}}
+VXLAN_TUNNEL_TABLE|{{source_vtep_name}}
     "src_ip" : {{ipv4_address}}
     
 EVPN_NVO_TABLE|{{nvo_name}}
@@ -623,12 +613,12 @@ In the current implementation, Tunnel Creation handling in the VxlanMgr and Vxla
 - First VNET entry in CFG_VNET_TABLE.
 - IP Route add over Tunnel. 
 
-The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0.
+The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0 and 
+SAI object type as TUNNEL. This SAI object is P2MP.
 
-In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels.
+In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
 
 - IMET route rx 
-- MAC route rx.
 - IP Prefix route handled by VRF construct.
 
 The dynamic tunnels created always have a SIP as well as a DIP. These dynamic tunnel objects are associated with the corresponding VTEP object. 
@@ -637,14 +627,11 @@ The dynamic tunnels are created when the first EVPN route is received and will b
 
 The Tunnel Name for dynamic tunnels is auto-generated as EVPN_A.B.C.D where A.B.C.D is the DIP.
 
-For every dynamic tunnel discovered the following processing occurs. 
+For every dynamic tunnel discovered, the following processing occurs. 
 - SAI objects related to tunnel are created.
   - Tunnel SAI object is created with the mapper IDs created for the VTEP.
-  - Tunnel terminator SAI object of type P2P created with the tunnel_id attribute as the oid generated in the above step. 
 - BridgePort SAI object with the tunnel oid is created. Learning is disabled for EVPN tunnels.
 - Port object of type Tunnel created in the portsorch. 
-
-To avoid static tunnels from being created with an EVPN prefix, VxlanMgr disallows static tunnels with name starting with "EVPN".
 
 The creation sequence assuming only IMET rx is depicted in the diagram below.
 
@@ -666,11 +653,11 @@ The following will be added as part of tunnel deletion.
 
 The SAI Tunnel interface requires encap and decap mapper id to be specified along with every sai tunnel create call. 
 
-Current VxlanOrch implementation associates only one mapper type to a tunnel. The SAI API however allows for multiple mapper types. 
+Current VxlanOrch implementation associates only one mapper type to a SAI tunnel object. The SAI API however allows for multiple mapper types to be associated with a tunnel. 
 
 With EVPN VXLAN feature being added, the same tunnel can carry L2 as well as L3 traffic. Hence there is a need to support multiple mapper types (VLAN, VRF, BRIDGE to VNI mapping) per tunnel.
 
-In addition, there is a need to support a Global VLAN VNI map common to all the Tunnels. This is achieved by using the same encap and decap mapper ids for all the dynamic tunnels.
+In addition, there is a need to support a Global VLAN VNI map common to all the Tunnels. This is achieved by reusing the same encap and decap mapper ids associated with the P2MP tunnel object for all the dynamic P2P tunnels.
 
 VxlanOrch will be enhanced to support the above two requirements. 
 
@@ -828,7 +815,7 @@ fdborch does the following on an entry add in APP_VXLAN_FDB_TABLE.
 - sai_fdb_entry_add called with the following attributes
   - SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID with the bridge port id corresponding to the tunnel.
   - SAI_FDB_ENTRY_ATTR_ENDPOINT_IP with the tunnel DIP.
-  - SAI_FDB_ENTRY_ATTR_TYPE with type SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE (corresponding to type dynamic in VXLAN_FDB_TABLE)  or SAI_FDB_ENTRY_TYPE_STATIC (corresponding to type static in VXLAN_FDB_TABLE)  
+  - SAI_FDB_ENTRY_ATTR_TYPE with type SAI_FDB_ENTRY_TYPE_STATIC and SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE as true(corresponding to type dynamic in VXLAN_FDB_TABLE) or false (corresponding to type static in VXLAN_FDB_TABLE)  
 
 ![Remote MAC Handling](images/remotemac.PNG "Figure : Remote MAC handling")
 __Figure 10: Remote MAC handling__
@@ -1212,7 +1199,8 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 
 ## 6 Serviceability and Debug
 
-The existing logging mechanisms shall be used. 
+The existing logging mechanisms shall be used. The show commands and the redis table
+dumps can be used as debug aids.
 
 ## 7 Warm Reboot Support
 
