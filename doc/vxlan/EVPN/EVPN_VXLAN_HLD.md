@@ -63,6 +63,7 @@
 | 0.5  |  | Karthikeyan A | ARP and ND suppression |
 | 0.6  |  | Kishore Kunal | Added Fdbsycnd details |
 | 0.7  |  | Rajesh Sankaran | Click and SONiC CLI added |
+| 0.8 | | Hasan Naqvi | Linux kernel section and fdbsyncd testcases added |
 
 # Definition/Abbreviation
 
@@ -175,7 +176,7 @@ in SONiC.
 
 
 
-FRR version 7.0.1, and later, is assumed here. FRR configuration is assumed in "split" configuration mode.
+FRR version 7.2, and later, is assumed here. FRR configuration is assumed in "split" configuration mode.
 BGP EVPN configurations in FRR are referred wherever required in this document. However, this document does not serve as reference guide for the FRR configurations.
 
 
@@ -967,6 +968,55 @@ These will be stored in the counters DB for each tunnel.
 - Flex counter and Flex group counter processing to also include tunnels. 
 - Include Tunnel counters as part of FlexCounter::collectCounters call. 
 
+## 4.4 Linux Kernel
+
+VxLAN netdevice is created in Linux kernel by vxlanmgr for each of the configured VNI with "<vxlan-tunnel-name>-<vlan-id>" name format. Sample dump of VxLAN netdevice (VLAN-VNI 100-1000) properties is pasted below.
+
+```
+ip -d link show dev vtep1-100
+
+1535: vtep1-100: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master Bridge state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 3c:2c:99:8b:35:bc brd ff:ff:ff:ff:ff:ff promiscuity 1
+    vxlan id 1000 local 10.0.0.10 srcport 0 0 dstport 4789 nolearning ageing 300 udpcsum noudp6zerocsumtx noudp6zerocsumrx
+    bridge_slave state forwarding priority 4 cost 100 hairpin off guard off root_block off fastleave off learning off flood on port_id 0x81c9 port_no 0x1c9 designated_port 33225 designated_cost 0 designated_bridge 8000.3c:2c:99:8b:35:bc designated_root 8000.3c:2c:99:8b:35:bc hold_timer    0.00 message_age_timer    0.00 forward_delay_timer    0.00 topology_change_ack 0 config_pending 0 proxy_arp off proxy_arp_wifi off mcast_router 1 mcast_fast_leave off mcast_flood on addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535
+```
+
+Each vxlan netdevice is member of the default "Bridge", and fdb learning is disabled for them.
+
+
+Typical remote client MAC dynamically learnt and synced by BGP is shown below (bridge fdb show):
+
+```
+00:00:11:22:33:44 dev vtep1-100 vlan 100 offload master Bridge
+00:00:11:22:33:44 dev vtep1-100 dst 10.0.0.11 self offload
+```
+
+Remote SVI MAC is installed by FRR as static entry if "advertise-default-gw" is configured (bridge fdb show):
+
+```
+b8:6a:97:e2:6f:9c dev vtep1-100 vlan 100 master Bridge static
+b8:6a:97:e2:6f:9c dev vtep1-100 dst 10.0.0.11 self static
+```
+
+Remote IMET routes are installed by FRR with null mac and one entry exists for each of the remote VTEPs against the VxLAN/VNI netdevice (bridge fdb show):
+
+```
+00:00:00:00:00:00 dev vtep1-100 dst 10.0.0.11 self permanent
+00:00:00:00:00:00 dev vtep1-100 dst 10.0.0.12 self permanent
+```
+
+
+
+Linux kernel version 4.9.x used in SONiC requires backport of a few patches to support EVPN. Some of them are listed below:
+
+1. NTF_EXT_LEARNED (control plane) entries handling required in bridge and neighbor modules.
+2. L3VNI IPv6 route installation with IPv4 mapped IPv6 address as next-hop requires backport.
+3. Default max bridge ports in Linux is set to 1K. Port bitmap increase required.
+4. Neighbor (arp/nd) move to a different MAC requires fix.
+5. Other misc. fixes
+
+
+
 
 ## 5 CLI
 
@@ -1280,6 +1330,7 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
+   
    - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
 3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
 4. Repeat above steps for remote static MACs.
@@ -1295,5 +1346,18 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    - Create an entry in the ASIC DB for the MAC entry.
    - Verify that the STATE DB has the MAC table entry added.
 9. MAC Move from Remote to Remote 
+   
    - Verify that the ASIC DB is updated with the new bridge port and remote IP.
+   
+     
 
+### 8.3 Fdbsyncd
+
+1. Install local MAC entry in STATE_FDB_TABLE and verify MAC is installed in Linux and present in FRR
+2. Move STATE_FDB_TABLE entry to another port and verify MAC is updated in Linux and present in FRR
+3. Install static MAC entry in STATE_FDB_TABLE and verify MAC is installed as static in Linux and present in FRR.
+4. Install remote IMET route entry in Linux kernel and verify entry is present in VXLAN_REMOTE_VNI_TABLE
+5. Add/remove remote VTEPs for IMET route in Linux and verify VXLAN_REMOTE_VNI_TABLE is updated accordingly.
+6. Install remote MAC entry in Linux kernel and verify MAC is present in VXLAN_FDB_TABLE
+7. Move remote MAC to local by programming same entry in STATE_FDB_TABLE and verify Linux and FRR are updated
+8. Move local MAC entry to remote by replacing fdb entry in Linux and verify VXLAN_FDB_TABLE and STATE_FDB_TABLE are updated.
