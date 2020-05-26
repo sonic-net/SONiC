@@ -261,28 +261,28 @@ respective config xml using the newly introduced xml tags.
                     then this command has to be rendered using command_render_cb.
                     
 
-5.  Attribute       command_render_cb
+5.  Attribute       render_command_cb
                     
   Syntax            String
                       
-  Example           command_render_cb = 'bgp_confederation '
+  Example           render_command_cb = 'bgp_confederation '
                       
   Attribute to XML  COMMAND
   element
                       
   Explanation       In case where the CLI COMMAND or PARAM does not have direct mapping to a table attribute in the DB, the CLI developer has the option to form the
-                    command in a python callback or jinja template. The developer has to map this tag value to a callback or a template name.
+                    command in a python callback or jinja template. The developer has to map this tag value to a callback or a jinja template name.
                     The mapping is to be provided in file CLI/acioner/show_config_data.py
                     In most cases, the command rendering is short and can be done efficiently in python. 
                     A jinja template has overhead of loading which increases linearly with file size.
                     For command rendering it is recommended to implement it in python. 
 
 
-6.  Attribute       view_render_cb
+6.  Attribute       render_view_cb
 
   Syntax            String
   
-  Example           view_render_cb = 'bgp_neighbor'
+  Example           render_view_cb = 'bgp_neighbor'
   
   Attribute to XML  COMMAND
   element
@@ -351,13 +351,13 @@ Following excerpts from bgp.xml show the new tag usage.
 ```
 
 
-###### 3.2 Command with tag attribute 'command_template'
+###### 3.2 Command with tag attribute 'render_command_cb'
 
 The attribute value of param "neighbor' is a string in DB which is either an ip-address or an interface format. Hence using a template for
 rendering.
 
 ```
-<COMMAND name="neighbor" help="Specify a neighbor router" view="configure-router-bgp-nbr-view" viewid="nbr-addr=${ip}${Ethernet}${PortChannel}${Vlan};vrf-name=${vrf-name}" command_template="rn_bgp_neighbor" view_keys="vrf-name=sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/vrf_name,neighbor=*" view_tables="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/vrf_name={vrf-name},neighbor={neighbor}" dbpath="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/neighbor">
+<COMMAND name="neighbor" help="Specify a neighbor router" view="configure-router-bgp-nbr-view" viewid="nbr-addr=${ip}${Ethernet}${PortChannel}${Vlan};vrf-name=${vrf-name}" render_command_cb="router_bgp_neighbor" view_keys="vrf-name=sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/vrf_name,neighbor=*" view_tables="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/vrf_name={vrf-name},neighbor={neighbor}" dbpath="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/neighbor">
    <PARAM name="nbopt" help="neighbor router" mode="switch" ptype="SUBCOMMAND">
      <PARAM name="ip" help="Neighbor router" ptype="IPV4V6_ADDR"/>
      <PARAM name="interface" help="Interface name" mode="subcommand" ptype="SUBCOMMAND">
