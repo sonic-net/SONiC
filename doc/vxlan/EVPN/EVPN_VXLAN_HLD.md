@@ -38,6 +38,7 @@
     - [4.3.9 IP Prefix Route Handling](#439-ip-prefix-(type-5)-route-handling)
     - [4.3.10 ARP and ND Suppression](#4310-arp-and-nd-suppression)
     - [4.3.11 Tunnel Statistics](#4311-support-for-tunnel-statistics)
+  - [4.4 Linux Kernel](#44-linux-kernel)
 - [5 CLI](#5-cli)
   - [5.1 Click CLI](#51-click-based-cli)
     - [5.1.1 Configuration Commands](#511-configuration-commands)
