@@ -38,6 +38,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
 | 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
+| 1.1 | 05/26/2020  |    Anish Narsian   | Add test plan                     |
 
 
 # About this Manual
