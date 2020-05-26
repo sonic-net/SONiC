@@ -31,6 +31,7 @@
   * [4 Details](#4-details)
   * [5 Example configuration](#5-example-configuration)
   * [6 Warm boot support](#6-warm-boot-support)
+  * [7 Test Plan](#7-test-plan)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -319,3 +320,30 @@ Warm boot works as follows:
 - If this is a non FG prefix then it continues to go through the regular routeorch processing
 - We receive config_db entries for FG_NHG* entries at some point and we update the local structure accordingly 
 - BGP comes up and any delta configuration gets pushed for routes and these go through the regular routeorch/fine grained behavior as usual
+
+# 7 Test Plan
+The following testing is planned for this feature:
+- SWSS unit tests via virtual switch testing
+- Data Plane tests via pytest + PTF
+
+## SWSS unit tests via virtual switch testing
+Will test config_db entry creation/deletion along with dynamic changes in APP_DB route entry. The test will check if the ASIC_DB state matches the expected hash bucket state upon the dynamic change in APP_DB route.
+
+Tests:
+- Create config_db entry with 2 banks, 3 members per bank
+- Create 6 interfaces with IPs, and program an APP_DB route with 6 next-hops, check if hash buckets are created as expected adhereing to the bank defintions
+- APP_DB route modified to reduce some number of next-hops: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing
+- APP_DB route modified to remove all next-hops in bank0: check if ASIC_DB hash bucket members show that members of bank1 take the place bank0 members
+- APP_DB route modified to add 1st next-hop to bank0: check if ASIC_DB hash bucket members show that the added next-hop member takes up all the hash buckets assigened to the bank0
+
+## Data Plane tests via pytest + PTF
+- Create config_db entry with 2 banks, 3 members per bank and deploy to DUT
+- Create 6 IP endpoints on PTF host and set it up with arp responder
+- Create an interface on the DUT which can interact with the above IP endpoints, each endpoint created above should be on a different physical interface
+- Create an APP_DB entry with with 6 IPs as the next-hop, and some unique IP prefix, deploy it to the DUT
+- Send, via PTF, about 100 unique flows from the T1 interface destined to the unique IP prefix
+- Track which link receives which flow and store the mapping of flow to link
+- Change the DUT APP_DB route to reduce 1 next-hop, validate that hash redistribution occured in the same bank and occured in a consistent fashion
+- Change the DUT APP_DB route to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
+- Change the DUT APP_DB route to add 1st next-hop in a previously down bank0, now all the flows for bank0 should go to the 1 next-hop just added
+- (Stretch goal) Validate that in all cases the hash redistribution is roughly equal
