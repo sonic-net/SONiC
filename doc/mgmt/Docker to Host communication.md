@@ -174,6 +174,7 @@ Assuming that the telemetry service is executed as a "telemetry" system user (gr
   </policy>
 ```
 
+Note. The security of the D-Bus communications is completely independent of the security (authorization and authentication) that client applications may implement separately, e.g. Role Base Access Control in the case of the SONiC Management Framework.
 
 ### 3.1.2 Command Logging
 
