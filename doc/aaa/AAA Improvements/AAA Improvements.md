@@ -1,12 +1,22 @@
 # AAA Improvements
 
+**Rev. 0.3**
+
 ## Introduction
 
 This document identifies a few gaps in the current implementation of Authentication, Authorization, and Accounting (AAA) in SONiC and proposes a way to remedy them. But before we get into the crux of the matter, we will first take the time to understand when and where AAA plays a role in SONiC by examining how a typical SSH login session behaves. Understanding how a login session works is crucial to understanding why the current AAA implementation requires some changes. 
 
+### Revision history
+
+| Revision | Date      | Author          | Change description |
+| -------- | --------- | --------------- | ------------------ |
+| 0.1      | 2/24/2020 | Martin Bélanger | Draft              |
+| 0.2      | 4/2/2020  | Martin Bélanger | Internal reviews   |
+| 0.3      | 5/28/2020 | Martin Bélanger | External reviews   |
+
 ### Document conventions and limitations
 
-This document is akin to a white paper with some elements of a High-Level Design document. The goal is to spark a discussion with the SONiC community regarding AAA. The main focus is on the interactions between AAA and Linux. More precisely, how PAM and NSS work together to support Authentication, Authorization, and Accounting. Advanced AAA topics such as "*command accounting*" or "*how applications can enforce authorization*" are not discussed here.
+This is a technical paper with some elements of a High-Level Design document. The goal is to spark a discussion with the SONiC community regarding AAA. The main focus is on the interactions between AAA and Linux. More precisely, how PAM and NSS work together to support Authentication, Authorization, and Accounting. Advanced AAA topics such as "*command accounting*" or "*how applications can enforce authorization*" are not discussed here.
 
 In this document, the ***Management Framework*** project refers to the code located in the ***sonic-mgmt-framework*** repository.
 
@@ -399,7 +409,7 @@ A common Linux design pattern is to provide a companion utility program to daemo
 
 Users invoke `hamctl` from the Linux shell. `hamctl` is intended to be used by people and not by other programs. Programs should use the D-Bus interface directly when talking to hamd instead of executing `hamctl`.  
 
-`hamctl` is self-documented. Simply use the `--help` option to get help as shown here. Some of the use cases for `hamctl` include:
+`hamctl` is self-documented. Simply use the `--help` option to get help. Some of the use cases for `hamctl` include:
 
 - Creating/Deleting user accounts
 - Changing a user's password or role
@@ -534,6 +544,17 @@ Which solution is best? The first one blends better with Debian. It allows insta
 Using a separate set of *common* files is more straightforward, but may not integrate with Debian as well. Imagine customers installing a new Debian package that comes with its own `/etc/pam.d` configuration file. That configuration file includes the standard PAM common files that come with Debian. It won't know that  it is supposed to include a different set of custom SONiC *common* configuration files.
 
 My recommendation is to keep what we have today. We create SONiC *common* files, and we modify application-specific files under `/etc/pam.d` to include the SONiC files. In the future, if we see a need for it, we may implement the more complex solution of redesigning the `pam-auth-update` script.
+
+## SONiC releases
+
+The features presented in this document will be staged over several releases as shown here. 
+
+| Feature                                                      | Target SONiC releas             |
+| ------------------------------------------------------------ | ------------------------------- |
+| ham daemon (hamd), <br />hamctl, <br />ham nss module for containers, <br />Support for multiple roles,<br />Roles saved to REDIS DB, <br />User add/modify/delete from containers | The release that follows 202006 |
+| sac (system-assigned credentials)                            | TBD                             |
+| cad (container authentication daemon)                        | TBD                             |
+| Console vs. non-console support                              | TBD                             |
 
 ## Addendum
 
