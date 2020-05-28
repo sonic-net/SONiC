@@ -263,7 +263,30 @@ NUM        Status      Q Ports
                        T  Eth1/10
 ```
 
+```
+sonic# show interface status
+-------------------------------------------------------------------------------------------------------------------
+Name                Description         Admin          Oper           Speed          MTU            Alternate Name
+-------------------------------------------------------------------------------------------------------------------
+Eth1/1              -                   down           down           40000          9100           Ethernet0
+Eth1/2              -                   down           down           40000          9100           Ethernet4
+...
+...
 
+```
+
+#### Show interface status command when alias mode is disabled
+```
+sonic# show interface status
+-------------------------------------------------------------------------------------------------------------------
+Name                Description         Admin          Oper           Speed          MTU            Alternate Name
+-------------------------------------------------------------------------------------------------------------------
+Ethernet0           -                   down           down           40000          9100           Eth1/1
+Ethernet4           -                   down           down           40000          9100           Eth1/2
+...
+...
+
+```
 
 
 #### 3.6.2.3 Debug Commands
