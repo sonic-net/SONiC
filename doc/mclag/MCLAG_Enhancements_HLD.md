@@ -6,7 +6,7 @@ Rev 0.1
 - **[Revision](#Revision)**
 - **[About this Manual](#About-this-Manual)**
 - **[Definition/Abbreviation](#Definition_Abbreviation)**
-	- [Table 1: Abbreviations](#Table-1:-Abbreviations)
+	- [Table 1: Abbreviations](#Table-1-Abbreviations)
 - **[1 Feature Overview](#1-Feature-Overview)**
 	- [1.1 Functional Requirements](#1_1-Functional-Requirements)
 		- [1.1.1 Static MAC support over MCLAG](#1_1_1-Static-MAC-support-over-MCLAG)
@@ -59,10 +59,9 @@ Rev 0.1
 	- [3.5 SyncD](#3_5-SyncD)
 	- [3.6 MclagSyncD](#3_6-MclagSyncD)
 		- [3.6.1 FDB Changes](#3_6_1-FDB-Changes)
-			- *[3.6.1.1 Local MAC upstream using STATE_DB FDB_TABLE](#3_6_1_1-Local-MAC-upstream-using-STATE_DB-FDB_TABLE)*
-			- *[3.6.1.2 Removal of FDB table in MclagSyncd](#3_6_1_2-Removal-of-FDB-table-in-MclagSyncd)*
-			- *[3.6.1.3 Populating ICCP MAC updates to APP_DB MCLAG_FDB_TABLE](#3_6_1_3-Populating-ICCP-MAC-updates-to-APP_DB-MCLAG_FDB_TABLE)*
-			- *[3.6.1.4 Populating ICCP and MCLAG interface state information](#3_6_1_4-Populating-ICCP-and-MCLAG-interface-state-information)*
+			- *[3.6.1.1 Removal of FDB table in MclagSyncd](#3_6_1_1-Removal-of-FDB-table-in-MclagSyncd)*
+			- *[3.6.1.2 Populating ICCP MAC updates to APP_DB MCLAG_FDB_TABLE](#3_6_1_2-Populating-ICCP-MAC-updates-to-APP_DB-MCLAG_FDB_TABLE)*
+			- *[3.6.1.3 Populating ICCP and MCLAG interface state information](#3_6_1_3-Populating-ICCP-and-MCLAG-interface-state-information)*
 		- [3.6.2 MCLAG config handling](#3_6_2-MCLAG-config-handling)
 	- [3.7 SAI](#3_7-SAI)
 		- [3.7.1 Port Isolation](#3_7_1-Port-Isolation)
@@ -94,7 +93,6 @@ Rev 0.1
 	- [9.4 Port Isolation](#9_4-Port-Isolation)
 	- [9.5 MCLAG Interface Flap](#9_5-MCLAG-Interface-Flap)
 	- [9.6 MCLAG Unique IP enhancements](#9_6-MCLAG-Unique-IP-enhancements)
-- **[10 Internal Design Information](#10-Internal-Design-Information)**
 
 # List of Tables
 
@@ -476,22 +474,18 @@ MclagSyncd is extended to optimize the FDB events handling.
 
 The changes include: -
 
-- sending local MAC updates to ICCPd from STATE_DB FDB_TABLE instead of ASIC_DB FDB_TABLE
 - sending of the MAC entries is event driven instead of the periodic 60 seconds polling
 - removal of the FDB cache in the MclagSyncd
 - adding the ICCP learned MAC addresses to APP_DB MCLAG_FDB_TABLE
 
-#### 3.6.1.1 Local MAC upstream using STATE_DB FDB_TABLE
-To distribute the local MAC addresses to ICCPd MclagSyncd will now listen for the STATE_DB FDB_TABLE updates. Current approach of periodic MAC table retrieval by polling and compare to find the MAC latest updates is costly in the scale scenarios. In the new approach STATE_DB FDB_TABLE MAC processing is event driven at MclagSyncd and no periodic polling is done.
-
-#### 3.6.1.2 Removal of FDB table in MclagSyncd
+#### 3.6.1.1 Removal of FDB table in MclagSyncd
 With the above change to event-driven updates, MclagSyncd no longer needs a local FDB table copy - it can update directly between ICCPd and FdbOrch.
 
-#### 3.6.1.3 Populating ICCP MAC updates to APP_DB MCLAG_FDB_TABLE
+#### 3.6.1.2 Populating ICCP MAC updates to APP_DB MCLAG_FDB_TABLE
 
 In current implementation MclagSyncd updates the MAC addresses into the existing APP_DB FDB_TABLE. In this enhancement, a new APP_DB MCLAG_FBD_TABLE is used. This allows clients to distinguish between local and remote (ICCP received) MAC address.
 
-#### 3.6.1.4 Populating ICCP and MCLAG interface state information
+#### 3.6.1.3 Populating ICCP and MCLAG interface state information
 
 MclagSyncd is extended to receive the ICCP session related information from ICCPd and to populate this information in STATE_DB STATE_MCLAG_TABLE. MclagSyncd also receives MCLAG remote interface information which is populated in STATE_DB STATE_MCLAG_REMOTE_INTF_TABLE.
 
