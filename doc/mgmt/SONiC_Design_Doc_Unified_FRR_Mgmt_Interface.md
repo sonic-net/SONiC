@@ -59,6 +59,7 @@
 | 0.2 | 10/30/2019  | Venkatesan Mahalingam | Config DB schema changes |
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
 | 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
+| 0.5 | 05/29/2020  | Venkatesan Mahalingam | Addressed the comments from Microsoft team |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -72,7 +73,7 @@ This document describes the high level design of FRR-BGP Extended Unified Config
 |--------------------------|-------------------------------------|
 | FRR                      | Free Range Routing Stack            |
 | CVL                      | Config Validation Library           |
-| VRF                      | Virtual routing forwarding          |
+| VRF                      | Virtual routing and forwarding          |
 | RIB                      | Routing Information Base            |
 | PBR                      | Policy based routing                |
 | NBI                      | North Bound Interface               |
@@ -96,7 +97,7 @@ This feature extends and provides unified configuration and management capabilit
 
 ### 1.1.2 Configuration and Management Requirements
 
-1. Support Open Config data models for BGP config and Management
+1. Support [Open Config data models for BGP](https://github.com/openconfig/public/tree/master/release/models/bgp) config and Management
 2. Provide IS-CLI/gNMI/REST support for config and management of FRR-BGP features used in SONIC
 3. Enhance with Custom YANG models for features used in BGP that are not supported via Open Config data model
 4. Define ABNF schema for BGP features used in SONiC
@@ -109,7 +110,7 @@ As state and statistics information is retrieved from FRR-BGP on demand there is
 
 ## 1.2 Design Overview
 SONiC FRR-BGP Extended Unified config and management capability makes use of Management framework to implement the backend and transformer methods to support Open Config data models for BGP and route policy feature. The backend converts the incoming request to Redis ABNF schema format and writes the configuration to Redis DB. Then from DB events, bgpcfgd will configure FRR-BGP using FRR CLI commands.
-It also uses management framework's transformer methods to do syntactic and semantic validation of the requests using ABNF JSON before writing them into the Redis DB.
+It also uses management framework's transformer methods to do syntactic and semantic YANG validation of the requests using ABNF JSON before writing them into the Redis DB.
 
 ### 1.2.1 Basic Approach
 
@@ -147,19 +148,17 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 
 ![FRR-BGP Unified Mgmt Framework](images/FRR-BGP-Unified-mgmt-frmwrk.png)
 
-1. Transformer common app owns the Open config data models related to BGP (which means no separate app module required for handling BGP open-config and augmented YANG objects).
+1. Provide annotations for openconfig YANG to SONiC YANG objects mapping so that transformer and CVL will take care of processing the requests and updating the config DB.
 
-2. Provide annotations for required objects so that transformer core and common app will take care of handling them.
+2. Provide transformer methods as per the annotations defined to take care of model specific logics and validations.
 
-3. Provide transformer methods as per the annotations defined to take care of model specific logics and validations.
+3. Define SONiC YANG and Redis ABNF schema for the supported Open Config BGP models & objects.
 
-4. Define SONiC YANG and Redis ABNF schema for the supported Open Config BGP models & objects.
+4. KLISH CLI and REST clients provide extensive BGP configurations and hence there should not be any need for BGP configurations via vtysh.
 
-5. KLISH CLI and REST clients provide extensive BGP configurations and hence there should not be any need for BGP configurations via vtysh.
+5. In bgpcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP, similarly, separate config daemons can be present to configure individual features like OSPF, BFD..etc
 
-6. In bgpcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP, similarly, separate config daemons can be present to configure individual features like OSPF, BFD..etc
-
-7. Update /usr/share/sonic/templates/bgpd.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate /etc/frr/bgpd.conf file.
+6. Update /usr/share/sonic/templates/bgpd.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate /etc/frr/bgpd.conf file.
 
 ## 3.2 DB Changes
 Following section describes the changes to DB.
@@ -1030,23 +1029,23 @@ Various REST operations (POST/PUT/PATCH/GET/DELETE) are supported for the BGP an
 
 ## 4.1 Configuration Sequence
 
-![FRR-BGP-CONFIG-SEQUENCE](images/frr-bgp-config-sequence.jpg)
+![FRR-BGP-CONFIG-SEQUENCE](images/frr-bgp-config-sequence.png)
 
 ## 4.2 CLI Show Command Sequence
 
 ### 4.2.1 CLI Show Sequence - Config information
-![FRR-BGP-CLI-SHOW-SEQUENCE1](images/frr-bgp-cli-show-sequence11.jpg)
+![FRR-BGP-CLI-SHOW-SEQUENCE1](images/frr-bgp-cli-show-sequence11.png)
 
 ### 4.2.2 CLI Show Sequence - State/Statistics
-![FRR-BGP-CLI-SHOW-SEQUENCE2](images/frr-bgp-cli-show-sequence22.jpg)
+![FRR-BGP-CLI-SHOW-SEQUENCE2](images/frr-bgp-cli-show-sequence22.png)
 
 ## 4.3 REST Get Sequence
 
 ### 4.3.1 REST Get Sequence - Config information
-![FRR-BGP-REST-GET-SEQUENCE1](images/frr-bgp-rest-get-sequence1.jpg)
+![FRR-BGP-REST-GET-SEQUENCE1](images/frr-bgp-rest-get-sequence1.png)
 
 ### 4.3.2 REST Get Sequence - State/Statistics
-![FRR-BGP-REST-GET-SEQUENCE2](images/frr-bgp-rest-get-sequence2.jpg)
+![FRR-BGP-REST-GET-SEQUENCE2](images/frr-bgp-rest-get-sequence2.png)
 
 # 5 Error Handling
 
