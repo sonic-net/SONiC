@@ -41,7 +41,6 @@
           * [3.5.3 Show Commands](#353-show-commands)
           * [3.5.4 Clear Commands](#354-clear-commands)
           * [3.5.5 Debug Commands](#355-debug-commands)
-          * [3.5.6 Rest API Support](#356-rest-api-support)
   * [4 Flow Diagrams](#4-flow-diagrams)
       * [4.1 Enable storm control on physical interface](#41-enable-storm-control-on-phy)
       * [4.2 Disable storm Control on physical interface](#42-disable-storm-control-on-phy)
@@ -52,11 +51,10 @@
   * [8 Scalability](#8-scalability)
   * [9 Unit Test](#9-unit-test) 
      * [9.1 CLI Test Cases](#91-cli-test-cases)
-     * [9.2 REST API Test Cases](#92-rest-api-test-cases)
-     * [9.3 Functional Test Cases](#93-functional-test-cases)
-     * [9.4 Scaling Test Cases](#94-scaling-test-cases)
-     * [9.5 Warm Boot Test Cases](#95-warm-boot-test-cases)
-     * [9.6 Negative Test Cases](#96-negative-test-cases)
+     * [9.2 Functional Test Cases](#92-functional-test-cases)
+     * [9.3 Scaling Test Cases](#93-scaling-test-cases)
+     * [9.4 Warm Boot Test Cases](#94-warm-boot-test-cases)
+     * [9.5 Negative Test Cases](#95-negative-test-cases)
 
 
 # List of Tables
@@ -87,7 +85,7 @@ This document describes the functionality and high level design of Broadcast, Un
 
 # 1 Feature Overview
 A traffic storm occurs when packets flood the LAN, creating excessive traffic and degrading network performance. The type of traffic can be Broadcast, Unknown-unicast or unknown-Multicast (BUM). 
-The storm-control feature allows the user to limit the amount of BUM traffic admitted to the system. This can be achieved by configuring the type of storm (Broadcast or Unknown-unicast or unknown-Multicast) and the corresponding bits per second (bps) parameter on a given physical interface. Traffic that exceeds the configured rate will be dropped. 
+The storm-control feature allows the user to limit the amount of BUM traffic admitted to the system. This can be achieved by configuring the type of storm (Broadcast or Unknown-unicast or unknown-Multicast) and the corresponding kilo bits per second (kbps) parameter on a given physical interface. Traffic that exceeds the configured rate will be dropped. 
 Unknown-multicast traffic consists of all multicast traffic which donot match any of the statically configured or dynamically learned multicast groups. 
 
 
@@ -97,14 +95,13 @@ Unknown-multicast traffic consists of all multicast traffic which donot match an
 
 ### 1.1.1 Functional Requirements
  1. Support configuration of Broadcast, Unknown-unicast and unknown-Multicast storm-control independently on physical interfaces.
- 2. Support threshold rate configuration in bits per second (bps) in the range of 0 bps to 100Gbps. 
+ 2. Support threshold rate configuration in kilo bits per second (kbps) in the range of 0 kbps to 100,000,000 kbps (100Gbps). 
 
 ### 1.1.2 Configuration and Management Requirements
-This feature will support SONiC CLI.
+This feature will support Click CLI.
  1. Support a CLI to add or delete broadcast, unknown-unicast and unknown-multicast storm-control on a physical interface as described in "Configuration Commands" section below. 
  2. Support show commands to display the storm-control configuration as described in "Show Commands" section below. 
  3. Support debug commands as described in "Debug Commands" section below.
- 4. Support openconfig REST API and gNMI.
 
 
 ### 1.1.3 Scalability Requirements
@@ -146,8 +143,9 @@ Refer to section 1.1
 
 ## 2.3 Limitations
 BUM storm control 
-- Configuration is not supported on VLAN and port-channel interfaces. 
+- Configuration is not supported on VLAN and port-channel interfaces. User can configure on physical port which is part of a VLAN / port-channel.
 - Statistics is not supported. 
+- REST, gNMI and Klish CLI are not supported. 
  
 
 
@@ -161,7 +159,7 @@ BUM storm control
 __Figure 1: Storm Control High Level Architecture__
 
 1) Storm-control configurations are parsed and stored in CFG_PORT_STORM_CONTROL_TABLE in Configuration database by the Management Framework.
-2) The Policer Orchestration Agent subscribes to notifications from the CFG_PORT_STORM_CONTROL_TABLE and parses the input parameters (interface, storm-control type, bps). A policer_name is created internally by encoding the interface_name and storm_control_type.
+2) The Policer Orchestration Agent subscribes to notifications from the CFG_PORT_STORM_CONTROL_TABLE and parses the input parameters (interface, storm-control type, kbps). A policer_name is created internally by encoding the interface_name and storm_control_type.
 3) create_policer SAI API is invoked to create a policer with the given input parameters. 
 4) The identifier of the policer created is associated with the encoded policer_name.
 5) The policer identifier is passed to set_port_attribute SAI API to set the appropriate type of storm-control on the port. 
@@ -181,7 +179,7 @@ A new table CFG_PORT_STORM_CONTROL_TABLE is introduced in the configuration data
     key     = CFG_PORT_STORM_CONTROL_TABLE:port:storm_control_type ; Ethernet Interface Name and storm control type
     ;field  = value
     enabled = BIT          ; Is the storm control enabled (1) or disabled (0) on the interface 
-    bps     = 1*13 DIGIT   ; CIR value in bits per second
+    kbps     = 1*13 DIGIT   ; CIR value in kilo bits per second
          
 ### 3.2.2 APP_DB
 No tables are introduced in APP_DB
@@ -223,7 +221,7 @@ The BUM storm-control feature can be enabled on a physical port.
 The **create_policer** SAI API is used to create the policer based on the policer parameters listed in Table 2.
    - Meter Type - Can be packets or bytes. Storm-control uses bytes meter type. 
    - Meter Mode - Can be st_tcm or tr_tcm or storm. Storm-control uses storm meter mode. 
-   - CIR (bps) - Value of CIR configured in bps. 
+   - CIR (bps) - Value of CIR given in bps. 
 
 The **set_port_attribute** SAI API is used to set the policer on an interface. 
    - Unknown-unicast policer - Enables storm-control for unknown-unicast traffic received on the interface. 
@@ -232,60 +230,64 @@ The **set_port_attribute** SAI API is used to set the policer on an interface.
 
 ## 3.5 CLI
 ### 3.5.1 Data Models
-Custom Yang model will be introduced for this feature.
+Configuration is supported using Click CLI commands.
 
 
 ### 3.5.2 Configuration Commands
 BUM storm-control can be configured only on physical interfaces.  
-**switch# configure terminal** <br>
-**switch(config)# interface Ethernet <interface_num>** <br>
-**switch(config-if)# storm-control {broadcast | unknown-unicast | unknown-multicast} {bps \<bits_per_second\>}**
+**switch# config interface storm-control {broadcast | unknown-unicast | unknown-multicast} {add|del} \<interface_name\> {\<kilo_bits_per_second\>}**
 
 
 #### 3.5.2.1 Enable Broadcast storm control on a physical interface
 This command configures broadcast storm-control on a physical interface. <br>
-**switch(config-if)# storm-control broadcast {bps \<bits_per_second\>}**
+**switch# config interface storm-control broadcast add \<interface_name\> {\<kilo_bits_per_second\>}**
 
 
 #### 3.5.2.1 Enable Unknown-unicast storm control on a physical interface
 This command configures unknown-unicast storm-control on a physical interface. <br>
-**switch(config-if)# storm-control unknown-unicast {bps \<bits_per_second\>}**
+**switch# config interface storm-control unknown-unicast add \<interface_name\> {\<kilo_bits_per_second\>}**
 
 
 #### 3.5.2.1 Enable Multicast storm control on a physical interface
 This command configures unknown-multicast storm-control on physical interface. <br>
-**switch(config-if)# storm-control unknown-multicast {bps \<bits_per_second\>}**
+**switch# config interface storm-control unknown-multicast add \<interface_name\> {\<kilo_bits_per_second\>}**
 
 
 ### 3.5.3 Show Commands
 The following show command displays storm-control configurations. 
 
-**show storm-control [interface \<interface_name\>]**
+**show storm-control {all | interface \<interface_name\>}**
 
 Following is a sample output
 
-**show storm-control** <br>
+**show storm-control all** <br>
 
 ###### Table 3: show storm-control
-| Interface | Type             | Rate(bps) |
-|-----------|------------------|-----------|
-| Ethernet0 | broadcast        | 1000000   |
-| Ethernet0 | unknown-unicast  | 2000000   |
-| Ethernet2 | unknown-unicast  | 5000000   |
++------------------+-----------------+---------------+
+| Interface Name   | Storm Type      |   Rate (kbps) |
++==================+=================+===============+
+| Ethernet0        | broadcast       |          1000 |
++------------------+-----------------+---------------+
+| Ethernet0        | unknown-unicast |          2000 |
++------------------+-----------------+---------------+
+| Ethernet2        | unknown-unicast |          5000 |
++------------------+-----------------+---------------+
+
 
 **show storm-control interface Ethernet2** <br>
 
 ###### Table 4: show storm-control interface
-| Interface | Type             | Rate(bps) |
-|-----------|------------------|-----------|
-| Ethernet2 | unknown-unicast  | 5000000   |
- 
++------------------+-----------------+---------------+
+| Interface Name   | Storm Type      |   Rate (kbps) |
++==================+=================+===============+
+| Ethernet2        | unknown-unicast |          5000 |
++------------------+-----------------+---------------+
+
+
 ###  3.5.4 Clear Commands
 Not applicable
 ### 3.5.5 Debug Commands
 Not applicable
-### 3.5.6 REST API Support
-REST SET and GET APIs will be supported. 
  
 # 4 Flow Diagrams
 ## 4.1 Enable storm control on physical interface
@@ -353,59 +355,44 @@ Storm-control is a physical port parameter. Testing would be done by enabling st
     8. Verify that the BUM storm-control configurations are correctly re-applied after cold reboot.
     9. Verify that all the three storm-control types can be configured and rate limiting is 
        applied independently on the three types of traffic received at the interface. 
-    10. Verify that the bps value configured is independent per interface.
+    10. Verify that the kbps value configured is independent per interface.
     11. When user configures BUM storm-control on interface where the same type is already configured,
-        verify that if bps value is different, the new bps value is updated to the CONFIG_DB.
+        verify that if kbps value is different, the new kbps value is updated to the CONFIG_DB.
 
 
-## 9.2 Rest API Test Cases
-    12. Verify broadcast, unknown-multicast and unknown-unicast can be configured on interface using REST.
-    13. Verify broadcast, unknown-multicast and unknown-unicast can be unconfigured on interface using REST.
-
-
-## 9.3 Functional Test Cases
-    14. Verify that broadcast traffic gets rate-limited as per broadcast storm-control policer parameters.
-    15. Verify that unknown-unicast traffic gets rate-limited as per unknown-unicast storm-control policer parameters.
-    16. Verify that multicast traffic gets rate-limited as per multicast storm-control policer parameters.
-    17. Configure all three BUM storm-control on interface and verify that the rate-limiting of traffic is as per the 
+## 9.2 Functional Test Cases
+    12. Verify that broadcast traffic gets rate-limited as per broadcast storm-control policer parameters.
+    13. Verify that unknown-unicast traffic gets rate-limited as per unknown-unicast storm-control policer parameters.
+    14. Verify that multicast traffic gets rate-limited as per multicast storm-control policer parameters.
+    15. Configure all three BUM storm-control on interface and verify that the rate-limiting of traffic is as per the 
         respective policer parameters.
-    18. Verify that other traffic streams are unaffected by BUM storm-control configuration.
-    19. Verify that after unconfiguring BUM storm-control configuration on interface, BUM storm traffic rate is no 
+    16. Verify that other traffic streams are unaffected by BUM storm-control configuration.
+    17. Verify that after unconfiguring BUM storm-control configuration on interface, BUM storm traffic rate is no 
         more rate limited. 
-    20. Verify that traffic is rate-limited as per the updated value of bps when user updates existing 
+    18. Verify that traffic is rate-limited as per the updated value of kbps when user updates existing 
         BUM storm-control configuration on interface. 
 
 
 
-## 9.4 Scaling Test Cases
-    21. Configure BUM storm-control on all the physical interfaces on the system and check that rate-limiting is 
+## 9.3 Scaling Test Cases
+    19. Configure BUM storm-control on all the physical interfaces on the system and check that rate-limiting is 
         performed on all interfaces. 
 
-## 9.5 Warm Boot Test Cases
-    22. Verify that BUM storm-control configurations are restored after warm boot. 
-    23. Verify that BUM storm rate-limiting continues to work at the specific rate across warm boot. 
-    24. Verify that BUM storm-control is only active on interfaces that previously had storm-control configurations 
+## 9.4 Warm Boot Test Cases
+    20. Verify that BUM storm-control configurations are restored after warm boot. 
+    21. Verify that BUM storm rate-limiting continues to work at the specific rate across warm boot. 
+    22. Verify that BUM storm-control is only active on interfaces that previously had storm-control configurations 
         before warm boot. 
 
 
-## 9.6 Negative Test Cases
-    25. Verify that storm-control configuration errors out when applied on port-channel or vlan interfaces. 
-    26. Verify that error is returned when the same configuration is repeated on the interface. 
-    27. Configure BUM storm-control on interface without providing bps value and check that configuration is 
+## 9.5 Negative Test Cases
+    23. Verify that storm-control configuration errors out when applied on port-channel or vlan interfaces. 
+    24. Verify that error is returned when the same configuration is repeated on the interface. 
+    25. Configure BUM storm-control on interface without providing kbps value and check that configuration is 
         not accepted. 
-    28. Unconfigure BUM storm-control on interface by providing bps as input and check that 
+    26. Unconfigure BUM storm-control on interface by providing kbps as input and check that 
         additional / invalid parameter error is displayed. 
-    29. Verify that invalid parameter error is displayed when value of bps is out of range or invalid.
-    30. Verify that invalid parameter / input error is displayed when invalid input is provided for storm-control type.
+    27. Verify that invalid parameter error is displayed when value of kbps is out of range or invalid.
+    28. Verify that invalid parameter / input error is displayed when invalid input is provided for storm-control type.
 
-
-<!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE5Mjc1MzY4MzgsLTIwMzM1NDc2OTksMT
-E1MzAwMjgyMSwtMjc0MjE0MzkwLDEzNDcwNDAyOTIsMzk3Mjc0
-NTE4LDE1NDU0MTI4OTgsNjc5MzA2NzI2LC0xNTYwMzUxMzkyLD
-M0ODgxNjQwMywtNTcxMzQ2OTY5LC0zNjkzNDg4NTksMTQ4MDI5
-Mjg3MywtOTIxNjQ2ODQ3LC0xNjM3MDI3NDcxLC0xNzE0ODEzNT
-AxLC0zNDQxMjAxMDUsMTUwMTM4MzM2OCwtMTc4OTk5NzMxNiwx
-MDYyMDcwMjgyXX0=
--->
 
