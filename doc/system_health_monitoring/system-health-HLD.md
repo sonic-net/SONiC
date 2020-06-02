@@ -10,11 +10,11 @@
 
 ## 1. Overview of the system health monitor
 
-System health monitor is intend to monitor both of critical services and peripheral device status and leverage system log, system health LED to and CLI command output to indicate the status.
+System health monitor is intended to monitor both critical services and peripheral device status and leverage system log, system status LED to and CLI command output to indicate the system status.
 
-In current SONiC implementation, already have Monit which is monitoring the critical services status and also have a set of daemons(psud, thermaltcld) inside PMON collecting the peripheral devices status.
+In current SONiC implementation, already have Monit which is monitoring the critical services status and also have a set of daemons(psud, thermaltcld, etc.) inside PMON collecting the peripheral devices status.
 
-System health will not monitor the critical services or devices directly, it will reuse the result of Monit and PMON daemons to summary the current status and decide the color of the system health status.
+System health monitoring service will not monitor the critical services or devices directly, it will reuse the result of Monit and PMON daemons to summary the current status and decide the color of the system health LED.
 
 ### 1.1 Services under Monit monitoring
 
@@ -84,7 +84,7 @@ The list of monitored critical services and devices can be customized by a confi
 This configuration file will be platform specific and shall be added to the platform folder(/usr/share/sonic/device/{platform_name}/system_health_monitoring_config.json).
 
 #### 1.3.2 Extend the monitoring with adding user specific program to Monit
-Monit support to check program(scripts) exit status, if user want to monitor something that beyond critical serives or some device not included in the above list, they can provide a specific scripts and add it to Monit check list, then the result can also be collected by the system health monitor.  
+Monit support to check program(scripts) exit status, if user want to monitor something that beyond critical serives or some special device not included in the above list, they can provide a specific scripts and add it to Monit check list, then the result can also be collected by the system health monitor.  
 
 ### 1.4 system status LED color definition
 
@@ -113,9 +113,9 @@ System health monitor daemon will running on the host, periodically(every 60s) c
 
 Before the switch boot up finish, the system health monitoring service shall be able to know the switch is in boot up status(see open question 1).
 
-If monit service is not avalaible, will consider it as fault condition.
+If monit service is not avalaible, will consider system in fault condition.
 FAN/PSU/ASIC data not available will also considered as fault conditon.
-Incomplete data in the DB will also be considered as fault condition, e.g., voltage data is there but threshold data not available.
+Incomplete data in the DB will also be considered as fault condition, e.g., PSU voltage data is there but threshold data not available.
 
 Monit, thermalctld and psud will raise syslog when fault condition encounterd, so system health monitor will only generate some general syslog on these situation to avoid redundant. For example, when fault condition meet, "system health status change to fault" can be print out, "system health status change to normal" when it recovered.
 
@@ -123,7 +123,7 @@ this service will be started after system boot up(after rc.local).
 
 ## 3. Platform API and PMON related change to support this new service
 
-To have system LED can be set by this new service, a system LED object need to be added to Chassis class. This system LED object shall be initialized when platform API loaded from host side.
+To have system status LED can be set by this new service, a system status LED object need to be added to Chassis class. This system status LED object shall be initialized when platform API loaded from host side.
 
 psud need to collect more PSU data to the DB to satisfy the requirement of this new service. more specifically, psud need to collect psu output voltage, temperature and their threshold.
 
