@@ -75,9 +75,6 @@ This document describes the high level design of Mirroring Enhancements feature.
 
 2. Dynamic session management
     - Allow multiple source to single destination.
-    - Each session supports mirroring from single port to single destination port.
-    - Session-id created in SAI per destination port will be used when the same destination port is configured in other session.
-      This effectively utilizes the hardware resource to be shared across multiple sessions.
     - Mirror session on source portchannel will be active if at least one port is part of portchannel.
     - Mirror session on source portchannel will become inactive when portchannel has no members.
     - ERSPAN session will be active/inactive based on destination IP reachability.
@@ -133,13 +130,14 @@ Existing table PORT_MIRROR_TABLE is enhanced to accept new source and destinatio
 
     ;Configure SPAN/ERSPAN mirror session.
     ;storm control type - broadcast / unknown-unicast / unknown-multicast
-    key       = PORT_MIRROR_TABLE:mirror_session_name ; mirror_session_name is
+    key       = PORT_MIRROR:mirror_session_name ; mirror_session_name is
                                                       ; unique session
                                                       ; identifier
     ;field  = value
+    type = SPAN or ERSPAN ; SPAN or ERSPAN session.
     destination_port = PORT_TABLE:ifname    ; ifname must be unique across PORT TABLE.
-    source_port = PORT_TABLE:ifname    ; ifname must be unique across PORT,INTF,LAG TABLES
-    direction     = ingress or egress or both           ; Direction ingress or egress or both.
+    source_port = PORT_TABLE:ifname    ; ifname must be unique across PORT,LAG TABLES
+    direction     = RX or TX or BOTH           ; Direction RX or TX or BOTH.
 
     mirror_session_name = 1*255VCHAR
 
@@ -160,13 +158,73 @@ Mirror Orchestration agent is modified to support this feature:
    - Handle both SPAN and ERSPAN sessions separately·
    - No changes to ERSPAN functionality.
    - Configure mirror session based on CONFIG_DB parameters.
-   - Port mirror session is activated 
+   - Port mirror session will be active in below cases.
+        - Session with destination port only config becomes active when session is created in SAI. These sessions can be used for ACL mirroring.
+        - Session with source/destination/direction config will be active once the session created from SAI is programmed on the source ports.
    - Populates the mirror attribute SAI structures and pushes the entry to ASIC_DB.·
 
 ## 3.4 SAI
-Mirror SAI interface APIs are already defined. More details about SAI API and attributes are described below SAI Spec @
+Mirror SAI interface APIs are already defined. 
+More details about SAI API and attributes are described below SAI Spec @
 
 https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
+```
+    /**
+     * @brief SAI type of mirroring
+     */
+    typedef enum _sai_mirror_session_type_t
+    {
+        /** Local SPAN */
+        SAI_MIRROR_SESSION_TYPE_LOCAL = 0,
+
+        /** Remote SPAN */
+        SAI_MIRROR_SESSION_TYPE_REMOTE,
+
+        /** Enhanced Remote SPAN */
+        SAI_MIRROR_SESSION_TYPE_ENHANCED_REMOTE,
+    } sai_mirror_session_type_t;
+
+    /**
+     * @brief Destination/Analyzer/Monitor Port.
+     *
+     * @type sai_object_id_t
+     * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+     * @objects SAI_OBJECT_TYPE_PORT, SAI_OBJECT_TYPE_LAG
+     * @condition SAI_MIRROR_SESSION_ATTR_MONITOR_PORTLIST_VALID == false
+     */
+    SAI_MIRROR_SESSION_ATTR_MONITOR_PORT,
+```
+https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
+
+```
+    /**
+     * @brief Enable/Disable Mirror session
+     *
+     * Enable ingress mirroring by assigning list of mirror session object id
+     * as attribute value, disable ingress mirroring by assigning object_count
+     * as 0 in objlist.
+     *
+     * @type sai_object_list_t
+     * @flags CREATE_AND_SET
+     * @objects SAI_OBJECT_TYPE_MIRROR_SESSION
+     * @default empty
+     */
+    SAI_PORT_ATTR_INGRESS_MIRROR_SESSION,
+
+    /**
+     * @brief Enable/Disable Mirror session
+     *
+     * Enable egress mirroring by assigning list of mirror session object id as
+     * attribute value Disable egress mirroring by assigning object_count as 0
+     * in objlist.
+     *
+     * @type sai_object_list_t
+     * @flags CREATE_AND_SET
+     * @objects SAI_OBJECT_TYPE_MIRROR_SESSION
+     * @default empty
+     */
+    SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
+```
 
 ## 3.5 CLI
 ### 3.5.1 Data Models
@@ -175,19 +233,19 @@ Custom Yang model will be introduced for this feature.
 ### 3.5.2 Configuration Commands
 
 Existing mirror session commands are enhanced to support this feature.
-
+```
     # Modify existing ERSPAN configuration as below.
-    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue]
+    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue] --policer <policer>
 
     #Configure Destination only span mirror session.
     config mirror_session add span <session-name> <destination_ifName>
 
     # Modify existing ERSPAN configuration to accept source port and direction
-    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue] [src_port] [rx/tx/both]
+    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue] [src_port] [rx/tx/both] --policer <policer>
 
     #Configure Port mirror span mirror session.
-    config mirror_session add span <session-name> <destination_ifName> <source_ifName> <rx/tx/both>
-
+    config mirror_session add span <session-name> <destination_ifName> <source_ifName> <rx/tx/both> [queue] --policer <policer>
+```
 
 KLISH CLI Support.
 
@@ -199,7 +257,7 @@ KLISH CLI Support.
 
     # ERSPAN config
     **switch(config)# [no] mirror-session <session-name>** <br>
-    **switch(config-mirror-<session-name>)# [no] destination erspan src_ip <src_ip> dst_ip <dst_ip> dscp < dscp > ttl < ttl > [ gre < gre >] [queue <queue>] [source <src_ifName> direction <rx/tx>**] <br>
+    **switch(config-mirror-<session-name>)# [no] destination erspan src_ip <src_ip> dst_ip <dst_ip> dscp < dscp > ttl < ttl > [ gre < gre >] [queue <queue>] [source <src_ifName> direction <rx/tx>**] [policer <policer>]<br>
 
 ### 3.5.3 Show Commands
 
@@ -207,15 +265,15 @@ The following show command display all the mirror sessions that are configured.
 
     # show mirror-session
     ERSPAN Sessions
-    ---------------------------------------------------------------------------------------------------------
-      Name     Status      SRC IP    DST IP    GRE   DSCP    TTL  Queue Policer      SRC Port    Direction
-    everflow0  active    10.1.0.32  10.0.0.7    10    10      10
-    everflow1  active    10.1.0.33  10.0.0.8    10    10      10                     Ethernet4    both
+    Name       Status   SRC IP    DST IP      GRE    DSCP    TTL  Queue    Policer    Monitor Port    SRC Port    Direction
+    ---------  ------   --------  --------  -----  ------  -----  -------  ---------  --------------  ----------  -----------
+    everflow0  active   10.1.1.1  12.1.1.1      0      10     10
 
     SPAN Sessions
-    ---------------------------------------------------------------------------------------------------------
-      Name Status         DST Port         SRC Port Direction
-     sess1 active        Ethernet4        Ethernet0     rx
+    Name    Status    DST Port    SRC Port    Direction    Queue    Policer
+    ------  --------  ----------  ----------  -----------  -------  ---------
+    sess1   active    Ethernet24  Ethernet32  rx
+
 
 KLISH show mirror-session is same as above.
 
@@ -234,7 +292,7 @@ Not applicable
 - Following REST SET and GET APIs will be supported
 
 The following show command display all the mirror sessions that are configured.
-
+```
     # Get all mirror sessions
     # curl -X GET "https://<switch_ip>/restconf/data/sonic-mirror-session:sonic-mirror-session" -H "accept: application/yang-data+json"
 
@@ -246,12 +304,12 @@ The following show command display all the mirror sessions that are configured.
 
     # Delete specific mirror session
     # curl -X DELETE "https://<switch_ip>/restconf/data/sonic-mirror-session:sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST=mirr3" -H "accept: application/yang-data+json"
+```
 
 ### 3.5.7 GNMI Support
 
-
-- Following GNMI set and get commands will be supported
-
+- Following GNMI set and get commands will be supported.
+```
     # Get all mirror sessions
     # gnmi_get -xpath /sonic-mirror-session:sonic-mirror-session -target_addr 127.0.0.1:8080 -insecure
 
@@ -263,12 +321,12 @@ The following show command display all the mirror sessions that are configured.
 
     # Delete specific mirror session
     # gnmi_set -delete /sonic-mirror-session:sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST[name=Mirror1] -target_addr 127.0.0.1:8080 -insecure
-
+```
 # 4 Flow Diagrams
 
 # 5 Error Handling
 
-- show mirror session command will display any errors during session configuration and current status of session.
+- show mirror_session command will display any errors during session configuration and current status of session.
 - Internal processing errors within SwSS will be logged in syslog with ERROR level
 - SAI interaction errors will be logged in syslog
 
@@ -279,7 +337,8 @@ The mirroring configurations be retained across warmboot so that source traffic 
 
 # 8 Scalability
 
-Max mirror sessions supported are silicon specific. Testing would be done by creating max mirror sessions on the switch.·
+Max mirror sessions supported are silicon specific. 
+
 ###### Table 3: Scaling limits
 |Name                      |   Scaling value    |
 |--------------------------|--------------------|
