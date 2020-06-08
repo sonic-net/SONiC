@@ -14,10 +14,11 @@ TACACS+ Support in Management Framework
 [Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 10/29/2019  |   Joyas Joseph     | Initial version                   |
-| 0.2 | 12/26/2019  |   Srinadh Penugonda| Updated with CLI, yang tree       |
+| Rev |     Date    |       Author          | Change Description                   |
+|:---:|:-----------:|:---------------------:|--------------------------------------|
+| 0.1 | 10/29/2019  |   Joyas Joseph        | Initial version                      |
+| 0.2 | 12/26/2019  |   Srinadh Penugonda   | Updated with CLI, yang tree          |
+| 0.3 | 05/05/2020  | Venkatesan Mahalingam | Updated for source-interface support |
 
 # About this Manual
 This document provides general information about Terminal Access Controller Access Control Service Plus (TACACS+) support in SONiC Management Framework
@@ -34,14 +35,14 @@ support in SONiC is provided by this high-level design document:
 
 
 # 1 Feature Overview
-This feature allows the user to configure TACACS+ Authentication using NBI (CLI/REST/gNMI) provided by SONiC Management Framework. 
+This feature allows the user to configure TACACS+ Authentication using NBI (CLI/REST/gNMI) provided by SONiC Management Framework.
 Configuration changes from the user are pushed to CONFIG DB. The implementation is contained within the Management Framework container.
 
 ## 1.1 Requirements
 
 ### 1.1.1 Functional Requirements
 1. Support TACACS+ login authentication for SSH and console.
-2. Source IP address for TACACS+ packets can be specified.
+2. Support Source interface to pick source address for TACACS+ packets can be specified.
 3. Support multiple TACACS+ server, and the priority of the server can be configured.
 4. Support to set the order of local authentication and TACACS+ authentication.
 5. Support fail_through mechanism for authentication. If a TACACS+ server authentication fails, the next TACACS+ server authentication will be performed.
@@ -60,28 +61,28 @@ The changes are in the sonic-mgmt-framework container. There will be additional 
 1. XML file for the CLI
 2. Python script to handle CLI request (actioner)
 3. Jinja template to render CLI output (renderer)
-4. YANG models 
+4. YANG models
 	a. openconfig-aaa.yang and its dependents
 	b. openconfig-tacacs.yang and its dependents
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-TACACS+ is a security protocol used in AAA framework to provide centralised authentication for users who want to gain access to the network. 
+TACACS+ is a security protocol used in AAA framework to provide centralised authentication for users who want to gain access to the network.
 TACACS+ provides authorization control by allowing a network administrator to define what commands a user may run.
 
 ## 2.2 Functional Description
 Since openconfig-system.yang is being used, both radius and tacacs+ configuration would be sharing same configuration parameters. They are
 differentiated with the help of server-groups. server-group by name "TACACS" will be used to store tacacs+ specific configuration.
 
-The configuration supports global parameters, namely: timeout, source ip address for outgoing packets, type of authentication method to use for messages, 
+The configuration supports global parameters, namely: timeout, source interface (to pick the source IP) for outgoing packets, type of authentication method to use for messages,
 a shared secret for encryption.
 The configuration allows configuring tacacs host, identifiable through an IP address. Each host will contain its tcp port, shared secret for encryption,
 authentication type for messages, server priority and time value. Properties specified with a particular tacacs host takes precedence over
 global tacacs properties.
 
-In addition, this feature also supports configuration for aaa authentication: an authentication method, which is ordered. Currently only local and tacacs+ 
+In addition, this feature also supports configuration for aaa authentication: an authentication method, which is ordered. Currently only local and tacacs+
 are supported.
-Failthrough mechanism can be enabled or disabled. 
+Failthrough mechanism can be enabled or disabled.
 
 
 # 3 Design
@@ -124,7 +125,7 @@ module: sonic-system-tacacs
              +--rw auth_type?   auth_type_enumeration
              +--rw timeout?     uint16
              +--rw passkey?     string
-             +--rw src_ip?      inet:ip-address
+             +--rw src_intf?    union
 
 
 ```
@@ -178,7 +179,7 @@ Default is disable.
 sonic(config)# tacacs-server
   auth-type  Configure global authentication type for TACACS
   key        Configure global shared secret for TACACS
-  source-ip  Configure global source ip for TACACS
+  source-interface  Configure source interface to pick the source IP, used for the TACACS+ packets
   timeout    Configure global timeout for TACACS
 sonic(config)# tacacs-server auth-type
 pap    chap   mschap
@@ -191,10 +192,14 @@ sonic(config)# tacacs-server key
 sonic(config)# no tacacs-server key
   <cr>
 
-sonic(config)# tacacs-server source-ip
-  A.B.C.D/A::B
+sonic(config)# tacacs-server source-interface
+ Ethernet     Ethernet interface
+ Loopback     Loopback interface
+ Management   Management interface
+ PortChannel  PortChannel interface
+ Vlan         Vlan interface
 
-sonic(config)# no tacacs-server source-ip
+sonic(config)# no tacacs-server source-interface
   <cr>
 
 sonic(config)# tacacs-server timeout
@@ -235,7 +240,7 @@ sonic# show tacacs-server global
 ---------------------------------------------------------
 TACACS Global Configuration
 ---------------------------------------------------------
-source-ip  : 2.2.2.2
+source-interface  : Ethernet8
 timeout    : 4
 auth-type  : mschap
 key        : mykey
@@ -322,4 +327,3 @@ Same test as CLI configuration Test but using REST POST request
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
 
 # 10 Internal Design Information
-
