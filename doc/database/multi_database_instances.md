@@ -887,14 +887,14 @@ Now we see, the extra step for the new implementation is migrating all data into
   NUMA node0 CPU(s):   0-3
   ```
   
-  - [x] Third part script like redis-dump/load is very slow, usually takes **~23s** when data size is **~40K**
-  - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**
+  - [x] Third part script like redis-dump/load is very slow, usually takes **~23s** when data size is **~40K**, TCP and UNIX SOCKET connections almost take the same time.
+  - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**, TCP and UNIX SOCKET connections almost take the same time.
   
   ```shell
   redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
   ```
 
-  - [x] I also tried lua script as below, this way is the best, it takes about **~1s **when data size is **~40K** and **~2s** when data size is **~100K**.  Sample codes migratedb as below:
+  - [x] I also tried lua script as below, this way is the best, it takes about **~1s **when data size is **~40K** and **~2s** when data size is **~100K**, TCP and UNIX SOCKET connections almost take the same time. Sample codes migratedb as below:
 
   ```python
   #!/usr/bin/python
@@ -924,7 +924,43 @@ Now we see, the extra step for the new implementation is migrating all data into
 
   ```
   
-  For example, migrating below four instances into one instance, total **data size ~100K, costs ~2.1s**
+  we can loop on instances as well and operate each database inside lua script, the perfoemacne is the same as we did in the above script.
+  
+  ```python
+  #!/usr/bin/python
+  from __future__ import print_function
+  import sys
+  import swsssdk
+  import redis
+  
+  instlists = swsssdk.SonicDBConfig.get_instancelist()
+  for k, v in instlists.items():
+      instsocket = v['unix_socket_path']
+      r = redis.Redis(unix_socket_path=instsocket)
+  
+      script = """
+          local lines = redis.call('INFO', 'keyspace')
+          for line in lines:gmatch("([^\\n\\r]+)") do
+              local dbid = line:match("(%d+)")
+              if dbid ~= nil then
+                  local cursor = 0;
+                  redis.call('SELECT', dbid)
+                  repeat
+                      local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
+                      cursor = dat[1];
+                      redis.call('MIGRATE', KEYS[1], KEYS[2], '', dbid, 5000, 'COPY', 'REPLACE', 'KEYS', unpack(dat[2]));
+                  until cursor == '0';
+              end
+          end
+      """
+      r.eval(script, 2, '127.0.0.1', 6382)
+  ```
+  
+  Of course, we can preload the lua script to redis server to improve the performance, but from the test result, it is not helping, almost the same performance as we don't preload since the lua script is very simple and short.
+  
+  
+  
+  For example, migrating below four instances into one instance, total **data size ~100K, costs ~2.1s**. TCP and UNIX SOCKET connections almost take the same time.
   
   ```shell
   admin@ASW-7005:~$ redis-cli -p 6379 info | grep Keyspace -A 10
@@ -963,8 +999,6 @@ Now we see, the extra step for the new implementation is migrating all data into
   db5:keys=3145,expires=0,avg_ttl=0
   db6:keys=365,expires=0,avg_ttl=0
   ```
-
-
 
 So this method is good for warmboot database backup, we just need to add above python script to merge all data into one redis isntance and save data. The other changes are minor like copying files ....
 
