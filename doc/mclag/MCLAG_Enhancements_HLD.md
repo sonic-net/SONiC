@@ -741,6 +741,7 @@ sonic(config-mclag-domain)#[no] session-timeout <keepalive interval in secs>
 
 - Keepalive interval in the range of 1 to 60 seconds with default value of 1 seconds. 
 
+<<<<<<< HEAD
 - session-timeout in the range of 1 to 3600 seconds with default value of 30 seconds
 
 - session-timeout should be multipler of keepalive-timer value
