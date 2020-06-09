@@ -40,8 +40,10 @@ Following are the variables used in make files
 PLATFORM_ARCH : specifies the target architecture, if not set amd64 is chosen
 CONFIGURED_ARCH : In Makefiles no where amd64 should be hardcoded, instead $(CONFIGURED_ARCH) has to be used  
                   Example:  in place of amd64 in below target CONFIGURED_ARCH is replaced
+                  ```sh
                 LINUX_IMAGE = linux-image-$(KVERSION)_$(KERNEL_VERSION)-$(KERNEL_SUBVERSION)_amd64.deb
                 LINUX_IMAGE = linux-image-$(KVERSION)_$(KERNEL_VERSION)-$(KERNEL_SUBVERSION)_$(CONFIGURED_ARCH).deb
+                ```
 
 
 ### SONIC Slave Docker
