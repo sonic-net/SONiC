@@ -161,6 +161,38 @@ files/build_templates/sonic_debian_extension.j2
 #### Onie Image
 
 Onie image configuration and build script should be updated for the uboot specific environment for ARM.
+Update target platform for Onie image platform configuration in onie image conf.
+ - onie-image.conf for AMD64
+ - onie-image-armhf.conf for ARMHF
+ - onie-image-arm64.conf for ARM64
+Onie platform config file will chosed based on the target platform 
+ - platform/<TARGET_PLATFORM>/platform.conf
+ THis platform.conf will be used b the onie installer script to install the onie image
+Onie Installer scripts
+ - installer/x86_64/install.sh 
+ - installer/arm64/install.sh
+ - installer/armhf/install.sh
+
+SONIC Image installation is driven by these onie installer scripts which does
+ - Boot loader update with image boot details
+ - Partition the primary disk if not formatted/partitioned
+ - Extract sonic image in the mounted disk under /host directory
+
+For different platforms, the primary storage device may vary, unlike X86 platforms which mainly use varieant of sata disks,
+ARM platform can also use NAND/NOR flash or SD/MMC cards
+The platform dependent partition scheme is moved to platform/<TARGET_PLATFORM>/platform.conf, where
+selecting primary storage medium, partitioning, formatting, and mounting is taken care.
+The mount path is provided to the generic SONIC installer script, which does common functionalities of extracting image, and copying files.
+
+X86 uses grub as its bootloader, where ARM can use Uboot or proprietary bootloaders.
+Bootloader configuration for boot image details are also updated in platform.conf
+
+#### Sonic Installer
+
+SONIC upgrade from SONIC uses python scripts to access bootloader configuration to update the boot image details, to support
+image upgrade, image deletion, and change boot order.
+For ARM Uboot firmware utilities is used to access boot configuration, as in grub for X86.
+ - sonic_installer/main.py
 
 ### Kernel ARM support
 
