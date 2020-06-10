@@ -178,74 +178,97 @@ Here is a list of proposed new data model or existing data models from Open Conf
 
 - Configuring WRED
 ````
-  sonic(config)# wred <name>
-  sonic(conf-wred-<name>)# random-detect color [green|yellow|red] minimum-threshold 100 maximum-threshold 300
+  sonic(config)# qos wred-policy <name>
+  sonic(conf-wred-<name>)# [green|yellow|red] minimum-threshold 100 maximum-threshold 300
   drop-probability 40
-  sonic(conf-wred-<name>)# random-detect ecn <ecn_none/green/all>
+  sonic(conf-wred-<name>)# ecn <ecn_none/green/all>
 
-  sonic(config)# no wred <name>
+  sonic(config)# no qos wred-policy <name>
 ````
 - Configure Scheduler Policy for queues
 ````
-  sonic(config)# scheduler-policy <name>
-  sonic(conf-sched-policy)# scheduler queue <q#>
-  sonic(conf-sched-policy-q)# priority
-  sonic(conf-sched-policy-q)# min <val>
-  sonic(conf-sched-policy-q)# min-burst <val>
-  sonic(conf-sched-policy-q)# max <val>
-  sonic(conf-sched-policy-q)# max-burst <val>
+  sonic(config)# qos scheduler-policy <name>
+  sonic(conf-sched-policy)# queue <q#>
+  sonic(conf-sched-policy-q)# type <strict/dwrr/wrr>
+  sonic(conf-sched-policy-q)# cir <val>
+  sonic(conf-sched-policy-q)# cbs <val>
+  sonic(conf-sched-policy-q)# pir <val>
+  sonic(conf-sched-policy-q)# pbs <val>
   sonic(conf-sched-policy-q)# weight <val>
 
-  sonic(conf-sched-policy)# no scheduler <q#>
-  sonic(config)# no scheduler-policy <name>   
+  sonic(conf-sched-policy)# no queue <q#>
+  sonic(config)# no qos scheduler-policy <name>   
 ````
 - Configure Scheduler Policy for port shaper
 
 ````
-  sonic(config)# scheduler-policy <name>
-  sonic(conf-sched-policy)# scheduler port
-  sonic(conf-sched-policy-port)# max <val>
-  sonic(conf-sched-policy-port)# max-burst <val>
+  sonic(config)# qos scheduler-policy <name>
+  sonic(conf-sched-policy)# port
+  sonic(conf-sched-policy-port)# pir <val>
+  sonic(conf-sched-policy-port)# pbs <val>
+
+  sonic(conf-sched-policy)# no port
+
 ````
 
 - Config DSCP to Traffic Class map  
 ````
-  sonic(config)# qos-map dscp-to-tc-map <name>
+  sonic(config)# qos map dscp-tc <name>
   sonic(conf-qos-map)# dscp {<dscp-value>} traffic-class <0..7>  
   sonic(conf-qos-map)# no dscp {<dscp-value>}
 
-  sonic(config)# no dscp-to-tc-map <name>
+  sonic(config)# no qos map dscp-tc <name>
 ````
 - Config DOT1P to Traffic Class map  
 ````
-  sonic(config)# qos-map dot1p-to-tc-map <name>
+  sonic(config)# qos map dot1p-tc <name>
   sonic(conf-qos-map)# dot1p {<dot1p-value>} traffic-class <0..7>  
   sonic(conf-qos-map)# no dot1p {<dscp-value>}
 
-  sonic(config)# no dot1p-to-tc-map <name>
+  sonic(config)# no qos dot1p-tc <name>
 ````
 
 - Config Traffic Class to Queue map
 ````
-  sonic(config)# qos-map tc-to-queue-map <name>
+  sonic(config)# qos map tc-queue <name>
   sonic(conf-qos-map)# traffic-class {<tc-value>} queue <0..7>
+
+  sonic(config)# no qos map tc-queue <name>
 ````
 
+- Config Traffic Class to Priority Group map
+````
+  sonic(config)# qos map tc-pg <name>
+  sonic(conf-qos-map)# traffic-class {<tc-value>} pg <0..7>
+
+  sonic(config)# no qos map tc-pg <name>
+````
+
+- Config PFC priority to queue map
+````
+  sonic(config)# qos map pfc-priority-queue <name>
+  sonic(conf-qos-map)# pfc-priority {<priority-value>} queue <0..7>
+
+  sonic(config)# no qos map pfc-priority-queue <name>
+````
 - Config interface QoS
 ````
-  sonic(config)# qos interface <name>
-  sonic(conf-if-name)# dscp-to-tc-map <name>
-  sonic(conf-if-name)# dot1p-to-tc-map <name>
-  sonic(conf-if-name)# tc-to-queue-map <name>
-  sonic(conf-if-name)# pfc-priority <0-7>
+  sonic(config)# interface <name>
+  sonic(conf-if-name)# qos-map dscp-tc <name>
+  sonic(conf-if-name)# qos-map dot1p-tc <name>
+  sonic(conf-if-name)# qos-map tc-queue <name>
+  sonic(conf-if-name)# qos-map tc-pg <name>
+  sonic(conf-if-name)# qos-map pfc-priority-queue <name>
+  sonic(conf-if-name)# pfc priority <0-7>
   sonic(conf-if-name)# pfc asymmetric
   sonic(conf-if-name)# scheduler-policy <name>
   sonic(conf-if-name)# queue <q#> wred-profile <wred-profile-name>
-  sonic(conf-if-name)# queue <q#> [ucast|mcast] threshold <val>
 
-  sonic(conf-if-name)# no dscp-to-tc-map <name>
-  sonic(conf-if-name)# no dot1p-to-tc-map <name>
-  sonic(conf-if-name)# no tc-to-queue-map <name>
+  sonic(conf-if-name)# no qos-map dscp-tc <name>
+  sonic(conf-if-name)# no qos-map dot1p-tc <name>
+  sonic(conf-if-name)# no qos-map tc-pg <name>
+  sonic(conf-if-name)# no qos-map tc-queue <name>
+  sonic(conf-if-name)# no qos-map pfc-priority-queue <name>
   sonic(conf-if-name)# no scheduler-policy <name>
   sonic(conf-if-name)# no queue <q#> wred-profile <wred-profile-name>
 ````
@@ -253,55 +276,64 @@ Here is a list of proposed new data model or existing data models from Open Conf
 #### 3.2.2.2 Show Commands
 
 - Show WRED
+
 ````
-  >show wred {<name>}
+  >show qos wred-policy {<name>}
   Sample Output:
-    ---------------------------------------------------
-    Profile                : test
-    ecn                    : ecn_all
-    green-min-threshold    : 1048576
-    green-max-threshold    : 2097152
+---------------------------------------------------
+Profile                : test
+---------------------------------------------------
+ecn                    : ecn_green
+green-min-threshold    : 1           KBytes
+green-max-threshold    : 1           KBytes
+green-drop-probability : 10
+
 ````
 - Show Scheduler Policy  
 
 ````
->show scheduler-policy <name>   
+>show qos scheduler-policy {<name>}   
 Sample output:
 sonic# show scheduler-policy
  Scheduler Policy: test
-   Scheduler: 0
+   Queue: 0
+              type: strict
               Weight: 10
-              Cir: 100000
-              Pir: 200000
-              Min-burst: 100
-              Max-burst: 200
-   Scheduler: port
-              Pir: 300000
-              Max-burst: 2000
+              CIR: 10000       Kbps
+              CBS: 100         Bytes
+              PIR: 200000      Kbps
+              PBS: 200         Bytes
+   Port:
+              PIR: 100         Kbps
+              PBS: 200         Bytes
+
 ````
 
 - Show interface QoS configuration
 ````
   >show qos interface <name>  	
   Sample Output:
-      Ethernet 1/1/10
-      DSCP-to-Traffic-Class map: dscp-to-tc-map_1
-      DOT1P-to-Traffic-Class map: dot1p-to-tc-map_1
-      Traffic-Class-to-Queue map: tc-to-queue-map_1
-      Scheduler policy: scheduler-policy_1
+  sonic# show qos interface Ethernet 0
+          scheduler policy: p
+          dscp-tc-map: test
+          dot1p-tc-map: test
+          tc-queue-map: test
+          tc-pg-map: test
+          pfc-priority-queue-map: test
+          pfc-asymmetric: off
+          pfc-priority  : 3,4
 
-  >show qos interface <name> queue 1   	
-      Sample Output:
-          Q1 WRED profile:  wred-profile_1
-          Q5 WRED profile:  wred-profile_2
+  sonic# show qos interface Ethernet 0 queue 0
+         interface queue 0 config:
+              WRED profile: test
 ````
 
 - Show DSCP to TC map
 
 ````
->show qos-map dscp-to-tc-map <name>   
+>show qos map dscp-tc <name>   
 Sample Output:
-sonic# show dscp-tc-map
+sonic# show qos map dscp-tc
 DSCP-TC-MAP: test
 ----------------------------
     DSCP TC
@@ -314,9 +346,9 @@ DSCP-TC-MAP: test
 - Show DOT1P to TC map
 
 ````
->show qos-map dot1p-to-tc-map <name>   
+>show qos map dot1p-tc <name>   
  Sample Output:
- sonic# show dot1p-tc-map
+ sonic# show qos map dot1p-tc
  DOT1P-TC-MAP: test
  ----------------------------
             DOT1P TC
@@ -329,30 +361,62 @@ DSCP-TC-MAP: test
 - Show TC to Queue map
 
 ````
->show tc-queue-map <name>
+>show qos map tc-queue <name>
   Sample Output:
-  sonic# show tc-queue-map
+  sonic# show qos map tc-queue
     TC-Q-MAP: test
   ----------------------------
-                  TC  Q
+       TC  Q
  ----------------------------
-                  0    0
-                  1    1
+       0    0
+       1    1
 ----------------------------
 
 ````
 
-- Show QoS statistics
+- Show TC to PG map
 
 ````
-show queue counters {interface ethernet <name> {queue <qid>}}
+>show qos map tc-pg <name>
+  Sample Output:
+  sonic# show qos map tc-pg
+    TC-PG-MAP: test
+  ----------------------------
+       TC  PG
+ ----------------------------
+       0    0
+       1    1
+----------------------------
 
-show queue (watermark|persistent-watermark) (multicast | unicast) interface[<interface-name>]
+````
+
+- Show PFC priority to queue map
+
+````
+>show qos map pfc-priority-queue <name>
+  Sample Output:
+  sonic# show qos map pfc-priority-queue
+    PFC-PRIORITY-Q-MAP: test
+  ----------------------------
+       PRIORITY  Q
+ ----------------------------
+       0        0
+       1        1
+----------------------------
+
+````
+- Show QoS statistics
+
+
+show queue counters {interface (ethernet <name> | CPU) {queue <qid>}}
+
+show queue (watermark|persistent-watermark) (multicast | unicast | CPU) interface [<interface-name>]
 
 show priority-group (watermark|persistent-watermark) (headroom | shared) interface [<interface-name>]
 
 show queue buffer-threshold-breaches
 
+````
   > show queue counters interface ethernet <name> queue <qid>
   Sample Output:
     	> show queue counters interface ethernet 1/1/1 queue 3
@@ -394,10 +458,9 @@ show queue buffer-threshold-breaches
 ````
 #### 3.2.2.3 Clear QoS statistis
 ````
-  sonic# clear queue statistics [interface ethernet <name>] <qid>
-  sonic# clear queue wred statistics [interface ethernet <name>] <qid>
-  sonic# clear queue [buffer-watermark | buffer-persistent-watermark] [interface ethernet <name>] <qid>
-
+  sonic# clear queue counters [interface ethernet <name> | CPU ] <qid>
+  sonic# clear queue [watermark | persistent-watermark] (unicast|multicast|CPU) [interface ethernet <name>]
+  sonic# clear priority-group [watermark | persistent-watermark] (headroom|shared) [interface ethernet <name>]
 ````
 #### 3.2.2.4 Debug Commands
 N/A
@@ -638,11 +701,11 @@ N/A
 
 # 10 Internal Design Information
 
-For Scheduler Policy created via Open Config YANG model, each Scheduler within a Scheduler Policy is transformed into a Scheduler Profile defined by SONiC DB.  
+For Scheduler Policy created via Open Config YANG model, each Scheduler within a Scheduler Policy with sequence number is transformed into a Scheduler Profile defined by SONiC DB. Each scheduler policy sequence is assumed as queue number. For interface scheduler sequence 0-7 is valid and CPU interface sequence 0-31 are valid. In ethernet interface scheduler with sequence number > 8 are ignored. Sequence 255 is reserved for port scheduler.
 
-The Scheduler Profile is identified as "Policy_name + q#"". Such naming convention makes it possible to associate each interface queue with a unique Scheduler Profile later on.  
+The Scheduler Profile is identified as "Policy_name@q#"". Such naming convention makes it possible to associate each interface queue with a unique Scheduler Profile later on.  
 
-When a scheduler Policy is configured on an interface in Open Config YANG model, backend creates SONiC interface.q# in SONiC QueueDB if such entity has not yet been created. Backup also looks up the scheduler Profiles within the Scheduler Policy and attaches the Scheduler Profiles to the corresponding interface queues.  
+When a scheduler Policy is configured on an interface in Open Config YANG model, backend associates each scheduler under scheduler policy to corresponding queue(sequence = queueid) in SONiC QueueDB if such entity has not yet been created. Backup also looks up the scheduler Profiles within the Scheduler Policy and attaches the Scheduler Profiles to the corresponding interface.  
 
 When WRED profile is configured on an interface queue in Open Config YANG model, backend writes the information into SONiC Queue DB.  
 
