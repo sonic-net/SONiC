@@ -100,7 +100,7 @@ This data model lacks certain definitions for SONIC QoS feature. Some features t
 As a result, our data model will be loosely based on Open Config YANG, with our enhancement and  modifications on top of it.
 Here is a list of proposed new data model or existing data models from Open Config.
 
-- WRED profile  
+- WRED Policy
 
     No Open Config YANG available.  
     Augment Open Config YANG model with new definitions similar to [SONIC YANG for WRED profile](https://github.com/project-arlo/sonic-mgmt-framework/blob/transformer-phase1/src/cvl/testdata/schema/sonic-wred-profile.yang)
@@ -225,7 +225,7 @@ Here is a list of proposed new data model or existing data models from Open Conf
   sonic(conf-qos-map)# dot1p {<dot1p-value>} traffic-class <0..7>  
   sonic(conf-qos-map)# no dot1p {<dscp-value>}
 
-  sonic(config)# no qos dot1p-tc <name>
+  sonic(config)# no qos map dot1p-tc <name>
 ````
 
 - Config Traffic Class to Queue map
@@ -262,7 +262,7 @@ Here is a list of proposed new data model or existing data models from Open Conf
   sonic(conf-if-name)# pfc priority <0-7>
   sonic(conf-if-name)# pfc asymmetric
   sonic(conf-if-name)# scheduler-policy <name>
-  sonic(conf-if-name)# queue <q#> wred-profile <wred-profile-name>
+  sonic(conf-if-name)# queue <q#> wred-policy <wred-name>
 
   sonic(conf-if-name)# no qos-map dscp-tc <name>
   sonic(conf-if-name)# no qos-map dot1p-tc <name>
@@ -270,7 +270,7 @@ Here is a list of proposed new data model or existing data models from Open Conf
   sonic(conf-if-name)# no qos-map tc-queue <name>
   sonic(conf-if-name)# no qos-map pfc-priority-queue <name>
   sonic(conf-if-name)# no scheduler-policy <name>
-  sonic(conf-if-name)# no queue <q#> wred-profile <wred-profile-name>
+  sonic(conf-if-name)# no queue <q#> wred-policy <wred-name>
 ````
 
 #### 3.2.2.2 Show Commands
