@@ -167,7 +167,7 @@ Update target platform for Onie image platform configuration in onie image conf.
  - onie-image-arm64.conf for ARM64
 Onie platform config file will chosed based on the target platform 
  - platform/<TARGET_PLATFORM>/platform.conf
- THis platform.conf will be used b the onie installer script to install the onie image
+ platform.conf will be used by the onie installer script to install the onie image
 Onie Installer scripts
  - installer/x86_64/install.sh 
  - installer/arm64/install.sh
