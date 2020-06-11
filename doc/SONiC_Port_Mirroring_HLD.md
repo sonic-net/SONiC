@@ -348,31 +348,48 @@ Max mirror sessions supported are silicon specific.
 
 ## 9.1 CLI Test Cases
 
-    1. Configure ERSPAN mirror session and verify all parameters are updated properly in CONFIG_DB 
-    2. Configure SPAN mirror session and verify all parameters are updated properly in CONFIG_DB.
-    3. Unconfigure ERSPAN/SPAN mirror sessions and check that it is updated in CONFIG_DB.
-    4. Execute the show mirror session command to check the mirroring configuration.·
-    5. Verify that the mirror configurations are correctly re-applied after cold reboot.
-    6. Verify mirror session goes to in-active state when source port-channel has no members.
-    7. Verify mirror session goes to active state when source port-channel has atleast one active member.
+This feature comes with a full set of virtual switch tests in SWSS.
+| S.No | Test case synopsis                                                                                                                      |
+|------|-----------------------------------------------------------------------------------------------------------------------------------------|
+|  1   | Verify that session with only destination port can be created.                                                                          |
+|  2   | Verify that session becomes active with single source, destination, direction.                                                          |
+|  3   | Verify that session becomes active with multiple source ports.                                                                          |
+|  4   | Verify that session becomes active with policer and destination port.                                                                   |
+|  5   | Verify that session becomes active with source, destination, policer , queue config.                                                    |
+|  6   | Verify that session becomes active with multiple source, different policer config.                                                      |
+|  7   | Verify that session becomes active with LAG as source port.                                                                             |
+|  8   | Verify that mirror config on LAG ports gets deleted when member port is deleted from LAG.                                                            |
+|  9   | Verify that session can be created with multiple source ports and LAG ports.                                                            |
+| 10   | Verify that ERSPAN session can be created with source ports.                                                                            |
+| 11   | Verify that ERSPAN session becomes active when next hop is reachable and source port will be configured with mirror config.             |
+| 12   | Verify that ERSPAN session with next hop on VLAN and source port will be configured with mirror config.                                 |
+| 13   | Verify that ERSPAN session with next hop on LAG and source ports will be configured with mirror config.                                 |
+| 14   | Verify that ERSPAN session with next hop on LAG and source port as LAG.                                                                 |
+| 15   | Verify that mirror config on source LAG gets deleted when destination IP is not reachable.                                              |
+| 16   | Verify that mirror config on source LAG gets deleted when destination IP on LAG becomes not reachable.                                  |
+| 17   | Verify that ERSPAN mirror config on source LAG gets deleted when port is removed from portchannel                                       |
+| 18   | Verify that rx/tx/both directions in SPAN mirror session.                                                                               |
+| 19   | Verify that rx/tx/both directions in ERSPAN mirror session.                                                                             |
 
-## 9.2 Rest API Test Cases
-    8. Verify SPAN/ERSPAN mirroring can be configured via REST.
-    9. Verify SPAN/ERSPAN mirroring can be un-configured via REST.
 
-## 9.3 Functional Test Cases
-    10. Verify that traffic on source port gets mirrored to destination port.
-    11. Verify that traffic on source port-channel gets mirrored to destination port.
-    12. Verify that traffic on source port/port-channel gets mirrored properly with proper Erspan session.
-    13. Verify all existing test-cases of ERSPAN works properly.
+Sample virtual switch test outputs captured below.
 
-## 9.4 Scaling Test Cases
-    14. Configure max mirror sessions and verify that all are working properly.
+```
+platform linux2 -- Python 2.7.13, pytest-4.6.2, py-1.8.1, pluggy-0.13.1 -- /usr/bin/python
+cachedir: .pytest_cache
+rootdir: /home/brcm/tests
+collected 12 items
 
-## 9.5 Warm Boot Test Cases
-    15. Verify that mirroring configurations are restored after warm boot.·
-    16. Verify that mirroring continues to work across warm boot.
-
-## 9.6 Negative Test Cases
-    17. Verify that mirror configuration throws error with invalid interface or direction.
-    18. Verify that mirror configuration throws error with already configured session.
+test_mirror_port_erspan.py::TestMirror::test_PortMirrorERSpanAddRemove PASSED                                                                                                                                                          [  8%]
+test_mirror_port_erspan.py::TestMirror::test_PortMirrorToVlanAddRemove PASSED                                                                                                                                                          [ 16%]
+test_mirror_port_erspan.py::TestMirror::test_PortMirrorToLagAddRemove PASSED                                                                                                                                                           [ 25%]
+test_mirror_port_erspan.py::TestMirror::test_PortMirrorDestMoveVlan PASSED                                                                                                                                                             [ 33%]
+test_mirror_port_erspan.py::TestMirror::test_PortMirrorDestMoveLag PASSED                                                                                                                                                              [ 41%]
+test_mirror_port_erspan.py::TestMirror::test_LAGMirrorToERSPANLagAddRemove PASSED                                                                                                                                                      [ 50%]
+test_mirror_port_span.py::TestMirror::test_PortMirrorAddRemove PASSED                                                                                                                                                                  [ 58%]
+test_mirror_port_span.py::TestMirror::test_PortMirrorMultiSpanAddRemove PASSED                                                                                                                                                         [ 66%]
+test_mirror_port_span.py::TestMirror::test_PortMirrorPolicerAddRemove PASSED                                                                                                                                                           [ 75%]
+test_mirror_port_span.py::TestMirror::test_PortMirrorPolicerMultiAddRemove PASSED                                                                                                                                                      [ 83%]
+test_mirror_port_span.py::TestMirror::test_PortMirrorPolicerWithAcl PASSED                                                                                                                                                             [ 91%]
+test_mirror_port_span.py::TestMirror::test_LAGMirorrSpanAddRemove PASSED                                                                                                                                                               [100%]
+```
