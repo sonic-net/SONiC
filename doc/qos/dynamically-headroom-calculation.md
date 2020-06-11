@@ -351,7 +351,8 @@ This table is introduced to store the maximum value of parameters regarding buff
 The key should be switch chip model name in captical letters.
 
 ```schema
-    key                 = BUFFER_MAX_PARAM|<vendor name>    ; There should be only one entry in this table.
+    key                 = BUFFER_MAX_PARAM|<global|port>    ; when key is global, it should contain mmu_size.
+                                                            ; when key is port name, it should contain max_headroom_size.
     mmu_size            = 1*9DIGIT                  ; Total avaiable memory a buffer pool can occupy
     max_headroom_size   = 1*6DIGIT                  ; Optional. The maxinum value of headroom size a physical port can have.
                                                     ; The accumulative headroom size of a port should be less than this threshold.
@@ -530,15 +531,15 @@ An example of mandatory entries on Mellanox platform:
 
 Table BUFFER_PG contains the maps from the `port, priority group` tuple to the `buffer profile` object.
 
-Currently, there already are some fields in `BUFFER_PG` table. In this design, the field `headroom_type` is newly introduced, indicating whether the `profile` are dynamically calculated.
+Currently, there already are some fields in `BUFFER_PG` table. In this design, the field `profile` can be optional. Not providing this field means the `profile` needs to be dynamically calculated.
 
 ##### Schema
 
 ```schema
     key             = BUFFER_PG|<name>
     profile         = reference to BUFFER_PROFILE object
-                                            ; When headroom_type of the profile is "static", the profile should contains all headroom information.
-                                            ; When it's "dynamic", the profile should only contain dynamic_th and all other headroom information should by dynamically calculated.
+                ; When headroom_type of the profile is "static", the profile should contains all headroom information.
+                ; When it's "dynamic", the profile should only contain dynamic_th and all other headroom information should by dynamically calculated.
 ```
 
 ##### Initialization
@@ -996,7 +997,7 @@ The `length` stands for the length of the cable connected to the port. It should
 The following command is used to configure the cable length of Ethernet0 as 10 meters.
 
 ```cli
-sonic#config interface cable_length Ethernet0 10
+sonic#config interface cable_length Ethernet0 10m
 ```
 
 ### To display the current configuration
