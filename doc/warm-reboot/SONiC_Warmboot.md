@@ -147,7 +147,7 @@ Upon failure of warm restart, fallback mechanism to cold restart should be avail
 
 ###	Remove stale date and perform new update
 
-`a.`	Based on the individual behavior of each network application, it either reads data from configDB, or get data from other sources like Linux kernel( ex. for port, ARP) and BGP protocal, then programs APPDB again. It keeps track of any stale data for removal.
+`a.`	Based on the individual behavior of each network application, it either reads data from configDB, or get data from other sources like Linux kernel( ex. for port, ARP) and BGP protocol, then programs APPDB again. It keeps track of any stale data for removal.
 Orchagent consumes the request from APPDB.
 
 `b.` Orchagent restores data from APPDB for applications running in other dockers like BGP and teamd to be able to handle the case of swss only restart, and ACL data from configDB. Orchagent ensures idempotent operation at LibSaiRedis interface via not passing down any create/remove/set operations on objects that had been performed before.
