@@ -5,7 +5,7 @@ code-coverage-rate-hld
 This document provides the high level design for code coverage rate testing.
 
 # Problem Definition
-Code coverage rate is the term used in code testing in Ruijie commercial switch for years. It is the rate of the number of code lines has been executed divied by the number of total code lines in switch operating system. We reuse this term in SONiC code testing and create some related tools for SONiC code testing.
+Code coverage rate is the term used in code testing in Ruijie commercial switch for years. It is the rate of the number of code lines has been executed divide by the number of total code lines in switch operating system. We reuse this term in SONiC code testing and create some related tools for SONiC code testing.
 
 # Ruijie's Solution
 Ruijie use the Gcov tools to measure the code coverage rate in its commercial switch and white box switch. We create the Linux scripts for Gcov compiling, Gcov data collect, and Gcov data show functions for SONiC. A GCOV\_ENABLE compiling tag is provided for SONiC code project. And we integrate all these Gcov functions into Jenkins CICD system. Our solution is a complete tool set for code coverage rate for SONiC. 
