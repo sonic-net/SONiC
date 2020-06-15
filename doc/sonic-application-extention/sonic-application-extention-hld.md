@@ -1,0 +1,974 @@
+<!-- omit in toc -->
+# SONiC Application Extension Infrastructure
+
+<!-- omit in toc -->
+#### Rev 0.1
+
+<!-- omit in toc -->
+## Table of Content
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitionsabbreviations)
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Architecture Design](#architecture-design)
+- [High-Level Design](#high-level-design)
+- [SONiC Package](#sonic-package)
+- [Essential SONiC Packages](#essential-sonic-packages)
+- [SONiC Package Management](#sonic-package-management)
+- [SONiC Package Database](#sonic-package-database)
+- [SONiC Base Image and Packages Versioning](#sonic-base-image-and-packages-versioning)
+- [Configuration and management](#configuration-and-management)
+- [SONiC Package Installation Flow](#sonic-package-installation-flow)
+- [SONiC Package Uninstallation Flow](#sonic-package-uninstallation-flow)
+- [SONiC Package Upgrade Flow](#sonic-package-upgrade-flow)
+- [Manifest File](#manifest-file)
+- [SONiC Package Docker Container Lifetime](#sonic-package-docker-container-lifetime)
+- [Initial Extension Configuration](#initial-extension-configuration)
+- [CLI extension](#cli-extension)
+- [SONiC Processes and Docker Statistics Telemetry Support](#sonic-processes-and-docker-statistics-telemetry-support)
+- [Monit Configuration](#monit-configuration)
+- [Feature Concept Integration](#feature-concept-integration)
+- [Multi-DB support](#multi-db-support)
+- [Configuration Reload](#configuration-reload)
+- [System Dump](#system-dump)
+- [SONiC-2-SONiC upgrade](#sonic-2-sonic-upgrade)
+- [Multi-ASIC](#multi-asic)
+- [Kubernetes & SONiC Application Extension](#kubernetes--sonic-application-extension)
+- [SONiC Build System](#sonic-build-system)
+- [SAI API](#sai-api)
+- [Restrictions/Limitations](#restrictionslimitations)
+- [Testing Requirements/Design](#testing-requirementsdesign)
+- [Open/Action items](#openaction-items)
+
+<!-- omit in toc -->
+## List of Figures
+- [Figure 1. Basic Concepts](#figure-1-basic-concepts)
+- [Figure 2. High Level Overview of SONiC Package integration](#figure-2-high-level-overview-of-sonic-package-integration)
+- [Figure 3. SONiC Package Installation Flow](#figure-3-sonic-package-installation-flow)
+- [Figure 4. SONiC Package Uninstallation Flow](#figure-4-sonic-package-uninstallation-flow)
+- [Figure 5. SONiC Package Upgrade Flow](#figure-5-sonic-package-upgrade-flow)
+- [Figure 6. Feature Start Sequence Diagram](#figure-6-feature-start-sequence-diagram)
+- [Figure 7. Feature Stop Sequence Diagram](#figure-7-feature-stop-sequence-diagram)
+
+### Revision
+
+| Rev |     Date    |       Author            | Change Description                   |
+|:---:|:-----------:|:-----------------------:|--------------------------------------|
+| 0.1 | 09/2020     | Stepan Blyshchak        | Phase 1 Design                       |
+
+### Scope
+
+This document describes the high level design of SONiC Application Extension Infrastructure.
+
+### Definitions/Abbreviations
+
+| **Abbreviation**         | **Definition**                         |
+|--------------------------|----------------------------------------|
+| SONiC                    | Software for Open Networking in Cloud  |
+| DB                       | Database                               |
+| API                      | Application Programming Interface      |
+| SAI                      | Switch Abstraction Interface           |
+| YANG                     | Yet Another Next Generation            |
+| JSON                     | Java Script Object Notation            |
+| XML                      | eXtensible Markup Language             |
+| gNMI                     | gRPC Network Management Interface      |
+
+### Overview
+
+<!-- omit in toc -->
+#### Feature Overview
+
+SONiC Application Extension Infrastructure is a SONiC infrastructure and framework for managing SONiC Application Packages which in this scope are
+SONiC compatible Docker images distributed individually from one another and from the base SONiC image.
+
+<!-- omit in toc -->
+#### Motivation
+
+SONiC NOS was built with extendability in mind. The key role here play the fact that the main building block of SONiC is Docker.
+Every SONiC functionality piece is packaged inside a Docker image which then is run on a SONiC box. As of today, SONiC comes with a set
+of Docker containers that are built-in into SONiC image, limiting users to a predefined functionality that is supported by SONiC.
+The end goal of this proposal is to achieve building a system which makes it possible to extend SONiC base set of features at runtime
+without a need to upgrade the whole SONiC OS.
+
+We are going to leverage the existing Docker and Docker registry infrastructure and build SONiC Application Extension framework on top of it.
+While Docker provides a tool for packaging an application and Docker registry for hosting it, it is not enough to just execute "docker pull"
+to make an application "look and feel" like a native SONiC application.
+
+SONiC Application Extension framework aims at making the process of development and integration of 3-rd party applications with a native
+integration into SONiC. For that we need to provide SONiC Application Extension Infrastructure with the API to connect every 3rd party application
+with SONiC native infrastructure, like access to the database, SAI ASIC programming interface, sonic utility CLI, Klish based CLI, REST API,
+gNMI, logging infrastructure, warm and fast restarts, etc.
+
+When SONiC Application Extension infrastructure will become a part of SONiC, application developer will not have to integrate every application
+into SONiC codebase but maintain them separately. This follows all the popular Linux distributions that allow for installation of external applications.
+
+### Requirements
+
+<!-- omit in toc -->
+#### Functional requirements
+
+This section describes a list of requirements for both SONiC Application Extension Infrastructure.
+
+The following list of requirements has to be met for SONiC Application Extension Infrastrcuture:
+- SONiC OS must provide a CLI to manage SONiC repositories and packages.
+  This includes package installation, uninstallation,
+  both cold and warm upgrades as well as adding and removing repositories.
+- Definition for a SONiC compatible Docker image and metadata a this Docker image must provide.
+- Versioning schema and a mechanism to control package dependencies and conflicts.
+- All SONiC packages are registered as an optional *feature* in SONiC, thus "feaute"
+  CLI commands are applicable to SONiC Packages.
+- Application upgrades: container level upgrade and system level upgrade - SONiC-2-SONiC upgrade.
+- SONiC utilities CLI extension mechanism.
+- Resource sharing with SONiC Package container: redis database, syslog, Linux resources etc.
+- Build infrastructure and tools for easier package development.
+
+### Architecture Design
+
+This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
+This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture.
+
+### High-Level Design
+
+<!-- omit in toc -->
+### Basic concepts
+
+Basic definitions:
+
+*SONiC Package* - SONiC compatible Docker image providing its functionality as a service<br>
+*SONiC Package Repository* - store of SONiC compatible Docker images that can be referenced by a tag<br>
+*Docker Registry* - a storage and content delivery system, holding named Docker images, available in different tagged versions
+
+<!-- omit in toc -->
+###### Figure 1. Basic Concepts
+
+<p align=center>
+<img src="img/docker-infra-concepts.svg" alt="Figure 1. Basic Concepts">
+</p>
+
+There are three notions: *package*, *repository* and *registry*. A repository is a Docker registry (private or open like Docker Hub)
+repository with tagged images for specific package.
+
+In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are repositories with a set of images tagged using a version number.
+
+### SONiC Package
+
+SONiC Packages must meet few requirements in order to be a SONiC compatible Docker image.
+- Package must provide a *manifest* file that is used to tell SONiC Application Extension Infrastructure how to integrate
+the package with the rest of the SONiC.
+- Applications running inside container have to support *CONTAINER_FEATURE* CONFIG DB configuration as well as container
+auto-restart functionality on critical process death. As this feature is implemented as part of the Docker container and not
+the host OS the infrastructure does not enforce such functionality. However, this is not a hard requirement for a package.
+The feature will correctly work if such functionality is missing, rather it is advised in order to be align with the behaviour
+of other containers.
+- Any other requirement for the Docker container demanded by SONiC must be met.
+  (e.g. container state recording
+  [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md))
+
+Manifest file must exists in a stardart location so that the manifest is easially discoverable by the infrastructure.
+The path chosen for the manifest file is */var/lib/sonic-package/manifest.json* placed in Docker image.
+Arbitrary Docker images require a modification or a layer on top which adds a manifest file.
+
+<!-- omit in toc -->
+###### Figure 2. High Level Overview of SONiC Package integration
+
+<p align=center>
+<img src="img/sonic-package-integration.svg" alt="Figure 2. High Level Overview of SONiC Package integration">
+</p>
+
+The idea is to auto-generate most of the components on the host OS based on *manifest.json* file provided by SONiC Package.
+
+The scope of this document is limited to SONiC compatible Docker images only.
+
+### Essential SONiC Packages
+
+Every SONiC Docker image can be converted to be a SONiC Package, although it is naturally to expect that SONiC OS comes with a set of Docker images
+pre-installed. Those Docker images are considered to be essential. Like a debian essential package, SONiC essential package cannot be removed from the
+system. Besides, this will allow for a smooth transition of SONiC Docker images into SONiC packages by marking all of the existing Docker images as
+essential and then removing essential flag for images that became a SONiC packages.
+
+The following list enumerates essential Docker containers:
+- database
+- syncd
+- swss
+- pmon
+
+Those containers do not provide an individual feature, monitoring service or networking protocol implementation but rather are required
+to run other features.
+
+### SONiC Package Management
+
+As any mature OS distribution SONiC will use its own package management solution and provide a utility to manage packages.
+SONiC Package Manager will use a persistent storage for its purposes at */var/lib/sonic-packages/* on the host OS.
+There are *packages.json* file as well as a directory per each SONiC package with a package metadata. A database will have the following structure:
+
+```
+/
+  var/
+    lib/
+      sonic-packages/
+        packages.json
+        snmp/
+        lldp/
+        dhcp-relay/
+```
+<!-- omit in toc -->
+###### Example directory strcuture of SONiC Package Manager library
+
+A locking mechanism will be used in order to make a package operation (installation, de-installation, upgrades) atomic.
+For this a lock file */var/lib/sonic-packages/lock* will be created on every operation and released once operation is completed
+to guaranty that the database won't become broken if two write operations are performed at the same time.
+
+### SONiC Package Database
+
+The */var/lib/sonic-packages/packages.json* file is used as a persistent database of available SONiC packages.
+Schema definition for *packages.json* file is following:
+
+Path                     | Type               | Description
+------------------------ | ------------------ | -------------------------------------------
+/name                    | string             | Name of the package.
+/name/repository         | string             | Repository in Docker registry or a local image reference.
+/name/description        | string             | Application description field.
+/name/default-version    | string             | A tag which points to a package that will be a default installation candidate if not specified.
+/name/essential          | boolean            | A flag if a SONiC package is an essential package.
+/name/status             | string             | Status indicate the installation status of the package. It is either "installed" or "not-installed".
+/name/installed-version  | string             | Installed version string.
+
+
+A sample of the content in JSON format:
+
+```json
+{
+  "database": {
+    "repository": "docker-database",
+    "description": "SONiC database service",
+    "essential": true,
+    "default-version": "1.0.0",
+    "status": "installed",
+    "installed-version": "1.0.0"
+  },
+  "swss": {
+    "repository": "docker-orchagent",
+    "description": "SONiC switch state service",
+    "essential": true,
+    "default-version": "1.0.0",
+    "status": "installed",
+    "installed-version": "2.0.1"
+  },
+  "cpu-report": {
+    "repository": "Azure/sonic-dhcp-relay",
+    "description": "DHCP relay feature",
+    "default-version": "1.0.0",
+    "status": "not-installed"
+  },
+  "featureXXX": {
+    "repository": "Azure/sonic-snmp",
+    "description": "Simple Network Monitoring Protocol",
+    "default-version": "1.0.0",
+    "status": "installed",
+    "installed-version": "1.0.0"
+  }
+}
+```
+
+The initial *packages.json* that comes with SONiC image is auto-generated at build time. The *packages.json* will include every
+SONiC package installed at built time and have the installation status set. Besides of the packages that were built-in to SONiC
+OS at built time the *packages.json* also includes the repositories that are available for users to install. E.g. a DHCP relay
+feature may not come with SONiC by default, but the user will have a corresponding entry for DHCP relay package in *packages.json*
+which user can install.
+
+Once a Docker becomes a SONiC package, user will have two options:
+
+- SONiC build system will be extended with a build parameter "INCLUDE_$PACKAGE=y|n". If this parameter is set to "y", a package will be
+installed in SONiC image filesystem during build time.
+- If the "INCLUDE_$PACKAGE" is set to "n", the target is not installed, but compiled into Docker Image and published to Docker Hub by CI for
+users to install the package on a running switch. For that, the reference to the package will be added into *packages.json*.
+
+### SONiC Base Image and Packages Versioning
+
+Most of the SONiC Packages will depend on SONiC base OS API and on other SONiC packages API. Every mature package management solution provides
+a set of agreements on how packages versioning should be done to avoid potential incompatibilities.
+
+This documents proposes to use [semantic versioning](https://semver.org/) which is used for many package management solutions.
+
+The schema for version is in the format of *\${MAJOR}.\${MINOR}.\${PATCH}* version. Semantic versioning can also include a suffix for pre-release
+identifiers and build id, like *1.0.0-dev+153*, that can be used for master branch builds. Such a schema allows for a simple logic for comparison,
+e.g: *1.0.0 < 1.1.0* and *1.5.1 > 1.4.20*. For more details of comparison rules follow the reference above.
+
+The base OS has also have a version number that follows the same rules of semantic versioning so that a package can define a dependency on
+base OS version. A new variable is introduced in */etc/sonic/sonic_version.yml* called "sonic_compatibility_version" that follows semantic
+versioning schema. This version is in addition to SONiC version we have today.
+
+This version number does not replace the current SONiC version string that is generated during the build so both SONiC version string and
+SONiC compatibility version coexist. SONiC compatibility version can be updated independently from SONiC version.
+
+The updated output of "show version" command is given below:
+
+```
+admin@sonic:~$ show version
+
+SONiC Software Version: SONiC.master.0-7580c846
+SONiC Compatibility Version: 1.0.0
+Distribution: Debian 9.13
+Kernel: 4.9.0-11-2-amd64
+Build commit: 7580c846
+Build date: Sat Sep 26 04:17:56 UTC 2020
+Built by: johnar@jenkins-worker-8
+...
+```
+
+For SONiC containers available in *sonic-buildimage* repository the corresponding makefile is modified to include a version string:
+
+rules/docker-dhcp-relay.mk
+```makefile
+$(DOCKER_DHCP_RELAY)_VERSION = 1.0.0
+```
+
+This version is used to tag a Docker image when installing SONiC package in SONiC OS at build-time or publishing SONiC package.
+
+The versioning of the package is a responsibility of the package maintainer. The exact rules of how the versioning is done when
+branching, publishing new images is out of the scope of this document.
+
+### Configuration and management
+
+N/A (TODO)
+
+<!-- omit in toc -->
+#### CLI Enhancements
+
+The SONiC Package Manager is another executable utility available in base SONiC OS called *sonic-package-manager-manager* or abbreviated to *spm*.
+The command line interfaces are given bellow:
+
+<!-- omit in toc -->
+#### CLI
+
+```
+admin@sonic:~$ sonic-package-manager-manager
+Usage: sonic-package-manager [OPTIONS] COMMAND [ARGS]...
+
+  CLI to manage SONiC application packages
+
+Options:
+  --help  Show this message and exit
+
+Commands:
+  add         Add a new package to package database.
+  remove      Remove a package from package database.
+  list        List packages available in SONiC.
+  show        Show SONiC package Info.
+  install     Install SONiC package from repository.
+  upgrade     Upgrade SONiC package.
+  uninstall   Uninstall SONiC package.
+```
+
+```
+admin@sonic:~$ sonic-package-manager-manager show
+Usage: sonic-package-manager [OPTIONS] COMMAND [ARGS]...
+
+  Show SONiC package Info.
+
+Options:
+  --help  Show this message and exit
+
+Commands:
+  manifest    Print package manifest
+  changelog   Print package changelog.
+```
+
+<!-- omit in toc -->
+#### List of packages available
+```
+admin@sonic:~$ sonic-package-manager list
+Name         Repository             Description              Version        Status
+-----------  ---------------------  ------------------------ ------------   --------------
+database     docker-database        SONiC database           1.0.0          Essential
+swss         docker-orchagent       Switch state service     1.0.0          Essential
+syncd        docker-syncd-vs        SONiC ASIC sync service  1.0.0          Essential
+cpu-report   Azure/cpu-report       CPU time report feature  1.0.5          Installed
+dhcp-relay   Azure/dhcp-relay       DHCP relay service       N/A            Not installed
+```
+
+<!-- omit in toc -->
+#### Repository management
+
+```
+admin@sonic:~$ sudo sonic-package-manager add [NAME] [REPOSITORY] --description=[STRING] --default-version=[STRING]
+admin@sonic:~$ sudo sonic-package-manager remove [NAME]
+```
+
+<!-- omit in toc -->
+#### Package Installation
+
+```
+admin@sonic:~$ sudo sonic-package-manager install cpu-report
+```
+
+Install a specific tag:
+```
+admin@sonic:~$ sudo sonic-package-manager install cpu-report==1.0.0
+```
+
+Optionally specifying a version after package name separated by a '==' in CLI allows user to install any version of extension.
+
+For developer convenience or for unpublished SONiC packages,it is possible to install the extension from a Docker image tarball.
+
+```
+admin@sonic:~$ ls featureA.gz
+featureA.gz
+admin@sonic:~$ sudo sonic-package-manager install featureA.gz
+```
+
+This option should mainly be used for debugging, developing purpose, while the preferred way will be to pull the image from repository.
+Package Database is updated with a "repository" field set to local image name.
+
+An option to skip all dependency checks and force the installation:
+
+```
+admin@sonic:~$ sudo sonic-package-manager install --force feature
+```
+
+*show version* command can be used to display feature docker image version.
+
+<!-- omit in toc -->
+#### Package Upgrade
+
+The command line example for package upgrade:
+```
+admin@sonic:~$ sudo sonic-package-manager upgrade <package>==1.5.1
+```
+
+The the new package is downloaded and installed, the package service is stopped and restarted, an old Docker image is removed.
+
+For a feature that supports warm upgrade:
+```
+admin@sonic:~$ sudo config warm-restart enable <package>
+admin@sonic:~$ sudo sonic-package-manager upgrade <package>===1.5.1
+```
+
+*NOTE*: SONiC already supports docker containers warm upgrade to some extent by sonic-installer utility's "upgrade-docker" sub-command.
+This command will be deprecated and replaced by "sonic-package-manager" functionality.
+
+<!-- omit in toc -->
+#### Config DB Enhancements
+
+No CONFIG DB changes required for this feature.
+
+
+### SONiC Package Installation Flow
+
+An installation process has to verify all requirements are met. First check to perform is a SONiC base image version match.
+The package manager has to build the dependency tree and verify all dependent packages are installed version requirements
+are met and the package that is about to be installed does not break any other package or any installed package does not
+break the package that is going to be installed.
+
+The package manager currently won't try to install missing packages or resolve dependency conflicts but give the user an
+appropriate error message.
+
+*NOTE*: SONiC package manager does not maintain two different versions at the same time. So, only single version of the package
+can be installed at any given time. The behavior might be changed if the need to have different installed versions and
+choose which one to run will arise.
+
+<!-- omit in toc -->
+###### Figure 3. SONiC Package Installation Flow
+
+<p align=center>
+<img src="img/install-flow.svg" alt="Figure 3. SONiC Package Installation Flow">
+</p>
+
+### SONiC Package Uninstallation Flow
+
+<!-- omit in toc -->
+###### Figure 4. SONiC Package Uninstallation Flow
+
+<p align=center>
+<img src="img/uninstall-flow.svg" alt="Figure 4. SONiC Package Uninstallation Flow">
+</p>
+
+### SONiC Package Upgrade Flow
+
+The upgrade scenario is different from sequential uninstall and install operations. In order to minimize service downtime,
+the image pulling and templates rendering has to be done while the old container is running. Also, it might be that the old
+container auto-generated container management scripts are incompatible with the new one and vice verse. So we need to stop
+the old container using old auto-generated service file and container management scripts, then replace the old scripts with
+new one and start the service. The sequence is shown on the figure below:
+
+<!-- omit in toc -->
+###### Figure 5. SONiC Package Upgrade Flow
+
+<p align=center>
+<img src="img/upgrade-flow.svg" alt="Figure 5. SONiC Package Upgrade Flow">
+</p>
+
+### Manifest File
+
+Every SONiC Package that is not an essential package must provide a *manifest.json* file in image filesystem under */var/lib/sonic-package/manifest.json*.
+The following table describes schema for version 1.0.0:
+
+Path                              | Type                  | Mandatory   | Description
+--------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
+/version                          | string                | yes         | Version of manifest file definition.
+/package                          | object                | no          | Package related metadata information.
+/package/depends                  | list of strings       | no          | List of SONiC packages the service depends on in the format \<package\>:[>\|>=\|==\|<\|<=]\<version\>. E.g. "swss:\>1.4.1".
+/package/breaks                   | list of strings       | no          | List of SONiC package the service breaks in the format \<package\>:[>\|>=\|==\|<\|<=]\<version\>. E.g. "featureX:\<=1.1.0".
+/package/sonic-version            | string                | no          | SONiC base image version dependency in the format [>\|>=\|==\|<\|<=]\<version\>. E.g. "\>=1.1.0".
+/package/changelog                | string                | no          | A path to a file relatively to manifest file that contains a human readably changelog file that will be displayed to the user.
+/package/init-config              | string                | no          | Path to SONiC Application Extension Package initial configuration JSON file relatively to manifest file.<p>This configuration will be appendend to running and boot configuration during installation.
+/package/debug-dump               | string                | no          | A command to be executed during system dump.<p>This field tells the system what to do if user requests "show techsupport" information.
+/service/                         | object                | yes         | Service management related properties.
+/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "breaks".
+/service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
+/service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
+/service/dependent-of             | lits of strnigs       | no          | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list.
+/service/peer                     | strnigs               | no          | The service that is defined as a peer for this package service.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and set the "PEER" variable. The peer is started, stopped, restarted togather with the current service.<p>Example:<p>"syncd" is set as a peer for "swss".
+/service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
+/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start before on system boot.
+/service/warm-shutdown/           | object                | no          | Warm reboot related properties. Used to generate the warm-reboot script.
+/service/warm-shutdown/after      | lits of strings       | no          | Warm shutdown order dependency. List of SONiC services the application is set to stop after on warm shutdown.<p>Example: a "bgp" may specify "radv" in this field in order to avoid radv to announce departure and cause hosts to lose default gateway.<p>*NOTE*: Putting "radv" here, does not mean the "radv" should be installed as there is no such dependency for the "bgp" package.
+/service/warm-shutdown/before     | lits of strings       | no          | Warm shutdown order dependency. List of SONiC services the application is set to stop before on warm shutdown.<p>Example: a "teamd" service has to stop before "syncd", but after "swss" to be able to send the last LACP PDU though CPU port right before CPU port becomes unavailable.
+/service/fast-shutdown/           | object                | no          | Fast reboot related properties. Used to generate the fast-reboot script.
+/service/fast-shutdown/after      | lits of strings       | no          | Same as for warm-shutdown.
+/service/fast-shutdown/before     | lits of strings       | no          | Same as for warm-shutdown.
+/service/post-start-action        | string                | no          | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.
+/service/pre-stop-action          | string                | no          | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.
+/service/host-namespace           | boolean               | yes         | Multi-ASIC field. Wether a service should run in host namespace. Mandatory field.
+/service/asic-namespace           | boolean               | yes         | Multi-ASIC field. Wether a service should run per ASIC namespace. Mandatory field.
+/container/                       | object                | no          | Container related properties.
+/container/privileged             | string                | no          | Start the container in privileged mode. Later versions of manifest might extend container properties to include docker capabilities instead of privileged mode.
+/container/volumes                | list of strings       | no          | List of mounts for a container. The same syntax used for '-v' parameter for "docker run".<p>Example: "\<src\>:\<dest\>:\<options\>".
+/processes/                       | list                  | no          | A list defining processes running inside the container.
+/processes/name                   | string                | yes         | Process name.
+/processes/name/critical          | boolean               | no          | Wether the process is a critical process. Defaults to False.
+/processes/name/autorestart       | boolean               | no          | Autorestart by controlled by supervisord. Defaults to False.
+/processes/name/command           | string                | yes         | Command to run the process.
+/processes/name/start-depends     | string                | no          | Format of "\<process-name\>:\<state\>".
+/processes/name/reconciles        | boolean               | no          | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
+/cli                              | object                | no          | CLI plugin infromation. *NOTE*: Later will deprecated and replaced with a YANG module file path.
+/cli/show-cli-plugin              | string                | no          | A path to a plugin for sonic-utilities show CLI command.
+/cli/config-cli-plugin            | string                | no          | A path to a plugin for sonic-utilities config CLI command.
+/cli/clear-cli-plugin             | string                | no          | A path to a plugin for sonic-utilities sonic-clear CLI command.
+
+A required "version" field can be used in case the format of manifest.json is changed in the future.
+In this case a migration script can be applied to convert format to the recent version.
+This is similar to approach SONiC uses for CONFIG DB version.
+
+### SONiC Package Docker Container Lifetime
+
+Container lifetime in SONiC is currently controled by systemd. The current SONiC design for container management consists of a
+service unit, a container management script */usr/bin/\<feature\>.sh* and optionally */usr/local/bin/\<feature\>.sh*.Those two
+scripts and a service unit file will be autogenerated during SONiC Package installation. The information needed for them to be
+autogenerated is defined in the manifest file of a package.
+
+The relation between those scripts is shown in the below two figures in high level:
+
+<!-- omit in toc -->
+#### Feature Start Sequence Diagram
+
+
+<!-- omit in toc -->
+###### Figure 6. Feature Start Sequence Diagram
+
+<p align=center>
+<img src="img/feature-start.svg" alt="Figure 6. Feature Start Sequence Diagram">
+</p>
+
+
+<!-- omit in toc -->
+#### Feature Stop Sequence Diagram
+
+
+<!-- omit in toc -->
+###### Figure 7. Feature Stop Sequence Diagram
+
+<p align=center>
+<img src="img/feature-stop.svg" alt="Figure 7. Feature Stop Sequence Diagram">
+</p>
+
+<!-- omit in toc -->
+##### *feature*.service
+
+The service unit file defines a dependency relation between different units and start/stop ordering between them.
+The template for creating service files will be placed at */usr/share/sonic/templates/service.j2*. The manifest fed
+through this template outputs a systemd service file with all the unit properties set according to the package's
+manifest file.
+
+<!-- omit in toc -->
+##### /usr/local/bin/*feature*.sh
+
+The script under */usr/local/bin/* has two feature specific use cases. In case when the feature requires to execute specific
+container lifecycle actions the code to be executed after the container has started and before the container is going down
+is executed within this script. SONiC package manifest includes two data nodes - */service/post-start-action* and
+*/service/pre-shutdown-action*. This node is of type string and the value is the path to an executable to execute within
+Docker container. Note, *post-start-action* does not guaranty that the action will be executed before or after a the container
+ENTRYPOINT is started.
+
+Example of container lifecycle hook can apply to a database package. A database systemd service should not reach started state
+before redis process is ready otherwise other services will start but fail to connect to the database. Since, there is no control
+when the redis process starts a *post-start-action* script may execute "sonic-db-cli ping" till the ping is succeessful.
+This will ensure that service start is blocked till the redis service is up and running.
+
+The *pre-shutdown-action* might be usefull to execute a specific action to prepare for warm reboot. For example, teamd script that sends
+SIGUSR1 to teamd to initiate warm shutdown. Note, the usage of the pre-shutdown action is not limited to warm restart and is invoked every
+time the container is about to be stopped or killed.
+
+Another use cases is to manage coldboot-only dependent services by conditionally starting and stopping dependent services based on the
+warm reboot configuration flag. For example, a DHCP relay service is a coldboot-only dependent service of swss service, thus a warm restart
+of swss should not restart DHCP relay, on the other hand a cold restart of swss must restart DHCP relay service.
+
+The infrastructure is not deciding whether this script is needed for a particular package or not based on warm-reboot requirements or
+container lifetime hooks provided by a feature, instead this script is always generated and if no specific actions descirbed above
+are needed it becomes a simple wrapper around a script under /usr/bin/.
+
+Examples are [swss.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/swss.sh),
+[syncd.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/syncd.sh),
+[bgp.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/bgp.sh). These scripts
+share a good amount of code, thus making it possible to templatize into a single script that can be parametrized
+during generation according to feature needs - place lifecycle action hooks and dependent service management.
+
+Every service that the starting service requires should be started as well and stopped when a service is stopped but only if a service
+is doing a cold start. This means when a new package is installed it might affect the other scripts. So after all dependencies are known
+after installation all the service scripts under */usr/local/bin/* are re-generated.
+
+<!-- omit in toc -->
+##### /usr/bin/*feature*.sh
+
+The script under /usr/bin/ starts, stops or waits for container exit. This script is auto-generated during build time from
+[docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/4006ce711fa6545b0870186ffa05d4df24edb8b7/files/build_templates/docker_image_ctl.j2).
+To allow a runtime package installation, it is required to have this file as part of SONiC image and put it in
+*/usr/share/sonic/templates/docker_image_ctl.j2*. The Jinja2 template will accept three arguments, *docker_container_name*,
+*docker_image_name* and *docker_run_options*, which derive from the */container/* node from manifest file. Besides of options
+defined in the manifest, the following default are used to start container to allow container to access base SONiC resources,
+like database and syslog:
+
+```
+docker create {{ docker_run_options }}
+  --net=$NET \
+  --uts=host \
+  --log-opt max-size=2M --log-opt max-file=5 \
+  -v /var/run/redis$DEV:/var/run/redis:rw \
+  $REDIS_MNT \
+  -v /usr/share/sonic/device/$PLATFORM:/usr/share/sonic/platform:ro \
+  -v /usr/share/sonic/device/$PLATFORM/$HWSKU/$DEV:/usr/share/sonic/hwsku:ro \
+  --env "NAMESPACE_ID"="$DEV" \
+  --env "NAMESPACE_PREFIX"="$NAMESPACE_PREFIX" \
+  --env "NAMESPACE_COUNT"=$NUM_ASIC \
+  --name={{docker_container_name}}$DEV {{docker_image_name}}
+```
+
+### Initial Extension Configuration
+
+SONiC Package can provide an the initial configuration it would like to start with after installation.
+The JSON file will be loaded into running CONFIG DB and boot CONFIG DB file during installation.
+
+<!-- omit in toc -->
+###### Manifest file path
+
+Path                        | Type                  | Description
+--------------------------- | --------------------- | ----------------------------------------------------------------------------------------
+/package/init-cfg           | string                | Path to SONiC Extension Initial Configuration JSON file relatively to manifest file
+
+### CLI extension
+
+SONiC utilities support *show*, *config*, *sonic-clear* operations. A plugin approach is taken when extending those utilities.
+A common way to introduce a plugin support for a python application is to structure a plugin as a python module that can be
+discovered by the application in a well known location in the system.
+
+The proposed location is a package directory named *plugins* under each *show*, *config*, *sonic-clear* python package,
+so that by iterating modules inside those packages utilities can load them.
+This is implemented in a way defined in
+[Python Packaging Guide. Creating and discovering plugins](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages).
+
+A code snipped describing the approach is given:
+
+```python
+import show.plugins
+
+def iter_plugins_namespace(ns_pkg):
+    return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
+
+discovered_plugins = {
+    name: importlib.import_module(name)
+    for finder, name, ispkg
+    in iter_namespace(show.plugins)
+}
+```
+
+A plugin will register it's sub-commands so that any utility will have a new sub-command group.
+The SONiC package *can* provide a CLI plugin that will be installed into the right location during package
+installation and then discovered and loaded by CLI. Later, once YANG CLI auto-generation tool is ready,
+the plugin will be auto-generated and all command conflicts will be checked in advance during installation.
+
+In this approach it is easy to extend CLI with new commands, but in order to extend a command which is already
+implemented in sonic-utilities the code in sonic-utilities base has to be implemented in an extendable manner.
+
+<!-- omit in toc -->
+###### Example
+
+For dhcp-relay feature, it is needed to extend the CLI with a new sub-command for vlan, which is easily implemented
+by declaring a new sub-command:
+
+*show/plugins/dhcp_relay.py*:
+```python
+from show.vlan import vlan
+
+@vlan.command()
+def dhcp_relay():
+    pass
+```
+
+Extending an existing command like "show vlan brief" will require to rewrite it in an extandable way:
+
+*show/vlan.py*:
+```python
+class VlanBrief:
+    COLUMNS = [
+        ("VLAN ID", get_vlan_id),
+        ("IP address", get_vlan_ip_address),
+        ("Ports", get_vlan_ports),
+        ("Port Tagging", get_vlan_ports_tagging)
+    ]
+```
+
+*show/plugins/dhcp_relay.py*
+```python
+
+def get_vlan_dhcp_relays(vlan):
+    pass
+
+VlanBrief.COLUMNS.append(("DHCP Helper Address", get_vlan_dhcp_relays))
+```
+
+NOTE: In this approach or in approach with auto-generated CLI an output of the command may change when a package is installed,
+e.g. DHCP Helper Address may or may not be present in CLI depending on installed package. Thus all automation, testing tools
+ave to be also auto-generated from YANG in the future.
+
+<!-- omit in toc -->
+###### Manifest file path
+
+Path                             | Type                  | Description
+-------------------------------- | --------------------- | ----------------------------------------------------------------------------------------
+/cli/show-cli-plugin             | string                | A path to a plugin for sonic-utilities show CLI command
+/cli/config-cli-plugin           | string                | A path to a plugin for sonic-utilities config CLI command
+/cli/clear-cli-plugin            | string                | A path to a plugin for sonic-utilities sonic-clear CLI command
+
+### SONiC Processes and Docker Statistics Telemetry Support
+
+[Processes And Docker Stats Telemetry HLD](https://github.com/Azure/SONiC/blob/master/doc/system-telemetry/process-docker-stats.md)
+
+This feature should be supported by SONiC Application Extension without any changes to existing feature implementation.
+
+### Monit Configuration
+
+Processes information is also used to generate monit configuration file based on the *critical* flag. An installation is triggering
+monit configuration reload by issueing *systemctl reload monit.service*.
+
+### Feature Concept Integration
+
+SONiC controls optional feature (aka services) via FEATURE table in CONFIG DB. Once SONiC Package is installed in the system and it
+is not marked as essential it must be treated in the same way as any optional SONiC feature.
+The SONiC package installation process will register new feature in CONFIG DB.
+
+[Optional Feature HLD Reference](https://github.com/Azure/SONiC/blob/master/doc/Optional-Feature-Control.md)
+
+Features are configured in *FEATURE* table in *CONFIG DB* and backend - *hostcfgd* daemon - enables, disables features according
+to the configuration. Default desired state for a SONiC Application Extension is "disabled". After installation, user can enable the feature:
+
+```
+admin@sonic:~$ sudo config feature featureA enabled
+```
+
+### Multi-DB support
+
+Application should be using swss-common library or swsssdk which take care of discovering database instances.
+
+### Configuration Reload
+
+SONiC Packages should restart on initiated *config reload* commands. Service management and services dependencies management in SONiC is complex.
+*config reload* command has a list of services it needs to restart on reload. A service is restarted in this case if its dependency is restarted
+(like swss) or it is restarted explicitly. This list becomes dynamic with introduction of packages.
+
+A different approach is considered to make easier config reloads. Every SONiC service that has to be restarted on config reload can be defined
+as *PartOf* sonic.target. So the *systemctl restart sonic.target* will restart those services in the ordering is managed by systemd without a
+need to update the list of services in CLI.
+
+### System Dump
+
+SONiC Package *can* specify a command to execute inside container to get the debug dump that should be included in system dump file.
+This command should be specified in manifest file. A command should write its debug dump to stdout which will be gzip-ed into a file
+during *show techsupport* execution. This file will be included in techsupport under *dump/\<package-name\>/dump.gz*.
+
+<!-- omit in toc -->
+###### Manifest file path
+
+Path                           | Value             | Description
+-------------------------------|-------------------|---------------------------------------------------------------------------------
+/package/debug-dump            | string            | A command to be executed during system dump
+
+### SONiC-2-SONiC upgrade
+
+SONiC-2-SONiC upgrade shall work for SONiC packages as well. An upgrade will take the new system *packages.json* and version requirements
+and do a comparison between currently running and new SONiC image.
+
+<!-- omit in toc -->
+###### Package migration scenarios
+
+Package                        | Version                                                                                       | Action
+-------------------------------|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
+Essential package              | Installed version in new SONiC image is greater then in current running SONiC image           | No actions required, the desired package is already installed in the system
+Essential package              | Installed version in new SONiC image is less then in current running SONiC image              | An image upgrade is required to be done in new SONiC image. If a package is compatible witg new SONiC image version the currently running essential package will migrate to new SONiC image
+Non-essential package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation in new SONiC image
+Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation in new SONiC image of currently running package version. If a package is compatible witg new SONiC image version the currently running essential package will migrate to new SONiC image
+
+The old *packages.json* and new *packages.json* are merged togather and updated in new SONiC image.
+
+Since the installation or upgrade of packages are required to be done on SONiC image installation time a new SONiC image filesystem
+needs to be mounted and *dockerd* has to be started in the chroot environment of new image as it is a requisite of *sonic-package-manager*.
+
+CONFIG DB shall not updated with initial config of the package and a new feature in the FEATURE table in this scenario. A package should
+keep it's configuration backward compatible with old version. After installation succeeded and reboot into new image is performed all
+previously installed extensions should be available.
+
+An option to skip migrating packages will be added for users that want to have a clean SONiC installation:
+
+```
+admin@sonic:~$ sudo sonic-installer install -y sonic.bin --no-package-migration
+```
+
+### Multi-ASIC
+
+Based on current Multi-ASIC design, a service might be a host namespace service, like telemetry, SNMP, etc., or replicated per each ASIC namespace,
+like teamd, bgp, etc., or running in all host and ASICs namespaces, like lldp. Based on */host-namespace* and */per-namespace* fields in manifest file,
+corresponding service files are created per each namespace. *systemd-sonic-generator* is invoked to create and install service units per each namespace.
+
+<!-- omit in toc -->
+###### Manifest file path
+
+Path                             | Value                 | Description
+---------------------------------|-----------------------|---------------------------------------------------------------------------------
+/service/host-namespace          | boolean               | Multi-ASIC field. Wether a service should run in host namespace.
+/service/asic-namespace          | boolean               | Multi-ASIC field. Wether a service should run per ASIC namespace.
+
+### Kubernetes & SONiC Application Extension
+
+[Kubernetes HLD](https://github.com/Azure/SONiC/blob/be12cc665c316348352b868f515714f202861f63/doc/kubernetes/Kubernetes-support.md)
+
+This section is WIP and describes the approach in very high level and needs more deep investigation.
+
+The first thing to note here is that a Kubernetes manifest file can be auto-generated from SONiC Package manifest file as it cat provide all the info about
+how to run the container. This manifest auto-generation is related to Kubernetes master changes while we will be focusing on SONiC OS side, so it is out of
+the scope here.
+
+Besides of the manifest on the master, the SONiC switch has to have service files, configs, scripts installed for the feature.
+
+1. Package installed through SONiC package manager.
+
+During package installation these neccessary components will be auto-generated and installed on the switch. The auto-generation must honor new requirements
+to support "local" and "kube" modes when in "local" mode the container gets started on systemctl start, while in "kube" mode the appropriate feature label
+is set.
+
+2. Docker container upgrades through Kubernetes.
+
+During that processes a new Docker container gets deployed and run on the switch. Kubernetes managed features introduces a state machine for a running
+container that is reflected in the STATE DB. When container starts it sets its state as "pending" and waits till there is a "ready" flag set.
+
+A state-db-watcherd is listening to those changes. If there is a need to regenerate service file and scripts it initiates sonic-package-manager
+upgrade re-generation processes. Since the image is already downloaded and running but pending, the package manifest can be read and based on manifest
+it can generate the required files. Then, the state-db-watcherd can proceed to systemctl stop old container, systemctl start new container
+where the container_action script set the container state to "ready" and the container resumes to run the applications.
+
+3. Docker container deploy through Kubernetes.
+
+The case describe the scenario when the user is setting a label via "config kube label add <key>=<value>". If labels match the manifest on the master
+the docker image gets deployed. Using the same approach beteen "pending" and "ready" an auto-generation process can happen and register the Docker as
+a new package. With that, a deployed image will become an installed SONiC Package, that can be managed in "local" mode as well.
+
+<!-- omit in toc -->
+### Warmboot and Fastboot Design Impact
+
+A SONiC package can specify an order of shutdown on warm-reboot for a service. A "bgp" may specify "radv" in this field in order to avoid radv
+to announce departure and cause hosts to lose default gateway, while "teamd" service has to stop before "syncd", but after "swss" to be able to
+send the last LACP PDU though CPU port right before CPU port becomes unavailable.
+
+The warm-reboot and fast-reboot service shutdown scripts have to be auto-generated from a template */usr/share/sonic/templates/fast-shutdown.sh.j2*
+and */usr/share/sonic/templates/warm-shutdown..sh.j2* wich are symbolic links to the same template. The templates are derived from the fast-reboot
+script from sonic-utlities.
+
+A services shutdown is an ordered executions of *systemctl stop {{ service }}* commands with an exception for "swss" service after which a syncd
+pre-shutdown is requested and database backup is prepared for next boot. A service specific actions that are executed on warm-shutdown are hidden
+inside the service stop script action.
+
+The *\*-shutdown.sh* are imported and executed in corresponding *\*-reboot* scripts.
+
+<!-- omit in toc -->
+###### warm-shutdown.sh.j2 snippet
+
+```jinja2
+...
+{% for service in shutdown_orider %}
+systemctl stop {{ service }}
+{% endfor %}
+...
+```
+
+<!-- omit in toc -->
+###### Manifest file path
+
+Path                              | Value                 | Description
+----------------------------------|-----------------------|---------------------------------------------------------------------------------
+/service/warm-shutdown/           | object                | Warm reboot related properties. Used to generate the warm-reboot script.
+/service/warm-shutdown/after      | lits of strings       | Warm shutdown order dependency. List of SONiC services the application is set to stop after on warm shutdown.<p>Example: a "bgp" may specify "radv" in this field in order to avoid radv to announce departure and cause hosts to lose default gateway.<p>*NOTE*: Putting "radv" here, does not mean the "radv" should be installed as there is no such dependency for the "bgp" package.
+/service/warm-shutdown/before     | lits of strings       | Warm shutdown order dependency. List of SONiC services the application is set to stop before on warm shutdown.<p>Example: a "teamd" service has to stop before "syncd", but after "swss" to be able to send the last LACP PDU though CPU port right before CPU port becomes unavailable.
+/service/fast-shutdown/           | object                | Fast reboot related properties. Used to generate the fast-reboot script.
+/service/fast-shutdown/after      | lits of strings       | Same as for warm-shutdown.
+/service/fast-shutdown/before     | lits of strings       | Same as for warm-shutdown.
+
+### SONiC Build System
+
+SONiC build system will provide three docker images to be used as a base to build SONiC application extensions - *sonic-sdk-buildenv*, *sonic-sdk* and *sonic-sdk-dbg*.
+
+*sonic-sdk-buildenv* will have common SONiC packages required to build SONiC application extension and will be a minimal version of sonic-slave container:
+
+- build-essential
+- libhiredis-dev
+- libnl*-dev
+- libswsscommon-dev
+- libsairedis-dev
+- libsaimeta-dev
+- libsaimetadata-dev
+- tools, etc.
+
+*sonic-sdk* will be based on *docker-config-engine* with addition of packages needed at run time:
+
+- libhiredis
+- libnl*
+- libswsscommon
+- libsairedis
+- libsairedis
+- libsaimeta
+- libsaimetadata
+
+Corresponding *-dbg* packages will be added for *sonic-sdk-dbg* image. A list of packages will be extended on demand when a common package is required by community.
+If a package is required but is specific to the SONiC application extension it should not be added to this list.
+
+### SAI API
+
+No SAI API changes required for this feature.
+
+### Restrictions/Limitations
+
+(TODO)
+
+### Testing Requirements/Design
+
+(TODO)
+
+<!-- omit in toc -->
+#### Unit Test cases
+
+(TODO)
+
+<!-- omit in toc -->
+#### System Test cases
+
+(TODO)
+
+### Open/Action items
