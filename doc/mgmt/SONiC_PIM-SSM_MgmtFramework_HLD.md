@@ -58,7 +58,7 @@ Implement PIM-SSM (IPv4) configuration via REST/CLI/gNMI in SONiC Mgmt-framework
 # Revision
 | Rev |     Date    |       Author                  | Change Description                |
 |-----|-------------|-------------------------------|-----------------------------------|
-| 0.1 | 06/12/2020  |  Rathnasabapathy Velautharaj  | Initial version                   |
+| 0.1 | 06/16/2020  |  Rathnasabapathy Velautharaj  | Initial version                   |
 
 # About this Manual
 This document provides general information about configuring PIM Source Specific Multicast (IPv4) via Management REST/CLI/gNMI in Sonic.
@@ -167,7 +167,7 @@ PIM Interface-Specific Configuration Table:
 
 Key                       : PIM_INTERFACE|vrf-name|address-family|interface
 
-vrf-Name                  : 1\*15VCHAR ; VRF name
+vrf-Name                  : 1-15 characters ; VRF name
 address-family            : enum {ipv4}
 interface                 : interface-name (Ethernet or Port-channel or Vlan interface-name)
 
