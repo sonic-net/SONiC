@@ -25,19 +25,17 @@
 
 #### About this Manual
 
-This document states the functional requirements and high level design of the new feature to support "show running-configuration" command.  
-The shorter form "show running-config" will work with auto-completion.
+This document covers the functional requirements and high level design of the new feature to support "show running-configuration" command.  This also guides developers on how to use this new infrastructure to include their feature in "show running-configuration" command output.
+
 
 #### Scope
 
 The scope of this document is limited to the functionality described in the
-requirements section. It applies to the Klish CLI supported through the SONiC Management framework.
-It is limited to the configuration found in CONFIG_DB.
+requirements section. It applies to the Klish CLI supported through the SONiC Management framework and limited to the configuration found in CONFIG_DB.
 
 #### Definition/Abbreviation
 
-Klish CLI view : The CLI command mode is referred as a view.
-
+CLI view : The CLI command mode is referred as a view.
 
 
 #### 1 Feature Overview
@@ -60,7 +58,7 @@ interface which is stored in CONFIG_DB and has a corresponding Klish CLI
 command will be displayed as part of this new command.
 
 The order of commands displayed in the "show running-configuration" will be
-in accordance to the order of dependency between CLI view. 
+in accordance to the order of dependency between CLI views. 
 
 If configuration default values are stored in CONFIG_DB, they will be shown as
 part of "show running-configuration".
@@ -70,7 +68,7 @@ the configuration based on the CLI views.
 
 The infrastructure automates as much of the show running-config output generation as possible from the developer-provided information. Where more developer work is required, an easy-to-use plug-in infrastructure is provided.
 
-It will support pagination options of no-more, except, find and grep.
+It will support pagination options no-more, except, find and grep.
 
 
 #### 1.1.2 Future release
@@ -90,7 +88,6 @@ Apps should not use this infrastructure to add configuration to 'show running-co
 
 System state information should not be added to this command.
 
-The correct ordering between commands in the same view or between views will not be supported in the first release of this feature. Hence some set of configuration will not work for copy-paste operation. 
 
 #### 1.3 Command syntax
 
@@ -101,7 +98,7 @@ system.
 
 Example:
 
-sonic\#\>show running-config  
+sonic\#\>show running-configuration  
 interface Vlan 5  
 \!  
 interface PortChannel 5 min-links 3 mode active  
@@ -147,7 +144,7 @@ switchport trunk allowed vlan 6
 The design approach is to automate the rendering of the "show
 running-configuration" command. The CLI developer does not
 have to write a separate Jinja template for this purpose. However, for
-some cases this is not entirely possible due to way the config data is
+some cases automation is not entirely possible due to way the config data is
 stored in DB, or if the CLI command format cannot be rendered by this new automated infra.
 
 For these exceptions two approaches are provided to the developer:
@@ -156,9 +153,9 @@ a.  Developer to provide a Python callback function. The infra will call this
     function with the required DB tables and keys. The
     function will return a list of commands. This list will be
     incorporated into the final command output.
-    A single command or an entire command-mode can be rendered using a callback.
-    For commands it is preferred to use Python callback for performance.
-    For an entire command-mode, which contains a large set of commands, a rendering Jinja
+    A single command or an entire CLI view can be rendered using a callback.
+    For single commands it is preferred to use Python callback for performance.
+    For an entire CLI view, which contains a large set of commands, a rendering Jinja
     template can be used.
 
 b.  Developer to provide a Python callback which will retrieve
@@ -168,7 +165,7 @@ b.  Developer to provide a Python callback which will retrieve
 
 The automation infra retrieves data from DB using the REST
 interface and sonic YANG model. The developer of CLI has to provide 
-the CLI XML, the DB table and attribute information related to
+the DB table and attribute information in the CLI XML tags related to
 every command which it wishes to be displayed in the "show running
 configuration" command output. New XML tags are introduced to provide this information.
 
@@ -182,7 +179,7 @@ respective config XML using the newly introduced XML tags.
     to nested CLI views.
 
 -   For some commands, a direct mapping to DB table attribute does
-    not exist. In this case, a separate rendering callback or template(Jinja) is
+    not exist. In this case, a separate rendering Python callback or template(Jinja) is
     required. For e.g., switchport trunk allowed Vlans, bgp neighbor etc.
 
 ##### 2.1 **New XML tags**
@@ -196,26 +193,26 @@ respective config XML using the newly introduced XML tags.
                     Keys for mulitple views separated by "|".
                     
   Example           view_keys="vrf=*"
-                    view_keys="vrfname=sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/vr_name, afi-safi=ipv4_unicast,ip_prfx=*"
+                    view_keys="vrfname=sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/vr_name, afi-safi=ipv4_unicast,ip_prfx=*"
                     view_keys="ifname=*|vlaname=*"
                     
   Attribute to XML  COMMAND                
   element  
 
-  Explanation       The tag is required when switching to a CLI chid view. The keys are for all the sonic YANG tables accessed in the new child view.
+  Explanation       The tag is required when switching to a chid CLI view. The keys are for all the sonic YANG tables accessed in the new child view.
                     This is added to the COMMAND statement.
                     For e.g.
                     sonic(config-router-bgp)# address-family ipv4 unicast
                     sonic(config-router-bgp-af)#
                     Here the child view is config-router-bgp-ipv4. 
-                    In the child view, tables BGP_GLOBALS_AF, BGP_GLOBALS_AF_AGGREGATE_ADDR are accessed.
+                    In the child view, tables BGP_GLOBALS_AF_LIST, BGP_GLOBALS_AF_AGGREGATE_ADDR_LIST are accessed.
   
-                    Keys : view_keys= "vrfname =sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/vrf_name,afi-safi=ipv4_unicast, ip_prfx=*"
+                    Keys : view_keys= "vrfname =sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/vrf_name,afi-safi=ipv4_unicast, ip_prfx=*"
                     The vrfname is populated from parent view table, hence the entire table path is specified.
-                    afi-safi is given with exact value and ip_prfx is wildcard. BGP_GLOBALS_AF_AGGREGATE_ADDR table 
+                    afi-safi is given with exact value and ip_prfx is wildcard. BGP_GLOBALS_AF_AGGREGATE_ADDR_LIST table 
                     has 2 keys, vrf_name and ip_prfx. All prefixes with vrf_name=vrfname are displayed.
                     
-                    If a command is denoted by flag "SEP_CLI", where a switch statement has params which contain different views, then view_keys are assigned in the order of the params.
+                    If a command is denoted by flag "SEP_CLI", where a switch statement has params which transition to different child views, then view_keys are assigned in the order of the params.
   
   
 2. Attribute        view_tables
@@ -224,7 +221,7 @@ respective config XML using the newly introduced XML tags.
                     The table name has to specify all its keys.
                     Tables for mulitple views separated by "|"
                     
-  Example           view_tables= "sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS_AF/vrf_name={vrfname},afi_safi={afi-safi}"
+  Example           view_tables= "sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS_AF/BGP_GLOBALS_AF_LIST/vrf_name={vrfname},afi_safi={afi-safi}"
   
   Attribute to XML  COMMAND
   element
@@ -239,17 +236,17 @@ respective config XML using the newly introduced XML tags.
                     For e.g.,  sonic(config-router-bgp)# neighbor 5.5.5.5
                                sonic(config-router-bgp-nbr)#
                                
-                    view_tables="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/vrf_name={vrfname},neighbor={neighbor}"  
+                    view_tables="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/BGP_NEIGHBOR_LIST/vrf_name={vrfname},neighbor={neighbor}"  
                     
-                    If a command is denoted by flag "SEP_CLI", in which a switch statement has option params with different views, then view_tables are assigned in the order of the params.
+                    If a command is denoted by flag "SEP_CLI", in which a switch statement has params which transition to different child views, then view_tables are assigned in the order of the params.
    
 3. Attribute        dbpath
 
   Syntax            Path to sonic YANG table attribute with '/'.
                     If exact value of parameter is to be matched then 'param=value'.
                     
-  Example           dbpath="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/gr_restart/time
-                    dbpath="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/always_compare_med=true
+  Example           dbpath="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/gr_restart/time
+                    dbpath="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/always_compare_med=true
                     
   Attribute to XML  COMMAND, PARAM
   element
@@ -263,7 +260,7 @@ respective config XML using the newly introduced XML tags.
   Syntax            Multiple sonic YANG tables separate by ";".
                     Tables have to specify all its keys.
                      
-  Example           command_tables="sonic-bgp-peergroup:sonic-bgp-peergroup/BGP_GLOBALS_LISTEN_PREFIX/vrf_name={vrf-name},ip_prefix={ip_prfx}"
+  Example           command_tables="sonic-bgp-peergroup:sonic-bgp-peergroup/BGP_GLOBALS_LISTEN_PREFIX/BGP_GLOBALS_LISTEN_PREFIX_LIST/vrf_name={vrf-name},ip_prefix={ip_prfx}"
   
   Attribute to XML  COMMAND
   element
@@ -318,7 +315,7 @@ respective config XML using the newly introduced XML tags.
                     
 
                   
-7. Attribute        db_flag
+8. Attribute        db_flag
 
   Syntax            Multiple flags can be defined with ‘|’ acting as separator.
                     
@@ -362,7 +359,7 @@ This feature is implemented within the Management Framework container.
 
 #### 3 User Guide
 
-Following excerpts from bgp.xml show the new tag usage.
+Following excerpts from bgp.xml show the new XML tag usage for different CLI formats.
 
 ###### 3.1 Command with switch to a new view (configure-router-bgp-view)
 ```
@@ -379,7 +376,8 @@ Following excerpts from bgp.xml show the new tag usage.
 ###### 3.2 Command with tag attribute 'render_command_cb'
 
 The attribute value of param "neighbor' is a string in DB which is either an ip-address or an interface format. Hence using a template for
-rendering.
+rendering. Based on the name prefix, different command formats have to formed. 
+If name is Vlan20 then 'neighbor interface Vlan 20, if 5.5.5.5 then 'neighbor 5.5.5.5'. Since no direct mapping, developer has to provide the command via callback function.
 
 ```
 <COMMAND name="neighbor" help="Specify a neighbor router" view="configure-router-bgp-nbr-view" viewid="nbr-addr=${ip}${Ethernet}${PortChannel}${Vlan};vrf-name=${vrf-name}" render_command_cb="router_bgp_neighbor" view_keys="vrf-name=sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LISTEN/vrf_name,neighbor=*" view_tables="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR/BGP_NEIGHBOR_LIST/vrf_name={vrf-name},neighbor={neighbor}" dbpath="sonic-bgp-neighbor:sonic-bgp-neighbor/BGP_NEIGHBOR_LIST/neighbor">
@@ -422,9 +420,9 @@ rendering.
 </COMMAND>
 ```
 
-###### 3.5  Command mapped to a table different then the view table
+###### 3.5  Command mapped to a table other than the primary view table.
 
-This command is in the config-if-view with primary view table PORT_LIST. The key from XML tag view_keys="name=*"
+This command is in the config-if-view with primary view table PORT_LIST. The key from XML tag 'view_keys="name=*"'
 is used here. i.e., interface_name={name}
 
 ```
@@ -468,7 +466,7 @@ is used here. i.e., interface_name={name}
 
 ###### 3.8  Command in a view, with view table (primary table) not present.
 The view 'configure-view' does not have a primary table. This is the topmost view.
-Commands under this view map to different tables. If XML tag command_keys is not specified or 
+Commands under this view map to different tables. If XML tag 'command_keys' is not specified or 
 keys are spcified with wildcard, then all the entries in the table are rendered.
 In the following example command "ip vrf", all entries of the VRF table are shown.
 
@@ -493,7 +491,7 @@ In the following example command "ip vrf", all entries of the VRF table are show
   </COMMAND>
 ```
 
- In some cases the commands would refer to a particular record in the table. In such case XML tag command_keys has to be specified
+ In some cases the commands would refer to a particular record in the table. In such case XML tag 'command_keys' has to be specified
  
  ```
  <COMMAND
@@ -516,6 +514,9 @@ In the following example command "ip vrf", all entries of the VRF table are show
 ```
 
 ###### 3.7 Multi-view command, Seperate CLI
+
+Here each switch param transition to a different view. PARAM phy-if-name switches to configure-if-view. PARAM vlan-if-name switches to configure-vlan-view. Hence, a SEP_CLI flag is needed. If  a new CLI is developed, it is advised to separate the switch statement into different commands in this scenario for simplicity.
+
 ```
 <COMMAND name="interface" help="Select an interface" db_flag="SEP_CLI" view_keys="name=*|name=*" view_tables="sonic-port:sonic-port/PORT/PORT_LIST/ifname={name}|sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/name={name}" >
    <PARAM name="if-switch" help="Interface commands" mode="switch" ptype="STRING" db_flag="SEP_CLI" >
@@ -526,9 +527,9 @@ In the following example command "ip vrf", all entries of the VRF table are show
 ```
 ###### 3.8 Command callback rendering 
 
-The mapping of XML tag 'render_command_cb' value to internal Python callback function name is to be added in file CLI/acioner/show_config_data.py
+The mapping of the value of XML tag 'render_command_cb' to internal Python callback function name is added in file CLI/acioner/show_config_data.py
 Following is the callback for command "switchport trunk allowed Vlan [vlan-id]"
-The interface VLAN membership is in the table VLAN_MEMBER_LIST, which has interface and vlan name as keys and tagging mode as the attribute. Since the attributes are not directly mapped to CLI params, a callback is needed to format the command.
+The interface VLAN membership is in the table VLAN_MEMBER_LIST. The table has interface and vlan name as keys and tagging mode as the attribute. Since the attributes are not directly mapped to CLI params, a callback is needed to format the command.
 
 ```
 show_config_interface.py
@@ -587,7 +588,7 @@ in the actioner script (actioner/show_config_data.py). The position of view in t
 
 ###### 3.7 CLI view based 'show configuration'
 
-'show configuration' command is an application specific requirement. If an application needs to show the configuration at its view level, it has to implement this command in that  CLI view. The actioner must call the API provided by the infra to render the configuration.
+'show configuration' command is an application specific requirement. If an application needs to show the configuration at its view level, it has to implement this command in that CLI view. The actioner must call the API provided by the infra to render the configuration.
 
 The API requires the CLI view name and the keys for the view tables as parameters. The keys are available as view-ids in the current CLI view.
 
@@ -600,53 +601,54 @@ E.g. bgp.xml
 Show configuration under configure-router-bgp-view
 ```
 <COMMAND name="show configuration" help="show bgp configuration">
-  <ACTION builtin="clish_pyobj">sonic_cli_show_config show_configuration configure-router-bgp vrf-name=${vrf-name} </ACTION>
+  <ACTION builtin="clish_pyobj">sonic_cli_show_config show_configuration views=configure-router-bgp view_keys="vrf-name=${vrf-name}"" </ACTION>
 </COMMAND>
 ```
 
 Show configuration under configure-router-bgp-nbr-view
 ```
 <COMMAND name="show configuration" help="show bgp nbr configuration">
-  <ACTION builtin="clish_pyobj">sonic_cli_show_config show_configuration configure-router-bgp-nbr vrf-name=${vrf-name} neighbor=${nbr-addr} </ACTION>
+  <ACTION builtin="clish_pyobj">sonic_cli_show_config show_configuration views=configure-router-bgp-nbr view_keys="vrf-name=${vrf-name} neighbor=${nbr-addr}"" </ACTION>
 </COMMAND>  
 ```
 
 ##### 4 Compilation and testing.
 
 1.  Compile mgmt-framework package and install.
-2.  Verify the command output formats.
+2.  Verify the show running-configuration command output. 
+
 
 #### 5 Unit Test and Automation
 Since this an infrastructure, the basic functionality can be validated by taking a module and validating its show running implementation.
-For this validation, interface.xml and bgp.xml are to be used for unittests.
+For this validation, interface.xml, bgp.xml, vrf.xml and tacacs.xml are to be used for unittests.
 
-1. Configure BGP configuration under configure-router-bgp-view.
-      -Verify 'show run-configuration' output.
-      -Verify 'show configuraitoin' output.
+1. Configure BGP configuration under configure-router-bgp-view.  
+      -Verify 'show run-configuration' output.  
+      -Verify 'show configuraitoin' output.  
 
-2. Configure commands under configure-bgp-router-view.
-      -Verify 'show run-configuration' output.
-      -Verify 'show configuraitoin' output.
+2. Configure commands under configure-bgp-router-view.  
+      -Verify 'show run-configuration' output.  
+      -Verify 'show configuraitoin' output.  
 
-3. Configure commands under configure-bgp-router-af-view.
-      -Verify 'show run-configuration' output of views in tests 1,2 & 3.
-      -Verify 'show configuration' output.
-      -Verify pagination options. 
+3. Configure commands under configure-bgp-router-af-view.  
+      -Verify 'show run-configuration' output of views in tests 1,2 & 3.  
+      -Verify 'show configuration' output.  
+      -Verify pagination options.   
 
-4. Configure commands under configure-bgp-router-af-ipv4-view.
-    -Verify 'show run-configuration' output.
-    -Verify 'show configuration' output.
+4. Configure commands under configure-bgp-router-af-ipv4-view.  
+    -Verify 'show run-configuration' output.  
+    -Verify 'show configuration' output.  
             
-5. Configure commands under configure-if-view.
-    -Verify 'show run-configuration' output.
-    -Verify 'show configuration' output.
+5. Configure commands under configure-if-view.  
+    -Verify 'show run-configuration' output.  
+    -Verify 'show configuration' output.  
 
-6. Configure commands under configure-lag-view.
-    -Verify 'show run-configuration' output.
-    -Verify 'show configuration' output.
+6. Configure commands under configure-lag-view.  
+    -Verify 'show run-configuration' output.  
+    -Verify 'show configuration' output.  
 
-7. Configure commands under "ip vrf" under configure-view.
-    -Verify 'show run-configuration' output.
+7. Configure commands under "ip vrf" under configure-view.  
+    -Verify 'show run-configuration' output.  
     
-8. Configure commands under "tacacs" under configure-view.
-    -Verify 'show run-configuration' output.
+8. Configure commands under "tacacs" under configure-view.  
+    -Verify 'show run-configuration' output.  
