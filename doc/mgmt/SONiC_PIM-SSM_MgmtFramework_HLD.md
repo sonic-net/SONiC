@@ -241,10 +241,10 @@ module: openconfig-pim-ext.yang
 -                              +--ro address?            inet:ipv4-address
 -                              +--ro multicast-groups?   string                  
                       +--ro state
-                         +--ro neighbor-count?                      uint8
-                         +--ro counters
-                            +--ro hello-messages?        uint32
-                            +--ro join-prune-messages?   uint32
+-                        +--ro neighbor-count?                      uint8
+-                        +--ro counters
+-                           +--ro hello-messages?        uint32
+-                           +--ro join-prune-messages?   uint32
 -                           +--ro bootstrap-messages?    uint32
 +                        +--ro oc-pim-ext:join-prune-interval?      uint16
 +                        +--ro oc-pim-ext:keep-alive-timer?         uint16
@@ -305,9 +305,9 @@ module: openconfig-pim-ext.yang
 -                           +--ro join-prune-interval?      oc-pim-types:pim-interval-type
                             +--ro hello-interval?           uint8
 -                           +--ro dead-timer?               uint16                        
-                            +--ro counters
-                               +--ro hello-messages?        uint32
-                               +--ro join-prune-messages?   uint32
+-                           +--ro counters
+-                              +--ro hello-messages?        uint32
+-                              +--ro join-prune-messages?   uint32
 -                              +--ro bootstrap-messages?    uint32
 +                           +--ro oc-pim-ext:bfd-enabled?     boolean
 +                           +--ro oc-pim-ext:nbrs-count?      uint16
