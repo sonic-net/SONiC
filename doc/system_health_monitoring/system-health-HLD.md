@@ -171,6 +171,7 @@ this service will be started after system boot up(after database.service and upd
 ## 3. System health data in redis database
 
 System health service will populate system health data to STATE db. A new table "SYSTEM_HEALTH_INFO" will be created to STATE db.
+
 	; Defines information for a system health
 	key                     = SYSTEM_HEALTH_INFO             ; health information for the switch 
 	; field                 = value
