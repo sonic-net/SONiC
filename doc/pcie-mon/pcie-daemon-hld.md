@@ -32,9 +32,9 @@ PCIe device information can be accessed via read files under (e.g. `/sys/bus/pci
 
 For the convenience of implementation and reduce the time consuming, pcie-mon.service will use the `pcieutil` which is the pcie diag tool. `pcieutil` is implemented based on platform_base.sonic_pcie.`PcieUtil` class.
 
-1. `PcieUtil` should get the platform specific PCIe device information and monitor the PCIe device and bus status.
+1. `pcieutil` should get the platform specific PCIe device information and monitor the PCIe device and bus status with PcieUtil.get_pcie_check and update the STATE_DB based on get_pcie_check results.
 
-2. `PCIeUtil` will provide APIs `load_config_file`, `get_pcie_device` and `get_pcie_check` to get the expected PCIe device list and informations, to get the current PCIe device information, and check if any PCIe device is missing or if there is any PCIe bus error.
+2. `PcieUtil` will provide APIs `load_config_file`, `get_pcie_device` and `get_pcie_check` to get the expected PCIe device list and informations, to get the current PCIe device information, and check if any PCIe device is missing or if there is any PCIe bus error.
 
 ![pcieinfo_design](https://github.com/Azure/SONiC/blob/master/doc/pcieinfo_design.md)
 
@@ -89,7 +89,7 @@ PcieUtil calls this API to check the PCIe device status, following example code 
                  
 ### 1.4 PCIe Monitor Service `pcie-mon.service` flow ###
 
-pcie-mon.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus so that the dependent services/container or kernel driver can be started or stopped based on the status.
+pcie-mon.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus during the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
 
 Detailed flow as showed in below chart: 
 ![](https://github.com/Azure/SONiC/blob/master/images/pcie-mon.svg)
@@ -97,7 +97,7 @@ Detailed flow as showed in below chart:
 
 ### 1.5 PCIe daemon `pcied` flow ###
 
-pcied will be started by PMON container after boot up and it will check the PCIe device status periodically every 1 minute and update the state db when the status is changed.
+pcied will be started by PMON container will continue monitoring the PCIe device status during run time and it will check the PCIe device status periodically every 1 minute and update the state db when the status is checked.
 
 Detailed flow as showed in below chart:
 ![](https://github.com/Azure/SONiC/blob/master/images/pcied.svg)
