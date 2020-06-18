@@ -122,7 +122,7 @@ device1:OK
 device2:device2 is out of power
 ```
 
-The configuration could be:
+The configuration shall be:
 
 ```json
 {
@@ -178,7 +178,29 @@ System health service will populate system health data to STATE db. A new table 
 	summary                 = STRING                         ; summary status for the switch
 	<item_name>             = STRING                         ; an entry for a service or device
 
-We store items to db only if it is abnormal.
+We store items to db only if it is abnormal. Here is an example:
+
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+ 1) "fan1"
+ 2) "fan1 speed is out of range, speed=21.0, range=[24.0,36.0]"
+ 3) "fan3"
+ 4) "fan3 speed is out of range, speed=21.0, range=[24.0,36.0]"
+ 5) "fan5"
+ 6) "fan5 speed is out of range, speed=22.0, range=[24.0,36.0]"
+ 7) "fan7"
+ 8) "fan7 speed is out of range, speed=21.0, range=[24.0,36.0]"
+ 9) "summary"
+10) "Not OK"
+```
+
+If the system status is good, the data in redis is like:
+
+```
+admin@sonic:~$ redis-cli -n 6 hgetall SYSTEM_HEALTH_INFO
+ 1) "summary"
+ 2) "OK"
+```
 
 ## 4. Platform API and PMON related change to support this new service
 
@@ -295,6 +317,3 @@ See open question 2 for adding configuration CLIs.
   "boot_timeout": 300
 }
 ```
-
-2. Is it necessary to add a CLI to manipulate the configuration file? Like add/remove service/device from ignore list? This is not support for now.
-
