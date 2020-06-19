@@ -11,26 +11,26 @@
 
 ## About This Manual ##
 
-This document is intend to give the idea of how to monitor the platform PCIe devices and alert any problem on PCIe buses and devices on SONiC using pcie-mon service and pcied on PMON container.
+This document is intend to give the idea of how to monitor the platform PCIe devices and alert any problem on PCIe buses and devices on SONiC using pcie-chk service and pcied on PMON container.
 
 
 ## 1. PCIe Monitor service design ##
 
 New PCIe Monitor service is designed to use the PcieUtil utility to check the current status of PCIe devices and buses and alert if there is any missing devices or any error while communicating on the PCIe buses.
 
-PCIe device monitoring will be done in two separate services, `pcie-mon.service` which is a systemd service, will monitor the PCIe device during the boot time and `pcied` which is a daemon in PMON container will monitor during the runtime.
+PCIe device monitoring will be done in two separate services, `pcie-chk.service` which is a systemd service, will monitor the PCIe device during the boot time and `pcied` which is a daemon in PMON container will monitor during the runtime.
 
-First, pcie-mon.service will be added to check the pcie device enumeration status, trigger the pci device rescan if there is any missing device and indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
+First, pcie-chk.service will be added to check the pcie device enumeration status, trigger the pci device rescan if there is any missing device and indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
 
 Second, pcid in PMON will perform the periodic pcie device check during the run time.
 
-Both pcie-mon.service and pcied will update the state db with the PCIe device status whenever it changes.
+Both pcie-chk.service and pcied will update the state db with the PCIe device status whenever it changes.
 
 ### 1.1 Access the PCIe devices and buses from platform ###
 
 PCIe device information can be accessed via read files under (e.g. `/sys/bus/pci/devices/0000:01:00.1`), different vendors may have under different folders, these folder need to be mounted to platform container so pcied can access them. 
 
-For the convenience of implementation and reduce the time consuming, pcie-mon.service will use the `pcieutil` which is the pcie diag tool. `pcieutil` is implemented based on platform_base.sonic_pcie.`PcieUtil` class.
+For the convenience of implementation and reduce the time consuming, pcie-chk.service will use the `pcieutil` which is the pcie diag tool. `pcieutil` is implemented based on platform_base.sonic_pcie.`PcieUtil` class.
 
 1. `pcieutil` should get the platform specific PCIe device information and monitor the PCIe device and bus status with PcieUtil.get_pcie_check and update the STATE_DB based on get_pcie_check results.
 
@@ -87,12 +87,12 @@ PcieUtil calls this API to check the PCIe device status, following example code 
             for key, value in device_dict.iteritems():
                 print("Device on PCIe bus: %s" was %s" % (key, value))
                  
-### 1.4 PCIe Monitor Service `pcie-mon.service` flow ###
+### 1.4 PCIe Check Service `pcie-chk.service` flow ###
 
-pcie-mon.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus during the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
+pcie-chk.service will be started by systemd during boot up and it will spawn a thread to check PCIe device status and perform the rescan pci devices if there is any missing devices after rc.local.service is completed and it will update the state db with pcie device satus during the `pcieutil pcie-chek` call so that the dependent services/container or kernel driver can be started or stopped based on the status.
 
 Detailed flow as showed in below chart: 
-![](https://github.com/Azure/SONiC/blob/master/images/pcie-mon.svg)
+![](https://github.com/Azure/SONiC/blob/master/images/pcie-chk.svg)
 
 
 ### 1.5 PCIe daemon `pcied` flow ###
