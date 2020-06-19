@@ -1,6 +1,6 @@
 # Authentication and Role-Based Access Control
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
 - [Revision History](#revision-history)
@@ -194,8 +194,8 @@ to start from a known state. Sample feature description is shown below.
     {
         "name": "aaa",
         "paths": [
-            "openconfig-aaa:aaa/system/users/user={username}",
-            "openconfig-aaa:aaa/system/users"
+            "openconfig-system:system/aaa/authentication/users/user={username}",
+            "openconfig-system:system/aaa/authentication/users"
         ]
     },
     {
@@ -261,7 +261,7 @@ N/A
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
 
-The Translib code (also in sonic-mgmt-framework) will be modified to support RBAC via Roles, rather than Groups. It will receive username data from the REST/gNMI NBIs and perform the role lookup for a given user.
+The Translib code (in sonic-mgmt-common) will be modified to support RBAC via Roles, rather than Groups. It will receive username data from the REST/gNMI NBIs and perform the role lookup for a given user.
 
 Translib shall cache the user table and role list to amortize the cost of a
 database lookup over several transactions.
@@ -279,17 +279,18 @@ Enterprise networks that enforce authentication for their management interfaces.
 ## 2.2 Functional Description
 This feature enables authentication and Role-Based Access Control (RBAC) on the REST and gNMI programmatic interfaces that are provided by the SONiC Management Framework and Telemetry containers. With respect to authentication, these programmatic interfaces will support password-based authentication with tokens, and certificate-based authentication.
 
-Since the Klish CLI in the management framework communicates with the REST server in the back-end, the solution will also be extended to support REST authentication.
+Since the Klish CLI in the management framework communicates with the REST server in the back-end, the solution will also be extended to support CLI authentication to REST server.
 
 RBAC will be enforced centrally in the management framework, so that users accessing the system through varying interfaces will be limited to the same, consistent set of operations and objects depending on their role. Users' roles will be mapped using Linux Groups.
 
-Users and their role (group) assignments may be managed via the NBIs. HAM shall
+Users and their role assignments may be managed via the NBIs. HAM shall
 provide tools to allow administrators to manage the users and roles from the
 shell using the hamctl command.
 
 # 3 Design
 ## 3.1 Overview
-(TODO/DELL: Draw a picture)
+
+![SONiC RBAC Auth Flow](../../images/sonic-rbac-auth-flow.png "SONiC RBAC Authentication and Authorization Flow Diagram")
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -300,8 +301,6 @@ shell using the hamctl command.
     * *tenant* : This contains the tenant with which the user is associated. This is a string
     * *role* : This specifies the role associated with the username in the tenant. This is a comma separated list of strings.
       The UserTable is keyed on <***user, tenant***>.
-
-  **Note**: The UserTable will _not_ store users' salted+hashed passwords due to security concerns surrounding access restrictions to the DB; instead, that information will be maintained in `/etc/shadow` as per Linux convention.
 
 **Future Support**
 
@@ -362,8 +361,15 @@ N/A
 ## 3.6 User Interface
 ### 3.6.1 Data Models
 
-TBD from developer
-(TODO/DELL)
+Users can be configured using OpenConfig models:
+
+```
+module: openconfig-system
+  +--rw system
+    +--rw aaa
+      +--rw authentication
+        +--rw users
+```
 
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands for User Management
@@ -374,7 +380,7 @@ Users may be managed via Linux tools like `sonic-useradd`, `sonic-usermod`, `pas
 * **name** is a text string of 1-32 alphanumeric characters
 * **password-string** is a text string of 1-32 alphanumeric characters
 * **role-string** is a text string consisting of a role name. In the initial release, the user is recommended to use "admin" and "operator" roles, as other roles will not be supported. A text string is desired instead of keywords so that in the future, more roles may be implemented and expanded.
-* Configuring another a user with the same **name** should result in modification of the existing user.
+* Configuring another a user with the same **name** results in modification of the existing user.
 
 `no username <name>` -- Deletes a user from the system.
 * **name** is a text string of 1-32 alphanumeric characters
@@ -438,7 +444,7 @@ The REST server should return standard HTTP errors when authentication fails or 
 The gNMI server should return standard gRPC errors when authentication fails.
 
 ## 5.3 CLI
-Authentication errors will be handled by user detection on Unix sockets. However, the CLI must gracefully handle authorization failures from the REST server. While the CLI will render all of the available commands to a user, the user will actually only be able to execute a subset of them. This limitation is a result of the design decision to centralize RBAC in Translib. Nevertheless, the CLI must inform the user when they attempt to execute an unauthorized command.
+Authentication will be handled by user detection on Unix sockets. However, the CLI must gracefully handle authorization failures from the REST server. While the CLI will render all of the available commands to a user, the user will actually only be able to execute a subset of them. This limitation is a result of the design decision to centralize RBAC in Translib. Nevertheless, the CLI must inform the user when they attempt to execute an unauthorized command.
 
 
 ## 5.4 Translib
@@ -473,9 +479,3 @@ See previous section 1.1.3: Scalability Requirements
 | RBAC no-group | Create a user and assign them to a non-predefined group; make sure they can't perform any operations |
 | gNMI authentication | Test the same authentication methods as REST, but for gNMI instead |
 | gNMI authorization | Test the same authorization as REST, but for gNMI instead |
-| Create custom role | Create a custom role on the system with individual features |
-| Delete custom role | Delete custom role from system |
-| REST with custom role authorized | Perform authorized operations with custom role user via REST |
-| REST with custom role unauthorized | Perform unauthorized operations with custom role user via REST |
-| gNMI with custom role authorized | Perform authorized operations with custom role user via gNMI |
-| gNMI with custom role unauthorized | Perform unauthorized operations with custom role user via gNMI |
