@@ -228,7 +228,80 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
 
 ## 3.5 CLI
 ### 3.5.1 Data Models
-Custom Yang model will be introduced for this feature.
+SONiC Yang model  and OpenConfig extension models will be introduced for this feature.
+
+## openconfig-mirror-ext
+```diff
+  +--rw mirror
+     +--rw config
+     +--ro state
+     +--rw sessions
+        +--rw session* [name]
+           +--rw name      -> ../config/name
+           +--rw config
+           |  +--rw name?        string
+           |  +--rw dst-port?    oc-if:base-interface-ref
+           |  +--rw src-port?    oc-if:base-interface-ref
+           |  +--rw direction?   mirror-session-direction
+           |  +--rw src-ip?      oc-inet:ip-address
+           |  +--rw dst-ip?      oc-inet:ip-address
+           |  +--rw dscp?        uint8
+           |  +--rw gre-type?    string
+           |  +--rw ttl?         uint8
+           |  +--rw queue?       uint8
+           +--ro state
+              +--ro name?           string
+              +--ro dst-port?       oc-if:base-interface-ref
+              +--ro src-port?       oc-if:base-interface-ref
+              +--ro direction?      mirror-session-direction
+              +--ro src-ip?         oc-inet:ip-address
+              +--ro dst-ip?         oc-inet:ip-address
+              +--ro dscp?           uint8
+              +--ro gre-type?       string
+              +--ro ttl?            uint8
+              +--ro queue?          uint8
+              +--ro status?         string
+              +--ro monitor-port?   oc-if:base-interface-ref
+              +--ro dst-mac?        oc-yang:mac-address
+              +--ro route-prefix?   oc-inet:ip-address
+              +--ro vlan-id?        uint16
+              +--ro next-hop-ip?    oc-inet:ip-address
+
+```
+| Prefix |     Module Name    |
+|:---:|:-----------:|
+| oc-mirror-ext | openconfig-mirror-ext  |
+| oc-ext | openconfig-extensions  |
+| oc-yang | openconfig-yang-types  |
+| oc-inet | openconfig-inet-types  |
+| oc-if | openconfig-interfaces  |
+
+## sonic-mirror-session
+```diff
+  +--rw sonic-mirror-session
+     +--rw MIRROR_SESSION
+     |  +--rw MIRROR_SESSION_LIST* [name]
+     |     +--rw name         string
+     |     +--rw src_ip?      inet:ipv4-address
+     |     +--rw dst_ip?      inet:ipv4-address
+     |     +--rw gre_type?    string
+     |     +--rw dscp?        uint8
+     |     +--rw ttl?         uint8
+     |     +--rw queue?       uint8
+     |     +--rw dst_port?    union
+     |     +--rw src_port?    union
+     |     +--rw direction?   enumeration
+     +--ro MIRROR_SESSION_TABLE
+        +--ro MIRROR_SESSION_TABLE_LIST* [name]
+           +--ro name            string
+           +--ro status?         string
+           +--ro monitor_port?   -> /prt:sonic-port/PORT/PORT_LIST/ifname
+           +--ro dst_mac?        yang:mac-address
+           +--ro route_prefix?   inet:ipv4-address
+           +--ro vlan_id?        -> /svlan:sonic-vlan/VLAN/VLAN_LIST/name
+           +--ro next_hop_ip?    inet:ipv4-address
+
+```
 
 ### 3.5.2 Configuration Commands
 
