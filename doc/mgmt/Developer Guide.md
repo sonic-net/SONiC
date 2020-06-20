@@ -579,7 +579,7 @@ Example:
 2. Write/Update an actioner script: The actioner script prepares the message body having the JSON request and invokes the REST client API. The actioner script is invoked by the klish and the input parameters are passed to it from the XML file.
 Actioner can be defined with the <ACTION> tag in the XML file. 
 
-There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
+   There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
 
   * Spawn a sub-shell to run the scripts defined in a command's <ACTION> tag. The shebang can be specified for the script execution. By default the "/bin/sh" is used. To customize shebang the 'shebang' field of the ACTION tag is used.
 
@@ -619,6 +619,7 @@ There are three different methods available to implement the Actioner: sub-shell
 
     Below example shows that the clish_pyobj can be used to set a dynamic variable "supported_breakout_modes" to check the breakout capability for a given port.
     Once the result is returned from the Python fucntion, the variable keeps the result and pass to <PARAM> like below.
+```
     <VAR dynamic="true" name="supported_breakout_modes">        
        <ACTION builtin="clish_pyobj">sonic_cli_breakout.py capability</ACTION>
     </VAR>
@@ -629,7 +630,7 @@ There are three different methods available to implement the Actioner: sub-shell
      mode="subcommand" ptype="SUBCOMMAND"
      test='${supported_breakout_modes} -ct ETHERNET:BREAKOUT_1x1:100GIGE'
     />
-
+```
 3. Write/Update Renderer scripts and templates. The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output. Refer files in the below path for an example of usage 
 
     **Renderer path**:
@@ -766,6 +767,7 @@ Additional enhancements can be done to open source klish as below. Enhancements 
 
    **Example**:
    Interfaces can be defined with regexp_select method and ext_pattern to support abbreviated interface naming, i.e eth20, e20, Ether20 etc. Here, we are left the help part as empty, and define the help string in the place where we use this PTYPE.
+```
    <!ENTITY ETH_PHY_NUM     "([0-9]|[1-9]([0-9])*)">
    <!ENTITY ETH_ALL_INTF    "(^[eE]([t]|(th)|(thernet))?\s*((&amp;ETH_PHY_NUM;$)))">
    <PTYPE
@@ -775,7 +777,7 @@ Additional enhancements can be done to open source klish as below. Enhancements 
       pattern="&ETH_ALL_INTF;"
       help=""
    />
-
+```
 #### 2.6.4 Preprocess XML files
 
 * The preprocessing scripts are invoked at compile time and no action is required to add a new CLI command.
