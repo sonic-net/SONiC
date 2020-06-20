@@ -1,6 +1,6 @@
 # SONiC Management Framework Developer Guide
 
-## Rev 0.6
+## Rev 0.8
 
 ## Table of Contents
 
@@ -53,6 +53,7 @@
 | 0.5 | 09/20/2019  | Mohammed Faraaz C       | Updated REST Unit testing                                            |
 | 0.6 | 09/20/2019  | Prabhu Sreenivasan      | Updated reference links and yang path                                |
 | 0.7 | 09/23/2019  | Partha Dutta            | Updated SONiC YANG, CVL, gNMI section                                |
+| 0.8 | 06/18/2019  | Kwangsuk Kim            | Updated CLI section                                                  |
 
 ## About this Manual
 
@@ -536,13 +537,13 @@ Klish uses XML based command tree inputs to build the parser command tree.
 All CLI commands to be supported are specified in XML format in module specific XML file.
 XML files can be defined with macros and entity references, preprocessed by scripts to generate the expanded XML files.
 
-3. Actioner scripts: Script that will form the request body and invoke the swagger client API.
+3. Actioner: Script that will transform CLI commands to form the corresponding REST requests and invoke the REST client API.
 
-4. Renderer: Script that will receive the JSON response from Swagger CLI API and use the jinja2 template file to render(display) the CLI output in the desired format.
+4. Renderer: Script that will receive the JSON response from REST client API and use the jinja2 template file to render(display) the CLI output in the desired format.
 
 #### 2.6.2 CLI development steps
 
-Following are the steps to add a new CLI command
+Following are the steps to add a new CLI command. Please refer to https://github.com/sipwise/klish/blob/master/doc/klish.md for detail.
 
 1. Create a CLI XML .xml file that defines the CLI command structure. This file defines the following
     * CLI command format
@@ -575,7 +576,17 @@ Example:
         </ACTION>
     </COMMAND>
 
-2. Write/Update an actioner script: The actioner script prepares the message body having the JSON request and invokes the swagger client API. The actioner script is invoked by the klish and the input parameters are passed to it from the XML file.
+2. Write/Update an actioner script: The actioner script prepares the message body having the JSON request and invokes the REST client API. The actioner script is invoked by the klish and the input parameters are passed to it from the XML file.
+Actioner can be defined with the <ACTION> tag in the XML file. 
+
+   There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
+
+  * Spawn a sub-shell to run the scripts defined in a command's <ACTION> tag. The shebang can be specified for the script execution. By default the "/bin/sh" is used. To customize shebang the 'shebang' field of the ACTION tag is used.
+
+    The sub-shell runs the Python script sonic_cli_<module_name>.py
+
+    sonic_cli_<module_name>.py <OpenAPI client method> [parameters . . .]
+    The sonic_cli_<module_name>.py has a dispatch function to call a REST client method with parameters passed from user input.
 
     **Example**:
     Refer the <ACTION> tag in the above example command.
@@ -584,6 +595,42 @@ Example:
     One actioner script will be written per module.
     Eg: sonic_cli_if.py can be used to handle the interface cases.
 
+  * Invoke the built-in function, clish_restcl, to use libcurl to make REST client call
+    This builtin uses libcurl to connect to the REST server Format of ACTION tag argument: 
+
+    oper= url=</restconf/data/...> body={..} 
+    where oper can be PUT/POST/PATCH/DELETE and body is optional. Note that oper GET is not supported as we currently don't handle rendering using jinja templates.
+
+    **Example**:
+
+    <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-interfaces:interfaces/interface=Vlan${vlan-id}/config body={"openconfig-interfaces:config": {"name": "Vlan${vlan-id}"}}</ACTION>
+
+  * Invoke the built-in function, clish_pyobj, to use the embedding Python to make REST client call
+    This builtin uses embedded python library.
+    Format of ACTION tag argument is similar to the one of sub-shell. 
+    For 'show' commands, the jinja2 template is passed to the Python script to apply template to redender CLI output.
+    The ${__full_line} variable is also required to support Pipe, e.g sonic# show vlan | no-more. 
+    Note that the "if-else" statement defined in the sub-shell can be moved to Python script.
+
+    **Example**:
+    <ACTION builtin="clish_pyobj">sonic_cli_vlan get_sonic_vlan_sonic_vlan Vlan${id} show_vlan.j2 ${__full_line}</ACTION>
+
+    **Example**:
+
+    Below example shows that the clish_pyobj can be used to set a dynamic variable "supported_breakout_modes" to check the breakout capability for a given port.
+    Once the result is returned from the Python fucntion, the variable keeps the result and pass to <PARAM> like below.
+```
+    <VAR dynamic="true" name="supported_breakout_modes">        
+       <ACTION builtin="clish_pyobj">sonic_cli_breakout.py capability</ACTION>
+    </VAR>
+
+    <PARAM 
+     name="100g-1x"
+     help="breakout to 1 100G interface"
+     mode="subcommand" ptype="SUBCOMMAND"
+     test='${supported_breakout_modes} -ct ETHERNET:BREAKOUT_1x1:100GIGE'
+    />
+```
 3. Write/Update Renderer scripts and templates. The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output. Refer files in the below path for an example of usage 
 
     **Renderer path**:
@@ -715,6 +762,22 @@ Additional enhancements can be done to open source klish as below. Enhancements 
 
     3. Use the ENTITY just like any other XML ENTITY in the CLI parser XML file.
 
+4. Extended support with ext_help and regexp_select  
+   The ext_help is similar to the pattern used in select method and used with regexp_select method. The value of the ext_pattern attribute is used for auto completion in regexp_select method.
+
+   **Example**:
+   Interfaces can be defined with regexp_select method and ext_pattern to support abbreviated interface naming, i.e eth20, e20, Ether20 etc. Here, we are left the help part as empty, and define the help string in the place where we use this PTYPE.
+```
+   <!ENTITY ETH_PHY_NUM     "([0-9]|[1-9]([0-9])*)">
+   <!ENTITY ETH_ALL_INTF    "(^[eE]([t]|(th)|(thernet))?\s*((&amp;ETH_PHY_NUM;$)))">
+   <PTYPE
+      name="PHY_INTERFACE"
+      method="regexp_select"
+      ext_pattern="Ethernet(port)"
+      pattern="&ETH_ALL_INTF;"
+      help=""
+   />
+```
 #### 2.6.4 Preprocess XML files
 
 * The preprocessing scripts are invoked at compile time and no action is required to add a new CLI command.
@@ -733,7 +796,7 @@ Additional enhancements can be done to open source klish as below. Enhancements 
 
 #### 2.6.5 CLI directory structure
 
-sonic-mgmt-framework/src
+sonic-mgmt-framework/CLI
 
 - actioner
 - clicfg
