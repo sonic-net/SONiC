@@ -1,6 +1,6 @@
 # SONiC Management Framework Developer Guide
 
-## Rev 0.6
+## Rev 0.8
 
 ## Table of Contents
 
@@ -577,12 +577,15 @@ Example:
     </COMMAND>
 
 2. Write/Update an actioner script: The actioner script prepares the message body having the JSON request and invokes the REST client API. The actioner script is invoked by the klish and the input parameters are passed to it from the XML file.
-Actioner can be defined with the <ACTION> tag in the XML file. There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
+Actioner can be defined with the <ACTION> tag in the XML file. 
+
+There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
 
   * Spawn a sub-shell to run the scripts defined in a command's <ACTION> tag. The shebang can be specified for the script execution. By default the "/bin/sh" is used. To customize shebang the 'shebang' field of the ACTION tag is used.
 
     The sub-shell runs the Python script sonic_cli_<module_name>.py
-	sonic_cli_<module_name>.py <OpenAPI client method> [parameters . . .]
+
+    sonic_cli_<module_name>.py <OpenAPI client method> [parameters . . .]
     The sonic_cli_<module_name>.py has a dispatch function to call a REST client method with parameters passed from user input.
 
     **Example**:
@@ -594,12 +597,14 @@ Actioner can be defined with the <ACTION> tag in the XML file. There are three d
 
   * Invoke the built-in function, clish_restcl, to use libcurl to make REST client call
     This builtin uses libcurl to connect to the REST server Format of ACTION tag argument: 
-        oper= url=</restconf/data/...> body={..} 
+
+    oper= url=</restconf/data/...> body={..} 
     where oper can be PUT/POST/PATCH/DELETE and body is optional. Note that oper GET is not supported as we currently don't handle rendering using jinja templates.
 
     **Example**:
+
     <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-interfaces:interfaces/interface=Vlan${vlan-id}/config body={"openconfig-interfaces:config": {"name": "Vlan${vlan-id}"}}</ACTION>
-    
+
   * Invoke the built-in function, clish_pyobj, to use the embedding Python to make REST client call
     This builtin uses embedded python library.
     Format of ACTION tag argument is similar to the one of sub-shell. 
@@ -611,12 +616,13 @@ Actioner can be defined with the <ACTION> tag in the XML file. There are three d
     <ACTION builtin="clish_pyobj">sonic_cli_vlan get_sonic_vlan_sonic_vlan Vlan${id} show_vlan.j2 ${__full_line}</ACTION>
 
     **Example**:
+
     Below example shows that the clish_pyobj can be used to set a dynamic variable "supported_breakout_modes" to check the breakout capability for a given port.
     Once the result is returned from the Python fucntion, the variable keeps the result and pass to <PARAM> like below.
     <VAR dynamic="true" name="supported_breakout_modes">        
        <ACTION builtin="clish_pyobj">sonic_cli_breakout.py capability</ACTION>
     </VAR>
-    . . .
+
     <PARAM 
      name="100g-1x"
      help="breakout to 1 100G interface"
