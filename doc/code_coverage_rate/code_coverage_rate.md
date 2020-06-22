@@ -1,4 +1,4 @@
-#  [Code Coverage Rate HLD] Update code coverage rate.md
+# [Code Coverage Rate HLD] Update code coverage rate.md
 code-coverage-rate-hld
 
 # About this Document
