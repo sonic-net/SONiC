@@ -306,7 +306,7 @@ Schema:
 ;New table
 ;holds the tunnel name specifying the VTEP source IP used for BGP-EVPN discovered tunnels
 
-key = EVPN_NVO_TABLE:nvo_name
+key = VXLAN_EVPN_NVO|nvo_name
                           ; nvo or VTEP name as a string
 ; field = value
 source_vtep = tunnel_name ; refers to the tunnel object created with SIP only.
@@ -326,7 +326,7 @@ Schema:
 ;New table
 ;Stores Neigh Suppress configuration per VLAN
 
-key             = NEIGH_SUPPRESS_VLAN:"Vlan"vlanid       ; VLAN with prefix "NEIGH_SUPPRESS"
+key             = SUPPRESS_VLAN_NEIGH|"Vlan"vlanid       ; VLAN with prefix "NEIGH_SUPPRESS"
 suppress_neigh  = "ON" / "OFF" ; Default "OFF"
 
 ```
@@ -369,7 +369,7 @@ Schema:
 ; New table
 ; holds the VTEP source IP used for BGP-EVPN discovered tunnels
 
-key = EVPN_NVO_TABLE:nvo_name
+key = VXLAN_EVPN_NVO_TABLE:nvo_name
                           ; nvo or VTEP name as a string
 ; field = value
 source_vtep = tunnel_name ; refers to the VXLAN_TUNNEL object created with SIP only.
@@ -476,7 +476,7 @@ Schema:
 ; New table
 ;Stores Neigh Suppress configuration per VLAN
 
-key             = NEIGH_SUPPRESS_VLAN:"Vlan"vlanid		; VLAN with prefix "NEIGH_SUPPRESS"
+key             = SUPPRESS_VLAN_NEIGH_TABLE:"Vlan"vlanid		; VLAN with prefix "NEIGH_SUPPRESS"
 suppress_neigh  = "ON" / "OFF" ; Default "OFF"
 ```
 
@@ -553,7 +553,7 @@ The corresponding CONFIG_DB entries are as follows.
 VXLAN_TUNNEL_TABLE|{{source_vtep_name}}
     "src_ip" : {{ipv4_address}}
     
-EVPN_NVO_TABLE|{{nvo_name}}
+VXLAN_EVPN_NVO_TABLE|{{nvo_name}}
     "source_vtep" : {{source_vtep_name}}
 ```
 
