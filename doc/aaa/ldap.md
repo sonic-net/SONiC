@@ -1,7 +1,7 @@
 # LDAP Name Service
 
 ## High Level Design Document
-#### Rev 0.12
+#### Rev 0.13
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -67,6 +67,7 @@
 |     |              |                    | Added missing retry to ldap host. |
 | 0.11| 05/17/2020   |  Arun Barboza      | Update the UT with KLISH examples.|
 | 0.12| 05/20/2020   |  Arun Barboza      | IIFR, clarifications, OCYang, Maps|
+| 0.13| 06/22/2020   |  Arun Barboza      | project-arlo review updates       |
 |     |              |                    |                                   |
 
 # Overview
@@ -256,8 +257,8 @@ SSH Client              SONiC Device                     TACACS+ Server
    failed. End.
 8. The user has authenticated successfully.
 
-Instead of TACACS+, RADIUS could be used as the authentication service as
-well.
+Instead of TACACS+, RADIUS (or LDAP) could be used as the authentication
+service as well.
 
 ## ConfigDB Schema
 
@@ -471,29 +472,31 @@ module: openconfig-system
                                             option)
 ...
      |  +--rw oc-sys-ext:authorization
-     |  |  +--rw config
-     |  |  |  +--rw oc-sys-ext:authorization-method* (extended for "ldap" opt.)
 ...
-     |  +--rw oc-sys-ext:name-service   (New container)
-     |     +--rw oc-sys-ext:passwd
-     |        +--rw config
-     |           +--rw oc-sys-ext:name-service-method*
+     |  |  +--rw oc-aaa-ldap-ext:login (New container: LDAP logon authorization)
+     |  |     +--rw oc-aaa-ldap-ext:config
+     |  |     |  +--rw oc-aaa-ldap-ext:authorization-method*   union
 ...
-     |     +--rw oc-sys-ext:shadow
+     |  +--rw oc-aaa-ldap-ext:name-service   (New container)
+     |     +--rw oc-aaa-ldap-ext:passwd
      |        +--rw config
-     |           +--rw oc-sys-ext:name-service-method*
+     |           +--rw oc-aaa-ldap-ext:name-service-method*
 ...
-     |     +--rw oc-sys-ext:group
+     |     +--rw oc-aaa-ldap-ext:shadow
      |        +--rw config
-     |           +--rw oc-sys-ext:name-service-method*
+     |           +--rw oc-aaa-ldap-ext:name-service-method*
 ...
-     |     +--rw oc-sys-ext:netgroup
+     |     +--rw oc-aaa-ldap-ext:group
      |        +--rw config
-     |           +--rw oc-sys-ext:name-service-method*
+     |           +--rw oc-aaa-ldap-ext:name-service-method*
 ...
-     |     +--rw oc-sys-ext:sudoers
+     |     +--rw oc-aaa-ldap-ext:netgroup
      |        +--rw config
-     |           +--rw oc-sys-ext:name-service-method*
+     |           +--rw oc-aaa-ldap-ext:name-service-method*
+...
+     |     +--rw oc-aaa-ldap-ext:sudoers
+     |        +--rw config
+     |           +--rw oc-aaa-ldap-ext:name-service-method*
 ...
      |  +--rw server-groups
      |     +--rw server-group* [name]  (new LDAP_ALL group)
@@ -520,6 +523,8 @@ module: openconfig-system
      |        |           +--ro oc-aaa-ldap-ext:retransmit-attempts?   uint8
      |        +--rw oc-aaa-ldap-ext:ldap   (New Container)
      |           +--rw oc-aaa-ldap-ext:config
+     |           |  +--rw oc-aaa-ldap-ext:source-interface?             -> /oc-if:interfaces/interface/name
+     |           |  +--rw oc-aaa-ldap-ext:vrf-name?                     -> /oc-ni:network-instances/network-instance/name
      |           |  +--rw oc-aaa-ldap-ext:search-time-limit?            uint32
      |           |  +--rw oc-aaa-ldap-ext:bind-time-limit?              uint32
      |           |  +--rw oc-aaa-ldap-ext:retransmit-attempts?          uint8
@@ -544,20 +549,20 @@ module: openconfig-system
      |           |  +--rw oc-aaa-ldap-ext:sudoers-base?                 string
      |           |  +--rw oc-aaa-ldap-ext:scope?                        enumeration
      |           |  +--rw oc-aaa-ldap-ext:nss-base-passwd?              string
-     |           +--ro oc-aaa-ldap-ext:state
-     |           +--rw oc-aaa-ldap-ext:maps
-     |              +--rw oc-aaa-ldap-ext:map* [name from]
-     |                 +--rw oc-aaa-ldap-ext:name      -> ../config/name
-     |                 +--rw oc-aaa-ldap-ext:from      -> ../config/from
-     |                 +--rw oc-aaa-ldap-ext:config
-     |                 |  +--rw oc-aaa-ldap-ext:name?   enumeration
-     |                 |  +--rw oc-aaa-ldap-ext:from?   string
-     |                 |  +--rw oc-aaa-ldap-ext:to?     string
-     |                 +--ro oc-aaa-ldap-ext:state
-     |                    +--ro oc-aaa-ldap-ext:name?   enumeration
-     |                    +--ro oc-aaa-ldap-ext:from?   string
-     |                    +--ro oc-aaa-ldap-ext:to?     string
 ...
+     |  |        +--rw oc-aaa-ldap-ext:maps
+     |  |           +--rw oc-aaa-ldap-ext:map* [name from]
+     |  |              +--rw oc-aaa-ldap-ext:name      -> ../config/name
+     |  |              +--rw oc-aaa-ldap-ext:from      -> ../config/from
+     |  |              +--rw oc-aaa-ldap-ext:config
+     |  |              |  +--rw oc-aaa-ldap-ext:name?   enumeration
+     |  |              |  +--rw oc-aaa-ldap-ext:from?   string
+     |  |              |  +--rw oc-aaa-ldap-ext:to?     string
+     |  |              +--ro oc-aaa-ldap-ext:state
+     |  |                 +--ro oc-aaa-ldap-ext:name?   enumeration
+     |  |                 +--ro oc-aaa-ldap-ext:from?   string
+     |  |                 +--ro oc-aaa-ldap-ext:to?     string
+
 ...
 
 
@@ -575,23 +580,27 @@ KLISH commands (XML, actioners, renderers) needs to be written for
 - AAA authentication ldap option.
 
 ```
-sonic(config)# [no] aaa authentication login-method { ldap | local }*
+sonic(config)# [no] aaa authentication login default local \
+                              [ | group { radius | tacacs+ | ldap } ]
+sonic(config)# [no] aaa authentication login default \
+                              group { radius | tacacs+ | ldap } [ local ]
+sonic(config)# [no] aaa authentication login default
 ```
 
 - AAA authorization login ldap option..
 
 ```
-sonic(config)# [no] aaa authorization login {ldap|local}
+sonic(config)# [no] aaa authorization login default { group ldap | local }
 ```
 
 - AAA name-service.
 
 ```
-sonic(config)# [no] aaa name-service passwd { ldap|login|local }
-sonic(config)# [no] aaa name-service shadow { ldap|login|local }
-sonic(config)# [no] aaa name-service group { ldap|login|local }
-sonic(config)# [no] aaa name-service netgroup { ldap|local }
-sonic(config)# [no] aaa name-service sudoers { ldap|local }
+sonic(config)# [no] aaa name-service passwd { group ldap | login | local }
+sonic(config)# [no] aaa name-service shadow { group ldap | login | local }
+sonic(config)# [no] aaa name-service group  { group ldap | login | local }
+sonic(config)# [no] aaa name-service netgroup { group ldap | local }
+sonic(config)# [no] aaa name-service sudoers  { group ldap | local }
 ```
 
 - LDAP global|nss|pam|sudo server authentication, authorization, name-service parameters.
@@ -908,9 +917,9 @@ sonic(config)# ldap-server 10.59.1.9
 ; Use defaults for locating the bases of passwd, shadow, and group entries.
 
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method ldap local
+sonic(config)# aaa authentication login default group ldap local
 
-; Use defaults for name-service based on login-method authentication 
+; Use defaults for name-service based on login authentication 
 
 ```
 
@@ -957,9 +966,9 @@ User's click interface is sudoers authorized through LDAP servers. (i.e
 
 ; LDAP Name Service parameters
 sonic(config)# ldap-server base "dc=example,dc=com"
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
 ; Use this server for name-service and sudo-ldap authorization only, with one
 ; reconnect attempt
@@ -972,16 +981,16 @@ sonic(config)# ldap-server 10.59.1.9 use-type pam
 
 sonic(config)# ldap-server pam-groupdn "cn=t1.loc.example.com,ou=hostaccess,dc=example,dc=com"
 sonic(config)# ldap-server pam-member-attribute "uniqueMember"
-sonic(config)# aaa authorization login ldap
+sonic(config)# aaa authorization login default group ldap
 
 ; sudo-ldap authorization
 sonic(config)# ldap-server sudoers-base "dc=example,dc=com"
-sonic(config)# aaa name-service sudoers ldap
+sonic(config)# aaa name-service sudoers group ldap
 
 ; Authentication from TACACS+
 sonic(config)# tacacs-server 10.59.1.15
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method tacacs+ local
+sonic(config)# aaa authentication login default group tacacs+ local
 
 ```
 
@@ -1326,7 +1335,7 @@ sonic#
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method ldap local
+sonic(config)# aaa authentication login default group ldap local
 
 ```
 
@@ -1456,13 +1465,13 @@ sudo config aaa nss group ldap
 sonic(config)# tacacs-server host 10.59.143.229
 sonic(config)# tacacs-server key testing123
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method tacacs+ local
+sonic(config)# aaa authentication login default group tacacs+ local
 
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
 ```
 
@@ -1636,13 +1645,13 @@ sudo config aaa nss group ldap
 sonic(config)# radius-server host 10.59.143.229
 sonic(config)# radius-server key sharedsecret
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method radius local
+sonic(config)# aaa authentication login default group radius local
 
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
 ```
 
@@ -1821,17 +1830,17 @@ sudo config aaa authorization login ldap
 sonic(config)# radius-server host 10.59.143.229
 sonic(config)# radius-server key sharedsecret
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method radius local
+sonic(config)# aaa authentication login default group radius local
 
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
 sonic(config)# ldap-server pam-groupdn cn=sudo,ou=Group,dc=sji,dc=broadcom,dc=net
 sonic(config)# ldap-server pam-member-attribute memberUid
-sonic(config)# aaa authorization login ldap
+sonic(config)# aaa authorization login default group ldap
 
 ```
 
@@ -2022,15 +2031,15 @@ sudo config ldap sudoers_base ou=Sudoers,dc=sji,dc=broadcom,dc=net
 sonic(config)# radius-server host 10.59.143.229
 sonic(config)# radius-server key sharedsecret
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method radius local
+sonic(config)# aaa authentication login default group radius local
 
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
-sonic(config)# aaa name-service sudoers ldap
+sonic(config)# aaa name-service sudoers group ldap
 sonic(config)# ldap-server sudoers-base ou=Sudoers,dc=sji,dc=broadcom,dc=net
 
 ```
@@ -2232,21 +2241,21 @@ sudo config aaa authorization login ldap
 sonic(config)# radius-server host 10.59.143.229
 sonic(config)# radius-server key sharedsecret
 sonic(config)# aaa authentication failthrough enable
-sonic(config)# aaa authentication login-method radius local
+sonic(config)# aaa authentication login default group radius local
 
 sonic(config)# ldap-server host 10.59.143.229
 sonic(config)# ldap-server base dc=sji,dc=broadcom,dc=net
 sonic(config)# ldap-server nss base dc=sji,dc=broadcom,dc=net
-sonic(config)# aaa name-service passwd ldap
-sonic(config)# aaa name-service shadow ldap
-sonic(config)# aaa name-service group ldap
+sonic(config)# aaa name-service passwd group ldap
+sonic(config)# aaa name-service shadow group ldap
+sonic(config)# aaa name-service group group ldap
 
-sonic(config)# aaa name-service sudoers ldap
+sonic(config)# aaa name-service sudoers group ldap
 sonic(config)# ldap-server sudo sudoers-base ou=Sudoers,dc=sji,dc=broadcom,dc=net
 
 sonic(config)# ldap-server pam pam-groupdn cn=docker,ou=Group,dc=sji,dc=broadcom,dc=net
 sonic(config)# ldap-server pam pam-member-attribute memberUid
-sonic(config)# aaa authorization login ldap
+sonic(config)# aaa authorization login default group ldap
 
 ```
 
