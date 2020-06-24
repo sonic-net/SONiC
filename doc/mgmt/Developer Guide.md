@@ -61,7 +61,12 @@
         * [2.8.1 Host Modules](#281-host-modules)
         * [2.8.2 FRR Integration](#282-frr-integration)
     * [2.9 KLISH CLI](#29-klish-cli)
-        * TODO
+        * [2.9.1 CLI components](#291-cli-components)
+        * [2.9.2 CLI development steps](#292-cli-development-steps)
+        * [2.9.3 Enhancements to Klish](#293-enhancements-to-klish)
+        * [2.9.4 Preprocess XML files](#294-preprocess-xml-files)
+        * [2.9.5 CLI directory structure](#295-cli-directory-structure)
+        * [2.9.6 Generic REST Client](#296-generic-rest-client-for-actioner-scripts)
     * [2.10 REST Server](#210-rest-server)
     * [2.11 gNMI](#211-gnmi)
     * [2.12 Compilation](#212-compilation)
@@ -106,7 +111,7 @@ This document describes the steps the feature developers need to follow to devel
 
 ### Table 1: Abbreviations
 
-| **Term**                 | **Meaning**                         
+| **Term**                 | **Meaning**                         |
 |--------------------------|-------------------------------------|
 | CVL                      | Config Validation Library           |
 | NBI                      | North Bound Interface               |
@@ -1636,26 +1641,26 @@ gNMI and telemetry infrastructure code is maintained in **sonic-telemetry** repo
 
 #### 2.12.1 sonic-mgmt-common
 
-sonic-mgmt-common repository compiles into **sonic-mgmt-common_1.0.0_xyz.deb** and
-**sonic-mgmt-common-codegen_1.0.0_xyz.deb** packages; where "xyz" is the target architecture..
+sonic-mgmt-common repository compiles into **sonic-mgmt-common_1.0.0_{arch}.deb** and
+**sonic-mgmt-common-codegen_1.0.0_{arch}.deb** packages.
 
-The sonic-mgmt-common_1.0.0_xxx.deb contains YANGs, YANG derivatives and configuration files
+The sonic-mgmt-common_1.0.0_{arch}.deb contains YANGs, YANG derivatives and configuration files
 required by Translib, transformer and CVL. 
 These are installed in **mgmt-framework** and **telemetry** containers.
 
-sonic-mgmt-common-codegen_1.0.0_xxx.deb contains YGOT bindings and other generated source files
+sonic-mgmt-common-codegen_1.0.0_{arch}.deb contains YGOT bindings and other generated source files
 which are required for sonic-mgmt-framework and sonic-telemetry compilation.
 When package cache mode is enabled, the build infrastructure will not compile sonic-mgmt-common
 files if there are no changes in it since last compilation.
-Generated source files are restored by installing sonic-mgmt-common-codegen_1.0.0_xxx.deb in
+Generated source files are restored by installing sonic-mgmt-common-codegen_1.0.0_{arch}.deb in
 the build container.
 
 #### 2.12.2 sonic-mgmt-framework
 
-Code from sonic-mgmt-framework compiles into the docker image docker-sonic-mgmt-framework.gz.
-It creates **mgmt-framework** container on the switch.
-REST Server and CLI code are compiled and packaged as sonic-mgmt-framework_1.0-01_xyz.deb.
-This and sonic-mgmt-common_1.0.0_xyz.deb together form the docker image.
+Code from sonic-mgmt-framework repository compiles into **sonic-mgmt-framework_1.0-01_{arch}.deb**
+and a docker image **docker-sonic-mgmt-framework.gz**.
+REST Server and CLI code are packaged in sonic-mgmt-framework_1.0-01_xyz.deb.
+This and sonic-mgmt-common_1.0.0_{arch}.deb are included in the docker image.
 
 To rebuld the docker image both these debs should be cleaned.
 
