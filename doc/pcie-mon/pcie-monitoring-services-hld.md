@@ -11,16 +11,16 @@
 
 ## About This Manual ##
 
-This document is intend to give the idea of how to monitor the platform PCIe devices and alert any problem on PCIe buses and devices on SONiC using pcie-check service and pcied on PMON container.
+This document is intended to give the idea of how to monitor the platform PCIe devices and alert of any problems on PCIe buses and devices on SONiC using pcie-check service and pcied on PMON container.
 
 
 ## 1. PCIe Monitor service design ##
 
 New PCIe Monitor service is designed to use the PcieUtil utility to check the current status of PCIe devices and buses and alert if there is any missing devices or any error while communicating on the PCIe buses.
 
-PCIe device monitoring will be done in two separate services, `pcie-check.service` which is a systemd service, will monitor the PCIe device during the boot time and `pcied` which is a daemon in PMON container will monitor during the runtime.
+PCIe device monitoring will be done in two separate services, `pcie-check.service` which is a systemd service, will check the PCIe device during the boot time and `pcied` which is a daemon in PMON container will monitor during the runtime.
 
-First, pcie-check.service will be added to check the pcie device enumeration status, trigger the pci device rescan if there is any missing device and indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
+First, pcie-check.service will be added to check the pcie device enumeration status, trigger 15 maximum retries of a pci device rescan if there is any missing device and save the result status of pcie device check into the STATE_DB to indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
 
 Second, pcied in PMON will perform the periodic pcie device check during the run time.
 
