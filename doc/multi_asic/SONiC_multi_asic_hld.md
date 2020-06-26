@@ -499,26 +499,25 @@ There is also dependency on management interface related information. Currently,
 
 Below are the list of MIBs suppored by snmp_ax_impl.
 
-OID |  | Name | Data source | 
-----|--|------|-------------|-
-1.3.6.1.2.1.4.22.1.2 |  | ARP Table | python arptable on host and NEIGH_TABLE in APP_DB from all namespace
-1.3.6.1.2.1.4.24.4 |  | Route Table | All namespace DBs
-1.3.6.1.2.1.2 |  | Interface MIB | All namespace DBs
-1.3.6.1.2.1.47.1.1 | PhysicalTableMIB | All namespace DBs
-1.3.6.1.2.1.99.1.1 |  | PhysicalSensorTableMIB | All namespace DBs
-1.3.6.1.2.1.17.7.1 |  | QBridgeMIBObjects | All namespace DBs
-1.0.8802.1.1.2.1.3 |  | LLDPLocalSystemData | 
-1.0.8802.1.1.2.1.3.7 |  | LLDPLocPortTable | All namespace DBs
-1.0.8802.1.1.2.1.3.8 |  | LLDPLocManAddrTable | Host DB
-1.0.8802.1.1.2.1.4.1 |  | LLDPRemTable | All namespace DBs 
-1.3.6.1.4.1.9.9.813.1.1 |  | cpfcIfTable | All namespace DBs
-1.3.6.1.4.1.9.9.813.1.2 |  | cpfcIfPriorityTable | All namespace DBs
-1.3.6.1.4.1.9.9.187 |  | CiscoBgp4MIB | All namespace DBs
-1.3.6.1.4.1.9.9.580.1.5.5 |  | csqIfQosGroupStatsTable | All namespace DBs
-1.3.6.1.4.1.9.9.117.1.1.2 |  | cefcFruPowerStatusTable | system data, no change for multi asic
-1.3.6.1.4.1.6027.3.10.1.2.9 |  MIBMeta | system data, no change for multi asic
-1.3.6.1.2.1.31.1 |  | InterfaceMIBObjects | All namespace DBs
-
+|OID |  | Name | Data source | 
+|----|--|------|-------------|
+|1.3.6.1.2.1.4.22.1.2 |  | ARP Table | python arptable on host and NEIGH_TABLE in APP_DB from all namespace|
+|1.3.6.1.2.1.4.24.4 |  | Route Table | All namespace DBs|
+|1.3.6.1.2.1.2 |  | Interface MIB | All namespace DBs|
+|1.3.6.1.2.1.47.1.1 | PhysicalTableMIB | All namespace DBs|
+|1.3.6.1.2.1.99.1.1 |  | PhysicalSensorTableMIB | All namespace DBs|
+|1.3.6.1.2.1.17.7.1 |  | QBridgeMIBObjects | All namespace DBs|
+|1.0.8802.1.1.2.1.3 |  | LLDPLocalSystemData | |
+|1.0.8802.1.1.2.1.3.7 |  | LLDPLocPortTable | All namespace DBs|
+|1.0.8802.1.1.2.1.3.8 |  | LLDPLocManAddrTable | Host DB|
+|1.0.8802.1.1.2.1.4.1 |  | LLDPRemTable | All namespace DBs| 
+|1.3.6.1.4.1.9.9.813.1.1 |  | cpfcIfTable | All namespace DBs|
+|1.3.6.1.4.1.9.9.813.1.2 |  | cpfcIfPriorityTable | All namespace DBs|
+|1.3.6.1.4.1.9.9.187 |  | CiscoBgp4MIB | All namespace DBs|
+|1.3.6.1.4.1.9.9.580.1.5.5 |  | csqIfQosGroupStatsTable | All namespace DBs|
+|1.3.6.1.4.1.9.9.117.1.1.2 |  | cefcFruPowerStatusTable | system data, no change for multi asic|
+|1.3.6.1.4.1.6027.3.10.1.2.9 |  MIBMeta | system data, no change for multi asic|
+|1.3.6.1.2.1.31.1 |  | InterfaceMIBObjects | All namespace DBs|
 #### 2.4.7.2. Telemetry
 
 There will be a single Telemetry service and telemetry docker for the multi asic platform which will pull needed data from the DB's of asic namespace.  More details will be provided in a separate document.
