@@ -24,7 +24,8 @@
 | Rev |     Date    |       Author       | Change Description |      
 |:---:|:-----------:|:------------------:|--------------------|
 | 0.1 | May-19 2020 | Kartik Chandran (Arista Networks) | Initial Version |
-| 0.2 | June-22 2020 | Kartik Chandran (Arista Networks) | First set of review comments from public review |  
+| 0.2 | June-22 2020 | Kartik Chandran (Arista Networks) | First set of review comments from public review |
+| 1.0 | June-26 2020 | Kartik Chandran (Arista Networks) | Final set of review comments from public review |  
 
 # About this Manual
 
@@ -57,7 +58,8 @@ However, this architecture makes no hard assumptions about operating within a ch
 | FSI  | Forwarding SONiC Instance |  SONiC instance on a packet forwarding module like a linecard.
 | SSI | Supervisor SONiC Instance |  SONiC instance on a central supervisor module that controls a cluster of forwarding instances and the interconnection fabric.
 | Forwarding Device | A unit of hardware that runs SONiC and is responsible for packet forwarding |
-| ASIC | Application Specific Integrated Circuit | Refers to the forwarding engine on a device that is responsible for packet forwarding. Also referred to as NPU
+| ASIC | Application Specific Integrated Circuit | Refers to the forwarding engine on a device that is responsible for packet forwarding. 
+| NPU | Network Processing Unit | An alternate term for ASIC often used in SONiC vocabulary 
 
 
 # 1 Requirements
@@ -157,7 +159,7 @@ Please see the SAI VoQ spec for more detailed examples.
 
 ### Forwarding SONiC Instance
 
-Each FSI has a globally unique name that represents that SONiC instance. In a modular chassis, the name would conventionally be "Lineard-N", where N is the slot in which the linecard is inserted.
+Each FSI has a globally unique name that represents that SONiC instance. In a modular chassis, the name would conventionally be "Linecard-N", where N is the slot in which the linecard is inserted.
 
 ### ASIC Name
 
@@ -190,7 +192,7 @@ core_port_id     = 1*6DIGIT      ; chip specific port
 
 The globally unique key in the SYSTEM_PORT_TABLE is the name of the ASIC instance and the front panel interface name. The ASIC name is chosen so that various agents like syncd can use this name as a filtering criterion to select the subset of entities that they need to operate on in order to manage a specific ASIC.
 
-The only restriction on selecting the ifname is that the key "SYSTEM_PORT|asic_name|ifname" must uniquely identify a port on the system.
+The ifname is expected to be unique within a SONiC instance. As a result, the key "SYSTEM_PORT|asic_name|ifname" uniquely identifies a system port in the system.
 
 ### 2.6.3 Inband Ports
 
@@ -206,12 +208,11 @@ The provisioning and management of Fabric ports is outside the scope of this doc
 
 ### 2.7.1 System Port Handling
 
-System port configuration is expected to completely static and known at the start of the system.
+System port configuration is expected to be completely static and known at the start of the system.
 
 Based on the state of ‘“connect_chassis_db” in the device metadata in ConfigDB, Orchagent connects to Chassis DB and subscribes to the SYSTEM_PORT table in CHASSIS_DB. It uses this list of system ports from the SYSTEM_PORT table to construct the switch attributes needed by the create_switch SAI API. In a later phase, the system ports could be directly created by making sairedis calls from orchagent. 
         
 A system port can be used in lieu of a physical port in several SAI API calls as relevant. For example, a system port can be added as a vlan member or be a lag member. To account for these, portsorch will be updated to support sysports. 
-
 
 Portsyncd does not have to support sysports because sysports do not have any associated kernel devices. 
 
@@ -240,7 +241,7 @@ Sysport handling is tested by test_chassis_sysport which validates that
 
 # 4 Future Work
 
-## Dynamic System Ports 
+## 4.1 Dynamic System Ports 
 
 Dynamic system port support is required to support the following forwarding scenarios
 
@@ -259,4 +260,35 @@ Support for dynamic system ports requires SAI support for the `create_port` and 
 
 In addition, forwarding features that are dependent on System Ports need to react to these changes and reprogram the related forwarding plane state such as routing nexthops, LAG membership etc.
 
+## 4.2 Dual Supervisor Support
 
+Dual supervisor modules are a common feature in chassis based systems where one supervisor acts as the active and the other as a standby. The presence of the standby supervisor allows the system
+to continue functioning without manual intervention in case of a hard failure (such as a hardware failure) on the active supervisor by transferring control to the standby.
+
+The standby supervisor has its own console, internal and external management IP address.
+
+There are typically two forms of redundancy
+
+### Warm Standby
+
+In this mode, the standby supervisor has booted into the OS and is waiting to take over. No configuration or operational status is known. When a switchover occurs, the processing is very similar to what happens after a fresh boot of a supervisor. 
+
+Warm standby can be supported in SWSS as follows
+
+- Gracefully handle the loss of connectivity to the SSI and terminate OrchAgent, syncd and all related containers
+- Process device configuration and populate standby Chassis DB with static information
+- Modify the ChassisDB address in DEVICE_META
+- Start all the containers which will now connect to the standby Chassis DB and continue operation.
+
+### Hot Standby
+
+In the hot standby mode, the standby supervisor has the control plane running in standby mode, such that it can take over with minimal (or no) disruption to forwarding device.
+
+At a high level, hot standby mode requires
+
+- Starting Chassis DB on standby SSI in standby mode where it mirrors the Chassis DB.
+- Live sync of Chassis DB state between active and standby Chassis DB.
+- Graceful handling in OrchAgent of loss of connectivity to SSI and continuing to operate autonomously.
+- Reconnecting to Chassis DB when Standby SSI is ready.
+- Reconciling relevant Chassis DB state with SAI Asic DB state and modifying SAI state as appropriate to be in sync with Chassis DB.
+  
