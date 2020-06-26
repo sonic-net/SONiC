@@ -179,7 +179,7 @@ Here is a list of proposed new data model or existing data models from Open Conf
 - Configuring WRED
 ````
   sonic(config)# qos wred-policy <name>
-  sonic(conf-wred-<name>)# [green|yellow|red] minimum-threshold 100 maximum-threshold 300
+  sonic(conf-wred-<name>)# [green] minimum-threshold 100 maximum-threshold 300
   drop-probability 40
   sonic(conf-wred-<name>)# ecn <ecn_none/green/all>
 
@@ -189,12 +189,12 @@ Here is a list of proposed new data model or existing data models from Open Conf
 ````
   sonic(config)# qos scheduler-policy <name>
   sonic(conf-sched-policy)# queue <q#>
-  sonic(conf-sched-policy-q)# type <strict/dwrr/wrr>
-  sonic(conf-sched-policy-q)# cir <val>
-  sonic(conf-sched-policy-q)# cbs <val>
-  sonic(conf-sched-policy-q)# pir <val>
-  sonic(conf-sched-policy-q)# pbs <val>
-  sonic(conf-sched-policy-q)# weight <val>
+  sonic(conf-sched-policy-queue-<q#>)# type <strict/dwrr/wrr>
+  sonic(conf-sched-policy-queue-<q#>)# cir <val>
+  sonic(conf-sched-policy-queue-<q#>)# cbs <val>
+  sonic(conf-sched-policy-queue-<q#>)# pir <val>
+  sonic(conf-sched-policy-queue-<q#>)# pbs <val>
+  sonic(conf-sched-policy-queue0<q#>)# weight <val>
 
   sonic(conf-sched-policy)# no queue <q#>
   sonic(config)# no qos scheduler-policy <name>   
@@ -294,18 +294,18 @@ green-drop-probability : 10
 ````
 >show qos scheduler-policy {<name>}   
 Sample output:
-sonic# show scheduler-policy
+sonic# show qos scheduler-policy
  Scheduler Policy: test
    Queue: 0
               type: strict
-              Weight: 10
-              CIR: 10000       Kbps
-              CBS: 100         Bytes
-              PIR: 200000      Kbps
-              PBS: 200         Bytes
+              weight: 10
+              cir: 10000       Kbps
+              cbs: 100         Bytes
+              pir: 200000      Kbps
+              pbs: 200         Bytes
    Port:
-              PIR: 100         Kbps
-              PBS: 200         Bytes
+              pir: 100         Kbps
+              pbs: 200         Bytes
 
 ````
 
@@ -410,9 +410,9 @@ DSCP-TC-MAP: test
 
 show queue counters {interface (ethernet <name> | CPU) {queue <qid>}}
 
-show queue (watermark|persistent-watermark) (multicast | unicast | CPU) interface [<interface-name>]
+show queue (watermark|persistent-watermark) (percentage) (multicast | unicast | CPU) interface [<interface-name>]
 
-show priority-group (watermark|persistent-watermark) (headroom | shared) interface [<interface-name>]
+show priority-group (watermark|persistent-watermark) (percentage) (headroom | shared) interface [<interface-name>]
 
 show queue buffer-threshold-breaches
 
