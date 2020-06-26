@@ -67,6 +67,7 @@
         * [2.9.4 Preprocess XML files](#294-preprocess-xml-files)
         * [2.9.5 CLI directory structure](#295-cli-directory-structure)
         * [2.9.6 Generic REST Client](#296-generic-rest-client-for-actioner-scripts)
+        * [2.9.7 Tool for JSON navigation in jinja templates](#297-tool-for-json-navigation-in-jinja-templates)        
     * [2.10 REST Server](#210-rest-server)
     * [2.11 gNMI](#211-gnmi)
     * [2.12 Compilation](#212-compilation)
@@ -1324,7 +1325,11 @@ Actioner can be defined with the <ACTION> tag in the XML file.
      test='${supported_breakout_modes} -ct ETHERNET:BREAKOUT_1x1:100GIGE'
     />
 ```
-3. Write/Update Renderer scripts and templates. The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output. Refer files in the below path for an example of usage 
+3. Write/Update Renderer scripts and templates. 
+The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. 
+The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output.
+Please use [JSON tool](#297-tool-for-json-navigation-in-jinja-templates) to efficiently access the JSON data.
+Refer files in the below path for an example of usage 
 
     **Renderer path**:
     sonic-mgmt-framework/CLI/renderer
@@ -1621,6 +1626,75 @@ def my_new_error_message_formatter(status_code, error_entry):
     return "Application error.. Please retry."
 ```
 
+#### 2.9.7 Tool for JSON navigation in jinja templates
+
+Developers can use this tool to retrieve the JSON data efficiently and check for the existence of nodes. 
+The tool uses the path in the GNMI style for querying and checking the nodes. 
+Following are the APIs exposed by the tool
+
+#### get(json_data, path)
+    params
+        json_data: JSON data in the form of dictionary
+        path: The GNMI style path, examples below
+    return value
+        On success returns the queried nodes (format/type will be as present in JSON data)
+        on Failure returns None
+
+##### Example:
+
+```code
+(Pdb) get(data, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/")
+{'name': 'MyACL1', 'type': 'ACL_IPV4', 'description': 'Description for MyACL1'}
+
+```
+
+#### get_str(json_data, path)
+    params
+        json_data: JSON data in the form of dictionary
+        path: The GNMI style path, examples below
+    return value
+        On success returns the queried nodes (format/type will be strigified)
+        on Failure returns None
+
+##### Example:
+
+```code
+(Pdb) get_str(data, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/")
+"{'name': 'MyACL1', 'type': 'ACL_IPV4', 'description': 'Description for MyACL1'}"
+
+```
+
+#### contains(json_data, path)
+    params
+        json_data: JSON data in the form of dictionary
+        path: The GNMI style path, examples below
+    return value
+        On success returns True
+        on Failure returns False
+        
+##### Example:
+
+```code
+(Pdb) contains(data, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/")
+True
+(Pdb) contains(data, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/not_present")
+False
+
+```
+
+#### Sample usage in the renderer
+
+```text
+{{json_tools.get(json_output, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]")}}
+{{json_tools.get(json_output, "/acl-sets/acl-set[name=MyACL1]")}}
+{{json_tools.get(json_output, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/type")}}
+{{json_tools.get_str(json_output, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/type")}}
+{{json_tools.contains(json_output, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/type_not")}}
+{{json_tools.contains(json_output, "/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/config/type")}}
+
+```
+
+
 ### 2.10 REST Server
 
 sonic-mgmt-framework repository contains REST Server infrastructure code.
@@ -1907,8 +1981,170 @@ It is automatically run along with [Swagger Server Generator](#315-swagger-serve
 
 #### 3.1.8 RESTCONF Documentation Generator
 
-TODO
+RESTCONF documentation is generated automatically as part of build during the phase when OpenAPIs(YAML) for YANG modules are generated.
+No extra step is needed from developers. RESTCONF document generator is a submodule in OpenAPI Generator and it relies on YANG's description
+statements for documentation text. 
+
+Developers are requested to have a description statements in YANG models for all Data nodes such as container/list/leaf/leaf-list/rpc.
+For any data node which does not have description statement, the generated document will have blank text i.e. empty sections
+
+The generated document will be in a github complaint markdown format (.md)
+The document will be generated for each top level YANG module in normalized tree. For more information on how generator works please refer [section 3.1.4](#314-OpenAPI-Generator)
+
+The generated documents will be written to `sonic-mgmt-framework/build/restconf_md` directory.
 
 #### 3.1.9 CLI Documentation Generator
 
-TODO
+CLI Document generator tool will generate the documentation using KLISH CLI model XMLs. 
+Command name, mode, syntax and parameter description are already available in model XML. 
+Additional tags will be introduced for developers to specify command description, usage info and examples for each COMMAND.
+
+- DOCGEN tag to group all document generation related tags - it can include one DESCRIPTION, one USAGE and one or more EXAMPLE, ALTCMD and FEATURE tags.
+- DESCRIPTION tag to provide a detailed description of the command.
+- USAGE tag to specify usage guidelines - when to use, preconditions, suggested next actions, etc.
+- EXAMPLE tags to specify examples and sample output.
+- ALTCMD tags to specify alternative commands in other CLI framework such as VTYSH, CLICK and in fact other alternate commands in KLISH itself (if available).
+
+All these documentation tags will be optional. They are used only for document generation and not to render the commands.
+
+Document generator tool will consume all model XMLs from src/CLI/clitree/cli-xml directory to generate CLI document in markdown syntax. 
+Below table summarizes how each section of document template will be derived from above defined XML tags.
+
+```text
++----------------+-----------------+-------------------+---------------------------------------------------------------------------+
+|  Section.      |    XML TAG      |  Attribute        |  Comments                                                                 |
++----------------+-----------------+-------------------+---------------------------------------------------------------------------+
+| Command name   |  COMMAND        |                   |                                                                           |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------+
+| Description    |  DESCRIPTION    |                   | Use “help” value of COMMAND tag if DESCRIPTION tag is not specified.      |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Syntax         |  PARAM          | name              | Lists all possible combinations of parameters                             |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Parameters     |  PARAM          | name, help, ptype |                                                                           |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Modes          |  VIEW           | name              | Parent command name will be shown here. The VIEW “name” attribute provides| 
+|                |                 |                   | internal name of the mode. Tool will lookup the parent command by matching| 
+|                |                 |                   | the VIEW “name” value with other COMMAND tag’s “view” attribute value     |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Usage          |                 |                   |                                                                           |
+| guidelines     |  USAGE          |                   | Will be skipped if developer did not specify USAGE tag                    |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Examples       |  EXAMPLE        |                   | Will be skipped if developer did not specify EXAMPLE tags                 |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| Features       |  FEATURE        |                   | Will be skipped if developer did not specify FEATURE tags                 |
+|----------------|-----------------|-------------------|---------------------------------------------------------------------------|
+| ALTCMDS        |  ALTCMD         | type              | Will be skipped if developer did not specify ALTCMD tags                  |
++----------------+-----------------|-------------------|---------------------------------------------------------------------------|
+
+```
+CLI document generator is automatically run during sonic-mgmt-framework compilation.
+It can be manually trigged through following commands:
+
+```bash
+cd /sonic/sonic-buildimage/src/sonic-mgmt-framework
+make clidocgen (to generate the document)
+make clidocgen-clean (to clean the document)
+```
+The document will be written to `sonic-mgmt-framework/build/cli/command-tree/industry_standard_cli_reference_guide.md` directory.
+
+#### 3.1.9.1 Sample CLI Model
+
+```text
+
+<VIEW name="view-name">
+
+<COMMAND
+   name="command-tokens"
+   help="CLI help string"
+   >
+   <PARAM
+       name="param1"
+       help="Help string for param1"
+       ptype="UINT"
+       />
+   <PARAM
+       name="param2"
+       help="Help string for param2"
+       ptype="STRING"
+       />
+   <ACTION>...</ACTION>
+   <DOCGEN>
+       <DESCRIPTION>
+           Detailed command description
+       </DESCRIPTION>
+       <USAGE>
+           Usage information
+       </USAGE>
+       <EXAMPLE summary="Example1 description">
+           Example1 body
+       </EXAMPLE>
+       <EXAMPLE summary="Example2 description">
+           Example2 body
+       </EXAMPLE>
+
+       <FEATURE> ZTP </FEATURE>
+       <FEATURE> ZTP-cli </FEATURE>                         
+       <ALTCMD type="click">
+         config ztp -y enable
+        </ALTCMD>
+        <ALTCMD type="vtysh">
+          ....
+        </ALTCMD> 
+
+   </DOCGEN>
+</COMMAND>
+
+</VIEW>
+
+```
+
+#### 3.1.9.2 Sample Generated Document
+
+```text
+### command-tokens
+
+Detailed command description
+
+#### Syntax
+
+command-tokens param1
+command-tokens param2
+
+#### Parameters
+
+Name   | Description            | Data type
+-------|------------------------|--------
+Param1 | Help string for param1 | UINT
+Param2 | Help string for param2 | STRING
+
+#### Mode
+
+Parent command - derived from view-name
+
+#### Usage Guidelines
+
+Usage information
+
+#### Examples
+
+Example1 description
+
+Example1 body
+
+Example2 description
+
+Example2 body
+
+### Alternate Commands
+
+#### click
+config ztp -y enable
+
+#### vtysh
+...
+
+### Features this CLI belongs to
+* ZTP
+* ZTP-cli
+
+```
