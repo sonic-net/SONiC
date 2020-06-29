@@ -194,7 +194,7 @@ sonic(config)# no sflow collector 1.1.1.1
 sonic(config)#
 ```
 ##### Add sFlow Collector with VRF name
-Synxtax:
+Syntax:
 
 `sflow collector <collector ip-address> vrf <VRF-name>`
 
@@ -306,6 +306,7 @@ Global sFlow Information
          1.1.1.2             4511        mgmt
 sonic#
 ```
+Note: Currently only default & mgmt VRFs are supported.
 ##### Show sFlow interface configurations
 ```
 sonic# show sflow interface
