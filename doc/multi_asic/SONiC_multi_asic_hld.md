@@ -79,10 +79,14 @@ The below sonic dockers are instantiated per each ASIC:
 - Each ASIC has its own SAI library and SDK instance.
 
 Below dockers are created for host and remain as single instance only:
-  snmp, telemetry, lldp, pmon
 
- - A separate database instance per ASIC
+  snmp, telemetry, pmon
+
+- A separate database instance per ASIC
 - Configuration is generated and stored per ASIC.
+
+There is an additional database and lldp instance are running on the host
+
 
 The ability to program and forward traffic independently on each ASIC also depends on the HW architecture of the ASIC.  Some ASICs used in a chassis or distributed system may not support completely independent programming/forwarding when traffic from one port to another spans multiple ASICs.
 In this document, we will focus on a multi-ASIC system where ASICs can support completely independent programming/forwarding.  What this means is that traffic entering and leaving the ASIC will be in standard IP packet format, even within the router.  The ingress/egress pipeline to forward a packet is not separated into different ASICs and so there is no dependency of data-plane information shared among different ASICs in order to forward a packet from one port to another. 
@@ -320,7 +324,7 @@ For a system with N ASICs, there is a total of N+1 config_db files:
 
 #### 2.4.3.3. Router Mac
 In a multi ASIC system, all the frontend ASICs will have the same router mac address. The frontend ASICs will use the system base mac as router mac.  
-Each Backend ASIC will have different router Mac address. The mac address of `eth0`  in the Namespace will be used as the router mac on the backend ASIC.
+Each backend ASIC will have different router Mac address. The mac address of `eth0`  in the namespace will be used as the router mac on the backend ASIC.
 
 #### 2.4.3.4. Loopback address
 The system will have 2 Loopback Interfaces
@@ -448,7 +452,8 @@ A new template file database_global.json.j2 is introduced which is used to gener
 
 #### 2.4.4.1. Infrastructure changes
 
-The dbconnector classes present in the sonic-py-swsssdk submodule viz. SoncV2Connector, ConfigDBConnector is enhanced to accept the namespace parameter  to connect to the DB in a particular namesapce. The dbconnector in the sonic-swsscommon submodule viz DBConnector too will be enhanced to accept the namespace parameter.  Please refer **"doc/database/multi_namespace_db_instances.md"** for more details. 
+The dbconnector classes present in the sonic-py-swsssdk submodule viz. SoncV2Connector, ConfigDBConnector is enhanced to accept the namespace parameter  to connect to the DB in a particular namesapce. The dbconnector in the sonic-swsscommon submodule viz DBConnector too will be enhanced to accept the namespace parameter.  
+Please refer [multi namespace db instance implementation document](https://github.com/Azure/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details. 
 
 ### 2.4.5. Configuration CLIs
 
