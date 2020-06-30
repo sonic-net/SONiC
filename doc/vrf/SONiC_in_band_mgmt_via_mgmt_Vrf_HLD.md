@@ -44,11 +44,11 @@ The following diagrams capture the kernel and SAI configuration flows.
 
 ## Mgmt VRF configuration flow
 
-![](https://github.com/Azure/SONiC/blob/master/images/vrf_hld/in_band_mgmt_vrf_config_flow.png)
+![](images/vrf_hld/in_band_mgmt_vrf_config_flow.png)
 
 ## L3 inteface to mgmt VRF bind flow
 
-![](https://github.com/Azure/SONiC/blob/master/images/vrf_hld/in_band_mgmt_vrf_intf_config_flow.png)
+![](images/vrf_hld/in_band_mgmt_vrf_intf_config_flow.png)
 
 # Additional Notes
 1. The user has to decide whether eth0 and L3 interface (e.g mgmt VLAN) can co-exist in the mgmt VRF, if yes, the corresponding configurations have to be taken care.
