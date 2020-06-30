@@ -1,349 +1,717 @@
 {
+
     "DEVICE_METADATA": {
+
         "localhost": {
+
             "bgp_asn": "65100", 
+
             "deployment_id": "1", 
+
             "hostname": "switch2", 
+
             "type": "ToRRouter", 
+
             "hwsku": "Force10-S6000"
+
         }
+
     }, 
+
     "BGP_PEER_RANGE": {
+
         "PeerGroup": {
+
             "name": "PeerGroup", 
+
             "ip_range": [
+
                 "192.168.0.0/27"
+
             ]
+
         } 
+
     }, 
+
     "VLAN": {
+
         "Vlan1000": {
-            "members": [
-                "Ethernet4", 
-                "Ethernet8", 
-                "Ethernet12", 
-                "Ethernet16", 
-                "Ethernet20", 
-                "Ethernet24", 
-                "Ethernet28", 
-                "Ethernet32", 
-                "Ethernet36", 
-                "Ethernet40", 
-                "Ethernet44", 
-                "Ethernet48", 
-                "Ethernet52", 
-                "Ethernet56", 
-                "Ethernet60", 
-                "Ethernet64", 
-                "Ethernet68", 
-                "Ethernet72", 
-                "Ethernet76", 
-                "Ethernet80", 
-                "Ethernet84", 
-                "Ethernet88", 
-                "Ethernet92", 
-                "Ethernet96"
-            ], 
-            "vlanid": "1000"
+            "vlanid": "1000"	
         }
     }, 
+	
+    "VLAN_MEMBER": {
+        "Vlan1000|Ethernet4": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet8": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet12": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet16": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet20": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet24": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet28": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet32": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet36": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet40": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet44": {
+            "tagging_mode": "tagged"
+        },        
+        "Vlan1000|Ethernet48": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet52": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet56": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet60": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet64": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet68": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet72": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet76": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet80": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet84": {
+            "tagging_mode": "tagged"
+        },     
+        "Vlan1000|Ethernet88": {
+            "tagging_mode": "untagged"
+        }, 
+        "Vlan1000|Ethernet92": {
+            "tagging_mode": "tagged"
+        },
+        "Vlan1000|Ethernet96": {
+            "tagging_mode": "untagged"
+        }
+    },
+
     "PORT": {
+
         "Ethernet8": {
+
             "alias": "fortyGigE0/8"
+
         }, 
+
         "Ethernet0": {
+
             "alias": "fortyGigE0/0"
+
         }, 
+
         "Ethernet4": {
+
             "alias": "fortyGigE0/4"
+
         }, 
+
         "Ethernet108": {
+
             "alias": "fortyGigE0/108"
+
         }, 
+
         "Ethernet100": {
+
             "alias": "fortyGigE0/100"
+
         }, 
+
         "Ethernet104": {
+
             "alias": "fortyGigE0/104"
+
         }, 
+
         "Ethernet68": {
+
             "alias": "fortyGigE0/68"
+
         }, 
+
         "Ethernet96": {
+
             "alias": "fortyGigE0/96"
+
         }, 
+
         "Ethernet124": {
+
             "alias": "fortyGigE0/124"
+
         }, 
+
         "Ethernet92": {
+
             "alias": "fortyGigE0/92"
+
         }, 
+
         "Ethernet120": {
+
             "alias": "fortyGigE0/120"
+
         }, 
+
         "Ethernet52": {
+
             "alias": "fortyGigE0/52"
+
         }, 
+
         "Ethernet56": {
+
             "alias": "fortyGigE0/56"
+
         }, 
+
         "Ethernet76": {
+
             "alias": "fortyGigE0/76"
+
         }, 
+
         "Ethernet72": {
+
             "alias": "fortyGigE0/72"
+
         }, 
+
         "Ethernet64": {
+
             "alias": "fortyGigE0/64"
+
         }, 
+
         "Ethernet32": {
+
             "alias": "fortyGigE0/32"
+
         }, 
+
         "Ethernet16": {
+
             "alias": "fortyGigE0/16"
+
         }, 
+
         "Ethernet36": {
+
             "alias": "fortyGigE0/36"
+
         }, 
+
         "Ethernet12": {
+
             "alias": "fortyGigE0/12"
+
         }, 
+
         "Ethernet88": {
+
             "alias": "fortyGigE0/88"
+
         }, 
+
         "Ethernet116": {
+
             "alias": "fortyGigE0/116"
+
         }, 
+
         "Ethernet80": {
+
             "alias": "fortyGigE0/80"
+
         }, 
+
         "Ethernet112": {
+
             "alias": "fortyGigE0/112"
+
         }, 
+
         "Ethernet84": {
+
             "alias": "fortyGigE0/84"
+
         }, 
+
         "Ethernet48": {
+
             "alias": "fortyGigE0/48"
+
         }, 
+
         "Ethernet44": {
+
             "alias": "fortyGigE0/44"
+
         }, 
+
         "Ethernet40": {
+
             "alias": "fortyGigE0/40"
+
         }, 
+
         "Ethernet28": {
+
             "alias": "fortyGigE0/28"
+
         }, 
+
         "Ethernet60": {
+
             "alias": "fortyGigE0/60"
+
         }, 
+
         "Ethernet20": {
+
             "alias": "fortyGigE0/20"
+
         }, 
+
         "Ethernet24": {
+
             "alias": "fortyGigE0/24"
+
         }
+
     }, 
+
     "SYSLOG_SERVER": {
+
         "10.0.10.5": {}, 
+
         "10.0.10.6": {}
+
     }, 
+
     "VLAN_INTERFACE": {
+
         "Vlan1000|192.168.0.1/27": {}
+
     }, 
+
     "BGP_NEIGHBOR": {
+
         "10.0.0.59": {
+
             "rrclient": "0", 
+
             "local_addr": "10.0.0.58", 
+
             "asn": "64600", 
+
             "name": "ARISTA02T1"
+
         }, 
+
         "10.0.0.61": {
+
             "rrclient": "0", 
+
             "local_addr": "10.0.0.60", 
+
             "asn": "64600", 
+
             "name": "ARISTA03T1"
+
         }, 
+
         "10.0.0.63": {
+
             "rrclient": "0", 
+
             "local_addr": "10.0.0.62", 
+
             "asn": "64600", 
+
             "name": "ARISTA04T1"
+
         }, 
+
         "FC00::7E": {
+
             "rrclient": "0", 
+
             "local_addr": "FC00::7D", 
+
             "asn": "64600", 
+
             "name": "ARISTA04T1"
+
         }, 
+
         "FC00::7A": {
+
             "rrclient": "0", 
+
             "local_addr": "FC00::79", 
+
             "asn": "64600", 
+
             "name": "ARISTA03T1"
+
         }, 
+
         "10.0.0.57": {
+
             "rrclient": "0", 
+
             "local_addr": "10.0.0.56", 
+
             "asn": "64600", 
+
             "name": "ARISTA01T1"
+
         }, 
+
         "FC00::76": {
+
             "rrclient": "0", 
+
             "local_addr": "FC00::75", 
+
             "asn": "64600", 
+
             "name": "ARISTA02T1"
+
         }, 
+
         "FC00::72": {
+
             "rrclient": "0", 
+
             "local_addr": "FC00::71", 
+
             "asn": "64600", 
+
             "name": "ARISTA01T1"
+
         }
+
     }, 
+
     "PORTCHANNEL_INTERFACE": {
+
         "PortChannel04|10.0.0.62/31": {}, 
+
         "PortChannel04|FC00::7D/126": {}, 
+
         "PortChannel02|10.0.0.58/31": {}, 
+
         "PortChannel01|FC00::71/126": {}, 
+
         "PortChannel03|FC00::79/126": {}, 
+
         "PortChannel01|10.0.0.56/31": {}, 
+
         "PortChannel02|FC00::75/126": {}, 
+
         "PortChannel03|10.0.0.60/31": {}
+
     }, 
+
     "onie_config_version": "1", 
+
     "PORTCHANNEL": {
+
         "PortChannel03": {
+
             "members": [
+
                 "Ethernet120"
+
             ]
+
         }, 
+
         "PortChannel02": {
+
             "members": [
+
                 "Ethernet116"
+
             ]
+
         }, 
+
         "PortChannel01": {
+
             "members": [
+
                 "Ethernet112"
+
             ]
+
         }, 
+
         "PortChannel04": {
+
             "members": [
+
                 "Ethernet124"
+
             ]
+
         }
+
     }, 
+
     "MGMT_INTERFACE": {
+
         "eth0|10.3.100.3/23": {
+
             "forced_mgmt_routes": [
+
                 "10.0.10.0/29", 
+
                 "10.0.20.5" 
+
             ], 
+
             "gwaddr": "10.3.100.1"
+
         }
+
     }, 
+
     "platform": "x86_64-dell_s6000_s1220-r0", 
+
     "onie_partition_type": "gpt", 
+
     "DHCP_SERVER": {
+
         "192.0.0.33": {}, 
+
         "192.0.0.7": {}, 
+
         "192.0.0.6": {}, 
+
         "192.0.0.5": {}, 
+
         "192.0.0.4": {}, 
+
         "192.0.0.3": {}, 
+
         "192.0.0.2": {}, 
+
         "192.0.0.1": {}, 
+
         "192.0.0.18": {}, 
+
         "192.0.0.9": {}, 
+
         "192.0.0.8": {}, 
+
         "192.0.0.17": {}, 
+
         "192.0.0.16": {}, 
+
         "192.0.0.15": {}, 
+
         "192.0.0.14": {}, 
+
         "192.0.0.13": {}, 
+
         "192.0.0.12": {}, 
+
         "192.0.0.11": {}, 
+
         "192.0.0.10": {}, 
+
         "192.0.0.35": {}, 
+
         "192.0.0.34": {}, 
+
         "192.0.0.37": {}, 
+
         "192.0.0.36": {}, 
+
         "192.0.0.31": {}, 
+
         "192.0.0.30": {}, 
+
         "192.0.0.19": {}, 
+
         "192.0.0.32": {}, 
+
         "192.0.0.39": {}, 
+
         "192.0.0.38": {}, 
+
         "192.0.0.28": {}, 
+
         "192.0.0.29": {}, 
+
         "192.0.0.26": {}, 
+
         "192.0.0.27": {}, 
+
         "192.0.0.24": {}, 
+
         "192.0.0.25": {}, 
+
         "192.0.0.22": {}, 
+
         "192.0.0.23": {}, 
+
         "192.0.0.20": {}, 
+
         "192.0.0.21": {}, 
+
         "192.0.0.44": {}, 
+
         "192.0.0.45": {}, 
+
         "192.0.0.46": {}, 
+
         "192.0.0.47": {}, 
+
         "192.0.0.40": {}, 
+
         "192.0.0.41": {}, 
+
         "192.0.0.42": {}, 
+
         "192.0.0.43": {}, 
+
         "192.0.0.48": {}
+
     }, 
+
     "NTP_SERVER": {
-        "10.0.10.5": {}, 
-        "10.0.10.6": {}
+
+        "10.0.10.99": {}, 
+
+        "10.0.10.100": {}
+
     }, 
+
     "DEVICE_NEIGHBOR": {
+
         "ARISTA04T1": {
+
             "mgmt_addr": "10.20.0.163", 
+
             "hwsku": "Arista", 
+
             "lo_addr": null, 
+
             "local_port": "Ethernet124", 
+
             "type": "LeafRouter", 
+
             "port": "Ethernet1"
+
         }, 
+
         "ARISTA03T1": {
+
             "mgmt_addr": "10.20.0.162", 
+
             "hwsku": "Arista", 
+
             "lo_addr": null, 
+
             "local_port": "Ethernet120", 
+
             "type": "LeafRouter", 
+
             "port": "Ethernet1"
+
         }, 
+
         "ARISTA02T1": {
+
             "mgmt_addr": "10.20.0.161", 
+
             "hwsku": "Arista", 
+
             "lo_addr": null, 
+
             "local_port": "Ethernet116", 
+
             "type": "LeafRouter", 
+
             "port": "Ethernet1"
+
         }, 
+
         "ARISTA01T1": {
+
             "mgmt_addr": "10.20.0.160", 
+
             "hwsku": "Arista", 
+
             "lo_addr": null, 
+
             "local_port": "Ethernet112", 
+
             "type": "LeafRouter", 
+
             "port": "Ethernet1"
+
         }
+
     }, 
+
     "LOOPBACK_INTERFACE": {
+
         "Loopback0|10.1.0.32/32": {}, 
+
         "Loopback0|FC00:1::32/128": {}
+
     }, 
+
     "ACL_TABLE": {}, 
+
     "MIRROR_SESSION": {
+
         "everflow0": {
-            "src_ip": "10.1.0.32", 
-            "dst_ip": "10.20.6.16"
+
+            "src_ip": "1.1.1.2", 
+
+            "dst_ip": "1.1.1.3"
+
         }
+
     }, 
+
     "INTERFACE": {}
+
 }

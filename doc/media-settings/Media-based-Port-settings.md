@@ -136,9 +136,9 @@
 
               This mechanism is also very helpful in supporting new media types without upgrading the Operating system. If a new media type need to be supported the only change that needs to be done is modify media_settings.json to add the new media type.
 
-![](https://github.com/dgsudharsan/SONiC/blob/hld_media/doc/media-settings/event_flow.png)
+![](event_flow.png)
               
-![](https://github.com/dgsudharsan/SONiC/blob/hld_media/doc/media-settings/key_selection_flow.png)
+![](key_selection_flow.png)
 
 ## Breakout Scenario:
 
