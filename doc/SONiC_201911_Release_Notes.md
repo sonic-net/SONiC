@@ -23,7 +23,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 
 |Feature                    | Version  |
 | ------------------------- | --------------- |
-| Linux kernel version      | linux_4.9.168-1+deb9u5   |
+| Linux kernel version      | linux_4.9.0-11-2 (4.9.189-3+deb9u2)   |
 | SAI   version             | SAI v1.5.1    |
 | FRR                       | 7.2    |
 | LLDPD                     | 0.9.6-1    |
@@ -103,6 +103,11 @@ This test plan is to check the functionalities of platform related software comp
 <br> Refer [Platform testplan](https://github.com/Azure/SONiC/blob/master/doc/pmon/sonic_platform_test_plan.md) for more details. 
 <br> **Pull Requests** :  [915](https://github.com/Azure/sonic-mgmt/pull/915)   , [980](https://github.com/Azure/sonic-mgmt/pull/980)  , [1079](https://github.com/Azure/sonic-mgmt/pull/1079) 
 
+#### Proxy ARP  
+When an interface is enabled with "proxy_arp", the same is enabled in the kernel. ASIC ARP packet action is also updated to trap these packets to CPU in those interfaces.
+<br> Refer [HLD Document](https://github.com/Azure/SONiC/blob/master/doc/arp/Proxy%20Arp.md) for more details. 
+<br> **Pull Requests** :  [617](https://github.com/Azure/SONiC/pull/617) 
+
 ####  sFlow 
 The CLI is enhanced to provide configuring and display of sFlow parameters including sflow collectors, agent IP, sampling rate for interfaces. The CLI configurations currently only interact with the CONFIG_DB. The newly introduced sflow container consists of an instantiation of the InMon's hsflowd daemon.
 <br> Refer   [HLD Document](https://github.com/Azure/SONiC/blob/master/doc/sflow/sflow_hld.md) for more details.
@@ -117,6 +122,11 @@ Add to SONiC an ability to check storage health state. Basic functionality will 
 A sub port interface is a logical interface that can be created on a physical port or a port channel.A sub port interface serves as an interface to either a .1D bridge or a VRF, but not both. This design focuses on the use case of creating a sub port interface on a physical port or a port channel and using it as a router interface to a VRF. 
 <br> Refer  [HLD Document](https://github.com/wendani/SONiC/blob/a3e669e6778c272fc571a8bf3bd78e7eb75a8ec7/doc/sonic-sub-port-intf-hld.md) for more details. 
 <br> **Pull Requests** :   [998](https://github.com/opencomputeproject/SAI/pull/998) , [284](https://github.com/Azure/sonic-swss-common/pull/284) , [969](https://github.com/Azure/sonic-swss/pull/969)  , [871](https://github.com/Azure/sonic-swss/pull/871) , [3412](https://github.com/Azure/sonic-buildimage/pull/3412) , [3422](https://github.com/Azure/sonic-buildimage/pull/3422) , [3413](https://github.com/Azure/sonic-buildimage/pull/3413) , [638](https://github.com/Azure/sonic-utilities/pull/638) , [642](https://github.com/Azure/sonic-utilities/pull/642) , [651](https://github.com/Azure/sonic-utilities/pull/651) |
+
+#### Thermal control 
+Thermal control daemon has been added to monitor the temperature of devices (CPU, ASIC, optical modules, etc) and the running status of fan. It retrieves the switch device temperatures via platform APIs and raises alarms when the high/low thresholds are hit.It also stores temperature values fetched from sensors and thermal device running status to the DB.
+<br> Refer  [HLD Document](https://github.com/Azure/SONiC/blob/master/thermal-control-design.md) for more details.
+<br> **Pull Requests** :  [73](https://github.com/Azure/sonic-platform-common/pull/73), [777](https://github.com/Azure/sonic-utilities/pull/777), [49](https://github.com/Azure/sonic-platform-daemons/pull/49), [3949](https://github.com/Azure/sonic-buildimage/pull/3949),[832](https://github.com/Azure/sonic-utilities/pull/832) 
 
 #### VRF 
 Sonic supports multiple loopback interfaces. Each loopback interfaces can belong to different VRF instances. In this feature we also support BGP and VRF support for FRR config template. 
