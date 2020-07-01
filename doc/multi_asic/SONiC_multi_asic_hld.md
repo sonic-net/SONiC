@@ -533,7 +533,13 @@ LLDP service/docker in multi-asic platforms will be running in both host and asi
 
 #### 2.4.7.4. ACL
 
-Sonic supports three types of ACL's: Control, Data, and Everflow ACL's. For Control ACL's iptables rules are currently programmed only in host namespace as these rules are applied to traffic coming from management interface. Data and Everflow ACLs are programed in all front-end asic's only and are bound to corresponding frontend interfaces only.  Backend asic's do not have any ACL's programmed and have no ACL rules bound to backend interfaces.
+Sonic supports three types of ACL's: Control, Data, and Everflow ACL's. 
+
+For Control ACL's:
+ - Iptables rules are currently programmed on the host as these rules are applied to traffic coming from management interface.
+ - Iptable rules will also be programmed in each namespace which are applied from the traffic from frontend ports
+  
+  Data and Everflow ACLs are programed in all front-end asic's only and are bound to corresponding frontend interfaces only.  Backend asic's do not have any ACL's programmed and have no ACL rules bound to backend interfaces.
 
 #### 2.4.7.5. Everflow
 
@@ -549,21 +555,45 @@ The rsyslog service on the host will be listening on the docker0 IP address inst
 Sample logs:
 
 ```
-admin@sonic:~$ sudo grep -i orchagent /var/log/syslog
-Jun  9 16:18:21.902661 sonic INFO swss4[612] 2020-06-09 16:18:21,902 INFO spawned: 'orchagent' with pid 42#015
-Jun  9 16:18:22.142771 sonic INFO swss0[612] 2020-06-09 16:18:22,142 INFO spawned: 'orchagent' with pid 42#015
-Jun  9 16:18:22.200722 sonic INFO swss1[612] 2020-06-09 16:18:22,200 INFO spawned: 'orchagent' with pid 36#015
-Jun  9 16:18:22.234121 sonic INFO swss5[612] 2020-06-09 16:18:22,233 INFO spawned: 'orchagent' with pid 38#015
-Jun  9 16:18:22.612859 sonic INFO swss3[612] 2020-06-09 16:18:22,611 INFO spawned: 'orchagent' with pid 36#015
-Jun  9 16:18:22.802017 sonic INFO swss2[612] 2020-06-09 16:18:22,801 INFO spawned: 'orchagent' with pid 37#015
-Jun  9 16:18:22.915873 sonic INFO swss4[612] 2020-06-09 16:18:22,911 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
-Jun  9 16:18:23.146156 sonic INFO swss0[612] 2020-06-09 16:18:23,145 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
-Jun  9 16:18:23.211117 sonic INFO swss1[612] 2020-06-09 16:18:23,207 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
-Jun  9 16:18:23.240845 sonic INFO swss5[612] 2020-06-09 16:18:23,236 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
-Jun  9 16:18:23.615436 sonic INFO swss3[612] 2020-06-09 16:18:23,615 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
-Jun  9 16:18:23.808437 sonic INFO swss2[612] 2020-06-09 16:18:23,806 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)#015
+Jul  1 19:13:55.799298 sonic INFO swss0#supervisord 2020-07-01 19:13:47,352 INFO spawned: 'orchagent' with pid 41
+Jul  1 19:13:55.799375 sonic INFO swss0#supervisord 2020-07-01 19:13:48,356 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+Jul  1 19:13:55.995684 sonic INFO swss4#supervisord 2020-07-01 19:13:47,656 INFO spawned: 'orchagent' with pid 46
+Jul  1 19:13:55.995764 sonic INFO swss4#supervisord 2020-07-01 19:13:48,659 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+Jul  1 19:13:56.111128 sonic INFO swss5#supervisord 2020-07-01 19:13:47,761 INFO spawned: 'orchagent' with pid 47
+Jul  1 19:13:56.111173 sonic INFO swss5#supervisord 2020-07-01 19:13:48,775 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+Jul  1 19:13:56.186024 sonic INFO swss1#supervisord 2020-07-01 19:13:47,790 INFO spawned: 'orchagent' with pid 41
+Jul  1 19:13:56.186079 sonic INFO swss1#supervisord 2020-07-01 19:13:48,795 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+Jul  1 19:13:56.704106 sonic INFO swss3#supervisord 2020-07-01 19:13:48,358 INFO spawned: 'orchagent' with pid 40
+Jul  1 19:13:56.704182 sonic INFO swss3#supervisord 2020-07-01 19:13:49,362 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+Jul  1 19:13:57.023506 sonic INFO swss2#supervisord 2020-07-01 19:13:49,043 INFO spawned: 'orchagent' with pid 42
+Jul  1 19:13:57.023586 sonic INFO swss2#supervisord 2020-07-01 19:13:50,046 INFO success: orchagent entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+
 ```
 
+orchagent Logs
+```
+root@sonic:/home/admin# grep -i swss /var/log/syslog.1 | grep "addNeighbor" | head -n 20
+Jul  1 19:14:09.935067 sonic NOTICE swss5#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4013
+Jul  1 19:14:10.944138 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:05 on PortChannel4002
+Jul  1 19:14:10.949429 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:03 on PortChannel4001
+Jul  1 19:14:11.167782 sonic NOTICE swss1#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:03 on PortChannel4003
+Jul  1 19:14:11.168289 sonic NOTICE swss4#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4010
+Jul  1 19:14:11.179332 sonic NOTICE swss5#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4014
+Jul  1 19:14:11.179773 sonic NOTICE swss1#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:05 on PortChannel4004
+Jul  1 19:14:11.434730 sonic NOTICE swss5#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4013
+Jul  1 19:14:11.434786 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:05 on PortChannel4002
+Jul  1 19:14:11.673723 sonic NOTICE swss4#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4011
+Jul  1 19:14:11.673808 sonic NOTICE swss5#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4015
+Jul  1 19:14:11.674718 sonic NOTICE swss2#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:03 on PortChannel4005
+Jul  1 19:14:11.790493 sonic NOTICE swss4#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4012
+Jul  1 19:14:11.791368 sonic NOTICE swss3#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:03 on PortChannel4007
+Jul  1 19:14:11.917837 sonic NOTICE swss3#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:05 on PortChannel4008
+Jul  1 19:14:11.918195 sonic NOTICE swss5#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4016
+Jul  1 19:14:11.933912 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 52:54:00:20:5b:89 on PortChannel1002
+Jul  1 19:14:11.935566 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 52:54:00:a4:28:66 on PortChannel1005
+Jul  1 19:14:11.968300 sonic NOTICE swss4#orchagent: :- addNeighbor: Created neighbor 00:be:75:3a:ef:50 on PortChannel4009
+Jul  1 19:14:12.394474 sonic NOTICE swss0#orchagent: :- addNeighbor: Created neighbor 02:42:f0:7f:01:03 on PortChannel4001
+```
 #### 2.4.7.7. Operational CLIs
 
 For all SONiC show commands 2 new options will be added
@@ -749,6 +779,7 @@ BGP table version 28012
 asic1: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
 BGP table version 13051
 asic2: BGP router identifier 10.0.107.20, local AS number 65100 vrf-id 0
+BGP table version 12977
 Neighbhor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 ------------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
 10.0.107.0      4  65100       6468      12038         0      0       0  3d00h32m             6564  ASIC2
@@ -792,7 +823,7 @@ Neighbhor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down 
 ```
 root@sonic# show ip bgp summary -n asic2  -d all
 IPv4 Unicast Summary:
-asic4: BGP router identifier 10.0.107.20, local AS number 65100 vrf-id 0
+asic2: BGP router identifier 10.0.107.20, local AS number 65100 vrf-id 0
 BGP table version 12967
 RIB entries 13125, using 2415000 bytes of memory
 Peers 4, using 83680 KiB of memory
@@ -806,13 +837,13 @@ Neighbhor      V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down 
 ```
 root@sonic# show ip bgp summary -n asic1  -d all
 IPv4 Unicast Summary:
-asic3: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
+asic1: BGP router identifier 10.0.107.19, local AS number 65100 vrf-id 0
 BGP table version 10040
 RIB entries 13127, using 2415368 bytes of memory
 Peers 12, using 251040 KiB of memory
 Neighbhor       V     AS    MsgRcvd    MsgSent    TblVer    InQ    OutQ  Up/Down      State/PfxRcd  NeighborName
 ------------  ---  -----  ---------  ---------  --------  -----  ------  ---------  --------------  --------------
-10.0.107.12     4  65100       6464         45         0      0       0  3d00h37m             6564  ASIC4
+10.0.107.12     4  65100       6464         45         0      0       0  3d00h37m             6564  ASIC1
 10.10.192.53    4  64011      87112      90962         0      0       0  3d00h35m                6  11T0
 10.10.192.55    4  64012      87105      90962         0      0       0  3d00h35m                6  12T0
 10.10.192.57    4  64013      87116      90962         0      0       0  3d00h35m                6  13T0
