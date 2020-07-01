@@ -1,7 +1,7 @@
 # RADIUS Management User Authentication
 
 ## High Level Design Document
-#### Rev 0.9
+#### Rev 0.10
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -43,6 +43,7 @@
 | 0.7 | 03/04/2020   |  Arun Barboza      | Code PR ready updates             |
 | 0.8 | 04/28/2020   |  Arun Barboza      | RADIUS statistics & NAS-IP-Address|
 | 0.9 | 05/04/2020   |  Arun Barboza      | Work In Progress server DNS name  |
+| 0.10| 06/30/2020   |  Arun Barboza      | source-interface, and NAS-IP-Addr |
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -271,7 +272,7 @@ This feature enhances this support with a source patch for the following:
 This feature enhances this support with an external command that can be run
 with support from existing PAM modules.
 - Cache the Management-Privilege-Level attribute in a protected subdirectory
-  under /var/run/radius/.
+  under /var/cache/radius/.
 
 This feature enhances this support with options supplied to existing PAM
 modules.
@@ -364,11 +365,27 @@ global_key           = "global"  ;  RADIUS global configuration
 ; Attributes
 passkey              = 1*32VCHAR  ; shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
 auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
-src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the outgoing RADIUS packets
-nas_ip               = IPAddress  ;  NAS-IP|IPV6-Address for the outgoing pkts
+src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the
+                                  ;  outgoing UDP/IP dgram. This is being
+                                  ;  obsoleted in favor of the RADIUS_SERVER
+                                  ;  table src_intf attribute. If both src_ip
+                                  ;  and src_intf are specified a warning log
+                                  ;  can be given, and src_intf is preferred.
+                                  ;  Default is determined by routing stack.
+nas_ip               = IPAddress  ;  NAS-IP|IPV6-Address (Type 4|95) attribute
+                                  ;  in the outgoing RADIUS PDU.
+                                  ;  Default is to use an IPAddress from the
+                                  ;  MGMT_INTERFACE table.
 statistics           = "True" / "False" ;  Enable statistics collection
 timeout              = 1*2DIGIT
 retransmit           = 1*2DIGIT
+vrf                  = vrf_name  ; Use default vrf if not specified
+                                 ; (WIP) RADIUS_SERVER attribute is preferred.
+src_intf             = source_interface ; Eg: eth0, Loopback0... Use the first
+                                 ; IPAddress retrieved for interface for the
+                                 ; outgoing UDP/IP dgram. Default is
+                                 ; determined by routing stack
+                                 ; (WIP) RADIUS_SERVER attribute is preferred.
 ```
 
 
@@ -387,7 +404,11 @@ auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authentica
 priority             = 1*2DIGIT  ; specify RADIUS server's priority
 timeout              = 1*2DIGIT
 retransmit           = 1*2DIGIT
-vrf                  = vrf_name  ; If specified, should be VrfMgmt
+vrf                  = vrf_name  ; Use default vrf if not specified
+src_intf             = source_interface ; Eg: eth0, Loopback0... Use the first
+                                 ; IPAddress retrieved for interface for the
+                                 ; outgoing UDP/IP dgram. Default is
+                                 ; determined by routing stack
 ```
 
 ## Manageability
@@ -407,6 +428,7 @@ paths are:
   - auth-type
   - priority
   - vrf
+  - source-interface
 
   The oc-aaa:source-address will be supported only for global RADIUS conf.
 
@@ -453,7 +475,8 @@ sonic(config)# [no] radius-server host <IPAddress(IPv4 or IPv6)>        \
                                      key <TEXT>                         \
                                      auth-type [pap | chap | mschapv2]  \
                                      priority <1 - 64>                  \
-                                     vrf <TEXT>
+                                     vrf <TEXT>                         \
+                                     source-interface <iface>
 
 sonic(config)# [no] aaa authentication login-method
 sonic(config)# aaa authentication failthrough [enable|disable]
@@ -498,7 +521,8 @@ like = similar to what is seen in industry, sonic = present in SONiC only.
 
 Note:
 1. For "radius-server source-ip", generally, in the industry we see "ip radius
-   source-interface" CLI.
+   source-interface" CLI. Thus, this CLI is being obsoleted in favor of
+   source-interface.
 
 
 # Flow Diagrams
