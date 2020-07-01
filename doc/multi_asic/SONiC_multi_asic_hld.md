@@ -49,7 +49,7 @@
 
 | Rev  |    Date    |                Author                 | Change Description |
 | :--: | :--------: | :-----------------------------------: | ------------------ |
-| 0.1  | 06/24/2020 | Arvind, Rita, Judy, Suvarna, Abhishek | Initial version    |
+| 0.1  | 06/24/2020 |  Arvindsrinivasan Lakshminarasimhan, Rita Hui, Judy Joseph,  Suvarna Meenakshi, Abhishek Dosi     | Initial version    |
 
 
 
