@@ -8,15 +8,24 @@ The following are the high level requirements for the VNET monitoring infrastruc
 1. Any arbitrary pair of source ToR (SToR) and destination ToR (DToR) shall be able to send and recieve a data from and to VNET HW pipeline without using connected hosts.
 2. The SToR shall be able to inject an overlay packet from a CPU port into the HW pipeline for further encapsulation and underlay routing.
 3. The DToR shall be able to detect the injected packet after decapsulation and redirect it back to the SToR.
+4. The user interface to the monitoring tool is CLI based, e.g.:
+```
+vnet-ping <vnet_name> <ca_src_ip|optional> <ca_dst_ip>
+```
+5. Required input to the tool is:
+   * Source VNET name to inject packet to
+   * Optional BM src IP
+   * BM dst IP
+6. Connectivity is checked only in one direction from SToR to DToR. The way back should be checked from DToR
 
 # SToR
 
-The function of the SToR is to inject an overlay packet with the cookie for the DToR to trap and redirect back.
+The function of the SToR is to inject an overlay packet with the cookie and TTL=2 for the DToR to trap and redirect back.
 The cookie must be known to DToR ahead of time.
 
 # DToR
 
-The function of the DToR is to detect a packet from SToR by the cookie, swap SIP and DIP, and inject the packet back using the same mecahnism as DToR.
+The function of the DToR is to detect a packet from SToR by the cookie, swap underlay SIP and DIP, and send it back to DToR
 
 ## Kernel configuration
 
@@ -28,7 +37,7 @@ SAI_HOSTIF_ATTR_OBJ_ID = port.m_vlan_info.vlan_oid;
 SAI_HOSTIF_ATTR_NAME = <hostif_name>;
 ```
 
-The netdev representations will reside in an assigned namespace.
+The netdev representations will reside in an assigned namespace (optional).
 
 ```
 ip netns add vnet
@@ -39,67 +48,25 @@ ip link set dev <hostif_name> netns vnet
 
 The VNET monitor supports packet injection into VLAN router interfaces.
 
-## Sequence Number
-
-The single SToR may send multiple ping requests to one or more DTORs and needs to distinguish between the responces.
-For that a sequence number must be attached to the packet payload.
-
-
-# Trigger mechanism
-
-There are 3 possible packet events that can trigger the VNet mobitor to send the ping packet:
-1. Periodic timer event - for each VNet for each DToR registered in the SToR
-2. Controller event.
-3. Recieving the packet from other ToR and generatig a reply as described in DToR section.
-
-# Config DB Schema
-
-```
-; Defines schema for Global configuration
-key                                   = VNET_MONITOR|GLOBAL           ; Global name
-; field                               = value
-POLL_INTERVAL                         = DIGITS                        ; Polling interval in seconds
-WAIT_TIMEOUT                          = DIGITS                        ; Wait for response timeout in seconds
-ENABLE                                = "true" / "false               ; Global enable toggle
-```
-
-```
-; Defines the data for a STOR/DTOR pair
-key                                   = VNET_DTOR_IP|IP_PREFIX         ; DTOR overlay DST IP address
-; field                               = value
-SRC_VLAN                              = DIGITS                         ; Source VLAN ID
-SRC_IP                                = ip_address                     ; STOR overlay SRC IP address
-cookie                                = HEX                            ; Monitor packet identifier
-```
-
-# State DB Schema
-
-```
-; Defines schema VNET path state
-key                                   = VNET_DTOR_IP|IP_PREFIX        ; DTOR overlay DST IP address
-; field                               = value
-REACHABLE                             = "true" / "false"              ; Current path state
-NUM_FLAPS                             = DIGITS                        ; Aggregate number of times path changed state to unreachable
-```
-
-# Integration into SONiC
-
-TBD
-
-VNET monitor will be installed as a standalone container
-
-# Init flow
-
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/Init.jpg)
-
-# Packet event flow
-
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/PKT_EVENT.jpg)
 
 # SToR packet walkthrough
 
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/DToR.jpg)
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/SToR.png)
+
+1. unject packet to VLAN ID under source VNET
+2. packet will is classified to VNET VRF by VLAN RIF
+3. overlay router looks up tunnel next hop
+4. TTL is decremented to 1
+5. VxLAN tunnel encap
+6. underlay routing to DToR
 
 # DToR packet walkthrough
 
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/SToR.jpg)
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/DToR.png)
+
+1. underlay routing
+2. VxLAN decapsulation
+3. packet is classified to VRF by VNI
+4. overlay routing
+5. "ttl too small" exception
+6. packet redirection by vnet-pingd
