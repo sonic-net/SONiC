@@ -25,7 +25,7 @@ The cookie must be known to DToR ahead of time.
 
 # DToR
 
-The function of the DToR is to detect a packet from SToR by the cookie, swap underlay SIP and DIP, and send it back to DToR
+The function of the DToR is to detect a packet from SToR by the cookie, swap underlay SIP and DIP, and send it back to SToR
 
 ## Kernel configuration
 
@@ -53,8 +53,8 @@ The VNET monitor supports packet injection into VLAN router interfaces.
 
 ![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/SToR.png)
 
-1. unject packet to VLAN ID under source VNET
-2. packet will is classified to VNET VRF by VLAN RIF
+1. inject packet to VLAN ID under source VNET
+2. packet is classified to VNET VRF by VLAN RIF
 3. overlay router looks up tunnel next hop
 4. TTL is decremented to 1
 5. VxLAN tunnel encap
