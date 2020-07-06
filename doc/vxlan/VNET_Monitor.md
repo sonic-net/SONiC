@@ -51,7 +51,7 @@ The VNET monitor supports packet injection into VLAN router interfaces.
 
 # SToR packet walkthrough
 
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/SToR.png)
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/STOR.png)
 
 1. inject packet to VLAN ID under source VNET
 2. packet is classified to VNET VRF by VLAN RIF
@@ -62,7 +62,7 @@ The VNET monitor supports packet injection into VLAN router interfaces.
 
 # DToR packet walkthrough
 
-![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/DToR.png)
+![](https://github.com/marian-pritsak/sonic/blob/patch-2/doc/vxlan/DTOR.png)
 
 1. underlay routing
 2. VxLAN decapsulation
