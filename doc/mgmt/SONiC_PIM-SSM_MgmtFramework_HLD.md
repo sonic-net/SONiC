@@ -691,14 +691,14 @@ sonic(conf-if-Vlan100)#
 ###### 3.3.2.2.1 Global Multicast Show commands
 
 List of Global Multicast show Commands
-* show ip mroute [vrf {<vrf-name> | all}]
+* show ip mroute [vrf {<vrf-name> | all}] [Group-addr | {Group-addr   Source-addr}]
 * show ip mroute [vrf {<vrf-name> | all}] summary
 
 Here sample show commands o/p are shown for "default" VRF. But these commands support display for non-default VRF as well. Also there is an option to display details about all VRFs using "vrf all" option and it might be useful for "show tech-support"
 
 ```
-show ip mroute [vrf {<vrf-name> | all}]
-=======================================
+show ip mroute [vrf {<vrf-name> | all}] [Group-addr | {Group-addr   Source-addr}]
+=================================================================================
 
 sonic# show ip mroute
 IP Multicast Routing Table
@@ -713,6 +713,27 @@ IP Multicast Routing Table
                                                 Vlan201       00:41:44
 * 71.0.0.22       235.0.0.1       Vlan100       Vlan200       00:41:16
 * 71.0.0.33       235.0.0.1       Vlan100       Vlan200       00:41:14
+
+--------------------------------------------------------------------------------
+
+sonic# show ip mroute 233.0.0.1
+IP Multicast Routing Table
+  * -> indicates installed route
+
+  Source          Group           Input         Output        Uptime
+* 71.0.0.11       233.0.0.1       Vlan100       Vlan200       00:41:59
+* 71.0.0.22       233.0.0.1       Vlan100       Vlan200       00:41:54
+                                                Vlan201       00:41:59
+
+--------------------------------------------------------------------------------
+
+sonic# show ip mroute 233.0.0.1 71.0.0.22
+IP Multicast Routing Table
+  * -> indicates installed route
+
+  Source          Group           Input         Output        Uptime
+* 71.0.0.22       233.0.0.1       Vlan100       Vlan200       00:41:54
+                                                Vlan201       00:41:59
 ```
 
 ```
@@ -791,6 +812,10 @@ show ip pim [vrf {<vrf-name> | all}] topology [Group-addr | {Group-addr   Source
 sonic# show ip pim topology
 PIM Multicast Routing Table
 
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
+
 (71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
@@ -814,6 +839,10 @@ PIM Multicast Routing Table
 sonic# show ip pim topology 233.0.0.1
 PIM Multicast Routing Table
 
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
+
 (71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
@@ -830,6 +859,10 @@ PIM Multicast Routing Table
 
 sonic# show ip pim topology 225.1.1.1 101.0.0.22
 PIM Multicast Routing Table
+
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
 
 (101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
