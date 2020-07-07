@@ -5,7 +5,7 @@
 # List of Tables
 * [Table 1: Revision](#revision)
 * [Table 2: Abbreviations](#definitionsabbreviation)
-* [Table 3: SAI cointer mapping](#rfc1213-etries-and-sai-counter-mapping)
+* [Table 3: SAI counter mapping](#rfc1213-etries-and-sai-counter-mapping)
 * [Table 4: IANA ifTypes](#interface-types-and-iana-iftypes)
 
 ###### Revision
@@ -96,4 +96,3 @@ Snmpagent is extended with functions to update vlan interface list and rif to po
 `test_snmp_interfaces.py` is covering the MIB. The test will be updated according to the MIB changes.
 
 # Open questions
-
