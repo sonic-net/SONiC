@@ -1,7 +1,7 @@
 # Feature Name
 sFlow Support in Management Framework
 # High Level Design Document
-#### Rev 0.3
+#### Rev 0.8
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -21,8 +21,9 @@ sFlow Support in Management Framework
 | 0.3 | 10/11/2019  |   Garrick He       | Address review comments                                                |
 | 0.4 | 10/15/2019  |   Garrick He       | Add information on default value and SONiC sFlow YANG                  |
 | 0.5 | 11/01/2019  |   Garrick He       | Add default values for polling intervals and updated sFlow Data models |
-| 0.6 | 11/15/2019  |   Garrick He       | Remove redundant 'port' keyword from CLI
-| 0.7 | 05/25/2020  |   Garrick He       | Update to OpenConfig sFlow YANG model
+| 0.6 | 11/15/2019  |   Garrick He       | Remove redundant 'port' keyword from CLI                               |
+| 0.7 | 05/25/2020  |   Garrick He       | Update to OpenConfig sFlow YANG model                                  |
+| 0.8 | 06/17/2020  |   Venkatesan Mahalingam  | Add management VRF support                                       |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -192,7 +193,25 @@ Syntax:
 sonic(config)# no sflow collector 1.1.1.1
 sonic(config)#
 ```
+##### Add sFlow Collector with VRF name
+Syntax:
 
+`sflow collector <collector ip-address> vrf <VRF-name>`
+
+```
+sonic(config)# sflow collector 1.1.1.2 vrf mgmt
+sonic(config)#
+```
+
+##### Remove a sFlow Collector
+Syntax:
+
+`no sflow collector <collector ip-address> vrf <VRF-name>`
+
+```
+sonic(config)# no sflow collector 1.1.1.2 vrf mgmt
+sonic(config)#
+```
 ##### Configure sFlow agent interface
 Syntax:
 
@@ -282,12 +301,12 @@ Global sFlow Information
         admin state:       up
         polling-interval:  20
         agent-id:          default
-		configured collectors:  1
-                1.1.1.2   4511    vrf: default
-
+		configured collectors:  2
+         1.1.1.1             6343        default
+         1.1.1.2             4511        mgmt
 sonic#
 ```
-Note: Currently only default VRF name is supported
+Note: Currently only default & mgmt VRFs are supported.
 ##### Show sFlow interface configurations
 ```
 sonic# show sflow interface
@@ -368,6 +387,7 @@ The unit-test for this feature will include:
 | Disable polling-interval | Verify sFlow polling-interval is removed from Config DB (back to default)
 | Add a collector | Verify a collector has been added into Config DB |
 | Add a collector with port # | Verify a collector has been added into Config DB with user supplied port #|
+| Add a collector with mgmt VRF name | Verify a collector has been added into Config DB with user supplied VRF name|
 | Delete a collector | Verify a collector has been deleted from Config DB
 | Add agent-id information | Verify sFlow agent interface is set
 | Disable sFlow agent | Verify sFlow agent interface is back to default
@@ -393,4 +413,3 @@ Same test as CLI configuration Test but using REST POST request
 #### Get configuration via REST (GET)
 
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
-
