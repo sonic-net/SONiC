@@ -16,12 +16,13 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/05/2019  |   Justine Jose, Tejaswi Goel, Arthi Sivanantham  | Initial version  |
+| 0.2 | 07/07/2020  |   Ravi Vasanthm  | Adding support for rate utilization counters and rate interval data  |
 
 # About this Manual
-This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" commands.
+This document provides information about the northbound interface details for handling Ethernet, VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" and show interface counters (using interface_counters RPC) commands.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and the associated unit-test cases. It does not include the protocol design or protocol implementation details.
+This document covers the "configuration" and "show" commands supported for Ethernet, VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and the associated unit-test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -40,6 +41,8 @@ Provide management framework capabilities to handle:
 ### ETHERNET
 - MTU, IPv4 / IPv6, sflow, admin-status, description, nat-zone, <br />
   spanning-tree, switchport, channel-group and udld configuration
+- IPv4 / IPv6 address configuration
+- IPv4 / IPv6 address removal
 - Associated show commands
 - Support clearing Ethernet counter values displayed by the "show interface" commands. <br />
   User will be able to clear counters for all interfaces or given interface type or given interface name.
@@ -93,9 +96,9 @@ N/A
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Manage/configure VLAN, PortChannel and Loopback interface via CLI, gNMI and REST interfaces
+Manage/configure Ethernet, VLAN, PortChannel and Loopback interface via CLI, gNMI and REST interfaces
 ## 2.2 Functional Description
-1. Provide CLI, gNMI and REST support for VLAN, PortChannel and Loopback related commands handling.
+1. Provide CLI, gNMI and REST support for Ethernet, VLAN, PortChannel and Loopback related commands handling.
 2. Provide CLI/REST/gNMI commands to reset interface statistics.
 
 # 3 Design
@@ -206,6 +209,33 @@ module: openconfig-interfaces
           |  +--ro last-change?     oc-types:timeticks64
           |  +--ro logical?         boolean
           |  +--ro oc-vlan:tpid?    identityref
+          |  +--ro counters
+          |  |  +--ro in-octets?                           oc-yang:counter64
+          |  |  +--ro in-pkts?                             oc-yang:counter64
+          |  |  +--ro in-unicast-pkts?                     oc-yang:counter64
+          |  |  +--ro in-broadcast-pkts?                   oc-yang:counter64
+          |  |  +--ro in-multicast-pkts?                   oc-yang:counter64
+          |  |  +--ro in-discards?                         oc-yang:counter64
+          |  |  +--ro in-errors?                           oc-yang:counter64
+          |  |  +--ro in-unknown-protos?                   oc-yang:counter64
+          |  |  +--ro in-fcs-errors?                       oc-yang:counter64
+          |  |  +--ro out-octets?                          oc-yang:counter64
+          |  |  +--ro out-pkts?                            oc-yang:counter64
+          |  |  +--ro out-unicast-pkts?                    oc-yang:counter64
+          |  |  +--ro out-broadcast-pkts?                  oc-yang:counter64
+          |  |  +--ro out-multicast-pkts?                  oc-yang:counter64
+          |  |  +--ro out-discards?                        oc-yang:counter64
+          |  |  +--ro out-errors?                          oc-yang:counter64
+          |  |  +--ro carrier-transitions?                 oc-yang:counter64
+          |  |  +--ro last-clear?                          oc-types:timeticks64
+  +       |  |  +--ro oc-intf-ext:in-octets-per-second?    decimal64
+  +       |  |  +--ro oc-intf-ext:in-pkts-per-second?      decimal64
+  +       |  |  +--ro oc-intf-ext:in-bits-per-second?      decimal64
+  +       |  |  +--ro oc-intf-ext:in-utilization?          decimal64
+  +       |  |  +--ro oc-intf-ext:out-octets-per-second?   decimal64
+  +       |  |  +--ro oc-intf-ext:out-pkts-per-second?     decimal64
+  +       |  |  +--ro oc-intf-ext:out-bits-per-second?     decimal64
+  +       |  |  +--ro oc-intf-ext:out-utilization?         decimal64
           +--rw hold-time
           |  +--rw config
           |  |  +--rw up?     uint32
@@ -313,6 +343,38 @@ module: sonic-interface
 +       +--ro output
 +          +--ro status?   int32
 +          +--ro status-detail?   string
+```diff
+module:sonic-counters
+rpcs:
+   +---x interface_counters
+   |  +--ro output
+   |     +--ro status?          int32
+   |     +--ro status-detail?   string
+   |     +--ro interfaces
+   |        +--ro interface* [name]
+   |           +--ro name     string
+   |           +--ro state
+   |              +--ro oper-status?   string
+   |              +--ro counters
+   |                 +--ro in-octets?               uint64
+   |                 +--ro in-pkts?                 uint64
+   |                 +--ro in-discards?             uint64
+   |                 +--ro in-errors?               uint64
+   |                 +--ro in-oversize-frames?      uint64
+   |                 +--ro in-octets-per-second?    decimal64
+   |                 +--ro in-pkts-per-second?      decimal64
+   |                 +--ro in-bits-per-second?      decimal64
+   |                 +--ro in-utilization?          decimal64
+   |                 +--ro out-octets?              uint64
+   |                 +--ro out-pkts?                uint64
+   |                 +--ro out-discards?            uint64
+   |                 +--ro out-errors?              uint64
+   |                 +--ro out-oversize-frames?     uint64
+   |                 +--ro out-octets-per-second?   decimal64
+   |                 +--ro out-pkts-per-second?     decimal64
+   |                 +--ro out-bits-per-second?     decimal64
+   |                 +--ro out-utilization?         decimal64
+
 
 ```
 ### 3.6.2 CLI
@@ -586,6 +648,31 @@ Mode of IPv4 address assignment: MANUAL
 IPv6 address is a::b/64
 Mode of IPv6 address assignment: MANUAL
 ```
+#### Display interface COUNTERS
+`show interface counters`
+Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s)
+
+Interface    State    RX_OK RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK  TX_MBPS    TX_MbPS  TX_PPS  TX_UTIL    TX_ERR    TX_DRP    TX_OVR
+------------  -------  -------  --------  --------  ---------  --------  --------  --------  -------    --------  --------  ---------  --------  --------  --------
+  Ethernet48   U     87,219  0.00   0.00  0.00        0.00%         0         3         0   86,871      0.00   0.00  0.00 0.00%         0         0         0
+  Ethernet49   U    5,649  0.00   0.00  0.00 0.00%         0     5,649         0    5,645      0.00   0.00  0.00 0.00%         0         0         0  
+  ........
+  PortChannel1 U    5,649  0.00   0.00  0.00 0.00%         0     5,649         0    5,645      0.00   0.00  0.00 0.00%         0         0         0
+```
+##### show interface Ethernet <>
+```
+sonic# show interface Ethernet 64
+Ethernet64 is up, line protocol is up
+Hardware is Eth
+Mode of IPV4 address assignment: not-set
+Mode of IPV6 address assignment: not-set
+Interface IPv6 oper status: Disabled
+IP MTU 9100 bytes
+LineSpeed 25GB, Auto-negotiation off
+Last clearing of "show interface" counters: 1970-01-01 00:00:00
+30 seconds input rate 84640 bits/sec, 10236 Bytes/sec, 52 packets/sec
+30 seconds output rate 176760 bits/sec, 22432 Bytes/sec, 45 packets/sec
+```
 #### 3.6.2.2.2 PORTCHANNEL
 #### Display summary information about PortChannels
 - sonic-portchannel.yang and teamd used for CLI #show commands.
@@ -620,6 +707,8 @@ Members in this channel: Ethernet56(Selected)
 LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
 LACP Partner port 0  address 00:00:00:00:00:00 key 0
 Last clearing of "show interface" counters: 2019-12-06 21:23:20
+30 seconds input rate 84640 bits/sec, 10236 Bytes/sec, 52 packets/sec
+30 seconds output rate 176760 bits/sec, 22432 Bytes/sec, 45 packets/sec
 Input statistics:
         6224 packets, 1787177 octets
         2855 Multicasts, 3369 Broadcasts, 0 Unicasts
@@ -703,7 +792,7 @@ N/A
 - Remove member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
 
 **GET**
-Get PortChannel details: 
+Get PortChannel details:
 - `/openconfig-interfaces:interfaces/interface={name}`
 - `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member|lag-type]`
@@ -722,10 +811,141 @@ Get PortChannel details:
 
 **GET**
 - `/openconfig-interfaces:interfaces/ interface={name}`
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-octets-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-octets-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-pkts-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-pkts-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-bits-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-bits-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-utilization`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-utilization": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-octets-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-octets-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-pkts-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-pkts-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-bits-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-bits-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-utilization`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-utilization": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters`
+```
+Sample output:
+{
+  "openconfig-interfaces:counters": {
+    "in-octets": 0,
+    "in-pkts": 0,
+    "in-unicast-pkts": 0,
+    "in-broadcast-pkts": 0,
+    "in-multicast-pkts": 0,
+    "in-discards": 0,
+    "in-errors": 0,
+    "in-unknown-protos": 0,
+    "in-fcs-errors": 0,
+    "out-octets": 0,
+    "out-pkts": 0,
+    "out-unicast-pkts": 0,
+    "out-broadcast-pkts": 0,
+    "out-multicast-pkts": 0,
+    "out-discards": 0,
+    "out-errors": 0,
+    "carrier-transitions": 0,
+    "last-clear": 0,
+    "openconfig-interfaces-ext:in-octets-per-second": 0,
+    "openconfig-interfaces-ext:in-pkts-per-second": 0,
+    "openconfig-interfaces-ext:in-bits-per-second": 0,
+    "openconfig-interfaces-ext:in-utilization": 0,
+    "openconfig-interfaces-ext:out-octets-per-second": 0,
+    "openconfig-interfaces-ext:out-pkts-per-second": 0,
+    "openconfig-interfaces-ext:out-bits-per-second": 0,
+    "openconfig-interfaces-ext:out-utilization": 0
+  }
+}
+```
 
 ##### Clear interface statistics
 - rpc_sonic_interface_clear_counters: `sonic-interface:clear_counters`
 
+##### Query interface COUNTERS
+- rpc_sonic_counters_interface_counters: `sonic-counters:interface_counters`
+```
+Sample output:
+{
+  "sonic-counters:output": {
+    "status": 0,
+    "status-detail": "string",
+    "interfaces": {
+      "interface": [
+        {
+          "name": "string",
+          "state": {
+            "oper-status": "string",
+            "counters": {
+              "in-octets": 0,
+              "in-pkts": 0,
+              "in-discards": 0,
+              "in-errors": 0,
+              "in-oversize-frames": 0,
+              "in-octets-per-second": 0,
+              "in-pkts-per-second": 0,
+              "in-bits-per-second": 0,
+              "in-utilization": 0,
+              "out-octets": 0,
+              "out-pkts": 0,
+              "out-discards": 0,
+              "out-errors": 0,
+              "out-oversize-frames": 0,
+              "out-octets-per-second": 0,
+              "out-pkts-per-second": 0,
+              "out-bits-per-second": 0,
+              "out-utilization": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
 # 4 Flow Diagrams
 N/A
 
