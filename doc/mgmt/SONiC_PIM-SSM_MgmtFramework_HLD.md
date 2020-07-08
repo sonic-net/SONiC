@@ -816,19 +816,19 @@ PIM Multicast Routing Table
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
 K - Ack-Pending state"
 
-(71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12
+(71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:07:50/00:01:39
     vlan122   uptime/expiry-time: 12:33:21/Never
 
-(71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18
+(71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:22:52/00:01:45
     vlan124   uptime/expiry-time: 12:42:28/Never
 
-(101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09
+(101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09, flags SCJT
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
@@ -843,13 +843,13 @@ PIM Multicast Routing Table
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
 K - Ack-Pending state"
 
-(71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12
+(71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:07:50/00:01:39
     vlan122   uptime/expiry-time: 12:33:21/Never
 
-(71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18
+(71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:22:52/00:01:45
@@ -864,7 +864,7 @@ PIM Multicast Routing Table
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
 K - Ack-Pending state"
 
-(101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09
+(101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09, flags SCJT
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
