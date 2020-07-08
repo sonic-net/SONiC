@@ -16,6 +16,7 @@ OpenConfig support for Physical and Management interfaces via openconfig-interfa
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2019  |   Ravi Vasanthm     | Initial version                   |
+| 0.2 | 07/08/2019  |   Ravi Vasanthm     | Adding support for rate utilization counters and rate interval data                   |
 
 # About this Manual
 This document provides general information about OpenConfig support for Physical and Management interfaces handling in SONiC.
@@ -150,6 +151,14 @@ module: openconfig-interfaces
           |  |  +--ro out-multicast-pkts?    oc-yang:counter64
           |  |  +--ro out-discards?          oc-yang:counter64
           |  |  +--ro out-errors?            oc-yang:counter64
+          |  |  +--ro oc-intf-ext:in-octets-per-second?    decimal64
+          |  |  +--ro oc-intf-ext:in-pkts-per-second?      decimal64
+          |  |  +--ro oc-intf-ext:in-bits-per-second?      decimal64
+          |  |  +--ro oc-intf-ext:in-utilization?          decimal64
+          |  |  +--ro oc-intf-ext:out-octets-per-second?   decimal64
+          |  |  +--ro oc-intf-ext:out-pkts-per-second?     decimal64
+          |  |  +--ro oc-intf-ext:out-bits-per-second?     decimal64
+          |  |  +--ro oc-intf-ext:out-utilization?         decimal64
           +--rw subinterfaces
           |  +--rw subinterface* [index]
           |     +--rw index           -> ../config/index
@@ -181,6 +190,39 @@ module: openconfig-interfaces
           |  |  +--rw oc-eth:auto-negotiate?        boolean
           |  |  +--ro oc-eth:port-speed?               identityref
 
+```
+### Interface Counters RPC
+```diff
+module:sonic-counters
+rpcs:
+   +---x interface_counters
+   |  +--ro output
+   |     +--ro status?          int32
+   |     +--ro status-detail?   string
+   |     +--ro interfaces
+   |        +--ro interface* [name]
+   |           +--ro name     string
+   |           +--ro state
+   |              +--ro oper-status?   string
+   |              +--ro counters
+   |                 +--ro in-octets?               uint64
+   |                 +--ro in-pkts?                 uint64
+   |                 +--ro in-discards?             uint64
+   |                 +--ro in-errors?               uint64
+   |                 +--ro in-oversize-frames?      uint64
+   |                 +--ro in-octets-per-second?    decimal64
+   |                 +--ro in-pkts-per-second?      decimal64
+   |                 +--ro in-bits-per-second?      decimal64
+   |                 +--ro in-utilization?          decimal64
+   |                 +--ro out-octets?              uint64
+   |                 +--ro out-pkts?                uint64
+   |                 +--ro out-discards?            uint64
+   |                 +--ro out-errors?              uint64
+   |                 +--ro out-oversize-frames?     uint64
+   |                 +--ro out-octets-per-second?   decimal64
+   |                 +--ro out-pkts-per-second?     decimal64
+   |                 +--ro out-bits-per-second?     decimal64
+   |                 +--ro out-utilization?         decimal64
 ```
 ```
 ### 3.6.2 CLI
@@ -294,6 +336,28 @@ Output statistics:
         0 Multicasts, 0 Broadcasts, 0 Unicasts
         0 error, 0 discarded
 ```
+2. show interface Ethernet 64 - display details about interface Ethernet64
+```
+sonic# show interface Ethernet 64
+Ethernet64 is up, line protocol is up
+Hardware is Eth
+Mode of IPV4 address assignment: not-set
+Mode of IPV6 address assignment: not-set
+Interface IPv6 oper status: Disabled
+IP MTU 9100 bytes
+LineSpeed 25GB, Auto-negotiation off
+Last clearing of "show interface" counters: 1970-01-01 00:00:00
+30 seconds input rate 84640 bits/sec, 10236 Bytes/sec, 52 packets/sec
+30 seconds output rate 176760 bits/sec, 22432 Bytes/sec, 45 packets/sec
+Input statistics:
+        6224 packets, 1787177 octets
+        2855 Multicasts, 3369 Broadcasts, 0 Unicasts
+        0 error, 3 discarded
+Output statistics:
+        74169 packets, 10678293 octets
+        70186 Multicasts, 3983 Broadcasts, 0 Unicasts
+        0 error, 0 discarded
+```
 ##### CLI's list which need's to be enhanced to add Management interface details>
 1. show interface status - Displays a brief summary of the interfaces.
   Note: Need to add eth0 interface as part of interfaces status list.
@@ -315,21 +379,22 @@ eth0                Management0         up             up             1000MB    
   Note - Need to add eth0 interface as part of interfaces counters list.
 ```
 #show interface counters
+Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s) and RX_UTIL|TX_UTIL(%).
 ------------------------------------------------------------------------------------------------
-Interface      State     RX_OK     RX_ERR    RX_DRP    TX_OK     TX_ERR    TX_DRP
+Interface      State     RX_OK     RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL  RX_ERR    RX_DRP    RX_OVR   TX_OK    TX_MBPS  TX_MbPS  TX_PPS  TX_UTIL TX_ERR    TX_DRP   TX_OVR
 ------------------------------------------------------------------------------------------------
-Ethernet0      D         0         0         0         0         0         0
-Ethernet4      U         1064      0         0         438       0         0
-Ethernet8      D         0         0         0         0         0         0
-Ethernet12     D         0         0         0         0         0         0
-Ethernet16     D         0         0         0         0         0         0
-Ethernet20     D         0         0         0         0         0         0
-Ethernet24     D         0         0         0         0         0         0
-Ethernet28     D         0         0         0         0         0         0
-Ethernet32     U         431       0         0         438       0         0
-Ethernet36     D         0         0         0         0         0         0
-Ethernet40     D         0         0         0         0         0         0
-eth0           U        23233      0         0         33220     0         0
+Ethernet0      D         0         0.00      0.00     0.00   0.00     0         0         0        0        0.00   0.00     0.00    0.00    0         0         0
+Ethernet4      U         1064      0.00      0.00     0.00   0.00     0         0         0        438       0.00   0.00     0.00    0.00    0         0         0
+Ethernet8      D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet12     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet16     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet20     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet24     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet28     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet32     U         431       0.00      0.00     0.00   0.00     0         0         0        438       0.00   0.00     0.00    0.00    0         0         0
+Ethernet36     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+Ethernet40     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
+PortChannel1   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
 ```
 #### 3.6.2.3 Debug Commands
 N/A
@@ -337,7 +402,138 @@ N/A
 N/A
 
 ### 3.6.3 REST API Support
-N/A
+**GET**
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-octets-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-octets-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-pkts-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-pkts-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-bits-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-bits-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-utilization`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:in-utilization": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-octets-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-octets-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-pkts-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-pkts-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-bits-per-second`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-bits-per-second": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:out-utilization`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:out-utilization": 0
+}
+```
+- `/openconfig-interfaces:interfaces/interface={name}/state/counters`
+```
+Sample output:
+{
+  "openconfig-interfaces:counters": {
+    "in-octets": 0,
+    "in-pkts": 0,
+    "in-unicast-pkts": 0,
+    "in-broadcast-pkts": 0,
+    "in-multicast-pkts": 0,
+    "in-discards": 0,
+    "in-errors": 0,
+    "in-unknown-protos": 0,
+    "in-fcs-errors": 0,
+    "out-octets": 0,
+    "out-pkts": 0,
+    "out-unicast-pkts": 0,
+    "out-broadcast-pkts": 0,
+    "out-multicast-pkts": 0,
+    "out-discards": 0,
+    "out-errors": 0,
+    "carrier-transitions": 0,
+    "last-clear": 0,
+    "openconfig-interfaces-ext:in-octets-per-second": 0,
+    "openconfig-interfaces-ext:in-pkts-per-second": 0,
+    "openconfig-interfaces-ext:in-bits-per-second": 0,
+    "openconfig-interfaces-ext:in-utilization": 0,
+    "openconfig-interfaces-ext:out-octets-per-second": 0,
+    "openconfig-interfaces-ext:out-pkts-per-second": 0,
+    "openconfig-interfaces-ext:out-bits-per-second": 0,
+    "openconfig-interfaces-ext:out-utilization": 0
+  }
+}
+```
+##### Query interface COUNTERS
+- rpc_sonic_counters_interface_counters: `sonic-counters:interface_counters`
+```
+Sample output:
+{
+  "sonic-counters:output": {
+    "status": 0,
+    "status-detail": "string",
+    "interfaces": {
+      "interface": [
+        {
+          "name": "string",
+          "state": {
+            "oper-status": "string",
+            "counters": {
+              "in-octets": 0,
+              "in-pkts": 0,
+              "in-discards": 0,
+              "in-errors": 0,
+              "in-oversize-frames": 0,
+              "in-octets-per-second": 0,
+              "in-pkts-per-second": 0,
+              "in-bits-per-second": 0,
+              "in-utilization": 0,
+              "out-octets": 0,
+              "out-pkts": 0,
+              "out-discards": 0,
+              "out-errors": 0,
+              "out-oversize-frames": 0,
+              "out-octets-per-second": 0,
+              "out-pkts-per-second": 0,
+              "out-bits-per-second": 0,
+              "out-utilization": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
 # 4 Flow Diagrams
 N/A
 

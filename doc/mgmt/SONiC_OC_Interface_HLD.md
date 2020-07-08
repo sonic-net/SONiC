@@ -19,10 +19,10 @@
 | 0.2 | 07/07/2020  |   Ravi Vasanthm  | Adding support for rate utilization counters and rate interval data  |
 
 # About this Manual
-This document provides information about the northbound interface details for handling Ethernet, VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" and show interface counters (using interface_counters RPC) commands.
+This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" and show interface counters (using interface_counters RPC) commands.
 
 # Scope
-This document covers the "configuration" and "show" commands supported for Ethernet, VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and the associated unit-test cases. It does not include the protocol design or protocol implementation details.
+This document covers the "configuration" and "show" commands supported for VLAN, PortChannel and Loopback interfaces based on OpenConfig yang and the associated unit-test cases. It does not include the protocol design or protocol implementation details.
 
 # Definition/Abbreviation
 
@@ -96,9 +96,9 @@ N/A
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-Manage/configure Ethernet, VLAN, PortChannel and Loopback interface via CLI, gNMI and REST interfaces
+Manage/configure VLAN, PortChannel and Loopback interface via CLI, gNMI and REST interfaces
 ## 2.2 Functional Description
-1. Provide CLI, gNMI and REST support for Ethernet, VLAN, PortChannel and Loopback related commands handling.
+1. Provide CLI, gNMI and REST support for VLAN, PortChannel and Loopback related commands handling.
 2. Provide CLI/REST/gNMI commands to reset interface statistics.
 
 # 3 Design
@@ -650,29 +650,16 @@ Mode of IPv6 address assignment: MANUAL
 ```
 #### Display interface COUNTERS
 `show interface counters`
-Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s)
+```
+Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s) and RX_UTIL|TX_UTIL(%).
+------------------------------------------------------------------------------------------------
+Interface      State     RX_OK     RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL  RX_ERR    RX_DRP    RX_OVR   TX_OK    TX_MBPS  TX_MbPS  TX_PPS  TX_UTIL TX_ERR    TX_DRP   TX_OVR
+------------------------------------------------------------------------------------------------
+Ethernet0      D         0         0.00      0.00     0.00   0.00     0         0         0        0        0.00   0.00     0.00    0.00    0         0         0
+PortChannel1   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
+PortChannel2   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
+```
 
-Interface    State    RX_OK RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK  TX_MBPS    TX_MbPS  TX_PPS  TX_UTIL    TX_ERR    TX_DRP    TX_OVR
-------------  -------  -------  --------  --------  ---------  --------  --------  --------  -------    --------  --------  ---------  --------  --------  --------
-  Ethernet48   U     87,219  0.00   0.00  0.00        0.00%         0         3         0   86,871      0.00   0.00  0.00 0.00%         0         0         0
-  Ethernet49   U    5,649  0.00   0.00  0.00 0.00%         0     5,649         0    5,645      0.00   0.00  0.00 0.00%         0         0         0  
-  ........
-  PortChannel1 U    5,649  0.00   0.00  0.00 0.00%         0     5,649         0    5,645      0.00   0.00  0.00 0.00%         0         0         0
-```
-##### show interface Ethernet <>
-```
-sonic# show interface Ethernet 64
-Ethernet64 is up, line protocol is up
-Hardware is Eth
-Mode of IPV4 address assignment: not-set
-Mode of IPV6 address assignment: not-set
-Interface IPv6 oper status: Disabled
-IP MTU 9100 bytes
-LineSpeed 25GB, Auto-negotiation off
-Last clearing of "show interface" counters: 1970-01-01 00:00:00
-30 seconds input rate 84640 bits/sec, 10236 Bytes/sec, 52 packets/sec
-30 seconds output rate 176760 bits/sec, 22432 Bytes/sec, 45 packets/sec
-```
 #### 3.6.2.2.2 PORTCHANNEL
 #### Display summary information about PortChannels
 - sonic-portchannel.yang and teamd used for CLI #show commands.
