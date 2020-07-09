@@ -407,10 +407,10 @@ interfaces.
 Interface     Rate interval RX_MBPS   RX_MbPS  RX_PPS    RX_UTIl  TX_MBPS   TX_MbPS  TX_PPS     TX_UTIL(%)
               (seconds)     (MB/s)    (Mb/s)   (Pkts/s)   (%)     (MB/s)    (Mb/s)   (Pkts/s)   (%)
 -----------------------------------------------------------------------------------------------------------
-Ethernet0     0             0.00      0.00     0.00      0        0.00      0.00     0.00       0
-Ethernet8     0             0.00      0.00     0.00      0        0.00      0.00     0.00       0
-PortChannel1  0             0.00      0.00     0.00      0        0.00      0.00     0.00       0
-PortChannel2  0             0.00      0.00     0.00      0        0.00      0.00     0.00       0
+Ethernet0     10            0.00      0.00     0.00      0        0.00      0.00     0.00       0
+Ethernet8     10            0.00      0.00     0.00      0        0.00      0.00     0.00       0
+PortChannel1  10            0.00      0.00     0.00      0        0.00      0.00     0.00       0
+PortChannel2  10            0.00      0.00     0.00      0        0.00      0.00     0.00       0
 ```
 #### 3.6.2.3 Debug Commands
 N/A
