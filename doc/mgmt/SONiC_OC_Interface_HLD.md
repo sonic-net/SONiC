@@ -218,8 +218,6 @@ module: openconfig-interfaces
           |  |  +--ro in-multicast-pkts?                   oc-yang:counter64
           |  |  +--ro in-discards?                         oc-yang:counter64
           |  |  +--ro in-errors?                           oc-yang:counter64
-          |  |  +--ro in-unknown-protos?                   oc-yang:counter64
-          |  |  +--ro in-fcs-errors?                       oc-yang:counter64
           |  |  +--ro out-octets?                          oc-yang:counter64
           |  |  +--ro out-pkts?                            oc-yang:counter64
           |  |  +--ro out-unicast-pkts?                    oc-yang:counter64
@@ -227,7 +225,6 @@ module: openconfig-interfaces
           |  |  +--ro out-multicast-pkts?                  oc-yang:counter64
           |  |  +--ro out-discards?                        oc-yang:counter64
           |  |  +--ro out-errors?                          oc-yang:counter64
-          |  |  +--ro carrier-transitions?                 oc-yang:counter64
           |  |  +--ro last-clear?                          oc-types:timeticks64
   +       |  |  +--ro oc-intf-ext:in-octets-per-second?    decimal64
   +       |  |  +--ro oc-intf-ext:in-pkts-per-second?      decimal64
