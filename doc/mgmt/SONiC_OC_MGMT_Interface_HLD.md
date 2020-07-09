@@ -193,7 +193,7 @@ module: openconfig-interfaces
 
 ```
 ### Interface Counters RPC
-```diff
+```
 module:sonic-counters
 rpcs:
    +---x interface_counters
@@ -225,10 +225,10 @@ rpcs:
    |                 +--ro out-bits-per-second?     decimal64
    |                 +--ro out-utilization?         oc-types:percentage
 ```
-```
+
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
-
+```
   sonic(config)# interface ?
   Ethernet    Interface commands
   Management  Management Interface commands
@@ -359,9 +359,10 @@ Output statistics:
         70186 Multicasts, 3983 Broadcasts, 0 Unicasts
         0 error, 0 discarded
 ```
-##### CLI's list which need's to be enhanced to add Management interface details>
+##### CLI's list which need's to be enhanced to add Management interface details
+
 1. show interface status - Displays a brief summary of the interfaces.
-  Note: Need to add eth0 interface as part of interfaces status list.
+
 ```
 #show interface status
 ------------------------------------------------------------------------------------------
@@ -374,10 +375,10 @@ Ethernet12          Ethernet12          up             down           40GB      
 Ethernet16          -                   up             down           40GB           9100
 Ethernet20          -                   up             down           40GB           9100
 Ethernet24          -                   up             down           40GB           9100
-eth0                Management0         up             up             1000MB         1500
 ```
+
 2. show interface counters - Displays port statistics of all physical interfaces.
-  Note - Need to add eth0 interface as part of interfaces counters list.
+
 ```
 #show interface counters
 ------------------------------------------------------------------------------------------------
@@ -396,17 +397,20 @@ Ethernet36     D         0         0         0         0         0         0
 Ethernet40     D         0         0         0         0         0         0
 ```
 
-3. show interface counters rate - Displays rate and utilization counters of all Ethernet and portchannel interfaces.
+3. show interface counters rate - Displays rate and utilization counters of all Ethernet and port channel
+interfaces.
+
 ```
 #show interface counters rate
-Units: MB/s for RX_MBPS/TX_MBPS, Mb/s for RX_MbPS|TX_MbPS, Pkts/s for RX_PPS|TX_PPS and % for RX_UTIL|TX_UTIL.
----------------------------------------------------------------------------------------------------------------------------------------
-Interface      State  RX_MBPS(MB/s) RX_MbPS(Mb/s)  RX_PPS(Pkts/s)  RX_UTIL(%)  TX_MBPS(MB/s)  TX_MbPS(Mb/s)  TX_PPS(Pkts/s)  TX_UTIL(%) 
----------------------------------------------------------------------------------------------------------------------------------------
-Ethernet0      D      0.00          0.00           0.00            0           0.00           0.00           0.00            0
-Ethernet8      D      0.00          0.00           0.00            0           0.00           0.00           0.00            0
-PortChannel1   U      0.00          0.00           0.00            0           0.00           0.00           0.00            0
-PortChannel2   U      0.00          0.00           0.00            0           0.00           0.00           0.00            0
+
+-----------------------------------------------------------------------------------------------------------
+Interface     RX_MBPS   RX_MbPS  RX_PPS    RX_UTIl  TX_MBPS   TX_MbPS  TX_PPS     TX_UTIL(%)
+              (MB/s)    (Mb/s)   (Pkts/s)   (%)     (MB/s)    (Mb/s)   (Pkts/s)   (%)
+-----------------------------------------------------------------------------------------------------------
+Ethernet0     0.00      0.00     0.00      0        0.00      0.00     0.00       0
+Ethernet8     0.00      0.00     0.00      0        0.00      0.00     0.00       0
+PortChannel1  0.00      0.00     0.00      0        0.00      0.00     0.00       0
+PortChannel2  0.00      0.00     0.00      0        0.00      0.00     0.00       0
 ```
 #### 3.6.2.3 Debug Commands
 N/A
