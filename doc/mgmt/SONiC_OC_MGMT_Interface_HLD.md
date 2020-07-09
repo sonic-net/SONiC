@@ -380,22 +380,33 @@ eth0                Management0         up             up             1000MB    
   Note - Need to add eth0 interface as part of interfaces counters list.
 ```
 #show interface counters
+------------------------------------------------------------------------------------------------
+Interface      State     RX_OK     RX_ERR    RX_DRP    TX_OK     TX_ERR    TX_DRP
+------------------------------------------------------------------------------------------------
+Ethernet0      D         0         0         0         0         0         0
+Ethernet4      U         1064      0         0         438       0         0
+Ethernet8      D         0         0         0         0         0         0
+Ethernet12     D         0         0         0         0         0         0
+Ethernet16     D         0         0         0         0         0         0
+Ethernet20     D         0         0         0         0         0         0
+Ethernet24     D         0         0         0         0         0         0
+Ethernet28     D         0         0         0         0         0         0
+Ethernet32     U         431       0         0         438       0         0
+Ethernet36     D         0         0         0         0         0         0
+Ethernet40     D         0         0         0         0         0         0
+```
+
+3. show interface counters rate - Displays rate and utilization counters of all Ethernet and portchannel interfaces.
+```
+#show interface counters rate
 Units: MB/s for RX_MBPS/TX_MBPS, Mb/s for RX_MbPS|TX_MbPS, Pkts/s for RX_PPS|TX_PPS and % for RX_UTIL|TX_UTIL.
-------------------------------------------------------------------------------------------------
-Interface      State     RX_OK     RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL  RX_ERR    RX_DRP    RX_OVR   TX_OK    TX_MBPS  TX_MbPS  TX_PPS  TX_UTIL TX_ERR    TX_DRP   TX_OVR
-------------------------------------------------------------------------------------------------
-Ethernet0      D         0         0.00      0.00     0.00   0.00     0         0         0        0        0.00   0.00     0.00    0.00    0         0         0
-Ethernet4      U         1064      0.00      0.00     0.00   0.00     0         0         0        438       0.00   0.00     0.00    0.00    0         0         0
-Ethernet8      D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet12     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet16     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet20     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet24     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet28     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet32     U         431       0.00      0.00     0.00   0.00     0         0         0        438       0.00   0.00     0.00    0.00    0         0         0
-Ethernet36     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-Ethernet40     D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00     0.00    0.00    0         0         0
-PortChannel1   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
+---------------------------------------------------------------------------------------------------------------------------------------
+Interface      State  RX_MBPS(MB/s) RX_MbPS(Mb/s)  RX_PPS(Pkts/s)  RX_UTIL(%)  TX_MBPS(MB/s)  TX_MbPS(Mb/s)  TX_PPS(Pkts/s)  TX_UTIL(%) 
+---------------------------------------------------------------------------------------------------------------------------------------
+Ethernet0      D      0.00          0.00           0.00            0           0.00           0.00           0.00            0
+Ethernet8      D      0.00          0.00           0.00            0           0.00           0.00           0.00            0
+PortChannel1   U      0.00          0.00           0.00            0           0.00           0.00           0.00            0
+PortChannel2   U      0.00          0.00           0.00            0           0.00           0.00           0.00            0
 ```
 #### 3.6.2.3 Debug Commands
 N/A
