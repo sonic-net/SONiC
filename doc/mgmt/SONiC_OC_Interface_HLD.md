@@ -229,11 +229,11 @@ module: openconfig-interfaces
   +       |  |  +--ro oc-intf-ext:in-octets-per-second?    decimal64
   +       |  |  +--ro oc-intf-ext:in-pkts-per-second?      decimal64
   +       |  |  +--ro oc-intf-ext:in-bits-per-second?      decimal64
-  +       |  |  +--ro oc-intf-ext:in-utilization?          decimal64
+  +       |  |  +--ro oc-intf-ext:in-utilization?          oc-types:percentage
   +       |  |  +--ro oc-intf-ext:out-octets-per-second?   decimal64
   +       |  |  +--ro oc-intf-ext:out-pkts-per-second?     decimal64
   +       |  |  +--ro oc-intf-ext:out-bits-per-second?     decimal64
-  +       |  |  +--ro oc-intf-ext:out-utilization?         decimal64
+  +       |  |  +--ro oc-intf-ext:out-utilization?         oc-types:percentage
           +--rw hold-time
           |  +--rw config
           |  |  +--rw up?     uint32
@@ -341,6 +341,7 @@ module: sonic-interface
 +       +--ro output
 +          +--ro status?   int32
 +          +--ro status-detail?   string
+```
 ```diff
 module:sonic-counters
 rpcs:
@@ -362,7 +363,7 @@ rpcs:
    |                 +--ro in-octets-per-second?    decimal64
    |                 +--ro in-pkts-per-second?      decimal64
    |                 +--ro in-bits-per-second?      decimal64
-   |                 +--ro in-utilization?          decimal64
+   |                 +--ro in-utilization?          oc-types:percentage
    |                 +--ro out-octets?              uint64
    |                 +--ro out-pkts?                uint64
    |                 +--ro out-discards?            uint64
@@ -371,7 +372,7 @@ rpcs:
    |                 +--ro out-octets-per-second?   decimal64
    |                 +--ro out-pkts-per-second?     decimal64
    |                 +--ro out-bits-per-second?     decimal64
-   |                 +--ro out-utilization?         decimal64
+   |                 +--ro out-utilization?         oc-types:percentage
 
 
 ```
