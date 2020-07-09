@@ -16,7 +16,7 @@ OpenConfig support for Physical and Management interfaces via openconfig-interfa
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2019  |   Ravi Vasanthm     | Initial version                   |
-| 0.2 | 07/08/2019  |   Ravi Vasanthm     | Adding support for rate utilization counters and rate interval data                   |
+| 0.2 | 07/08/2019  |   Ravi Vasanthm     | Included information about rate utilization counters and rate interval data                   |
 
 # About this Manual
 This document provides general information about OpenConfig support for Physical and Management interfaces handling in SONiC.

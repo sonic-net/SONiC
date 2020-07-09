@@ -16,7 +16,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/05/2019  |   Justine Jose, Tejaswi Goel, Arthi Sivanantham  | Initial version  |
-| 0.2 | 07/07/2020  |   Ravi Vasanthm  | Adding support for rate utilization counters and rate interval data  |
+| 0.2 | 07/07/2020  |   Ravi Vasanthm  | Included information about rate utilization counters and rate interval data  |
 
 # About this Manual
 This document provides information about the northbound interface details for handling VLAN, PortChannel, Loopback interfaces and design approach for supporting "clear counters" and show interface counters (using interface_counters RPC) commands.
