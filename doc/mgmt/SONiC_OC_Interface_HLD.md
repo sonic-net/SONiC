@@ -209,6 +209,7 @@ module: openconfig-interfaces
           |  +--ro last-change?     oc-types:timeticks64
           |  +--ro logical?         boolean
           |  +--ro oc-vlan:tpid?    identityref
+          |  +--ro oc-intf-ext:rate-interval?         uint32
           |  +--ro counters
           |  |  +--ro in-octets?                           oc-yang:counter64
           |  |  +--ro in-pkts?                             oc-yang:counter64
@@ -651,13 +652,14 @@ Mode of IPv6 address assignment: MANUAL
 #### Display interface COUNTERS
 `show interface counters`
 ```
-Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s) and RX_UTIL|TX_UTIL(%).
-------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Interface      State     RX_OK     RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL  RX_ERR    RX_DRP    RX_OVR   TX_OK    TX_MBPS  TX_MbPS  TX_PPS  TX_UTIL TX_ERR    TX_DRP   TX_OVR
-------------------------------------------------------------------------------------------------
-Ethernet0      D         0         0.00      0.00     0.00   0.00     0         0         0        0        0.00   0.00     0.00    0.00    0         0         0
-PortChannel1   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
-PortChannel2   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00     0.00    0.00    0         0         0
+                                   ---------------------------------                                        ---------------------------------
+                                   MB/s      Mb/s     Pkts/s  %                                              MB/s    Mb/s     Pkts/s   %
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Ethernet0      D         0         0.00      0.00     0.00   0.00     0         0         0        0         0.00   0.00      0.00    0.00    0         0         0
+PortChannel1   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00      0.00    0.00    0         0         0
+PortChannel2   U        23233      0.00      0.00     0.00   0.00     0         0         0        33220     0.00   0.00      0.00    0.00    0         0         0
 ```
 
 #### 3.6.2.2.2 PORTCHANNEL
@@ -781,7 +783,7 @@ N/A
 **GET**
 Get PortChannel details:
 - `/openconfig-interfaces:interfaces/interface={name}`
-- `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
+- `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status|oc-intf-ext:rate-interval]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member|lag-type]`
 - `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[dell-intf-augments:fallback|dell-intf-augments:fast_rate]`
 
@@ -798,6 +800,9 @@ Get PortChannel details:
 
 **GET**
 - `/openconfig-interfaces:interfaces/ interface={name}`
+
+** Get Counters including Rate and utilization info **
+
 - `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-octets-per-second`
 ```
 Example Value

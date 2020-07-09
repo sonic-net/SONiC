@@ -136,6 +136,7 @@ module: openconfig-interfaces
           |  +--ro ifindex?         uint32
           |  +--ro admin-status     enumeration
           |  +--ro oper-status      enumeration
+          |  +--ro oc-intf-ext:rate-interval?         uint32
           |  +--ro counters
           |  |  +--ro in-octets?             oc-yang:counter64
           |  |  +--ro in-pkts?               oc-yang:counter64
@@ -379,7 +380,7 @@ eth0                Management0         up             up             1000MB    
   Note - Need to add eth0 interface as part of interfaces counters list.
 ```
 #show interface counters
-Units: RX_MBPS/TX_MBPS(MB/s), RX_MbPS|TX_MbPS(Mb/s), RX_PPS|TX_PPS(pkts/s) and RX_UTIL|TX_UTIL(%).
+Units: MB/s for RX_MBPS/TX_MBPS, Mb/s for RX_MbPS|TX_MbPS, Pkts/s for RX_PPS|TX_PPS and % for RX_UTIL|TX_UTIL.
 ------------------------------------------------------------------------------------------------
 Interface      State     RX_OK     RX_MBPS  RX_MbPS  RX_PPS  RX_UTIL  RX_ERR    RX_DRP    RX_OVR   TX_OK    TX_MBPS  TX_MbPS  TX_PPS  TX_UTIL TX_ERR    TX_DRP   TX_OVR
 ------------------------------------------------------------------------------------------------
@@ -403,6 +404,14 @@ N/A
 
 ### 3.6.3 REST API Support
 **GET**
+- `/openconfig-interfaces:interfaces/interface={name}/state/openconfig-interfaces-ext:rate-interval`
+```
+Example Value
+{
+  "openconfig-interfaces-ext:rate-interval": 30
+}
+```
+
 - `/openconfig-interfaces:interfaces/interface={name}/state/counters/openconfig-interfaces-ext:in-octets-per-second`
 ```
 Example Value
