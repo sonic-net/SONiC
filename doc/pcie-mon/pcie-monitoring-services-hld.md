@@ -42,7 +42,7 @@ For the convenience of implementation and reduce the time consuming, pcie-check.
 
 PcieUtil needs to get the expected PCIe device information to check the PCIe device status periodically, which is different for each platform/hardware sku.
 
-Each vendor need to generate the PCIe device configuration file name as pcie.yml and locate the file under device/<platform>/<hardware_skus>/plugins. 
+Each vendor need to generate the PCIe device configuration file name as pcie.yml and locate the file under `device/<platform>/<hardware_skus>/plugins`. 
 
 Example) Location: `device/celestica/x86_64-cel_seastone-r0/plugins/pcie.yaml`
 
