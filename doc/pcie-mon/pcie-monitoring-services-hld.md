@@ -20,7 +20,7 @@ New PCIe Monitor service is designed to use the PcieUtil utility to check the cu
 
 PCIe device monitoring will be done in two separate services, `pcie-check.service` which is a systemd service, will check the PCIe device during the boot time and `pcied` which is a daemon in PMON container will monitor during the runtime.
 
-First, pcie-check.service will be added to check the pcie device enumeration status, trigger 15 maximum retries of a pci device rescan if there is any missing device and save the result status of pcie device check into the STATE_DB to indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
+First, pcie-check.service will be added to check the pcie device enumeration status, trigger a retry of a pci device rescan if there is any missing device and save the result status of pcie device check into the STATE_DB to indicate any device missing to the party that are interested in the device enumeration, for example, kernel_bde driver, platform drivers and etc.
 
 Second, pcied in PMON will perform the periodic pcie device check during the run time.
 
