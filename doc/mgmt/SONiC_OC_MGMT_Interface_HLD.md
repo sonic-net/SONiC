@@ -348,8 +348,8 @@ Interface IPv6 oper status: Disabled
 IP MTU 9100 bytes
 LineSpeed 25GB, Auto-negotiation off
 Last clearing of "show interface" counters: 1970-01-01 00:00:00
-30 seconds input rate 84640 bits/sec, 10236 Bytes/sec, 52 packets/sec
-30 seconds output rate 176760 bits/sec, 22432 Bytes/sec, 45 packets/sec
+30 seconds input rate 52 packets/sec, 84640 bits/sec, 10236 Bytes/sec
+30 seconds output rate 45 packets/sec, 176760 bits/sec, 22432 Bytes/sec
 Input statistics:
         6224 packets, 1787177 octets
         2855 Multicasts, 3369 Broadcasts, 0 Unicasts
