@@ -265,22 +265,32 @@ module: openconfig-pim-ext.yang
 +                     +--ro oc-pim-ext:tib
 +                        +--ro oc-pim-ext:ipv4-entries
 +                           +--ro oc-pim-ext:ipv4-entry* [group-address]
-+                              +--ro oc-pim-ext:group-address    oc-inet:ipv4-address
-+                              +--ro oc-pim-ext:src-entries
-+                                 +--ro oc-pim-ext:src-entry* [source-address rpt]
-+                                    +--ro oc-pim-ext:source-address    oc-inet:ipv4-address
-+                                    +--ro oc-pim-ext:rpt               boolean
-+                                    +--ro oc-pim-ext:state
-+                                       +--ro oc-pim-ext:incoming-interface?     oc-if:interface-id
-+                                       +--ro oc-pim-ext:uptime?                 string
-+                                       +--ro oc-pim-ext:expiry?                 string
-+                                       +--ro oc-pim-ext:oil-info-entries
-+                                          +--ro oc-pim-ext:oil-info-entry* [outgoing-interface]
-+                                             +--ro oc-pim-ext:outgoing-interface    oc-if:interface-id
++                              +--ro oc-pim-ext:group-address    -> ../state/group-address
++                              +--ro oc-pim-ext:state
++                                 +--ro oc-pim-ext:group-address?   oc-inet:ipv4-address
++                                 +--ro oc-pim-ext:src-entries
++                                    +--ro oc-pim-ext:src-entry* [source-address route-type]
++                                       +--ro oc-pim-ext:source-address    -> ../state/source-address
++                                       +--ro oc-pim-ext:route-type        -> ../state/route-type
++                                       +--ro oc-pim-ext:state
++                                          +--ro oc-pim-ext:source-address?       oc-inet:ipv4-address
++                                          +--ro oc-pim-ext:route-type?           route-type
++                                          +--ro oc-pim-ext:incoming-interface?   oc-if:interface-id
++                                          +--ro oc-pim-ext:uptime?               oc-types:timeticks64
++                                          +--ro oc-pim-ext:expiry?               oc-types:timeticks64
++                                          +--ro oc-pim-ext:flags?                string
++                                          +--ro oc-pim-ext:oil-info-entries
++                                             +--ro oc-pim-ext:oil-info-entry* [outgoing-interface]
++                                                +--ro oc-pim-ext:outgoing-interface    -> ../state/outgoing-interface
++                                                +--ro oc-pim-ext:state
++                                                   +--ro oc-pim-ext:outgoing-interface?   oc-if:interface-id
++                                                   +--ro oc-pim-ext:uptime?               oc-types:timeticks64
++                                                   +--ro oc-pim-ext:expiry?               oc-types:timeticks64
++                                          +--ro oc-pim-ext:rpf-info
 +                                             +--ro oc-pim-ext:state
-+                                                +--ro oc-pim-ext:uptime?   string
-+                                                +--ro oc-pim-ext:expiry?   string
-+                                       +--ro oc-pim-ext:rpf-neighbor-address?   oc-inet:ipv4-address
++                                                +--ro oc-pim-ext:rpf-neighbor-address?   oc-inet:ipv4-address
++                                                +--ro oc-pim-ext:metric?                 uint32
++                                                +--ro oc-pim-ext:preference?             uint32
                    +--rw interfaces
                       +--rw interface* [interface-id]
                          +--rw interface-id    -> ../config/interface-id
@@ -362,18 +372,22 @@ module: openconfig-aft-ipv4-ext.yang
 +            +--rw oc-aft-ipv4-ext:ipv4-multicast
 +               +--ro oc-aft-ipv4-ext:ipv4-entries
 +                  +--ro oc-aft-ipv4-ext:ipv4-entry* [group-address]
-+                     +--ro oc-aft-ipv4-ext:group-address    oc-inet:ipv4-address
-+                     +--ro oc-aft-ipv4-ext:src-entries
-+                        +--ro oc-aft-ipv4-ext:src-entry* [source-address]
-+                           +--ro oc-aft-ipv4-ext:source-address    oc-inet:ipv4-address
-+                           +--ro oc-aft-ipv4-ext:state
-+                              +--ro oc-aft-ipv4-ext:incoming-interface?   oc-if:interface-id
-+                              +--ro oc-aft-ipv4-ext:installed?            boolean
-+                              +--ro oc-aft-ipv4-ext:oil-info-entries
-+                                 +--ro oc-aft-ipv4-ext:oif-info* [outgoing-interface]
-+                                    +--ro oc-aft-ipv4-ext:outgoing-interface    oc-if:interface-id
-+                                    +--ro oc-aft-ipv4-ext:state
-+                                       +--ro oc-aft-ipv4-ext:uptime?   string
++                     +--ro oc-aft-ipv4-ext:group-address    -> ../state/group-address
++                     +--ro oc-aft-ipv4-ext:state
++                        +--ro oc-aft-ipv4-ext:group-address?   oc-inet:ipv4-address
++                        +--ro oc-aft-ipv4-ext:src-entries
++                           +--ro oc-aft-ipv4-ext:src-entry* [source-address]
++                              +--ro oc-aft-ipv4-ext:source-address    -> ../state/source-address
++                              +--ro oc-aft-ipv4-ext:state
++                                 +--ro oc-aft-ipv4-ext:source-address?       oc-inet:ipv4-address
++                                 +--ro oc-aft-ipv4-ext:incoming-interface?   oc-if:interface-id
++                                 +--ro oc-aft-ipv4-ext:installed?            boolean
++                                 +--ro oc-aft-ipv4-ext:oil-info-entries
++                                    +--ro oc-aft-ipv4-ext:oif-info* [outgoing-interface]
++                                       +--ro oc-aft-ipv4-ext:outgoing-interface    -> ../state/outgoing-interface
++                                       +--ro oc-aft-ipv4-ext:state
++                                          +--ro oc-aft-ipv4-ext:outgoing-interface?   oc-if:interface-id
++                                          +--ro oc-aft-ipv4-ext:uptime?               oc-types:timeticks64
 ```
 
 ```diff
