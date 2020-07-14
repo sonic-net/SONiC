@@ -149,9 +149,9 @@ On a multi ASIC system, each ASIC can act as
         nexthop via 10.0.107.12  dev PortChannel4007 weight 1
 ```
   - A packet with destination ip as 192.168.199.193
-      - ingresses the device on ASIC0 and gets routed to ASIC2.
-      - ASIC2 then routes the packet to ASIC1.
-      - on ASIC1 it is routed and egresses out of the device.
+      - ingresses the device on ASIC1 and gets routed to ASIC2.
+      - ASIC2 then routes the packet to ASIC0.
+      - on ASIC0 it is routed and egresses out of the device.
 
   - In this approach, since the packets can traverse through multiple internal hops, the ttl decrement can be more than 1.
 
