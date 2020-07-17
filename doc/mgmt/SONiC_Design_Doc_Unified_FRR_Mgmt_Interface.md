@@ -1,6 +1,6 @@
 # SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.5
+### Rev 0.6
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -60,6 +60,7 @@
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
 | 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
 | 0.5 | 05/29/2020  | Venkatesan Mahalingam | Addressed the comments and added the new fields |
+| 0.6 | 07/17/2020  | Eddy Lem | Update to new show bgp command syntax |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -864,10 +865,10 @@ module: openconfig-routing-policy
 #### 3.6.2.2 Show Commands
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP routes information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } |
+|Display BGP routes information |show bgp { ipv4 unicast \| ipv6 unicast } [vrf \<name>] |
 
 ```
-sonic# show ip bgp
+sonic# show bgp ipv4 unicast
 BGP routing table information for VRF default
 Router identifier 20.0.0.1, local AS number 100
 Route status codes: * - valid, > - active, e - ECMP
@@ -883,10 +884,10 @@ AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL Nexthop - Li
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display summary of all BGP neighbors information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } summary|
+|Display summary of all BGP neighbors information |show bgp { ipv4 unicast \| ipv6 unicast } [vrf \<name>] summary|
 
 ```
-sonic#show ip bgp summary
+sonic#show bgp ipv4 unicast summary
 BGP summary information for VRF default
 Router identifier 20.0.0.1, local AS number 100
   Neighbor         V  AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down  State   PfxRcd PfxAcc
@@ -896,10 +897,10 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP specific route information|show ip bgp [vrf \<name>] { ipv4 \| ipv6 } \<prefix> |
+|Display BGP specific route information|show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] \<prefix> |
 
 ```
-Router# show ip bgp 30.0.0.0/24
+Router# show bgp ipv4 unicast 30.0.0.0/24
 
 BGP routing table entry for 30.0.0.0/24, version 35
 Paths: (3 available, best #2, table default)
@@ -922,16 +923,16 @@ Flag: 0x860
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP neighbor information | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors [\<nbr-ip>] |
+|Display BGP neighbor information | show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] neighbors [\<nbr-ip>] |
 
 ```
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display BGP neighbor received/advertised routes | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors \<nbr-ip> { received-routes \| advertised-routes }|
+| Display BGP neighbor received/advertised routes | show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] neighbors \<nbr-ip> { received-routes \| advertised-routes }|
 
 ```
-sonic#show ip bgp neighbors 10.3.0.103 advertised-routes
+sonic#show bgp ipv4 unicast neighbors 10.3.0.103 advertised-routes
 BGP routing table information for VRF default
 Router identifier 10.0.0.102, local AS number 64500
 Route status codes: s - suppressed, * - valid, > - active, # - not installed, E - ECMP head, e - ECMP
@@ -954,10 +955,10 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display peer-group information | show ip bgp [vrf \<name>] peer-group [\<pg-name>]|
+| Display peer-group information | show bgp all [vrf \<name>] peer-group [\<pg-name>]|
 
 ```
-sonic#show ip bgp peer-group
+sonic#show bgp all peer-group
 BGP peer-group is EXTERNAL
   BGP version 4
   Static peer-group members:
@@ -980,11 +981,6 @@ BGP peer-group is INTERNAL
     VRF default:
 sonic#
 
-```
-|Command Description|CLI Command      |
-|:------------------|:-----------------|
-
-```
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
