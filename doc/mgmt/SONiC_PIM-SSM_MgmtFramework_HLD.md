@@ -976,19 +976,19 @@ K - Ack-Pending state"
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:07:50/00:01:39
-    vlan122   uptime/expiry-time: 12:33:21/Never
+    vlan122   uptime/expiry-time: 12:33:21/--:--:--
 
 (71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:22:52/00:01:45
-    vlan124   uptime/expiry-time: 12:42:28/Never
+    vlan124   uptime/expiry-time: 12:42:28/--:--:--
 
 (101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09, flags SCJT
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
-    vlan123   uptime/expiry-time: 13:02:40/Never
+    vlan123   uptime/expiry-time: 13:02:40/--:--:--
 
 --------------------------------------------------------------------------------
 
@@ -1003,13 +1003,13 @@ K - Ack-Pending state"
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:07:50/00:01:39
-    vlan122   uptime/expiry-time: 12:33:21/Never
+    vlan122   uptime/expiry-time: 12:33:21/--:--:--
 
 (71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:22:52/00:01:45
-    vlan124   uptime/expiry-time: 12:42:28/Never
+    vlan124   uptime/expiry-time: 12:42:28/--:--:--
 
 --------------------------------------------------------------------------------
 
@@ -1024,7 +1024,7 @@ K - Ack-Pending state"
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
-    vlan123   uptime/expiry-time: 13:02:40/Never
+    vlan123   uptime/expiry-time: 13:02:40/--:--:--
 
 --------------------------------------------------------------------------------
 
@@ -1059,19 +1059,19 @@ K - Ack-Pending state"
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:07:50/00:01:39
-    vlan122   uptime/expiry-time: 12:33:21/Never
+    vlan122   uptime/expiry-time: 12:33:21/--:--:--
 
 (71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
   Incoming interface: vlan100, RPF neighbor 100.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:22:52/00:01:45
-    vlan124   uptime/expiry-time: 12:42:28/Never
+    vlan124   uptime/expiry-time: 12:42:28/--:--:--
 
 (101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09, flags SCJT
   Incoming interface: vlan105, RPF neighbor 105.0.0.1
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
-    vlan123   uptime/expiry-time: 13:02:40/Never
+    vlan123   uptime/expiry-time: 13:02:40/--:--:--
 
 PIM Multicast Routing Table for VRF: Vrf1
 
