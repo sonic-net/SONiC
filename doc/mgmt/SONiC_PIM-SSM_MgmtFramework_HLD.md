@@ -202,6 +202,11 @@ The following Sonic yang is added to support the PIM-SSM (IPv4) feature
 
 The following table shows the extensions (shown as addition) and attributes marked as "not supported" (shown as removed) in the Openconfig yang model. The attributes are marked as not supported due to multiple reasons either due to lack of support in FRR or not scoped for current release. More attributes will be added in future releases based on the deployment requirements.
 
+Notations followed in below OC-yang section:
+* "+" below indicates, those are the new extensions added to existing OC-yang
+* "-" below indicates, those are the yang attributes that will be marked as not-supported
+* If both "+" & "-" is not present, then those are the existing OC-yang attributes from community
+
 ```diff
 PIM-SSM (IPv4) Configuration Openconfig Model:
 ==============================================
@@ -590,9 +595,7 @@ sonic(config)#
 
 ##### 3.3.2.1.2 Interface specific Configuration Commands
 
-The following PIM-SSM (IPv4) interface specific configurations are executed in ```interface-view```:
-
-All these commands are supported on Ethernet, Port-channel & VLAN interfaces. Once PIM interface specific configurations are done on a particular interface, that particular interface delete should internally cleanup all the relevant PIM interface configurations. This cleanup is required for "Dynamic Port Breakout" feature as well. VRF change for a particular interface is not allowed, once PIM interface-specific configurations are present in that interface. It should be cleaned up before changing the VRF.
+The following PIM-SSM (IPv4) interface specific configurations are executed in ```interface-view```. All these commands are supported on Ethernet, Port-channel & VLAN interfaces.
 
 ###### List of Interface-specific configuration commands:
 * ip pim sparse-mode
@@ -603,6 +606,12 @@ All these commands are supported on Ethernet, Port-channel & VLAN interfaces. On
 * no ip pim hello
 * ip pim bfd
 * no ip pim bfd
+
+Once PIM interface specific configurations are done on a particular interface, that particular interface cannot be deleted till PIM interface configurations exists on that interface. Interface can be deleted, once PIM interface configurations are cleared.
+
+For "Dynamic Port Breakout" feature, when a particular physical port is breakin/breakout, existing interfaces will be deleted and new set of interfaces will be created. As part of that existing interface delete, relevant PIM configurations on that interface will be cleaned up internally.
+
+VRF change for a particular interface is not allowed, once PIM interface-specific configurations are present in that interface. It should be cleaned up before changing the VRF.
 
 ```
 PIM interface-specific configurations are supported in Ethernet, Port-channel & VLAN interfaces. Here VLAN interface is shown as an example.
@@ -705,17 +714,17 @@ sonic(conf-if-Vlan100)#
 ###### 3.3.2.2.1 Global Multicast Show commands
 
 List of Global Multicast show Commands
-* show ip mroute [vrf {<vrf-name> | all}] [Group-addr | {Group-addr   Source-addr}]
+* show ip mroute [vrf {<vrf-name> | all}] [<Group-addr> | {<Group-addr>   <Source-addr>}]
 * show ip mroute [vrf {<vrf-name> | all}] summary
 
 Here sample show commands o/p are shown for "default" VRF. But these commands support display for non-default VRF as well. Also there is an option to display details about all VRFs using "vrf all" option and it might be useful for "show tech-support"
 
 ```
-show ip mroute [vrf {<vrf-name> | all}] [Group-addr | {Group-addr   Source-addr}]
-=================================================================================
+show ip mroute [vrf {<vrf-name> | all}] [<Group-addr> | {<Group-addr>   <Source-addr>}]
+=======================================================================================
 
 sonic# show ip mroute
-IP Multicast Routing Table
+IP Multicast Routing Table for VRF: default
   * -> indicates installed route
 
   Source          Group           Input         Output        Uptime
@@ -731,7 +740,7 @@ IP Multicast Routing Table
 --------------------------------------------------------------------------------
 
 sonic# show ip mroute 233.0.0.1
-IP Multicast Routing Table
+IP Multicast Routing Table for VRF: default
   * -> indicates installed route
 
   Source          Group           Input         Output        Uptime
@@ -742,12 +751,46 @@ IP Multicast Routing Table
 --------------------------------------------------------------------------------
 
 sonic# show ip mroute 233.0.0.1 71.0.0.22
-IP Multicast Routing Table
+IP Multicast Routing Table for VRF: default
   * -> indicates installed route
 
   Source          Group           Input         Output        Uptime
 * 71.0.0.22       233.0.0.1       Vlan100       Vlan200       00:41:54
                                                 Vlan201       00:41:59
+------------------------------------------------------------------------------
+
+sonic# show ip mroute vrf Vrf1
+IP Multicast Routing Table for VRF: Vrf1
+  * -> indicates installed route
+
+  Source          Group           Input         Output        Uptime
+* 51.0.0.11       233.0.0.1       Vlan300       Vlan301       00:41:59
+* 51.0.0.22       233.0.0.1       Vlan300       Vlan301       00:41:54
+                                                Vlan302       00:41:59
+
+--------------------------------------------------------------------------------
+
+sonic# show ip mroute vrf all
+IP Multicast Routing Table for VRF: default
+  * -> indicates installed route
+
+  Source          Group           Input         Output        Uptime
+* 71.0.0.11       233.0.0.1       Vlan100       Vlan200       00:41:59
+* 71.0.0.22       233.0.0.1       Vlan100       Vlan200       00:41:54
+                                                Vlan201       00:41:59
+* 71.0.0.11       234.0.0.1       Vlan100       Vlan200       00:41:34
+* 71.0.0.33       234.0.0.1       Vlan100       Vlan200       00:41:31
+                                                Vlan201       00:41:44
+* 71.0.0.22       235.0.0.1       Vlan100       Vlan200       00:41:16
+* 71.0.0.33       235.0.0.1       Vlan100       Vlan200       00:41:14
+
+IP Multicast Routing Table for VRF: Vrf1
+  * -> indicates installed route
+
+  Source          Group           Input         Output        Uptime
+* 51.0.0.11       233.0.0.1       Vlan300       Vlan301       00:41:59
+* 51.0.0.22       233.0.0.1       Vlan300       Vlan301       00:41:54
+                                                Vlan302       00:41:59
 ```
 
 ```
@@ -755,8 +798,31 @@ show ip mroute [vrf {<vrf-name> | all}] summary
 ===============================================
 
 sonic# show ip mroute summary
+IP Multicast Routing Table summary for VRF: default
+
 Mroute Type      Installed/Total
-(S, G)           7/7
+(S, G)           6/6
+
+--------------------------------------------------------------------------------
+
+sonic# show ip mroute vrf Vrf1 summary
+IP Multicast Routing Table summary for VRF: Vrf1
+
+Mroute Type      Installed/Total
+(S, G)           2/2
+
+--------------------------------------------------------------------------------
+
+sonic# show ip mroute vrf all summary
+IP Multicast Routing Table summary for VRF: default
+
+Mroute Type      Installed/Total
+(S, G)           6/6
+
+IP Multicast Routing Table summary for VRF: Vrf1
+
+Mroute Type      Installed/Total
+(S, G)           2/2
 ```
 
 ###### 3.3.2.2.2 PIM-SSM (IPv4) Show commands
@@ -765,8 +831,10 @@ List of PIM-SSM (IPv4) show Commands:
 * show ip pim [vrf {<vrf-name> | all}] interface [<intf-name>]
 * show ip pim [vrf {<vrf-name> | all}] neighbor [<ipv4-nbr-address>]
 * show ip pim [vrf {<vrf-name> | all}] ssm
-* show ip pim [vrf {<vrf-name> | all}] topology [Group-addr | {Group-addr   Source-addr}]
+* show ip pim [vrf {<vrf-name> | all}] topology [<Group-addr> | {<Group-addr>   <Source-addr>}]
 * show ip pim [vrf {<vrf-name> | all}] rpf
+
+If VRF is not mentioned, then command will be executed in "default" VRF context.
 
 Here sample show commands o/p are shown for "default" VRF. But these commands support display for non-default VRF as well. Also there is an option to display details about all VRFs using "vrf all" option and it might be useful for "show tech-support"
 
@@ -775,6 +843,8 @@ show ip pim [vrf {<vrf-name> | all}] interface [<intf-name>]
 ============================================================
 
 sonic # show ip pim interface
+PIM Interface information for VRF: default
+
 Interface       State       Address         PIM Nbrs       PIM DR          Hello-interval       PIM DR-Priority
 Vlan100         up          100.0.0.2       1              100.0.0.2       30                   1
 Vlan200         up          200.0.0.2       1              200.0.0.3       30                   1
@@ -782,8 +852,32 @@ Vlan200         up          200.0.0.2       1              200.0.0.3       30   
 ----------------------------------------------------------------------------------------------------------------
 
 sonic # show ip pim interface vlan 100
+PIM Interface information for VRF: default
+
 Interface       State       Address         PIM Nbrs       PIM DR          Hello-interval       PIM DR-Priority
 Vlan100         up          100.0.0.2       1              100.0.0.2       30                   1
+
+----------------------------------------------------------------------------------------------------------------
+
+sonic # show ip pim vrf Vrf1 interface
+PIM Interface information for VRF: Vrf1
+
+Interface       State       Address         PIM Nbrs       PIM DR          Hello-interval       PIM DR-Priority
+Vlan300         up          30.0.0.2        1              30.0.0.2        30                   1
+
+----------------------------------------------------------------------------------------------------------------
+
+sonic # show ip pim vrf all interface
+PIM Interface information for VRF: default
+
+Interface       State       Address         PIM Nbrs       PIM DR          Hello-interval       PIM DR-Priority
+Vlan100         up          100.0.0.2       1              100.0.0.2       30                   1
+Vlan200         up          200.0.0.2       1              200.0.0.3       30                   1
+
+PIM Interface information for VRF: Vrf1
+
+Interface       State       Address         PIM Nbrs       PIM DR          Hello-interval       PIM DR-Priority
+Vlan300         up          30.0.0.2        1              30.0.0.2        30                   1
 ```
 
 ```
@@ -791,6 +885,8 @@ show ip pim [vrf {<vrf-name> | all}] neighbor [<ipv4-nbr-address>]
 ==================================================================
 
 sonic# show ip pim neighbor
+PIM Neighbor information for VRF: default
+
 Interface       Neighbor        Uptime         Expirytime       DR-Priority
 Vlan100         100.0.0.1       01:38:52       00:01:22         1
 Vlan200         200.0.0.3       01:22:33       00:01:13         1
@@ -798,8 +894,32 @@ Vlan200         200.0.0.3       01:22:33       00:01:13         1
 --------------------------------------------------------------------------------
 
 sonic# show ip pim neighbor 100.0.0.1
+PIM Neighbor information for VRF: default
+
 Interface       Neighbor        Uptime         Expirytime       DR-Priority
 Vlan100         100.0.0.1       01:38:52       00:01:22         1
+
+--------------------------------------------------------------------------------
+
+sonic# show ip pim vrf Vrf1 neighbor
+PIM Neighbor information for VRF: Vrf1
+
+Interface       Neighbor        Uptime         Expirytime       DR-Priority
+Vlan300         30.0.0.1        01:48:32       00:01:12         1
+
+--------------------------------------------------------------------------------
+
+sonic# show ip pim vrf all neighbor
+PIM Neighbor information for VRF: default
+
+Interface       Neighbor        Uptime         Expirytime       DR-Priority
+Vlan100         100.0.0.1       01:38:52       00:01:22         1
+Vlan200         200.0.0.3       01:22:33       00:01:13         1
+
+PIM Neighbor information for VRF: Vrf1
+
+Interface       Neighbor        Uptime         Expirytime       DR-Priority
+Vlan300         30.0.0.1        01:48:32       00:01:12         1
 ```
 
 ```
@@ -809,6 +929,8 @@ show ip pim [vrf {<vrf-name> | all}] ssm
 If IP-prefix list is associated:
 ===============================
 sonic# show ip pim ssm
+PIM SSM information for VRF: default
+
 SSM group range : PIM_PLIST1
 
 -----------------------------------------
@@ -816,15 +938,35 @@ SSM group range : PIM_PLIST1
 If IP-prefix list is not associated:
 ===================================
 sonic# show ip pim ssm
+PIM SSM information for VRF: default
+
 SSM group range : 232.0.0.0/8
+
+-----------------------------------------
+
+sonic# show ip pim vrf Vrf1 ssm
+PIM SSM information for VRF: Vrf1
+
+SSM group range : PIM_PLIST1
+
+-----------------------------------------
+
+sonic# show ip pim vrf all ssm
+PIM SSM information for VRF: default
+
+SSM group range : PIM_PLIST1
+
+PIM SSM information for VRF: Vrf1
+
+SSM group range : PIM_PLIST1
 ```
 
 ```
-show ip pim [vrf {<vrf-name> | all}] topology [Group-addr | {Group-addr   Source-addr}]
-=======================================================================================
+show ip pim [vrf {<vrf-name> | all}] topology [<Group-addr> | {<Group-addr>   <Source-addr>}]
+=============================================================================================
 
 sonic# show ip pim topology
-PIM Multicast Routing Table
+PIM Multicast Routing Table for VRF: default
 
 "Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
@@ -851,7 +993,7 @@ K - Ack-Pending state"
 --------------------------------------------------------------------------------
 
 sonic# show ip pim topology 233.0.0.1
-PIM Multicast Routing Table
+PIM Multicast Routing Table for VRF: default
 
 "Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
@@ -872,7 +1014,7 @@ K - Ack-Pending state"
 --------------------------------------------------------------------------------
 
 sonic# show ip pim topology 225.1.1.1 101.0.0.22
-PIM Multicast Routing Table
+PIM Multicast Routing Table for VRF: default
 
 "Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
 R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
@@ -883,6 +1025,70 @@ K - Ack-Pending state"
   Outgoing interface list:
     vlan200   uptime/expiry-time: 13:03:50/00:01:39
     vlan123   uptime/expiry-time: 13:02:40/Never
+
+--------------------------------------------------------------------------------
+
+sonic# show ip pim vrf Vrf1 topology
+PIM Multicast Routing Table for VRF: Vrf1
+
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
+
+(51.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
+Incoming interface: vlan300, RPF neighbor 30.0.0.1
+Outgoing interface list:
+vlan301   uptime/expiry-time: 13:07:50/00:01:39
+
+(51.0.0.22, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
+Incoming interface: vlan300, RPF neighbor 30.0.0.1
+Outgoing interface list:
+vlan301   uptime/expiry-time: 13:07:50/00:01:39
+vlan302   uptime/expiry-time: 14:07:50/00:01:29
+
+--------------------------------------------------------------------------------
+
+sonic# show ip pim vrf all topology
+PIM Multicast Routing Table for VRF: default
+
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
+
+(71.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
+  Incoming interface: vlan100, RPF neighbor 100.0.0.1
+  Outgoing interface list:
+    vlan200   uptime/expiry-time: 13:07:50/00:01:39
+    vlan122   uptime/expiry-time: 12:33:21/Never
+
+(71.0.0.22, 233.0.0.1), uptime 13:08:45, expires 00:00:18, flags SCJT
+  Incoming interface: vlan100, RPF neighbor 100.0.0.1
+  Outgoing interface list:
+    vlan200   uptime/expiry-time: 13:22:52/00:01:45
+    vlan124   uptime/expiry-time: 12:42:28/Never
+
+(101.0.0.22, 225.1.1.1), uptime 13:07:51, expires 00:06:09, flags SCJT
+  Incoming interface: vlan105, RPF neighbor 105.0.0.1
+  Outgoing interface list:
+    vlan200   uptime/expiry-time: 13:03:50/00:01:39
+    vlan123   uptime/expiry-time: 13:02:40/Never
+
+PIM Multicast Routing Table for VRF: Vrf1
+
+"Flags: S - Sparse, C - Connected, L - Local, P - Pruned,
+R - RP-bit set, F - Register Flag, T - SPT-bit set, J - Join SPT,
+K - Ack-Pending state"
+
+(51.0.0.11, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
+Incoming interface: vlan300, RPF neighbor 30.0.0.1
+Outgoing interface list:
+vlan301   uptime/expiry-time: 13:07:50/00:01:39
+
+(51.0.0.22, 233.0.0.1), uptime 13:08:24, expires 00:00:12, flags SCJT
+Incoming interface: vlan300, RPF neighbor 30.0.0.1
+Outgoing interface list:
+vlan301   uptime/expiry-time: 13:07:50/00:01:39
+vlan302   uptime/expiry-time: 14:07:50/00:01:29
 ```
 
 ```
@@ -890,9 +1096,35 @@ show ip pim [vrf {<vrf-name> | all}] rpf
 ========================================
 
 sonic# show ip pim rpf
+PIM RPF information for VRF: default
+
 Source          Group           RpfIface       RpfAddress       RibNextHop       Metric       Pref
 71.0.0.11       233.0.0.1       Vlan100        100.0.0.1        100.0.0.1        0            1
 71.0.0.22       235.0.0.1       Vlan100        100.0.0.1        100.0.0.1        0            1
+
+---------------------------------------------------------------------------------------------------
+
+sonic# show ip pim vrf Vrf1 rpf
+PIM RPF information for VRF: Vrf1
+
+Source          Group           RpfIface       RpfAddress       RibNextHop       Metric       Pref
+51.0.0.11       233.0.0.1       Vlan300        30.0.0.1         30.0.0.1         0            1
+51.0.0.22       235.0.0.1       Vlan300        30.0.0.1         30.0.0.1         0            1
+
+---------------------------------------------------------------------------------------------------
+
+sonic# show ip pim vrf all rpf
+PIM RPF information for VRF: default
+
+Source          Group           RpfIface       RpfAddress       RibNextHop       Metric       Pref
+71.0.0.11       233.0.0.1       Vlan100        100.0.0.1        100.0.0.1        0            1
+71.0.0.22       235.0.0.1       Vlan100        100.0.0.1        100.0.0.1        0            1
+
+PIM RPF information for VRF: Vrf1
+
+Source          Group           RpfIface       RpfAddress       RibNextHop       Metric       Pref
+51.0.0.11       233.0.0.1       Vlan300        30.0.0.1         30.0.0.1         0            1
+51.0.0.22       235.0.0.1       Vlan300        30.0.0.1         30.0.0.1         0            1
 ```
 
 #### 3.3.2.3 show running-config & show configuration
@@ -912,7 +1144,6 @@ ip pim vrf default keep-alive-timer 35
 ip pim vrf default ssm prefix-list pim_ssm_pfx_list
 ip pim vrf default ecmp
 ip pim vrf default ecmp rebalance
-!
 ip pim vrf Vrf1 join-prune-interval 80
 ip pim vrf Vrf1 keep-alive-timer 45
 ip pim vrf Vrf1 ssm prefix-list pim_ssm_pfx_list
