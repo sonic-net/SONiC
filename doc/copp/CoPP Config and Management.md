@@ -19,7 +19,7 @@ During SWSS start, the prebuilt [copp.json](https://github.com/Azure/sonic-swss/
 
 ## Proposed behaviour
 
-With the new proposal, the CoPP tables shall be loaded to Config DB instead of APP DB. The default CoPP json file shall be prebuilt to the image and loaded during initialization. Any Config DB entries present shall be configured overwriting the default CoPP tables. This also ensures backward compatibility. At a high-level, the following are the expected changes:
+With the new proposal, the CoPP tables shall be part of Config DB instead of APP DB. The default CoPP json file shall be prebuilt to the image and read during initialization. Any Config DB entries present shall be configured overwriting the default CoPP tables. This also ensures backward compatibility. At a high-level, the following are the expected changes:
 
 ### Schema Changes
 
@@ -43,13 +43,13 @@ pir         = number ;packets or bytes depending on the meter_type value
 green_action         = packet_action
 yellow_action        = packet_action
 red_action           = packet_action
+genetlink_name       = genetlink_name ;[Optional] "psample" for sFlow 
+genetlink_mcgrp_name = multicast group name; ;[Optional] "packets" for sFlow 
 ```
 ```
 key = "COPP_TRAP|name"
 trap_ids      = name ; list of trap ids
 trap_group    = name ; copp group name
-genetlink_name       = genetlink_name ;[Optional] "psample" for sFlow 
-genetlink_mcgrp_name = multicast group name; ;[Optional] "packets" for sFlow 
 ```
 
 ### StateDB
@@ -63,7 +63,7 @@ state        = "ok"
 ```
 
 ### coppmgr
-Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB. `coppmgrd` must be started by [supervisord.conf](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) first, before any other process is started in swss 
+Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables and Feature Tables. Based on the feature enablement, ```coppmgr``` handles the logic to resolve whether a CoPP table shall be written to APP DB for orchagent consumption. Inorder to reduce changes to copporch and for backward compatibility during warmboot, ```coppmgr``` shall use the existing APP_DB schema and implement internal logic to convert the proposed ConfigDB entries to APP DB entries. Similar to existing swss managers, an entry with state "ok" shall be added to STATE_DB. `coppmgrd` must be started by [supervisord.conf](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) first, before any other process is started in swss. During init, ```coppmgr``` shall read the ```copp_cfg.json``` file and apply the default configuration. The default shall not be part of Config_DB entries. ```coppmgr``` shall also read from the config_db during init and apply the logic to merge if there are same entries within the ```copp_cfg.json``` file. 
 
 ### copporch
 ```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table, and handle attribute value set for a trap group
@@ -72,13 +72,15 @@ Introduce a *new* CoPP manager, that subscribes for the Config DB CoPP Tables an
 Handling of CoPP config json file shall be removed from ```dockers/docker-orchagent/swssconfig.sh```
 
 ### 00-copp.config.json
-This file shall be modified to be compatible to Config DB schema, currently placed at ```swssconfig/sample/00-copp.config.json```. It shall be renamed to ```copp_config.j2``` and moved to ```files/build_templates/copp_config.j2```
+This file shall be modified to be compatible to Config DB schema, currently placed at ```swssconfig/sample/00-copp.config.json```. It shall be renamed to ```copp_cfg.j2``` and moved to ```files/image_config/copp/copp_cfg.j2```
 
-### init_cfg.json
-```init_cfg.json``` shall be extended to include default CoPP tables from copp_config.j2
+### copp_cfg.json
+A new file ```copp_cfg.json``` shall be introduced to include default CoPP tables from copp_cfg.j2 placed under ```/etc/sonic```. This file shall be read by ```coppmgr``` during initialization. 
 
 ### Default CoPP Tables
-As part of the post start action, the Config DB shall be loaded with default CoPP tables and/or any previously configured CoPP tables as part of the following handler in ```files/build_templates/docker_image_ctl.j2```
+There are two proposals for loading the default CoPP Tables.
+
+1. Add default CoPP Tables to be part of init_cfg.json. As part of the post start action, the Config DB shall be loaded with default CoPP tables and/or any previously configured CoPP tables as part of the following handler in ```files/build_templates/docker_image_ctl.j2```
 
 ```
     function postStartAction()
@@ -92,11 +94,23 @@ As part of the post start action, the Config DB shall be loaded with default CoP
             fi
         fi
 ```
+However, this approach has the following limitations:
+
+In warmboot scenarios, as init_cfg.json is not read during warmboot and may result in ***new*** CoPP Tables in the "to" image not getting applied.
+In coldboot, if user saves the config and the new release happened to have new CoPP values, it will not be applied since previous default values are present in config_db
+
+2. ```coppmgr``` reading directly from ```copp_cfg.json``` and apply the default CoPP Tables. 
+
+For this design, considering the limitations, proposal is to go ahead with second option. 
 
 ## Warmboot and Backward Compatibility
-It is desirable to have warmboot functionality from previous release versions of Sonic. Since the existing schema has COPP Group name/key with protocol names (e.g `"COPP_TABLE:trap.group.bgp.lacp"`, there is a limitation in adding any new protocol or trap to an existing CoPP group and seamlessly migrate. However, with this proposal, the implementation is to do a migration of APP DB entries to new schema.
+It is desirable to have warmboot functionality from previous release versions of Sonic. Since the existing schema has COPP Group name/key with protocol names (e.g `"COPP_TABLE:trap.group.bgp.lacp"`, there is a limitation in adding any new protocol or trap to an existing CoPP group and seamlessly migrate. However, with this proposal, the following options are considered:
 
-In addition, the implementation must ensure that backward compatibility is maintained. If the system is boot-up with an *old* config file, the default CoPP tables are to be loaded from ```init_cfg.json``` and expected to work seamlessly.
+1. The implementation is to do a migration of APP DB entries to new schema.
+2. Let ```db_migrator``` remove all previously saved APP_DB entries and let syncd reconcile and remove the TRAP entries during warmboot. Later, ```coppmgr``` can reapply the traps afresh. Also remove COPP_TABLES from being saved in [backup_database](https://github.com/Azure/sonic-utilities/blob/master/scripts/fast-reboot#L234). This may require additional tests to confirm system behaviour during warmboot. 
+3. Remove '00-copp.config.json' from being included for checksum calculation in ```files/build_scripts/generate_asic_config_checksum.py```
+
+In addition, the implementation must ensure that backward compatibility is maintained. If the system is boot-up with an *old* config file, the default CoPP tables are to be loaded from ```copp_cfg.json``` and expected to work seamlessly.
 
 ## Limitations
 1. In case of downgrade, the config_db entries shall be present as stale entries as there is no subscribers for the table. Functionality would be same as supported by the downgraded version
@@ -119,9 +133,9 @@ The following flow diagram captures the control flow.
 
 ## Initial config
 
-The following flow captures scenarios for ```boot-up``` sequence and ```config reload```. Default CoPP Tables shall be present in ```init_cfg.json``` and if the same entry is present in ```config_db.json```, it is expected to be overwritten by ```config_db``` entry. This model ensures user-configuration gets priority over default configuration.
+The following flow captures scenarios for ```boot-up``` sequence and ```config reload```. Default CoPP Tables shall be present in ```copp_cfg.json``` and if the same entry is present in ```config_db.json```, it is expected to be overwritten by ```config_db``` entry. This model ensures user-configuration gets priority over default configuration.
 
-![](https://github.com/Azure/SONiC/blob/master/images/copp/copp_init.png)
+![](https://github.com/Azure/SONiC/blob/master/images/copp/CoppInit_1.png)
 
 ## Copp Manager flow
 
@@ -211,13 +225,13 @@ The following flow captures CoPP manager functionality.
             "cir":"5000",
             "cbs":"5000",
             "red_action":"drop",
+            "genetlink_name":"psample",
+            "genetlink_mcgrp_name":"packets"
         },
 
         "COPP_TRAP|sflow": {
             "trap_ids": "sample_packet",
             "trap_group": "queue2_group1"
-            "genetlink_name":"psample",
-            "genetlink_mcgrp_name":"packets"
         },
     }
 ```
