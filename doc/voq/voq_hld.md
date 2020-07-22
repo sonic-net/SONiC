@@ -238,7 +238,7 @@ SYSTEM_PORT:{{system_port_name = PORT.port_name}}
 ```
 key                                   = DEVICE_METADATA|"voq_db"      ; 
 ; field                               = value
-switch_id                             = 1*2DIGIT            ; number between 0 and max_cores
+switch_id                             = 1*4DIGIT            ; number between 0 and 1023
 switch_type                           = "npu" | "fabric"
 server_ip                             = IP                   
 server_port                           = 1*5DIGIT            ; Port number between 0 and 65535 
