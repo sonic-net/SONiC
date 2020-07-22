@@ -257,7 +257,7 @@ No changes in the schema of other CONFIG_DB tables. The name of the ports used a
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ## 2.3 VOQ DB
-This is a **new** database which resides in global redis server accessible by all devices. This database is similar to Config DB. The VoqDBSyncd in all the devices will sync their local NEIGH_TABLE and INTF_TABLE to global VOQ_DB. The VoqDbSyncd also populates the NEIGH_TABLE and INTF_TABLE of all devices with remote information.
+This is a **new** database which resides in global redis server accessible by all devices. This database is similar to Application DB. The OrchAgent in all the devices will write their local NEIGH_TABLE and INTF_TABLE to global VOQ_DB with hardware identifier's. The OrchAgent also reads the NEIGH_TABLE and INTF_TABLE of all devices with hardware information such as encap index, rif id.
 
 ### 2.3.1 VOQ System Data
 A table for VOQ system parameters. This will be populated by a control card or other system level management mechanism.
@@ -351,7 +351,7 @@ VOQ_SYSTEM_DATA_TABLE:{{"voq_system"}}
 ```
 
 ### 2.4.2 System Port Table
-**New** table for system port information. This is populated by VoqDbSyncd (see below)
+**New** table for system port information. This is populated by SystemCfgMgrD on Control card (see below)
 ```
 SYSTEM_PORT_TABLE:{{system_port_name = PORT.port_name}}
     "system_port_id": {{index_number}}
@@ -362,7 +362,7 @@ SYSTEM_PORT_TABLE:{{system_port_name = PORT.port_name}}
 ```
 
 ### 2.4.3 Neigh table
-The **existing** NEIGH_TABLE is enhanced to have values related to neighbors learned or statically configured on system ports. This is populated by VoqDbSyncd (see below). The schema is same as the existing APP DB NEIGH_TABLE. A **new** field "encap_index" is added to the **existing** NEIGH_TABLE
+The **existing** NEIGH_TABLE is enhanced to have values related to neighbors learned or statically configured on system ports. This is populated by OrchAgent (see below). The schema is same as the existing APP DB NEIGH_TABLE. A **new** field "encap_index" is added to the **existing** NEIGH_TABLE
 ```
 NEIGH_TABLE:{{system_port_name}}:{{ip_address}} 
     "neigh": {{mac_address}}
@@ -435,14 +435,6 @@ This is made aware of voq system port. During PortOrch initialization, portsorch
 The router interface creation for system ports is driven by configuration in "INTERFACE" table ConfigDB. The router interface creation and ip address assignments are done as needed in the similar fashion as how they are done for local ports. No changes in IntfsOrh for voq systems.
 ### NeighOrch
 The NeighOrch is made aware of system port. While creating neighbor entry, for the voq neighbors, the encap_index attribute is sent in addition to other attributes sent for local neighbors. The neighbor entry creation and next hop creation use system ports for remote neighbors and local ports for local neighbors. 
-## VoqDbSyncd
-This is a **new** subsystem. This is used for exchanging voq information between a sonic instance and the VOQ System Database. 
-VoqDbSyncd does the following:
- * Reads from VOQ_DB's SYSTEM_PORT table remote entries from central redis sever and updates local redis's APP DB's SYSTEM_PORT_TABLE table and net device state (up/down) in the kernel.
- * Reads APP DB's NEIGH_TABLE entries which has encap index from local redis and updates central redis server in VOQ_DB's NEIGH table
- * Reads APP DB's INTF_TABLE entries which has rif id from local redis and updates the central redis server in VOQ_DB's INTERFACE table
- * Reads from VOQ_DB's NEIGH table remote entries from central redis server or from the static configuration and updates local redis's APP DB's NEIGH_TABLE table and neighbor records in the kernel.
- * Reads from VOQ_DB's INTERFACE table remote entries from central redis server or from the static configuration and updates local redis' APP_DB's INTF_TABLE table
 
 ## Fabric Ports Orchestration
 Fabric port orchestration includes  - discovering all fabric ports, fabric port neighbors and fabric port reachability. This applies to both switch types (NPU and FABRIC). Also Fabric ports should be monitored for - state changes, statistics, errors etc. Phase-1 implementation will not support deleting/creating fabric ports dynamically.
@@ -753,8 +745,6 @@ Interface configurations are required in Config DB for routed ports
 ### Interface infomation for local and remote system ports in APP DB
 IP address configuration for remote system ports are done in local config DB as shown above
 
-The interface information for remote system ports are populated by VoqDbSyncd
-
 #### APP DB Objects:
 
 ##### In ASIC #0
@@ -826,8 +816,6 @@ Static neighbors are configured on local ports
 
 #### APP DB Objects:
 The NEIGH_TABLE has entries for locally learned neighbors on local ports
-
-The NEIGH_TABLE also has entries for neighbors learned/configured on remote system ports (populated by VoqDbSyncd)
 
 ##### On ASIC #0
 ```
