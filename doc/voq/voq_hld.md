@@ -204,11 +204,6 @@ The system ports are configured on the Control Card. This information is them po
 
  ![](../../images/voq_hld/control-card-system-port-config-flow.png)
 
-### 2.1.2 Option-2 System Port Configuration within each SONiC Instance
-The configuration of each sonic instance (in its config_db.json file) contains the configuration of all the system ports. This is processed by sonic-configgen and populated into the "System Port Table" in the local CONFIG_DB. A new daemon called "System Port Config Manager" reads the information from CONFIG_DB and populates the "System Port Table" in the APPL_DB of the local sonic instance.
-
- ![](../../images/voq_hld/sonic-instance-system-port-config-flow.png)
-
 ## 2.2 Config DB
 
 ### 2.2.1 DEVICE_METADATA
@@ -260,7 +255,7 @@ No changes in the schema of other CONFIG_DB tables. The name of the ports used a
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ## 2.3 VOQ DB
-This is a **new** database which resides in global redis server accessible by all devices. This database is similar to Application DB. The OrchAgent in all the devices will write their local NEIGH_TABLE and INTF_TABLE to global VOQ_DB with hardware identifier's. The OrchAgent also reads the NEIGH_TABLE and INTF_TABLE of all devices with hardware information such as encap index, rif id.
+This is a **new** database which resides in global redis server accessible by all devices. This database is similar to Application DB. The OrchAgent in all the devices will write their local NEIGH_TABLE and INTF_TABLE to global VOQ_DB with hardware identifier's. The OrchAgent also reads the NEIGH_TABLE and INTF_TABLE, PORTCHANNEL, PORTCHANNEL_MEMBER of all devices with hardware information such as encap index, rif id.
 
 ### 2.3.1 VOQ System Data
 A table for VOQ system parameters. This will be populated by a control card or other system level management mechanism.
@@ -301,8 +296,19 @@ OR
 INTERFACE:{{system_port_name}}:{{ip_address}}
     "rif_id": {{router inteface id}}
 ```
+### 2.3.5 System PortChannel Table
+A table for system portchannel information. This is populated by OrchAgent.
+```
+SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
+    "lag_id": {{index_number}}
+    "switch_id": {{index_number}}
+```
     
-### 2.3.5 VOQ DB Schemas
+### 2.3.6 PortChannel Member Table
+A table for members of portchannel in the whole system. This is populated by OrchAgent.
+Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
+
+### 2.3.6 VOQ DB Schemas
 
 ```
 ; Defines schema for VOQ System data attributes
@@ -432,12 +438,11 @@ rif_id                                = 16HEXDIG                               ;
 ### VOQ Switch Creation
 Prior to switch creation - OrchAgent determines whether or not it is a VOQ Switch by checking if VOQ specific information is present in the APP DB. It could do this by checking for the presence of my_switch_id (or max_cores or connection information for VOQ System DB) in the VOQ System Information. If it is not a VOQ Switch - switch creation goes ahead as it does currently. VOQ Switch creation requires additional information - max_cores, my_switch_id and system port list (see previous srctions for table names). It waits until this information is available from the APP DB before going ahead with switch creation. 
 ### Portsorch
-This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creats host interfaces for all the system ports.
+This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creats host interfaces for all the system ports. PortOrch PortChannel processing is made aware of system port channels. 
 ### Intfsorch
 The router interface creation for system ports is driven by configuration in "INTERFACE" table ConfigDB. The router interface creation and ip address assignments are done as needed in the similar fashion as how they are done for local ports. No changes in IntfsOrh for voq systems.
 ### NeighOrch
 The NeighOrch is made aware of system port. While creating neighbor entry, for the voq neighbors, the encap_index attribute is sent in addition to other attributes sent for local neighbors. The neighbor entry creation and next hop creation use system ports for remote neighbors and local ports for local neighbors. 
-
 ## Fabric Ports Orchestration
 Fabric port orchestration includes  - discovering all fabric ports, fabric port neighbors and fabric port reachability. This applies to both switch types (NPU and FABRIC). Also Fabric ports should be monitored for - state changes, statistics, errors etc. Phase-1 implementation will not support deleting/creating fabric ports dynamically.
 To be specified - The APP DB schema used for fabric ports.
@@ -580,8 +585,8 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 
 ![](../../images/voq_hld/voq_neighbor_create_remote_cntrl_flow.png)
 
-## 3.5 VOQ Database sync
-![](../../images/voq_hld/voq_db_sync_dynamic_cntrl_flow.png)
+## 3.5 VOQ PortChannel Creation 
+![](../../images/voq_hld/voq_portchannel_creation.png)
 
 # 4 Example configuration
 ### Port Configurations in Config DB
