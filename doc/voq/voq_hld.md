@@ -111,16 +111,17 @@ The VOQ feature implementation shall support the following
 6.  Routing protocol peering between SONiC instances over the datapath.
 7.  Static provisioning of System Ports in the VOQ System Database.
 8.  Dynamic discovery of Routing Interfaces and Neighbors on other asics via the VOQ System Database.
-9. Automatic determination of Switch_Id for each asic.
+9.  Automatic determination of Switch_Id for each asic (optional).
 
 ## 1.2 Platform requirements
-Every ASIC in the system needs be assigned a unique Switch_ID. Each ASIC consumes as many consecutive switch_id values as it has cores. So the next valid switch_id assignment should skip ahead by a number equal to th number of cores in the asic. Vendor supplied platform specific components are aware of details (line card number, asic number with in the line card, number of cores for the asic etc...) which allow them to automatically calculate the Switch_ID for each asic. For this reason it is proposed the PMON should populate the Switch_ID for an asic into the APPL_DB.
+Every ASIC in the system needs be assigned a unique Switch_ID. Each ASIC consumes as many consecutive switch_id values as it has cores. So the next valid switch_id assignment should skip ahead by a number equal to the number of cores in the asic. This can be done via an additional configuration attribute. Another option is atuomatic determination of sWwitch_ID. Vendor supplied platform specific components are aware of details (line card number, asic number with in the line card, number of cores for the asic etc...) which allow them to automatically calculate the Switch_ID for each asic. For this reason it is proposed the PMON could populate the Switch_ID for an asic into the APPL_DB.
 
 ## 1.3 Configuration requirements
 Phase-1 of the Distributed VOQ System should support static configuration of the following
 1. Connection parameters for the Central VOQ System Database (IP address, Port)
 2. All the system ports in the entire system. The configuration of each system port should specify - system_port_id, switch_id, cored_index, core_port_index and speed.
 3. Maximum number of cores in the system.
+4. Switch_ID for each asic
 
 ## 1.4 Orchagent requirements
 ### Switch Creation
@@ -215,6 +216,7 @@ The configuration of each sonic instance (in its config_db.json file) contains t
  
 ```
 DEVICE_METADATA|{"voq_db"}
+    "switch_id": {{switch_id}}
     "switch_type": {{switch_type}}
     "server_ip": {{ip_address}}
     "server_port": {app port}
@@ -236,6 +238,7 @@ SYSTEM_PORT:{{system_port_name = PORT.port_name}}
 ```
 key                                   = DEVICE_METADATA|"voq_db"      ; 
 ; field                               = value
+switch_id                             = 1*2DIGIT            ; number between 0 and max_cores
 switch_type                           = "npu" | "fabric"
 server_ip                             = IP                   
 server_port                           = 1*5DIGIT            ; Port number between 0 and 65535 
@@ -264,7 +267,6 @@ A table for VOQ system parameters. This will be populated by a control card or o
 ```
 VOQ_SYSTEM_DATA_TABLE:{{"voq_system"}}
     "max_cores": {{index_number}}
-    "my_switch_id": {{index_number}}
 ```
 
 ### 2.3.2 System Port Table
