@@ -60,15 +60,15 @@ This document provides general information about the MACsec feature implementati
 
 ## Abbreviation
 
-|     |                                          |
-| --- | ---------------------------------------- |
-| CA  | Secure Connectivity Association          |
-| CAK | Secure Connectivity Association Key      |
-| CAN | Secure Connectivity Association Key Name |
-| SA  | Secure Association                       |
-| SAK | Secure Association Key                   |
-| SC  | Secure Channel                           |
-| SCI | Secure Channel Identifier                |
+| Abbreviation | Description                              |
+| ------------ | ---------------------------------------- |
+| CA           | Secure Connectivity Association          |
+| CAK          | Secure Connectivity Association Key      |
+| CAN          | Secure Connectivity Association Key Name |
+| SA           | Secure Association                       |
+| SAK          | Secure Association Key                   |
+| SC           | Secure Channel                           |
+| SCI          | Secure Channel Identifier                |
 
 ## 1 Requirements Overview
 
@@ -375,7 +375,7 @@ The following parameters will be used by the wpa_cli to communicate with the wpa
 | :-------------------: | :--------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |      DOMAIN_SOCK      |     N      | Domain socket for communication with wpa_supplicant.                                                                                                                                |
 |         PORT          |     N      | The specified port name.                                                                                                                                                            |
-|       CONFNAME        |     N      | Config file path. When using MACsec, the following parameter should be set <br> eapol_version=3 <br> ap_scan=0                                                                      |
+|       CONFNAME        |     N      | Config file path. When using MACsec, the following parameters should be set <br> eapol_version=3 <br> ap_scan=0                                                                     |
 |      NETWORK_ID       |     N      | The Identifier of network at this port                                                                                                                                              |
 |          CAK          |     N      | The Secure Connectivity Association Key. <br> This value is the value PRIMARY_CAK in MACsec profile table of CONFIG DB.                                                             |
 |          CAN          |     N      | The CAK Name. <br> This value is the value PRIMARY_CAN in MACsec profile table of CONFIG DB.                                                                                        |
@@ -383,7 +383,7 @@ The following parameters will be used by the wpa_cli to communicate with the wpa
 |     CIPHER_SUITE      |     N      | Hasn't been implemented                                                                                                                                                             |
 |    ENABLE_ENCRYPT     |     N      | IEEE 802.1X/MACsec transmit mode <br> 0: Encrypt traffic (default) <br> 1: Integrity only <br> This value is set according to the value POLICY in MACsec profile table of CONFIG DB |
 | ENABLE_REPLAY_PROTECT |     Y      | IEEE 802.1X/MACsec replay protection <br> This value is set according to the value ENABLE_REPLAY_PROTECT in MACsec profile table of CONFIG DB                                       |
-|     REPLAY_WINDOW     |     Y      | IEEE 802.1X/MACsec replay protection window <br> 0: No replay window, strict check (default) <br> This value is the value PRIORITY in REPLAY_WINDOW profile table of CONFIG DB.      |
+|     REPLAY_WINDOW     |     Y      | IEEE 802.1X/MACsec replay protection window <br> 0: No replay window, strict check (default) <br> This value is the value PRIORITY in REPLAY_WINDOW profile table of CONFIG DB.     |
 |       SEND_SCI        |     Y      | Hasn't been implemented                                                                                                                                                             |
 
 ***Hot update : The parameter can be updated on the fly. This feature should be patched on wpa_supplicant***
@@ -445,7 +445,7 @@ The details of SONiC MACsec plugin will be mentioned at next chapter.
 ##### 3.4.2.1 Extension Parameters
 
 The following parameters should be extended in WPA_SUPPLICANT for support SONiC MACsec requirements.
-|              |
+| Parameter    |
 | ------------ |
 | CIPHER_SUITE |
 | SEND_SCI     |
