@@ -576,7 +576,7 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 ![](../../images/voq_hld/voq_neighbor_create_local_cntrl_flow.png)
 
 
-![](images/voq_hld/voq_neighbor_create_remote_cntrl_flow.png)
+![](../../images/voq_hld/voq_neighbor_create_remote_cntrl_flow.png)
 
 ## 3.5 VOQ Database sync
 ![](../../images/voq_hld/voq_db_sync_dynamic_cntrl_flow.png)
