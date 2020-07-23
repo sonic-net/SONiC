@@ -25,25 +25,17 @@
     * [1.7 Scalability requirements](#17-scalability-requirements)
     * [1.8 Warm Restart requirements ](#18-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
-    * [2.1 Configuration Flow Options for System Ports](#21-configuration-flow-options-for-system-ports)
-      * [2.1.1 Option-1 System Port Configuration on Control Card](#211-option-1-system-port-configuration-on-control-card)
-      * [2.1.2 Option-2 System Port Configuration within each SONiC Instance](#212-option-2-system-port-configuration-within-each-sonic-instance)
+    * [2.1 System Port Configuration on Sonic Instance](#21-system-port-configuration-on-sonic-instance)
     * [2.2 Config DB](#22-config-db)
       * [2.2.1 DEVICE_METADATA](#221-device_metadata)
       * [2.2.2 System Port Table](#222-system-port-table)
       * [2.2.3 ConfigDB Schemas](#223-configdb-schemas)
     * [2.3 VOQ DB](#23-voq-db)
-      * [2.3.1 VOQ System Data](#231-voq-system-data)
-      * [2.3.2 System Port Table](#232-system-port-table)
-      * [2.3.3 Voq Neighbor table](#233-voq-neighbor-table)
-      * [2.3.4 System Port interface table](#234-system-port-interface-table)
+      * [2.3.1 System Port interface table](#231-system-port-interface-table)
+      * [2.3.2 Voq Neighbor table](#232-voq-neighbor-table)
+      * [2.3.3 System PortChannel table](#233-system-portchannel-table)
+      * [2.3.4 System PortChannel Member table](#234-system-portchannel-member-table)
       * [2.3.5 VOQ DB Schemas](#235-voq-db-schemas)
-    * [2.4 App DB](#24-app-db)
-      * [2.4.1 VOQ System Data](#241-voq-system-data)
-      * [2.4.2 System Port Table](#242-system-port-table)
-      * [2.4.3 Neigh table](#243-neigh-table)
-      * [2.4.4 Interface table](#244-interface-table)
-      * [2.4.5 APP DB Schemas](#245-app-db-schemas)
     * [2.5 Orchestration agent](#25-orchestration-agent)
     * [2.6 Design Options for Host IP connectivity](#26-design-options-for-host-ip-connectivity)
 	  * [2.6.1 Option1 - Kernel Neighbor table matches SAI and ASIC](#261-option1-kernel-neighbor-table-matches-sai-and-asic)
@@ -197,10 +189,8 @@ The initial scaling should at least support the requirements of a "large" modula
 At this time warm restart capability is not factored into the design. This shall be revisited as a Phase #2 enhancement
 
 # 2 Modules Design
-## 2.1 Configuration Flow Options for System Ports
-This section discusses a couple of options for the flow of system ports configuration information prior to it being populated in the APPL_DB of a sonic instance. The sections that follow are written assuming Option-1 has been chosen. But Option-2 is also a viable choice. We should decide if we are comfortable going with Option-1 or want to switch to Option-2.
-### 2.1.1 Option-1 System Port Configuration on Control Card
-The system ports are configured on the Control Card. This information is them populated in the "System Port Table" in the "VOQ System Database". On each sonic instance - the "System Port Syncd" daemon subscribes to this information and recevies it. It then populates the "System Port Table" in the APPL_DB of the local sonic instance.
+### 2.1 System Port Configuration on Sonic Instance
+The system ports are configured on the Line Card. This information is then populated in the "System Port Table" in the "Config DB". On each sonic instance - the "OrchAgent" daemon subscribes to this information and recevies it. 
 
  ![](../../images/voq_hld/control-card-system-port-config-flow.png)
 
@@ -214,7 +204,8 @@ DEVICE_METADATA|{"voq_db"}
     "switch_id": {{switch_id}}
     "switch_type": {{switch_type}}
     "server_ip": {{ip_address}}
-    "server_port": {app port}
+    "server_port": {{app port}}
+    "max_cores" : {{max_cores}}
 ```
 ### 2.2.2 System Port Table
 A **new** table for system port configuration
@@ -228,6 +219,18 @@ SYSTEM_PORT:{{system_port_name = PORT.port_name}}
     "speed": {{index_number}}
 ```
 
+OR
+
+```
+SYSTEM_PORT:{{system_port_name}}
+    "system_port_id": {{index_number}}
+    "switch_id": {{index_number}}
+    "core_index": {{index_number}}
+    "core_port_index": {{index_number}}
+    "speed": {{index_number}}
+    "local_port" : {{local_port}} <!-- name of the local port -->
+```
+
 ### 2.2.3 ConfigDB Schemas
 **Existing** schema for DEVICE_METADATA in configuration DB
 ```
@@ -237,6 +240,9 @@ switch_id                             = 1*4DIGIT            ; number between 0 a
 switch_type                           = "npu" | "fabric"
 server_ip                             = IP                   
 server_port                           = 1*5DIGIT            ; Port number between 0 and 65535 
+switch_id                             = 1*4DIGIT            ; number between 0 and 1023
+max_cores                             = 1*4DIGIT            ; max cores 1 and 1024
+
 ```
 
 ```
@@ -255,48 +261,25 @@ No changes in the schema of other CONFIG_DB tables. The name of the ports used a
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 ## 2.3 VOQ DB
-This is a **new** database which resides in global redis server accessible by all devices. This database is similar to Application DB. The OrchAgent in all the devices will write their local NEIGH_TABLE and INTF_TABLE to global VOQ_DB with hardware identifier's. The OrchAgent also reads the NEIGH_TABLE and INTF_TABLE, PORTCHANNEL, PORTCHANNEL_MEMBER of all devices with hardware information such as encap index, rif id.
+This is a **new** database which resides in global redis server accessible by all sonic instances. This database is modeled as Application DB. The OrchAgent in all the sonic instances will write their local NEIGH to global VOQ_DB with hardware identifier's. The OrchAgent also reads the NEIGH, SYSTEM_PORTCHANNEL, PORTCHANNEL_MEMBER tables of all sonic instances with hardware information such as hardware index.
 
-### 2.3.1 VOQ System Data
-A table for VOQ system parameters. This will be populated by a control card or other system level management mechanism.
+### 2.3.1 System Port interface table
+A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config.
 ```
-VOQ_SYSTEM_DATA_TABLE:{{"voq_system"}}
-    "max_cores": {{index_number}}
-```
-
-### 2.3.2 System Port Table
-A table for system port information. This is populated by configuration processing of the control card
-```
-SYSTEM_PORT:{{system_port_name = PORT.port_name}}
-    "system_port_id": {{index_number}}
-    "switch_id": {{index_number}}
-    "core_index": {{index_number}}
-    "core_port_index": {{index_number}}
-    "speed": {{index_number}}
+INTERFACE:{{system_interface_name}} 
+    {}
 ```
 
-### 2.3.3 Voq Neighbor table
-A table for neighbors learned or statically configured on system ports. The schema is same as the schema of "NEIGH" table in config DB with additional attribute for "encap_index"
+### 2.3.2 Voq Neighbor table
+A table for neighbors learned or statically configured on system ports. The schema is same as the schema of "NEIGH" table in config DB with additional attribute for "encap_index".
 ```
 NEIGH:{{system_port_name}}:{{ip_address}} 
     "neigh": {{mac_address}}
-    "encap_index"" {{encap_index}}"
+    "encap_index": {{encap_index}}
     "vrf": {{vrf_id}} (OPTIONAL)
 ```
 
-### 2.3.4 System Port interface table
-A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config DB with additional attribute for "rif_id"
-```
-INTERFACE:{{system_port_name}}
-    "rif_id": {{router inteface id}}
-```
-OR
-
-```
-INTERFACE:{{system_port_name}}:{{ip_address}}
-    "rif_id": {{router inteface id}}
-```
-### 2.3.5 System PortChannel Table
+### 2.3.3 System PortChannel Table
 A table for system portchannel information. This is populated by OrchAgent.
 ```
 SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
@@ -304,29 +287,17 @@ SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
     "switch_id": {{index_number}}
 ```
     
-### 2.3.6 PortChannel Member Table
+### 2.3.4 System PortChannel Member Table
 A table for members of portchannel in the whole system. This is populated by OrchAgent.
 Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
 
-### 2.3.6 VOQ DB Schemas
+### 2.3.5 VOQ DB Schemas
 
 ```
-; Defines schema for VOQ System data attributes
-key                                   = VOQ_SYSTEM_DATA:"voq_system" ; VOQ system data
+; Defines schema for interfaces for VOQ System ports
+key                                   = INTERFACE:system_port_name:ip_address ; VOQ System port interface
 ; field                               = value
-max_cores                             = 1*4DIGIT                ; 1 to 1024
-my_switch_id                          = 1*4DIGIT                ; 0 to 1023
-```
 
-```
-; Defines schema for VOQ System Port table attributes
-key                                   = SYSTEM_PORT:system_port_name ; VOQ system port name
-; field                               = value
-system_port_id                        = 1*5DIGIT                ; 1 to 32768
-switch_id                             = 1*4DIGIT                ; 0 to 1023 attached switch id
-core_index                            = 1*4DIGIT                ; 1 to 2048 switch core id
-core_port_index                       = 1*3DIGIT                ; 1 t0 256 port index in a core
-speed                                 = 1*7DIGIT                ; port line speed in Mbps
 ```
 
 ```
@@ -340,99 +311,13 @@ vrf                                   = name                                    
 ```
 
 ```
-; Defines schema for interfaces for VOQ System ports
-key                                   = INTERFACE:system_port_name:ip_address ; VOQ System port interface
+; Defines schema for VOQ PORTCHANNEL table attributes
+key                                   = SYSTEM_PORTCHANNEL:system_port_name ; VOQ port channel neighbor
 ; field                               = value
-rif_id                                = 16HEXDIG                               ; The RIF id of the interface created
+lag_id                                = 1*4DIGIT                            ; lag id
+switch_id                             = 1*4DIGIT                            ; switch id
 
 ```
-
-## 2.4 APP DB
-Two **new tables** would be introduced to specify VOQ system info and VOQ system ports config. The **existing** INTF_TABLE and NEIGH_TABLE are used for interface of the system ports and neighbors on the system ports.
-
-### 2.4.1 VOQ System Data
-**New** table for VOQ system parameters. This will be populated by a supervisor card or other system level management mechanism.
-```
-VOQ_SYSTEM_DATA_TABLE:{{"voq_system"}}
-    "max_cores": {{index_number}}
-    "my_switch_id": {{index_number}}
-```
-
-### 2.4.2 System Port Table
-**New** table for system port information. This is populated by SystemCfgMgrD on Control card (see below)
-```
-SYSTEM_PORT_TABLE:{{system_port_name = PORT.port_name}}
-    "system_port_id": {{index_number}}
-    "switch_id": {{index_number}}
-    "core_index": {{index_number}}
-    "core_port_index": {{index_number}}
-    "speed": {{index_number}}
-```
-
-### 2.4.3 Neigh table
-The **existing** NEIGH_TABLE is enhanced to have values related to neighbors learned or statically configured on system ports. This is populated by OrchAgent (see below). The schema is same as the existing APP DB NEIGH_TABLE. A **new** field "encap_index" is added to the **existing** NEIGH_TABLE
-```
-NEIGH_TABLE:{{system_port_name}}:{{ip_address}} 
-    "neigh": {{mac_address}}
-    "family": {{ip family}}
-    "encap_index"" {{encap_index}}"
-    "vrf": {{vrf_id}} (OPTIONAL)
-```
-
-### 2.4.4 Interface table
-**Existing** interface table with entries for interface configuration of system ports. A **new** field for router interface id is added for VOQ system port interfaces
-```
-INTF_TABLE:{{system_port_name}}
-    "rif_id": {{router inteface id}}
-```
-OR
-
-```
-INTF_TABLE:{{system_port_name}}:{{ip_address}}
-    "rif_id": {{router inteface id}}
-```
-    
-### 2.4.5 APP DB Schemas
-
-```
-; Defines schema for VOQ System data attributes
-key                                   = VOQ_SYSTEM_DATA_TABLE:"voq_system" ; VOQ system data
-; field                               = value
-max_cores                             = 1*4DIGIT                ; 1 to 1024
-my_switch_id                          = 1*4DIGIT                ; 0 to 1023
-```
-
-```
-; Defines schema for VOQ System Port table attributes
-key                                   = SYSTEM_PORT_TABLE:system_port_name ; VOQ system port name
-; field                               = value
-system_port_id                        = 1*5DIGIT                ; 1 to 32768
-switch_id                             = 1*4DIGIT                ; 0 to 1023 attached switch id
-core_index                            = 1*4DIGIT                ; 1 to 2048 switch core id
-core_port_index                       = 1*3DIGIT                ; 1 t0 256 port index in a core
-speed                                 = 1*7DIGIT                ; port line speed in Mbps
-```
-
-```
-; Defines schema for VOQ Neighbor table attributes
-key                                   = NEIGH_TABLE:system_port_name:ip_address ; VOQ IP neighbor
-; field                               = value
-neigh                                 = 12HEXDIG                                       ; mac address of the neighbor
-family                                = "IPv4/IPv6"                                    ; IP address family
-encap_index                           = 1*4DIGIT                                       ; Encapsulation index of the remote neighbor.
-vrf                                   = name                                           ; VRF name
-
-```
-**"encap_index"** is a new field added to existing NEIGH_TABLE schema in App DB
-
-```
-; Defines schema for interfaces for VOQ System ports
-key                                   = INTF_TABLE:system_port_name:ip_address ; VOQ System port interface
-; field                               = value
-rif_id                                = 16HEXDIG                               ; The RIF id of the interface created
-
-```
-**"rif_id"** is a new field added to existing INTF_TABLE in App DB
 
 ## 2.5 Orchestration agent
 ### VOQ Switch Creation
