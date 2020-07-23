@@ -476,9 +476,9 @@ The following list all MACsec control instructions:
 |    set_replay_protect    | SET APP_DB[MACSEC_PORT:ENABLE_REPLAY_PROTECT]=PARAM<br>SET APP_DB[MACSEC_PORT:REPLAY_WINDOW]=PARAM        |                                            |
 | set_current_cipher_suite |                                                                                                           | Has not been implemented in WPA_SUPPLICANT |
 |  enable_controlled_port  | SET APP_DB[MACSEC_PORT:ENABLE]=PARAM                                                                      | Enable MACsec port for traffic forward     |
-|  get_receive_lowest_pn   | GET APP_DB[MACSEC_INGRESS_SA:LOWEST_ACCEPTABLE_PN]                                                        |                                            |
+|  get_receive_lowest_pn   | GET COUNTER_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_MINIMUM_XPN]                                       |                                            |
 |  set_receive_lowest_pn   | SET APP_DB[MACSEC_INGRESS_SA:LOWEST_ACCEPTABLE_PN]=PARAM                                                  |                                            |
-|   get_transmit_next_pn   | GET APP_DB[MACSEC_EGRESS_SA:INIT_PN]                                                                      |                                            |
+|   get_transmit_next_pn   | GET COUNTER_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_XPN]                                               |                                            |
 |   set_transmit_next_pn   | SET APP_DB[MACSEC_EGRESS_SA:INIT_PN]                                                                      |                                            |
 |    create_receive_sc     | SET APP_DB[MACSEC_SC]<br>WAIT SET STATE_DB[MACSEC_INGRESS_SC]                                             |                                            |
 |    delete_receive_sc     | DEL APP_DB[MACSEC_SC]<br>WAIT DEL STATE_DB[MACSEC_INGRESS_SC]                                             |                                            |
