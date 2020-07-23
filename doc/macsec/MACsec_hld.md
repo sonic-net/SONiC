@@ -99,8 +99,11 @@ At a high level the following should be supported:
 ## 2 Architecture Design
 
 This chapter shows the MACsec interface stack of virtual switch and real switch.
-Virtual switch use the Linux MACsec driver to support the functionality of MACsec and the MACsec interface is imposed on Ethernet interface.  
+
+Virtual switch use the Linux MACsec driver to support the functionality of MACsec and the MACsec interface is imposed on Ethernet interface.
+
 Real switch use the ASIC chip as the MACsec Security Entity(SecY) which will be imposed on physic interface. And the ethernet port will be above the SecY.
+
 In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. All traffic, except EAPOL packets,  on the Port will be encrypted and then these traffic will be sent by Ethernet or Physical Interface. Meanwhile, all traffic, except EAPOL packets, on the physical port will be validated and decrypted and then these traffic will be delivered to Port or discarded if the validation fails.
 
 ![interface stack](images/interface_stack.png)  
