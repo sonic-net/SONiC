@@ -456,7 +456,30 @@ The wpa_supplicant should be able proactively refresh SAK according to a specifi
 
 ##### 3.4.2.3 Scalability Evaluation
 
-TODO
+***Testbed configuration : OS (Ubuntu 18.04.4 LTS), CPU(Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz), Memory(256G DDR4 2133 MHz) and wpa_supplicant(version 2.9)***
+
+The experiments designed to evaluate the scalability of wpa_supplicant, are using the veth-pair interfaces to simulate the physical ports and using the Linux network namespace to simulate different switches. The MACsec interfaces were bound on the veth-pair interfaces and assigned IP address for connectivity checking. The RSS of `ps` command is as the index of memory usage of one wpa_supplicant.
+
+- An interface to a wpa_supplicant
+
+In this experiment, all interfaces were set by wpa_cli and were managed by one supplicant instance. The goal of the experiment is to get the maximum number of interfaces that a wpa_supplicant can handle and the memory usage of a wpa_supplicant.
+
+| Number of interfaces | Memory usage of one wpa_supplicant (MB) | Average memory usage of per interface (MB) |
+| -------------------: | --------------------------------------: | -----------------------------------------: |
+|                   20 |                                       9 |                                        0.5 |
+|                  200 |                                     164 |                                       0.82 |
+
+The wpa_supplicant process raise an exception, `*** buffer overflow detected ***: ./wpa_supplicant terminated`, if the number of interface exceed 202 in the testbed.
+
+- Multiple interfaces to a wpa_supplicant
+
+In this experiment, each interface was managed by a wpa_supplicant instance. The goal of the experiment is to get the memory usage of a wpa_supplicant.
+
+| Number of interfaces | Total memory usage of all wpa_supplicants (MB) | Memory usage of per wpa_supplicant (MB) |
+| -------------------: | ---------------------------------------------: | --------------------------------------: |
+|                   20 |                                             76 |                                     3-5 |
+|                  200 |                                            981 |                                     4-6 |
+|                 2000 |                                          23292 |                                    9-13 |
 
 #### 3.4.3 SONiC MACsec Plugin
 
