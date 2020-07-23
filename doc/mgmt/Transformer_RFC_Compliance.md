@@ -37,7 +37,7 @@
 	- [6. Child subtree-xfmr invoked during DELETE on parent resource](#6-child-subtree-xfmr-invoked-during-delete-on-parent-resource)
 	- [7. YANG extension - table-owner](#7-yang-extension-table-owner)
 	- [8. GET operation](#8-get-operation)
-	- [9. Container instantiation with default values](#9-Container instantiation with default values)
+	- [9. Container instantiation with default values](#9-Container-instantiation-with-default-values)
 	- [10. Limited support on PUT Operation](#10-limited-support-on-put-operation)
 
 
@@ -100,7 +100,7 @@ Hence, to avoid complexity, the implementation will deviate from the standard to
 
       e.g.
       curl -X POST "https://10.52.139.213/restconf/data/openconfig-interfaces:interfaces/interface=PortChannel12/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan" -H "accept: application/yang-data+json" -H "authorization: BasicYWRtaW46YnJvYWRjb20=" -H "Content-Type:     application/yang-data+json" -d "{     \"openconfig-vlan:config\": { \"interface-mode\":     \"ACCESS\", \"access-vlan\": 600 }}"
-        
+
       I0501 14:33:08.765453 44684 common_app.go:416] Processing DB operation for map[2:map[4:map[VLAN:map[Vlan600:"members@":"PortChannel12"
 
 - POST requires checking parent resource existence for the target URI. e.g in the above example, the parent resource "/[restconf/data/openconfig-interfaces:interfaces/interface=PortChannel12](https://10.52.139.213/restconf/data/openconfig-interfaces:interfaces/interface=PortChannel12/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan)" MUST exist
@@ -421,27 +421,25 @@ Below is the detail design for Transformer to support the requirements defined i
 
 ## 4.4 DELETE Operation
 
-\-     DELETE uri container , - 204(No Content)
+\-     DELETE uri container - 204(No Content)
 
-\-     DELETE uri list
+\-     DELETE uri list - 204(No Content)
 
-\-     DELETE uri list instance
+\-     DELETE uri list instance - 204(No Content)
 
-\-     DELETE uri leaf
+\-     DELETE uri leaf - 204(No Content)
 
-\-     DELETE uri leaf-list
+\-     DELETE uri leaf-list - 204(No Content)
 
-\-     DELETE uri leaf-list instance
+\-     DELETE uri leaf-list instance - 204(No Content)
 
-\-     DELETE with uri: list instance not existent return code - 404(Not Found)
+\-     DELETE with uri: list instance not existent - 404(Not Found)
 
-​     /* expected return code - 204(No Content), note we don't return 404 below cases. */
+\-     DELETE with uri: leaf not existent - 204(No Content)
 
-\-     DELETE with uri: leaf not existent, 204(No Content)
+\-     DELETE with uri: leaf-list not existent - 204(No Content)
 
-\-     DELETE with uri: leaf-lst not existent
-
-\-     DELETE with uri: leaf-lst instance not existent
+\-     DELETE with uri: leaf-list instance not existent - 204(No Content)
 
 
 
@@ -465,12 +463,12 @@ Below is the detail design for Transformer to support the requirements defined i
 
 # Appendix - Notes for Feature Developers
 
-Notable fixes for RFC compliance support: 
+Notable fixes for RFC compliance support:
 - For all the operations, the parent table check is enforced prior to data transformation
 - PATCH operation fetches YANG default values for leafy (leaf/leaf-list) nodes if any, when a resource is created
 - PUT can be used to create a resource, if its not existent in DB
 - Delete on a terminal node(container/list) will delete the leafy objects from the Redis table without touching others. This will be incase of multi container contents mapping to a same table
-  
+
 
 ###### 1. PATCH for CLI config commands
 
@@ -553,7 +551,7 @@ var Subscribe_ntp_server_subtree_xfmr = func(inParams XfmrSubscInParams) (XfmrSu
 - Note 3 - the request URI contains multiple parent lists, the subscribe xfmr will be invoked per parent list.
 - Note 4 - The fields - needCache, onChange, nOpts.mInterval, nOpts.pType - are specific to on-change subscription. As of now, on-change subscription is allowed for only terminal container, list, leaf & leaf-list. Hence, these fields are not applicable to the subscribe callback associated to not-immediate parent lists.
 
-If multiples keys (instances) are returned from a subscribe callback, you can return with "\*". 
+If multiples keys (instances) are returned from a subscribe callback, you can return with "\*".
 
 e.g. `/openconfig-qos:qos/scheduler-policies/scheduler-policy` has subtree-transformer.
 
@@ -621,7 +619,7 @@ e.g. below path can be mapped to both Redis table and dataset (e.g. sensor) fetc
     }
 ```
 
-Here is an example code to set the `isVirtualTbl` flag.
+Here is example code to set the `isVirtualTbl` flag:
 
 ```go
 var Subscribe_pfm_components_xfmr SubTreeXfmrSubscribe = func (inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
@@ -746,16 +744,6 @@ Example for case 1 - the PUT method will be used to replace only the contents of
 curl -X PUT "https://localhost/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=BGP,bgp/bgp/neighbors/neighbor=11.1.1.1/openconfig-bfd:enable-bfd/config" -H "accept: application/yang-data+json" -H "authorization: Basic YWRtaW46c29uaWNAZGVsbA==" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-bfd:config\":{\"enabled\":true,\"openconfig-bgp-ext:bfd-check-control-plane-failure\":true}}" -k
 ```
 
-
-
----
-
 Table A - Cases to support PUT
 
-![PUT cases](C:\Users\kwangsuk_kim\Downloads\PUT cases.jpg)
-
- 
-
- 
-
- 
+![PUT cases](images/PUT_cases.jpg)
