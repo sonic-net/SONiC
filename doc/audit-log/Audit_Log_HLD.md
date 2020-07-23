@@ -37,7 +37,7 @@ Audit log provides a way to monitor several security relevant information on the
 
   Audit log result for REST & gNMI will be in simple flat list; message will not be in key/value format.
 
-- Log rotate is used to enforce size as 1M for audit log and goes through four rotations before being removed.
+- Log rotate is used to enforce size as 10M for audit log and goes through four rotations before being removed.
 
 - Audit log files should be included in tech-support bundle.
 
@@ -48,7 +48,7 @@ Audit log provides a way to monitor several security relevant information on the
 
       The *all* filter will fetch all audit log messages and potentially have performance implications and high response time.
 
-   2. show audit-log     - lists recent 50 messages from audit.log
+   2. show audit-log     - lists recent 20 messages from audit.log
 
 - There need to be a clear command to clear contents of audit logs.
 
@@ -121,7 +121,7 @@ This package is modified to trigger a syslog message after user logs in. The bui
 
 ### 3.1.3 Commands
 'show audit-log' displays contents of audit.log and audit.log.1. 
-By default the command displays a brief snapshot of audit log by displaying around latest fity lines.
+By default the command displays a brief snapshot of audit log by displaying around latest twenty messages.
 With *all* option, all of the audit.log and audit.log.1 is displayed.
 
 Through REST, the path is /restconf/operations/sonic-auditlog:show-auditlog
@@ -143,7 +143,7 @@ sonic# clear audit-log
 ```
 
 ### 3.1.4 Log rotate
-Log rotate is configured to enforce size limitation of 1M for audit log. There will be four rotations. Rsyslog will be restated
+Log rotate is configured to enforce size limitation of 10M for audit log. There will be four rotations. Rsyslog will be restated
 after each rotation.
 
 ### 3.1.5 show tech-support
@@ -167,7 +167,7 @@ module sonic-auditlog {
         "SONiC";
 
     description
-        "SONiC yang for RPC based show/clear audit log.";
+        "SONiC yang for RPC based show audit log.";
 
     revision 2020-05-29 {
         description
@@ -182,14 +182,16 @@ module sonic-auditlog {
                type string {
                    pattern "all";
                }
-               description "Indicates if user wants to display all of audit log";
+               description "Indicates if user wants to display all or subset of audit log";
            }
        }
 
        output {
-           leaf audit-content {
-               type string;
-               description "Content of audit log as per input content type";
+           list audit-content {
+               leaf content {
+                   type string;
+                   description "Audit message";
+               }
            }
        }
     }
@@ -213,7 +215,7 @@ sonic#
 #### 3.2.2.2 Show Commands
 To display contents of audit log, show command is implemented and it is RPC.
 To achieve better performance, audit log is mounted onto mgmt-framework container.
-The command by default displays a brief snapshot of audit log by showing last fifty lines.
+The command by default displays a brief snapshot of audit log by showing last twenty lines.
 The command has an 'all' option to display all of the audit.log and audit.log.1.
 
 ```
