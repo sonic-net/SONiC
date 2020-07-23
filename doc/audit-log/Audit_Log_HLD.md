@@ -374,7 +374,7 @@ The message displays the command string; its status and name of the user that ex
 Jun 12 19:36:04.059130 sonic INFO mgmt-framework#/usr/sbin/rest_server[711]: [REST-7] User "**admin@10.14.125.28**:55937" request "**GET /restconf/data/openconfig-system:system/aaa/server-groups/server-group=TACACS/config/openconfig-system-ext:secret-key**" status - **200**
 
 # 5 Unit Test
-- show audit-log : Should display around last fifty audit messages (this is not hardcoded rather approximate number as go doesnt offer parsing files through lines)
+- show audit-log : Should display around last twenty audit messages
 - show audit-log all : Should display audit.log and audit.log.1 (if it exists)
 - clear audit-log : clears audit-log
 - Login through ssh, verify that show audit-log displays messages corresponding to login
