@@ -114,6 +114,7 @@ The design changes for multi-asic platform would be to subscribe for port state 
 In Ledd process we could spawn multiple threads, one thread per ASIC to handle events for interfaces which it owns. Each thread would subscribe for the events from PORT\_TABLE in the APP\_DB of the namespace mapped to the ASIC. **Didn&#39;t opt this as this would result in more threads depending on the number of ASIC&#39;s.**
 
 
+
 ###
 
 ### **Xcvrd:**
@@ -174,9 +175,8 @@ Here are the pros and cons of both the approaches,
 
 #### **Conclusion**
 
-**Approach 1** above was taken as there is no real need of increasing the number of python threads since we have only at max 64 interfaces currently.
+**Approach 1** above was taken as there is no real need of increasing the number of python threads since we have only at max 64 interfaces currently.The problem we are trying to solve is to post the data into DB&#39;s in different namespaces which can be easily achieved with **interface**  **to**  **asic\_id** mapping table.
 
-The problem we are trying to solve is to post the data into DB&#39;s in different namespaces which can be easily achieved with **interface**  **to**  **asic\_id** mapping table.
 
 
 ## **Namespace support in swss-common DBConnector**
