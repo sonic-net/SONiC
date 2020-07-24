@@ -24,7 +24,7 @@ The design approach taken is as given below,
 
 - The **system wide platform tables** like PSU\_INFO, FAN\_INFO, EEPROM\_INFO etc. will be kept in the STATE\_DB instance of **Global database** (the database docker running in linux host)
 
-- The platform plugins are generally agnostic of whether it is single-asic or multi-asic platform. It interacts with the platform drivers in the linux kernel, sys/proc filesystems.(In_ _ **Mellanox platforms** _ _this is different as the events like transceiver plug in/out events_ _are exposed by mlnx SDK which reside in syncd container. With multi-asic there is syncd per namespace, it would need a change in plugins for Mellanox multi-asic platforms)_
+- The platform plugins are generally agnostic of whether it is single-asic or multi-asic platform. It interacts with the platform drivers in the linux kernel, sys/proc filesystems.(In **Mellanox platforms** this is different as the events like transceiver plug in/out events are exposed by mlnx SDK which reside in syncd container. With multi-asic there is syncd per namespace, it would need a change in plugins for Mellanox multi-asic platforms)
 
 - In the multi-asic platform there are port\_config.ini files per ASIC. They will be present in the directories named with the **asic_index** under the device/platform/hwsku directory. These files are parsed to create the **interface**  **to**  **asic\_id** mapping.
 
@@ -35,7 +35,7 @@ This section will detail more on the changes planned to various platform classes
 #### **DaemonBase**
 
 - Introduce namespace parameter to db\_connect to connect to DB in a namespace
-- Additional API&#39;s needed for the following,
+- Additional API's needed for the following,
   - Check if it is multi-asic platform
   - Get the number of asic&#39;s in the device.
   - Get the namespaces mapped to front-end ASIC&#39;s in the device.
@@ -43,7 +43,6 @@ This section will detail more on the changes planned to various platform classes
 #### **SfpUtilHelper/ SfpUtilBase**
 
 This **platform\_sfputil** class handles parsing the port\_config.ini file to **create the port list**.
-
 For multi-asic platform support, the functionality here needs to be extended to
 
 - Parse multiple port\_config.ini files and create a single port list irrespective of which ASIC/namespace they belong to.
@@ -70,17 +69,15 @@ Thermalctld connects to STATE\_DB and updates the following tables viz. FAN\_INF
 
 ### **Ledd:**
 
-LED daemon which updates the port LED based on the port state change events from PORT\_TABLE, does the following
-
+LED daemon which updates the port LED based on the port state change events from PORT\_TABLE, currently does the following
 - connect to the APPL\_DB
 - subscribe to port state change events from PORT\_TABLE
-- Call the platform plugin API&#39;s to update the port LED in the device.
+- Call the platform plugin API's to update the port LED in the device.
 
 ```python
       # Open a handle to the Application database
-      appl_db = daemon_base.db_connect("APPL_DB")
       # Subscribe to PORT table notifications in the Application DB
-         ……
+      ……
       while True:
          (state, c) = sel.select(SELECT_TIMEOUT)
          (key, op, fvp) = sst.pop()
@@ -105,23 +102,23 @@ The design changes for multi-asic platform would be to subscribe for port state 
 ```python
    while True:
      (state, c) = sel.select(SELECT_TIMEOUT)
-     for namespace in namespaces
-        (key, op, fvp) = sst[namespace].pop()
-         ……
-        led_control.port_link_state_change(key, fvp_dict["oper_status"])
+     # Get the namespace from the selectable object and use it to index the SubscriberStateTable handle.
+     ns=c.getDbNamespace()
+     (key, op, fvp) = sst[ns].pop()	            
+     ……
+     led_control.port_link_state_change(key, fvp_dict["oper_status"])
 ```
-**Optimization planned:** In the current swsscommon::select() implementation, when the select comes out due to an event in any of the FD&#39;s it returns just first Selectable object, and not any of the SubscriberStateTable object we created earlier. If we can extract the namespace from the Selectable object, we can remove the **namespaces loop** above and access **sst[namespace]** directly.
 
 **Alternative approach for Ledd daemon:**
 
 In Ledd process we could spawn multiple threads, one thread per ASIC to handle events for interfaces which it owns. Each thread would subscribe for the events from PORT\_TABLE in the APP\_DB of the namespace mapped to the ASIC. **Didn&#39;t opt this as this would result in more threads depending on the number of ASIC&#39;s.**
 
+
 ###
 
 ### **Xcvrd:**
 
-Xcvrd will spawn two threads
-
+Xcvrd currently will spawn two threads
 1. a thread to wait for the SFP plug in/out event, when event received, it will update the DB entries accordingly.
 2. A timer will be started to periodically refresh the DOM sensor information.
 
@@ -180,6 +177,7 @@ Here are the pros and cons of both the approaches,
 **Approach 1** above was taken as there is no real need of increasing the number of python threads since we have only at max 64 interfaces currently.
 
 The problem we are trying to solve is to post the data into DB&#39;s in different namespaces which can be easily achieved with **interface**  **to**  **asic\_id** mapping table.
+
 
 ## **Namespace support in swss-common DBConnector**
 
