@@ -370,34 +370,43 @@ The figure below shows the system port net devices and host packet flows for the
  ![](../../images/voq_hld/network-port-net-device-packet-flows.png)
 
 ### 2.6.2 Option2 - kernel-neighbor-table-differs-from-sai-and-asic
-This option proposes that SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes that creation of a vlan based host interface for a vlan attached to its own cpu port. It should NOT create host interfaces for system ports that belong to another asic. The following rules are observed in terms of the kernel neighbor tables
+This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and one "special" host interface. This "special" host interface should satisfy the following conditions.
+1.  Packets sent by the host on this interface should NOT bypass ingress route lookups in ASIC (more generically should be subject to all the ingress lookups)
+2.  It should be possible to send packets from any Port (any network port or cpu-port) in the whole VOQ system to this interface. The SAI host interface driver should -
+    *  Classify these packet as being received on this "special" interface AND
+    *  Should NOT require a host interface for the actual Ingress System Port.
+
+*SAI Host Interface Driver Behavior: All received packets are presented on the Host Interface of the Ingress port. If a host interface does not exist for the Ingress port - received packets are dropped. For example if we use SAI host interface type VLAN, it satisfies Requirement#1 above (NOT bypassing the ingress lookups), but does not satisfy Requirement#2. It does not seem to be able to classify the incoming packets as being received on the vlan host interface. Any VLAN support seems to rely on attaching the host interfaces of the VLAN member ports to a standard Linux Bridge (as oppossed to Native SAI support). This implies a dependence on having a host interface for all system ports (and not just the local asic ports)*
+
+The most practical choice for achieving Option-2 seems to be a port that connects the packets received on the egress pipeline to a ingress receive port on the same asic. A less practical option is for the asic to have an extra port that can be connected to the CPU like regular ethernet interface (less practical because it has implications on hardware). In the descriptions below, this special port is being referred as a "cpu-port" (could also be called an "inband" port)
+
+The following rules are observed in terms of the kernel neighbor tables
 1.  Neighbor on a local system-port:
       No changes from existing behavior. It is created on the host interface of that system port
 2.  Neighbor on another asic system-port:
-      Neighbor record is created on the net device representing local-cpu-port interface. The MAC address for the neighbor is set equal to that interface mac address.
-      Additionally a host route for the neighbor is created with the next-hop specified as local-cpu-port
+      Neighbor record is created on the net device representing the cpu-port interface. The MAC address for the neighbor is set equal to that interface mac address.
+      Additionally a host route for the neighbor is created with the next-hop specified as the cpu-port
 
-As a result of this choice, the neighbor records in the kernel will be pointing to a different interface (local-cpu-port and mac) compared to what is programmed via the SAI into the asic (actual system port on another asic and actual neighbor MAC address). In order to ensure this behavior -
+As a result of this choice, the neighbor records in the kernel will be pointing to a different interface (cpu-port and mac) compared to what is programmed via the SAI into the asic (actual system port on another asic and actual neighbor MAC address). In order to ensure this behavior -
 1.  Neighsyncd should be modified to ignore kernel notifications for neighbors on system ports that are from another SONiC instance.
-2.  APPL_DB entries for these neighbors are created by whichever entity is pulling the neighbor information from VOQ System DB (instead of being created by neighsyncd in response to kernel neighbor notifications)
 
 Any additional routes programmed into the kernel will use these neighbor IP addresses as Next-Hop. This part is the same as current sonic model.
 
 #### 2.6.2.1 Routing Protocol Peering between SONiC Instances
-The routing information for cpu-port interfaces (CPU-system-port, RIF, cpu-neighbor-ip/mac, cpu-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (cpu-port-host-interface, cpu-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in hte kernel entries - the interface and mac used for the CPU neighbor is local-asic-cpu-port and local-asic-mac. For injected packets, the kernel resolves next-hop information to be the local-cpu-port and mac. This allows the local asic to perform address lookups on injected packets and resolve the next-hop to be the cpu-system-port of the destination SONiC instance. The enables IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
+The routing information for cpu-port interfaces (CPU-system-port, RIF, cpu-neighbor-ip/mac, cpu-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (cpu-port-host-interface, cpu-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the CPU neighbor is cpu-port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the cpu-port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the cpu-system-port of the destination SONiC instance. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
  ![](../../images/voq_hld/option2-cpu-flow-tables.png)
 
 The figure below shows cpu-port net devices and packet flows for a four asic system.
  ![](../../images/voq_hld/option2-cpu-to-cpu-packet-flows.png)
 
 ### 2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics
-The VOQ System Database allows the routing information for all the neighbors (system-port, rif, neighbor-ip, neighbor-mac, meighbor-encap-index) to be available to all the SONiC instances. This results in the creation of the following in the Linux tables and equivalent entries in asic via the SAI interface. Note the difference in the neighbor recrods in the Kernel Vs SAI.
+The VOQ System Database allows the routing information for all the neighbors (system-port, rif, neighbor-ip, neighbor-mac, meighbor-encap-index) to be available to all the SONiC instances. This results in the creation of the following in the Linux tables and equivalent entries in asic via the SAI interface. Note the difference in the neighbor entries in the Kernel Vs SAI.
 
 - System Port creation corresponding to every Network port
 - Routing interface on the System Port
 - Neighbor on the Routing interface. *NOTE - the interface and MAC information in the SAI and the kernel are different for a neighbor.*
 
-The figure below shows an example two asic system in which each asic has two ports, each port has one neighbor and the routing table has one prefix that uses that neighbor as the next-hop. This model can be extended for any number of asics, ports and neighbors.
+Show below are the tables for the example two asic system which we considered in Option-1. Note the difference in the Kernel Vs SAI tables.
 
  ![](../../images/voq_hld/option2-network-port-tables.png)
 
@@ -406,7 +415,7 @@ The figure below shows the system port net devices and host packet flows for the
 
 
 ### 2.6.2.3 Kernel Routing Table Footprint
-The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
+The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact it seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
 1.  Much smaller in the kernel footprint for SONiC(very few routes in kernel)
 2.  Much greater fate sharing between terminated and forwarded packet flows.
 
