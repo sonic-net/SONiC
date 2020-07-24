@@ -1,18 +1,19 @@
 - [Introduction](#introduction)
 - [Common Test Cases](#common-test-cases)
-  - [1.1 Check platform-related CLI](#11-check-platform-related-cli)
-  - [1.2 Run the Sensors automation](#12-run-the-sensors-automation)
-  - [1.3 Check SFP status and configure SFP](#13-check-sfp-status-and-configure-sfp)
-  - [1.4 Check xcvrd information in DB](#14-check-xcvrd-information-in-db)
-  - [1.5 Sequential syncd/swss restart](#15-sequential-syncdswss-restart)
-  - [1.6 Reload configuration](#16-reload-configuration)
-  - [1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot](#17-coldwarmfastpower-offwatchdog-reboot)
-  - [1.8 Check thermal sensors output using new OPTIC cables](#18-check-thermal-sensors-output-using-new-optic-cables)
-  - [1.9 Manually plug in and pull out PSU modules](#19-manually-plug-in-and-pull-out-psu-modules)
-  - [1.10 Manually plug in and pull out PSU power cord](#110-manually-plug-in-and-pull-out-psu-power-cord)
-  - [1.11 Manually plug in and pull out FAN modules](#111-manually-plug-in-and-pull-out-fan-modules)
-  - [1.12 Manually plug in and pull out optical cables](#112-manually-plug-in-and-pull-out-optical-cables)
-  - [1.13 Check platform daemon status](#113-check-platform-daemon-status)
+  - [1.1 Check platform API implementation](#11-check-platform-api-implementation)
+  - [1.2 Check platform-related CLI](#12-check-platform-related-cli)
+  - [1.3 Run the Sensors automation](#13-run-the-sensors-automation)
+  - [1.4 Check SFP status and configure SFP](#14-check-sfp-status-and-configure-sfp)
+  - [1.5 Check xcvrd information in DB](#15-check-xcvrd-information-in-db)
+  - [1.6 Sequential syncd/swss restart](#16-sequential-syncdswss-restart)
+  - [1.7 Reload configuration](#17-reload-configuration)
+  - [1.8 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot](#18-coldwarmfastpower-offwatchdog-reboot)
+  - [1.9 Check thermal sensors output using new OPTIC cables](#19-check-thermal-sensors-output-using-new-optic-cables)
+  - [1.10 Manually plug in and pull out PSU modules](#110-manually-plug-in-and-pull-out-psu-modules)
+  - [1.11 Manually plug in and pull out PSU power cord](#111-manually-plug-in-and-pull-out-psu-power-cord)
+  - [1.12 Manually plug in and pull out FAN modules](#112-manually-plug-in-and-pull-out-fan-modules)
+  - [1.13 Manually plug in and pull out optical cables](#113-manually-plug-in-and-pull-out-optical-cables)
+  - [1.14 Check platform daemon status](#114-check-platform-daemon-status)
 - [Mellanox Specific Test Cases](#mellanox-specific-test-cases)
   - [2.1 Ensure that the hw-management service is running properly](#21-ensure-that-the-hw-management-service-is-running-properly)
   - [2.2 Check SFP using ethtool](#22-check-sfp-using-ethtool)
@@ -50,7 +51,16 @@ In common test cases, some steps are platform dependent. Detailed information wi
 
 # Common Test Cases
 
-## 1.1 Check Platform-Related CLI
+## 1.1 Check platform API implementation
+
+A test suite will install an HTTP server in the PMon container of the DuT. This HTTP server will convert URLs into platform API calls, returning the results of the API call in the HTTP response. All platform API methods will be exercised in this manner, ensuring that:
+
+1. The vendor has implmented the method for the particular platform
+2. The API call returned 'sane' data (type is correct, etc.)
+3. Where applicable, the data returned is appropriate for the platform being tested (number of fans, number of transceivers, etc.)
+4. Where applicable, the data returned is appropriate for the specific DuT (serial number, system EERPOM data, etc.)
+
+## 1.2 Check Platform-Related CLI
 
 This set of tests will verify expected output from all platform-related SONiC CLI commands. The test files will reside in the sonic-mgmt repo under the `tests/platform_tests/cli/` directory.
 
@@ -154,7 +164,7 @@ CRC-32               0xFE   4 0x371DD10F
 ### Automation
 Covered by existing automation
 
-## 1.2 Run the Sensors automation
+## 1.3 Run the Sensors automation
 
 ### Steps
 * Run the sensors automation to ensure that it PASS.
@@ -172,7 +182,7 @@ The script should PASS
 ### Automation
 Covered by existing automation. In the future, this script could be converted to pytest based code.
 
-## 1.3 Check SFP status and configure SFP
+## 1.4 Check SFP status and configure SFP
 
 This case is to use the sfputil tool and show command to check SFP status and configure SFP. Currently the the only configuration is to reset SFP.
   * `sfputil show presence`
@@ -233,7 +243,7 @@ Resetting port Ethernet0...  OK
 ### Automation
 New automation required
 
-## 1.4 Check xcvrd information in DB
+## 1.5 Check xcvrd information in DB
 This test case is to verify that xcvrd works as expected by checking transcever information in DB.
 
 ### Steps
@@ -312,7 +322,7 @@ admin@mtbc-sonic-03-2700:~$ redis-cli -n 6 hgetall "TRANSCEIVER_DOM_SENSOR|Ether
 ### Automation
 New automation required
 
-## 1.5 Sequential syncd/swss restart
+## 1.6 Sequential syncd/swss restart
 
 ### Steps
 * Restart the syncd and swss service:
@@ -341,7 +351,7 @@ New automation required
 ### Automation
 New automation required
 
-## 1.6 Reload configuration
+## 1.7 Reload configuration
 
 ### Steps
 * Reload configuration using: `config load_minigraph -y` and `config reload -y`
@@ -368,7 +378,7 @@ New automation required
 ### Automation
 Partly covered by existing automation. New automation required.
 
-## 1.7 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot
+## 1.8 COLD/WARM/FAST/POWER OFF/WATCHDOG reboot
 
 ### Steps
 * Perform cold/warm/fast/power off/watchdog reboot
@@ -415,7 +425,7 @@ Partly covered by existing automation:
 
 Need to re-implement these scripts in pytest and cover the testing in this test case.
 
-## 1.8 Check thermal sensors output using new OPTIC cables
+## 1.9 Check thermal sensors output using new OPTIC cables
 
 ### Steps
 * Plug in new OPTIC cables
@@ -427,7 +437,7 @@ Need to re-implement these scripts in pytest and cover the testing in this test 
 ### Automation
 Manual intervention required, not automatable
 
-## 1.9 Manually plug in and pull out PSU modules
+## 1.10 Manually plug in and pull out PSU modules
 
 This test case needs to frequently check various status, the status to be checked and commands for checking them:
 * status of services: syncd, swss:
@@ -468,7 +478,7 @@ Expected results of checking varous status:
 ### Automation
 Manual intervention required, not automatable
 
-## 1.10 Manually plug in and pull out PSU power cord
+## 1.11 Manually plug in and pull out PSU power cord
 
 This test case needs to frequently check various status, the status to be checked and commands for checking them:
 * status of services: syncd, swss:
@@ -509,7 +519,7 @@ Expected results of checking varous status:
 ### Automation
 Manual intervention required, not automatable
 
-## 1.11 Manually plug in and pull out FAN modules
+## 1.12 Manually plug in and pull out FAN modules
 
 This test case needs to frequently check various status, the status to be checked and commands for checking them:
 * status of services: syncd, swss:
@@ -550,7 +560,7 @@ Expected results of checking varous status:
 ### Automation
 Manual intervention required, not automatable
 
-## 1.12 Manually plug in and pull out optical cables
+## 1.13 Manually plug in and pull out optical cables
 
 This test case needs to frequently check various status, the status to be checked and commands for checking them:
 * status of services: syncd, swss:
@@ -591,7 +601,7 @@ Expected results of checking varous status:
 ### Automation
 Manual intervention required, not automatable
 
-## 1.13 Check platform daemon status
+## 1.14 Check platform daemon status
 
 This test case will check the all daemon running status inside pmon(ledd no included) if they are supposed to to be running on this platform.
 * Using command `docker exec pmon supervisorctl status | grep {daemon}` to get the status of the daemon
