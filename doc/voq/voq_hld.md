@@ -38,10 +38,10 @@
       * [2.3.5 VOQ DB Schemas](#235-voq-db-schemas)
     * [2.5 Orchestration agent](#25-orchestration-agent)
     * [2.6 Design Options for Host IP connectivity](#26-design-options-for-host-ip-connectivity)
-	  * [2.6.1 Option1 - Kernel Neighbor table matches SAI and ASIC](#261-option1-kernel-neighbor-table-matches-sai-and-asic)
+	  * [2.6.1 Option1 Kernel Neighbor table matches SAI and ASIC](#261-option1-kernel-neighbor-table-matches-sai-and-asic)
 	    * [2.6.1.1 Routing Protocol Peering between SONiC Instances](#2611-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics](#2612-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	  * [2.6.2 Option2 - Kernel Neighbor table differs from SAI and ASIC](#262-option2-kernel-neighbor-table-differs-from-sai-and-asic)
+	  * [2.6.2 Option2 Kernel Neighbor table differs from SAI and ASIC](#262-option2-kernel-neighbor-table-differs-from-sai-and-asic)
 	    * [2.6.2.1 Routing Protocol Peering between SONiC Instances](#2621-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics](#2622-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
 	    * [2.6.2.3 Kernel Routing Table Footprint](#2623-kernel-routing-table-footprint)
@@ -339,7 +339,7 @@ IP communication support is required between
 
 A couple of design options for supporting these packet flows are discussed below followed by a comparison of these options. Both the options are identical in terms of the SAI and datapath programming. They also prescribe the use of an IP interface attached to the cpu-port of the of each asic. The differences are in what is programmed into the kernel tables and the changes in SWSS required to support them.
 
-### 2.6.1 Option1 - Kernel Neighbor table matches SAI and ASIC
+### 2.6.1 Option1 Kernel Neighbor table matches SAI and ASIC
 This option proposes that a host interface should be created against each System Port from another asic. This could be a Network port or the cpu port. The Linux IP stack uses this interface to exchange packets, program Neighbor, Routes etc. Additional details of the proposed design are described below.
 
 *Note: There is no need to assign an IP address to the host interface if it is for a sytem port on another asic. Source IP for packets sent out using host interfaces for another asic could be a loopback IP address of the local asic.*
@@ -369,7 +369,7 @@ Please note that the the IP address associated with the routing interface is onl
 The figure below shows the system port net devices and host packet flows for the network ports for the 2-asic system above.
  ![](../../images/voq_hld/network-port-net-device-packet-flows.png)
 
-### 2.6.2 Option2 - kernel-neighbor-table-differs-from-sai-and-asic
+### 2.6.2 Option2 Kernel Neighbor table differs from SAI and ASIC
 This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and one "special" host interface. This "special" host interface should satisfy the following conditions.
 1.  Packets sent by the host on this interface should NOT bypass ingress route lookups in ASIC (more generically should be subject to all the ingress lookups)
 2.  It should be possible to send packets from any Port (any network port or cpu-port) in the whole VOQ system to this interface. The SAI host interface driver should -
