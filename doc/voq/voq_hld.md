@@ -225,7 +225,7 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
             "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis.sock",
             "persistence_for_warm_boot" : "no",
 {%- if sonic_asic_platform_cardtype == "linecard" %}
-            "run_server": "yes"
+            "run_server": "no"
 {%- endif %}
         }
 {%- endif %}
