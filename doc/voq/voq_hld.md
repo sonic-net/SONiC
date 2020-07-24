@@ -203,10 +203,48 @@ The system ports are configured on the Line Card. This information is then popul
 DEVICE_METADATA|{"voq_db"}
     "switch_id": {{switch_id}}
     "switch_type": {{switch_type}}
-    "server_ip": {{ip_address}}
-    "server_port": {{app port}}
     "max_cores" : {{max_cores}}
 ```
+
+VOQ_DB will be specified using database_config.json.j2 and it will generated in control card and linecard differently. Control card will be the server and line card will be running clients only. DBConnectors will use this config to connect correct VOQ_DB.
+
+sonic-buildimage/dockers/docker-database/database_config.json.j2
+
+```
+    "INSTANCES": {
+        "redis":{
+            "hostname" : "{{HOST_IP}}",
+            "port" : 6379,
+            "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis.sock",
+            "persistence_for_warm_boot" : "yes"
+        },
+{%- if sonic_asic_platform == "voq" %}
+        "voq-redis":{
+            "hostname" : "{{HOST_IP}}",
+            "port" : 6379,
+            "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis.sock",
+            "persistence_for_warm_boot" : "no",
+{%- if sonic_asic_platform_cardtype == "linecard" %}
+            "run_server": "yes"
+{%- endif %}
+        }
+{%- endif %}
+    },
+    "DATABASES" : {
+        "APPL_DB" : {
+            "id" : 0,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        ...
+        "VOQ_DB" : {
+            "id" : 8,
+            "separator": ":",
+            "instance" : "voq-redis"
+        },
+```
+        
+
 ### 2.2.2 System Port Table
 A **new** table for system port configuration
 
@@ -238,8 +276,6 @@ key                                   = DEVICE_METADATA|"voq_db"      ;
 ; field                               = value
 switch_id                             = 1*4DIGIT            ; number between 0 and 1023
 switch_type                           = "npu" | "fabric"
-server_ip                             = IP                   
-server_port                           = 1*5DIGIT            ; Port number between 0 and 65535 
 switch_id                             = 1*4DIGIT            ; number between 0 and 1023
 max_cores                             = 1*4DIGIT            ; max cores 1 and 1024
 
