@@ -340,7 +340,7 @@ The purpose of the update commands group is to provide an interface
 for automatic FW installation of various platform components.
 
 Automatic FW installation requires platform_components.json to be created and placed at:  
-_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
+_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_fw_updatecomponents.json_
 
 **Example:**
 1. Non modular chassis platform
@@ -350,15 +350,15 @@ _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.jso
         "Chassis1": {
             "component": {
                 "BIOS": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/bios.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
                     "version": "0ACLH003_02.02.010"
                 },
                 "CPLD": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/cpld.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
                     "version": "10"
                 },
                 "FPGA": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/fpga.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
                     "version": "5"
                 }
             }
@@ -374,15 +374,15 @@ _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.jso
         "Chassis1": {
             "component": {
                 "BIOS": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/bios.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
                     "version": "0ACLH003_02.02.010"
                 },
                 "CPLD": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/cpld.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
                     "version": "10"
                 },
                 "FPGA": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/chassis1/fpga.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
                     "version": "5"
                 }
             }
@@ -392,12 +392,44 @@ _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.jso
         "Module1": {
             "component": {
                 "CPLD": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/module1/cpld.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
                     "version": "10"
                 },
                 "FPGA": {
-                    "firmware": "/etc/<platform_name>/fw/<onie_platform>/module1/fpga.bin",
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
                     "version": "5"
+                }
+            }
+        }
+    }
+}
+```
+3. Platform component fw update configuration with platform specific script and boot options
+```json
+{
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "BIOS": {
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
+                    "script": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios_fw_update",
+                    "version": "0ACLH003_02.02.010"
+                    "required_reboot": "None"
+                    "immediate_action": "No"
+                },
+                "CPLD": {
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
+                    "script": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld_fw_update",
+                    "version": "10"
+                    "required_reboot": "powercycle"
+                    "immediate_action": "No"
+                },
+                "FPGA": {
+                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
+                    "script": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga_fw_update",
+                    "version": "5"
+                    "required_reboot": "cold"
+                    "immediate_action": "Yes"
                 }
             }
         }
@@ -454,6 +486,24 @@ Warning: <firmware_update_notification>
 New FW will be installed, continue? [y/N]: N
 Aborted!
 ```
+3. Non modular chassis platform
+```bash
+root@sonic:~# fwutil --yes --image=next --boot=cold --immediate=yes
+Warning: <firmware_update_notification>
+...
+FW update in progress ...
+...
+root@sonic:~# fwutil --yes --image=next --boot=any --immediate=no
+Warning: <firmware_update_notification>
+...
+FW update in progress ...
+...
+root@sonic:~# fwutil --yes --image=next --boot=any --immediate=yes --component=ssd
+Warning: <firmware_update_notification>
+...
+FW update in progress ...
+...
+```
 
 **Supported options:**
 1. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
@@ -490,6 +540,27 @@ Aborted!
 
 ###### Figure 5: FW install (modular) flow
 
+## 3.4 Update component FW
+
+### 3.4.1 Non modular chassis platform
+
+![FW update (non modular) flow](images/update_non_modular_flow.svg "Figure 4: FW update (non modular) flow")
+
+###### Figure 6: FW update (non modular) flow
+
+### 3.4.2 Modular chassis platform
+
+![FW update (modular) flow](images/update_modular_flow.svg "Figure 5: FW update (modular) flow")
+
+###### Figure 7: FW update (modular) flow
+
+### 3.4.3 Modular chassis platform
+
+![Automatic FW update flow with boot and action option](images/update_w_boot_action_flow.svg "Figure 5: FW update with boot and action flow")
+
+###### Figure 8: Automatic FW update with boot and action flow
+
+
 # 4 Tests
 
 ## 4.1 Unit tests
@@ -501,3 +572,4 @@ Aborted!
 5. Install BIOS/CPLD/FPGA FW on modular chassis
 6. Update BIOS/CPLD/FPGA FW on non modular chassis
 7. Update BIOS/CPLD/FPGA FW on modular chassis
+8. Auto Update BIOS/CPLD/FPGA FW with boot and action options 
