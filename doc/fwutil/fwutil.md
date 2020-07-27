@@ -544,21 +544,18 @@ FW update in progress ...
 
 ### 3.4.1 Non modular chassis platform
 
-![FW update (non modular) flow](images/update_non_modular_flow.svg "Figure 4: FW update (non modular) flow")
-
-###### Figure 6: FW update (non modular) flow
+TBD
 
 ### 3.4.2 Modular chassis platform
 
-![FW update (modular) flow](images/update_modular_flow.svg "Figure 5: FW update (modular) flow")
+TBD
 
-###### Figure 7: FW update (modular) flow
+### 3.4.3 Auto FW update based on the configuration file
 
-### 3.4.3 Modular chassis platform
-
-![Automatic FW update flow with boot and action option](images/update_w_boot_action_flow.svg "Figure 5: FW update with boot and action flow")
-
-###### Figure 8: Automatic FW update with boot and action flow
+1. Find the available firmware based on boot type and immediate action type from platform specific fw update configuration file. 
+   Exit if no configuration file exists.
+2. Update the firmware using the script if it's specified in the configuration. Otherwise, fwutil will use the platform api to update the firmware.
+   Exit if the update fails in any step.
 
 
 # 4 Tests
