@@ -124,8 +124,8 @@ This package is modified to trigger a syslog message after user logs in. The bui
 By default the command displays a brief snapshot of audit log by displaying around latest twenty messages.
 With *all* option, all of the audit.log and audit.log.1 is displayed.
 
-Through REST, the path is /restconf/operations/sonic-auditlog:show-auditlog
-For gNMI, the path is sonic-auditlog:show-auditlog
+Through REST, the path is /restconf/operations/sonic-auditlog:get-auditlog
+For gNMI, the path is sonic-auditlog:get-auditlog
 
 ```
 sonic# show audit-log
@@ -157,7 +157,7 @@ audit.log, auth.log, cron.log, daemon.log, messages, syslog, stpd.log, teamd.log
 ```
 module sonic-auditlog {
     namespace "http://github.com/Azure/sonic-auditlog";
-    prefix auditshow;
+    prefix auditlog;
     yang-version 1.1;
 
     organization
@@ -167,22 +167,22 @@ module sonic-auditlog {
         "SONiC";
 
     description
-        "SONiC yang for RPC based show audit log.";
+        "SONiC yang for RPC based audit log operations.";
 
     revision 2020-05-29 {
         description
             "Initial revision.";
     }
 
-    rpc show-auditlog {
-       description "RPC for showing audit log.";
+    rpc get-auditlog {
+       description "RPC for getting audit log.";
 
        input {
            leaf content-type {
                type string {
                    pattern "all";
                }
-               description "Indicates if user wants to display all or subset of audit log";
+               description "Indicates if user wants to get all or latest twenty lines of audit log";
            }
        }
 
@@ -203,7 +203,7 @@ module sonic-auditlog {
 
 ```
 ### 3.2.2 CLI
-#### 3.2.2.1 Configuration Commands
+#### 3.2.2.1 Clear Commands
 Clearing audit log is implemented as RPC and is achieved with the help of HostQuery module - clearaudit.py. 
 On receiving the request from container, this module will remove audit.log and restarts rsyslog.
 
@@ -227,7 +227,7 @@ sonic# show audit-log
 
 ### 3.2.3 REST API Support
 #### 3.2.3.1 Show Audit Log 
-Path: /restconf/operations/sonic-auditlog:show-auditlog
+Path: /restconf/operations/sonic-auditlog:get-auditlog
 
 Input: "all" or none
 
@@ -236,7 +236,7 @@ Path: /restconf/operations/sonic-auditlog:clear-auditlog
 
 ### 3.2.4 GNMI API Support
 #### 3.2.4.1 Show Audit Log 
-Path: /sonic-auditlog:show-auditlog
+Path: /sonic-auditlog:get-auditlog
 
 Input: "all" or none
 
