@@ -52,9 +52,15 @@
     - [3.4.5 vMACsec SAI](#345-vmacsec-sai)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
-  - [4.2 Init MACsec](#42-init-macsec)
+  - [4.2 MACsec Init](#42-macsec-init)
   - [4.3 Create and Enable Ingress SA](#43-create-and-enable-ingress-sa)
   - [4.3 Create and Enable Egress SA](#43-create-and-enable-egress-sa)
+  - [4.4 Create Ingress/Egress SC](#44-create-ingressegress-sc)
+  - [4.5 Deinit Port](#45-deinit-port)
+  - [4.6 MACsec Deinit](#46-macsec-deinit)
+  - [4.7 Disable and Remove and Ingress SA](#47-disable-and-remove-and-ingress-sa)
+  - [4.8 Disable and Remove and Egress SA](#48-disable-and-remove-and-egress-sa)
+  - [4.9 Remove Ingress/Egress SC](#49-remove-ingressegress-sc)
 
 ## About this Manual
 
@@ -641,9 +647,9 @@ Create macsec netdev on the virtual physical port, and then configure the macsec
 
 ![init port](images/init_port.png)  
 
-### 4.2 Init MACsec
+### 4.2 MACsec Init
 
-![init macsec](images/init_macsec.png)  
+![macsec init](images/macsec_init.png)  
 
 ### 4.3 Create and Enable Ingress SA
 
@@ -652,3 +658,29 @@ Create macsec netdev on the virtual physical port, and then configure the macsec
 ### 4.3 Create and Enable Egress SA
 
 ![create and enable sa](images/create_and_enable_egress_sa.png)  
+
+### 4.4 Create Ingress/Egress SC
+
+![create ingress egress sc](images/create_ingress_egress_sc.png)  
+
+### 4.5 Deinit Port
+
+![deinit port](images/deinit_port.png)  
+
+### 4.6 MACsec Deinit
+
+![macsec deinit](images/macsec_deinit.png)  
+
+### 4.7 Disable and Remove and Ingress SA
+
+![disable and remove ingress sa](images/disable_and_remove_ingress_sa.png)  
+
+### 4.8 Disable and Remove and Egress SA
+
+![disable and remove egress sa](images/disable_and_remove_egress_sa.png)  
+
+***The message, disable transmit SA, can be ignored because the transmit SA will be automatically disabled when the new transmit SA was installed.***
+
+### 4.9 Remove Ingress/Egress SC
+
+![remove ingress egress sc](images/remove_ingress_egress_sc.png)  
