@@ -53,7 +53,8 @@
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 Init MACsec](#42-init-macsec)
-  - [4.3 Create and Enable SA](#43-create-and-enable-sa)
+  - [4.3 Create and Enable Ingress SA](#43-create-and-enable-ingress-sa)
+  - [4.3 Create and Enable Egress SA](#43-create-and-enable-egress-sa)
 
 ## About this Manual
 
@@ -599,7 +600,7 @@ The following are all functions that MACsec Orch need to implement.
   4. Set Flex Counter of MACsec SA stats
 
 - Create Ingress SA
-  1. Monitor the SET message from the MACsec Ingress SC Table
+  1. Monitor the SET message from the MACsec Ingress SA Table
   2. The ACTIVE filed should be true, otherwise consume this message and exit this process
   3. Create MACsec ingress SA
   4. Set Flex Counter of MACsec SA stats
@@ -642,6 +643,10 @@ Create macsec netdev on the virtual physical port, and then configure the macsec
 
 ![init macsec](images/init_macsec.png)  
 
-### 4.3 Create and Enable SA
+### 4.3 Create and Enable Ingress SA
 
-![create and enable sa](images/create_and_enable_sa.png)  
+![create and enable sa](images/create_and_enable_ingress_sa.png)  
+
+### 4.3 Create and Enable Egress SA
+
+![create and enable sa](images/create_and_enable_egress_sa.png)  
