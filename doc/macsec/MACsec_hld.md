@@ -58,8 +58,8 @@
   - [4.5 Create Ingress/Egress SC](#45-create-ingressegress-sc)
   - [4.6 Deinit Port](#46-deinit-port)
   - [4.7 MACsec Deinit](#47-macsec-deinit)
-  - [4.8 Disable and Remove and Ingress SA](#48-disable-and-remove-and-ingress-sa)
-  - [4.9 Disable and Remove and Egress SA](#49-disable-and-remove-and-egress-sa)
+  - [4.8 Disable and Remove Ingress SA](#48-disable-and-remove-ingress-sa)
+  - [4.9 Disable and Remove Egress SA](#49-disable-and-remove-egress-sa)
   - [4.10 Remove Ingress/Egress SC](#410-remove-ingressegress-sc)
 
 ## About this Manual
@@ -671,11 +671,11 @@ Create macsec netdev on the virtual physical port, and then configure the macsec
 
 ![macsec deinit](images/macsec_deinit.png)  
 
-### 4.8 Disable and Remove and Ingress SA
+### 4.8 Disable and Remove Ingress SA
 
 ![disable and remove ingress sa](images/disable_and_remove_ingress_sa.png)  
 
-### 4.9 Disable and Remove and Egress SA
+### 4.9 Disable and Remove Egress SA
 
 ![disable and remove egress sa](images/disable_and_remove_egress_sa.png)  
 
