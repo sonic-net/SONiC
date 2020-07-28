@@ -284,7 +284,7 @@ key           = MACSEC_EGRESS_SA:port_name:sci:an   ; MACsec SA identifier
 SAK           = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
                                                     ; Default 128 bit,
                                                     ; but if XPN enable, 256 bit
-AUTN_KEY      = 32HEXDIG                            ; The hash subkey in AES-GCM
+AUTH_KEY      = 32HEXDIG                            ; The hash subkey in AES-GCM
                                                     ; It's derived from SAK
 INIT_PN       = DIGITS                              ; 1 to 2^32-1, the initialized next packet number
 SALT          = 24HEXDIG                            ; 96-bit parameter provided to the Current
@@ -310,7 +310,7 @@ ACTIVE                = "true" / "false"                    ; Whether this SA is
 SAK                   = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
                                                             ; Default 128 bit,
                                                             ; but if XPN enable, 256 bit
-AUTN_KEY              = 32HEXDIG                            ; The hash subkey in AES-GCM
+AUTH_KEY              = 32HEXDIG                            ; The hash subkey in AES-GCM
                                                             ; It's derived from SAK
 LOWEST_ACCEPTABLE_PN  = DIGITS                              ; 1 to 2^32-1, the lowest acceptable packet number
 SALT                  = 24HEXDIG                            ; 96-bit parameter provided to the Current
