@@ -111,7 +111,7 @@ Virtual switch use the Linux MACsec driver as the MACsec Security Entity(SecY) t
 
 Real switch use the cipher chip as SecY which will also be imposed on physical interface. And the Port will be above the SecY. The MKA protocol traffics sent by wpa_supplicant directly use the Port as the egress/ingress port but the cipher chip will be set as the bypass mode to the MKA protocol traffic.
 
-In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. All traffic, except EAPOL packets, on the Port will be encrypted bu SecY and then these traffics will be put to the physical port for transmitting out. Meanwhile, all traffic, except EAPOL packets, on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
+In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. All traffic, except EAPOL packets, on the Port will be encrypted by SecY and then these traffics will be put to the physical port for transmission. Meanwhile, all traffic, except EAPOL packets, on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
 
 ![interface stack](images/interface_stack.png)  
 
