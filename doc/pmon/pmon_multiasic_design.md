@@ -183,9 +183,8 @@ Here are the pros and cons of both the approaches,
 
 The swss-common::DBconnector class needs to be enhanced to use the **&quot;namespace&quot;** context information to connect to the DB instance in that namespace.
 
-The DB connector classes will have capability to parse the new &quot;database\_global.json&quot; file and retrieve the namespaces present in the platform and the database instances in each namespace.
-
-**Reference PR** : [https://github.com/Azure/sonic-swss-common/pull/364](https://github.com/Azure/sonic-swss-common/pull/364)
+The DB connector classes will have capability to parse the new &quot;database\_global.json&quot; file and retrieve the namespaces present in the platform and the database instances in each namespace. 
+Please refer [multi_namespace_db_instances design document](https://github.com/Azure/SONiC/blob/master/doc/database/multi_namespace_db_instances.md) for more details.
 
 ##
 
