@@ -1,7 +1,7 @@
 - [Introduction](#introduction)
 - [Common Test Cases](#common-test-cases)
-  - [1.1 Check platform information](#11-check-platform-information)
-  - [1.2 Check System EEPROM](#12-check-system-eeprom)
+  - [1.1 Check platform API implementation](#11-check-platform-api-implementation)
+  - [1.2 Check platform-related CLI](#12-check-platform-related-cli)
   - [1.3 Run the Sensors automation](#13-run-the-sensors-automation)
   - [1.4 Check SFP status and configure SFP](#14-check-sfp-status-and-configure-sfp)
   - [1.5 Check xcvrd information in DB](#15-check-xcvrd-information-in-db)
@@ -51,9 +51,22 @@ In common test cases, some steps are platform dependent. Detailed information wi
 
 # Common Test Cases
 
-## 1.1 Check platform information
+## 1.1 Check platform API implementation
+
+A test suite will install an HTTP server in the PMon container of the DuT. This HTTP server will convert URLs into platform API calls, returning the results of the API call in the HTTP response. All platform API methods will be exercised in this manner, ensuring that:
+
+1. The vendor has implmented the method for the particular platform
+2. The API call returned 'sane' data (type is correct, etc.)
+3. Where applicable, the data returned is appropriate for the platform being tested (number of fans, number of transceivers, etc.)
+4. Where applicable, the data returned is appropriate for the specific DuT (serial number, system EERPOM data, etc.)
+
+## 1.2 Check Platform-Related CLI
+
+This set of tests will verify expected output from all platform-related SONiC CLI commands. The test files will reside in the sonic-mgmt repo under the `tests/platform_tests/cli/` directory.
 
 ### Steps
+
+#### Test all subcommands of `show platform`
 
 * Run `show platform summary`
 * Turn off/on PSU from PDU (Power Distribution Unit), run `show platform psustatus` respectively. In automation, PDU with programmable interface is required for turning off/on PSU. Without PDU, manual intervention required for this step.
@@ -79,9 +92,6 @@ PSU 2  OK
 New automation required.
 The step for turning on/off PSU needs programmable PDU. Need to implement a fixture for turning on/off PSU. When programmable PDU is not available in testbed, this step can only be tested manually. The fixture should be able to return information about whether this capability is supported. If not supported, skip this step in automation.
 
-## 1.2 Check System EEPROM
-
-### Steps
 
 * Run `show platform syseeprom`
 * Use the platform specific eeprom.py utility to directly decode eeprom information from hardware, compare the result with output of cmd `show platform syseeprom`. **This step is platform dependent.** Different eeprom.py utility should be used on different platforms. The below example is taken from Mellanox platform.
