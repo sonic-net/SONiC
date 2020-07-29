@@ -41,11 +41,16 @@
 	  * [2.6.1 Option1 Kernel Neighbor table matches SAI and ASIC](#261-option1-kernel-neighbor-table-matches-sai-and-asic)
 	    * [2.6.1.1 Routing Protocol Peering between SONiC Instances](#2611-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics](#2612-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	  * [2.6.2 Option2 Kernel Neighbor table differs from SAI and ASIC](#262-option2-kernel-neighbor-table-differs-from-sai-and-asic)
+	  * [2.6.2 Option2 PORT Kernel Neighbor table differs from SAI and ASIC](#262-option2-port-kernel-neighbor-table-differs-from-sai-and-asic)
 	    * [2.6.2.1 Routing Protocol Peering between SONiC Instances](#2621-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics](#2622-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
 	    * [2.6.2.3 Kernel Routing Table Footprint](#2623-kernel-routing-table-footprint)
-	  * [2.6.3 Comparing Options](#263-comparing-options)
+	  * [2.6.3 Option2 with VLAN Software Routing variation](#263-option2-with-vlan-software-routing-variation)
+	    * [2.6.3.1 Routing Protocol Peering between SONiC Instances](#2631-routing-protocol-peering-between-sonic-instances)
+	    * [2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics](#2632-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
+	  * [2.6.4 Comparing Options](#264-comparing-options)
+	    * [2.6.4.1 Option1 Vs Option2 PORT](#2641-option1-vs-option2-port)
+	    * [2.6.4.2 Option2 PORT Vs Option2 VLAN](#2642-option2-port-vs-option2-vlan)
     * [2.7 SAI](#27-sai)
 	* [2.8 CLI](#28-cli)
 	* [2.9 VOQ Monitoring and Telemetry](#29-voq-monitoring-and-telemetry)
@@ -405,14 +410,14 @@ Please note that the the IP address associated with the routing interface is onl
 The figure below shows the system port net devices and host packet flows for the network ports for the 2-asic system above.
  ![](../../images/voq_hld/network-port-net-device-packet-flows.png)
 
-### 2.6.2 Option2 Kernel Neighbor table differs from SAI and ASIC
+### 2.6.2 Option2 PORT Kernel Neighbor table differs from SAI and ASIC
 This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and one "special" host interface. This "special" host interface should satisfy the following conditions.
 1.  Packets sent by the host on this interface should NOT bypass ingress route lookups in ASIC (more generically should be subject to all the ingress lookups)
 2.  It should be possible to send packets from any Port (any network port or cpu-port) in the whole VOQ system to this interface. The SAI host interface driver should -
     *  Classify these packet as being received on this "special" interface AND
     *  Should NOT require a host interface for the actual Ingress System Port.
 
-*Notes on SAI Host Interface Driver Behavior: All received packets are presented on the Host Interface of the Ingress port. If a host interface does not exist for the Ingress port - received packets are dropped. For example if we use SAI host interface type VLAN, it satisfies Requirement#1 above (NOT bypassing the ingress lookups), but does not satisfy Requirement#2. It does not seem to be able to classify the incoming packets as being received on the vlan host interface. Currently VLAN interface in SONiC is standard Linux Bridge to which the host interfaces of the VLAN member ports are attached (as oppossed to using SAI Host interface type VLAN). This implies a dependence on having a host interface for all system ports (and not just the local asic ports)*
+*SAI Host Interface Driver Behavior: All received packets are presented on the Host Interface of the Ingress port. If a host interface does not exist for the Ingress port - received packets are dropped. For example if we use SAI host interface type VLAN, it satisfies Requirement#1 above (NOT bypassing the ingress lookups), but does not satisfy Requirement#2. It does not seem to be able to classify the incoming packets as being received on the vlan host interface. Any VLAN support seems to rely on attaching the host interfaces of the VLAN member ports to a standard Linux Bridge (as oppossed to Native SAI support). This implies a dependence on having a host interface for all system ports (and not just the local asic ports)*
 
 The most practical choice for achieving Option-2 seems to be a port that connects the packets received on the egress pipeline to a ingress receive port on the same asic. A less practical option is for the asic to have an extra port that can be connected to the CPU like regular ethernet interface (less practical because it has implications on hardware). In the descriptions below, this special port is being referred as a "cpu-port" (could also be called an "inband" port)
 
@@ -451,14 +456,74 @@ The figure below shows the system port net devices and host packet flows for the
 
 
 ### 2.6.2.3 Kernel Routing Table Footprint
-The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact it seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
+The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
 1.  Much smaller in the kernel footprint for SONiC(very few routes in kernel)
 2.  Much greater fate sharing between terminated and forwarded packet flows.
 
-### 2.6.3 Comparing Options
+### 2.6.3 Option2 with VLAN Software Routing variation
+*Note: The information in this section is sourced orignally from the Kathik and Eswaran both from documents posted/presented and verbal comments during the review 07/24/2020. It may not have the required details (need for vlan flooding support, MAC learning, static MAC records etc). It is expected to be completed following additonal reviews*
+
+This is a variation of Option2 described above. In this option a special "inband" VLAN is used for cross ASIC host IP connectivity. This inband vlan has as its members the CPU system port of all the asics in the distributed VOQ system. An IP interface is created on this inband vlan and each asic asic is assigned a unique IP address within the prefix of this interface. The following packet flows are proposed.
+1.  The SONiC instances are directly connected neighbors on the "inband" vlan. This allows IP connectivity between them.
+2.  For host connectivity via the network ports of another ASIC, the IP stack of the other ASIC is utilized as a software router between the inband VLAN and its network ports.
+3.  The kernel and the SAI neighbor records are manipulated to achieve this software routing for host packs flows (see examples below for details)
+
+In the example below VLAN-4094 is used as the "inband" vlan.
+
+#### 2.6.3.1 Routing Protocol Peering between SONiC Instances
+The figure below shows inband vlan tables in the kernel and SAI for the four asic system example. Note the difference in Kernel for SAI neighbor records for the inband vlan.
+ ![](../../images/voq_hld/option2b-vlan-cpu-flow-tables.png)
+
+The figure below shows inband vlan net devices and packet flows for the four asic system example
+ ![](../../images/voq_hld/option2b-vlan-cpu-to-cpu-packet-flows.png)
+
+The figure below shows vlan (special) being offloaded to hardware and LCPU Software routing for any CPU inbound and outbound packets for remote system ports. 
+ ![](../../images/voq_hld/option2b_vlan_lcpu_flow_picture1.png)
+
+
+### 2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics
+Show below are the tables for the example two asic system which we considered with the other options. Note the difference in the Kernel Vs SAI Neighbor tables for the inband vlan.
+
+ ![](../../images/voq_hld/option2b-vlan-network-port-tables.png)
+
+The figure below shows the inband vlan net device and host packet flows for the network ports for the 2-asic system above.
+ ![](../../images/voq_hld/option2b-vlan-network-port-net-device-packet-flows.png)
+
+```
+
+// Per ASIC
+
+{
+    "VOQ_INBAND": {
+        "<InBandInterfaceNameKey>": {
+            "Type": "Port|Vlan",
+            "Port": "InBand0",
+            "Members": [
+                "ASIC-0-CPU-SystemPort",
+                "ASIC-1-CPU-SystemPort",
+                "ASIC-N-CPU-SystemPort"
+            ]
+        }
+    },
+    "INBAND_INTERFACE" : {
+        "<InBandInterfaceNameKey>|3.3.3.1/32": {}
+    }
+}
+
+```
+
+### 2.6.4 Comparing Options
 The table below compares the two options discussed above. 
 
+#### 2.6.4.1 Option1 Vs Option2 PORT
+This table compares Option1 Vs Option2 PORT. Many of the statements about Option2 PORT are also true for Option2 VLAN
+
  ![](../../images/voq_hld/comparison-of-host-flow-options.png)
+
+#### 2.6.4.2 Option2 PORT Vs Option2 VLAN
+This table compares Option2 PORT Vs Option2 VLAN.
+
+ ![](../../images/voq_hld/comparison-of-option2-port-vs-vlan.png)
 
 ## 2.7 SAI
 Shown below tables represent main SAI attributes which shall be used for VOQ related objects.
