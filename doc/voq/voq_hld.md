@@ -470,15 +470,15 @@ This is a variation of Option2 described above. In this option a special "inband
 
 In the example below VLAN-4094 is used as the "inband" vlan.
 
+The figure below shows vlan (special) being offloaded to hardware and Linecard CPU Software routing for any CPU inbound and outbound packets for remote system ports. 
+ ![](../../images/voq_hld/option2b_vlan_lcpu_flow_picture1.png)
+
 #### 2.6.3.1 Routing Protocol Peering between SONiC Instances
 The figure below shows inband vlan tables in the kernel and SAI for the four asic system example. Note the difference in Kernel for SAI neighbor records for the inband vlan.
  ![](../../images/voq_hld/option2b-vlan-cpu-flow-tables.png)
 
 The figure below shows inband vlan net devices and packet flows for the four asic system example
  ![](../../images/voq_hld/option2b-vlan-cpu-to-cpu-packet-flows.png)
-
-The figure below shows vlan (special) being offloaded to hardware and LCPU Software routing for any CPU inbound and outbound packets for remote system ports. 
- ![](../../images/voq_hld/option2b_vlan_lcpu_flow_picture1.png)
 
 
 ### 2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics
