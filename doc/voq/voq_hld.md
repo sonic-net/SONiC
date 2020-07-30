@@ -490,14 +490,13 @@ The figure below shows the inband vlan net device and host packet flows for the 
  ![](../../images/voq_hld/option2b-vlan-network-port-net-device-packet-flows.png)
 
 ```
-
-// Per ASIC
-
+// VOQ_GLOBAL_CONFIG across all ASIC's
 {
     "VOQ_INBAND": {
         "<InBandInterfaceNameKey>": {
             "Type": "Port|Vlan",
             "Port": "InBand0",
+            "VlanId": "<VlanId>"
             "Members": [
                 "ASIC-0-CPU-SystemPort",
                 "ASIC-1-CPU-SystemPort",
@@ -506,7 +505,9 @@ The figure below shows the inband vlan net device and host packet flows for the 
         }
     },
     "INBAND_INTERFACE" : {
-        "<InBandInterfaceNameKey>|3.3.3.1/32": {}
+        "<DeviceName0>|<InBandInterfaceNameKey>|3.3.3.1/24": {}
+        "<DeviceName1>|<InBandInterfaceNameKey>|3.3.3.2/24": {}
+        "<DeviceNameN>|<InBandInterfaceNameKey>|3.3.3.N/24": {}
     }
 }
 
