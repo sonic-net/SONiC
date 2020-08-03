@@ -48,19 +48,21 @@
     - [3.4.3 SONiC MACsec Plugin](#343-sonic-macsec-plugin)
     - [3.4.4 MACsec Orch](#344-macsec-orch)
       - [3.4.4.1 Functions](#3441-functions)
-      - [3.4.4.2 Flex Counter Interval](#3442-flex-counter-interval)
+      - [3.4.4.2 Flex Counter](#3442-flex-counter)
+        - [3.4.4.2.1 Counter List](#34421-counter-list)
+        - [3.4.4.2.2 Interval](#34422-interval)
     - [3.4.5 vMACsec SAI](#345-vmacsec-sai)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
-  - [4.3 Create and Enable Ingress SA](#43-create-and-enable-ingress-sa)
-  - [4.4 Create and Enable Egress SA](#44-create-and-enable-egress-sa)
-  - [4.5 Create Ingress/Egress SC](#45-create-ingressegress-sc)
-  - [4.6 Deinit Port](#46-deinit-port)
-  - [4.7 MACsec Deinit](#47-macsec-deinit)
-  - [4.8 Disable and Remove Ingress SA](#48-disable-and-remove-ingress-sa)
-  - [4.9 Disable and Remove Egress SA](#49-disable-and-remove-egress-sa)
-  - [4.10 Remove Ingress/Egress SC](#410-remove-ingressegress-sc)
+  - [4.3 Create Ingress/Egress SC](#43-create-ingressegress-sc)
+  - [4.4 Create and Enable Ingress SA](#44-create-and-enable-ingress-sa)
+  - [4.5 Create and Enable Egress SA](#45-create-and-enable-egress-sa)
+  - [4.6 Disable and Remove Egress SA](#46-disable-and-remove-egress-sa)
+  - [4.7 Disable and Remove Ingress SA](#47-disable-and-remove-ingress-sa)
+  - [4.8 Remove Ingress/Egress SC](#48-remove-ingressegress-sc)
+  - [4.9 MACsec Deinit](#49-macsec-deinit)
+  - [4.10 Deinit Port](#410-deinit-port)
 
 ## About this Manual
 
@@ -114,11 +116,11 @@ At a high level the following should be supported:
 
 This chapter shows the MACsec interface stack of virtual switch and real switch.
 
-Virtual switch use the Linux MACsec driver as the MACsec Security Entity(SecY) to support the functionality of MACsec and the MACsec interface is imposed on physical interface. The MKA protocol traffic, EAPOL packets, sent by wpa_supplicant use physical port as its egress/ingress port.
+Virtual switch use the Linux MACsec driver as the MACsec Security Entity(SecY) to support the functionality of MACsec and the SecY is imposed on the physical port.
 
-Real switch use the cipher chip as SecY which will also be imposed on physical interface. And the Port will be above the SecY. The MKA protocol traffics sent by wpa_supplicant directly use the Port as the egress/ingress port but the cipher chip will be set as the bypass mode to the MKA protocol traffic.
+Real switch use the cipher chip as SecY which will also be imposed on physical interface. But the ASIC of the switch is located between the Port and the SecY.
 
-In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. All traffic, except EAPOL packets, on the Port will be encrypted by SecY and then these traffics will be put to the physical port for transmission. Meanwhile, all traffic, except EAPOL packets, on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
+In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. The MKA protocol traffics, EAPOL packets, sent by wpa_supplicant directly use the Port as the egress/ingress port but the SecY will be set as the bypass mode to the MKA protocol traffic, which means the SecY will not encrypt, decrypt or validate the EAPOL packets and directly deliver them to next interface. All traffics, except EAPOL packets, transmitted on the Port will be encrypted by SecY and then these traffics will be put to the physical port for transmission. While all traffics, except EAPOL packets, received on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
 
 ![interface stack](images/interface_stack.png)  
 
@@ -534,7 +536,7 @@ The following list all MACsec control instructions:
 |       Instructions       | SONiC DB operations                                                                                       | Note                                                                                                                               |
 | :----------------------: | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 |           init           |                                                                                                           | Configure the port to receive EAPOL packets                                                                                        |
-|          deinit          |                                                                                                           | Recover the original configuration at the port                                                                                     |
+|          deinit          |                                                                                                           | Recover the original configuration, reject EAPOL packets , at the port                                                             |
 |       macsec_init        | SET APP_DB[MACSEC_PORT]=PARAM<br>SET APP_DB[MACSEC_PORT:ENABLE] = FALSE<br>WAIT SET STATE_DB[MACSEC_PORT] | Initialize MACsec context for the port.                                                                                            |
 |      macsec_deinit       | DEL APP_DB[MACSEC_PORT]<br>WAIT DEL STATE_DB[MACSEC_PORT                                                  | Deinitialize MACsec context for the port.                                                                                          |
 |  enable_protect_frames   | SET APP_DB[MACSEC_PORT:ENABLE_PROTECT]=PARAM                                                              | Enable traffics protection                                                                                                         |
@@ -595,10 +597,9 @@ The following are all functions that MACsec Orch need to implement.
 
 - Delete SC
   1. Monitor the DEL message from the MACsec Ingress/Egress SC Table in APP DB
-  2. Collect MACsec SC and flow stats from counter DB
-  3. Delete Flex counter of MACsec SC
-  4. Delete the ingress/egress MACsec SC
-  5. Delete the ingress/egress MACsec SA
+  2. Delete Flex counter of MACsec SC and MACsec flow
+  3. Delete the ingress/egress MACsec SC
+  4. Delete the ingress/egress MACsec SA
 
 - Create Egress SA
   1. Monitor the SET message from the MACsec Egress SC Table
@@ -614,11 +615,64 @@ The following are all functions that MACsec Orch need to implement.
 
 - Delete SA
   1. Monitor the DEL message from the MACsec SA Table
-  2. Collect MACsec SA stats from counter DB
-  3. Delete Flex counter of MACsec SA stats
-  4. Delete MACsec SA
+  2. Delete Flex counter of MACsec SA stats
+  3. Delete MACsec SA
 
-##### 3.4.4.2 Flex Counter Interval
+##### 3.4.4.2 Flex Counter
+
+###### 3.4.4.2.1 Counter List
+
+``` rfc5234
+
+MACsec SA Ingress Table
+"MACSEC_SA_INGRESS"|{{port_name}}|{{SCI}}|{{AN}}
+    "NEXT_PN":{{PN}}
+    "InPktsOK":{{InPktsOK}}
+    "InPktsInvalid":{{InPktsInvalid}}       # the number of the frame is not valid and validateFrames is set to Check
+    "InPktsNotValid":{{InPktsNotValid}}     # the number of the frame is discarded
+    "InPktsNotUsingSA":{{InPktsNotUsingSA}} # The number of the dropped frame whose SA isn't enable but the validateFrames is Strict or its C bit in the SecTAG is set (Alias : InPktsNoSAError)
+    "InPktsUnusedSA":{{InPktsUnusedSA}}     # The number of the frame delivered to uncontrolled port, whose SA isn't enable because the validate frames is not Strict (Alias : InPktsNoSA)
+
+MACsec SC Ingress Table
+"MACSEC_SC_INGRESS"|{{port_name}}|{{SCI}}
+    "InPktsOK":{{InPktsOK}}
+    "InOctetsValidated":{{InOctetsValidated}}   # the number of octets of User Data recovered from received frames that were integrity protected but not encrypted.
+    "InOctetsDecrypted":{{InOctetsDecrypted}}   # the number of octets of User Data recovered from received frames that were both integrity protected and encrypted.
+    "InPktsUnchecked":{{InPktsUnchecked}}       # the number of the frame is not valid
+    "InPktsDelayed":{{InPktsDelayed}}           # the number of the frame that its PN is less than the lowest acceptable PN
+    "InPktsInvalid":{{InPktsInvalid}}           # the number of the frame is not valid and validateFrames is set to Check
+    "InPktsNotValid":{{InPktsNotValid}}         # the number of the frame is discarded
+    "InPktsLate":{{InPktsLate}}                 # the number of the frame that its PN is less than the lowest acceptable PN. this counter will be used if replayProtect is enable
+    "InPktsNotUsingSA":{{InPktsNotUsingSA}}     # The number of the dropped frame whose SA isn't enable but the validateFrames is Strict or its C bit in the SecTAG is set (Alias : InPktsNoSAError)
+    "InPktsUnusedSA":{{InPktsUnusedSA}}         # The number of the frame delivered to uncontrolled port, whose SA isn't enable because the validate frames is not Strict (Alias : InPktsNoSA)
+
+MACsec SA Egress Table
+"MACSEC_SA_EGRESS"|{{port_name}}|{{SCI}}|{{AN}}
+    "NEXT_PN":{{PN}}
+    "OutPktsProtected":{{OutPktsProtected}}   # the number of the frame that was only protected(without encrypted)
+    "OutPktsEncrypted":{{OutPktsEncrypted}}   # the number of the encrypted frame
+
+MACsec SC Egress Table
+"MACSEC_SC_EGRESS"|{{port_name}}|{{SCI}}
+    "OutPktsProtected":{{OutPktsProtected}}     # the number of the frame that was only protected(without encrypted)
+    "OutPktsEncrypted":{{OutPktsEncrypted}}     # the number of the encrypted frame
+    "OutOctetsProtected":{{OutOctetsProtected}} # the number of octets of User Data in transmitted frames that were integrity protected but not encrypted.
+    "OutOctetsEncrypted":{{OutOctetsEncrypted}} # the number of octets of User Data in transmitted frames that were both integrity protected and encrypted.
+
+MACsec SECY Table
+"MACSEC_SECY"|{{port_name}}
+    "OutPktsUntagged":{{OutPktsUntagged}}   # the number of the transmitted frame without protection
+    "InPktsUntagged":{{InPktsUntagged}}     # the number of the received frame without protection
+    "OutPktsTooLong":{{OutPktsTooLong}}     # the number of the frame whose length is larger than the max length of common port
+    "InPktsNoTag":{{InPktsNoTag}}           # the number of the received frame without security tag
+    "InPktsBadTag":{{InPktsBadTag}}         # the number of the received frame with bad security tag
+    "InPktsUnknownSCI":{{InPktsUnknownSCI}} # the number of the received frame with unknown SCI
+    "InPktsNoSCI":{{InPktsNoSCI}}           # the number of the received frame without SCI (those frames will be passed to uncontrolled port)
+    "InPktsOverrun":{{InPktsOverrun}}       # the number of the received frame that was discarded because the validation capabilities of the Cipher Suite cannot support current rate
+
+```
+
+###### 3.4.4.2.2 Interval
 
 Wpa_supplicant need to monitor the packet number for SAK refreshing. But if a copy of packet number delayed more than the preparation time of SAK, the requirement of SAK refreshing may not be realized by wpa_supplicant, which will cause the packet number to be exhausted.
 
@@ -650,36 +704,36 @@ Create macsec netdev on the virtual physical port, and then configure the macsec
 
 ![macsec init](images/macsec_init.png)  
 
-### 4.3 Create and Enable Ingress SA
-
-![create and enable sa](images/create_and_enable_ingress_sa.png)  
-
-### 4.4 Create and Enable Egress SA
-
-![create and enable sa](images/create_and_enable_egress_sa.png)  
-
-### 4.5 Create Ingress/Egress SC
+### 4.3 Create Ingress/Egress SC
 
 ![create ingress egress sc](images/create_ingress_egress_sc.png)  
 
-### 4.6 Deinit Port
+### 4.4 Create and Enable Ingress SA
 
-![deinit port](images/deinit_port.png)  
+![create and enable sa](images/create_and_enable_ingress_sa.png)  
 
-### 4.7 MACsec Deinit
+### 4.5 Create and Enable Egress SA
 
-![macsec deinit](images/macsec_deinit.png)  
+![create and enable sa](images/create_and_enable_egress_sa.png)  
 
-### 4.8 Disable and Remove Ingress SA
-
-![disable and remove ingress sa](images/disable_and_remove_ingress_sa.png)  
-
-### 4.9 Disable and Remove Egress SA
+### 4.6 Disable and Remove Egress SA
 
 ![disable and remove egress sa](images/disable_and_remove_egress_sa.png)  
 
 ***The message, disable transmit SA, can be ignored because the transmit SA will be automatically disabled when the new transmit SA was installed.***
 
-### 4.10 Remove Ingress/Egress SC
+### 4.7 Disable and Remove Ingress SA
+
+![disable and remove ingress sa](images/disable_and_remove_ingress_sa.png)  
+
+### 4.8 Remove Ingress/Egress SC
 
 ![remove ingress egress sc](images/remove_ingress_egress_sc.png)  
+
+### 4.9 MACsec Deinit
+
+![macsec deinit](images/macsec_deinit.png)  
+
+### 4.10 Deinit Port
+
+![deinit port](images/deinit_port.png)  
