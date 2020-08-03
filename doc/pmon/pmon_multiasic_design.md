@@ -20,7 +20,7 @@ The design approach taken is as given below,
 
 - The **interface related platform tables** like TRANSCEIVER\_INFO **,** TRANSCEIVER\_STATUS etc. will be stored in the STATE\_DB instance of **Asic database** (the database docker running in asic network namespace)
 
-- We are interested in the front-panel interfaces and not in the backplane interfaces between ASIC&#39;s. Hence in PMON daemons we will work with namespaces relating to front-panel interfaces.
+- In the multi-asic design there are namespaces created for front-end and back-end ASIC's. Since PMON is interested only in the front-panel interfaces (not in the backplane interfaces between ASIC&#39;s) it works with the namespaces relating to front-end ASIC's.
 
 - The **system wide platform tables** like PSU\_INFO, FAN\_INFO, EEPROM\_INFO etc. will be kept in the STATE\_DB instance of **Global database** (the database docker running in linux host)
 
