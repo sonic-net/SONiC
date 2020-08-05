@@ -1,7 +1,7 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts use docker to start/stop/wait the approprite containers. With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests.
+The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts use docker to start/stop/wait to manage the containers. With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests.
 
 # Requirements
 The following are the high level requirements to meet.
@@ -16,20 +16,20 @@ The following are the high level requirements to meet.
     * A feature could default to local image, when/where kubernetes image is not available.
     
 3. A feature's rules for start/stop stays the same, in either mode (legacy/kubernetes)
-    * Set of rules are currently executed through systemd config, start/stop/wait scripts.
+    * A set of rules are currently executed through systemd config, and bash scripts.
     * These rules will stay the same, for both modes
     * As these rules stay the same, this new feature will transparently support warm/fast/cold reboots.
     
-4. A feature could be completely kubernetes managed only.
+4. A feature could be marked as kubernetes only.
     * The switch image will not have this container image as embedded.
-    * The feature is completely controlled by switch as start/stop/enable/disable
+    * The feature is still controlled by switch as start/stop/enable/disable
    
 5. A kubernetes deployed container image must comply with guidelines set by SONiC
    * Required to undergo nightly tests to qualify
    * Kubernetes masters are required to deploy only qualified images
     
-5. A set of "system service ..." commands will manage the features in both modes.
-    * The same set of commands would work transparenly on features, irrespective of their current mode as legacy/kubernetes.
+5. A new set of "system service ..." commands are provided to manage the features.
+    * The commands would work transparenly on features, irrespective of their current mode as legacy/kubernetes.
     * This would cover all basic requirements, like start/stop/status/enable/disable/<more as deemed as necessary>
     
 6. The monit service would monitor the processes transparently across both modes.
@@ -52,11 +52,11 @@ The following are required, but not addressed in this design doc. This would be 
 * A feature is managed by systemd.
 * A feature has a systemd service file and one or more bash scripts that ensures the complex dependency rules set for the feature.
 * A feature's change of state could affect the state of other features.
-* All the complex dependencies are met through systemd service management of features.
+* All the complex dependencies across features are met through systemd service management.
 
 ## Proposed behavior at high level
-* Maintain the current behavior given above as the same in new mode with exception of few updates as explained below.
-   * There would not be any change required in the .service or bash scripts associated with the service, except for few minor updates described below.
+* Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
+   * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    * systemctl gets used in the same way as now, but under new wrapper commands.
    
 * The systemd would continue to manage features running in both legacy & kubernetes mode.
@@ -77,7 +77,7 @@ The following are required, but not addressed in this design doc. This would be 
    * docker wait  --> system container wait
    * docker inspect --> system container inspect
    * docker exec    --> system container exec 
-   The bash scripts called by system service would be updatd to call these new commands in place of docker commands. 
+   The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. 
    
    
 * The new "system container ..." commands would
@@ -94,21 +94,21 @@ The following are required, but not addressed in this design doc. This would be 
       * `current_owner = docker/kube` 
       * `docker_id = <ID of the container>`
       * `current_owner_update_ts = <Time stamp of change>`
-     The start.sh is updated to call `system container state <name> up <kube/systemd>`
+     The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/systemd>`, which in turn would do the above update.
       
    * On pre-stop
       * `current_owner = none` 
       * `docker_id = ""`
       * `current_owner_update_ts = <Time stamp of change>`
-     A local monit script is added to supervisord. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`
+     A local monit script is added to supervisord. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
   
-* Switches running completely in legacy mode may use the old systemctl or these new "system container ..." commands, or both.
+* Switches running completely in legacy mode may use the old systemctl or these new "system sevice/container ..." commands, or both.
 
 * Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
 * The hostcfgd helps switch current runtime mode from legacy to kubernetes.
-  There are few requirements to meet, before a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could be configured to run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
+  There are few requirements to meet before a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could be configured to run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
   
     Requirements to meet for successful deployment:
       * kubernetes server is configured and enabled.
@@ -116,7 +116,7 @@ The following are required, but not addressed in this design doc. This would be 
       * kubernetes manifest for this feature & device is available.
       * The corresponding container image could be successfully pulled down.
       
-   When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image.From here on this image is only controlled by kubernetes.
+   When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image.From here on this feature run on kubernetes deployed image.
    
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
       If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for <N> minutes or more, could make the necessary marks and restart the service, which would transparently start the local container image.
