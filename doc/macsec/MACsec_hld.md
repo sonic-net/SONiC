@@ -133,8 +133,8 @@ The following figure depicts the data flow and related components of MACsec. Dif
   - **wpa_supplicant** uses the MKA protocol to manage the MACsec session and key exchange in MACsec control plane. It calls the predefined MACsec plugin APIs to communicate with SONiC MACsec plugin.
   - **SONiC** MACsec Plugin is a plugin of wpa_supplicant that follows the predefined APIs of wpa_supplicant. It is responsible for bi-directional conversion of the MACsec parameters and SONiC database entries.
 
-- The green means these components are in SWSS container. This container uses the SAI APIs to control the MACsec security entities(SecY) according to databases entries and to synchronize the statistics from SecY to COUNTER_DB.
-  - **MACsecOrch** is a module of orchagent, that uses SAI APIs to manage the SecY according to messages from databases and synchronized the statistics of SecY to COUNTER_DB.
+- The green means these components are in SWSS container. This container uses the SAI APIs to control the MACsec security entities(SecY) according to databases entries and to synchronize the statistics from SecY to COUNTERS_DB.
+  - **MACsecOrch** is a module of orchagent, that uses SAI APIs to manage the SecY according to messages from databases and synchronized the statistics of SecY to COUNTERS_DB.
 
 - The blue one is MACsecSAI in SYNCD container. MACsecSAI is a set of APIs that are defined to communicate with the SecY. In the virtual switch, the SecY is Linux MACsec driver and MACsecSAI will use the ip commands to manage them. But in the real switch, the SecY is the MACsec cipher chip and the implementation of MACsecSAI will be provided by the vendor of the cipher chip.
 
@@ -544,9 +544,9 @@ The following list all MACsec control instructions:
 |    set_replay_protect    | SET APP_DB[MACSEC_PORT:ENABLE_REPLAY_PROTECT]=PARAM<br>SET APP_DB[MACSEC_PORT:REPLAY_WINDOW]=PARAM        |                                                                                                                                    |
 | set_current_cipher_suite |                                                                                                           | Has not been implemented in wpa_supplicant                                                                                         |
 |  enable_controlled_port  | SET APP_DB[MACSEC_PORT:ENABLE]=PARAM                                                                      | Enable MACsec port for traffics forwarding. if the controlled port was disabled, only EAPOL traffics can pass the controlled port. |
-|  get_receive_lowest_pn   | GET COUNTER_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_MINIMUM_XPN]                                       |                                                                                                                                    |
+|  get_receive_lowest_pn   | GET COUNTERS_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_MINIMUM_XPN]                                      |                                                                                                                                    |
 |  set_receive_lowest_pn   | SET APP_DB[MACSEC_INGRESS_SA:LOWEST_ACCEPTABLE_PN]=PARAM                                                  |                                                                                                                                    |
-|   get_transmit_next_pn   | GET COUNTER_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_XPN]                                               |                                                                                                                                    |
+|   get_transmit_next_pn   | GET COUNTERS_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_XPN]                                              |                                                                                                                                    |
 |   set_transmit_next_pn   | SET APP_DB[MACSEC_EGRESS_SA:INIT_PN]                                                                      |                                                                                                                                    |
 |    create_receive_sc     | SET APP_DB[MACSEC_INGRESS_SC]<br>WAIT SET STATE_DB[MACSEC_INGRESS_SC]                                     |                                                                                                                                    |
 |    delete_receive_sc     | DEL APP_DB[MACSEC_INGRESS_SC]<br>WAIT DEL STATE_DB[MACSEC_INGRESS_SC]                                     |                                                                                                                                    |
@@ -578,7 +578,7 @@ The following are all functions that MACsec Orch need to implement.
   4. Create an ACL entry to permit EAPOL packets to 802.1x destination MAC address
   5. Create an ACL entry to drop packets (to be later used for macsec_flow), If PROTECT_ENABLE. Otherwise, not drop
   6. Bind the ingress/egress ACL tables to the ingress/egress MACsec ports
-  7. Set Flex counters of MACsec port stats
+  7. Set Flex counter of MACsec port stats
   8. Set State DB
 
 - Disable MACsec
