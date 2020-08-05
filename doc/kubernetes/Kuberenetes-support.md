@@ -130,6 +130,25 @@ The following are required, but not addressed in this design doc. This would be 
 
   
 ## CONFIG-DB
+```
    Key: "Feature|<name>"
    set_owner   = systemd/kube;   Defaults to systemd, if this field is absent or empty string
+   kube_request = ""/"none"/"pending"/"ready"; Set to pending by container state update by kube for first time.
+                                               Monitored by hostcfgd, which sets to 'ready' and restart service
+                                               Expected to be "" or "none" in systemd mode.
+```
+  
+## STATE-DB
+```
+   Key: "Feature|<name>"
+   current_owner           = systemd/kube/none/"";   Empty or none implies that this container is not running
+   current_owner_update_ts = <timestamp of last current owner update in epoch seconds>
    
+   docker-id               = ""/"<container ID>"; Set to ID of the container, when running, else empty string or missing field.
+```
+
+## Commands in-depth
+
+### service system start/stop/wait
+
+   Transparently calls systemctl start/stop/wait.
