@@ -178,7 +178,7 @@ The following are required, but not addressed in this design doc. This would be 
    * The monit helps reverse back to lehacy mode, if kube pod fails
    These commands are described here 
    
-   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/Flowcharts.mht)
+   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
    
    
 ### service system start/stop/wait
