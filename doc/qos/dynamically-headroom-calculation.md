@@ -99,7 +99,7 @@ To tolerance that difference, we will introduce lua plugins. The idea is:
 
 ### The behavior of the dynamically headroom calculation solution
 
-- When a port's cable length or speed updated, headroom of all lossless priority groups will be updated according to the well-known formula and then programed to ASIC.
+- When a port's cable length, speed or MTU is updated, headroom of all lossless priority groups will be updated according to the well-known formula and then programed to ASIC.
 - When a port is shut down/started up or its headroom size is updated, the size of shared buffer pool will be adjusted accordingly. The less the headroom, the more the shared buffer and vice versa. By doing so, we are able to have as much shared buffer as possible.
 - When SONiC switch is upgraded from statically look-up to dynamically calculation, a port's headroom size of all the lossless priority groups will be calculated. The shared buffer pool will be adjusted according to the headroom size if they're the default value in the old image.
 - Pre-defined `pg_profile_lookup.ini` isn't required any more. When a new platform supports SONiC only a few parameters are required.
@@ -388,7 +388,7 @@ This table contains the default parameters when generating a ingress buffer prof
 
 ##### initialization
 
-It should be stored in `files/build_templates/buffers_config.j2` in `sonic-buildimage` repo and `/usr/share/sonic/templates/buffers_config.j2` in the switch. It will be rendered which `config qos reload` executed.
+It should be stored in `files/build_templates/buffers_config.j2` in `sonic-buildimage` repo and `/usr/share/sonic/templates/buffers_config.j2` in the switch. It will be rendered when `config qos reload` is executed.
 
 #### Table LOSSLESS_TRAFFIC_PATTERN
 
@@ -490,8 +490,10 @@ The initialization of the above entries is the same as that of `BUFFER_PROFILE` 
 Besides the above entries, there are the following ones which will be generated on-the-fly:
 
 1. Headroom override entries for lossless traffic, which will be configured by user.
-2. Entries for ingress loessless traffic with specific cable length and speed. They will be referenced by `BUFFER_PG` table and created if there is no such entry corresponding to a newly occuring `speed` and `cable length` tuple. The name convention should be `pg_lossless_<speed>_<length>_profile`.
-3. On top of 2, on platforms who have different gearbox models among ports, the gearbox model should also be reflected in the profile. In this case, even though two ports share the same speed and cable length, they need to adopt different profile if their gearbox model isn't same. The name convention should be `pg_lossless_<speed>_<length>_<gearbox-model>_profile`.
+2. Entries for ingress loessless traffic with specific cable length, speed and MTU. They will be referenced by `BUFFER_PG` table and created if there is no such entry corresponding to a newly occuring `speed` and `cable length` tuple. The name convention should be `pg_lossless_<speed>_<length>[_mtu<mtu>][_th<dynamic_th>]_profile`.
+    - The `[_mtu<mtu>]` part only exists when the port's MTU isn't the default value.
+    - The `[_th<dynamic_th>]` part only exists when the dynamic_th isn't the default value.
+3. On top of 2, on platforms who have different gearbox models among ports, the gearbox model should also be reflected in the profile. In this case, even though two ports share the same speed and cable length, they need to adopt different profile if their gearbox model isn't same. The name convention should be `pg_lossless_<speed>_<length>_[mtu<mtu>]_<gearbox-model>_profile`.
 
 ***Example***
 
@@ -502,7 +504,7 @@ An example of mandatory entries on Mellanox platform:
         "ingress_lossless_profile": {
             "pool":"[BUFFER_POOL|ingress_lossless_pool]",
             "size":"0",
-            "dynamic_th":"0"
+            "dynamic_th":"7"
         },
         "ingress_lossy_profile": {
             "pool":"[BUFFER_POOL|ingress_lossy_pool]",
@@ -516,8 +518,8 @@ An example of mandatory entries on Mellanox platform:
         },
         "egress_lossy_profile": {
             "pool":"[BUFFER_POOL|egress_lossy_pool]",
-            "size":"4096",
-            "dynamic_th":"3"
+            "size":"9216",
+            "dynamic_th":"7"
         },
         "q_lossy_profile": {
             "pool":"[BUFFER_POOL|egress_lossy_pool]",
@@ -531,7 +533,7 @@ An example of mandatory entries on Mellanox platform:
 
 Table BUFFER_PG contains the maps from the `port, priority group` tuple to the `buffer profile` object.
 
-Currently, there already are some fields in `BUFFER_PG` table. In this design, the field `profile` can be optional. Not providing this field means the `profile` needs to be dynamically calculated.
+Currently, there already are some fields in `BUFFER_PG` table. In this design, the field `profile` can be optional or `NULL`. Not providing this field or being `NULL` means the `profile` needs to be dynamically calculated.
 
 ##### Schema
 
@@ -539,7 +541,7 @@ Currently, there already are some fields in `BUFFER_PG` table. In this design, t
     key             = BUFFER_PG|<name>
     profile         = reference to BUFFER_PROFILE object
                 ; When headroom_type of the profile is "static", the profile should contains all headroom information.
-                ; When it's "dynamic", the profile should only contain dynamic_th and all other headroom information should by dynamically calculated.
+                ; When it's "dynamic", the profile should only contain dynamic_th and all other headroom information should be dynamically calculated.
 ```
 
 ##### Initialization
@@ -548,21 +550,21 @@ The entry `BUFFER_PG|<port>|0` is for ingress lossy traffic and will be generate
 
 The headroom override entries are configured via CLI.
 
-Other entries are for ingress lossless traffic and will be generated when the ports' `speed` or `cable length` updated.
+Other entries are for ingress lossless traffic and will be generated when the ports' `speed` or `cable length` or `MTU` updated.
 
 #### Other tables referenced
 
-The port speed needs to be fetched from `PORT` table.
+The port speed and MTU need to be fetched from `PORT` table.
 The cable length needs to be fetched from `CABLE_LENGTH` table.
 
 ### APPL_DB
 
-Table `BUFFER_POOL`, `BUFFER_PROFILE` and `BUFFER_PG` are introduced in `APPL_DB`. They are the equivalent of tables with the same name in `CONFIG_DB`. The `APPL_DB` tables shared the similar fields with that in `CONFIG_DB` tables except some minor differences which will be elaborated below.
+Table `BUFFER_POOL`, `BUFFER_PROFILE` and `BUFFER_PG` are introduced in `APPL_DB`. They are the equivalent of tables with the same name in `CONFIG_DB`. The `APPL_DB` tables share the similar fields with that in `CONFIG_DB` tables except some minor differences which will be elaborated below.
 
 The ways in which the `APPL_DB` tables are initializd are similar:
 
 - When system starts, `Buffer Manager` consumes entries of the equivalent tables in `CONFIG_DB` and creates corresponding entries in `APPL_DB` tables for `static` entries.
-- When a new `speed`, `cable length` tuple occurs in the system, the `Buffer Manager` will create new entries in tables `APPL_DB` table.
+- When a new `speed`, `cable length`, `MTU` tuple occurs in the system, the `Buffer Manager` will create a new entry in `APPL_DB` tables.
 
 #### BUFFER_POOL
 
@@ -583,7 +585,7 @@ The only difference between this table and `CONFIG_DB.BUFFER_POOL` is that field
 Difference between `APPL_DB.BUFFER_PROFILE` and `CONFIG_DB.BUFFER_PROFILE` including:
 
 1. `headroom_type` exists only in CONFIG_DB.
-2. In APPL_DB the `xon`, `xoff` and `size` always exist while in CONFIG_DB these fields exist only if `headroom_type` is `static`.
+2. In APPL_DB the `xon`, `xoff` and `size` always exist while in CONFIG_DB these fields exist only if `headroom_type` isn't `dynamic`.
 
 ##### Schema
 
@@ -617,7 +619,7 @@ Other buffer related tables includes `BUFFER_QUEUE`, `BUFFER_PORT_INGRESS_PROFIL
 
 The following flows will be described in this section.
 
-- When a port's speed or cable length is updated, the `BUFFER_PG`, `BUFFER_PROFILE` will be updated to reflect the headroom size regarding the new speed and cable length. As the headroom size updated, `BUFFER_POOL` will be also updated accordingly.
+- When a port's speed, cable length or MTU is updated, the `BUFFER_PG`, `BUFFER_PROFILE` will be updated to reflect the headroom size regarding the new speed and cable length. As the headroom size updated, `BUFFER_POOL` will be also updated accordingly.
 - When a port's admin status is updated, the `BUFFER_PG` and `BUFFER_PROFILE` won't be updated. However, as only administratively up ports consume headroom, the `BUFFER_POOL` should be updated by adding the buffer released by the admin down port.
 - When additional lossless PGs have been configured on the switch, `BUFFER_PG` table need to be updated as well as the `BUFFER_POOL`.
 - When a static profile is configured on or removed from a port, the `BUFFER_PROFILE` and/or `BUFFER_PG` table will be updated accordingly.
@@ -635,7 +637,7 @@ Meta flows are the flows that will be called in other flows.
 ##### Handle BUFFER_POOL table update
 
 1. if the `buffer pool` has the `size` field, it will be treated as a fixed-size pool and pushed into `APPL_DB` directly.
-2. otherwise it's a dynamic size pool, the `BUFFER_MAX_PARAM.mmu_size` will be taken as size of that pool.
+2. otherwise it's a dynamic size pool, its size will be updated by lua plugin.
 
 ##### Handle BUFFER_PROFILE table update
 
@@ -643,19 +645,20 @@ On insert new entry:
 
 1. ingress = `buffer pool`.ingress
 2. if there is `xoff`, lossless = true
-3. if `headroom_type` is `dynamic`, dynamically_calculated = true, lossless = true
-4. if dynamically_calculated isn't true, insert into APPL_DB directly.
+3. by default, dynamically_calculated = false. if `headroom_type` is `dynamic`, dynamically_calculated = true, lossless = true
+4. if the profile isn't ingress lossless, insert into APPL_DB directly.
+5. otherwise it will be handled according to the flow detailed below.
 
 On remove existing entry:
 
 1. if profile is referenced by PGs, return `need retry`
-2. if it isn't a dynamically_calculated profile, remove it from `APPL_DB`
+2. remove it from `APPL_DB`
 
 ##### Handle BUFFER_PG table update
 
 1. If there isn't a profile referenced in this `BUFFER_PG` entry, it's a dynamically calculate entry.
 2. Otherwise, if the profile is ingress lossless
-   - headroom_type = `dynamic`, dynamically calculated profile with static configured alpha. It should have the same name convention as dynamically generated profiles.
+   - headroom_type = `dynamic`, dynamically calculated profile with static configured alpha. In this case only `dynamic_th` is available in the profile. The dynamic profile will be generated according to the port's speed, cable length and MTU.
    - otherwise, headroom override.
 3. Otherwise, lossy profile or egress profile, insert into/remove from APPL_DB directly.
 
@@ -683,7 +686,8 @@ The parameters are:
 2. Cable length, in unit of meters and suffixed with "m". It should have the same format of that in `CONFIG_DB|CABLE_LENGTH` table.
 
    For example, 300m stands for 300 meters.
-3. Gearbox delay, in unit of nano second.
+3. MTU, in unit of bytes.
+4. Gearbox delay, in unit of nano second.
 
 The return value of the plugin includes a sequence of strings with each standing for one parameter and having convention of `<field>:<value>`. For example:
 
@@ -741,29 +745,30 @@ Therefore, headroom is calculated as the following:
 - `cell occupancy` = (100 - `small packet percentage` + `small packet percentage` * `worst case factor`) / 100
 - `kb on cable` = `cable length` / `speed of light in media` * `port speed`
 - `kb on gearbox` = `port speed` * `gearbox delay` / 8 / 1024
-- `propagation delay` = `mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
+- `propagation delay` = `port mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
 - `Xon` = `pipeline latency`
-- `Xoff` = `mtu` + `propagation delay` * `cell occupancy`
+- `Xoff` = `lossless mtu` + `propagation delay` * `cell occupancy`
 - `headroom` = `Xoff` + `Xon`
 
 The values used in the above procedure are fetched from the following table:
 
 - `cable length`: CABLE_LENGTH|\<name\>|\<port\>
 - `port speed`: PORT|\<port name\>|speed
+- `port mtu`: PORT|\<port name\>|mtu, default value is `9100`
 - `gearbox delay`: PERIPHERIAL_TABLE|\<gearbox name\>|gearbox_delay
 - `mac/phy delay`: ASIC_TABLE|\<asic name\>|mac_phy_delay
 - `peer response`: ASIC_TABLE|\<asic name\>|peer_response_time
 - `cell`: ASIC_TABLE|\<asic name\>|cell_size
 - `small packet percentage`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|small_packet_percentage
-- `mtu`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|mtu
+- `lossless mtu`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|mtu
 
 #### Allocate a new profile
 
-When a port's `cable length` or `speed` updated, a profile corresponding to the new `cable length`, `speed` tuple should be looked up from the database. If there isn't one, a new one should be created.
+When a port's `cable length`, `speed` or `MTU` updated, a profile corresponding to the new `cable length`, `speed` and `MTU` tuple should be looked up from the database. If there isn't one, a new one should be created.
 
 The flow is like the following:
 
-1. Look up in `APPL_DB`, check whether there has already been a profile corresponding to the new `cable length` and `speed` tuple. If yes, return the entry.
+1. Look up in `APPL_DB`, check whether there has already been a profile corresponding to the new `cable length`, `speed` and `MTU` tuple. If yes, return the profile.
 2. Call lua plugin to calculate the headroom information based on the parameters and the well-known formula.
 3. Create a profile based on the calculated headroom information and insert it to the `APPL_DB.BUFFER_PROFILE` table.
 4. The `BufferOrch` will consume the update in `APPL_DB.BUFFER_PROFILE` table and call SAI to create a new profile.
@@ -776,7 +781,7 @@ __Figure 2: Allocate a New Profile__
 
 This is for dynamic profile only. Static profile won't be removed even it isn't referenced any more.
 
-When a port's `cable length` or `speed` updated, the profile related to the old `cable length` or `speed` tuple probably won't be referenced any longer. In this case, the profile should be removed.
+When a port's `cable length`, `speed` or `MTU` updated, the profile related to the old tuple probably won't be referenced any longer. In this case, the profile should be removed.
 
 ![Flow](headroom-calculation-images/release-profile.png "Figure 3: Release a No-Longer-Referenced Profile")
 
@@ -784,17 +789,16 @@ __Figure 3: Release a No-Longer-Referenced Profile__
 
 #### Calculate the Buffer Pool Size
 
-When any port's `cable length` or `speed` updated or `admin state` changed, the buffer pool size should be recalculated.
+When any port's `cable length`, `speed` or `MTU` updated or `admin state` changed, the buffer pool size should be recalculated.
 
 An exception is warm reboot. During warm reboot the headroom is updated for each ports, which causes the buffer pool be updated for many times. However, the correct buffer pool data that it will eventually be has already been in switch chip. In this sense, to update buffer pool frequently is unnecessary and should be avoided.
 
 To achieve that, the buffer pool shouldn't be updated during warm reboot and will be updated once warm reboot finished.
 
-The avaliable buffer pool size euqals to the maxinum avaliable buffer pool size minus the size of buffer reserved for port and (port, PG) in ingress. The algorithm is as below:
+The avaliable buffer pool size euqals to the maxinum avaliable buffer pool size minus the accumulative size of buffer reserved for port and (port, PG) in ingress and (port, queue) in egress. The algorithm is as below:
 
-1. Accumulate all headroom by iterating all `port`, `priority group` tuple and putting their `size` together.
-2. Some vendors may reserve memory for lossy PGs regardless of the `BUFFER_PROFILE` configuration. In this case, the reserved memory size for each lossy PG should be fetched from `ASIC_TABLE.pipeline_latency`.
-3. Accumulate all reserved buffer for egress traffic for all ports.
+1. Accumulate all headroom by iterating all `port`, `priority group` tuple and `port`, `queue` tuple and putting their `size` together.
+2. Accumulate all reserved buffer for egress traffic for all ports.
 
 The administratively down ports doesn't consume buffer hense they should be ruled out.
 
@@ -804,22 +808,20 @@ __Figure 4: Calculate the Pool Size__
 
 ### Main Flows
 
-#### Port's speed or cable length updated
+#### Port's speed, cable length or MTU updated
 
-There are admin speed and operational speed in the system, which stand for the speed configured by user and negotiated with peer device respectively. In the buffer design, we are talking about the admin speed.
+There are admin speed and operational speed in the system, which represents the speed configured by user and negotiated with peer device respectively. In the buffer design, we are talking about the admin speed.
 
-1. Read the speed and cable length of the port
-2. Check the following conditions, exit on anyone fails:
-    - Check whether `headroom_type` in the profile referenced by `CONFIG_DB.BUFFER_PROFILE|<port>|<lossless PG>` is of `dynamic` which means dynamically calculating headroom is required for the port.
-    - Check whether there is a cable length configured for the port.
-    - Check whether the headroom size calculated based on the speed, cable length pair is legal, which means it doesn't exceed the maxinum value.
+Each lossless PG configured in the system is handled in the following steps:
+1. Calculate the headroom information based on the `speed`, `cable length` and `MTU` of the port
+2. Check whether the headroom size calculated based on the `speed`, `cable length` and `MTU` tuple is legal, which means it doesn't exceed the maximum value.
 
-   If anyone of the above condition failed, none of the `CNOFIG_DB`, `APPL_DB` or `Buffer Manager`'s internal data will be changed. This will result in inconsistence among the entities. A piece of error message will be logged for the purpose of promoting user to revert the configuration.
-3. Allocate a buffer profile related to the `cable length` and `speed`.
-4. Check whether the headroom info is legal. Exit if not.
-5. For each lossless PGs configured on the port, deploy the headroom for the port, PG tuple.
-6. Recalculate and deploy buffer pool info.
-7. If the old profile isn't referenced by other ports any longer, remove it.
+   If anyone of the above condition failed, neither the `APPL_DB` nor `Buffer Manager`'s internal data will be changed. However, the `CONFIG_DB` will remain the new value (which cause headroom size exceed the maximum value).
+
+   This will result in inconsistence among the entities. A piece of error message will be logged for the purpose of promoting user to revert the configuration. It's user's responsibility to revert the content in `CONFIG_DB` to make it align.
+3. Update the new profile to `APPL_DB`.
+4. If the old profiles aren't referenced by other ports any longer, remove it.
+After the above steps done for all PGs, the buffer pool size will be updated accordingly.
 
 ![Flow](headroom-calculation-images/cable-length-speed-update.png "Figure 5: Cable length or speed updated")
 
@@ -837,10 +839,6 @@ This flow handles the case that additional lossless PGs are configured on a port
 2. Push the additional lossless PGs on the port.
 3. Recalculate and apply the buffer pool size.
 
-![Flow](headroom-calculation-images/add-headroom-override.png "Figure 6: Configure additional lossless PGs")
-
-__Figure 7: Configure additional lossless PGs__
-
 #### Remove lossless PGs on a port
 
 This flow handles the case that additional lossless PGs are configured on a port on which there have already been some lossless PGs.
@@ -856,10 +854,6 @@ When a static headroom is configured on a port
 2. Recalculate the buffer pool size.
 3. Check whether the profile referenced by this port is still referenced by other ports, if no remove it.
 
-![Flow](headroom-calculation-images/add-headroom-override.png "Figure 7: Apply Static Headroom Configure")
-
-__Figure 7: Apply Static Headroom Configure__
-
 #### Remove static headroom configure
 
 When a static headroom is removed on a port:
@@ -867,17 +861,15 @@ When a static headroom is removed on a port:
 1. Remove the entry from the `APPL_DB`.
 2. Recalculate the buffer pool size.
 
-![Flow](headroom-calculation-images/remove-headroom-override.png "Figure 8: Remove Static Headroom Configure")
-
-__Figure 8: Remove Static Headroom Configure__
-
 #### Update static buffer profile
 
-When a static buffer profile is updated, it will be propagated to `Buffer Orch` and then `SAI`. The buffer pgs that reference this buffer profile don't need to be updated. However, as the total number of headroom buffer updated, we need to check whether the headroom is legal and the buffer pool size should also be recalculated.
+A statically configured buffer profile can be used for headroom override. When this kind of buffer profile is updated, it will be propagated to `Buffer Orch` and then `SAI`. The buffer pgs that reference this buffer profile don't need to be updated. However, as the total number of headroom buffer updated, we need to check whether the headroom is legal and the buffer pool size should also be recalculated.
 
-![Flow](headroom-calculation-images/static-profile-updated.png "Figure 9: Static Buffer Profile Updated")
+A statically configured buffer profile can also be used as dynamic headroom with non-default dynamic_th. In this case, all PGs that reference this profile need to be updated.
 
-__Figure 9: Static Buffer Profile Updated__
+![Flow](headroom-calculation-images/static-profile-updated.png "Figure 6: Static Buffer Profile Updated")
+
+__Figure 6: Static Buffer Profile Updated__
 
 ### Start and SONiC-to-SONiC upgrade flows
 
@@ -897,6 +889,16 @@ When system cold reboot from current implementation to new one, `db_migrator` wi
     - If a `BUFFER_PROFILE` item doesn't meet any of the above conditions, it will be treated as a `static` profile.
 
 After that, `Buffer Manager` will start as normal flow which will be described in the next section.
+
+#### Upgrade by warm reboot
+
+The flow of upgrading by warm reboot is the same as that by cold reboot except that the buffer tables need to be copied from `CONFIG_DB` to `APPL_DB`. This is because when system is warm rebooted from old image to new image:
+
+- There is no buffer tables stored in APPL_DB
+- Buffermgrd isn’t able to generate the buffer tables in APPL_DB in time even if it is started at a very early stage
+As a result, buffer configuration won’t be ready when orchagent is starting from warm start from the old image, causing all the depending tables fail from being drained and the warm reboot fails.
+
+To copy buffer tables from `CONFIG_DB` to `APPL_DB` effectively avoid the failure in the above scenario.
 
 #### Daemon starts with -c option
 
@@ -922,25 +924,6 @@ This can be achieved by checking whether the warm reboot is finished ahead of ca
 
 ## Command line interface
 
-### To configure lossless traffic on certain priority
-
-The command `configure interface lossless_pg <add|remove>` is designed to configure the priorities used for lossless traffic.
-
-```cli
-sonic#config interface lossless_pg add <port> <pg-map>
-sonic#config interface lossless_pg remove <port>
-```
-
-All the parameters are mandatory.
-
-The `pg-map` stands for the map of priorities for lossless traffic. It should be a string and in form of a bit map like `3-4`. The `-` connects the lower bound and upper bound of a range of priorities.
-
-A new range of PGs will be added on top of current lossless PGs. The new PG range must disjoint with all existing PGs.
-
-For example, currently the PG range 3-4 exist on port Ethernet4, to add PG range 4-5 will fail because it doesn't disjoint with 3-4. To add PG range 5-6 will succeed. After that both range 3-4 and 5-6 will work as lossless PG.
-
-All lossless PGs on a port must share the same profile. If existing lossless PGs references another profile which is static, the command will fail.
-
 ### To configure a static profile
 
 A static profile can be used to override the headroom size and/or dynamic_th of a port, PG.
@@ -949,11 +932,11 @@ The command `configure buffer_profile` is designed to create or destroy a static
 
 ```cli
 sonic#config buffer_profile add <name> --xon <xon> --xoff <xoff> --headroom <headroom> --dynamic_th <dynamic_th>
+sonic#config buffer_profile set <name> --xon <xon> --xoff <xoff> --headroom <headroom> --dynamic_th <dynamic_th>
 sonic#config buffer_profile remove <name>
 ```
 
 All the parameters are devided to two groups, one for headroom and one for dynamic_th. For any command at lease one group of parameters should be provided.
-
 For headroom parameters:
 
 - At lease one of `xoff` and `headroom` should be provided and the other will be optional and conducted via the formula `xon + xoff = headroom`.
@@ -963,24 +946,36 @@ All other parameters are mandatory.
 
 If only headroom parameters are provided, the `dynamic_th` will be taken from `CONFIG_DB.DEFAULT_LOSSLESS_BUFFER_PARAMETER.default_dynamic_th`.
 
-If only dynamic_th parameter is provided, the `headroom_type` will be set as `dynamic` and `xon`, `xoff` and `size` won't be set.
+If only dynamic_th parameter is provided, the `headroom_type` will be set as `dynamic` and `xon`, `xoff` and `size` won't be set. This is only used for non default dynamic_th. In this case, the profile won't be deployed to ASIC directly. It can be configured to a lossless PG and then a dynamic profile will be generated based on the port's speed, cable length, and MTU and deployed to the ASIC.
 
-When delete a profile, it shouldn't be referenced by any entry in `CONFIG_DB.BUFFER_PG`.
+The subcommand `add` is designed for adding a new buffer profile to the system.
 
-### To configure headroom override on a port or port, PG
+The subcommand `set` is designed for modifying an existing buffer profile in the system.
+For a profile with dynamically calculated headroom information, only `dynamic_th` can be modified. 
 
-The command `configure interface headroom_override` is designed to enable or disable the headroom override for a certain port.
+The subcommand `remove` is designed for removing an existing buffer profile from the system. When removing a profile, it shouldn't be referenced by any entry in `CONFIG_DB.BUFFER_PG`.
+
+### To configure lossless traffic with dynamic buffer or headroom override on certain priority
+
+The command `configure interface buffer priority-group lossless <add|remove>` is designed to configure the priorities used for lossless traffic with dynamic buffer calculation or headroom override.
 
 ```cli
-sonic#config interface headroom_override add <port> --profile <profile> --pg <lossless_pg>
-sonic#config interface headroom_override remove <port>
+sonic#config interface buffer priority-group lossless add <port> <pg-map> [override-profile]
+sonic#config interface buffer priority-group lossless set <port> <pg-map> [override-profile]
+sonic#config interface buffer priority-group lossless remove <port> [pg-map]
 ```
 
-Headroom override will be enabled on all lossless PGs desinated by `lossless_pg` on the `<port>`. If this parameter isn't provided the PG `3-4` will be used.
+The `pg-map` represents the map of priorities for lossless traffic. It should be a string and in form of a bit map like `3-4`. The `-` connects the lower bound and upper bound of a range of priorities.
 
-The `<profile>` must be defined in advance.
+The subcommand `add` is designed for adding a new lossless PG on top of current PGs. The new PG range must be disjoint with all existing PGs.
 
-All dynamically calculated lossless PGs must be removed before configure headroom override.
+For example, currently the PG range 3-4 exist on port Ethernet4, to add PG range 4-5 will fail because it isn't disjoint with 3-4. To add PG range 5-6 will succeed. After that both range 3-4 and 5-6 will work as lossless PG.
+
+The `override-profile` parameter is optional. When provided, it represents the predefined buffer profile for headroom override.
+
+The subcommand `set` is designed for modifying an existing PG from dynamic calculation to headroom override or vice versa. The `pg-map` must be an existing PG.
+
+The subcommand `remove` is designed for removing an existing PG. The option `pg-map` must be an existing PG. All lossless PGs will be removed in case no `pg-map` provided.
 
 ### To configure cable length
 
@@ -1000,12 +995,118 @@ The following command is used to configure the cable length of Ethernet0 as 10 m
 sonic#config interface cable_length Ethernet0 10m
 ```
 
-### To display the current configuration
+### To display the current buffer information
 
-The command `mmuconfig` is extended to display the current configuration.
+The command `show buffer configuration` is designed to display the current buffer configuration which is stored in config database. It displays all the content of `BUFFER_POOL` and `BUFFER_PROFILE` table in the `CONFIG_DB`.
+
+The command `show buffer information` is designed to display the current buffer state which has already deployed to ASIC. It displays all the content of `BUFFER_POOL` and `BUFFER_PROFILE` table in the `STATE_DB`.
 
 ```cli
-sonic#mmuconfig -l
+sonic#show buffer configuration
+sonic#show buffer state
+```
+
+Both commands share the similar format except in the output of command `show buffer configuration`:
+
+- there isn't pool size field for dynamic calculated pools
+- there isn't dynamically generated buffer profiles
+
+For buffer pools, the following fields are available:
+
+- `type` represents the type of the buffer pool, including `egress` and `ingress`.
+- `mode` represents the type of the buffer pool threshold, including `dynamic` and `static`.
+- `size` represents the configured size of a pool. For a dynamically calculated pool, no `size` configured.
+
+For example,
+
+```cli
+Pool: ingress_lossless_pool
+----  -------
+type  ingress
+mode  dynamic
+----  -------
+
+Pool: egress_lossless_pool
+----  --------
+type  egress
+mode  dynamic
+size  14024640
+----  --------
+
+Pool: ingress_lossy_pool
+----  -------
+type  ingress
+mode  dynamic
+----  -------
+
+Pool: egress_lossy_pool
+----  -------
+type  egress
+mode  dynamic
+----  -------
+```
+
+For buffer profiles, the following fields are available:
+
+- `xon` and `xoff`, represents the `xon` and `xoff` threshold respectively.
+- `dynamic_th`, represents the dynamic threshold.
+- `size`, represents the reserved size of the profile.
+- `pool`, represents the buffer pool.
+- `headroom_type`, represents whether the headroom information in the profile is dynamically calculated.
+
+For example,
+
+```cli
+Profile: pg_lossless_100000_5m_profile
+----------  -----------------------------------
+xon         18432
+dynamic_th  0
+xoff        30720
+pool        [BUFFER_POOL:ingress_lossless_pool]
+size        49152
+----------  -----------------------------------
+
+Profile: q_lossy_profile
+----------  -------------------------------
+dynamic_th  3
+pool        [BUFFER_POOL:egress_lossy_pool]
+size        0
+----------  -------------------------------
+
+Profile: egress_lossy_profile
+----------  -------------------------------
+dynamic_th  7
+pool        [BUFFER_POOL:egress_lossy_pool]
+size        9216
+----------  -------------------------------
+
+Profile: egress_lossless_profile
+----------  ----------------------------------
+dynamic_th  7
+pool        [BUFFER_POOL:egress_lossless_pool]
+size        0
+----------  ----------------------------------
+
+Profile: ingress_lossless_profile
+----------  -----------------------------------
+dynamic_th  7
+pool        [BUFFER_POOL:ingress_lossless_pool]
+size        0
+----------  -----------------------------------
+
+Profile: ingress_lossy_profile
+----------  --------------------------------
+dynamic_th  3
+pool        [BUFFER_POOL:ingress_lossy_pool]
+size        0
+----------  --------------------------------
+
+Profile: nondef
+-------------  -----------------------------------
+dynamic_th     1
+headroom_type  dynamic
+pool           [BUFFER_POOL|ingress_lossless_pool]
+-------------  -----------------------------------
 ```
 
 ### To clear all QoS related configuration from database
@@ -1027,7 +1128,7 @@ In configure database there should be:
 ```json
     {
         "BUFFER_PG" : {
-            "Ethernet0|3-5" : {}
+            "Ethernet0|3-5" : {"profile": "NULL"}
         }
     }
 ```
@@ -1038,7 +1139,7 @@ In APPL_DB there should be:
     {
         "BUFFER_PROFILE" : {
             "pg_lossless_100000_5m_profile" : {
-                "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
+                "pool" : "[BUFFER_POOL:ingress_lossless_pool]",
                 "xon" : "18432",
                 "xoff" : "20480",
                 "size" : "38912",
@@ -1046,8 +1147,8 @@ In APPL_DB there should be:
             }
         },
         "BUFFER_PG" : {
-            "Ethernet0|3-4" : {
-                "profile" : "[BUFFER_PROFILE|pg_lossless_100000_5m_profile]"
+            "Ethernet0:3-4" : {
+                "profile" : "[BUFFER_PROFILE:pg_lossless_100000_5m_profile]"
             }
         }
     }
@@ -1058,8 +1159,8 @@ In APPL_DB there should be:
 Configure commands:
 
 ```cli
-config buffer_profile add pg_lossless_100000_5m_customize_profile --dynamic_th 3
-config interface headroom_override enable Ethernet0 --profile pg_lossless_100000_5m_customize_profile
+config buffer_profile add customize_profile_nondef_dynamic_th -dynamic_th 3
+config interface buffer priority_group lossless add Ethernet0 pg_lossless_100000_5m_customize_profile
 ```
 
 In configure database there should be:
@@ -1067,15 +1168,15 @@ In configure database there should be:
 ```json
     {
         "BUFFER_PROFILE" : {
-            "pg_lossless_100000_5m_customize_profile" : {
+            "customize_profile_nondef_dynamic_th" : {
                 "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
                 "dynamic_th" : "3",
                 "headroom_type" : "dynamic"
             }
         },
         "BUFFER_PG" : {
-            "Ethernet0|3-4" : {
-                "profile" : "[BUFFER_PROFILE|pg_lossless_100000_5m_customize_profile]",
+            "Ethernet0:3-4" : {
+                "profile" : "[BUFFER_PROFILE|customize_profile_nondef_dynamic_th]",
             }
         }
     }
@@ -1086,8 +1187,8 @@ In APPL_DB there should be:
 ```json
     {
         "BUFFER_PROFILE" : {
-            "pg_lossless_100000_5m_customize_profile" : {
-                "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
+            "pg_lossless_100000_5m_th3_profile" : {
+                "pool" : "[BUFFER_POOL:ingress_lossless_pool]",
                 "xon" : "18432",
                 "xoff" : "20480",
                 "size" : "38912",
@@ -1095,8 +1196,8 @@ In APPL_DB there should be:
             }
         },
         "BUFFER_PG" : {
-            "Ethernet0|3-4" : {
-                "profile" : "[BUFFER_PROFILE|pg_lossless_100000_5m_customize_profile]"
+            "Ethernet0:3-4" : {
+                "profile" : "[BUFFER_PROFILE:pg_lossless_100000_5m_th3_profile]"
             }
         }
     }
@@ -1107,9 +1208,9 @@ In APPL_DB there should be:
 Configure commands:
 
 ```cli
-config interface lossless_pg set Ethernet0 --pg 3-4,6
-config buffer_profile add pg_lossless_custom_profile --dynamic_th 3 --xon 18432 --size 36864
-config interface headroom_override enable Ethernet0 --profile pg_lossless_custom_profile --pg 3-4
+config buffer_profile add pg_lossless_custom_profile -dynamic_th 3 -xon 18432 -headroom 36864
+config interface buffer priority_group lossless set Ethernet0 3-4 pg_lossless_custom_profile
+config interface buffer priority_group lossless add Ethernet0 6
 ```
 
 In configure database there should be:
@@ -1120,7 +1221,6 @@ In configure database there should be:
             "pg_lossless_custom_profile" : {
                 "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
                 "dynamic_th" : "3",
-                "headroom_type" : "static",
                 "xon" : "18432",
                 "xoff" : "18432",
                 "size" : "36864"
@@ -1130,7 +1230,7 @@ In configure database there should be:
             "Ethernet0|3-4" : {
                 "profile" : "[BUFFER_PROFILE|pg_lossless_custom_profile]",
             },
-            "Ethernet0|6" : {}
+            "Ethernet0|6" : {"profile": "NULL"}
         }
     }
 ```
@@ -1141,14 +1241,14 @@ In APPL_DB there should be:
     {
         "BUFFER_PROFILE" : {
             "pg_lossless_custom_profile" : {
-                "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
+                "pool" : "[BUFFER_POOL:ingress_lossless_pool]",
                 "xon" : "18432",
                 "xoff" : "18432",
                 "size" : "36864",
                 "dynamic_th" : "3"
             },
             "pg_lossless_100000_5m_profile" : {
-                "pool" : "[BUFFER_POOL|ingress_lossless_pool]",
+                "pool" : "[BUFFER_POOL:ingress_lossless_pool]",
                 "xon" : "18432",
                 "xoff" : "20480",
                 "size" : "38912",
@@ -1156,11 +1256,11 @@ In APPL_DB there should be:
             }
         },
         "BUFFER_PG" : {
-            "Ethernet0|3-4" : {
-                "profile" : "[BUFFER_PROFILE|pg_lossless_custom_profile]"
+            "Ethernet0:3-4" : {
+                "profile" : "[BUFFER_PROFILE:pg_lossless_custom_profile]"
             },
-            "Ethernet0|6" : {
-                "profile" : "[BUFFER_PROFILE|pg_lossless_100000_5m_profile]"
+            "Ethernet0:6" : {
+                "profile" : "[BUFFER_PROFILE:pg_lossless_100000_5m_profile]"
             }
         }
     }
@@ -1258,41 +1358,3 @@ In APPL_DB there should be:
 
 6. Support variant way to trigger XON packet
     - whether to generate xon_offset for buffer profile?
-
-### How design decisions are made
-
-#### APPL_DB vs CONFIG_DB
-
-1. Headroom data will be updated more frequently than currently it is.
-2. More dynamic entries may occur due to supporting arbitrary cable length.
-3. As a result, headroom data is no longer fits to be stored as configuration.
-
-#### To calculate buffer size in `Buffer Manager` or `Buffer Orch`
-
-By `Buffer Manager`:
-
-- Keep a simple logic in `Buffer Orch`
-- Aligns with the current logic between manager daemons and orchagent
-- Easy to control when the buffer pool to be updated, which is import during warm reboot
-- When something bad happens, to have a separated table in APPL_DB helps investigate issues
-
-By `Buffer Orchagent`:
-
-- Don't need APPL_DB tables, simplify procedure significantly
-- Need to read cable length and port speed in orchagent, which will change the structure of buffer manager.
-
-#### Database design principles -- CONFIG_DB vs APPL_DB
-
-In the statically look-up solution all buffer relavent tables are stored in CONFIG_DB which is supposed to contain the configuration supplied by user. However, some buffer data, including some entries in the `BUFFER_PROFILE` table and the `BUFFER_PG` table, are dynamically generated when ports' speed or cable length updated, which means they are not real configuration.
-
-To have dynamic entries in CONFIG_DB is confusing. However, in statically look-up solution, a user is able to distinguish dynamic one from static one easily considering there are only limit number of combinations of `speed`, `cable length` tuple, the amount of dynamically generated entries in `BUFFER_PROFILE` table is small. In this sense, to have dynamic and static entries mixed together isn't a big problem for now.
-
-However, in this design it will no longer be true because:
-
-1. The variant cable length will be supported, which means the number of dynamically generated entries in `BUFFER_PROFILE` table can be much larger.
-2. The headroom data will be calculated dynamically, which means they will be updated more frequently and no longer feasible to be static configuration.
-3. There is going to be headroom override which means `BUFFER_PG` and `BUFFER_PROFILE` table will contain both dynamic and static entries. Meanwhile, the `dynamic_th` or `static_th` of the dynamic entries are configured by user.
-
-These will confuse user, making it difficult to distinguish static and dynamic entries and understand the configuration.
-
-To resolve the issue, we have to add tables to APPL_DB, representing the current value which is programed to ASIC.
