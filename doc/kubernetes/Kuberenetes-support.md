@@ -128,4 +128,8 @@ The following are required, but not addressed in this design doc. This would be 
 
   If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for <N> minutes or more, could make the necessary marks and restart the service, which would transparently start the local container image.
 
+  
+## CONFIG-DB
+   Key: "Feature|<name>"
+   set_owner   = systemd/kube;   Defaults to systemd, if this field is absent or empty string
    
