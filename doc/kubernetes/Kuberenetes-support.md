@@ -1,17 +1,19 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts use docker to start/stop/wait to manage the containers. With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests.
+The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts use docker to start/stop/wait to manage the containers.
+
+With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**"
 
 # Requirements
 The following are the high level requirements to meet.
-1. Kubernetes support is optional.
+1. Kubernetes mode is optional.
     * Switch could run completely in legacy mode, if desired.
-    * Image could be built with no Kubernetes packages, to save image size cost.
+    * The SONiC image could be built with no Kubernetes packages, to save on image size cost.
     * Current set of commands continue to work as before.
     
-2. A feature could be managed using local container image or kubernetes-provided image
-    * A feature could be marked for legacy or kubernetes mode, with legacy being default
+2. A feature could be managed using local container image (*legacy mode*) or kubernetes-provided image (*kubernetes-mode*).
+    * A feature could be configured for legacy or kubernetes mode, with legacy being default
     * A feature could be switched between two modes.
     * A feature could default to local image, when/where kubernetes image is not available.
     
@@ -20,7 +22,7 @@ The following are the high level requirements to meet.
     * These rules will stay the same, for both modes
     * As these rules stay the same, this new feature will transparently support warm/fast/cold reboots.
     
-4. A feature could be marked as kubernetes only.
+4. A feature could be configured as kubernetes-mode only.
     * The switch image will not have this container image as embedded.
     * The feature is still controlled by switch as start/stop/enable/disable
    
@@ -50,7 +52,7 @@ The following are required, but not addressed in this design doc. This would be 
 
 ## Current behavior
 * A feature is managed by systemd.
-* A feature has a systemd service file and one or more bash scripts that ensures the complex dependency rules set for the feature.
+* A feature has a systemd service file and one or more bash scripts that honor the complex dependency rules set for the feature.
 * A feature's change of state could affect the state of other features.
 * All the complex dependencies across features are met through systemd service management.
 
@@ -112,7 +114,7 @@ The following are required, but not addressed in this design doc. This would be 
    
 * The hostcfgd helps switch current runtime mode from legacy to kubernetes.
 
-  There are few requirements to meet before a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could be configured to run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
+  There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
   
     Requirements to meet for successful deployment:
       * kubernetes server is configured and enabled.
@@ -120,7 +122,7 @@ The following are required, but not addressed in this design doc. This would be 
       * kubernetes manifest for this feature & device is available.
       * The corresponding container image could be successfully pulled down.
       
-   When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image.From here on this feature run on kubernetes deployed image.
+   When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated, if started by kubernetes for the first time. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image. From here on this feature runs on kubernetes deployed image.
    
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
 
