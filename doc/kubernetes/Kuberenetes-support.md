@@ -76,7 +76,8 @@ The following are required, but not addressed in this design doc. This would be 
    * docker stop  --> system container stop
    * docker wait  --> system container wait
    * docker inspect --> system container inspect
-   * docker exec    --> system container exec 
+   * docker exec    --> system container exec
+   
    The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. 
    
    
@@ -94,20 +95,23 @@ The following are required, but not addressed in this design doc. This would be 
       * `current_owner = docker/kube` 
       * `docker_id = <ID of the container>`
       * `current_owner_update_ts = <Time stamp of change>`
+    
      The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/systemd>`, which in turn would do the above update.
       
    * On pre-stop
       * `current_owner = none` 
       * `docker_id = ""`
       * `current_owner_update_ts = <Time stamp of change>`
+      
      A local monit script is added to supervisord. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
   
-* Switches running completely in legacy mode may use the old systemctl or these new "system sevice/container ..." commands, or both.
+* Switches running completely in legacy mode may use the current systemctl commands or these new "system sevice/container ..." commands, or both.
 
 * Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
 * The hostcfgd helps switch current runtime mode from legacy to kubernetes.
+
   There are few requirements to meet before a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could be configured to run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
   
     Requirements to meet for successful deployment:
@@ -119,6 +123,7 @@ The following are required, but not addressed in this design doc. This would be 
    When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image.From here on this feature run on kubernetes deployed image.
    
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
+
       If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for <N> minutes or more, could make the necessary marks and restart the service, which would transparently start the local container image.
 
    
