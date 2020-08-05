@@ -130,25 +130,54 @@ The following are required, but not addressed in this design doc. This would be 
 
   
 ## CONFIG-DB
+
+   Kubernetes Server config:
+```
+   key: "KUBERNETES_MASTER|SERVER"
+   IP       = <IP of the kubernetes master cluster> 
+   insecure = <https access mode as secured or not; default=False>
+   disable  = <False - Enabled to connect to master; True - Disconnects, if already connected>
+```
+
+   Feature configuration:
 ```
    Key: "Feature|<name>"
-   set_owner   = systemd/kube;   Defaults to systemd, if this field is absent or empty string
-   kube_request = ""/"none"/"pending"/"ready"; Set to pending by container state update by kube for first time.
+   set_owner   = systemd/kube/kube-only;
+                                               Defaults to systemd, if this field is absent or empty string.
+                                               kube-only implies that there is no local image for this container.
+                                               
+   kube_request = ""/"none"/"pending"/"ready"; 
+                                               Set to pending by container state update by kube for first time.
                                                Monitored by hostcfgd, which sets to 'ready' and restart service
                                                Expected to be "" or "none" in systemd mode.
 ```
   
 ## STATE-DB
+   Kubernetes Server Status:
+```
+   key: "KUBERNETES_MASTER|SERVER"
+   connected      = True/False
+   last_update_ts = <seconds since epoch>
+```
+
+   Feature Status
 ```
    Key: "Feature|<name>"
-   current_owner           = systemd/kube/none/"";   Empty or none implies that this container is not running
-   current_owner_update_ts = <timestamp of last current owner update in epoch seconds>
-   
-   docker-id               = ""/"<container ID>"; Set to ID of the container, when running, else empty string or missing field.
+   current_owner           = systemd/kube/none/"";   
+                                              Empty or none implies that this container is not running
+   current_owner_update_ts = <second since epoch>
+                                              The timestamp of last current owner update
+      docker-id               = ""/"<container ID>";
+                                              Set to ID of the container, when running, else empty string or missing field.
 ```
 
-## Commands in-depth
-
+## Internal commands
+   The container start/stop/wait replace the corresponding docker commands. 
+   
+   
+   The container state changes as up/down and the current owner are provided by scripts running inside each container at the start and on termination. These are provided as python commands, whose flow is described below.
+   
+   
 ### service system start/stop/wait
 
-   Transparently calls systemctl start/stop/wait.
+   Transparently calls systemctl start/stop/wait for features that are not in kube-only mode. If kube-only mode, the start s
