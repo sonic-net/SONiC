@@ -261,11 +261,30 @@ The following are required, but not addressed in this design doc. This would be 
    It initiates a connection to master, if the following are true.
    
    * not already connected or forced
-   * server is configured
-   * server is enabled
+   * server IP is configured
+   * server is not disabled
       
    #### reset:
    `config kube resert`
       
    It resets connection to master.
+
+
+### show kubernetes 
+
+#### server
+   `show kubernetes server`
+   Lists all the configured entries for the server.
+   
+#### nodes
+   `show kubernetes nodes`
+   Lists all nodes in the current cluster. This command would work, only when kubernets master is reachable.
+
+#### pods
+   `show kubernetes pods`
+   Lists all nodes in the current cluster. This command would work, only when kubernets master is reachable.
+
+#### status
+   `show kubernetes status`
+   It describes the kubernetes status of the node.
 
