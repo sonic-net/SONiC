@@ -167,7 +167,7 @@ The following are required, but not addressed in this design doc. This would be 
                                               Empty or none implies that this container is not running
    current_owner_update_ts = <second since epoch>
                                               The timestamp of last current owner update
-      docker-id               = ""/"<container ID>";
+   docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
 ```
 
@@ -177,6 +177,13 @@ The following are required, but not addressed in this design doc. This would be 
    The container start/stop/wait replace the corresponding docker commands. The logic is explained in the flow chart below. 
      
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
+   
+
+### container state up/down
+   Each container calls this upon start and upon termination. This helps gets the current mode as legacy/kubernetes, docker-id and the status as running or not.
+   Ths following chart depicts the flow.
+   
+   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_state.png)
    
    
 ### service system start/stop/wait
