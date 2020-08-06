@@ -24,6 +24,8 @@ The following are the high level requirements to meet.
     
 4. A feature could be configured as kubernetes-mode only.
     * The switch image will not have this container image as embedded.
+    * The switch image must have systemctl service file and any associated bash scripts for this feature.
+    * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable
    
 5. A kubernetes deployed container image must comply with guidelines set by SONiC
