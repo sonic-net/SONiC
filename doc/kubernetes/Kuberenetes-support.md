@@ -259,9 +259,10 @@ The following are required, but not addressed in this design doc. This would be 
    `config kube join [-f]`
    
    It initiates a connection to master, if the following are true.
-      * not already connected or forced
-      * server is configured
-      * server is enabled
+   
+   * not already connected or forced
+   * server is configured
+   * server is enabled
       
    #### reset:
    `config kube resert`
