@@ -176,7 +176,7 @@ The following are required, but not addressed in this design doc. This would be 
 
    Transient info:
    
-   The kubernetes label creations are requests directed to API server running in kubernetes master, synchronously.  These requests would timeout, if the server is unreachable. In this case, these failed requests could be persisted in this Transient-DB, which a monitor program could watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
+   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-DB, which a monitor program could watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
