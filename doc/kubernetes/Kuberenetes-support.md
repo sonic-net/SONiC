@@ -172,12 +172,10 @@ The following are required, but not addressed in this design doc. This would be 
 ```
 
 ## Internal commands
-   * The container start/stop/wait replace the corresponding docker commands.  
-   * The container state changes as up/down and the current owner are provided by scripts running inside each container at the start and on termination. These are provided as python commands, whose flow is described below.
-   * The hostcfgd enables switch from legacy to kube-downloaded image
-   * The monit helps reverse back to lehacy mode, if kube pod fails
-   These commands are described here 
-   
+
+### Container start/stop/wait:
+   The container start/stop/wait replace the corresponding docker commands. The logic is explained in the flow chart below. 
+     
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
    
    
