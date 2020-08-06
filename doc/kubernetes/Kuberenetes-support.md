@@ -179,13 +179,25 @@ The following are required, but not addressed in this design doc. This would be 
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
    
 
+
 ### container state up/down
    Each container calls this upon start and upon termination. This helps gets the current mode as legacy/kubernetes, docker-id and the status as running or not.
    Ths following chart depicts the flow.
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_state.png)
    
+ 
+### hostcfgd update
+   The hostcfgd watches the first time kube deployment, by looking for `kube_request == pending` and set it to `ready` followed by system service restart. The restart brings down the docker started container and as well remove the label, which tears down the kubernetes initiated docker, which is currently sleeping upon setting `kube_request=pending`. The subsequent system service start, would add the label, that allows kubernetes deployment, which would proceed w/o blocking as `kube_request==ready`.
    
+   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
+   
+
+### monit watches for kubernetes failure
+   When a kube managed container stops running for <N> minutes or more, it resets the `kube_request = none` and call for `system service restart`, which enables starting in legacy mode using local container image.
+   
+  ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/monit.png)
+  
 ### service system start/stop/wait
 
    Transparently calls systemctl start/stop/wait for features that are not in kube-only mode. If kube-only mode, the start s
