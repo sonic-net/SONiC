@@ -129,7 +129,7 @@ The following are required, but not addressed in this design doc. This would be 
    
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
 
-  If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for <N> minutes or more, could make the necessary marks and restart the service, which would transparently start the local container image.
+  If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image.
 
   
 ## CONFIG-DB
