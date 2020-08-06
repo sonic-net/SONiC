@@ -221,30 +221,35 @@ The following are required, but not addressed in this design doc. This would be 
    * the status call would print a message that would indicate `pending deployment`
    
    
-  ## CLI commands
+## CLI commands
   
- ### config kube server
+### config kube server
   
-   #### IP 
+#### IP 
    `sudo config kube server IP <address>`
+   
    Sets IP address of the kubernetes master or cluster.
    
-   #### insecure 
+#### insecure 
    `sudo config kube server insecure on/off`
+   
    This helps allow insecure https access. It is off by default.
    
-   #### disable 
+#### disable 
    `sudo config kube disable on/off`
+   
    This helps disable connecting to master. It is off by default.
    
- ###  config kube label
+### config kube label
  
-   #### add
+#### add
    `config kube label add <key> <value>`
+   
    This adds the label `<key>=<value>` to this node. In case of kubernetes master unreachability, it caches it into the transient-DB. Vice versa, when server is reachable, it drains any existing data in transient-DB before adding this new val.
    
-   #### drop
+#### drop
    `config kube label drop <key>`
+   
    This follows same logic as in drop, just that label will be formatted as `<key>-` which is in kubernetes term, remove the label.
    
    
@@ -252,17 +257,15 @@ The following are required, but not addressed in this design doc. This would be 
 
    #### join:
    `config kube join [-f]`
+   
    It initiates a connection to master, if the following are true.
+   
       * not already connected or forced
       * server is configured
       * server is enabled
       
    #### reset:
    `config kube resert`
+      
    It resets connection to master.
 
-      
-    
-   
-      
-   
