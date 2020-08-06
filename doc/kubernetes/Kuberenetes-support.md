@@ -179,6 +179,7 @@ The following are required, but not addressed in this design doc. This would be 
    ```
    key: "kube_server|pending-label"
    @labels: [<list of labels>]
+   ```
    
 ## Internal commands
 
