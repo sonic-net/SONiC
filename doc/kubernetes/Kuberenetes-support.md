@@ -218,7 +218,7 @@ The following are required, but not addressed in this design doc. This would be 
    * Features that have local container image
    * Features that don't have local container image, but `kube_request == ready`.
    
-   For a kubernetes-only, that has not deployed once, this would simulate as follows
+   For a kubernetes-only feature, that has not deployed yet, would simulate as follows
    * the start service, will create the label to enable deploymnet
    * the stop service would remove label, that stop any current deployment and block further deployments
    * the wait would block on kube_request to go ready.
