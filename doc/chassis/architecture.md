@@ -1,7 +1,7 @@
 # Distributed Forwarding in a Virtual Output Queue (VOQ) Architecture
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 2.0
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -25,7 +25,8 @@
 |:---:|:-----------:|:------------------:|--------------------|
 | 0.1 | May-19 2020 | Kartik Chandran (Arista Networks) | Initial Version |
 | 0.2 | June-22 2020 | Kartik Chandran (Arista Networks) | First set of review comments from public review |
-| 1.0 | June-26 2020 | Kartik Chandran (Arista Networks) | Final set of review comments from public review |  
+| 1.0 | June-26 2020 | Kartik Chandran (Arista Networks) | Final set of review comments from public review |
+| 2.0 | Aug-5 2020 | Kartik Chandran (Arista Networks)   | Revisions after further community review including description of global DB structure, removing sections on system ports, testing and future work to be covered in other documents |
 
 # About this Manual
 
@@ -68,7 +69,8 @@ However, this architecture makes no hard assumptions about operating within a ch
 
 ## 1.1.1 Distributed Operation
 
-* Each forwarding device must run an independent SONiC instance (called   the Forwarding SONiC Instance or FSI) which controls the operation of one or more ASICs on the device, including the front panel and internal fabric ports conn ected to the ASICs.
+Each forwarding device must run an independent SONiC instance (called the Forwarding SONiC Instance or FSI) which controls the operation of one or more ASICs on the device, including the front panel and internal fabric ports conn ected to the ASICs.
+
 * A Forwarding device must act as a fully functional router that can run routing protocols and other networking services just like single box SONiC devices. 
 * The system of forwarding devices should be managed by a single central Supervisor SONiC instance (SSI) that also manages the internal fabric that interconnects the forwarding devices.
 
@@ -106,28 +108,68 @@ Support for VOQ based forwarding in SONiC is dependent on the [SAI VOQ API](http
 
 ![](../../images/chassis/architecture.png)
 
-All state of global interest to the entire system is stored in the SSI in a new Redis instance with a database called “Chassis DB”. This instance is accessible over the internal management network.
+All state of global interest to the entire system is stored in the SSI in a new Redis instance with a database called “Global DB”. This instance is accessible over the internal management network. FSIs connect to this instance in addition to their own local Redis instance to access and act on this global state.
 
-FSIs connect to this instance in addition to their own local Redis instance to access and act on this global state.
 
-##  2.3.1 Chassis DB Organization
+##  2.3.1 Global DB Organization
 
-The Chassis DB runs in a new container known as ‘docker-database-chassis’ as a separate Redis instance. This ensures both that the Chassis state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
+The Global DB runs in a new container known as ‘docker-database-global’ as a separate Redis instance. This ensures both that the Global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
 
-## 2.3.2 Config DB Additions
+Multiple databases can be instantiated inside the Global DB analogous to the existing CONFIG_DB, STATE_DB structure in SONiC Today. However, at this time the expectation is that _all_ static configuration including globally applicable conifguration is stored in the FSI CONFIG_DB and only operational application state that needs to be shared between FSIs is stored in the Global DB instance. Accordingly, there is a single DB within the Global DB instance called "GLOBAL_APP_DB" to clearly mark the difference between this DB and the local APP_DB which is accessed by OrchAgent.
+
+A new systemd service `config-globaldb` starts the docker-database-global container in the SSI. In the FSI, the config-globaldb service reads the contents of default_config.json and populate /etc/hosts with the IP address for the “redis_chassis.server” host.
+
+The server name “redis_chassis.server” is used in database_config.json to describe the reachability of the redis_chassis redis instance.
+
+**database_config.json**
+```
+    "redis_global":{
+            "hostname" : "redis_global.server",
+            "port": 6385,
+            "unix_socket_path": "/var/run/redis-chassis/redis_global.sock",
+            "unix_socket_perm" : 777
+    }
+
+    "GLOBAL_APP_DB" : {
+           "id" : 8,
+           "separator": "|",
+           "instance" : "redis_global"
+    }
+```
+
+The following information is present in default_config.json, which is loaded into CONFIG_DB
 
 ```
-{
+    "DEVICE_METADATA": {
+        "localhost": {
+            “global_db_address" : <IP Address of redis-global instance>,
+            “start_global_db” : “1”,
+        }
+    }
+
+```
+
+This indicates to the SSI that the Global DB instance is to be started.
+
+## 2.3.2 FSI CONFIG_DB Additions 
+
+Two new attributes are added to the DEVICE_METADATA object in Config DB. These are used to convey to an FSI that a Global DB exists in the system. 
+```
     "DEVICE_METADATA": {
         "localhost": {
             ….
-            “chassis_db_address" : "10.8.1.200",
-            “connect_chassis_db” : “1”,
+            “global_db_address" : "10.8.1.200",
+            “connect_to_global_db” : “1”,
             ….
         }
     }
 ```
-Two new attributes are added to the DEVICE_METADATA object in Config DB. These are used to convey to an FSI that a ChassisDB exists in the system. 
+
+The `connect_to_global_db` flag is distinct from the `start_global_db` flag to signal which instance owns the DB and which instance is supposted to connect to it.
+
+### 2.3.4 DB Connectivity
+
+The platform implementation is responsible for providing IP connectivity to the redis_global.server throughout the chassis. For example, this IP address could be in a 127.1/16 subnet so that the traffic is limited to staying within the system. The exact mechanisms for this IP connectivity is considered implementation specific and outside the scope of this document. 
 
 
 ## 2.4 Chip Management
@@ -177,23 +219,6 @@ These are front panel interfaces that are directly attached to each FSI. They ar
 
 Every port on the system requires a global representation in addition to its existing local representation. This is known as a System Port (AKA sysport). Every system port is assigned an identifier that is globally unique called a system_port_id. In addition, every port is assigned a local port ID within a core called a “Core Port Id”. The scope of the Local Port Id is _within_ a core of a forwarding engine.
 
-System Ports are modeled in ChassisDB in the SYSTEM_PORT table.
-
-```
-;Layer2 port representation across a distribute VoQ system
-;instance_name is the globally unique name  on the forwarding device on ;which the port is present
-key              = SYSTEM_PORT|asic_name|ifname             ;
-speed            = 1*6DIGIT      ; port line speed in Mbps
-system_port_id   = 1*6DIGIT      ; globally unique port ID
-switch_id        = 1*2DIGIT      ; global switch ID. 
-core_id          = 1*2DIGIT      ; core id within switch_id. 
-core_port_id     = 1*6DIGIT      ; chip specific port  
-```
-
-The globally unique key in the SYSTEM_PORT_TABLE is the name of the ASIC instance and the front panel interface name. The ASIC name is chosen so that various agents like syncd can use this name as a filtering criterion to select the subset of entities that they need to operate on in order to manage a specific ASIC.
-
-The ifname is expected to be unique within a SONiC instance. As a result, the key "SYSTEM_PORT|asic_name|ifname" uniquely identifies a system port in the system.
-
 ### 2.6.3 Inband Ports
 
 Inband ports are required to provide control plane connectivity between  forwarding engines. They are connected to the forwarding device local CPU on one side and the internal fabric on the other. 
@@ -204,40 +229,16 @@ Every inband port is assigned a System Port ID just like front panel ports which
 
 The provisioning and management of Fabric ports is outside the scope of this document and will be documented as a separate proposal.
 
-## 2.7 Orchestration Agent
 
-### 2.7.1 System Port Handling
-
-System port configuration is expected to be completely static and known at the start of the system.
-
-Based on the state of ‘“connect_chassis_db” in the device metadata in ConfigDB, Orchagent connects to Chassis DB and subscribes to the SYSTEM_PORT table in CHASSIS_DB. It uses this list of system ports from the SYSTEM_PORT table to construct the switch attributes needed by the create_switch SAI API. In a later phase, the system ports could be directly created by making sairedis calls from orchagent. 
-        
-A system port can be used in lieu of a physical port in several SAI API calls as relevant. For example, a system port can be added as a vlan member or be a lag member. To account for these, portsorch will be updated to support sysports. 
-
-Portsyncd does not have to support sysports because sysports do not have any associated kernel devices. 
+The details regarding the schemas, Orch agent logic changes and flows are described in more specific documents
 
 # 3 Testing
 
 Test coverage for the distributed VoQ architecture is achieved by extending the existing virtual switch based SWSS pytest infrastructure.
 
-The distributed switching architecture is represented as multiple VS instances connected with each other and called as Virtual Chassis, where one of the instance plays the role of the SSI and the remaining instances as FSIs. 
+The distributed switching architecture is represented as multiple VS instances connected with each other and called as Virtual Chassis, where one of the instance plays the role of the SSI and the remaining instances as FSIs.  Existing SWSS pytests can be executed against any of the instances in the virtual chassis to ensure that existing SONiC functionality is not affected while operating in a distributed environment.
 
-## 3.1 Regression Testing
-
-Existing SWSS pytests can be executed against any of the instances in the virtual chassis to ensure that existing SONiC functionality is not affected while operating in a distributed environment.
-
-## 3.2 Distributed VoQ functionality
-
-Additional tests that specifically validate distributed VoQ forwarding functionality run only in the virtual chassis environment. 
-
-### 3.2.3 test_virtual_chassis.py
-
-Is the top level test driver that executes testcases against the virtual chassis. 
-
-Sysport handling is tested by test_chassis_sysport which validates that
-* System ports can be populated in CHASSIS_DB
-* All FSIs can connect to CHASSIS_DB and access sysport state
-* Orchagent programs the correct SAI Redis ASIC_DB state to represent the configured sysport.
+More detailed test cases are covered in other HLDs.
 
 # 4 Future Work
 
@@ -251,14 +252,6 @@ Dynamic system port support is required to support the following forwarding scen
 Both these scenarios can be supported smoothly as long as the global system port numbering scheme is maintained and the modifications to system ports can be performed without impacting the System Port IDs of the running system.
 
 Support for dynamic system ports requires SAI support for the `create_port` and `remove_port` calls. 
-
-### Overview of PortsOrch changes
-
- * Subscribe to the SYSTEM_PORT table in PortsOrch
- * React to changes in the SYSTEM_PORT table
- * Make the appropriate `create_port` and `remove_port` calls.
-
-In addition, forwarding features that are dependent on System Ports need to react to these changes and reprogram the related forwarding plane state such as routing nexthops, LAG membership etc.
 
 ## 4.2 Dual Supervisor Support
 
