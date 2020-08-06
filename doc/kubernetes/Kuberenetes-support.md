@@ -23,7 +23,7 @@ The following are the high level requirements to meet.
     * As these rules stay the same, this new feature will transparently support warm/fast/cold reboots.
     
 4. A feature could be configured as kubernetes-mode only.
-    * The switch image will not have this container image as embedded.
+    * The switch image will not have this container image as embedded (in other words no local copy).
     * The switch image must have systemctl service file and any associated bash scripts for this feature.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable
@@ -45,7 +45,7 @@ The following are required, but not addressed in this design doc. This would be 
 
 1. The feature deployed by kubernetes must have passed nightly tests.
 2. The manifest for the feature must honor controls laid by switch as enable/disable/start/stop.
-3. The kube managed container image be built with same base OS & tools docker-layers as switch version.
+3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
 4. The container image deployed must have cleared standard security checks laid for any SONiC images
 5. The secured access to master kubernetes nodes and image registry.
 
@@ -119,10 +119,11 @@ The following are required, but not addressed in this design doc. This would be 
   There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
   
     Requirements to meet for successful deployment:
-      * kubernetes server is configured and enabled.
-      * kubernetes master is available and reachable.
-      * kubernetes manifest for this feature & device is available.
-      * The corresponding container image could be successfully pulled down.
+    
+     * kubernetes server is configured and enabled.
+     * kubernetes master is available and reachable.
+     * kubernetes manifest for this feature & device is available.
+     * The corresponding container image could be successfully pulled down.
       
    When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated, if started by kubernetes for the first time. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image. From here on this feature runs on kubernetes deployed image.
    
