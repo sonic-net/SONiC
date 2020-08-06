@@ -198,6 +198,22 @@ The following are required, but not addressed in this design doc. This would be 
    
   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/monit.png)
   
-### service system start/stop/wait
+### service system start/stop/wait/status/restart
 
-   Transparently calls systemctl start/stop/wait for features that are not in kube-only mode. If kube-only mode, the start s
+   For features that meets the following criteria, it calls systemctl start/stop/wait. 
+   * Features that have local container image
+   * Features that don't have local container image, but `kube_request == ready`.
+   
+   For a kubernetes-only, that has not deployed once, this would simulate as follows
+   * the start service, will create the label to enable deploymnet
+   * the stop service would remove label, that stop any current deployment and block further deployments
+   * the wait would block on kube_request to go ready.
+   * the status call would print a message that would indicate `pending deployment`
+   
+   
+  ## CLI commands
+  
+  ### config kube server
+  
+   #### IP 
+   Sets IP address of the kubernetes master or cluster
