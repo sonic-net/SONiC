@@ -151,46 +151,46 @@ The following new tables will be added to Config DB. Unless otherwise stated, th
 #### 3.1.1 MACsec Profile Table
 
 ``` rfc5234
-MACSEC_PROFILE|{{PROFILE}}
-    "PRIORITY":{{PRIORITY}}
-    "CIPHER_SUITE":{{CIPHER_SUITE}} (OPTIONAL)
-    "PRIMARY_CAK":{{PRIMARY_CAK}}
-    "PRIMARY_CKN":{{PRIMARY_CKN}}
-    "FALLBACK_CAK":{{FALLBACK_CAK}} (OPTIONAL)
-    "FALLBACK_CKN":{{FALLBACK_CKN}} (OPTIONAL)
-    "POLICY":{{POLICY}}
-    "ENABLE_REPLAY_PROTECT":{{TRUE|FALSE}} (OPTIONAL)
-    "REPLAY_WINDOW":{{REPLAY_WINDOW}} (OPTIONAL)
-    "SEND_SCI":{{TRUE|FALSE}} (OPTIONAL)
-    "REKEY_PERIOD":{{REKEY_PERIOD}} (OPTIONAL)
+MACSEC_PROFILE|{{profile}}
+    "priority":{{priority}}
+    "cipher_suite":{{cipher_suite}} (OPTIONAL)
+    "primary_cak":{{primary_cak}}
+    "primary_ckn":{{primary_ckn}}
+    "fallback_cak":{{fallback_cak}} (OPTIONAL)
+    "fallback_ckn":{{fallback_ckn}} (OPTIONAL)
+    "policy":{{policy}}
+    "enable_replay_protect":{{true|false}} (OPTIONAL)
+    "replay_window":{{replay_window}} (OPTIONAL)
+    "send_sci":{{true|false}} (OPTIONAL)
+    "rekey_period":{{rekey_period}} (OPTIONAL)
 
 ; Defines schema for MACsec profile configuration attributes
 key                         = MACSEC_PROFILE:name      ; MACsec profile configuration
 ; field                     = value
-PRIORITY                    = DIGITS                   ; For Key server election.
+priority                    = DIGITS                   ; For Key server election.
                                                        ; In 0-255 range with 0 being the highest priority
-CIPHER_SUITE                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
+cipher_suite                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
                                                        ; The cipher suite for MACsec.
                                                        ; Default GCM-AES-128 if this filed not exist
-PRIMARY_CAK                 = 32HEXDIG / 64HEXDIG      ; Primary Connectivity Association Key
-PRIMARY_CKN                 = 64HEXDIG                 ; Primary CAK Name
-FALLBACK_CAK                = 32HEXDIG / 64HEXDIG      ; Fallback Connectivity Association Key
-FALLBACK_CKN                = 64HEXDIG                 ; Fallback CAK Name
-POLICY                      = "BYPASS" / "INTEGRITY_ONLY" / "SECURITY"
+primary_cak                 = 32HEXDIG / 64HEXDIG      ; Primary Connectivity Association Key
+primary_ckn                 = 64HEXDIG                 ; Primary CAK Name
+fallback_cak                = 32HEXDIG / 64HEXDIG      ; Fallback Connectivity Association Key
+fallback_ckn                = 64HEXDIG                 ; Fallback CAK Name
+policy                      = "bypass" / "integrity_only" / "security"
                                                        ; MACsec policy.
                                                        ; BYPASS: All traffics will bypass the SecY.
                                                        ; INTEGRITY_ONLY: All traffics, except EAPOL, will be
                                                        ; converted to MACsec packets without encryption.
                                                        ; SECURITY: All traffics, except EAPOL, will be
                                                        ; encrypted by SecY.
-ENABLE_REPLAY_PROTECT       = "true" / "false"         ; Whether enable replay protect. Default false
-REPLAY_WINDOW               = DIGITS                   ; Replay window size that is the number of
+enable_replay_protect       = "true" / "false"         ; Whether enable replay protect. Default false
+replay_window               = DIGITS                   ; Replay window size that is the number of
                                                        ; packets that could be out of order. This filed
                                                        ; works only if ENABLE_REPLAY_PROTECT is true.
                                                        ; Default 0 which means no replay window and
                                                        ; strict check. The maximum is 2^32-1
-SEND_SCI                    = "true" / "false"         ; Whether send SCI. Default true
-REKEY_PERIOD                = DIGITS                   ; The period of proactively refresh (Unit second).
+send_sci                    = "true" / "false"         ; Whether send SCI. Default true
+rekey_period                = DIGITS                   ; The period of proactively refresh (Unit second).
                                                        ; Default 0 which means never proactive refresh SAK.
 ; The profile cannot be deleted if it has been used by a port.
 ```
@@ -199,12 +199,12 @@ REKEY_PERIOD                = DIGITS                   ; The period of proactive
 
 ``` rfc5234
 PORT|{{port_name}}
-    "MACSEC":{{PROFILE}} (OPTIONAL)
+    "macsec":{{profile}} (OPTIONAL)
 
 ; Defines schema for MACsec profile configuration attributes
 key                         = PORT:name               ; Interface name
 ; field                     = value
-MACSEC                      = profile                 ; MACsec profile name. if this filed is empty or isn't existed,
+macsec                      = profile                 ; MACsec profile name. if this filed is empty or isn't existed,
                                                       ; the MACsec function is disable.
 ```
 
@@ -216,87 +216,87 @@ Fellowing new tables would be introduced to specify the MACsec parameters, SCs a
 
 ``` rfc5234
 "MACSEC_PORT":{{port_name}}
-    "ENABLE":{{TRUE|FALSE}}
-    "CIPHER_SUITE":{{CIPHER_SUITE}}
-    "ENABLE_PROTECT":{{TRUE|FALSE}}
-    "ENABLE_ENCRYPT":{{TRUE|FALSE}}
-    "ENABLE_REPLAY_PROTECT":{{TRUE|FALSE}}
-    "REPLAY_WINDOW":{{REPLAY_WINDOW}}
-    "SEND_SCI":{{TRUE|FALSE}}
+    "enable":{{true|false}}
+    "cipher_suite":{{cipher_suite}}
+    "enable_protect":{{true|false}}
+    "enable_encrypt":{{true|false}}
+    "enable_replay_protect":{{true|false}}
+    "replay_window":{{replay_window}}
+    "send_sci":{{true|false}}
 
 ; Defines schema for MACsec port table attributes
 key                         = MACSEC_PORT:name         ; MACsec port name
 ; field                     = value
-ENABLE                      = "true" / "false"         ; Whether enable this port
-CIPHER_SUITE                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
+enable                      = "true" / "false"         ; Whether enable this port
+cipher_suite                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
                                                        ; The cipher suite for MACsec.
-ENABLE_PROTECT              = "true" / "false"         ; Whether protect the traffic.
-ENABLE_ENCRYPT              = "true" / "false"         ; Whether encrypt the traffic,
+enable_protect              = "true" / "false"         ; Whether protect the traffic.
+enable_encrypt              = "true" / "false"         ; Whether encrypt the traffic,
                                                        ; It is available only if ENABLE_PROTECT is true.
 ; Fields, ENABLE_PROTECT and ENABLE_ENCRYPT, depend on the filed POLICY in MACSEC PROFILE TABLE of Config DB,
-; POLICY = BYPASS         ENABLE_PROTECT = false ENABLE_ENCRYPT = false
-; POLICY = INTEGRITY_ONLY ENABLE_PROTECT = true  ENABLE_ENCRYPT = false
-; POLICY = SECURITY       ENABLE_PROTECT = true  ENABLE_ENCRYPT = true
-ENABLE_REPLAY_PROTECT       = "true" / "false"         ; Whether enable replay protect.
-REPLAY_WINDOW               = DIGITS                   ; Replay window size that is the number of
+; policy = bypass         enable_protect = false ENABLE_ENCRYPT = false
+; policy = integrity_only enable_protect = true  ENABLE_ENCRYPT = false
+; policy = security       enable_protect = true  ENABLE_ENCRYPT = true
+enable_replay_protect       = "true" / "false"         ; Whether enable replay protect.
+replay_window               = DIGITS                   ; Replay window size that is the number of
                                                        ; packets that could be out of order.
-SEND_SCI                    = "true" / "false"         ; Whether send SCI.
+send_sci                    = "true" / "false"         ; Whether send SCI.
 ```
 
 #### 3.2.2 MACsec Egress SC Table
 
 ``` rfc5234
-"MACSEC_EGRESS_SC":{{port_name}}:{{SCI}}
-    "ENCODING_AN":{{AN}}
-    "SSCI":{{SSCI}}
+"MACSEC_EGRESS_SC":{{port_name}}:{{sci}}
+    "encoding_an":{{an}}
+    "ssci":{{ssci}}
 
 ; Defines schema for MACsec Egress SC table attributes
 key            = MACSEC_EGRESS_SC:port_name:sci     ; MACsec SC identifier
 ; field        = value
-ENCODING_AN    = DIGIT                              ; 0 to 3, the current transmit SA number.
+encoding_an    = DIGIT                              ; 0 to 3, the current transmit SA number.
                                                     ; Default 0.
-SSCI           = 8HEXDIG                            ; 32-bit value that is unique for each SCI
+ssci           = 8HEXDIG                            ; 32-bit value that is unique for each SCI
                                                     ; using a given SAK.
                                                     ; Only available if XPN enable
-; SCI, SSCI and ENCODING_AN will be generated by KaY which is running in the wpa_supplicant.
-; The SCI of egress SC should be same as one of the SCI of ingress SCs on the participants.
+; sci, ssci and encoding_an will be generated by KaY which is running in the wpa_supplicant.
+; The sci of egress SC should be same as one of the sci of ingress SCs on the participants.
 ```
 
 #### 3.2.3 MACsec Ingress SC Table
 
 ``` rfc5234
-"MACSEC_INGRESS_SC":{{port_name}}:{{SCI}}
-    "SSCI":{{SSCI}}
+"MACSEC_INGRESS_SC":{{port_name}}:{{sci}}
+    "ssci":{{ssci}}
 
 ; Defines schema for MACsec Ingress SC table attributes
 key            = MACSEC_INGRESS_SC:port_name:sci    ; MACsec SC identifier
 ; field        = value
-SSCI           = 8HEXDIG                            ; 32-bit value that is unique for each SCI
+ssci           = 8HEXDIG                            ; 32-bit value that is unique for each SCI
                                                     ; using a given SAK.
                                                     ; Only available if XPN enable
-; SCI and SSCI will be generated by KaY which is running in the wpa_supplicant.
-; The SCI of ingress SC should be same as one of the SCI of egress SC on the participants.
+; sci and ssci will be generated by KaY which is running in the wpa_supplicant.
+; The sci of ingress SC should be same as one of the sci of egress SC on the participants.
 ```
 
 #### 3.2.4 MACsec Egress SA Table
 
 ``` rfc5234
-"MACSEC_EGRESS_SA":{{port_name}}:{{SCI}}:{{AN}}
-    "SAK":{{SAK}}
-    "AUTH_KEY":{{HASH_SUBKEY}}
-    "INIT_PN":{{PN}}
-    "SALT":{{SALT}}
+"MACSEC_EGRESS_SA":{{port_name}}:{{sci}}:{{an}}
+    "sak":{{sak}}
+    "auth_key":{{hash_subkey}}
+    "init_pn":{{pn}}
+    "salt":{{salt}}
 
 ; Defines schema for MACsec Egress SA table attributes
 key           = MACSEC_EGRESS_SA:port_name:sci:an   ; MACsec SA identifier
 ; field       = value
-SAK           = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
+sak           = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
                                                     ; Default 128 bit,
                                                     ; but if XPN enable, 256 bit
-AUTH_KEY      = 32HEXDIG                            ; The hash subkey in AES-GCM
+auth_key      = 32HEXDIG                            ; The hash subkey in AES-GCM
                                                     ; It's derived from SAK
-INIT_PN       = DIGITS                              ; 1 to 2^32-1, the initialized next packet number
-SALT          = 24HEXDIG                            ; 96-bit parameter provided to the Current
+init_pn       = DIGITS                              ; 1 to 2^32-1, the initialized next packet number
+salt          = 24HEXDIG                            ; 96-bit parameter provided to the Current
                                                     ; Cipher Suite for subsequent protection
                                                     ; and validation operations.
                                                     ; Only available if XPN enable
@@ -305,24 +305,24 @@ SALT          = 24HEXDIG                            ; 96-bit parameter provided 
 #### 3.2.5 MACsec Ingress SA Table
 
 ``` rfc5234
-"MACSEC_INGRESS_SA":{{port_name}}:{{SCI}}:{{AN}}
-    "ACTIVE":{{TRUE|FALSE}}
-    "SAK":{{SAK}}
-    "AUTH_KEY":{{HASH_SUBKEY}}
-    "LOWEST_ACCEPTABLE_PN":{{PN}}
-    "SALT":{{SALT}}
+"MACSEC_INGRESS_SA":{{port_name}}:{{sci}}:{{an}}
+    "active":{{true|false}}
+    "sak":{{sak}}
+    "auth_key":{{hash_subkey}}
+    "lowest_acceptable_pn":{{pn}}
+    "salt":{{salt}}
 
 ; Defines schema for MACsec Ingress SA table attributes
 key                   = MACSEC_INGRESS_SA:port_name:sci:an  ; MACsec SA identifier
 ; field               = value
-ACTIVE                = "true" / "false"                    ; Whether this SA is available, Default False.
-SAK                   = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
+active                = "true" / "false"                    ; Whether this SA is available, Default False.
+sak                   = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
                                                             ; Default 128 bit,
                                                             ; but if XPN enable, 256 bit
-AUTH_KEY              = 32HEXDIG                            ; The hash subkey in AES-GCM
+auth_key              = 32HEXDIG                            ; The hash subkey in AES-GCM
                                                             ; It's derived from SAK
-LOWEST_ACCEPTABLE_PN  = DIGITS                              ; 1 to 2^32-1, the lowest acceptable packet number
-SALT                  = 24HEXDIG                            ; 96-bit parameter provided to the Current
+lowest_acceptable_pn  = DIGITS                              ; 1 to 2^32-1, the lowest acceptable packet number
+salt                  = 24HEXDIG                            ; 96-bit parameter provided to the Current
                                                             ; Cipher Suite for subsequent protection
                                                             ; and validation operations.
                                                             ; Only available if XPN enable
@@ -334,7 +334,7 @@ SALT                  = 24HEXDIG                            ; 96-bit parameter p
 
 ``` rfc5234
 "MACSEC_PORT"|{{port_name}}
-    "state":{{OK}}
+    "state":{{ok}}
 
 ; Defines schema for MACsec Port table attributes
 key          = MACSEC_PORT:port_name  ; Port name
@@ -345,8 +345,8 @@ state        = "ok"              ; The MACsec port is ready to configure
 #### 3.3.2 MACsec Egress SC Table
 
 ``` rfc5234
-"MACSEC_EGRESS_SC"|{{port_name}}|{{SCI}}
-    "state":{{OK}}
+"MACSEC_EGRESS_SC"|{{port_name}}|{{sci}}
+    "state":{{ok}}
 
 ; Defines schema for MACsec Egress SC table attributes
 key          = MACSEC_EGRESS_SC:port_name:sci     ; MACsec SC identifier
@@ -357,8 +357,8 @@ state        = "ok"                          ; The MACsec SC has been created
 #### 3.3.3 MACsec Ingress SC Table
 
 ``` rfc5234
-"MACSEC_INGRESS_SC"|{{port_name}}|{{SCI}}
-    "state":{{OK}}
+"MACSEC_INGRESS_SC"|{{port_name}}|{{sci}}
+    "state":{{ok}}
 
 ; Defines schema for MACsec Ingress SC table attributes
 key          = MACSEC_INGRESS_SC:port_name:sci    ; MACsec SC identifier
@@ -369,8 +369,8 @@ state        = "ok"                          ; The MACsec SC has been created
 #### 3.3.4 MACsec Egress SA Table
 
 ``` rfc5234
-"MACSEC_EGRESS_SA"|{{port_name}}|{{SCI}}|{{AN}}
-    "state":{{OK}}
+"MACSEC_EGRESS_SA"|{{port_name}}|{{sci}}|{{an}}
+    "state":{{ok}}
 
 ; Defines schema for MACsec Port table attributes
 key          = MACSEC_EGRESS_SA:port_name:sci:an   ; MACsec SA identifier
@@ -381,8 +381,8 @@ state        = "ok"                           ; The MACsec SA has been enabled
 #### 3.3.5 MACsec Ingress SA Table
 
 ``` rfc5234
-"MACSEC_INGRESS_SA"|{{port_name}}|{{SCI}}|{{AN}}
-    "state":{{OK}}
+"MACSEC_INGRESS_SA"|{{port_name}}|{{sci}}|{{an}}
+    "state":{{ok}}
 
 ; Defines schema for MACsec Port table attributes
 key          = MACSEC_INGRESS_SA:port_name:sci:an  ; MACsec SA identifier
