@@ -1,7 +1,7 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts use docker to start/stop/wait to manage the containers.
+The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
 
 With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**"
 
