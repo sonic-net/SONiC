@@ -107,6 +107,7 @@ At a high level the following should be supported:
 - Enable or disable the XPN feature by the wpa_cli
 - Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
 - CLI command `show macsec` to monitor mka session and statistics of MACsec
+- MACsec can support confidentiality offset setting
 
 #### Phase III
 
