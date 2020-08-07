@@ -48,6 +48,7 @@ The following are required, but not addressed in this design doc. This would be 
 3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
 4. The container image deployed must have cleared standard security checks laid for any SONiC images
 5. The secured access to master kubernetes nodes and image registry.
+6. The switch should be able to reach container registry through secured channel.
 
     
 # Design proposal
