@@ -15,7 +15,7 @@ The following are the high level requirements to meet.
 2. A feature could be managed using local container image (*legacy mode*) or kubernetes-provided image (*kubernetes-mode*).
     * A feature could be configured for legacy or kubernetes mode, with legacy being default
     * A feature could be switched between two modes.
-    * A feature could default to local image, when/where kubernetes image is not available.
+    * A feature could default to local image, when/where kubernetes image is not available and configured for kubernetes-mode.
     
 3. A feature's rules for start/stop stays the same, in either mode (legacy/kubernetes)
     * A set of rules are currently executed through systemd config, and bash scripts.
