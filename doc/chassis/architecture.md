@@ -56,11 +56,11 @@ However, this architecture makes no hard assumptions about operating within a ch
 
 |      |                    |                                |
 |------|--------------------|--------------------------------|
-| FSI  | Forwarding SONiC Instance |  SONiC instance on a packet forwarding module like a linecard.
-| SSI | Supervisor SONiC Instance |  SONiC instance on a central supervisor module that controls a cluster of forwarding instances and the interconnection fabric.
-| Forwarding Device | A unit of hardware that runs SONiC and is responsible for packet forwarding |
 | ASIC | Application Specific Integrated Circuit | Refers to the forwarding engine on a device that is responsible for packet forwarding. 
-| NPU | Network Processing Unit | An alternate term for ASIC often used in SONiC vocabulary 
+| NPU | Network Processing Unit | An alternate term for ASIC often used in SONiC vocabulary
+| Forwarding Module | A unit of hardware that runs one instance of the SONiC OS and is responsible for packet forwarding |
+| FSI  | Forwarding SONiC Instance |  SONiC OS instance on a forwarding module like a linecard. An FSI controls one more ASICs that are present on the forwarding module
+| SSI | Supervisor SONiC Instance |  SONiC OS instance on a central supervisor module that controls a cluster of forwarding instances and the interconnection fabric.
 
 
 # 1 Requirements
@@ -69,10 +69,10 @@ However, this architecture makes no hard assumptions about operating within a ch
 
 ## 1.1.1 Distributed Operation
 
-Each forwarding device must run an independent SONiC instance (called the Forwarding SONiC Instance or FSI) which controls the operation of one or more ASICs on the device, including the front panel and internal fabric ports conn ected to the ASICs.
+Each forwarding module must run an independent SONiC OS instance (called the Forwarding SONiC Instance or FSI) which controls the operation of one or more ASICs on the module, including the front panel and internal fabric ports connected to the ASICs.
 
-* A Forwarding device must act as a fully functional router that can run routing protocols and other networking services just like single box SONiC devices. 
-* The system of forwarding devices should be managed by a single central Supervisor SONiC instance (SSI) that also manages the internal fabric that interconnects the forwarding devices.
+* A forwarding module must act as a fully functional router that can run routing protocols and other networking services just like single box SONiC devices. 
+* The system of forwarding modules should be managed by a single central Supervisor SONiC instance (SSI) that also manages the internal fabric that interconnects the forwarding modules.
 
 ## 1.1.2 Intra-System Control Plane
 
@@ -89,10 +89,10 @@ Every FSI must have a management interface over which it can reach the superviso
 * Each SONiC instance must be independently configurable and manageable through standard SONiC management interfaces.
  
 * The physical configuration of the entire system is fixed at startup. This includes
-  * The Hardware SKU that is used for each forwarding device
+  * The Hardware SKU that is used for each forwarding module
   * The Physical port organization of the entire system
 
-* Live replacement of forwarding devices or pluggable modules like transceivers must be supported as long as the part being replaced is an identical SKU.
+* Live replacement of forwarding modules or pluggable modules like transceivers must be supported as long as the part being replaced is an identical SKU.
 
 # 2 Design
 
@@ -110,67 +110,47 @@ Support for VOQ based forwarding in SONiC is dependent on the [SAI VOQ API](http
 
 All state of global interest to the entire system is stored in the SSI in a new Redis instance with a database called “Global DB”. This instance is accessible over the internal management network. FSIs connect to this instance in addition to their own local Redis instance to access and act on this global state.
 
-
 ##  2.3.1 Global DB Organization
 
-The Global DB runs in a new container known as ‘docker-database-global’ as a separate Redis instance. This ensures both that the Global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
+The Global DB is hosted in a new redis instance called `redis_global`. This new redis instance runs in a new container known as `docker-database-global`. This ensures both that the global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
 
-Multiple databases can be instantiated inside the Global DB analogous to the existing CONFIG_DB, STATE_DB structure in SONiC Today. However, at this time the expectation is that _all_ static configuration including globally applicable conifguration is stored in the FSI CONFIG_DB and only operational application state that needs to be shared between FSIs is stored in the Global DB instance. Accordingly, there is a single DB within the Global DB instance called "GLOBAL_APP_DB" to clearly mark the difference between this DB and the local APP_DB which is accessed by OrchAgent.
+### 2.3.1.1 Starting redis_global in the SSI
 
-A new systemd service `config-globaldb` starts the docker-database-global container in the SSI. In the FSI, the config-globaldb service reads the contents of default_config.json and populate /etc/hosts with the IP address for the “redis_chassis.server” host.
+To detect if the `docker-database-global` container needs to be started, a new configuration file called `globaldb.conf` is introduced at `/usr/share/sonic/device/<platform>/globaldb.conf`. 
+The contents of this file will be 
 
-The server name “redis_chassis.server” is used in database_config.json to describe the reachability of the redis_chassis redis instance.
-
-**database_config.json**
 ```
+start_global_db=1
+global_db_address=<IP Address of redis_global instance>
+```
+
+Since this is a per-platform file, the IP address to host the redis instance can be platform specific and the platform implementation is expected to provide connectivity to this IP address for all the sonic instances running within the system.
+A new systemd service `config-globaldb` starts the docker-database-global container in the SSI by inspecting the contents of the `globaldb.conf` file. 
+
+### 2.3.1.2 Connecting to redis_global from FSI
+In the FSI, the contents of `/usr/share/sonic/device/<platform>/globaldb.conf` are
+
+```
+global_db_address=<IP Address of redis_global instance>
+```
+
+The `docker-database-global` container does not have to start in the FSI. However, the FSIs do need to connect to the `redis_global` redis instance that is running in the SSI. To achieve this, the `config-globaldb` service in the FSI read the contents of `globaldb.conf` and populate `/etc/hosts` with the IP address for the `redis_global.server` host. The per-ASIC database_config.json includes the redis_global instance information so that orchagent in FSI can connect to the global DB. The server name `redis_global.server` is used here to describe the reachability of the redis_global redis instance.
+```
+database_config.json:
     "redis_global":{
             "hostname" : "redis_global.server",
             "port": 6385,
-            "unix_socket_path": "/var/run/redis-chassis/redis_global.sock",
+            "unix_socket_path": "/var/run/redis-global/redis_global.sock",
             "unix_socket_perm" : 777
     }
-
+    
     "GLOBAL_APP_DB" : {
            "id" : 8,
-           "separator": "|",
+           "separator": ":",
            "instance" : "redis_global"
     }
 ```
-
-The following information is present in default_config.json, which is loaded into CONFIG_DB
-
-```
-    "DEVICE_METADATA": {
-        "localhost": {
-            “global_db_address" : <IP Address of redis-global instance>,
-            “start_global_db” : “1”,
-        }
-    }
-
-```
-
-This indicates to the SSI that the Global DB instance is to be started.
-
-## 2.3.2 FSI CONFIG_DB Additions 
-
-Two new attributes are added to the DEVICE_METADATA object in Config DB. These are used to convey to an FSI that a Global DB exists in the system. 
-```
-    "DEVICE_METADATA": {
-        "localhost": {
-            ….
-            “global_db_address" : "10.8.1.200",
-            “connect_to_global_db” : “1”,
-            ….
-        }
-    }
-```
-
-The `connect_to_global_db` flag is distinct from the `start_global_db` flag to signal which instance owns the DB and which instance is supposted to connect to it.
-
-### 2.3.4 DB Connectivity
-
-The platform implementation is responsible for providing IP connectivity to the redis_global.server throughout the chassis. For example, this IP address could be in a 127.1/16 subnet so that the traffic is limited to staying within the system. The exact mechanisms for this IP connectivity is considered implementation specific and outside the scope of this document. 
-
+As described earlier, the platform implementation is responsible for providing IP connectivity to the redis_global.server throughout the system. For example, this IP address could be in a 127.1/16 subnet so that the traffic is limited to staying within the system. The exact mechanisms for this IP connectivity is outside the scope of this document. 
 
 ## 2.4 Chip Management
 There are two kinds of chips that are of interest 
@@ -201,11 +181,13 @@ Please see the SAI VoQ spec for more detailed examples.
 
 ### Forwarding SONiC Instance
 
-Each FSI has a globally unique name that represents that SONiC instance. In a modular chassis, the name would conventionally be "Linecard-N", where N is the slot in which the linecard is inserted.
+Each FSI has a globally unique name that represents that SONiC OS instance. In a modular chassis, the name would conventionally be "Linecard-N", where N is the slot in which the linecard is inserted.
 
 ### ASIC Name
 
-In addition, each ASIC has a globally unique name which would conventionally be "Linecard-N.K", where K is a slot local identifier of the ASIC.
+In addition, each ASIC has an ASIC Name. The ASIC Name is no different from that used to identify an ASIC in any multi-chip SONiC device, except that it is globally unique across all forwarding modules in the entire system. When applied to a chassis the name is conventionally chosen as "Linecard-N.K", where K is an ASIC number within the linecard.
+
+The ASIC Name is used as a qualifier in global database keys to create a system wide unique key. It is also used as an identifier the group of software components that are instantiated to manage each ASIC on the system (containers like syncd, OrchAgent etc.)
 
 ## 2.6 Port Management 
 
@@ -221,9 +203,9 @@ Every port on the system requires a global representation in addition to its exi
 
 ### 2.6.3 Inband Ports
 
-Inband ports are required to provide control plane connectivity between  forwarding engines. They are connected to the forwarding device local CPU on one side and the internal fabric on the other. 
+Inband ports are required to provide control plane connectivity between  forwarding engines. They are connected to the forwarding module local CPU on one side and the internal fabric on the other. 
 
-Every inband port is assigned a System Port ID just like front panel ports which is known to all the forwarding devices. Thus, every inband port is reachable from every forwarding engine.
+Every inband port is assigned a System Port ID just like front panel ports which is known to all the forwarding modules. Thus, every inband port is reachable from every forwarding engine.
 
 ### 2.6.4 Fabric Ports
 
@@ -231,6 +213,23 @@ The provisioning and management of Fabric ports is outside the scope of this doc
 
 
 The details regarding the schemas, Orch agent logic changes and flows are described in more specific documents
+
+## 2.7 Failure Scenarios
+
+## 2.7.1 FSI Failures
+
+If an FSI fails due to an OS issue or if the hardware is removed from service, then the expected behavior outcome is
+
+- The Global DB connection is torn down
+- Internal control plane connectivity to that LSI is broken which triggers topology recovergence to avoid use of any forwarding paths through that LSI.
+
+## 2.7.2 Loss of connectivity from working FSI to Global DB 
+
+Loss of connectivity to the Global DB can prevent forwarding state from other FSIs from being propagated. To avoid traffic impact, The FSI must take defensive action to disconnect from the outside world (for example by ceasing protocol sessions) with neighbors to avoid any traffic flows through the FSI.
+
+## 2.7.3 SSI Device or OS failure
+
+Failure of the SSI at the very least results in loss of connectivity to the Global DB and the actions described in 2.7.2 take place on all FSIs leading to the entire system being disconnected from the outside world.
 
 # 3 Testing
 
@@ -246,8 +245,8 @@ More detailed test cases are covered in other HLDs.
 
 Dynamic system port support is required to support the following forwarding scenarios
 
-* Addition of a new forwarding device into an existing running system
-* Replacing a forwarding device with another device of a different hardware SKU (such as replacing a linecard with a new linecard of a different SKU in a chassis slot).
+* Addition of a new forwarding module into an existing running system
+* Replacing a forwarding module with another module of a different hardware SKU (such as replacing a linecard with a new linecard of a different SKU in a chassis slot).
 
 Both these scenarios can be supported smoothly as long as the global system port numbering scheme is maintained and the modifications to system ports can be performed without impacting the System Port IDs of the running system.
 
@@ -269,19 +268,18 @@ In this mode, the standby supervisor has booted into the OS and is waiting to ta
 Warm standby can be supported in SWSS as follows
 
 - Gracefully handle the loss of connectivity to the SSI and terminate OrchAgent, syncd and all related containers
-- Process device configuration and populate standby Chassis DB with static information
-- Modify the ChassisDB address in DEVICE_META
-- Start all the containers which will now connect to the standby Chassis DB and continue operation.
+- Modify the Redis database address that the FSI needs to connect to
+- Start all the containers which will now connect to the standby Global DB and continue operation.
 
 ### Hot Standby
 
-In the hot standby mode, the standby supervisor has the control plane running in standby mode, such that it can take over with minimal (or no) disruption to forwarding device.
+In the hot standby mode, the standby supervisor has the control plane running in standby mode, such that it can take over with minimal (or no) disruption to the forwarding module
 
 At a high level, hot standby mode requires
 
-- Starting Chassis DB on standby SSI in standby mode where it mirrors the Chassis DB.
-- Live sync of Chassis DB state between active and standby Chassis DB.
+- Starting the Global DB on standby SSI in standby mode where it mirrors the active Global DB.
+- Live sync of Global DB state between active and standby Global DB.
 - Graceful handling in OrchAgent of loss of connectivity to SSI and continuing to operate autonomously.
-- Reconnecting to Chassis DB when Standby SSI is ready.
-- Reconciling relevant Chassis DB state with SAI Asic DB state and modifying SAI state as appropriate to be in sync with Chassis DB.
+- Reconnecting to Global DB when Standby SSI is ready.
+- Reconciling relevant Global DB state with SAI Asic DB state and modifying SAI state as appropriate to be in sync with Global DB.
   
