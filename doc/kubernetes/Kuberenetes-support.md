@@ -1,30 +1,31 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The existing mode, which we term as '**Legacy mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
+The existing mode, which we term as '**Local mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
 
 With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**"
 
 # Requirements
 The following are the high level requirements to meet.
 1. Kubernetes mode is optional.
-    * Switch could run completely in legacy mode, if desired.
+    * Switch could run completely in local mode, if desired.
     * The SONiC image could be built with no Kubernetes packages, to save on image size cost.
     * Current set of commands continue to work as before.
     
-2. A feature could be managed using local container image (*legacy mode*) or kubernetes-provided image (*kubernetes-mode*).
-    * A feature could be configured for legacy or kubernetes mode, with legacy being default
+2. A feature could be managed using local container image (*Local mode*) or kubernetes-provided image (*kubernetes-mode*).
+    * A feature could be configured for local or kubernetes mode, with legacy being default
     * A feature could be switched between two modes.
     * A feature could default to local image, when/where kubernetes image is not available and configured for kubernetes-mode.
     
-3. A feature's rules for start/stop stays the same, in either mode (legacy/kubernetes)
+3. A feature's rules for start/stop stays the same, in either mode (local/kubernetes)
     * A set of rules are currently executed through systemd config, and bash scripts.
     * These rules will stay the same, for both modes
-    * As these rules stay the same, this new feature will transparently support warm/fast/cold reboots.
+    * As these rules stay the same, this new mode will transparently support warm/fast/cold reboots.
     
 4. A feature could be configured as kubernetes-mode only.
     * The switch image will not have this container image as embedded (in other words no local copy).
     * The switch image must have systemctl service file and any associated bash scripts for this feature.
+      - This is required to set the inter-dependency and other rules to meet to start/stop this feature, which includes support to warm/fast/cold reboots.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable
    
@@ -33,11 +34,10 @@ The following are the high level requirements to meet.
    * Kubernetes masters are required to deploy only qualified images
     
 5. A new set of "system service ..." commands are provided to manage the features.
-    * The commands would work transparenly on features, irrespective of their current mode as legacy/kubernetes.
+    * The commands would work transparenly on features, irrespective of their current mode as local/kubernetes.
     * This would cover all basic requirements, like start/stop/status/enable/disable/<more as deemed as necessary>
     
 6. The monit service would monitor the processes transparently across both modes.
-
 
 
 # Non requirements
@@ -64,7 +64,7 @@ The following are required, but not addressed in this design doc. This would be 
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    * systemctl gets used in the same way as now, but under new wrapper commands.
    
-* The systemd would continue to manage features running in both legacy & kubernetes mode.
+* The systemd would continue to manage features running in both local & kubernetes mode.
   
 * The current set of systemctl commands for SONiC features are replaced with a new set of "system service ..." commands
    * systemctl start --> system service start
@@ -87,8 +87,8 @@ The following are required, but not addressed in this design doc. This would be 
    
    
 * The new "system container ..." commands would
-   * Do a docker start, if in legacy mode, else create a label that would let kubelet start.
-   * Do a docker stop, if in legacy mode, else remove the label that would let kubelet stop.
+   * Do a docker start, if in local mode, else create a label that would let kubelet start.
+   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop.
    * For docker wait/inspect/exec, run that command on docker-id instead of name.
       * There is no control on names of the dockers started by kubernetes
       * Update all dockers to record their docker-id in State-DB
@@ -110,12 +110,12 @@ The following are required, but not addressed in this design doc. This would be 
       
      A local monit script is added to supervisord. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
   
-* Switches running completely in legacy mode may use the current systemctl commands or these new "system sevice/container ..." commands, or both.
+* Switches running completely in locallocal mode may use the current systemctl commands or these new "system sevice/container ..." commands, or both.
 
 * Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
-* The hostcfgd helps switch current runtime mode from legacy to kubernetes.
+* The hostcfgd helps switch current runtime mode from local to kubernetes.
 
   There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in legacy mode. At the timepoint of successful deployment, the hostcfgd could help switch over from legacy to kubernetes mode, transparently.
   
@@ -145,15 +145,12 @@ The following are required, but not addressed in this design doc. This would be 
 
    Feature configuration:
 ```
-   Key: "Feature|<name>"
-   set_owner   = systemd/kube/kube-only;
-                                               Defaults to systemd, if this field is absent or empty string.
-                                               kube-only implies that there is no local image for this container.
-                                               
-   kube_request = ""/"none"/"pending"/"ready"; 
-                                               Set to pending by container state update by kube for first time.
-                                               Monitored by hostcfgd, which sets to 'ready' and restart service
-                                               Expected to be "" or "none" in systemd mode.
+   Key: "FEATURE|<name>"
+   set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
+   
+   run_local_until_kube_deploys = true/false;   Until first deployment by kube, run local image; default: true
+   run_local_when_kube_fails = true/false;      When kube removes pod, switch to local image; Default: true
+
 ```
   
 ## STATE-DB
@@ -166,13 +163,18 @@ The following are required, but not addressed in this design doc. This would be 
 
    Feature Status
 ```
-   Key: "Feature|<name>"
+   Key: "FEATURE|<name>"
    current_owner           = systemd/kube/none/"";   
                                               Empty or none implies that this container is not running
    current_owner_update_ts = <second since epoch>
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
+   kube_request = ""/"none"/"pending"/"ready"; 
+                                               absent/""/"none", until first kube deployment
+                                               The kube deployed container sets to pending & waits, if first deployment.
+                                               Monitored by hostcfgd, which sets it to 'ready' and restart service
+                                               Restart will stop local image, if any and trigger kube container restart.
 ```
 
    Transient info:
@@ -182,7 +184,7 @@ The following are required, but not addressed in this design doc. This would be 
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
    ```
-   key: "kube_server|pending-label"
+   key: "KUBE_SERVER|PENDING_LABELS"
    @labels: [<list of labels>]
    ```
    
