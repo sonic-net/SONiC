@@ -205,10 +205,13 @@ The system ports are configured on the Line Card. This information is then popul
  The **existing** DEVICE_METADATA table is enhanced to add new entry to have VOQ related parameters
  
 ```
-DEVICE_METADATA|{"voq_db"}
-    "switch_id": {{switch_id}}
+DEVICE_METADATA: {
+   "voqsystem": {
     "switch_type": {{switch_type}}
+    "switch_id": {{switch_id}}
     "max_cores" : {{max_cores}}
+   }
+}
 ```
 
 VOQ_DB will be specified using database_config.json.j2 and it will generated in control card and linecard differently. Control card will be the server and line card will be running clients only. DBConnectors will use this config to connect correct VOQ_DB.
@@ -273,13 +276,11 @@ SYSTEM_PORT:{{system_port_name}}
     "speed": {{index_number}}
     "local_port" : {{local_port}} <!-- name of the local port -->
 ```
-
 ### 2.2.3 ConfigDB Schemas
 **Existing** schema for DEVICE_METADATA in configuration DB
 ```
 key                                   = DEVICE_METADATA|"voq_db"      ; 
 ; field                               = value
-switch_id                             = 1*4DIGIT            ; number between 0 and 1023
 switch_type                           = "npu" | "fabric"
 switch_id                             = 1*4DIGIT            ; number between 0 and 1023
 max_cores                             = 1*4DIGIT            ; max cores 1 and 1024
@@ -297,7 +298,9 @@ core_port_index                       = 1*3DIGIT                ; 1 t0 256 port 
 speed                                 = 1*7DIGIT                ; port line speed in Mbps
 ```
 
-No changes in the schema of other CONFIG_DB tables. The name of the ports used as key in the PORT table is unique across chassis. For router interface and address configurations for the system ports, the existing INTERFACE table in CONFIG_DB is used.
+No changes in the schema of other CONFIG_DB tables. The name of the system ports used as key in the SYSTEM_PORT table is unique across chassis. The system_port_name can be same as the PORT table name as long as the PORT table name is unique across the chassis or it can be any character string which does not include ":". If a system port is used as inband interface, the name of that system port must be a name that will be accepted by kernel for netdevice name.
+
+For router interface and address configurations for the system ports, the existing INTERFACE table in CONFIG_DB is used.
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
@@ -307,17 +310,17 @@ This is a **new** database which resides in global redis server accessible by al
 ### 2.3.1 System Port interface table
 A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config.
 ```
-INTERFACE:{{system_interface_name}} 
+SYSTEM_INTERFACE:{{system_interface_name}} 
     {}
 ```
+The system_interface_name is same as the name of the system_port or system_portchannel
 
-### 2.3.2 Voq Neighbor table
+### 2.3.2 System Neighbor table
 A table for neighbors learned or statically configured on system ports. The schema is same as the schema of "NEIGH" table in config DB with additional attribute for "encap_index".
 ```
-NEIGH:{{system_port_name}}:{{ip_address}} 
+SYSTEM_NEIGH:{{system_port_name}}:{{ip_address}} 
     "neigh": {{mac_address}}
     "encap_index": {{encap_index}}
-    "vrf": {{vrf_id}} (OPTIONAL)
 ```
 
 ### 2.3.3 System PortChannel Table
@@ -329,25 +332,24 @@ SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
 ```
     
 ### 2.3.4 System PortChannel Member Table
-A table for members of portchannel in the whole system. This is populated by OrchAgent.
+A table SYSTEM_PORTCHANNEL_MEMBER for members of portchannel in the whole system. This is populated by OrchAgent.
 Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
 
 ### 2.3.5 VOQ DB Schemas
 
 ```
 ; Defines schema for interfaces for VOQ System ports
-key                                   = INTERFACE:system_port_name:ip_address ; VOQ System port interface
+key                                   = SYSTEM_INTERFACE:system_port_name:ip_address ; VOQ System port interface
 ; field                               = value
 
 ```
 
 ```
 ; Defines schema for VOQ Neighbor table attributes
-key                                   = NEIGH:system_port_name:ip_address ; VOQ IP neighbor
+key                                   = SYSTEM_NEIGH:system_port_name:ip_address ; VOQ IP neighbor
 ; field                               = value
 neigh                                 = 12HEXDIG                                       ; mac address of the neighbor
 encap_index                           = 1*4DIGIT                                       ; Encapsulation index of the remote neighbor.
-vrf                                   = name                                           ; VRF name
 
 ```
 
@@ -495,28 +497,26 @@ The figure below shows the inband vlan net device and host packet flows for the 
  ![](../../images/voq_hld/option2b-vlan-network-port-net-device-packet-flows.png)
 
 ```
-// VOQ_GLOBAL_CONFIG across all ASIC's
+// VOQ inband interface config in CONFIG DB
 {
-    "VOQ_INBAND": {
-        "<InBandInterfaceNameKey>": {
-            "Type": "Port|Vlan",
-            "Port": "InBand0",
-            "VlanId": "<VlanId>"
-            "Members": [
-                "ASIC-0-CPU-SystemPort",
-                "ASIC-1-CPU-SystemPort",
-                "ASIC-N-CPU-SystemPort"
+   “VOQ_INBAND_INTERFACE”: {
+       “<inband_interface_name>”: {
+            “inband_type”: “port”|”vlan”,
+            “vlan_id”: “<vlan id>”,
+            “vlan_members”: [
+               “<cpu system port 1 name>”,
+               “<cpu system port 2 name>”,
+               .
+               .
+               .
             ]
-        }
-    },
-    "INBAND_INTERFACE" : {
-        "<DeviceName0>|<InBandInterfaceNameKey>|3.3.3.1/24": {}
-        "<DeviceName1>|<InBandInterfaceNameKey>|3.3.3.2/24": {}
-        "<DeviceNameN>|<InBandInterfaceNameKey>|3.3.3.N/24": {}
-    }
-}
+       },
+       “<inband_interface_name>|<ip address/mask>”: {} 
+     }
+ }
 
 ```
+"inband_interface_name" is the name of the inband system port or inband vlan or any other existing front panel port dedicated for cpu communication. "vlan_id" and "vlan_members" are applicable only when "inband_type" is "vlan".
 
 ### 2.6.4 Comparing Options
 The table below compares the two options discussed above. 
@@ -590,7 +590,8 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 ![](../../images/voq_hld/voq_portchannel_creation.png)
 
 # 4 Example configuration
-### Port Configurations in Config DB
+
+Example coniguration for voq inband interface type "port" is presented
 
 #### Config DB Objects:
 
@@ -598,10 +599,30 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
 
 ```
  {
+     "DEVICE_METADATA": {
+        "voqsystem": {
+	   "switch_id": "0",
+	   "max_cores": "48"
+	}
+     },
+     "INTERFACE": {
+         "Ethernet1": {},
+         "Ethernet2": {},
+         "Ethernet3": {},
+         "Ethernet1"|"10.0.0.1/16": {},
+         "Ethernet2"|"20.0.0.1/16": {},
+         "Ethernet3"|"30.0.0.1/16": {}
+     },
+     "VOQ_INBAND_INTERFACE": {
+        "Inband0": {
+	   "inband_type": "port",
+	},
+	"Inband0|3.3.3.1/32": {}
+     }
      "PORT": {
          "Ethernet1": {
             "admin_status": "up",
-            "alias": "ethernet0/1",
+            "alias": "Ethernet1",
             "index": "1",
             "lanes": "8,9,10,11,12,13,14,15",
             "mtu": "1500",
@@ -609,7 +630,7 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
         },
         "Ethernet2": {
             "admin_status": "up",
-            "alias": "ethernet0/2",
+            "alias": "Ethernet2",
             "index": "2",
             "lanes": "0,1,2,3,4,5,6,7",
             "mtu": "1500",
@@ -617,257 +638,235 @@ In a distributed VOQ System, queue and buffer utilization statistics for a port 
         },
         "Ethernet3": {
             "admin_status": "up",
-            "alias": "ethernet0/3",
+            "alias": "Ethernet3",
             "index": "3",
             "lanes": "24,25,26,27,28,29,30,31",
             "mtu": "1500",
             "speed": "400000"
-        }
-     }
- }
-```
-
-##### In ASIC #1
-
-```
- {
-     "PORT": {
-         "Ethernet128": {
-            "admin_status": "up",
-            "alias": "ethernet1/1",
-            "index": "1",
-            "lanes": "8,9,10,11,12,13,14,15",
-            "mtu": "1500",
-            "speed": "400000"
         },
-        "Ethernet129": {
-            "admin_status": "up",
-            "alias": "ethernet1/2",
-            "index": "2",
-            "lanes": "0,1,2,3,4,5,6,7",
-            "mtu": "1500",
-            "speed": "400000"
-        },
-        "Ethernet139": {
-            "admin_status": "up",
-            "alias": "ethernet1/3",
-            "index": "3",
-            "lanes": "24,25,26,27,28,29,30,31",
-            "mtu": "1500",
-            "speed": "400000"
-        }
-     }
- }
-```
-
-### VOQ System Port info in APP DB
-
-#### APP DB Objects:
-
-##### In ASIC #0 and ASIC# 1
-
-```
- {
-     "SYSTEM_PORT_TABLE": {
-         "Ethernet1": {
+	.
+	.
+	.
+     },
+     "SYSTEM_PORT": {
+         "Slot1|Asic0|Ethernet1": {
              "system_port_id": "1",
              "switch_id": "0",
              "core_index": "0",
              "core_port_index": "1",
              "speed": "400000"
          },
-         "Ethernet2": {
+         "Slot1|Asic0|Ethernet2": {
              "system_port_id": "2",
              "switch_id": "0",
              "core_index": "0",
              "core_port_index": "2",
              "speed": "400000"
          },
-         "Ethernet3": {
+         "Slot1|Asic0|Ethernet3": {
              "system_port_id": "3",
              "switch_id": "0",
              "core_index": "0",
              "core_port_index": "3",
              "speed": "400000"
          },
-         "Ethernet128": {
-             "system_port_id": "128",
+	 "Inband0": {
+             "system_port_id": "63",
+             "switch_id": "0",
+             "core_index": "1",
+             "core_port_index": "6",
+             "speed": "400000"
+         },
+	 .
+	 .
+	 .
+         "Slot1|Asic1|Ethernet1": {
+             "system_port_id": "65",
              "switch_id": "2",
              "core_index": "0",
              "core_port_index": "1",
              "speed": "400000"
          },
-         "Ethernet129": {
-             "system_port_id": "2",
+         "Slot1|Asic1|Ethernet2": {
+             "system_port_id": "66",
              "switch_id": "2",
              "core_index": "0",
              "core_port_index": "2",
              "speed": "400000"
          },
-         "Ethernet130": {
-             "system_port_id": "3",
+         "Slot1|Asic1|Ethernet3": {
+             "system_port_id": "67",
              "switch_id": "2",
              "core_index": "0",
              "core_port_index": "3",
+             "speed": "400000"
+         },
+	 "Inband1": {
+             "system_port_id": "77",
+             "switch_id": "2",
+             "core_index": "1",
+             "core_port_index": "6",
              "speed": "400000"
          }
      }
  }
 ```
 
-### Interface Configurations in Config DB
-
-Interface configurations are required in Config DB for routed ports
-
-#### Config DB objects:
-
-##### In ASIC# 0
-
-```
-{
-   "INTERFACE": {
-      "Ethernet1": {},
-      "Ethernet2": {},
-      "Ethernet3": {},
-      "Ethernet1"|"10.0.0.1/16": {},
-      "Ethernet2"|"20.0.0.1/16": {},
-      "Ethernet3"|"30.0.0.1/16": {}
-   }
-}
-```
-
-##### In ASIC# 1
-
-```
-{
-   "INTERFACE": {
-      "Ethernet128": {},
-      "Ethernet129": {},
-      "Ethernet130": {},
-      "Ethernet128"|"10.1.0.1/16": {},
-      "Ethernet129"|"20.1.0.1/16": {},
-      "Ethernet130"|"30.1.0.1/16": {}
-   }
-}
-```
-### Interface infomation for local and remote system ports in APP DB
-IP address configuration for remote system ports are done in local config DB as shown above
-
-#### APP DB Objects:
-
-##### In ASIC #0
-
-```
-{
-   "INTF_TABLE": {
-      "Ethernet1": {},
-      "Ethernet2": {},
-      "Ethernet3": {},
-      "Ethernet1":"10.0.0.1/24": {},
-      "Ethernet2":"20.0.0.1/24": {},
-      "Ethernet3":"30.0.0.1/24": {},
-      "Ethernet128": {},
-      "Ethernet129": {},
-      "Ethernet130": {}
-   }
-}
-```
 ##### In ASIC #1
 
 ```
+ {
+     "DEVICE_METADATA": {
+        "voqsystem": {
+	   "switch_id": "2",
+	   "max_cores": "48"
+	}
+     },
+      "INTERFACE": {
+         "Ethernet1": {},
+         "Ethernet2": {},
+         "Ethernet3": {},
+         "Ethernet1"|"10.1.0.1/16": {},
+         "Ethernet2"|"20.1.0.1/16": {},
+         "Ethernet3"|"30.1.0.1/16": {}
+     },
+     "VOQ_INBAND_INTERFACE": {
+        "Inband1": {
+	   "inband_type": "port",
+	},
+	"Inband1|3.3.3.2/32": {}
+     },
+     "PORT": {
+         "Ethernet1": {
+            "admin_status": "up",
+            "alias": "Ethernet1",
+            "index": "1",
+            "lanes": "8,9,10,11,12,13,14,15",
+            "mtu": "1500",
+            "speed": "400000"
+        },
+        "Ethernet2": {
+            "admin_status": "up",
+            "alias": "Ethernet2",
+            "index": "2",
+            "lanes": "0,1,2,3,4,5,6,7",
+            "mtu": "1500",
+            "speed": "400000"
+        },
+        "Ethernet3": {
+            "admin_status": "up",
+            "alias": "Ethernet3",
+            "index": "3",
+            "lanes": "24,25,26,27,28,29,30,31",
+            "mtu": "1500",
+            "speed": "400000"
+        },
+	.
+	.
+	.
+     },
+     "SYSTEM_PORT": {
+         "Slot1|Asic0|Ethernet1": {
+             "system_port_id": "1",
+             "switch_id": "0",
+             "core_index": "0",
+             "core_port_index": "1",
+             "speed": "400000"
+         },
+         "Slot1|Asic0|Ethernet2": {
+             "system_port_id": "2",
+             "switch_id": "0",
+             "core_index": "0",
+             "core_port_index": "2",
+             "speed": "400000"
+         },
+         "Slot1|Asic0|Ethernet3": {
+             "system_port_id": "3",
+             "switch_id": "0",
+             "core_index": "0",
+             "core_port_index": "3",
+             "speed": "400000"
+         },
+	 "Inband0": {
+             "system_port_id": "63",
+             "switch_id": "0",
+             "core_index": "1",
+             "core_port_index": "6",
+             "speed": "400000"
+         },
+	 .
+	 .
+	 .
+         "Slot1|Asic1|Ethernet1": {
+             "system_port_id": "65",
+             "switch_id": "2",
+             "core_index": "0",
+             "core_port_index": "1",
+             "speed": "400000"
+         },
+         "Slot1|Asic1|Ethernet2": {
+             "system_port_id": "66",
+             "switch_id": "2",
+             "core_index": "0",
+             "core_port_index": "2",
+             "speed": "400000"
+         },
+         "Slot1|Asic1|Ethernet3": {
+             "system_port_id": "67",
+             "switch_id": "2",
+             "core_index": "0",
+             "core_port_index": "3",
+             "speed": "400000"
+         },
+	 "Inband1": {
+             "system_port_id": "77",
+             "switch_id": "2",
+             "core_index": "1",
+             "core_port_index": "6",
+             "speed": "400000"
+         }
+     }
+ }
+```
+
+#### VOQ DB Objects:
+
+```
 {
-   "INTF_TABLE": {
-      "Ethernet1": {},
-      "Ethernet2": {},
-      "Ethernet3": {},
-       Ethernet128": {},
-      "Ethernet129": {},
-      "Ethernet130": {},
-      "Ethernet128":"10.1.0.1/24": {},
-      "Ethernet129":"20.1.0.1/24": {},
-      "Ethernet130":"30.1.0.1/24": {}
+   "SYSTEM_INTERFACE": {
+      "Slot1|Asic0|Ethernet1": {},
+      "Slot1|Asic0|Ethernet2": {},
+      "Slot1|Asic0|Ethernet3": {},
+      "Slot1|Asic1|Ethernet1": {},
+      "Slot1|Asic1|Ethernet2": {},
+      "Slot1|Asic1|Ethernet3": {}
+   },
+   "SYSTEM_NEIGH": {
+      "Slot1|Asic0|Ethernet1:10.0.0.2": {
+         "neigh": "02:01:00:00:00:01",
+	 "encap_index": "8193",
+      },
+      "Slot1|Asic0|Ethernet2:20.0.0.2": {
+         "neigh": "02:01:00:00:00:02",
+	 "encap_index": "8194",
+      },
+      "Inband0:3.3.3.1": {
+         "neigh": "02:01:00:00:00:00",
+	 "encap_index": "8195",
+      },
+      "Slot1|Asic1|Ethernet1:10.1.0.2": {
+         "neigh": "02:01:01:00:00:01",
+	 "encap_index": "8193",
+      },
+       "Slot1|Asic1|Ethernet2:20.1.0.2": {
+         "neigh": "02:01:01:00:00:02",
+	 "encap_index": "8194",
+      },
+      "Inband1:3.3.3.2": {
+         "neigh": "02:01:01:00:00:00",
+	 "encap_index": "8195",
+      }
    }
-}
-```
-
-### Static Neighbor configuration in Config DB
-This is optional. 
-
-#### Config DB objects:
-Static neighbors are configured on local ports
-
-##### On ASIC #0
-
-```
-{
-   "NEIGH": {
-      "Ethernet1:10.0.0.2": {
-         "neigh": "02:06:0a:00:00:01",
-         "vrf": "1"
-      }
-    }
-}
-```
-##### On ASIC #1
-
-```
-{
-   "NEIGH": {
-      "Ethernet128:10.1.0.2": {
-         "neigh": "02:06:1a:00:00:01",
-         "vrf": "1"
-      }
-    }
-}
-```
-### Neighbor information in APP DB
-
-#### APP DB Objects:
-The NEIGH_TABLE has entries for locally learned neighbors on local ports
-
-##### On ASIC #0
-```
-{
-  "NEIGH_TABLE": {
-      "Ethernet1:10.0.0.2": {
-         "neigh": "02:06:0a:00:00:01",
-         "family", "IPv4",
-         "vrf": "1"
-      },
-      "Ethernet2:20.0.0.2": {
-         "neigh": "02:06:0b:00:00:01",
-         "family", "IPv4",
-         "vrf": "1"
-      },
-      "Ethernet128:10.1.0.1": {
-         "neigh": "02:16:0a:00:00:01",
-         "family": "IPv4",
-         "encap_index": "4097",
-         "vrf": "1",
-      }
-  }
-}
-```
-
-##### On ASIC #1
-```
-{
-  "NEIGH_TABLE": {
-      "Ethernet1:10.0.0.2": {
-         "neigh": "02:06:0a:00:00:01",
-         "family": "IPv4"
-         "encap_index": "4096",
-         "vrf": "1"
-      },
-      "Ethernet128:10.1.0.2": {
-         "neigh": "02:16:0a:00:00:01",
-         "vrf": "1"
-      },
-      "Ethernet129:20.1.0.2": {
-         "neigh": "0b2:16:0b:00:00:01",
-         "vrf": "1"
-      }
-    }
 }
 ```
 
