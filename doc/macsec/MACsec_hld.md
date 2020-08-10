@@ -530,7 +530,7 @@ In this experiment, each interface was managed by one wpa_supplicant instance. T
 Although to use solution, one wpa_supplicant to multiple interfaces, take less memory, SONiC MACsec will choose solution two, One wpa_supplicant to one interfaces. Because:
 
 1. The number of interfaces of a switch often doesn't exceed 200, the memory usage isn't insensitive to the switch.
-2. To use multiple wpa_supplicant instances can improve the robustness
+2. To use multiple wpa_supplicant instances can improve the robustness.
 
 #### 3.4.3 SONiC MACsec Plugin
 
