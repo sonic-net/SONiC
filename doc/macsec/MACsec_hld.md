@@ -17,6 +17,7 @@
     - [Phase I](#phase-i)
     - [Phase II](#phase-ii)
     - [Phase III](#phase-iii)
+    - [Phase IV](#phase-iv)
 - [2 Architecture Design](#2-architecture-design)
 - [3 Modules Design](#3-modules-design)
   - [3.1 Config DB](#31-config-db)
@@ -112,6 +113,10 @@ At a high level the following should be supported:
 #### Phase III
 
 - CLI commands to configure MACsec
+
+#### Phase IV
+
+- MACsec can support confidentiality offset setting
 
 ## 2 Architecture Design
 
@@ -501,7 +506,7 @@ The wpa_supplicant should be able proactively refresh SAK according to a specifi
 
 The experiments designed to evaluate the scalability of wpa_supplicant, are using the veth-pair interfaces to simulate the physical ports and using the Linux network namespace to simulate different switches. The MACsec interfaces were bound on the veth-pair interfaces and assigned IP address for connectivity checking. The RSS of `ps` command is as the index of memory usage of one wpa_supplicant.
 
-- An interface to a wpa_supplicant
+- One wpa_supplicant to multiple interfaces
 
 In this experiment, all interfaces were set by wpa_cli and were managed by one supplicant instance. The goal of the experiment is to get the maximum number of interfaces that a wpa_supplicant can handle and the memory usage of a wpa_supplicant.
 
@@ -512,9 +517,9 @@ In this experiment, all interfaces were set by wpa_cli and were managed by one s
 
 The wpa_supplicant process raise an exception, `*** buffer overflow detected ***: ./wpa_supplicant terminated`, if the number of interface exceed 202 in the testbed.
 
-- Multiple interfaces to a wpa_supplicant
+- One wpa_supplicant to one interfaces
 
-In this experiment, each interface was managed by a wpa_supplicant instance. The goal of the experiment is to get the memory usage of a wpa_supplicant.
+In this experiment, each interface was managed by one wpa_supplicant instance. The goal of the experiment is to get the memory usage of a wpa_supplicant.
 
 | Number of interfaces | Total memory usage of all wpa_supplicants (MB) | Memory usage of per wpa_supplicant (MB) |
 | -------------------: | ---------------------------------------------: | --------------------------------------: |
@@ -522,11 +527,10 @@ In this experiment, each interface was managed by a wpa_supplicant instance. The
 |                  200 |                                            981 |                                     4-6 |
 |                 2000 |                                          23292 |                                    9-13 |
 
-According to above experiments, the solution, *an interface to a wpa_supplicant*, will be chosen, because :
+Although to use solution, one wpa_supplicant to multiple interfaces, take less memory, SONiC MACsec will choose solution two, One wpa_supplicant to one interfaces. Because:
 
-1. the physical port number of a switch usually doesn't exceed 200
-2. only one MACsec interface will be imposed on one physical port for the SONiC's requirement
-3. the solution one uses less memory than the solution two.
+1. The number of interfaces of a switch often doesn't exceed 200, the memory usage isn't insensitive to the switch.
+2. To use multiple wpa_supplicant instances can improve the robustness
 
 #### 3.4.3 SONiC MACsec Plugin
 
