@@ -15,7 +15,7 @@ The following are the high level requirements to meet.
 2. A feature could be managed using local container image (*Local mode*) or kubernetes-provided image (*kubernetes-mode*).
     * A feature could be configured for local or kubernetes mode, with local being default
     * A feature could be switched between two modes.
-    * A feature could default to local image, when/where kubernetes image is not available and configured for kubernetes-mode.
+    * A feature could default to local image, until first kube deployment.
     
 3. A feature's rules for start/stop stays the same, in either mode (local/kubernetes)
     * A set of rules are currently executed through systemd config, and bash scripts.
@@ -101,7 +101,7 @@ The following are required, but not addressed in this design doc. This would be 
       * `docker_id = <ID of the container>`
       * `current_owner_update_ts = <Time stamp of change>`
     
-     The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/systemd>`, which in turn would do the above update.
+     The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/local>`, which in turn would do the above update.
       
    * On pre-stop
       * `current_owner = none` 
@@ -148,8 +148,11 @@ The following are required, but not addressed in this design doc. This would be 
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
    
-   run_local_until_kube_deploys = true/false;   Until first deployment by kube, run local image; default: true
-   run_local_when_kube_fails = true/false;      When kube removes pod, switch to local image; Default: true
+   run_local_until_join = true/false;            If true, the local image is used to run the container, until
+                                                the first deployment. Defaults to false.
+   
+   run_local_upon_kube_failure = true/false;    When kube removes the container and does not re-deploy for <N> minutes,
+                                                switch to local image; Default: false
 
 ```
   
@@ -164,17 +167,19 @@ The following are required, but not addressed in this design doc. This would be 
    Feature Status
 ```
    Key: "FEATURE|<name>"
-   current_owner           = systemd/kube/none/"";   
+   current_owner           = local/kube/none/"";   
                                               Empty or none implies that this container is not running
    current_owner_update_ts = <second since epoch>
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   kube_request = ""/"none"/"pending"/"ready"; 
-                                               absent/""/"none", until first kube deployment
-                                               The kube deployed container sets to pending & waits, if first deployment.
-                                               Monitored by hostcfgd, which sets it to 'ready' and restart service
-                                               Restart will stop local image, if any and trigger kube container restart.
+   transition_mode = ""/"none"/"to_kube"/"kube_ready";
+                                              Helps dynamic transition from local to kube.
+                                              absent/""/"none", until first kube deployment.
+                                              First kube deployment sets to "to_kube" and sleep (does not proceeed).
+                                              The hostcfgd stops local, sets to "kube_ready" and restart kube.
+                                              On the next start by kube deployed containere, with mode == kube_ready,
+                                              it proceeds to run.
 ```
 
    Transient info:
