@@ -148,11 +148,13 @@ The following are required, but not addressed in this design doc. This would be 
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
    
-   run_local_until_join = true/false;            If true, the local image is used to run the container, until
-                                                the first deployment. Defaults to false.
+   fallback_to_local = true/false;              When set_owner == kube and kube does not deploy or failed, run local image.
+                                                Default: false.
    
-   run_local_upon_kube_failure = true/false;    When kube removes the container and does not re-deploy for <N> minutes,
-                                                switch to local image; Default: false
+   kube_failure_detection = <N>;                When set_owner == kube and if container is not running for N minutes, it is 
+                                                considered as "failed". When "failed", if fall_back_to_local == true, the local 
+                                                image would be started and lert logs will be raised. Default: 5 minutes
+
 
 ```
   
