@@ -1,6 +1,6 @@
 # SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.6
+### Rev 0.7
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -60,7 +60,8 @@
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
 | 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
 | 0.5 | 05/29/2020  | Venkatesan Mahalingam | Addressed the comments and added the new fields |
-| 0.6 | 07/17/2020  | Eddy Lem | Update to new show bgp command syntax |
+| 0.6 | 07/17/2020  | Eddy Lem | Update to new show bgp command syntax |  
+| 0.7 | 08/10/2020  | Venkatesan Mahalingam | Added a requirement to indicate that this document intends to cover non-template based FRR configurations i.e solely based on configurations from config DB |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -95,6 +96,7 @@ This feature extends and provides unified configuration and management capabilit
   2. Extend sonic-cfggen, bgpcfgd and integrate with FRR-BGP for features supported in SONiC
   3. Support for retrieval of FRR-BGP state and statistics information
   4. For backward compatibility retain access to FRR UI (vtysh) for managing features that are NOT in conflict with SONiC features
+  5. Configure FRR solely based on configurations from config DB (refer various config DB schemas given in this document) i.e not based on fixed/template based FRR configurations from bgpcfgd with minimal configurations from config DB.
 
 ### 1.1.2 Configuration and Management Requirements
 
