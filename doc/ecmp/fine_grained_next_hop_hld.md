@@ -195,6 +195,29 @@ CLI commands:
 	show fg nhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
 
+### 2.3.1 CLI 'show fg nhg hash-view' Output Format
+```
+Next-Hop-Key    Hash Bucket #
+--------------  -----------------------------------------------------------------------------------------------------------------------
+200.200.200.1   ['88', '89', '102', '103', '100', '101', '99', '98', '91', '90', '93', '92', '95', '94', '97', '96']
+200.200.200.2   ['41', '20', '21', '22', '23', '15', '17', '16', '19', '18', '46', '44', '45', '42', '43', '40']
+200.200.200.3   ['64', '65', '66', '67', '68', '69', '77', '76', '75', '74', '73', '72', '71', '70', '78']
+...
+```
+
+### 2.3.2 CLI 'show fg nhg active-hops' Output Format
+```
+Active-Hops     
+--------------   
+200.200.200.1
+200.200.200.2    
+200.200.200.3   
+...
+```
+
+
+
+
 Show CLI commands of ```show fg nhg hash-view``` and ```show fg nhg active-hops``` are implemented as a view of the state db table described in section 2.2
 
 
