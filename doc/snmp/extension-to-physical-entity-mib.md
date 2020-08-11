@@ -10,7 +10,7 @@
 
 ## 1. Overview 
 
-The Entity MIB contains several groups of MIB objects, currently SONiC only implemented part of the entityPhysical group following RFC2737. The group contains a a single table called "entPhysicalTable" to indentify the pysical components of the system. The MIB objects of "entityPhysical" group listed as below:
+The Entity MIB contains several groups of MIB objects, currently SONiC only implemented part of the entityPhysical group following RFC2737. The group contains a single table called "entPhysicalTable" to indentify the pysical components of the system. The MIB objects of "entityPhysical" group listed as below:
 
 	EntPhysicalEntry ::= SEQUENCE {
 		entPhysicalIndex          PhysicalIndex,
@@ -77,8 +77,8 @@ Another thing need to highlight is that in the current implementation, "entPhysi
 	         |              |--CPU Core Sensor/T(x) (Temperature sensor)
 	         |              |--Board AMB temp/T(x) (Temperature sensor)
 	         |              |--Ports AMB temp/T(x) (Temperature sensor)
-	         |              |--SPC (Switch device)
-	         |                  |--SPC/T(x) (Temperature sensor)
+	         |              |--ASIC (Switch device)
+	         |                  |--ASIC/T(x) (Temperature sensor)
 	         |--FAN(x) (Fan)
 	         |              |-- FAN/F(y) (Fan sensor)
 	         |--PS(x) (Power supply)
