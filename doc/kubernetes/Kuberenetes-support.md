@@ -153,7 +153,9 @@ The following are required, but not addressed in this design doc. This would be 
    
    kube_failure_detection = <N>;                When set_owner == kube and if container is not running for N minutes, it is 
                                                 considered as "failed". When "failed", if fall_back_to_local == true, the local 
-                                                image would be started and lert logs will be raised. Default: 5 minutes
+                                                image would be started and alert logs will be raised. 
+                                                A value of 0 implies infinity, implying no failure monitoring.
+                                                Default: 0
 
 
 ```
