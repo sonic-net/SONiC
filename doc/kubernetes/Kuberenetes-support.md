@@ -197,11 +197,8 @@ The following are required, but not addressed in this design doc. This would be 
    
 ## overall flow
 
-### Service start:
-![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/service_start.png)
 
-### Transition
-![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/transition_to_kube.png)
+
 
 ## Internal commands
 
