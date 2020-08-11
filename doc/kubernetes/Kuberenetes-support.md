@@ -195,9 +195,9 @@ The following are required, but not addressed in this design doc. This would be 
    @labels: [<list of labels>]
    ```
    
-## overall flow
+## State diagram
 
-
+![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/state_diagram.png)
 
 
 ## Internal commands
