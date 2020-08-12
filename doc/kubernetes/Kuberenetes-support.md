@@ -115,7 +115,7 @@ The following are required, but not addressed in this design doc. This would be 
 * Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
-* The hostcfgd helps switch current runtime mode from local to kubernetes.
+* The hostcfgd helps start kube container through service start.
 
   There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in local mode. At the timepoint of successful deployment, the hostcfgd could help switch over from local to kubernetes mode, transparently.
   
@@ -125,12 +125,20 @@ The following are required, but not addressed in this design doc. This would be 
      * kubernetes master is available and reachable.
      * kubernetes manifest for this feature & device is available.
      * The corresponding container image could be successfully pulled down.
-      
-   When the container starts, it calls `system container state <name> up kube`. This script makes a request to get activated, if started by kubernetes for the first time. The hostcfgd watch for this request and upon request, do the necessary update and call for service restart. This would transparently stop the container running local image and restart the kubernetes's downwloaded image. From here on this feature runs on kubernetes deployed image.
+     
+   Anytime the kube controlled container stops, it has to be stopped and started through service stop/start, to ensure all the dependent services are handled.
+   The hostcfgd helps with that too.
    
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
 
   If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image.
+  
+* The sccripts are provided to join-to/reset-from master.
+   * kube_join
+      *  Fetches admin.conf from master through https GET and use that to join
+      *  Fetches an archive of metadata & service files for kubernetes-only features.
+      *  Based on the metadata, all/subset of matching service files are installed.
+      *  This would enable start/stop of the new kubernetes-only services
 
   
 ## CONFIG-DB
