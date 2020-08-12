@@ -83,8 +83,8 @@ The following are required, but not addressed in this design doc. This would be 
    
    With this proposal, for features configured as managed by kubernetes,
    
-      * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
-      * The switch/node would create/remove a label for start/stop.
+   * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
+   * The switch/node would create/remove a label for start/stop.
       
    Hence in case of kube-managed, the container start/stop would add/remove label `<feature name>_enabled=true`.
    In case of container wait, use container-id instead of name.
