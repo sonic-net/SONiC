@@ -177,13 +177,16 @@ The following are required, but not addressed in this design doc. This would be 
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   transition_mode = ""/"none"/"to_kube"/"kube_ready";
-                                              Helps dynamic transition from local to kube.
-                                              absent/""/"none", until first kube deployment.
-                                              First kube deployment sets to "to_kube" and sleep (does not proceeed).
-                                              The hostcfgd stops local, sets to "kube_ready" and restart kube.
-                                              On the next start by kube deployed containere, with mode == kube_ready,
-                                              it proceeds to run.
+   transition_mode = ""/"none"/"kube_pending"/"kube_ready"/"kube_stopped";
+                                              Helps dynamic transition to kube deployment.
+                                              When kube deploys:
+                                                If not kube_ready, 
+                                                   kube_deployment sets to kube_pending and sleeps until stopped.                                             
+                                                   The hostcfgd stops service, sets to "kube_ready" and start service.
+                                                else
+                                                   set to kube_running
+                                                   Proceed to run
+                                                   Durining exiting, set to kube_stopped
 ```
 
    Transient info:
@@ -309,3 +312,7 @@ The following are required, but not addressed in this design doc. This would be 
    `show kubernetes status`
    It describes the kubernetes status of the node.
 
+
+# Salient points to note:
+
+1. Service kube start/stop would work only as long as kubernetes master is reachable.
