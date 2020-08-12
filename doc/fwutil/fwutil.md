@@ -218,15 +218,14 @@ fwutil
 |--- auto-update
      |--- chassis
      |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle> -a|--action=<immediate|none>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|(immediate_)fast|(immediate_)warm|(immediate_)cold|(immediate_)powercycle> 
      |--- module <module_name>
      |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle> -a|--action=<immediate|none>
-     |--- fw -y|--yes -f|--force -z|--fw-image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle> -a|--action=<immediate|none>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>  --b|--boot=<any|none|(immediate_)fast|(immediate_)warm|(immediate_)cold|(immediate_)powercycle>
+     |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|(immediate_)fast|(immediate_)warm|(immediate_)cold|(immediate_)powercycle>
+     |--- fw -y|--yes -f|--force -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|(immediate_)fast|(immediate_)warm|(immediate_)cold|(immediate_)powercycle>
      
 ```
-
-**Note:** <fw_path> can be absolute path or URL
 
 ### 2.2.2 Command interface
 
