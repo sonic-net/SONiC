@@ -24,7 +24,7 @@ The following are the high level requirements to meet.
     
 4. A feature could be configured as kubernetes-mode only.
     * The switch image will not have this container image as embedded (in other words no local copy).
-    * The switch image must have systemctl service file and any associated bash scripts for this feature.
+    * The switch must have systemctl service file and any associated bash scripts for this feature.
       - This is required to set the inter-dependency and other rules to meet to start/stop this feature, which includes support to warm/fast/cold reboots.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable.
@@ -32,6 +32,10 @@ The following are the high level requirements to meet.
 5. A kubernetes deployed container image must comply with guidelines set by SONiC.
    * Required to under go nightly tests to qualify.
    * Kubernetes masters are required to deploy only qualified images.
+   * Switch must have a control over label that let switch decide, when a manifest can be deployed.
+   * Masters control what manifests to deploy and switches/nodes control when to deploy.
+   * Containers must follow protocol set by this doc, during start.
+   * Containers are expected to call a script at host, on post-start & pre-exit.
     
 5. A new set of "system service ..." commands are provided to manage the features.
     * The commands would work transparenly on features, irrespective of their current mode as local/kubernetes.
@@ -71,11 +75,19 @@ The following are required, but not addressed in this design doc. This would be 
    * systemctl stop --> system service stop
    * systemctl status --> system service status
    
-  These new commands would do required diligence as needed and fallback to corresponding systemctl commmands under the hood.
+  These new commands would do required diligence as needed and fallback to corresponding systemctl commmands under the hood. In other words a wrapper around corresponding systemctl commands.
    
 * Replace a subset of docker commands with a new set of "system container" commands
 
-   At present, when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait. With this proposal, for features configured as managed by kubernetes, instead of docker start/stop, it would need to create/remove a label for start/stop  and in case of docker wait, use container-id instead of name. To accomplish this, the docker commands are replaced as listed below.
+   At present, when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
+   
+   With this proposal, for features configured as managed by kubernetes, 
+      *  kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels. 
+      *  The switch/node would create/remove a label for start/stop.
+   Hence in case of kube-managed, the container start/stop would add/remove label `<feature name>_enabled=true`.
+   In case of container wait, use container-id instead of name.
+   
+   To accomplish this, the docker commands are replaced as listed below.
 
    * docker start --> system container start
    * docker stop  --> system container stop
@@ -108,16 +120,22 @@ The following are required, but not addressed in this design doc. This would be 
       * `docker_id = ""`
       * `current_owner_update_ts = <Time stamp of change>`
       
-     A local monit script is added to supervisord. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
+     A local monit script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
   
 * Switches running completely in local mode may use the current systemctl commands or these new "system sevice/container ..." commands, or both.
 
 * Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
-* The hostcfgd helps start kube container through service start.
+*  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
+   This is accomplished with tracking the container sate in state-DB. Hostcfgd gives a hand, when a service start is required.
+   When service start is required, the container sets the state and goto sleep forever, until restarted by actions triggered by hostcfgd.
+   
+*  A container stop, fails docker-wait, hence handled transparently across, both local & kubernetes modes.
 
-  There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in local mode. At the timepoint of successful deployment, the hostcfgd could help switch over from local to kubernetes mode, transparently.
+*  The hostcfgd helps start kube container through service start.
+
+  There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in local mode, if configured. At the future timepoint of successful deployment by kube, the hostcfgd could help switch over from local to kubernetes mode, transparently.
   
     Requirements to meet for successful deployment:
     
@@ -126,15 +144,25 @@ The following are required, but not addressed in this design doc. This would be 
      * kubernetes manifest for this feature & device is available.
      * The corresponding container image could be successfully pulled down.
      
-   Anytime the kube controlled container stops, it has to be stopped and started through service stop/start, to ensure all the dependent services are handled.
-   The hostcfgd helps with that too.
+   Anytime the kube controlled container stops, it has to be stopped and started through service stop/start, to ensure all the dependent services are handled. The stop is handled transparently across both modes, as docker-wait fails in either case. In case of kubernetes, there could be auto start, the kube-managed-container raises a request, if service start is required and hostcfgd handles that request, to ensure a service start precedes.
    
+     
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
 
-  If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image.
+  If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures, if configured. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image, if fallback to local image is enabled.
   
-* The sccripts are provided to join-to/reset-from master.
-   * kube_join
+*  Service install for new kubernetes features.
+   The features that are not part of SONiC image, the corresponding service files would not exist in image. The service files and an entry in FEATURE table are ***required*** to enable a feature run in this switch.
+   
+   There are different ways of accomplishing.
+   
+   ### A suggestion:
+   *  The kubernetes master can use the same source that it uses for manifests, also to carry service-file-packages.
+   *  A single manifest could be available in the same source that explains all the service packages
+   
+
+*  The sccripts are provided to join-to/reset-from master.
+   *  kube_join
       *  Fetches admin.conf from master through https GET and use that to join
       *  Fetches an archive of metadata & service files for kubernetes-only features.
       *  Based on the metadata, all/subset of matching service files are installed.
