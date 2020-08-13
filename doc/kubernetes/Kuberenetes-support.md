@@ -130,23 +130,19 @@ The following are required, but not addressed in this design doc. This would be 
    * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
 *  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
-   This is accomplished with tracking the container sate in state-DB. Hostcfgd gives a hand, when a service start is required.
+   This is accomplished with tracking the container sate in state-DBby hostcfgd.
    When service start is required, the container sets the state and goto sleep forever, until restarted by actions triggered by hostcfgd.
    
-*  A container stop, fails docker-wait, hence handled transparently across, both local & kubernetes modes.
+*  When a container stops, the docker-wait command run by systemd fails. This is the same in either mode. Hence, container stop is handled transparently across, both local & kubernetes modes.
 
 *  The hostcfgd helps start kube container through service start.
-
-  There are few requirements to meet for a successful kubernetes deployment for features marked as kube-managed. Hence until the point of deployment, which could be hours/days/months away or never, the feature could run in local mode, if configured. At the future timepoint of successful deployment by kube, the hostcfgd could help switch over from local to kubernetes mode, transparently.
-  
-    Requirements to meet for successful deployment:
-    
-     * kubernetes server is configured and enabled.
-     * kubernetes master is available and reachable.
-     * kubernetes manifest for this feature & device is available.
-     * The corresponding container image could be successfully pulled down.
-     
-   Anytime the kube controlled container stops, it has to be stopped and started through service stop/start, to ensure all the dependent services are handled. The stop is handled transparently across both modes, as docker-wait fails in either case. In case of kubernetes, there could be auto start, the kube-managed-container raises a request, if service start is required and hostcfgd handles that request, to ensure a service start precedes.
+   
+   When kube managed container starts, there are three possible scenarios.
+      1. A local image is running. Hence switching from local to kuberenetes mode is required.
+      2. Kube container is running, a manifest update occurred and kubernetes is trying to stop & start.
+      3. Kube container is starting when switch is expecting/waiting for kube to start.
+      
+   In scenario 1 & 2, assistance is required to stop currently running container(s) for this feature, go through service stop and then kick off service start, which would result in scenario 3 above. In scenario 3, the kube container starts & run smoothly
    
      
 * The monit could help switch from kubernetes managed to local image, on any failure scenario.
