@@ -150,14 +150,17 @@ The following are required, but not addressed in this design doc. This would be 
   If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures, if configured. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image, if fallback to local image is enabled.
   
 *  Service install for new kubernetes features.
-   The features that are not part of SONiC image, the corresponding service files would not exist in image. The service files and an entry in FEATURE table are ***required*** to enable a feature run in this switch.
+
+   The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
    There are different ways of accomplishing.
    
    ### A suggestion:
-   *  The kubernetes master can use the same source that it uses for manifests, also to carry service-file-packages.
+   *  The kubernetes master require an input source for manifests. It could use the same source to carry service-file-packages.
+      *  A possible source is a git repo cloned.
+      *  A periodic  pull & monitor can identify new/update/delete of manifests.
    *  A single metadata file could be available in the same source that explains all the service packages and additional filters to select elgible target nodes, per package.
-   *  A node can watch for this meta-data file update, pull the update, look for any newly created packages that this node is eligible for, pull down those packages and, install the same.
+   *  A node can watch for this meta-data file update at master, through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
    *  The installation would include .service file, any associated scripts and update of FEATURE table.
    *  config/main.py would be updated to look at FEATURE table to get the list of features to be added to the list of services to start/stop/reset, in required scenarios like config-reload, ...
    
@@ -181,7 +184,7 @@ The following are required, but not addressed in this design doc. This would be 
    key: "KUBERNETES_MASTER|SERVER"
    IP       = <IP of the kubernetes master cluster> 
    insecure = <https access mode as secured or not; default=False>
-   disable  = <False - Enabled to connect to master; True - Disconnects, if already connected>
+   disable  = <False - Enabled to connect to master; True - Disconnects, if already connected; defaults to False>
 ```
 
    Feature configuration:
@@ -219,7 +222,7 @@ The following are required, but not addressed in this design doc. This would be 
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
    transition_mode = ""/"none"/"kube_pending"/"kube_ready"/"kube_stopped";
-                                              Helps dynamic transition to kube deployment.
+                                              Helps dynamic transition to kube deployment and ensure start-service to precede container start.
                                               When kube deploys:
                                                 If not kube_ready, 
                                                    kube_deployment sets to kube_pending and sleeps until stopped.                                             
@@ -227,7 +230,7 @@ The following are required, but not addressed in this design doc. This would be 
                                                 else
                                                    set to kube_running
                                                    Proceed to run
-                                                   Durining exiting, set to kube_stopped
+                                                   While exiting, set to kube_stopped
 ```
 
    Transient info:
