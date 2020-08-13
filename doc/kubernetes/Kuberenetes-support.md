@@ -156,7 +156,10 @@ The following are required, but not addressed in this design doc. This would be 
    
    ### A suggestion:
    *  The kubernetes master can use the same source that it uses for manifests, also to carry service-file-packages.
-   *  A single manifest could be available in the same source that explains all the service packages
+   *  A single metadata file could be available in the same source that explains all the service packages and additional filters to select elgible target nodes, per package.
+   *  A node can watch for this meta-data file update, pull the update, look for any newly created packages that this node is eligible for, pull down those packages and, install the same.
+   *  The installation would include .service file, any associated scripts and update of FEATURE table.
+   *  config/main.py would be updated to look at FEATURE table to get the list of features to be added to the list of services to start/stop/reset, in required scenarios like config-reload, ...
    
 
 *  The sccripts are provided to join-to/reset-from master.
@@ -164,7 +167,11 @@ The following are required, but not addressed in this design doc. This would be 
       *  Fetches admin.conf from master through https GET and use that to join
       *  Fetches an archive of metadata & service files for kubernetes-only features.
       *  Based on the metadata, all/subset of matching service files are installed.
-      *  This would enable start/stop of the new kubernetes-only services
+      *  Enable monit to check for service-metadata file update
+      
+   * kube_reset
+      *  Helps reset connection from master.
+      *  This would remove the services for kubernetes-only features, if requested.
 
   
 ## CONFIG-DB
