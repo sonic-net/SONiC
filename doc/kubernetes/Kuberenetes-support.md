@@ -238,7 +238,7 @@ The following are required, but not addressed in this design doc. This would be 
 ## Internal commands
 
 ### Container start/stop/wait:
-   The container start/stop/wait replace the corresponding docker commands. The logic is explained in the flow chart below. 
+   The container start/stop/wait replace the corresponding docker commands. The logic is explained in the flow chart below. The waiting for docker-id will timeout, in case of local image, after N seconds. In case of kubernetes mode, it will wait for ever, as the image deployment depends on many external factors.
      
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
    
