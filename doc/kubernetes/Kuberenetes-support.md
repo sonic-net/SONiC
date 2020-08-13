@@ -266,28 +266,19 @@ The following are required, but not addressed in this design doc. This would be 
    
  
 ### hostcfgd update
-   The hostcfgd watches the first time kube deployment, by looking for `kube_request == pending` and set it to `ready` followed by system service restart. The restart brings down the docker started container and as well remove the label, which tears down the kubernetes initiated docker, which is currently sleeping upon setting `kube_request=pending`. The subsequent system service start, would add the label, that allows kubernetes deployment, which would proceed w/o blocking as `kube_request==ready`.
+   The hostcfgd watches for `kube_request == pending`. When set, stops the service, wait till service stops, set `kube_request=ready` and start the service. This ensures smooth transfer from local mode to kube mode and as well ensure service start precedes container start by kubernetes.
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
    
 
 ### monit watches for kubernetes failure
-   When a kube managed container stops running for <N> minutes or more, it resets the `kube_request = none` and call for `system service restart`, which enables starting in local mode using local container image.
+   When a kube managed container stops running for <N> minutes or more, it resets the `kube_request = none` and call for `system service restart`, which enables starting in local mode using local container image, if fallback to local image is enabled.
    
   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/monit.png)
   
-### service system start/stop/wait/status/restart
-
-   For features that meets the following criteria, it calls systemctl start/stop/wait. 
-   * Features that have local container image
-   * Features that don't have local container image, but `kube_request == ready`.
-   
-   For a kubernetes-only feature, that has not deployed yet, would simulate as follows
-   * the start service, will create the label to enable deploymnet
-   * the stop service would remove label, that stop any current deployment and block further deployments
-   * the wait would block on kube_request to go ready.
-   * the status call would print a message that would indicate `pending deployment`
-   
+### system service start/stop/wait/status/restart
+   Currently `system service start/stop/wait/restart` transparently calls into corresponding systemctl commands. 
+   The `system service status` would call `systemctl status` if the docker is running. If it is still waiting on deployment by kubernetes, it would print out a custom message inidicating the same.
    
 ## CLI commands
   
