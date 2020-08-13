@@ -155,19 +155,4 @@ The gcov support for SONiC totally depends on the open-source tools -- gcov/lcov
 
 When a source file is compiled with the gcov compiling options, each executable line in this source file will be followed by a new-added piece of code that updates coverage statistics. Gcov realizes this process by adding stubs when generating assembly files. Each stub point will be inserted into 3 to 4 new assembly statements. These statements are directly added to the .s files. Then the assembly files can be assembled to the object files and the executable file. After doing this, when the executable file is running, the stubs added during compiling will collect the execution information. The statistical approach for these stubs is very simple, they are just variables in the memory and record the execution times for each code line. Therefore in the practical running environment, the performance impact brought by generating .gcda files can be ignored. The user can also hardly feel the difference.<br>
 
-# 5. Coverage data for the python script
-The coverage report for a python script should be generated in the running environment by applying a tool called coverage. The steps are listed below:<br>
-
-Install the coverage tool in the device under test:<br>
-pip install coverage<br>
-Run a python script with coverage tool instead of direct execution:<br>
-coverage run -a /usr/local/bin/fancontrol.py start --> python fancontrol.py start<br>
-Check the coverage result:<br>
-coverage report<br>
-Generate html-based report<br>
-coverage html<br>
-
-![](figure51.png)<br>
-__Figure 5.1 Coverage report for python script__.<br>
-The analysis of the coverage data collection of python scripts is still in progress. The elimination of the user's awareness to the coverage tool is our next step.<br>
 
