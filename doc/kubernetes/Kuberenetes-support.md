@@ -36,11 +36,7 @@ The following are the high level requirements to meet.
    * Masters control what manifests to deploy and switches/nodes control when to deploy.
    * Containers must follow protocol set by this doc, during start.
    * Containers are expected to call a script at host, on post-start & pre-exit.
-    
-5. A new set of "system service ..." commands are provided to manage the features.
-    * The commands would work transparenly on features, irrespective of their current mode as local/kubernetes.
-    * This would cover all basic requirements, like start/stop/status/enable/disable/<more as deemed as necessary>.
-    
+       
 6. The monit service would monitor the processes transparently across both modes.
 
 
@@ -68,26 +64,19 @@ The following are required, but not addressed in this design doc. This would be 
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    * systemctl gets used in the same way as now, but under new wrapper commands.
    
-* The systemd would continue to manage features running in both local & kubernetes mode.
-  
-* The current set of systemctl commands for SONiC features are replaced with a new set of "system service ..." commands
-   * systemctl start --> system service start
-   * systemctl stop --> system service stop
-   * systemctl status --> system service status
-   
-  These new commands would do required diligence as needed and fallback to corresponding systemctl commmands under the hood. In other words a wrapper around corresponding systemctl commands.
+* The systemd would continue to manage features running in both local & kubernetes mode. 
+   *  The current set of systemctl commands would continue to manage as before in both modes.
    
 * Replace a subset of docker commands with a new set of "system container" commands
 
-   At present, when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
+   Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
    
    With this proposal, for features configured as managed by kubernetes,
    
    * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
-   * The switch/node would create/remove a label for start/stop.
+   * The switch/node would create/remove a label for start/stop of container deployment by kubernetes.
       
-   Hence in case of kube-managed, the container start/stop would add/remove label `<feature name>_enabled=true`, to start/stop container respectively.
-   In case of container wait, use container-id instead of name.
+   The container start/stop would add/remove label `<feature name>_enabled=true` to start/stop container for kube-managed containers and, fallback to docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
    
    To accomplish this, the docker commands are replaced as listed below.
 
@@ -123,11 +112,6 @@ The following are required, but not addressed in this design doc. This would be 
       * `current_owner_update_ts = <Time stamp of change>`
       
      A local monit script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
-  
-* Switches running completely in local mode may use the current systemctl commands or these new "system sevice/container ..." commands, or both.
-
-* Switches running in new mode (*one or more features are marked for kubernetes management*), are required to use only the new set of commands
-   * The systemctl commands would still work, but this mandate on complete switch over would help do a clean design and handle any possible tweaks required.
    
 *  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
    This is accomplished with tracking the container sate in state-DBby hostcfgd.
@@ -135,12 +119,12 @@ The following are required, but not addressed in this design doc. This would be 
    
 *  When a container stops, the docker-wait command run by systemd fails. This is the same in either mode. Hence, container stop is handled transparently across, both local & kubernetes modes.
 
-*  The hostcfgd helps start kube container through service start.
+*  The hostcfgd helps ensure kube managed containers are started through `system service start`.
    
    When kube managed container starts, there are three possible scenarios.
       1. A local image is running. Hence switching from local to kuberenetes mode is required.
       2. Kube container is running, a manifest update occurred and kubernetes is trying to stop & start.
-      3. Kube container is starting when switch is expecting/waiting for kube to start.
+      3. Kube container is starting when switch is expecting/waiting for kube to start, upon corresponding service start.
       
    In scenario 1 & 2, assistance is required to stop currently running container(s) for this feature, go through service stop and then kick off service start, which would result in scenario 3 above. In scenario 3, the kube container starts & run smoothly
    
@@ -155,14 +139,16 @@ The following are required, but not addressed in this design doc. This would be 
    
    There are different ways of accomplishing.
    
-   ### A suggestion:
-   *  The kubernetes master require an input source for manifests. It could use the same source to carry service-file-packages.
-      *  A possible source is a git repo cloned.
-      *  A periodic  pull & monitor can identify new/update/delete of manifests.
-   *  A single metadata file could be available in the same source that explains all the service packages and additional filters to select elgible target nodes, per package.
-   *  A node can watch for this meta-data file update at master, through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
+   ### Proposal:
+   *  The kubernetes master requires an input source for manifests, which could be pull/push. It could use the same source to provide service-file-packages.
+      *  A possible source is a git repo, cloned locally in each master.
+      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
+   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
+   *  Master can make the metadata & service package files available through an https end-point for nodes.
+   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
    *  The installation would include .service file, any associated scripts and update of FEATURE table.
-   *  config/main.py would be updated to look at FEATURE table to get the list of features to be added to the list of services to start/stop/reset, in required scenarios like config-reload, ...
+   *  The list of all available features in a switch could obtained from the FEATURE table.
+      *  sonic-utilities/config/main.py would need to be updated to pull the list from here.
    
 
 *  The sccripts are provided to join-to/reset-from master.
