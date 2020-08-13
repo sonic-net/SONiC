@@ -119,7 +119,7 @@ The following are required, but not addressed in this design doc. This would be 
    
 *  When a container stops, the docker-wait command run by systemd fails. This is the same in either mode. Hence, container stop is handled transparently across, both local & kubernetes modes.
 
-*  The hostcfgd helps ensure kube managed containers are started through `system service start`.
+*  The hostcfgd helps ensure kube managed containers are started through `systemctl start`.
    
    When kube managed container starts, there are three possible scenarios.
       1. A local image is running. Hence switching from local to kuberenetes mode is required.
@@ -262,9 +262,6 @@ The following are required, but not addressed in this design doc. This would be 
    
   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/monit.png)
   
-### system service start/stop/wait/status/restart
-   Currently `system service start/stop/wait/restart` transparently calls into corresponding systemctl commands. 
-   The `system service status` would call `systemctl status` if the docker is running. If it is still waiting on deployment by kubernetes, it would print out a custom message inidicating the same.
    
 ## CLI commands
   
