@@ -62,21 +62,23 @@ The following are required, but not addressed in this design doc. This would be 
 ## Proposed behavior at high level
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
-   * systemctl gets used in the same way as now, but under new wrapper commands.
+   * systemctl gets used in the same way as now.
    
 * The systemd would continue to manage features running in both local & kubernetes mode. 
    *  The current set of systemctl commands would continue to manage as before in both modes.
    
-* Replace a subset of docker commands with a new set of "system container" commands
+* For kubernetes controlled features, master decides on `what to deploy` and node controls the `when to deploy`.
+   * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
+   * The switch/node would create/remove a label for start/stop of container deployment by kubernetes.
+   * Manifest coudl add more labels, that help select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
+   * Node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
+   * Master would deploy on nodes that match all labels.
+
+*  Replace a subset of docker commands with a new set of "system container" commands
 
    Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
    
-   With this proposal, for features configured as managed by kubernetes,
-   
-   * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
-   * The switch/node would create/remove a label for start/stop of container deployment by kubernetes.
-      
-   The container start/stop would add/remove label `<feature name>_enabled=true` to start/stop container for kube-managed containers and, fallback to docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
+   With this proposal, for features configured as managed by kubernetes, start/stop would add/remove label `<feature name>_enabled=true` and, fallback to docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
    
    To accomplish this, the docker commands are replaced as listed below.
 
