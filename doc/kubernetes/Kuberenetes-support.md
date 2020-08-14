@@ -67,10 +67,10 @@ The following are required, but not addressed in this design doc. This would be 
 * The systemd would continue to manage features running in both local & kubernetes mode. 
    *  The current set of systemctl commands would continue to manage as before in both modes.
    
-* For kubernetes controlled features, master decides on `what to deploy` and node controls the `when to deploy`.
-   * kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
+* For kubernetes controlled features, master decides on *what to deploy* and node controls the *when to deploy*.
+   * The kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
    * The switch/node would create/remove a label for start/stop of container deployment by kubernetes.
-   * Manifest coudl add more labels, that help select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
+   * The manifest could add more labels to select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
    * Node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
    * Master would deploy on nodes that match all labels.
 
@@ -78,7 +78,7 @@ The following are required, but not addressed in this design doc. This would be 
 
    Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
    
-   With this proposal, for features configured as managed by kubernetes, start/stop would add/remove label `<feature name>_enabled=true` and, fallback to docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
+   With this proposal, for features configured as managed by kubernetes, start/stop would add/remove label `<feature name>_enabled=true` and, use docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
    
    To accomplish this, the docker commands are replaced as listed below.
 
@@ -117,11 +117,11 @@ The following are required, but not addressed in this design doc. This would be 
    
 *  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
    This is accomplished with tracking the container sate in state-DBby hostcfgd.
-   When service start is required, the container sets the state and goto sleep forever, until restarted by actions triggered by hostcfgd.
+   When service start is required, the container sets the state and goto sleep forever, until restarted by actions triggered by hostcfgd (details below).
    
 *  When a container stops, the docker-wait command run by systemd fails. This is the same in either mode. Hence, container stop is handled transparently across, both local & kubernetes modes.
 
-*  The hostcfgd helps ensure kube managed containers are started through `systemctl start`.
+*  The hostcfgd helps ensure kube managed containers are started through `systemctl start` only.
    
    When kube managed container starts, there are three possible scenarios.
       1. A local image is running. Hence switching from local to kuberenetes mode is required.
@@ -135,14 +135,14 @@ The following are required, but not addressed in this design doc. This would be 
 
   If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures, if configured. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image, if fallback to local image is enabled.
   
-*  Service install for new kubernetes features.
+*  Systemd service install for new kubernetes features.
 
    The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
-   There are different ways of accomplishing.
+   There are multiple ways of accomplishing this requirement.
    
    ### Proposal:
-   *  The kubernetes master requires an input source for manifests, which could be pull/push. It could use the same source to provide service-file-packages.
+   *  The kubernetes master requires an input source for manifests, which could be pull/push. The same source could provide service-file-packages too.
       *  A possible source is a git repo, cloned locally in each master.
       *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
    *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
