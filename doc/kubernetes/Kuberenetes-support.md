@@ -233,9 +233,62 @@ The following are required, but not addressed in this design doc. This would be 
    ```
    
 ## State diagram
+The following diagram depicts various states and the transitions. 
+A state is described as combination of "current_owner" and "transition_mode" in STATE-DB.
+A transition happens through an action, influenced by the configuration settings as "set_owner" & "fallback" along with failure-mode-detection enabled or not.
 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/state_diagram.png)
 
+Some common scenarios are described below, to help understand the transition in detail.
+
+### Basic info:
+   *  At a high level, a feature could switch between local & kube-managed or a feature could be kube managed only.
+   *  In either mode, a container start is preceded by systemctl start and stop is followed by systemctl stop.
+   *  The transition mode
+      *  none  - No initiative from kube on this feature
+      *  kube_pending - Kube is ready to deploy and waiting for approval from local system.
+      *  kube_ready - The local system has approved the deployment and kube can proceed to deploy
+      *  kube_running - The kube is currently running the container
+      *  kube_stopped - The kube started container has stopped/exited
+   *  The kube could run the container only upon approval from the local system
+      
+### State descriptions
+#### state 0:
+***Stable*** state
+current_owner = none
+Transition_mode = none
+
+The current_owner = none implies that the feature's container is *not* running. The transition_mode = none, implies that there is not initiative from kube either.
+This is the initial state upon boot, and it could be reached from other states too. The feature remains in this state, until `systemctl start`
+
+####  state 1:
+***Stable*** state
+current_owner = local
+Transition_mode = none
+
+The container is currently started with docker using local image. This could happen with set_owner = local or set_owner = kube with fallback enabled. The feature remains in this state until either `systemctl stop` or kube deploys in the case of set_owner = kube.
+
+#### state 2:
+***Transient*** state
+current_owner = local
+Transition_mode = kube_pending
+
+This state is when local image is running and kubelet is requesting for permission to deploy. The hostcfgd watches this request, and stop the local service. This auto action by hostcfgd transitions the state to state 3. As hostcfgd make the transition, this state is very short lived and only for the duration of hostcfgd to notice and local docker to stop.
+
+#### state 3:
+***Transient*** state
+current_owner = none
+Transition_mode = kube_pending
+
+This state happens, in two ways. One from state 2, upon hostcfgd stopping the locally running container. Two, when a previously container deployed by kube is being restarted by kube (from state 6). In this state, there is no container running for this feature and kube is ready to deploy. When transition is from state 2, the hostcfgd is waiting for this state, then set the mode to kube_ready and call `systemctl start`. When transition is from state 6, the hostcfgd notices it, call `systemctl stop`, if
+
+### Default mode:
+None of the features are configured with set_owner = kube. Here it swings between states 0 and 1. The action, `systemctl start` takes from state 0 to 1 and `systemctl stop` reverses it from state 1 to 0.
+
+
+### Kube managing feature with fallback enabled:
+Upon system boot, the state is at 0. The `systemctl start` takes it to state 1 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it transitions to state 2, where the mode is set to kube_pending, requesting local system approval to start.
+The action of `systemctl start` takes i
 
 ## Internal commands
 
