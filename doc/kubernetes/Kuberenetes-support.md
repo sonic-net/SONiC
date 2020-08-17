@@ -447,6 +447,13 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    `show kubernetes status`
    It describes the kubernetes status of the node.
 
-# Warmreboot support
-   This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) is within the code/implementation-logic of a feature. When configured for warm start, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-start data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes,  which is a normal runtime experience of consuming changes as it happens.
+# Warm-reboot support
+   This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a combination of complex script that does pre-requisites, kill the containers and more before calling a specific command for reboot. The individual service level support for warm-start is within its code/implementation-logic. When configured for warm start, upon start-up, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
+   
+   https://github.com/Azure/SONiC/wiki/Fast-Reboot
+   
+# fast-reboot
+   This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help udpate/restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports.
+   
+   https://github.com/Azure/SONiC/wiki/Fast-Reboot
    
