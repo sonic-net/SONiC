@@ -439,7 +439,7 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
 # Reboot support
 
 ## Warm-reboot support
-   This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a combination of complex script that does pre-requisites, kill the containers and more before calling a specific command for reboot. The individual service level support for warm-start is within its code/implementation-logic. When configured for warm start, upon start-up, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
+   This [warm-reboot](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a combination of complex script that does pre-requisites, kill the containers and more before calling a specific command for reboot. The individual service level support for warm-start is within its code/implementation-logic. When configured for warm start, upon start-up, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
    
    
 ## Fast-reboot
@@ -471,15 +471,15 @@ Points to note:
 ## Proposal - 2:
    Templatize the service file creation.
    
-   Most common requirements are,
-      * This feature/service ***requires*** the presence of one or more other services/features. 
-      * One or more other services ***depends*** on this feature
-      * pre-start & post-start commands to run at host during service start.
-      * pre-stop & post-stop commands to run at host during service stop.
-      * warm-reboot prepare commands
-         * Command to run to get this container prepared for warm start
-      * fast-reboot prepare commands
-         * Commands to help prepare for fast-reboot, pre reboot.
+   Most common requirements are,  
+   *  This feature/service ***requires*** the presence of one or more other services/features. 
+   * One or more other services ***depends*** on this feature
+   * pre-start & post-start commands to run at host during service start.
+   * pre-stop & post-stop commands to run at host during service stop.
+   * warm-reboot prepare commands
+      * Commands to run to get this container prepared for warm start
+   * fast-reboot prepare commands
+      * Commands to help prepare for fast-reboot, pre reboot.
       * ...
       
    These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.
