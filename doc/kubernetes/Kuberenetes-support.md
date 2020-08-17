@@ -263,11 +263,11 @@ This is the initial state upon boot, and it could be reached from other states t
 
 This is the state upon boot. This state can be reached in few more ways.
 *  From state 1, upon `systemctl stop`
-*  From state 4, if monit decides to revert
+*  From state 4 or 6, if monit decides to revert
    *  fallback enabled
    *  failmode check enabled
    *  stayed in state 4 for more than configured failmode period
-*  From state 5, if `systemctl stop` happened with set_mode = local
+*  From state 6, if `systemctl stop` happened with set_mode = local.
 
 ####  state 1:
 ***Stable*** state<br/><br/>
@@ -329,8 +329,22 @@ None of the features are configured with set_owner = kube. Here it swings betwee
 
 
 ### Kube managing feature with fallback enabled:
-Upon system boot, the state is at 0. The multipl The `systemctl start` takes it to state 1 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously,  this container sets mode to kube_pending and gets into sleep-forever. This action transitions to state 2. The hostcfgd interferes, stops both the local container and kube-deployed container, which is in a blocking sleep mode, which transitions it to state 3. Upon state 3 reached, the hostcfgd initiates `systemctl start`, that transitions to state 4, with a label to enable kube-deployment. As kube is ready to deploy, it re-deploys, which takes it to state 5. 
+Upon system boot, the state is at 0. The `systemctl start` takes it to state 1 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously,  the deployed-container sets mode to kube_pending and gets into sleep-forever. This action by kube transitions to state 2. The hostcfgd interferes, stops both the local container and kube-deployed container, which transitions it to state 3. Upon state 3 reached, the hostcfgd sets mode=kube_ready and initiates `systemctl start`, that transitions to state 4, along with a label to enable kube-deployment. As kube is all ready to deploy, it re-deploys, which takes it to state 5. 
 
+This stays in state-5, until container exits. In normal conditions, the exit is mostlikely because kube un-deployed to handle a manifest update. This takes it to state 6, where mode = kube_stopped. The kubelet re-deploys the container per updated-manifest, which takes it to state-3, where kube container sets the mode to pending and goes to sleep. The hostcfgd notices it, stops the sleeping container, sets the mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
+ 
+Once kube deploys a container, the mode never goes to none and flips between kube controlled modes as 'pending', 'ready', 'running' & 'stopped'. In two ways, it could get reset to none. One, set_owner = local, followed by `systemctl stop`. Two, the mode is not 'running' for a period more than set failmode period and has fallback enabled, which takes it back to state-0, where mode=none.
+
+### kube managig feature with fallback disable:
+Upon system boot, the state is at 0. The `systemctl start`, sets mode to 'kube_ready' which takes it to state 4 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the mode to 'kube-running' and current_owner to 'kube', which is state 5. 
+
+In normal mode, when the corresponding manifest gets updated, kube un-deploys the current running container, this takes it to state 6. It stays in state-6, until kube re-deploys. This goes through the approval process. The deployed container sets mode to 'kube_pending', which is noticed by hostcfgd. The hostcfgd stops the sleeping container, sets the mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
+
+### Switching from kube managed to local mode:
+In normal mode, the feature would be in state-5, where kube deployed container is running. When user runs a config command to change the owner to local, it updates `set_owner=local`, call `systemctl stop`. This `systemctl stop` stops the container, which transitions to state-6 and upon reaching state-6, it sets mode to none, which takes it to state=0. The config command, then issues `systemctl start`, which takes it to state-1
+
+### Switching from local to kube managed:
+In normal mode, the feature is in state-1. When user runs a config command to switch, it updates `set_owner=kube`, and then call `systemctl stop`. The service stop, will stop the local container, which would take it to state-0. The config command will then call `systemctl start` and that takes it to state-4, along with a label to enable kube deployment. The asynchronous deployment by kube will take it to state-5.
 
 ## Internal commands
 
