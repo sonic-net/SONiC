@@ -84,6 +84,7 @@ The following are required, but not addressed in this design doc. This would be 
 
    * docker start --> system container start
    * docker stop  --> system container stop
+   * docker kill  --> system container kill
    * docker wait  --> system container wait
    * docker inspect --> system container inspect
    * docker exec    --> system container exec
@@ -92,15 +93,17 @@ The following are required, but not addressed in this design doc. This would be 
    
    
 * The new "system container ..." commands would
-   * Do a docker start, if in local mode, else create a label that would let kubelet start.
+   * Do a docker start, if in local mode, else create a label that would let kubelet start. If kubelet service is not enabled, enable it.
    * Do a docker stop, if in local mode, else remove the label that would let kubelet stop.
+   * Do a docker kill, if in local mode, else remove the label, disable kubelet, and then do docker kill on the docker-id. 
+     Please note, in either mode, docker kill  will block the container from updating container state for going down, as kill does not give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
    * For docker wait/inspect/exec, run that command on docker-id instead of name.
       * There is no control on names of the dockers started by kubernetes
       * All the coniners are updated to record their docker-id in State-DB
       * Use the docker-id from STATE-DB, to run the docker commands.
  
 * The containers started in either mode, are required to record their start & end as follows in STATE-DB.
-  This informtion would be helpful to learn/show the current status and as well the actions to take for start/stop/wait.
+  This informtion would be helpful to learn/show the current status and as well the actions to take for start/stop/wait/...
    * On post-start
       * `current_owner = local/kube` 
       * `docker_id = <ID of the container>`
@@ -227,6 +230,8 @@ The following are required, but not addressed in this design doc. This would be 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
+   NOTE: The labels push being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
+   
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
    @labels: [<list of labels>]
@@ -348,8 +353,8 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
 
 ## Internal commands
 
-### Container start/stop/wait:
-   The container start/stop/wait replace the corresponding docker commands. The logic is explained in the flow chart below. The waiting for docker-id will timeout, in case of local image, after N seconds. In case of kubernetes mode, it will wait for ever, as the image deployment depends on many external factors.
+### Container start/stop/kill/wait:
+   The container start/stop/kill/wait replace the corresponding docker commands. The logic is explained in the flow chart below. The waiting for docker-id will timeout, in case of local image, after N seconds. In case of kubernetes mode, it will wait for ever, as the image deployment depends on many external factors.
      
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
    
@@ -444,6 +449,3 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
 # Warmreboot support
    This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) is within the code/implementation-logic of a feature. When configured for warm start, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-start data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes,  which is a normal runtime experience of consuming changes as it happens.
    
-# Salient points to note:
-
-1. Service kube start/stop would work only as long as kubernetes master is reachable.
