@@ -1,7 +1,7 @@
 # RADIUS Management User Authentication
 
 ## High Level Design Document
-#### Rev 0.10
+#### Rev 0.11
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -14,12 +14,25 @@
     * [Assumptions](#assumptions)
   * [Functionality](#functionality)
   * [Design](#design)
+    * [PAM](#PAM)
+    * [NSS](#NSS)
+      * [Mapping Users](#Mapping-Users)
+      * [Unconfirmed Users](#Unconfirmed-Users)
+      * [User Privilege Table](#User-Privilege-Table)
+    * [ConfigDB Schema](#ConfigDB-Schema)
+      * [AAA Table Schema](#AAA-Table-Schema)
+      * [RADIUS Table Schema](#RADIUS-Table-Schema)
+      * [RADIUS_SERVER Table Schema](#RADIUS_SERVER-Table-Schema)
+    * [Manageability](#Manageability)
+      * [Data Models](#Data-Models)
+      * [CLI](#CLI)
   * [Flow Diagrams](#flow-diagrams)
   * [Error Handling](#error-handling)
   * [Serviceability and Debug](#serviceability-and-debug)
   * [Warm Boot Support](#warm-boot-support)
   * [Scalability](#scalability)
   * [Unit Test](#unit-test)
+  * [Summary of Changes](#summary-of-changes)
   * [References](#references)
     * [RFC2865](#RFC2865)
     * [RFC5607](#RFC5607)
@@ -27,7 +40,6 @@
     * [NSS Reference](#NSS-Reference)
     * [TACACS+ Authentication](#TACPLUS-Authentication)
     * [pam_radius](#pam_radius)
-  * [Internal Design Information](#internal-design-information)
 
 # List of Tables
 
@@ -44,6 +56,7 @@
 | 0.8 | 04/28/2020   |  Arun Barboza      | RADIUS statistics & NAS-IP-Address|
 | 0.9 | 05/04/2020   |  Arun Barboza      | Work In Progress server DNS name  |
 | 0.10| 06/30/2020   |  Arun Barboza      | source-interface, and NAS-IP-Addr |
+| 0.11| 08/12/2020   |  Arun Barboza      | many_to_one=n/y, Unconfirmed Users|
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -193,18 +206,24 @@ Console i/p           SONiC Device                     RADIUS Server
 3. RADIUS returns Access-Accept with Management-Privilege-Level (MPL)(Goto 4.),
    or Access-Reject (Authentication Failed).
 4. Access-Accept: The MPL is cached.
+   The user is created, if they do not exist locally.
+   The group membership is updated based
+   on the [User Privilege Table](#User-Privilege-Table) configuration.
 5. A getpwnam_r() call is made to obtain user information.
-6. If the RADIUS user is not found in the local /etc/passwd file, the NSS
-   RADIUS plugin uses the cached MPL information to return user information.
+6. Return that user information.
 7. The user has authenticated successfully.
 
 Note:
-1. If an application requests getpwnam_r() before any authentication is
-   done, the RADIUS NSS plugin can be configured to return a least privileged
-   (MPL 1) temporary user info. On subsequent sessions, the user info will
-   be returned per the cached MPL. SSH is an example of such an application.
-   Alternatively, the user can be asked to login to console for the first
-   time to cache the MPL. Subsequent sessions will now use the cached MPL.
+1. The above sequence has left out many details to only show important
+   events, and for brevity.
+
+2. If an application requests getpwnam_r() before any authentication is
+   done, the RADIUS NSS plugin can create a local *unconfirmed* user. Once
+   the user's identity and privilege are established, the user
+   can be marked *confirmed*, and their group memberships updated based
+   on the [User Privilege Table](#User-Privilege-Table) configuration.
+   This is done prior to starting the user's session.  SSH is an example
+   of such an application.
 
 Following is the sequence of events during RADIUS authenticated login over
 SSH:
@@ -238,18 +257,28 @@ SSH Client              SONiC Device                     RADIUS Server
     |                 |                 |                    |
 ```
 
-1. A user tries to login through a SSH client.
+1. A user tries to login through an SSH client.
 2. A getpwnam_r() call is made to obtain user information.
 3. If the RADIUS user is not found in the local /etc/passwd file, the NSS
-   RADIUS plugin uses the cached MPL information to return user information.
-   If no MPL is available, and the many_to_one=a is configured, a least
-   privileged (MPL 1) temporary user info is returned. Otherwise, the
-   login fails.
-4. The PAM configuration causes a Access-Request to RADIUS server.
+   RADIUS plugin creates a local *unconfirmed* user. This user information
+   is returned.
+4. The PAM configuration causes an Access-Request to RADIUS server.
 5. RADIUS returns Access-Accept with Management-Privilege-Level (MPL)(Goto 6.),
    or Access-Reject (Authentication Failed).
-6. Access-Accept: The MPL is cached.
+6. Access-Accept:
+   The MPL is cached.
+   The user is marked *confirmed*. The group membership is updated based
+   on the [User Privilege Table](#User-Privilege-Table) configuration.
+   The KLISH certificate is generated if it does not exist.
 7. The user has authenticated successfully.
+
+Note:
+1. The above sequence has left out many details to only show important
+   events, and for brevity.
+
+2. In step 6, the group membership, and confirmation can be skipped if the
+   previously cached MPL and MPL returned in Access-Accept response are
+   the same.
 
 ## PAM
 
@@ -282,7 +311,7 @@ modules.
 ## NSS
 
 RADIUS (or any PAM authenticated) users are expected to have a configuration
-on the SONiC device to obtain the user information like uid, gid , home
+on the SONiC device to obtain the user information like uid, gid, home
 directory, and shell (i.e. information normally returned during a
 getpwnam_r() system library call). If the RADIUS user is found in the local
 password file, that information is used. Normally, RADIUS is only used
@@ -296,26 +325,103 @@ determine the user information that is needed to create a local user, at
 the time of first login. The information of this local user is returned
 during a getpwnam_r() library call.
 
+### Unconfirmed Users
+
+As shown in the sequence of events during RADIUS authenticated login over
+SSH, a getpwnam_r() call can precede the authentication request to the RADIUS
+server. To satisfy this call, an *unconfirmed* user is created. These
+users must be confirmed within a certain time interval, otherwise they
+can be aged out. Confirming a user happens automatically on a successful
+authentication.
+
+Some of the parameters controlling *unconfirmed* users creation, and ageing
+out are:
+
+#### unconfirmed_disallow
+
+| Value | Description                                                         |
+|:-----:|:-------------------------------------------------------------------:|
+| n[o]  | (Default). Allow unconfirmed users.                                 |
+| y[es] | Do not allow unconfirmed users (users created before authentication)|
+
+Eg: unconfirmed_disallow=y
+
+
+#### unconfirmed_ageout
+
+| Value | Description                                                         |
+|:-----:|:-------------------------------------------------------------------:|
+| secs  | (Default=600). Wait time before purging unconfirmed users.          |
+
+Eg: unconfirmed_ageout=900
+
+The actual purge of an unconfirmed user might occur at any time after
+expiration of this time, on any successful RADIUS user login.
+
+#### unconfirmed_regexp
+
+| Value | Description                                                         |
+|:-----:|:-------------------------------------------------------------------:|
+| regexp| (Default=(.*: <user> \[priv\])\|(.*: \[accepted\])).                 |
+|       | The RE to match the command line of processes for which the         |
+|       | creation of unconfirmed users are to be allowed.                    |
+
+Without having a way to control which process' getpwnam_r() requests to RADIUS
+NSS result in an *unconfirmed* user getting created, new users would be created
+every time a non-existent user was searched. For example, ``id non-existent''
+would create an *unconfirmed* user non-existent. To avoid unintentional
+user creation, the RADIUS NSS only creates *unconfirmed* users when it
+detects a pattern in the cmdline of the process requesting access.
+
+Note: <user> is not an actual RE token, but it is shown only for illustration
+of what match criteria is being used by default.
+
+### Mapping Users
+
 There is an option to map all users at a privilege level to one user as
 specified in the configuration file /etc/radius_nss.conf. This option is
-the many_to_one=y option. When this option is in effect, no local user is
-created at the time of login. Because of the mapping, not all features
-may apply, since the LOGNAME of the user, and the mapped uid may not match.
+the *many_to_one=y* option. Because of this mapping, not all features
+may work, since the LOGNAME of the remote user, and the local username
+will be different. (Eg: sudo)
 
-For SSH login, Note 1. under sequence of events during RADIUS authenticated
-login will apply. The configuration option for this Note 1. to apply
-is many_to_one=a.
+#### many_to_one
 
+| Value | Description                                                         |
+|:-----:|:-------------------------------------------------------------------:|
+| n[o]  | (Default). Create local user account on first login.                |
+| y[es] | Map RADIUS users to one local user per privilege.                   |
+
+Eg: many_to_one=y
+
+#### many_to_one=n
+
+This is the default and has already been described in the sequence of events.
+
+#### many_to_one=y
+
+Map RADIUS users option can be used if there is a requirement that
+only a fixed number of users (one per privilege level) can be created
+on the SONiC device.
+
+For example, if the default [User Privilege Table](#User-Privilege-Table)
+configuration is in effect, Jane's MPL was 15, and John's 1:
+
+ - Jane would be operating as remote_user_su(gid:1000,groups:admin,sudo,docker)
+ - John would be operating as remote_user(gid:999,groups:docker)
+
+When this non-default option is in effect, and an SSH user logs in for the
+first time (or with a changed MPL), the new MPL is cached, and the user
+is required to login again.
 
 ### User Privilege Table
 
 By default, user information is returned as follows for users authenticated
 through RADIUS.
 
-| MPL (privilege)| user info      | uid  | gid  | secondary grps | shell     |
-| -------------- | -------------- | ---- | ---- | -------------- | --------- |
-| 15             | remote_user_su | 1000 | 1000 | sudo,docker    | /bin/bash |
-| 1-14           | remote_user    |65534 |65534 | users          | /bin/rbash|
+| MPL(privilege)| user info      | gid  | secondary grps  | shell            |
+|:-------------:|:--------------:|:----:|:---------------:|:----------------:|
+| 15            | remote_user_su | 1000 |admin,sudo,docker|sonic-launch-shell|
+| 1-14          | remote_user    |  999 | docker          |sonic-launch-shell|
 
 
 A different mapping of MPL can be configured in the /etc/radius_nss.conf,
@@ -323,19 +429,20 @@ on the switch. For example, if the following lines were added to the
 configuration.
 
 ```
-user_priv=15;pw_info=remote_user_su;uid=1000;gid=1000;group=sudo,docker;dir=/home/admin;shell=/bin/bash
-user_priv=7;pw_info=netops;uid=2007;gid=100;group=users;dir=/home/netops;shell=/bin/rbash
-user_priv=1;pw_info=operator;uid=2001;gid=100;group=users;dir=/home/operator;shell=/bin/rbash
+user_priv=15;pw_info=remote_user_su;gid=1000;group=admin,sudo,docker;shell=/usr/bin/sonic-launch-shell
+user_priv=7;pw_info=netops;gid=999;group=docker;shell=/usr/bin/sonic-launch-shell
+user_priv=1;pw_info=operator;gid=100;group=docker;shell=/usr/bin/sonic-launch-shell
 ```
 
 the mapping of MPL would be as follows.
 
-| MPL (privilege)| user info      | uid  | gid  | secondary grps | shell     |
-| -------------- | -------------- | ---- | ---- | -------------- | --------- |
-| 15             | remote_user_su | 1000 | 1000 | sudo,docker    | /bin/bash |
-| 14-7           | netops         | 2007 |  100 | users          | /bin/rbash|
-| 1-6            | operator       | 2001 |  100 | users          | /bin/rbash|
+| MPL(privilege)| user info      | gid  | secondary grps  | shell            |
+|:-------------:|:--------------:|:----:|:---------------:|:----------------:|
+| 15            | remote_user_su | 1000 |admin,sudo,docker|sonic-launch-shell|
+| 14-7          | netops         |  999 | docker          |sonic-launch-shell|
+| 1-6           | operator       |  100 | docker          |sonic-launch-shell|
 
+Note: The gid column is used only when mapping users (many_to_one=y).
 
 
 ## ConfigDB Schema
@@ -346,7 +453,10 @@ the mapping of MPL would be as follows.
 ; Key
 aaa_key              = "authentication"   ; AAA type
 ; Attributes
-login                = LIST(1*32VCHAR)   ; pam modules for particular protocol, now only support login for (local, tacacs+, radius). Legal combinations are [ [local], [local, tacacs+ ], [local, radius], [tacacs+, local], [radius, local] ]
+login                = LIST(1*32VCHAR)   ; pam modules for particular protocol,
+                         ; now only support login for (local, tacacs+, radius).
+                         ; Legal combinations are [ [local], [local, tacacs+ ],
+                         ; [local, radius], [tacacs+, local], [radius, local] ]
 failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
 debug                = "True" / "False"  ; debug logs for nss or pam modules
 ```
@@ -359,12 +469,16 @@ Note(s):
 ### RADIUS Table Schema
 
 ```
-; RADIUS configuration attributes global to the system. Only one instance of the table exists in the system. Any of the global RADIUS attributes can be overwritten by the per server settings.
+; RADIUS configuration attributes global to the system.
+; Only one instance of the table exists in the system.
+; Any of the global RADIUS attributes can be overwritten by the per
+; server settings.
 ; Key
 global_key           = "global"  ;  RADIUS global configuration
 ; Attributes
 passkey              = 1*32VCHAR  ; shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
-auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
+auth_type            = "pap" / "chap" / "mschapv2"  ; method used for
+                                  ;  authenticating the communication message
 src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the
                                   ;  outgoing UDP/IP dgram. This is being
                                   ;  obsoleted in favor of the RADIUS_SERVER
@@ -375,10 +489,12 @@ src_ip               = IPAddress  ;  source IP address (IPv4 or IPv6) for the
 nas_ip               = IPAddress  ;  NAS-IP|IPV6-Address (Type 4|95) attribute
                                   ;  in the outgoing RADIUS PDU.
                                   ;  Default is to use an IPAddress from the
-                                  ;  MGMT_INTERFACE table.
+                                  ;  MGMT_INTERFACE table. See Note below.
 statistics           = "True" / "False" ;  Enable statistics collection
-timeout              = 1*2DIGIT
-retransmit           = 1*2DIGIT
+timeout              = 1*2DIGIT  ; How many seconds to wait before deciding
+                                 ; that the server has failed to respond.
+retransmit           = 1*2DIGIT  ; How many times to re-send a packet, if
+                                 ; there is no response.
 vrf                  = vrf_name  ; Use default vrf if not specified
                                  ; (WIP) RADIUS_SERVER attribute is preferred.
 src_intf             = source_interface ; Eg: eth0, Loopback0... Use the first
@@ -387,6 +503,13 @@ src_intf             = source_interface ; Eg: eth0, Loopback0... Use the first
                                  ; determined by routing stack
                                  ; (WIP) RADIUS_SERVER attribute is preferred.
 ```
+
+Note: *nas_ip* : Every RADIUS PDU sent to the RADIUS server must have a
+NAS-IP|IPV6-Address, or NAS-Identifier (or both) attribute. This attribute
+can be configured in the RADIUS table if:
+- the non-default MGMT_INTERFACE table IP address needs to be used, or
+- One IP address (on a multi-homed or multi management ip device) needs to
+  reliably sent.
 
 
 ### RADIUS_SERVER Table Schema
@@ -399,8 +522,11 @@ server_key           = NameOrIPAddress; RADIUS server's DNS name or IPv4|6 addr
                                       ; * in future phase                   *
 ; Attributes
 auth_port            = 1*5DIGIT
-passkey              = 1*32VCHAR  ; per server shared secret (Valid chars: ASCII printable except SPACE, '#', and COMMA)
-auth_type            = "pap" / "chap" / "mschapv2"  ; method used for authenticating the communication message
+passkey              = 1*32VCHAR  ; per server shared secret
+                                  ; (Valid chars: ASCII printable except SPACE,
+                                  ; '#', and COMMA)
+auth_type            = "pap" / "chap" / "mschapv2"  ; method used for
+                                 ; authenticating the communication message
 priority             = 1*2DIGIT  ; specify RADIUS server's priority
 timeout              = 1*2DIGIT
 retransmit           = 1*2DIGIT
@@ -452,7 +578,7 @@ paths are:
 The RADIUS commands will be implemented in click, and KLISH using the available
 CLI framework.
 
-For TACACS+, the existing module click comands will continue to be available.
+For TACACS+, the existing module click commands will continue to be available.
 The AAA commands are an existing click module command which will be extended
 for the RADIUS Management User Authentication feature.
 
@@ -463,7 +589,7 @@ sonic# show radius
 
 sonic(config)# [no] radius-server source-ip <IPAddress(IPv4 or IPv6)>
 sonic(config)# [no] radius-server nas-ip <IPAddress(IPv4 or IPv6)>
-sonic(config)# radius-server statistics [enable|disable] 
+sonic(config)# radius-server statistics [enable|disable]
 sonic(config)# [no] radius-server timeout <1 - 60>
 sonic(config)# [no] radius-server retransmit <0 - 10>
 sonic(config)# [no] radius-server auth-type [pap | chap | mschapv2]
@@ -478,10 +604,14 @@ sonic(config)# [no] radius-server host <IPAddress(IPv4 or IPv6)>        \
                                      vrf <TEXT>                         \
                                      source-interface <iface>
 
-sonic(config)# [no] aaa authentication login-method
+sonic(config)# [no] aaa authentication login default \
+    [(group {radius|tacacs+} [local]) | \
+     (local [group {radius|tacacs+}])]
 sonic(config)# aaa authentication failthrough [enable|disable]
 
 ```
+Note: The optional "no" prefix in the above commands is a way to un-configure
+the corresponding configuration. There are some examples given below.
 
 The following table maps KLISH commands to corresponding click CLI commands.
 The conformance column (conf.) identifies how the command conforms to what is
@@ -524,6 +654,35 @@ Note:
    source-interface" CLI. Thus, this CLI is being obsoleted in favor of
    source-interface.
 
+Examples:
+
+```
+S5(config)# radius-server nas-ip 10.59.143.170
+S5(config)# radius-server host 10.59.143.220
+S5(config)# do show radius-server
+---------------------------------------------------------
+RADIUS Global Configuration
+---------------------------------------------------------
+nas-ip-addr: 10.59.143.170
+timeout    : 5
+auth-type  : pap
+--------------------------------------------------------------------------------
+HOST            AUTH-TYPE KEY       AUTH-PORT PRIORITY TIMEOUT RTSMT VRF   SI
+--------------------------------------------------------------------------------
+10.59.143.220   -         -         -         -        -       -     -     -
+S5(config)# no radius-server nas-ip
+S5(config)# do show radius-server
+---------------------------------------------------------
+RADIUS Global Configuration
+---------------------------------------------------------
+timeout    : 5
+auth-type  : pap
+--------------------------------------------------------------------------------
+HOST            AUTH-TYPE KEY       AUTH-PORT PRIORITY TIMEOUT RTSMT VRF   SI
+--------------------------------------------------------------------------------
+10.59.143.220   -         -         -         -        -       -     -     -
+S5(config)#
+```
 
 # Flow Diagrams
 
@@ -604,6 +763,34 @@ A maximum of 8 RADIUS servers can be configured.
     Verify that user2 is allowed to login with correct password.
 ```
 
+# Summary of Changes
+
+## Version 0.10 to 0.11
+
+    * Creation of Unconfirmed (aka anonymous identity) users is now default.
+    * Dropped the "many_to_one=a", since this is the default now.
+    * The shell for users is adjusted to be /usr/bin/sonic-launch-shell
+    * Dropped the "uid", "dir" User Privilege Table attributes to defer
+      to System assigned values.
+    * Added following configs to radius_nss.conf.j2
+      + unconfirmed_disallow (For determining whether unconfirmed users
+        should be added)
+      + unconfirmed_ageout (For determining when an unconfirmed user
+        can be dropped)
+      + unconfirmed_regexp (For determining when an unconfirmed user
+        can be created)
+
+    * Adjusted the many_to_one=y option to be more in line with TACACS+
+      implementation.
+      + If the mapped user (i.e. the range, not the domain) is missing,
+        create them.
+
+    * Handle Certificate generation, if required, after authentication.
+    * If the user's privilege level changes (or is initialized):
+      + many_to_one=n: (default)
+            adjust their group memberships
+      + many_to_one=y:
+            Cache the new MPL, and have them login again.
 
 # References
 
