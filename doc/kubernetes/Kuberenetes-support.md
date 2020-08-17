@@ -482,7 +482,7 @@ Points to note:
       * Commands to help prepare for fast-reboot, pre reboot.
       * ...
       
-   These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.
+   These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.  
    NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
    
    
