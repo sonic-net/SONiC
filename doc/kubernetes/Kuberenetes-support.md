@@ -441,7 +441,9 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    `show kubernetes status`
    It describes the kubernetes status of the node.
 
-
+# Warmreboot support
+   This [feature](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md)
+   
 # Salient points to note:
 
 1. Service kube start/stop would work only as long as kubernetes master is reachable.
