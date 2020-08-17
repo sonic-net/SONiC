@@ -486,5 +486,23 @@ Points to note:
    NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
    
    
+# Implementation phases:
+The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
+
+## Phase 1:
+   Support services that meet the following criteria
+
+   * A simple service that has few *required* other services and no service depend on this service.
+   * A service that does not affect dataplane traffic
+      * Transparent to warm-reboot & fast-reboot.
+   * A service with no local image, hence to be managed by kube only
+  
+Run an config utility with input file that provides the list of required services, and this creates the service file along with bash scripts as required by the service and an update to FEATURE table in CONFIG-DB, with set_owner = kube and no fallback.
+
+## Phase 2:
+   Support the services that meet the above criteria, with additional categories as 
    
+   * A service with one or more dependent services
+
+
    
