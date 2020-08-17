@@ -449,10 +449,10 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    Regular reboot does support transparently, as it just restarts the entire system. As long as the services are shutting down gracefully, this is transparent to kube suppport.
    
    
-# Service install  for kube managed features
+# Service install for kube managed features
 
 Points to note:
-   * The features managed by kube, will not have a service file locally in the image, hence to be explicitly created.
+   * The features managed by kube only that has no local image, will not have a service file locally in the image, hence to be explicitly created.
    * The features that are in hybrid mode as local/kube managed, a service would file would indeed be available locally. Yet, an updated image that could be brought in by kube, could demand a tweak in the service file or start/stop/wait scripts, which requires an explicit update.
    * Every kube-managed feature should have an entry in CONFIG-DB, FEATURE table.
    * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB and corresponding table in STATE-DB would be referred for current status.
