@@ -255,7 +255,9 @@ Some common scenarios are described below, to help understand the transition in 
 ### State descriptions
 #### state 0:
 ***Stable*** state
+
 current_owner = none
+
 Transition_mode = none
 
 The current_owner = none implies that the feature's container is *not* running. The transition_mode = none, implies that there is not initiative from kube either.
