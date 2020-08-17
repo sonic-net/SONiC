@@ -8,7 +8,7 @@ With this proposal, we extend container images to kubernetes-support, where the 
 # Requirements
 The following are the high level requirements to meet.
 1. Kubernetes mode is optional.
-    * Switch could run completely in local mode, if desired.
+    * Switch could run completely in local mode.
     * The SONiC image could be built with no Kubernetes packages, to save on image size cost.
     * Current set of commands continue to work as before.
     
@@ -20,12 +20,10 @@ The following are the high level requirements to meet.
 3. A feature's rules for start/stop stays the same, in either mode (local/kubernetes)
     * A set of rules are currently executed through systemd config, and bash scripts.
     * These rules will stay the same, for both modes.
-    * As these rules stay the same, this new mode will transparently support warm/fast/cold reboots.
     
 4. A feature could be configured as kubernetes-mode only.
     * The switch image will not have this container image as embedded (in other words no local copy).
     * The switch must have systemctl service file and any associated bash scripts for this feature.
-      - This is required to set the inter-dependency and other rules to meet to start/stop this feature, which includes support to warm/fast/cold reboots.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable.
    
@@ -34,7 +32,6 @@ The following are the high level requirements to meet.
    * Kubernetes masters are required to deploy only qualified images.
    * Switch must have a control over label that let switch decide, when a manifest can be deployed.
    * Masters control what manifests to deploy and switches/nodes control when to deploy.
-   * Containers must follow protocol set by this doc, during start.
    * Containers are expected to call a script at host, on post-start & pre-exit.
        
 6. The monit service would monitor the processes transparently across both modes.
@@ -44,11 +41,11 @@ The following are the high level requirements to meet.
 The following are required, but not addressed in this design doc. This would be addressed in one or more separate docs.
 
 1. The feature deployed by kubernetes must have passed nightly tests.
-2. The manifest for the feature must honor controls laid by switch as enable/disable/start/stop.
+2. The manifest for the feature must honor controls laid by switch as start/stop.
 3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
 4. The container image deployed must have cleared standard security checks laid for any SONiC images
-5. The secured access to master kubernetes nodes and image registry.
-6. The switch should be able to reach container registry through secured channel.
+5. The secured access to master kubernetes nodes and the container registries.
+6. The secrets requied to access container registry is provided by master through secured objects.
 
     
 # Design proposal
@@ -69,9 +66,9 @@ The following are required, but not addressed in this design doc. This would be 
    
 * For kubernetes controlled features, master decides on *what to deploy* and node controls the *when to deploy*.
    * The kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
-   * The switch/node would create/remove a label for start/stop of container deployment by kubernetes.
+   * The switch/node would create/remove a label to control the start/stop of container deployment by kubernetes.
    * The manifest could add more labels to select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
-   * Node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
+   * The node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
    * Master would deploy on nodes that match all labels.
 
 *  Replace a subset of docker commands with a new set of "system container" commands
@@ -94,7 +91,7 @@ The following are required, but not addressed in this design doc. This would be 
    
 * The new "system container ..." commands would
    * Do a docker start, if in local mode, else create a label that would let kubelet start. If kubelet service is not enabled, enable it.
-   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.
+   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
      Note: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command to remove label will disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
    * Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id. 
      Please note, in either mode, docker kill  will block the container from updating container state for going down, as kill does not give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
