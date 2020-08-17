@@ -94,8 +94,9 @@ The following are required, but not addressed in this design doc. This would be 
    
 * The new "system container ..." commands would
    * Do a docker start, if in local mode, else create a label that would let kubelet start. If kubelet service is not enabled, enable it.
-   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop.
-   * Do a docker kill, if in local mode, else remove the label, disable kubelet, and then do docker kill on the docker-id. 
+   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.
+     Note: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command to remove label will disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
+   * Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id. 
      Please note, in either mode, docker kill  will block the container from updating container state for going down, as kill does not give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
    * For docker wait/inspect/exec, run that command on docker-id instead of name.
       * There is no control on names of the dockers started by kubernetes
