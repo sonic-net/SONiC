@@ -143,21 +143,10 @@ The following are required, but not addressed in this design doc. This would be 
 
    The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
-   There are multiple ways of accomplishing this requirement.
-   
-   ### Proposal:
-   *  The kubernetes master requires an input source for manifests, which could be pull/push. The same source could provide service-file-packages too.
-      *  A possible source is a git repo, cloned locally in each master.
-      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
-   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
-   *  Master can make the metadata & service package files available through an https end-point for nodes.
-   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
-   *  The installation would include .service file, any associated scripts and update of FEATURE table.
-   *  The list of all available features in a switch could obtained from the FEATURE table.
-      *  sonic-utilities/config/main.py would need to be updated to pull the list from here.
+   There are multiple ways of accomplishing this requirement. This is analyzed in an independent section
    
 
-*  The sccripts are provided to join-to/reset-from master.
+*  The scripts are provided to join-to/reset-from master.
    *  kube_join
       *  Fetches admin.conf from master through https GET and use that to join
       *  Fetches an archive of metadata & service files for kubernetes-only features.
@@ -460,3 +449,21 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    Regular reboot does support transparently, as it just restarts the entire system. As long as the services are shutting down gracefully, this is transparent to kube suppport.
    
    
+# Service install  for kube managed features
+
+   The features managed by kube, will not have a service file locally in the image, hence to be explicitly created.
+   The features that are in hybrid mode as local/kube managed, a service would file would indeed be available locally. Yet, an updated image that could be brought in by kube, could demand a tweak in the service file or start/stop/wait scripts, which requires an explicit update.
+   
+ ## Proposal - 1:
+   *  The kubernetes master manages manifests and likely has an input source for manifests, which could be pull/push. The same source could provide service-file-packages too.
+      *  A possible source is a git repo, cloned locally in each master.
+      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
+   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
+   *  Master can make the metadata & service package files available through an https end-point for nodes.
+   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
+   *  The installation would include .service file, any associated scripts and update of FEATURE table.
+   *  The list of all available features in a switch could obtained from the FEATURE table.
+      *  sonic-utilities/config/main.py would need to be updated to pull the list from here.
+   
+## Proposal - 2:
+   * Templatize the service file creation.
