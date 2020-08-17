@@ -442,7 +442,7 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    It describes the kubernetes status of the node.
 
 # Warmreboot support
-   This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is within the code/implementation-logic of a feature. When configured for warm start, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-start data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes,  which is a normal runtime experience of consuming changes as it happens.
+   This [warmreboot-support](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) is within the code/implementation-logic of a feature. When configured for warm start, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-start data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes,  which is a normal runtime experience of consuming changes as it happens.
    
 # Salient points to note:
 
