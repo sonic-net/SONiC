@@ -99,9 +99,9 @@ The following are required, but not addressed in this design doc. This would be 
       
    * Container kill<br/>
       Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
-      Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
+      Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down` to update the container state.
       
-   * Container wait<br/>
+   * Container wait/inspect/exec<br/>
       * For docker wait/inspect/exec, run that command on docker-id instead of name.
       * There is no control on names of the dockers started by kubernetes
       * All the coniners are updated to record their docker-id in State-DB
@@ -212,11 +212,11 @@ The following are required, but not addressed in this design doc. This would be 
 
    ### Transient info:
    
-   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-DB, which a monitor program could watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
+   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. The monitor program would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
-   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
+   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect the dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service. Kubelet now could carry out the updates per labels update.
    
    Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command. At the end of succesful completion, it ensures that the kubelet service is enabled.
    
@@ -238,7 +238,7 @@ Some common scenarios are described below, to help understand the transition in 
 
 ### Basic info:
    *  At a high level, a feature could switch between local & kube-managed or a feature could be kube managed only.
-   *  In either mode, a container start is preceded by systemctl start and stop is followed by systemctl stop.
+   *  In either mode, a container start is preceded by systemctl start.
    *  The transition mode
       *  none  - No initiative from kube on this feature
       *  kube_pending - Kube is ready to deploy and waiting for approval from local system.
@@ -253,53 +253,63 @@ Some common scenarios are described below, to help understand the transition in 
 current_owner = none<br/>
 Transition_mode = none
 
-The current_owner = none implies that the feature's container is *not* running. The transition_mode = none, implies that there is not initiative from kube either.
+The current_owner = none implies that the feature's container is *not* running. The transition_mode = none, implies that there is not initiative from kube either.<br/>
 This is the initial state upon boot, and it could be reached from other states too. The feature remains in this state, until `systemctl start`.
 
-This is the state upon boot. This state can be reached in few more ways.
-*  From state 1, upon `systemctl stop`
+The ways to reach this state:
+*  From state 1, upon `systemctl stop` or docker exits
 *  From state 4 or 6, if monit decides to revert
    *  fallback enabled
    *  failmode check enabled
-   *  stayed in state 4 for more than configured failmode period
-*  From state 6, if `systemctl stop` happened with set_mode = local.
+   *  stayed in current state for more than configured failmode period
+* From state 4, if `systemctl stop` is called 
+* From state 6, if `systemctl stop` transitioned to state-6, with set_owner = local.
 
 ####  state 1:
 ***Stable*** state<br/><br/>
 current_owner = local<br/>
 Transition_mode = none
 
-The container is currently started with docker using local image. This could happen with set_owner = local or set_owner = kube with fallback enabled. The feature remains in this state until either `systemctl stop` or kube deploys in the case of set_owner = kube.
+The container is currently started with docker using local image.<br/>
+This could happen with set_owner = local or set_owner = kube with fallback enabled. The feature remains in this state until either `systemctl stop` or kube deploys in the case of set_owner = kube or docker exits.
 
 #### state 2:
 ***Transient*** state<br/><br/>
 current_owner = local<br/>
 Transition_mode = kube_pending
 
-This state is when local image is running and kubelet is requesting for permission to deploy. The hostcfgd watches this request, and stop the local service. This auto action by hostcfgd transitions the state to state 3. As hostcfgd make the transition, this state is very short lived and only for the duration of hostcfgd to notice and local docker to stop.
+This state is when local image is running and kubelet is requesting for permission to deploy.<br/>
+The hostcfgd watches for this request, and stop the local service. This auto action by hostcfgd transitions the state to state 3. As hostcfgd make the transition, this state is very short lived and only for the duration of hostcfgd to notice and local docker to stop.
 
 #### state 3:
 ***Transient*** state<br/>
 current_owner = none<br/>
 Transition_mode = kube_pending
 
-This state happens in two ways. One from state 2, upon hostcfgd stopping the locally running container. Two, when a previously container deployed by kube is being restarted by kube (from state 6). In this state, there is no container running for this feature and kube is ready to deploy. When transition is from state 2, the hostcfgd is waiting for this state, then set the mode to kube_ready and call `systemctl start`. When transition is from state 6, the hostcfgd notices it, call `systemctl stop`, if restart always is not set, followed by set the mode to kube_ready and call `systemctl start`, which restart the kube-managed container and at this time, it sees the approval as kube_ready, hence proceeds to state 4. As hosrcfd does the auto transition, this is a short lived transient state.
+This state is when no container is running and kube is requesting permission to run.<br/>
+This could happen in two ways. One from state 2, upon hostcfgd stopping the locally running container. Two, when a kube is re-deploying a container (from state 6). 
+
+The hostcfgd transitions it into state-4, by ensuring `systemctl stop` is called, transition_mode is set to kube_ready, followed by `systemctl start`. All these steps taken by hostcfgd are synchronous hence this state is pretty short lived.
+
 
 #### state 4:
 ***Semi-Transient*** state<br/>
 current_owner = none<br/>
 Transition_mode = kube_ready
 
-This state happens in twp ways.  One, from state 0, when set_owner = kube with no fallback and `systemctl start` takes to the state, where the container is not running yet, but kube is approved to run. Two, from state 3, when hostcfgs intercepts, set the state to ready and start the kube-deployed container. This state remains until kube deploys the container or monit to revert to state 0. This is a short lived state, if transitioning from state 3, as this transition is happening due to request from kube. This could be a long lived state, if transitioned from state 0, as there is no initiative from kube yet. 
+There is no container running and local system has approved container deployment by kube.<br/>
+This state happens in two ways.  One, from state 0, when set_owner = kube with no fallback and `systemctl start` takes to this state, and kube is pre-approved to run. Two, from state 3, when hostcfgs intercepts the request by kube to deploy. The hostcfgd sets the transition_mode to kube_ready and call `systemctl start`.<br/>
+This state remains until either kube deploys the container or monit reverts to state 0 or `systemctl stop` is called. When transitioning from state-3, this is a short lived state, as this transition is happening due to request from kube. This could be a long lived state, if transitioned from state 0, as there is no initiative from kube yet. 
 
-This state could transition to state 0 by monit, if fallback is enabled, failure-check-mode is enabled and it remains in this state for that period.
+This state could transition to state 0 by either `systemctl stop` or by monit, if fallback is enabled, failure-check-mode is enabled and it remains in this state for that period.
 
 #### state 5:
 ***Stable*** state<br/>
 current_owner = kube<br/>
 Transition_mode = kube_running
 
-This is the state where a feature is running with a container deployed by kube, as described in manifest. It remains in this state, until either `systemctl stop` or kube un-deploys the container or container exits due to failure.  In any case, it immmediately transitions to state 6.
+This is the state where a feature is running with a container deployed by kube, as described in manifest.<br/>
+It remains in this state, until either `systemctl stop` or kube un-deploys the container or container exits due to failure.  Irrespective of the trigger, upon docker exit, it transitions to state 6.
 
 
 #### state 6:
@@ -307,6 +317,7 @@ This is the state where a feature is running with a container deployed by kube, 
 current_owner = none<br/>
 Transition_mode = kube_stopped
 
+The kube deployed container has exited. No container is running.
 This is the immediate state, when the kube managed container exits. 
 * If this transition is due to `systemctl stop` action
    *  If set_owner = local, it transtions synchronously to state 0
@@ -324,22 +335,22 @@ None of the features are configured with set_owner = kube. Here it swings betwee
 
 
 ### Kube managing feature with fallback enabled:
-Upon system boot, the state is at 0. The `systemctl start` takes it to state 1 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously,  the deployed-container sets mode to kube_pending and gets into sleep-forever. This action by kube transitions to state 2. The hostcfgd interferes, stops both the local container and kube-deployed container, which transitions it to state 3. Upon state 3 reached, the hostcfgd sets mode=kube_ready and initiates `systemctl start`, that transitions to state 4, along with a label to enable kube-deployment. As kube is all ready to deploy, it re-deploys, which takes it to state 5. 
+Upon system boot, the state is at 0. The `systemctl start` takes it to state 1 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, the deployed-container sets transition_mode to kube_pending and gets into sleep-forever. This action by kube transitions to state 2. The hostcfgd interferes, stops both the local container and kube-deployed container, which transitions it to state 3. Upon state 3 reached, the hostcfgd sets mode=kube_ready and initiates `systemctl start`, that transitions to state 4, along with a label to enable kube-deployment. As kube is all ready to deploy, it re-deploys, which takes it to state 5. 
 
-This stays in state-5, until container exits. In normal conditions, the exit is mostlikely because kube un-deployed to handle a manifest update. This takes it to state 6, where mode = kube_stopped. The kubelet re-deploys the container per updated-manifest, which takes it to state-3, where kube container sets the mode to pending and goes to sleep. The hostcfgd notices it, stops the sleeping container, sets the mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
+This stays in state-5, until container exits. In normal conditions, the exit is mostlikely because kube un-deployed to handle a manifest update. This takes it to state 6, where transition_mode = kube_stopped. The kubelet re-deploys the container per updated-manifest, which takes it to state-3, where kube container sets the transition_mode to kube_pending and goes to sleep. The hostcfgd notices it, stops the sleeping container, sets the transition_mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
  
-Once kube deploys a container, the mode never goes to none and flips between kube controlled modes as 'pending', 'ready', 'running' & 'stopped'. In two ways, it could get reset to none. One, set_owner = local, followed by `systemctl stop`. Two, the mode is not 'running' for a period more than set failmode period and has fallback enabled, which takes it back to state-0, where mode=none.
+Once kube deploys a container, the transition_mode never goes to none and flips between kube controlled modes as 'pending', 'ready', 'running' & 'stopped'. In two ways, it could get reset to none. One, set_owner = local, followed by `systemctl stop`. Two, the container  is not 'running' for a period more than set failmode period and it has fallback enabled, which takes it back to state-0, where mode=none, by monit.
 
 ### kube managig feature with fallback disable:
-Upon system boot, the state is at 0. The `systemctl start`, sets mode to 'kube_ready' which takes it to state 4 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the mode to 'kube-running' and current_owner to 'kube', which is state 5. 
+Upon system boot, the state is at 0. The `systemctl start`, sets transition_mode to 'kube_ready' which takes it to state 4 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the transition_mode to 'kube-running' and current_owner to 'kube', which is state 5. 
 
-In normal mode, when the corresponding manifest gets updated, kube un-deploys the current running container, this takes it to state 6. It stays in state-6, until kube re-deploys. This goes through the approval process. The deployed container sets mode to 'kube_pending', which is noticed by hostcfgd. The hostcfgd stops the sleeping container, sets the mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
+In normal mode, when the corresponding manifest gets updated, kube un-deploys the current running container, this takes it to state 6. It stays in state-6, until kube re-deploys. This goes through the approval process. The deployed container sets transition_mode to 'kube_pending', which is noticed by hostcfgd. The hostcfgd stops the sleeping container, sets the transition_mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
 
 ### Switching from kube managed to local mode:
-In normal mode, the feature would be in state-5, where kube deployed container is running. When user runs a config command to change the owner to local, it updates `set_owner=local`, call `systemctl stop`. This `systemctl stop` stops the container, which transitions to state-6 and upon reaching state-6, it sets mode to none, which takes it to state=0. The config command, then issues `systemctl start`, which takes it to state-1
+In normal mode, the feature would be in state-5, where kube deployed container is running. When user runs a config command to change the owner to local, it updates `set_owner=local`, call `systemctl stop`. This `systemctl stop` stops the container, which transitions to state-6 and upon reaching state-6, it sets transition_mode to none, which takes it to state=0. The config command, then issues `systemctl start`, which takes it to state-1
 
 ### Switching from local to kube managed:
-In normal mode, the feature is in state-1. When user runs a config command to switch, it updates `set_owner=kube`, and then call `systemctl stop`. The service stop, will stop the local container, which would take it to state-0. The config command will then call `systemctl start` and that takes it to state-4, along with a label to enable kube deployment. The asynchronous deployment by kube will take it to state-5.
+In normal mode, the feature is in state-1. When user runs a config command to switch, it updates `set_owner=kube`, and then call `systemctl stop`. The service stop, will stop the local container, which would take it to state-0. The config command will then call `systemctl start` and that takes it to state-4 or state-1, depending on fallback enabled or not. Rest of the state transition is already explained above.
 
 ## Internal commands
 
