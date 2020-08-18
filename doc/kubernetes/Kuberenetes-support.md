@@ -209,7 +209,7 @@ The following are required, but not addressed in this design doc. This would be 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
-   NOTE: The labels push being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
+   NOTE: The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
