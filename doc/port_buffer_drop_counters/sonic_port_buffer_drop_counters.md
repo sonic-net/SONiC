@@ -52,7 +52,7 @@ Also limit user configuring a small interval for this FC group via CLI.
 ## 2.1 Functional Requirements
 1. New flex counter group is introduced for the port-level buffer drop counters
 2. The FC group is enabled by default
-3. The polling interval is 60s by defaul
+3. The polling interval is 60s by default
 3. Users can configure FC group via a CLI tool
     1. Users can enable/disable polling
     2. Users can set the polling interval in range from 30s to 5m
@@ -68,6 +68,24 @@ Also limit user configuring a small interval for this FC group via CLI.
 ## 3.1 CLI (and usage example)
 
 ### 3.1.1 Displaying the FC configuration
+
+#### Current imlemenation
+
+```
+admin@sonic:~$ counterpoll show
+Type                        Interval (in ms)    Status
+--------------------------  ------------------  --------
+QUEUE_STAT                  default (10000)     enable
+PORT_STAT                   default (1000)      enable
+RIF_STAT                    default (1000)      enable
+QUEUE_WATERMARK_STAT        default (10000)     enable
+PG_WATERMARK_STAT           default (10000)     enable
+BUFFER_POOL_WATERMARK_STAT  default (10000)     enable
+
+```
+
+#### New imlementation
+
 ```
 admin@sonic:~$ counterpoll show
 Type                        Interval (in ms)    Status
