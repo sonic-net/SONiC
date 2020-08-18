@@ -3,7 +3,7 @@ The scope of this document is to provide the requirements and a high-level desig
 
 The existing mode, which we term as '**Local mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
 
-With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**"
+With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". FOr short we use the word "kube" interchangeably.
 
 # Requirements
 The following are the high level requirements to meet.
@@ -15,14 +15,14 @@ The following are the high level requirements to meet.
 2. A feature could be managed using local container image (*Local mode*) or kubernetes-provided image (*kubernetes-mode*).
     * A feature could be configured for local or kubernetes mode, with local being default
     * A feature could be switched between two modes.
-    * A feature could default to local image, until first kube deployment.
+    * A feature could default to local image, until first kube deployment or upon kube deployment failure.
     
 3. A feature's rules for start/stop stays the same, in either mode (local/kubernetes)
     * A set of rules are currently executed through systemd config, and bash scripts.
     * These rules will stay the same, for both modes.
     
 4. A feature could be configured as kubernetes-mode only.
-    * The switch image will not have this container image as embedded (in other words no local copy).
+    * The switch image need not have this container image as embedded (in other words no local copy).
     * The switch must have systemctl service file and any associated bash scripts for this feature.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by switch as start/stop/enable/disable.
@@ -30,7 +30,7 @@ The following are the high level requirements to meet.
 5. A kubernetes deployed container image must comply with guidelines set by SONiC.
    * Required to under go nightly tests to qualify.
    * Kubernetes masters are required to deploy only qualified images.
-   * Switch must have a control over label that let switch decide, when a manifest can be deployed.
+   * Switch must have a control over a knownlabel that let switch decide, when a manifest can be deployed.
    * Masters control what manifests to deploy and switches/nodes control when to deploy.
    * Containers are expected to call a script at host, on post-start & pre-exit.
        
@@ -44,7 +44,7 @@ The following are required, but not addressed in this design doc. This would be 
 2. The manifest for the feature must honor controls laid by switch as start/stop.
 3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
 4. The container image deployed must have cleared standard security checks laid for any SONiC images
-5. The secured access to master kubernetes nodes and the container registries.
+5. The secured access to master kubernetes nodes and the container registries is ensured.
 6. The secrets requied to access container registry is provided by master through secured objects.
 
     
@@ -86,11 +86,11 @@ The following are required, but not addressed in this design doc. This would be 
    * docker inspect --> system container inspect
    * docker exec    --> system container exec
    
-   The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. 
+   The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. In addition, any script that call docker commands will be switched to these new commands. A sample could be the reboot scripts, which call `docker kill ...`.
    
    
 * The new "system container ..." commands would
-   * Do a docker start, if in local mode, else create a label that would let kubelet start. If kubelet service is not enabled, enable it.
+   * Do a docker start, if in local mode, else create a label that would let kubelet start. 
    * Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
      Note: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command to remove label will disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
    * Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id. 
@@ -209,7 +209,11 @@ The following are required, but not addressed in this design doc. This would be 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
-   NOTE: The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
+   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service.
+   
+   Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command. At the end of succesful completion, it ensures that the kubelet service is enabled.
+   
+   
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
