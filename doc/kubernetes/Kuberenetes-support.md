@@ -119,10 +119,9 @@ The following are required, but not addressed in this design doc. This would be 
    The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active services. The code that gets i/p fron this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
 *  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
-   This is accomplished with tracking the container sate in state-DBby hostcfgd.
-   When service start is required, the container sets the state and goto sleep forever, until restarted by actions triggered by hostcfgd (details below).
+   This is accomplished with tracking the container sate in state-DB by hostcfgd (details below).
    
-*  When a container stops, the docker-wait command run by systemd fails. This is the same in either mode. Hence, container stop is handled transparently across, both local & kubernetes modes.
+*  When a container exits, the docker-wait command run by systemd would return. This is the same in either mode. Hence, container exit is handled transparently across, both local & kubernetes modes.
 
 *  The hostcfgd helps ensure kube managed containers are started through `systemctl start` only.
    
@@ -142,24 +141,22 @@ The following are required, but not addressed in this design doc. This would be 
 
    The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
-   There are multiple ways of accomplishing this requirement. This is analyzed in an independent section
+   There are multiple ways of accomplishing this requirement. This is analyzed in an independent section below.
    
 
 *  The scripts are provided to join-to/reset-from master.
    *  kube_join
       *  Fetches admin.conf from master through https GET and use that to join
-      *  Fetches an archive of metadata & service files for kubernetes-only features.
-      *  Based on the metadata, all/subset of matching service files are installed.
-      *  Enable monit to check for service-metadata file update
-      
+      *  It could be enhanced to help install service files for kubernetes only features.
+            
    * kube_reset
       *  Helps reset connection from master.
-      *  This would remove the services for kubernetes-only features, if requested.
+      *  This could be enhanced to remove the service files for kubernetes-only features.
 
   
 ## CONFIG-DB
 
-   Kubernetes Server config:
+   ### Kubernetes Server config:
 ```
    key: "KUBERNETES_MASTER|SERVER"
    IP       = <IP of the kubernetes master cluster> 
@@ -167,7 +164,7 @@ The following are required, but not addressed in this design doc. This would be 
    disable  = <False - Enabled to connect to master; True - Disconnects, if already connected; defaults to False>
 ```
 
-   Feature configuration:
+   ### Feature configuration:
 ```
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
@@ -185,14 +182,14 @@ The following are required, but not addressed in this design doc. This would be 
 ```
   
 ## STATE-DB
-   Kubernetes Server Status:
+   ### Kubernetes Server Status:
 ```
    key: "KUBERNETES_MASTER|SERVER"
    connected      = True/False
    last_update_ts = <seconds since epoch>
 ```
 
-   Feature Status
+   ### Feature Status
 ```
    Key: "FEATURE|<name>"
    current_owner           = local/kube/none/"";   
@@ -203,17 +200,10 @@ The following are required, but not addressed in this design doc. This would be 
                                               Set to ID of the container, when running, else empty string or missing field.
    transition_mode = ""/"none"/"kube_pending"/"kube_ready"/"kube_stopped";
                                               Helps dynamic transition to kube deployment and ensure start-service to precede container start.
-                                              When kube deploys:
-                                                If not kube_ready, 
-                                                   kube_deployment sets to kube_pending and sleeps until stopped.                                             
-                                                   The hostcfgd stops service, sets to "kube_ready" and start service.
-                                                else
-                                                   set to kube_running
-                                                   Proceed to run
-                                                   While exiting, set to kube_stopped
+                                              Details below.
 ```
 
-   Transient info:
+   ### Transient info:
    
    The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-DB, which a monitor program could watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
