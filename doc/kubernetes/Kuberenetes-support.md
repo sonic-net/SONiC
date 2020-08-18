@@ -115,6 +115,8 @@ The following are required, but not addressed in this design doc. This would be 
       * `current_owner_update_ts = <Time stamp of change>`
       
      A local monit script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
+     
+     The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active services. The code that gets i/p fron this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
 *  Any auto container-start by kubernetes, is ensured to have been preceeded with service start calls.
    This is accomplished with tracking the container sate in state-DBby hostcfgd.
