@@ -341,7 +341,7 @@ This stays in state-5, until container exits. In normal conditions, the exit is 
  
 Once kube deploys a container, the transition_mode never goes to none and flips between kube controlled modes as 'pending', 'ready', 'running' & 'stopped'. In two ways, it could get reset to none. One, set_owner = local, followed by `systemctl stop`. Two, the container  is not 'running' for a period more than set failmode period and it has fallback enabled, which takes it back to state-0, where mode=none, by monit.
 
-### kube managig feature with fallback disable:
+### kube managing feature with fallback disable:
 Upon system boot, the state is at 0. The `systemctl start`, sets transition_mode to 'kube_ready' which takes it to state 4 and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the transition_mode to 'kube-running' and current_owner to 'kube', which is state 5. 
 
 In normal mode, when the corresponding manifest gets updated, kube un-deploys the current running container, this takes it to state 6. It stays in state-6, until kube re-deploys. This goes through the approval process. The deployed container sets transition_mode to 'kube_pending', which is noticed by hostcfgd. The hostcfgd stops the sleeping container, sets the transition_mode to kube_ready and call `systemctl start`, along with label to enable kube deployment and this takes to state 4. Kube re-reploys to reach the stable state-5.
