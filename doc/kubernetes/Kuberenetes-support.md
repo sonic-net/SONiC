@@ -450,28 +450,32 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
 # Reboot support
 
 ## Warm-reboot support
-   This [warm-reboot](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a combination of complex script that does pre-requisites, kill the containers and more before calling a specific command for reboot. The individual service level support for warm-start is within its code/implementation-logic. When configured for warm start, upon start-up, the code should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
+   This [warm-reboot](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a complex script that does many pre-requisites, kill the containers and eventually call a specific command for reboot. The individual service level support for warm-start lies within its code/implementation-logic. When configured for warm start, upon start-up, the service should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
+   
+   In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
    
    
 ## Fast-reboot
-   This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help udpate/restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports.
+   This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help image-udpate and restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports. Here again any service level support lies within the internal code/logic.
+   
+   In short, the summary is as above, the support for fast-boot remains the same, irrespective of service mode as local/kube. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
    
 ## reboot
-   Regular reboot does support transparently, as it just restarts the entire system. As long as the services are shutting down gracefully, this is transparent to kube suppport.
+   Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
    
    
 # Service install for kube managed features
 
 Points to note:
-   * The features managed by kube only that has no local image, will not have a service file locally in the image, hence to be explicitly created.
-   * The features that are in hybrid mode as local/kube managed, a service would file would indeed be available locally. Yet, an updated image that could be brought in by kube, could demand a tweak in the service file or start/stop/wait scripts, which requires an explicit update.
+   * The features managed by kube only (*no local image*), will not have a service file locally in the image, hence it needs to be explicitly created/installed.
+   * The features that are in hybrid mode as local/kube managed, a service file would indeed be available locally. Yet, an updated image that could be brought in by kube, could demand a tweak in the service file or start/stop/wait scripts, which requires an explicit update.
    * Every kube-managed feature should have an entry in CONFIG-DB, FEATURE table.
-   * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB and corresponding table in STATE-DB would be referred for current status.
+   * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB.
    
    
  ## Proposal - 1:
-   *  The kubernetes master manages manifests and likely has an input source for manifests, which could be pull/push. The same source could provide service-file-packages too.
-      *  A possible source is a git repo, cloned locally in each master.
+   *  The kubernetes master manages manifests. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
+      *  A possible input source is a git repo, cloned locally in each master.
       *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
    *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
    *  Master can make the metadata & service package files available through an https end-point for nodes.
@@ -482,7 +486,7 @@ Points to note:
 ## Proposal - 2:
    Templatize the service file creation.
    
-   Most common requirements are,  
+   Most common requirements for any service are,  
    *  This feature/service ***requires*** the presence of one or more other services/features. 
    * One or more other services ***depends*** on this feature
    * pre-start & post-start commands to run at host during service start.
@@ -496,7 +500,9 @@ Points to note:
    These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.  
    NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
    
-   
+## Proposal - 3:
+   Run an external service, to install required service files in each
+
 # Implementation phases:
 The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
 
