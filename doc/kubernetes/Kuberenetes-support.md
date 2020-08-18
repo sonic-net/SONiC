@@ -454,11 +454,14 @@ In normal mode, the feature is in state-1. When user runs a config command to sw
    
    In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
    
+   For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
 ## Fast-reboot
    This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help image-udpate and restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports. Here again any service level support lies within the internal code/logic.
    
    In short, the summary is as above, the support for fast-boot remains the same, irrespective of service mode as local/kube. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
+   
+   For new features that are not known to fast-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
 ## reboot
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
@@ -501,7 +504,7 @@ Points to note:
    NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
    
 ## Proposal - 3:
-   Run an external service, to install required service files in each
+   Run an external service, to install required service files in each node, explicitly. The scope of this proposal is outside this doc.
 
 # Implementation phases:
 The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
@@ -509,7 +512,7 @@ The final goal for this work item would be to remove nearly all container images
 ## Phase 1:
    Support services that meet the following criteria
 
-   * A simple service that has few *required* other services and no service depend on this service.
+   * A simple service that has few *required* other services and no service depends on this service.
    * A service that does not affect dataplane traffic
       * Transparent to warm-reboot & fast-reboot.
    * A service with no local image, hence to be managed by kube only
@@ -517,9 +520,15 @@ The final goal for this work item would be to remove nearly all container images
 Run an config utility with input file that provides the list of required services, and this creates the service file along with bash scripts as required by the service and an update to FEATURE table in CONFIG-DB, with set_owner = kube and no fallback.
 
 ## Phase 2:
-   Support the services that meet the above criteria, with additional categories as 
+   Support the services that meet the above criteria, with one deviation as 
    
    * A service with one or more dependent services
+
+## Phase 3:
+   A deviation from phase 2.<br/>
+   * Support a locally available image between local & kube.
+   * Only for features that does not affect dataplane, like snmp, pmon, lldp, ...
+   
 
 
    
