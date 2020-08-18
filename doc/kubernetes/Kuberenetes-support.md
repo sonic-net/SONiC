@@ -89,13 +89,20 @@ The following are required, but not addressed in this design doc. This would be 
    The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. In addition, any script that call docker commands will be switched to these new commands. A sample could be the reboot scripts, which call `docker kill ...`.
    
    
-* The new "system container ..." commands would
-   * Do a docker start, if in local mode, else create a label that would let kubelet start. 
-   * Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
-     Note: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command to remove label will disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
-   * Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id. 
-     Please note, in either mode, docker kill  will block the container from updating container state for going down, as kill does not give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
-   * For docker wait/inspect/exec, run that command on docker-id instead of name.
+* The new "system container ..." commands would<br/>
+   * Container start<br/>
+     Do a docker start, if in local mode, else create a label that would let kubelet start.
+     
+   * Container stop<br/>
+      Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
+      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command/script that removes the label will auto disable kubelet upon any failure, transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
+      
+   * Container kill<br/>
+      Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
+      Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down".
+      
+   * Container wait<br/>
+      * For docker wait/inspect/exec, run that command on docker-id instead of name.
       * There is no control on names of the dockers started by kubernetes
       * All the coniners are updated to record their docker-id in State-DB
       * Use the docker-id from STATE-DB, to run the docker commands.
