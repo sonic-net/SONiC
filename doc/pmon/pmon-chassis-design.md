@@ -1,6 +1,6 @@
-# Platform Monitor Chassis Design #
+# SONiC Chassis Platform Management & Monitoring #
 
-### Rev 0.1 ###
+### Rev 1.0 ###
 
 # Table of Contents
 
@@ -8,37 +8,27 @@
   * [About this Manual](#about-this-manual)
   * [Scope](#scope)
   * [Acronyms](#acronyms)
-  * [1 Requirements ](#1-requirements)
-    * [1.1 Functional requirements](#11-functional-requirements)
-  * [2 Chassis Architecture](#2-chassis-architecture)
-    * [2.1 Chassis Platform Stack](#21-chassis-platform-stack)
-    * [2.2 Chassis Support](#22-chassis-support)
-      * [2.2.1 Chassis Boot Sequence](#221-chassis-boot-sequence)
-      * [2.2.2 Line-Card Boot Sequence](#222-line-card-boot-sequence)
-      * [2.2.3 Chassis Midplane Connectivity](#223-chassis-midplane-connectivity)
-      * [2.2.4 Chassis Monitoring Daemon](#224-chassis-monitoring-daemon)
-        * [2.2.4.1 Management of Midplane Ethernet Switch](#2241-management-of-midplane-ethernet-switch)
-        * [2.2.4.2 Line Card Status Monitoring](#2242-line-card-status-monitoring)
-        * [2.2.4.3 Image Hosting Server](#2243-image-hosting-server)
-        * [2.2.4.4 External management reachability to linecards over internal midplane ethernet](#2244-external-management-reachability-to-linecards-over-internal-midplane-ethernet)
-    * [2.3 Platform](#23-platform)
-      * [2.3.1 User-space peripheral drivers](#231-user-space-peripheral-drivers)
-      * [2.3.2 Platform show commands](#232-platform-show-commands)
-    * [2.4 Peripheral Management](#24-peripheral-management)
-      * [2.4.1 PSU](#241-psu)
-      * [2.4.2 Temperature and Fan Control](#242-temperature-and-fan-control)
-  * [3 Multi-Asic Support](#3-multi-asic-support)
-    * [3.1 Functional Changes](#31-functional-changes)
-      * [3.1.1 Database Connections per Namespace](#311-db-per-namespace)
-      * [3.1.2 Multi-thread support](#312-multi-thread-support)
-    * [3.2 Peripheral Management](#32-peripheral-management)
-      * [3.2.1 Transceiver Monitoring](#321-transceiver-monitoring)
-      * [3.2.2 Front Panel LED](#322-led-management)
-  * [4 Conclusion](#4-conclusion)
-    * [4.1 Open questions](#41-open-questions) 
-  * [5 Appendix](#5-appendix)
-    * [5.1 Midplane Ethernet Vendor Implementation](#51-midplane-vendor)
-
+  * [1. Modular VOQ Chassis - Reference](#1-modular-voq-chassis-reference)
+  * [2. SONiC Platform Management & Monitoring](#2-sonic-platform-management-monitoring)
+    * [2.1 Functional Requirements](#21-functional-requirements)
+    * [2.2 Chassis Platform Stack](#22-chassis-platform-stack)
+  * [3. Detailed Workflow](#3-detailed-workflow)
+    * [3.1 Chassis Boot Process](#31-chassis-boot-sequence)
+      * [3.1.1 Controlcard Boot Process](#311-controlcard-boot-process)
+      * [3.1.2 Linecard Boot Process](#312-linecard-boot-process)
+    * [3.2 Chassis Platform Management](#32-chassis-platform-management)
+      * [3.2.1 Midplane Ethernet](#321-midplane-ethernet)
+      * [3.2.2 Chassis Monitoring & ChassisD](#322-chassis-monitoring-chassisd)
+      * [3.2.3 Chassis Local Sonic Image Hosting Service](#323-chassis-local-sonic-image-hosting-service)
+      * [3.2.4 Disaggregated vs Global DB](#324-disaggregated-vs-global-db)
+    * [3.3 Peripheral Management](#33-peripheral-management)
+      * [3.3.1 PSUd](#331-psud)
+      * [3.3.2 Thermalctld](#332-thermalctld)
+      * [3.3.3 Xcvrd/SFP](#333-xcvrdsfp)
+      * [3.3.4 LEDd](#334-led)
+      * [3.3.5 Syseepromd](#335-syseeprom)
+      * [3.3.6 Midplane Ethernet](#336-midplane-ethernet)
+      
 ### Revision ###
 
  | Rev |     Date    |       Author                                                            | Change Description                |
@@ -46,154 +36,140 @@
  | 1.0 |             |  Manjunath Prabhu, Sureshkannan Duraisamy, Marty Lok, Marc Snider       | Initial version                   |
 
 # About this Manual
-This document provides design requirements and interactions between platform drivers and PMON for SONiC on aggregated chassis with linecard CPU's.
+This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with linecard CPU's.
 
 # Scope
-This document covers high level design of the platform support and its interactions with PMON in a chassis environment. This document covers the functionality that is required for first phase of chassis support. Operations like firmware upgrade will be added at later stage of the development. 
+For first phase of design, this document covers high level design of the platform support and its interactions with PMON in a VOQ chassis environment. Operations like firmware upgrade will be added at later stage of the development. This document assumes all linecards and control cards(aka supervisor) has a CPU complex where SONiC would be running. It only considers Fabric cards without CPU or SONiC isn't running on Fabric CPU even if its available. Also, this document assumes linecards cant be powered on without control card operationally up and running. 
 
 # Acronyms
 PSU - Power Supply Unit
 
 SFM - Switch Fabric Module
 
-## 1. Requirements
-## 1.1 Functional requirements
-A modular disaggregated SONiC will run more than one instances of SONiC per line-card and local resources on each linecard is managed as a independent fixed platform. Even if they are treated as separate instances of SONIC, a chassis being managed as a single cohesive system via control-card. On the platform and peripheral management(pmon) perspective, these are some high level requirments we will need to address.
+Platform Stack - Set of Processes, Daemons, Dockers implementing functional requirements of a platform & its perpherals. (i.e PMON docker, Thermalctld, Database docker, etc)
 
-1.  Chassis Support
-    * Support for monitoring all the control-cards, line-cards and fabric-cards
-    * Support for control-cards and line-cards running pmon(distributed pmon) to manage the peripherals as a chassis. For example, FAN being controlled via control-card, temperature reading done via linecard, LED's controlled on linecard, etc.
-    * Support for chassis platforms with kernel or user-space drivers
-    * Support platform interactions across cards using redis/pmon
-    * Allow external management connectivity over midplane ethernet of the chassis. 
-2.  Multi-ASIC Support
-    * Support line-cards with multiple forwarding ASIC's 
+Management Stack - Set of Processes, Daemons, Dockers implementing management interface of chassis, linecard and per-asic. (i.e CLI, SNMP, DHCP, etc). 
 
-Other than above requirements, existing pmon design and implementation is used wherever its applicable such as console, other peripherals, etc. 
+Control Plane Stack - Set of Processes, Daemons, Dockers implementing control plane protocols suchs as BGP, EVPN and also providing complete APP/ASIC DB Orchestration(OrchAgent).
 
-## 2 Chassis Architecture 
+Datapath Stack - Set of Processes, Daemons, Dockers, API's implementing datapath ASIC hardware programming via SAI interface.
 
-A chassis has control-cards, line-cards, SFMs and additionally, peripherals like PSUs, FANs, Temperature sensors. Some of these perpherals are plug-able and hot-swap capable. Some of the key requirements identified are:
+## 1. Modular VOQ Chassis - Reference
+The below picture shows reference of VOQ chassis highlevel hardware architecture. Chassis has 1 or 2 control cards (aka supervisor cards), 1 or more linecards and 1 or more switch fabric cards. It also has 1 or more FAN tray, 1 or more PSUs and midplane ethernet. In general, control cards manages the perpherals like fan, psu, midplane ethernet, etc.
 
-1.  SONiC on control-card will be responsible for platform drivers, firmware for the Chassis, SFMs, PSUs, FANs, Temperature sensors and control-card itself.
-2.  SONiC on line-card will be responsible for platform drivers, firmware for the PHY, SFPs, Front panel ports and line-card itself
-3.  Disaggregated SONiC application stack will be different between control-card and line-cards based on HWSKU
-    *  Respective plaform drivers will be loaded automatically based on HWSKU
-    *  Respective processes will be started on PMON based on HWSKU
-4.  One instance of PMON will be run on per line-card and also on a control-card. PMON will communicate to each via redis. 
-5.  Vendor-specific platform code may need to communicate between control and SFMs/line cards, thus providing PMON north bound API's implementation. 
-6.  User space driver in vendor-specific platform code can provide 1:1 mapping to PMON 2.0 APIs for all perpherical management. 
+![Modular VOQ Chassis](pmon-chassis-images/voq-chassis.png)
 
-### 2.1 Chassis Platform Stack
+## 2. SONiC Platform Management & Monitoring
+### 2.1. Functional Requirements
+At a functional level of a chssis, SONiC will manage control cards, line cards and all other peripheral devices of the chassis as required by chassis platform vendor specification. Below requirements capture some of the key areas that is required to operate a VOQ chassis. 
 
-Diagram below shows the platform-stack for modular chassis.
+* Chassis control cards & line cards should be able to boot using ONIE or any vendor specific boot method. 
+* Linecards should be managed via control card to support operations like power up/down, get operational status.
+* In a typical chassis, control card manages the fan speed based on various temperature sensors readings from linecards and a chassis.
+* Control card monitors PSU's of the chassis. 
+* LED's and Transceiver's are present on linecards and can be managed via linecard's SONiC platform instances. 
+* Some of these perpherals are plug-able and hot-swap capable.
+* In general, VOQ chassis has midplane ethernet which interconnects linecards and control cards together for its internal communication. This should be initalized upon platform booting and can be used as IP connectivity between control cards, linecards.
+* Each linecard will have management interface either directly to external management interface or via internal midplane ethernet.
+
+### 2.2. Chassis Platform Stack
+In a modular disaggregated SONiC software architecture, each linecard will run an instance of SONiC platform stack and control card would run its own instance of SONiC platform stack. Each linecard resources are manged as independent fixed platform and also providing all the above functional requirements to operate the chassis. Below picture describes high level view of the platform stack.
 
 ![Chassis Platform Stack ](pmon-chassis-images/pmon-chassis-stack.png)
 
-### 2.2 Chassis Support
+* Each linecard & control card will have its own ONIE_PLATFORM string to differentiate between each other and also variation of it.
+* Control card wont run any protocol stack except SWSS, SyncD dockers for managing Switch Fabric.
+* Each linecard & control card would run one instance of PMON container. 
+* Each linecard & control card would run one instance of redis server for common platform monitoring (host network) and also uses per-asic redis for SFP monitoring.
+* Control card & linecard could communicate over midplane ethernet. In order to provide this IP connectivty between control & line card, midplane ethernet drivers are run on host network namespace. 
+* Each linecard & control card gets IP address (internal network) assigned to this midplane ethernet based on slot information.
+* Control card PMON will have all sensors readings via either fetching linecard redis servers(subscribe to multiple servers) or global redis db on control card(publish to single server). 
+* SONiC on a fixed platform has put together PMON 2.0 API's for platform vendors to implement peripheral drivers (kernel or userspace). Most of the existing PMON 2.0 API's will be used for chassis and some key changes and enhancments required as detailed below.
+* Control card will provide driver implementation to obtain linecard status such as present, empty.
 
-#### 2.2.1 Chassis Boot Sequence
-
-A modular chassis can have multiple linecards with different SKU. SONiC already supports multiple boot methods and ONIE could be used even in chassis environment. Each linecard and control-card can have ONIE and ONIE platform is set per chassis instead of one per linecard. Line-cards are expected to provide console port, management port and storage to install SONiC. After SONiC is booted via ONIE, the onie platform string is used to determinte the platform type. Linux's systemd capabilities is utilized to start all required sonic systemd services. This current mechanism needs to be enhanced to support dynamic determination of HWSKU upon boot and initiate/boot the required SONiC services according to type of the card. In control-card, SONiC would start multiple instances of SONiC application containers to manage SFM's but there wont be any protocols containers such as BGP, LLDP, etc. In a line-card, SONiC would start multiple instance of SONiC containers such as database, swss, syncd and bgp per forwarding ASIC. This determination is done using HWSKU and data file under *device/\<vendor\>/\<platform\>/\<hwsku\>/asic.conf*
-
-#### 2.2.2 Line Card Boot Sequence
-
-Once each of the line-cards is booted with the SONiC image, the services need to be started in a particular order - databases, *platform*, pmon, routing etc.,  
-The platform code or service will need to:
-
-1.  Identify the HWSKU from eeprom
-2.  Identify the slot-number of the card
-
-All the above will be added as device-metadata into the REDIS database.
-
-Using hwsku and data file located under  *device/\<vendor\>/\<platform\>/\<hwsku\>/asic.conf* will have # of asics, ports per ASIC, some hardware specific settings like DMA size per ASIC would be specified.
-
-#### 2.2.3 Chassis Midplane Connectivity
-
-The midplane connectivity usually over Ethernet via an internal switch helps create an internal network for communication between control-cards and line-cards. This channel will be used (and not limited to) for:
-
-1.  Exchanging monitoring information between line-cards and control-cards.
-2.  REDIS connections from line-cards to instances running on the control-card.
-3.  REDIS connections from control-cards to instances running on the line-cards.
-
-VOQ global db from all linecard containers will be accessed using this network. 
-
-The following APIs will need to be implemented by each vendor:
-
-```
-In platform/broadcom/<vendor>/sonic_platform/chassis.py
-
-def get_my_slot():
-
-def get_controlcard_slot():
-
-def get_controlcard_midplane_ip():
-
-def get_linecard_midplane_ip(slot):
-
-```
-
-#### 2.2.4 Chassis Monitoring Daemon
-
-Although, the proposed disaggregated chassis architecture for SONiC will have control-cards and line-card running many instances of SONiC, the control-card will be the central entity that will have visibility of the entire chassis. The proposal is to have a new ***chassisd*** daemon to provide below functionalities. 
-
-##### 2.2.4.1 Management of Midplane Ethernet Switch
-Chassisd will run both on the control-card and line-card. The functional requirements for midplane connectivity are:
-
-1. Should provide an API for initialization of the internal midplane switch.
-2. Monitor the health of the midplane where the control-card can check reachability of all line-cards and line-card can check reachability to control-card. If not reachable, an alarm can be raised. 
-
-We are proposing introducing vendor-specific  PMON 2.0 APIs:
-
-*  init_midplane_switch() - To initialize the midplane on both control and line cards. 
-*  is_midplane_controlcard_reachable() - On line-card to check if control-card is reachable via midplane.
-*  is_midplane_linecard_reachable(slot) - On control-card to check if line-card on slot is reachable via midplane.
-
-```
-In platform/broadcom/<vendor>/sonic_platform/chassis.py:
-
-def init_midplane_switch():
-
-def is_midplane_controlcard_reachable():
-
-def is_midplane_linecard_reachable(slot):
-```
-
-```
-In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
-
-class midplane_monitor_task:
-    def task_worker(self): 
-        # Create midplane network
-        if platform_chassis is not None:
-            platform_chassis.init_midplane_switch()
-        else:
-            sys.exit(NOT_IMPLEMENTED)
-            
+## 3. Detailed Workflow
+### 3.1 Chassis Boot Process
     
-        logger.log_info("Start midplane task loop")
+SONiC supports ONIE as a boot method and also provides vendor specific boot method. In either boot method, control card of chassis will be booted first and followed by linecard. For first phase of design, it assumes that control card should be operationally ready before linecards to boot. This is important because some of the sensors and fan settings are managed in a control card and it has to set with correct values when linecards are running to make chassis healthy and avoid over heating.
     
-        while not self.stop.wait(MIDPLANE_MONITOR_PERIOD_SECS):
-            if platform_chassis.get_controlcard_slot() == platform_chassis.get_my_slot():
-                for card in platform_chassis.get_all_linecards():
-                    platform_chassis.is_midplane_linecard_reachable(card.get_slot())
-            else:
-                platform_chassis.is_midplane_controlcard_reachable()
-                
-        logger.log_info("Stop midplane task loop")
-```
-
-
-
-##### 2.2.4.2 Line Card Status Monitoring
-Chassisd will provide and monitor the status of all the line-cards and SFMs. The capabilities include:
-        
-1.  Providing per-slot card-type, card-description etc
-2.  Providing state/status of Empty, Offline, Online etc
-3.  Updating the state information to REDIS STATE-DB
-4.  Monitoring in a loop for state changes of the cards.
+#### 3.1.1 Control Card Boot Process
+    
+Control card can be booted using ONiE method. Upon boot, unique ONIE_PLATFORM string will be provided in a ONIE firmware to differentiate the cards and services/dockers it could start via systemd-generator. In case of control card, there wont be dockers like BGP, LLDP, etc started. This service list is included as part of platform specific service list file.
 
 ```
+    device/
+|-- <VENDOR_NAME>/
+|   |-- <ONIE_PLATFORM_STRING>/
+|   |   |-- <HARDWARE_SKU>/
+|   |   |   |-- port_config.ini
+|   |   |   |-- sai.profile
+|   |   |   |-- xxx.config.bcm
+|   |   |-- default_sku
+|   |   |-- fancontrol
+|   |   |-- installer.conf
+|   |   |-- platform_env.conf
+|   |   |-- led_proc_init.soc
+|   |   |-- platform_reboot
+|   |   |-- pmon_daemon_control.json
+|   |   |-- sensors.conf
+|   |   |-- asic.conf 
+|   |   |-- services.conf [NEWFILE]
+```
+
+```
+sonic-buildimage/device/nokia/x86_64-nokia_ixr7250_36x400g-r0$ cat asic.conf
+NUM_ASIC=1
+HW_TYPE=IOM
+sonic-buildimage/device/nokia/x86_64-nokia_ixr7250_36x400g-r0$
+```
+
+#### 3.1.2 Line Card Boot Process
+Linecard boot process is very similar to control card and main difference is services that is started on linecard will include protocol dockers such BGP, LLDP, etc. Also, SyncD docker will started for VOQ ASIC instead of SF ASIC.
+
+### 3.2 Chassis Platform Management
+
+#### 3.2.1 Midplane Ethernet
+In a typical modular modern chassis includes a midplane ethernet to interconnect control card & line cards. This is new component (peripheral?) needs to be added to SONiC. This document proposes midplane ethernet as platform perpherical management and captures the design as follow. 
+
+* Upon linecard or control card booted and part of its initilziation, midplane ethernet gets initialized. 
+* Slot number is generally used in assigning an IP address to these interfaces.
+
+In order to allow direct access to linecards from outside of the chassis over external management network, chassis midplane ethernet network and external management networks needs to be connected to each other. There are couple of options to consider. 
+
+1. Control-card can create virtual switch (linux bridge) and all add midplane ethernet and external management interface on this bridge. This is the L2 mode of operation but internal communication and external L2 stations traffic will be seen inside this midplane ethernet. 
+2. IP Routing: Midplane ethernet could be configured with externally reachable network (announced via any routing protocols), this requires mgmt interface on control to run routing protocol which isn't common deployment. 
+3. Statically assigned externally reachable management IP address per lincard via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic wont be seen in a external management network and only direct communication allowed using NAT rules. 
+
+Allowing DHCP relay or DHCP client on these internal midplane ethernet aren't considered for first phase of the design. 
+
+
+#### 3.2.2 Chassis Monitoring & ChassisD
+
+Modular Chassis has control-cards, line-cards and fabric-cards along with other peripherals. The different types of cards have to be managed and monitored. 
+
+#### Functional Requirements
+
+* Identify a central entity that has visibility of the entire chassis.
+* Monitor the status of the line-card, fabric-card etc using new PMON 2.0 APIs. The assumption is that each vendor will have platform-drivers or implementation to detect the status of the cards in the chassis.
+* The status will need to be persisted in REDIS-DB.
+* PMON processes can subscribe to UP/DOWN events of these cards.
+
+#### Schema
+
+The schema for CHASSIS_CARD_INFO table in State DB is:
+```
+key                                   = CHASSIS_CARD <card index> |"state_db"      ; 
+; field                               = value
+name                                  = STRING                          ; name of the card
+slot                                  = 1*2DIGIT                        ; slot number in the chassis
+status                                = "Empty" | "Online" | "Offline"  ; status of the card
+type                                  = "control"| "line" | "fabric"    ; card-type
+```
+
+#### Prototype Code
+The line-card status update will happen in the main monitoring loop.
+```
+
 In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
 
 class DaemonChassisd(DaemonBase):
@@ -261,6 +237,7 @@ class LineCard(LineCardBase):
 
 ```
 
+#### Show command
 The *show platform* command is enhanced to show chassis information
 
 **show platform details**
@@ -282,116 +259,38 @@ PLATFORM INFO TABLE
 | 22     | SFM6                              | Offline    |
 -----------------------------------------------------------
 ```
-
-##### 2.2.4.3 Image Hosting Server
+#### 3.2.3 Chassis Local Sonic Image Hosting Service
 
 In some environments, the control-card and the linecard may not necessarily have reachability to external networks. Linecards without external USB slot, could use control-card as image server to download the SONiC image assuming control-cards will have external USB storage or internal storage hosting the images. We propose that chassisd on the control-card can be a place-holder for the sonic bootable images and run an http-server for image download by the line-cards. 
 
+#### 3.2.4 Disaggregated vs Global DB
 
-##### 2.2.4.4 External management reachability to linecards over internal midplane ethernet
+In a chassis environment, processes monitoring peripherals will need to have a view of the components across multiple cards. The requirement would be aggregate the data on the control-card. There are 2 options:
 
-Some linecards in a chassis may not provide direct external management interface and only providing some sort of internal management interface from control-card. In dis-aggregated SONiC architecture, every linecard act as separate fixed configuration box with its own management stack which happened to only the internal midplane ethernet. In order to allow direct access to linecards from outside of the chassis over external management network, chassis midplane ethernet network and external management networks needs to be connected to each other. There are couple of options to consider. 
+* Disaggregated DB - Each card updates to local REDIS-DB. Monitoring process will pull or subscribe to the table updates of each card.
+* Global DB - Each card will updated their state to a line-card-table in the Global-DB
 
-1. Control-card can create virtual switch (linux bridge) and all midplane ethernet and external management interface on this bridge. This is the L2 mode of operation but internal communication and external L2 stations traffic will be seen inside this midplane ethernet. 
-2. IP Routing: Midplane ethernet could be configured with externally reachable network (announced via any routing protocols), this requires mgmt interface on control to run routing protocol which isn't common deployment. 
-3. Statically assigned externally reachable management IP address per lincard via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic wont be seen in external management network and only direct communication allowed using NAT rules. 
+![Chassis Distributed DB Update](pmon-chassis-images/pmon-chassis-distributed-db.png)
 
-Allowing DHCP relay or DHCP client on these internal midplane ethernet aren't considered for first phase of the design. 
+### 3.3 Peripheral Management
 
-### 2.3 Platform
-The platform code on the control-card is responsible for ensuring all the components of the chassis are operationally UP. Similarly, the platform code on the line-card will monitor it's components are operationally UP.
+Processes running ina the PMON container would differ based on the HWSKU. In the chassis, the Control-card and Line-cards would be running a subset of the PMON processes. Existing control file */device/\<vendor\>/\<platform\>/\<hwsku\>/pmon\_daemon\_control.json* is used to start processes ina each of the cards. A new template */dockers/docker-platform-monitor/critical\_processes.j2* is introduced to dynamically generate the *critical\_processes* instead of current statically defined list.
 
-#### 2.3.1 User-space peripheral drivers
-One of the options for the vendor is to package the user-space peripheral drivers as a separate docker, to keep it modular and conform with the containarization methodology.  Alternatively, the platform code can be a debian package that can run contain libraries/binaries and run as part of the PMON docker. The interactions between PMON binaries and platform binaries will use standard sysfs or proposed RPC interface.
+#### 3.3.1 PSUd
+PSUd in PMON will monitor the PSUs and maintain state in REDIS-DB. On a chassis, the PSUs are fully managed by the control-card. Currently, platform exposes APIs for PSUd to periodically query the PSU status/presence.
 
-Also, the control-card can run only a select set of dockers. For example, teamd, syncd, swss need not run on the control-card.
+#### Functional Requirement
+One of the functional requirement for chassis is to manage and monitor the power available vs power required. The total number of PSUs required is a function of number of line-card, SFMs and FANs. 
 
-```
-admin@sonic:~$ show version
+#### Proposal
+*  PSUd will get the power-capacity of each PSU.
+*  PSUd will calculate the total power capacity from power-capacity of each PSU multiplied by number of PSUs with valid status.
+*  PSUd will get fixed maximum power requirements of each type of line-card, each SFM and each FAN.
+*  PSUd will calculate the total power required as a sum total of power-required of each type of card multipled by maxium power requirement of that card.
+*  PSUd will set a Master-LED state based on power available vs power required.
 
-SONiC Software Version: SONiC.HEAD.0-8482aed3
-Distribution: Debian 9.12
-Kernel: 4.19.39-amd64
-Build commit: 8482aed3
-Build date: Sat Apr 25 08:14:41 UTC 2020
-Built by: gitlab-runner@sonic-bld2
+We do not see a requirement for real-time monitoring of current power usage of each card.
 
-Platform: x86_64-nokia_ixr7250-r0
-HwSKU: CPM
-ASIC: broadcom
-Serial Number: NS192510003
-Uptime: 07:09:46 up 2 days,  1:00,  4 users,  load average: 0.12, 0.11, 0.09
-
-Docker images:
-REPOSITORY                    TAG                 IMAGE ID            SIZE
-docker-orchagent              HEAD.0-8482aed3     f61bfca3afe9        465MB
-docker-orchagent              latest              f61bfca3afe9        465MB
-docker-fpm-frr                HEAD.0-8482aed3     1a49acc025ed        438MB
-docker-fpm-frr                latest              1a49acc025ed        438MB
-docker-teamd                  HEAD.0-8482aed3     b207fab577aa        416MB
-docker-teamd                  latest              b207fab577aa        416MB
-docker-nat                    HEAD.0-8482aed3     c0d4e2ebd25a        418MB
-docker-nat                    latest              c0d4e2ebd25a        418MB
-docker-syncd-brcm             HEAD.0-8482aed3     eaa866801433        796MB
-docker-syncd-brcm             latest              eaa866801433        796MB
-docker-platform-monitor       HEAD.0-8482aed3     3b894fee1751        475MB
-docker-platform-monitor       latest              3b894fee1751        475MB
-docker-snmp-sv2               HEAD.0-8482aed3     df3adb24b41d        612MB
-docker-snmp-sv2               latest              df3adb24b41d        612MB
-docker-lldp-sv2               HEAD.0-8482aed3     116161a03b51        414MB
-docker-lldp-sv2               latest              116161a03b51        414MB
-docker-sonic-mgmt-framework   HEAD.0-8482aed3     1d74118da0bb        536MB
-docker-sonic-mgmt-framework   latest              1d74118da0bb        536MB
-docker-router-advertiser      HEAD.0-8482aed3     fa16fe338cc9        387MB
-docker-router-advertiser      latest              fa16fe338cc9        387MB
-docker-database               HEAD.0-8482aed3     030c0908a101        387MB
-docker-database               latest              030c0908a101        387MB
-docker-dhcp-relay             HEAD.0-8482aed3     b64b3ba1ec5d        397MB
-docker-dhcp-relay             latest              b64b3ba1ec5d        397MB
-
-```
-#### 2.3.2 Platform show commands
-
-The existing show commands will remain on the control and line cards, where they will use different HWSKUs.
-
-**show platform summary**
-
-```
-admin@sonic:~$ show platform summary
-Platform: x86_64-nokia_ixr7250-r0
-HwSKU: CPM
-ASIC: broadcom
-```
-
-**show platform syseeprom**
-```
-admin@sonic:~$ show platform syseeprom
-TlvInfo Header:
-   Id String:    TlvInfo
-   Version:      1
-   Total Length: 64
-TLV Name             Code Len Value
--------------------- ---- --- -----
-Product Name         0x21   3 CPM
-Part Number          0x22  14 3HE12458AA0401
-Serial Number        0x23  11 NS192510003
-Base MAC Address     0x24   6 14:7B:AC:B5:5D:E1
-Device Version       0x26  10 56
-MAC Addresses        0x2A   2 5
-CRC-32               0xFE   4 0xF4D01B46
-
-(checksum valid)
-```
-
-
-### 2.4 Peripheral Management
-
-Processes running in the PMON container would differ based on the HWSKU. In the chassis, the Control-card and Line-cards would be running a subset of the PMON processes. Existing control file */device/\<vendor\>/\<platform\>/\<hwsku\>/pmon\_daemon\_control.json* is used to start processes in each of the cards. A new template */dockers/docker-platform-monitor/critical\_processes.j2* is introduced to dynamically generate the *critical\_processes* instead of current statically defined list.
-
-#### 2.4.1 PSU
-PSUd in PMON will monitor the PSUs and maintain state in REDIS-DB. 
-
-On a chassis, the PSUs are fully managed by the control-card. Platform will expose APIs for PSUd to periodically query the PSU status/presence.
 
 ![PSU](pmon-chassis-images/pmon-chassis-psu.png)
 
@@ -408,11 +307,10 @@ PSU 5  NOT PRESENT
 PSU 6  NOT PRESENT
 ```
 
-#### 2.4.2 Temperature and Fan Control
+#### 3.3.2 Thermalctld
 Thermalctld is monitoring temperatures, monitoring fan speed and allowing policies to control the fan speed.
 
-On a chassis, there are a few requirements that differ in comparison to pizza boxes:
-
+#### Functional Requirement
 1. There are multiple temperature sensors that need to be monitored. All these need to be available on the control-card.
     * Temperature sensors are on the control-card
     * Temperature sensors are on the line-card
@@ -421,14 +319,14 @@ On a chassis, there are a few requirements that differ in comparison to pizza bo
 
 ![Tempearature and Fan Control](pmon-chassis-images/pmon-chassis-distributed-thermalctld.png)
 
-The above requirements can be addressed using the proposed approach in the callflow. The highlights of the approch are:
+#### Proposal
 1.  Chassisd notified line-card up/down events are subscribed up Thermalctld.
 2.  All local temperatures sensors are recorded on both control and line-cards for monitoring. The control-card monitors temperature sensors of SFMs.
 3.  Chassisd on control-card will periodically fetch the summary-info from each of the line-cards. Alternately, the thermalctld on control-card can subscribe for the line-card sensors updates.
 5.  The local-temperatures of control-card, line-cards and fabric-cards are passed onto the Fan-Control algorithm.
-6.  The fan-control algorithm can be implemented in PMON or in the platform-driver. 
+6.  The fan-control algorithm can be implemented ina PMON or ina the platform-driver. 
 
-Changes in thermalctld is to have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card.
+Changes ina thermalctld is to have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card.
 
 ```
 In src/sonic-platform-daemons/sonic-thermalctld/scripts/thermalctld:
@@ -442,7 +340,7 @@ class TemperatureUpdater():
 class ThermalMonitor(ProcessTaskBase):
     def __init__:
         if platform_chassis.get_controlcard_slot() == platform_chassis.get_my_slot():
-            for card in platform_chassis.get_all_linecards():
+            for card ina platform_chassis.get_all_linecards():
                 slot = card.get_slot()
                 self.temperature_updater[slot] = TemperatureUpdater(chassis, slot)
         else
@@ -453,7 +351,7 @@ class ThermalMonitor(ProcessTaskBase):
         while not self.task_stopping_event(wait_time):
             #Only on conntrol card
             if platform_chassis.get_controlcard_slot() == platform_chassis.get_my_slot():
-                for updater in self.temperature_updater:
+                for updater ina self.temperature_updater:
                     updater.update_per_slot(slot)
             else:
                 self.temperature_updater.update()
@@ -495,19 +393,14 @@ Thermal 4        32           68         0             N/A            N/A       
 Thermal 5        59           68         0             N/A            N/A        False     20200529 01:49:39
 ```
 
-## 3 Multi-ASIC support
+#### 3.3.3 Xcvrd/SFP
 
-Multi-asic support creates distinct namespace on a per-asic basis. Containers like SWSS, SYNCD, BGP, TEAMD will be running in each namespace i.e. on a per-asic basis. To support this architecture, separate REDIS instances with its set of databases are running per asic. However, a single instance of the PMON container runs per linecard and it contains a set of sonic platform-daemons. 
+#### Requirements
+* Database connections per namespace - Database dockers run per namespace and PMON processes need to connect to each of these database instances. 
+* Update per namespace port status - The pmon processes will need to run per-asic specific functinality ina a separate thread.
 
-* PSUd, ThermalCtrld do not require multi-asic support and run on the control-card.
-* Syseepromd does not require multi-asic support, but will run on both control-card and line-cards.
-* Xcvrd, Ledd require multi-asic support and run on the line-cards. 
 
-### 3.1 Functional Changes
-
-#### 3.1.1 Database Connections
-
-Database dockers run per namespace and PMON processes need to connect to each of these database instances. 
+#### Database Connections
 
 Below is a code snippet to introduce a new API *db_unix_connect* 
 ```
@@ -538,9 +431,8 @@ In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
     state_db = daemon_base.db_unix_connect(swsscommon.STATE_DB, namespace)
 ```
 
-#### 3.1.2 Multi-thread support
+#### Multi-thread support
 
-The pmon processes will need to run per-asic specific functinality in a separate thread.
 
 Below is a code snippet to run namespace specific funtionality per thread.
 
@@ -559,15 +451,15 @@ In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
             self.run_per_asic(0)
         else:
             self.xcvrd_thread_list = []
-            for i in range(0, num_asics): #Number of Asics per pmon
+            for i ina range(0, num_asics): #Number of Asics per pmon
                 thread = threading.Thread(target=self.run_per_asic, args=(i,))
                 thread.setName('Xcvrd Thread '+str(i))
                 self.xcvrd_thread_list.append(thread)
                 
-            for thread in self.xcvrd_thread_list:
+            for thread ina self.xcvrd_thread_list:
                 thread.start()
                 
-            for thread in self.xcvrd_thread_list:
+            for thread ina self.xcvrd_thread_list:
                 thread.join()
                 
         # Start daemon deinitialization sequence
@@ -575,21 +467,14 @@ In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
 
 
 ```
-Additonal new APIs like *set_namespace()* and *get_namespace()* can be provided in chassis_base.py which can be set by PMON processes. This will enable modules supporting platform 2.0 to be aware or query which namespace they are running in.
+Additonal new APIs like *set_namespace()* and *get_namespace()* can be provided ina chassis_base.py which can be set by PMON processes. This will enable modules supporting platform 2.0 to be aware or query which namespace they are running ina.
 
-### 3.2 Peripheral Management
-
-#### 3.2.1 Transceiver Monitoring
-
-The tranceiver daemon (Xcvrd) has been modified to be namespace aware. The following changes were implemented:
-* Each of the DB update and SFP event monitoring tasks run per namespace
-* The DB connections, updates are per namespace.
-
-Since the line-card supports 400G ports, we have implemented a qsfp-dd decoder. 
+#### Callflow
 
 ![Tranceiver Monitoring](pmon-chassis-images/pmon-chassis-xcvr-monitoring.png)
  
- 
+#### Show commands
+
  **show interfaces status**
  ```
 admin@sonic:~$ sudo ip netns exec asic0 show interfaces status
@@ -628,16 +513,18 @@ Ethernet11  Not present
 Ethernet12  Not present
  ```
  
-#### 3.2.2 LED Management
+#### 3.3.4 LEDd
 
-The Led Daemon (Ledd) has been modified to be namespace aware. The following changes were implemented:
-* The LED monitoring tasks are run per namespace
-* Each instance of this task subscriber to APPL_DB for PORT UP/DOWN state updates.
- 
-Platform will expose APIs for LEDD to call to change the LED colors to Amber (DOWN) and Green (UP)
+#### Functional Requirements
 
+The requirements are similar to Xcvrd
+* Ledd needs to subscriber to REDIS-DB in each namespace to receive updates of PORT UP/DOWN
+* Ledd needs to been modified to be namespace aware. The LED monitoring tasks are run per namespace 
+
+#### Callflow
 ![Front Panel LED](pmon-chassis-images/pmon-chassis-port-led-status.png)
 
+#### Show command
 **show led status**
 
 ```
@@ -685,30 +572,63 @@ FRONT-PANEL INTERFACE STATUS TABLE
 | Ethernet36    | state=fast-blink  amber    |
 ----------------------------------------------
 ```
-## 4 Conclusion
 
-The chassis support will keep each of instances of SONICs that is on each linecard, decoupled. However, there are certain scenarios where platform and/or platform-monitoring modules from each of these instance will have to interact with each other. These are highlighted in some of the call-flows in the document. The platform also opens up an interface that can be used by any monitoring or management services to control/query devices. 
+#### 3.3.5 Syseepromd
 
+Syseepromd will run on control and line-cards indepenedently and monitor for any changes in syseeprom. The functionality is similar to fixed platform devices.
 
-## 5 Appendix
+#### 3.3.6 Midplane Ethernet
 
-### 5.1 Midplane Ethernet Vendor Implementation
+To manage and monitor midplace ethernet, the following vendor-specific PMON 2.0 APIs can be introduced:
 
-The internal-management/midplane network can be provided using a json file. The file can be read by vendor-specific chassis.py during __init__(). All PMON processes should then be able to use the chassis APIs to get to the slot and IP-addresses.
+*  API to initialize the midplane on both control and line cards - init_midplane_switch()
+*  APIs to check midplane connectivity:
+    *  On line-card to check if control-card is reachable via midplane  - is_midplane_controlcard_reachable() 
+    *  On control-card to check if line-card on slot is reachable via midplane - is_midplane_linecard_reachable(slot)
+*  APIs to get slot and IP-addresses of control and line cards.
 
 ```
-In platform/broadcom/<vendor>/sonic_platform/midplane_network.json
+In platform/broadcom/<vendor>/sonic_platform/chassis.py:
 
-{
-    "network":[
-        {
-            "slot":1,
-            "ip":"10.0.0.1"
-        },
-        {
-            "slot":16,
-            "ip":"10.0.0.16"
-        },
-    ]
-}
+def init_midplane_switch():
+
+def is_midplane_controlcard_reachable():
+
+def is_midplane_linecard_reachable(slot):
+
+def get_my_slot():
+
+def get_controlcard_slot():
+
+def get_controlcard_midplane_ip():
+
+def get_linecard_midplane_ip(slot):
+
 ```
+
+The proposal would be to use Chassisd to implement this functionality.
+
+```
+In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
+
+class midplane_monitor_task:
+    def task_worker(self): 
+        # Create midplane network
+        if platform_chassis is not None:
+            platform_chassis.init_midplane_switch()
+        else:
+            sys.exit(NOT_IMPLEMENTED)
+            
+    
+        logger.log_info("Start midplane task loop")
+    
+        while not self.stop.wait(MIDPLANE_MONITOR_PERIOD_SECS):
+            if platform_chassis.get_controlcard_slot() == platform_chassis.get_my_slot():
+                for card in platform_chassis.get_all_linecards():
+                    platform_chassis.is_midplane_linecard_reachable(card.get_slot())
+            else:
+                platform_chassis.is_midplane_controlcard_reachable()
+                
+        logger.log_info("Stop midplane task loop")
+```
+
