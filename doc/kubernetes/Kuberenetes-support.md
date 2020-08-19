@@ -121,7 +121,7 @@ The following are required, but not addressed in this design doc. This would be 
       * `docker_id = ""`
       * `current_owner_update_ts = <Time stamp of change>`
       
-     A local monit script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
+     A local monitor script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
      
    The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active services. The code that gets i/p fron this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
@@ -140,9 +140,9 @@ The following are required, but not addressed in this design doc. This would be 
    In scenario 1 & 2, assistance is required to stop currently running container(s) for this feature, go through service stop and then kick off service start, which would result in scenario 3 above. In scenario 3, the kube container starts & run smoothly
    
      
-* The monit could help switch from kubernetes managed to local image, on any failure scenario.
+* A daemon could help switch from kubernetes managed to local image, on any failure scenario.
 
-  If a manifest for a feature for a device is removed or corrupted, this would make kubernetes un-deploy its container image. The monit could watch for failures, if configured. When monit notices the kubernetes-managed container being down for a configured period or more, it could make the necessary updates and restart the service, which would transparently start the local container image, if fallback to local image is enabled.
+  For kube managed features with fallback, a daemon could be written to watch for any failure and help fallback to local. A kube managed daemon could remain stuck in KUBE_STOPPED state, if the corresponding manifest is removed/corrupted or corresponding docker image could not be pulled down. In such scenarios, if it is stuck in that state for too long, it could be forced into INIT state and let it run local image, with a `systemctl start`.
   
 *  Systemd service install for new kubernetes features.
 
@@ -180,8 +180,7 @@ The following are required, but not addressed in this design doc. This would be 
                                                 Default: false.
    
    kube_failure_detection = <N>;                When set_owner == kube and if container is not running for N minutes, it is 
-                                                considered as "failed". When "failed", if fall_back_to_local == true, the local 
-                                                image would be started and alert logs will be raised. 
+                                                considered as "failed". The alert logs will be raised. 
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
 
@@ -212,11 +211,11 @@ The following are required, but not addressed in this design doc. This would be 
 
    ### Transient info:
    
-   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. The monitor program would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
+   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
-   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect the dockers started by kubelet. Later whenever, the monit could push all labels update to master, it would enable the kubelet service. Kubelet now could carry out the updates per labels update.
+   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect the dockers started by kubelet. Later whenever, all the labels were synced to master, the kubelet service will be enabled. Kubelet now could carry out the updates per updated labels.
    
    Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command. At the end of succesful completion, it ensures that the kubelet service is enabled.
    
@@ -412,12 +411,6 @@ In normal mode, the feature is in state-LOCAL. When user runs a config command t
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
    
-
-### monit watches for kubernetes failure
-   When a kube managed container stops running for <N> minutes or more, it resets the `kube_request = none` and call for `system service restart`, which enables starting in local mode using local container image, if fallback to local image is enabled.
-   
-  ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/monit.png)
-  
    
 ## CLI commands
   
