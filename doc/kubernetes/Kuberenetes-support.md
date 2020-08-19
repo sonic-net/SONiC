@@ -248,62 +248,86 @@ Some common scenarios are described below, to help understand the transition in 
    *  The kube could run the container only upon approval from the local system
       
 ### State descriptions
-#### state 0:
+#### state INIT
 ***Stable*** state<br/>
 current_owner = none<br/>
 Transition_mode = none
 
+In this state, no container is running. There is not any initiative from kube on this feature.
+
 The current_owner = none implies that the feature's container is *not* running. The transition_mode = none, implies that there is not initiative from kube either.<br/>
-This is the initial state upon boot, and it could be reached from other states too. The feature remains in this state, until `systemctl start`.
+This is the initial state upon boot, and it could be reached from other states too. 
+
+The feature remains in this state until `systemctl start`. <br/>
+Upon `systemctl start`, the destination state is LOCAL, if set_owner == LOCAL or KUBE with fallback enabled, else KUBE_READY.
 
 The ways to reach this state:
-*  From state 1, upon `systemctl stop` or docker exits
-*  From state 4 or 6, if monit decides to revert
-   *  fallback enabled
-   *  failmode check enabled
-   *  stayed in current state for more than configured failmode period
-* From state 4, if `systemctl stop` is called 
-* From state 6, if `systemctl stop` transitioned to state-6, with set_owner = local.
+* From any state, the action `systemctl stop` would transition back to this state with set_owner = local
+* From state KUBE_READY, if `systemctl stop` is called, it returns back to INIT
 
-####  state 1:
+
+####  state LOCAL
 ***Stable*** state<br/><br/>
 current_owner = local<br/>
 Transition_mode = none
 
-The container is currently started with docker using local image.<br/>
-This could happen with set_owner = local or set_owner = kube with fallback enabled. The feature remains in this state until either `systemctl stop` or kube deploys in the case of set_owner = kube or docker exits.
+The container is running using local image, started by docker command.<br/>
 
-#### state 2:
+This state is reachable only from state INIT,  with either set_owner = local or set_owner = kube && fallback enabled. <br/>
+
+The feature remains in this state until either `systemctl stop` or kube deploys in the case of set_owner = kube or docker exits.<br/>
+
+This state transition back to INIT, upon `systemctl stop` or docker exit.<br/>
+This state transition to LOCAL_TO_KUBE, whenever kube deploys (set_owner == Kube).
+ 
+
+#### state LOCAL_TO_KUBE
 ***Transient*** state<br/><br/>
 current_owner = local<br/>
 Transition_mode = kube_pending
 
-This state is when local image is running and kubelet is requesting for permission to deploy.<br/>
-The hostcfgd watches for this request, and stop the local service. This auto action by hostcfgd transitions the state to state 3. As hostcfgd make the transition, this state is very short lived and only for the duration of hostcfgd to notice and local docker to stop.
+The container is running using local image, started by docker command and kube has a pending deployment.<br/>
 
-#### state 3:
+This state is reachable only from state LOCAL.
+
+The hostcfgd watches for this request, and stop the local service by calling `systemctl stop`. 
+This state transitions to state KUBE_PENDING, in normal circumstances. But if set_owner has been reverted to local, it transitions back to INIT.
+
+As hostcfgd initiates the action, this state is very short lived, only for the duration of hostcfgd to notice and local docker to stop.
+
+
+#### state KUBE_PENDING
 ***Transient*** state<br/>
 current_owner = none<br/>
 Transition_mode = kube_pending
 
-This state is when no container is running and kube is requesting permission to run.<br/>
-This could happen in two ways. One from state 2, upon hostcfgd stopping the locally running container. Two, when a kube is re-deploying a container (from state 6). 
+In this state no container is running and kube is requesting permission to run.<br/>
 
-The hostcfgd transitions it into state-4, by ensuring `systemctl stop` is called, transition_mode is set to kube_ready, followed by `systemctl start`. All these steps taken by hostcfgd are synchronous hence this state is pretty short lived.
+This state could be reached in two ways. One from state LOCAL_TO_KUBE, upon hostcfgd stopping the locally running container. Two, when a kube is re-deploying a container (from state KUBE_STOPPED). 
+
+The hostcfgd transitions it into state-KUBE_READY, by ensuring `systemctl stop` is called, transition_mode is set to kube_ready, followed by `systemctl start`. All these steps taken by hostcfgd are synchronous hence this state is pretty short lived.
+
+NOTE: Anytime a `systemctl stop` is issued, if set_owner is reverted to 'local', it would instead transiton back to INIT - a static rule.
 
 
-#### state 4:
+#### state KUBE_READY
 ***Semi-Transient*** state<br/>
 current_owner = none<br/>
 Transition_mode = kube_ready
 
-There is no container running and local system has approved container deployment by kube.<br/>
-This state happens in two ways.  One, from state 0, when set_owner = kube with no fallback and `systemctl start` takes to this state, and kube is pre-approved to run. Two, from state 3, when hostcfgs intercepts the request by kube to deploy. The hostcfgd sets the transition_mode to kube_ready and call `systemctl start`.<br/>
-This state remains until either kube deploys the container or monit reverts to state 0 or `systemctl stop` is called. When transitioning from state-3, this is a short lived state, as this transition is happening due to request from kube. This could be a long lived state, if transitioned from state 0, as there is no initiative from kube yet. 
+In this state, no container is running and local system has approved container deployment by kube.<br/>
 
-This state could transition to state 0 by either `systemctl stop` or by monit, if fallback is enabled, failure-check-mode is enabled and it remains in this state for that period.
+This state happens in two ways.  One, from state INIT, when set_owner = kube with no fallback and `systemctl start` takes to this state, and kube is pre-approved to run.<br/>
+Two, from state KUBE_PENDING, when hostcfgd intercepts the request by kube to deploy. The hostcfgd sets the transition_mode to kube_ready and call `systemctl start`.<br/>
 
-#### state 5:
+This state remains until either kube deploys the container or `systemctl stop` is called. 
+
+This state transitions to KUBE_RUNNING, upon successful deployment by kube or it transitions to state INIT, if `systemctl stiop` is called.
+
+When transitioning from state KUBE_PENDING, this mostlikely a short lived state, as this transition is happening due to request from kube. This could be a long lived state, if transitioned from state INIT, as there is no initiative from kube yet. 
+
+
+#### state KUBE_RUNNING
 ***Stable*** state<br/>
 current_owner = kube<br/>
 Transition_mode = kube_running
@@ -312,7 +336,7 @@ This is the state where a feature is running with a container deployed by kube, 
 It remains in this state, until either `systemctl stop` or kube un-deploys the container or container exits due to failure.  Irrespective of the trigger, upon docker exit, it transitions to state 6.
 
 
-#### state 6:
+#### state KUBE_STOPPED
 ***Semi-transient*** state<br/>
 current_owner = none<br/>
 Transition_mode = kube_stopped
