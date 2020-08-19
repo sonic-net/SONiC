@@ -375,7 +375,7 @@ The purpose of the update commands group is to provide an interface
 for automatic FW installation of various platform components.
 
 Automatic FW installation requires platform_components.json to be created and placed at:  
-_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_fw_update.json_
+_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 default image path = /usr/share/sonic/<platform_name>/<onie_platform>/fw_update/
 
 **Example:**
@@ -506,14 +506,14 @@ The purpose of the auto-update commands group is to provide an interface
 for automatic FW installation of various platform components.
 
 Automatic FW installation requires default platform_components.json to be created and placed at:  
-_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_fw_update.json_
+_sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 default image path = /usr/share/sonic/<platform_name>/<onie_platform>/fw_update/
 
 Auto-update command can also support the standalone custom firmware image package with --fw-image option. 
 The package can be any format between `.tar` or `.tar.gz`.
-The `fwutil` commands uncompress the package and parse the `platform_fw_update.json` to retrieve the firmware information.
+The `fwutil` commands uncompress the package and parse the `platform_components.json` to retrieve the firmware information.
 
-If the script path is available for the component firmware configuration in the `platform_fw_update.json`, it means that the specific component firmware upgrade shall use the script to process the fwutil commands.
+If the script path is available for the component firmware configuration in the `platform_components.json`, it means that the specific component firmware upgrade shall use the script to process the fwutil commands.
 `2.2.2.4.3 Component Firmware Update Script Interface Requirement` explains the requirement of the component firmware upgrade script to interfere with the fwutil to support the auto-update command - mainly status and install.
 
 **Example:**
