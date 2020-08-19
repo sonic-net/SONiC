@@ -491,14 +491,22 @@ In normal mode, the feature is in state-LOCAL. When user runs a config command t
 ## Warm-reboot support
    This [warm-reboot](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a complex script that does many pre-requisites, kill the containers and eventually call a specific command for reboot. The individual service level support for warm-start lies within its code/implementation-logic. When configured for warm start, upon start-up, the service should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
    
-   In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
+   In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. 
+   The warm_reboot script needs to be updated as 
+      * Disable kubelet service (`systemctl disable kubelet`)
+      * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option not to check for kubelet service. 
+   
+   Reason for the change:
+   1) With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
+   2) Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
+   3) Pass the option not to check for kubelet service, to save time from redundant check.
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
 ## Fast-reboot
    This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help image-udpate and restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports. Here again any service level support lies within the internal code/logic.
    
-   In short, the summary is as above, the support for fast-boot remains the same, irrespective of service mode as local/kube. The only updates required would be to replace `docker kill` command with corresponding `system container kill`.
+   In short, the summary is as above, the support for fast-boot remains the same, irrespective of service mode as local/kube. The only updates required would be to replace `docker kill` command with corresponding `system container kill` and disable kubelet, in fast_reboot script.
    
    For new features that are not known to fast-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
@@ -549,7 +557,7 @@ Points to note:
 The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
 
 ## Phase 1:
-   Support services that meet the following criteria
+   Support services that meet *all* of the following criteria
 
    * A simple service that has few *required* other services and no service depends on this service.
    * A service that does not affect dataplane traffic
@@ -558,16 +566,12 @@ The final goal for this work item would be to remove nearly all container images
   
 Run an config utility with input file that provides the list of required services, and this creates the service file along with bash scripts as required by the service and an update to FEATURE table in CONFIG-DB, with set_owner = kube and no fallback.
 
-## Phase 2:
-   Support the services that meet the above criteria, with one deviation as 
-   
-   * A service with one or more dependent services
-
-## Phase 3:
-   A deviation from phase 2.<br/>
+## Phase 1:
+   A deviation from phase 1.<br/>
    * Support a locally available image between local & kube.
    * Only for features that does not affect dataplane, like snmp, pmon, lldp, ...
-   
+ 
+The service files are already available. The FEATURE table would be auto created, when user runs the command to switch owner to kube.
 
 
    
