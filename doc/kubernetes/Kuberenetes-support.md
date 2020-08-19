@@ -3,7 +3,7 @@ The scope of this document is to provide the requirements and a high-level desig
 
 The existing mode, which we term as '**Local mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
 
-With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". FOr short we use the word "kube" interchangeably.
+With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". For short we use the word "kube" interchangeably.
 
 # Requirements
 The following are the high level requirements to meet.
@@ -495,15 +495,18 @@ In normal mode, the feature is in state-LOCAL. When user runs a config command t
    The warm_reboot script needs to be updated as 
       * Disable kubelet service (`systemctl disable kubelet`)
       * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option not to check for kubelet service. 
-      * kubelet config/context and /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
+      * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
+      * Ensure all kube managed features have local images.
+         * If not, tag the currently downloaded image appropriately
+      * Ensure all kube managed features are enabled to fallback to local image.
       
    
-   Reason for the change:
+   Reason for the changea:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
    * Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
       * Pass the option not to check for kubelet service, to save time from redundant check.
-   * Carry over kubelet's config, so it can transparently join the master, using the same context as before.
-   * Carry over the kube_admin.conf, which is kube master's context file, which is required to run any kubectl commands
+   * Carry over kubelet related context, to enable transparent join and interaction with master.
+   * Upon reboot, the switch could take some solid time to establish connection with kubernetes master. Until then, the containers that are marked as kube-managed with no fallback, can't start. Hence ensure availability of local image & fallback, so the containers can start immediately from local copy. The set_owner remaining as kube, will help kube to manage, whenever the switch successfully connects to the master. BTW, connecting to the master is done by kubelet transparently.
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
