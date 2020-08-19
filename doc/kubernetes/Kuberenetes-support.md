@@ -495,20 +495,23 @@ In normal mode, the feature is in state-LOCAL. When user runs a config command t
    The warm_reboot script needs to be updated as 
       * Disable kubelet service (`systemctl disable kubelet`)
       * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option not to check for kubelet service. 
+      * kubelet config/context and /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
+      
    
    Reason for the change:
-   1) With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
-   2) Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
-   3) Pass the option not to check for kubelet service, to save time from redundant check.
+   * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
+   * Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
+      * Pass the option not to check for kubelet service, to save time from redundant check.
+   * Carry over kubelet's config, so it can transparently join the master, using the same context as before.
+   * Carry over the kube_admin.conf, which is kube master's context file, which is required to run any kubectl commands
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
 ## Fast-reboot
    This [fast-reboot](https://github.com/Azure/SONiC/wiki/Fast-Reboot) support aims to help image-udpate and restart, with minimal data-plane traffic disruption. The implementation is similar to warm-reboot, that logic is embedded in the fast-boot script, additional utilities and some tweaks inside the code/logic of individual services that supports. Here again any service level support lies within the internal code/logic.
    
-   In short, the summary is as above, the support for fast-boot remains the same, irrespective of service mode as local/kube. The only updates required would be to replace `docker kill` command with corresponding `system container kill` and disable kubelet, in fast_reboot script.
-   
-   For new features that are not known to fast-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
+   In short, the summary and the required changes, including hooks for new features, are the same as in warm-reboot support, just that here use fast-reboot script.
+  
    
 ## reboot
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
