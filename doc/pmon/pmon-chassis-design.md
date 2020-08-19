@@ -59,6 +59,8 @@ The below picture shows reference of VOQ chassis highlevel hardware architecture
 
 ![Modular VOQ Chassis](pmon-chassis-images/voq-chassis.png)
 
+As an example, Nokia modular VQO chassis is IXR-7250 which has control card (i.e CPMv1, CPMv2) and linecards(i.e imm36-400g-qsfpdd, imm36-32x100g-4x400g-qsfpdd, etc), Fabric cards (i.e SFMv1, SFMv2)
+
 ## 2. SONiC Platform Management & Monitoring
 ### 2.1. Functional Requirements
 At a functional level of a chssis, SONiC will manage control cards, line cards and all other peripheral devices of the chassis as required by chassis platform vendor specification. Below requirements capture some of the key areas that is required to operate a VOQ chassis. 
