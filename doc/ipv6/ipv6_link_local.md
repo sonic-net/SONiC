@@ -324,8 +324,9 @@ Commands:
 ```
 
 # 4 Flow Diagrams
+Below sequence depicts the interactions between various components for events w.r.t IPv6 Link Local Address and IPv6 Link Local Neighbor in SONiC
 
-N/A
+![Sequence diagram](images/ipv6_link_local_management.png)
 
 # 5 Error Handling
 
@@ -363,7 +364,9 @@ There are no warm boot changes required for this feature. When warm restart is i
 13. Verify that IPv6 mode is disabled by default and is disabled for newly created VLAN interfaces and Port channel interfaces.
 14. Verify that the IPv6 mode applied globally using IPv6 global command is not applied to VLAN member ports and Port channel members.
 15. Verify that an Ethernet port with use-link-local-only configuration enabled and with no manually configured addresses, is not allowed to be made a member of a Port-Channel or a VLAN.
-16.  Verify that a Port-Channel with use-link-local-only configuration enabled and with no manually configured addresses, is not allowed to be made a member of a VLAN.
+16. Verify that a Port-Channel with use-link-local-only configuration enabled and with no manually configured addresses, is not allowed to be made a member of a VLAN.
+17. Verify that the BGP peer running over the auto-configured link-local address advertises IPv4 routes with IPv6 link-local address as nexthop.
+18. Verify that the BGP peer running over the auto-configured link-local address can receive and install IPv4 routes with IPv6 link-local nexthop.
 
 ## 9.4 Scaling Test Cases
 1. Verify that L3 RIF is created on all the VLAN interfaces when maximum supported VLANs are created and when the global IPv6 commmand is executed.
