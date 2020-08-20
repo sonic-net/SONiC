@@ -442,12 +442,29 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
       
    It resets connection to master.
 
+### config FEATURE
 
+#### config FEATURE <name> owner <local/kube> fallback <true/false> failmode <N> [-y]
+   This command sets owner, fallback & failmode detection for a feature.<br/>
+   This command has the potential to restart the service as required. So a confirmation prompt would be provided.
+   
+### config FEATURE install
+   This command would help install a new FEATURE with simple requirements.
+   
+#### config FEATURE install <name> [required <list of services required>] 
+   This command will create a .service file for systemd and other required bash scripts with required services listed here, such that this service would only run as long as all the required services are running.<br/>
+   If the required list is not provided, it would default to "swss" as the required service.
+   This would also create an entry in CONFIG-DB FEATURE table as kube-managed with no fallback or failmode check.
+   This could be modified using, `CONFIG FEATURE ...` command.
+   
+#### config FEATURE uninstall <name> 
+   Removes the corresponding .service file, associated bash scripts and corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
+   
 ### show kubernetes 
 
 #### server
    `show kubernetes server`
-   Lists all the configured entries for the server.
+   Lists all the configured entries for the server and the status as connected or not, and when did the last state change happened.
    
 #### nodes
    `show kubernetes nodes`
@@ -461,6 +478,9 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    `show kubernetes status`
    It describes the kubernetes status of the node.
 
+#### show FEATURE <name>
+   This would list FEATURE table data from both CONFIG-DB & STATE-DB
+   
 # Reboot support
 
 ## Warm-reboot support
