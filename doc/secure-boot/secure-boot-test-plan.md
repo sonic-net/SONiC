@@ -26,7 +26,7 @@ Test to install an unsigned image, expect the unsigned image never be installed 
 **Steps:**
  * Basic boot up test
  * Allowlist not cover this scenario.
- * Check /proc/cmdline
+ * Check for secure_boot_enable=y in /proc/cmdline
  
 ### 4. Test not able to reboot from unsigned image when running fast-reboot/warm-reboot
 
@@ -61,16 +61,16 @@ Test CA rotation, CA expired need to change another CA
 ### 8. Test tempered image
 
 **Steps:**
- * Change a new file into the signed image
+ * Change a bit in the image
  * Expect the reboot will be failed
 
 ### 9. Test no executable files in rw folder after reboot
 If there are any files with -x option in rw folder, the option will be removed after the SONiC switch reboot.
 
 **Steps:**
- * Add files: /var/core/test /home/admin/test /home/admin/.test with -x option 
+ * Add files: /var/core/test /home/admin/test /home/admin/.test with +x option 
  * Reboot the SONiC switch
- * Expect the -x option has removed from the files
+ * Expect the +x option has removed from the files
 
 ### 10. Test all files not in allowlist will be removed after reboot
 If there are any files not in the allowlist, the files will be removed after the SONiC switch reboot.
@@ -102,7 +102,7 @@ Test the scenario to change the allowlist config file, make sure it works as exp
 
 **Steps:**
  * Add a new config file in the allowlist
- * Rebuild the image and install the image
+ * Rebuild the signed image and install it
  * Change the config file
  * Reboot the switch
  * Expect the config still existing
