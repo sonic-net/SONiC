@@ -5,12 +5,13 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Kebo Liu      | Initial version                   |
+ | 0.2 |             |      Junchao Chen  | Fix community review comment      |
 
 
 
 ## 1. Overview 
 
-The Entity MIB contains several groups of MIB objects, currently SONiC only implemented part of the entityPhysical group following RFC2737. The group contains a single table called "entPhysicalTable" to indentify the pysical components of the system. The MIB objects of "entityPhysical" group listed as below:
+The Entity MIB contains several groups of MIB objects, currently SONiC only implemented part of the entityPhysical group following RFC2737. The group contains a single table called "entPhysicalTable" to identify the physical components of the system. The MIB objects of "entityPhysical" group listed as below:
 
 	EntPhysicalEntry ::= SEQUENCE {
 		entPhysicalIndex          PhysicalIndex,
@@ -46,7 +47,7 @@ Currently SONiC implemented part of the MIB objects in the table:
 	entPhysicalMfgName        SnmpAdminString,
 	entPhysicalModelName      SnmpAdminString,
 
-Now only physical entities as transceivers and it's DOM sensors(Temp, voltage, rx power, tx power and tx bias) are implemented, with snmpwalk can fetch the MIB info:
+Now only physical entities as transceivers and its DOM sensors(Temp, voltage, rx power, tx power and tx bias) are implemented, with snmpwalk can fetch the MIB info:
 
 	SNMPv2-SMI::mib-2.47.1.1.1.1.2.1000 = STRING: "SFP/SFP+/SFP28 for Ethernet0"
 	SNMPv2-SMI::mib-2.47.1.1.1.1.2.1001 = STRING: "DOM Temperature Sensor for Ethernet0"
@@ -67,7 +68,7 @@ Now only physical entities as transceivers and it's DOM sensors(Temp, voltage, r
 ## 3. A new extension to Entity MIB implementation
 This extension aims to implement all the objects in the entityPhysical group.
 
-Also plan to add more physical entities such as thermal sensors, fan, and it's tachometers; PSU, PSU fan, and some sensors contained in PSU.
+Also plan to add more physical entities such as thermal sensors, fan, and its tachometers; PSU, PSU fan, and some sensors contained in PSU.
 
 Another thing need to highlight is that in the current implementation, "entPhysicalContainedIn" object is not implemented, so there is no way to reflect the physical location of the components, this time it will be amended, by this all the MIB entries can be organized in a hierarchy manner, see below chart:
 
@@ -94,43 +95,188 @@ Another thing need to highlight is that in the current implementation, "entPhysi
 
 ## 4. The data source of the MIB entries
 
-Thermalctl daemon, Xcvrd, psud, are collecting physical device info to state DB, now we have PSU_INFO tale, FAN_INFO table, and TEMPERATURE_INFO table which can provide information for MIB entries. 
+Thermalctl daemon, Xcvrd, psud, are collecting physical device info to state DB, now we have PSU_INFO tale, FAN_INFO table, and TEMPERATURE_INFO table which can provide information for MIB entries.
 
 Thermal sensors MIB info will come from TEMPERATURE_INFO, FAN_INFO will feed to FAN MIB entries and PSU_INFO will be the source of the PSU related entries.
 
 The current already implemented cable and cable DOM sensors getting data from tables(TRANSCEIVER_INFO and TRANSCEIVER_DOM_SENSOR) which maintained by xcvrd.
 
-### 4.1 Adding more data to state DB
+### 4.1 entPhysicalParentRelPos implementation
 
-As mentioned in Section 3, currently lack the implementation of "entPhysicalContainedIn" object, and also there is no such kind of info stored in the state DB. A "contained_in_device" device will be added to the current tables, e.g., extended TEMPERATURE_INFO with the new field:
+entPhysicalParentRelPos is a mib object that reflect the relative position of a physical entity in its parent entity. In current implementation, there are following issues:
 
-	; Defines information for a thermal object
-	key                     = TEMPERATURE_INFO|object_name   ; name of the thermal object(CPU, ASIC, optical modules...)
-	; field                 = value
-	temperature             = FLOAT                          ; current temperature value
-	timestamp               = STRING                         ; timestamp for the temperature fetched
-	high_threshold          = FLOAT                          ; temperature high threshold
-	critical_high_threshold = FLOAT                          ; temperature critical high threshold
-	low_threshold           = FLOAT                          ; temperature low threshold
-	critical_low_threshold  = FLOAT                          ; temperature critical low threshold
-	warning_status          = BOOLEAN                        ; temperature warning status
-	contained_in_device     = STRING                         ; name of the device which contains this sensor
+1. There is no position information in current platform API. Take fan as an example, now fan objects are saved as an list in chassis object, but the list index cannot reflect the physical fan position. There might be two problems, one is that the list can be initialized with arbitrary order, the other is that the order might change when remove/insert a fan object.
+2. Now all thermal objects are stored in chassis object, but not all thermal objects are the directly children of chassis. For example, we have PSU thermal and SFP module thermal object whose parent device is not chassis.
 
-To have this kind info available we need to extend the current platform API, can add a new function "get_contained_in_device_name" to DeviceBase class, this function will return the name of the device which it is contained in. This new field will be populated to state DB by related PMON daemons.
+In order to provide reliable data for entPhysicalParentRelPos, a few changes will be made in platform API.
 
-	class DeviceBase(object):
-	    """
-	    Abstract base class for interfacing with a generic type of platform
-	    peripheral device
-	    """
+First, a new API will be added to DeviceBase class for getting the relative position in parent device. See:
 
-	    def get_contained_in_device_name(self):
+```python
+class DeviceBase(object):
+	def get_position_in_parent(self):
 		"""
-		Retrieves The name of the device which contains this component
+		Retrieves 1-based relative physical position in parent device
 		Returns:
-		    string: The name of the device
+		    integer: The 1-based relative physical position in parent device
 		"""
 		raise NotImplementedError
+```
+
+Second, add thermal list for PsuBase and SfpBase to reflect the actual hierarchy. Vender should initialize thermal list for PSU and SFP properly. Thermal control daemon should also retrieve thermal objects from PSU and SFP.
+
+```python
+class PsuBase(device_base.DeviceBase):
+    def __init__(self):
+        self._thermal_list = []
+
+    def get_num_thermals(self):
+        """
+        Retrieves the number of thermals available on this PSU
+
+        Returns:
+            An integer, the number of thermals available on this PSU
+        """
+        return len(self._thermal_list)
+
+    def get_all_thermals(self):
+        """
+        Retrieves all thermals available on this PSU
+
+        Returns:
+            A list of objects derived from ThermalBase representing all thermals
+            available on this PSU
+        """
+        return self._thermal_list
+
+    def get_thermal(self, index):
+        """
+        Retrieves thermal unit represented by (0-based) index <index>
+
+        Args:
+            index: An integer, the index (0-based) of the thermal to
+            retrieve
+
+        Returns:
+            An object dervied from ThermalBase representing the specified thermal
+        """
+        thermal = None
+
+        try:
+            thermal = self._thermal_list[index]
+        except IndexError:
+            sys.stderr.write("THERMAL index {} out of range (0-{})\n".format(
+                             index, len(self._thermal_list)-1))
+
+        return thermal
+
+
+class SfpBase(device_base.DeviceBase):
+    def __init__(self):
+        self._thermal_list = []
+
+    def get_num_thermals(self):
+        """
+        Retrieves the number of thermals available on this SFP
+
+        Returns:
+            An integer, the number of thermals available on this SFP
+        """
+        return len(self._thermal_list)
+
+    def get_all_thermals(self):
+        """
+        Retrieves all thermals available on this SFP
+
+        Returns:
+            A list of objects derived from ThermalBase representing all thermals
+            available on this SFP
+        """
+        return self._thermal_list
+
+    def get_thermal(self, index):
+        """
+        Retrieves thermal unit represented by (0-based) index <index>
+
+        Args:
+            index: An integer, the index (0-based) of the thermal to
+            retrieve
+
+        Returns:
+            An object derived from ThermalBase representing the specified thermal
+        """
+        thermal = None
+
+        try:
+            thermal = self._thermal_list[index]
+        except IndexError:
+            sys.stderr.write("THERMAL index {} out of range (0-{})\n".format(
+                             index, len(self._thermal_list)-1))
+
+        return thermal
+```
+
+A new database table will be added to store the position information. The new table will be discussed in section 4.3.
+
+### 4.2 entPhysicalContainedIn implementation
+
+According to RFC, entPhysicalContainedIn indicates the sub ID of the parent physical entity for a physical entity. Now platform API uses a hierarchy structure to store platform devices. This hierarchy structure can be used for entPhysicalContainedIn implementation.
+
+The parent device name will be saved to the database(see section 4.3). Snmp agent will use the parent device name to retrieve the parent sub ID and fill it to entPhysicalContainedIn field.
+
+### 4.3 Adding new table to state DB to store physical entity relationship
+
+A new table PHYSICAL_RELATION_INFO will be added:
+
+	; Defines information to store physical entity relationship
+	key                     = PHYSICAL_RELATION_INFO|object_name   ; name of the entity object
+	; field                 = value
+	position_in_parent      = INTEGER                              ; physical position in parent device
+	parent_name             = STRING                               ; name of parent device
+
+The data of this table will be collected by thermalctld, psud and xcvrd.
+
+### 4.4 entPhysicalIndex implementation
+
+For transceivers and its DOM sensors, there is already rule to generate entPhysicalIndex for them. For new entity such as FAN, PSU, the entPhysicalIndex generating rule is described below:
+
+```
+For fan drawer:
+entPhysicalIndex = 500000000 + entPhysicalParentRelPos * 1000000
+
+For fan:
+entPhysicalIndex = entPhysicalContainedIn + 20020 + entPhysicalParentRelPos
+
+For fan tachometers:
+entPhysicalIndex = entPhysicalContainedIn + 10000
+
+For PSU:
+entPhysicalIndex = 600000000 + entPhysicalParentRelPos * 1000000
+
+For PSU fan:
+entPhysicalIndex = entPhysicalContainedIn + 20020 + entPhysicalParentRelPos
+
+For PSU fan tachometers:
+entPhysicalIndex = entPhysicalContainedIn + 10000 + entPhysicalParentRelPos
+
+For PSU temperature:
+entPhysicalIndex = entPhysicalContainedIn + 40011
+
+For PSU power:
+entPhysicalIndex = entPhysicalContainedIn + 40030
+
+For PSU current:
+entPhysicalIndex = entPhysicalContainedIn + 40040
+
+For PSU voltage:
+entPhysicalIndex = entPhysicalContainedIn + 40050
+
+For chassis management:
+entPhysicalIndex = 200000000
+
+For chassis thermal:
+entPhysicalIndex = 200000000 + 100000 + entPhysicalParentRelPos
+```
 
 ## 5. Entity MIB extension test
 
@@ -145,5 +291,4 @@ New test cases will be added to cover the new MIB entries:
 1. Get temp sensor MIB info and cross-check with the TEMPERATURE_INFO table.
 2. Get fan MIB info and cross-check with the FAN_INFO table.
 3. Get PSU related MIB info and cross-check with PSU_INFO and related tables
-3. Remove/Add DB entries from related tables to see whether MIB info can be correctly updated.
-
+4. Remove/Add DB entries from related tables to see whether MIB info can be correctly updated.
