@@ -13,22 +13,22 @@ With this proposal, we extend container images to kubernetes-support, where the 
   
   ## Key terms:
   The key terms are described very briefly in simple terms, so as to familiarize the reader with these terms, as they are used in this doc. For in-depth details, please look up in 
-   * Kubernetes master
+   * Kubernetes master<br/>
       This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...
       
-   * HA kubernetes-master / kubernetes master cluster:
+   * HA kubernetes-master / kubernetes master cluster:<br/>
       Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
       
-   * etcd
+   * etcd<br/><br/>
       This is the DB used by master for all its data. In a cluster, it is shared across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
       
-   * node
+   * node<br/>
       The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps and take action on failure.
       
-   * pods
+   * pods<br/>
       This is the unit of kubernetes deploymenet. A pod could run one or more containers. A manifest describes a pod.
       
-   * manifest
+   * manifest<br/>
       A manifest describes the pod as below. 
         * Assigns a name
         * The kind of object
@@ -43,10 +43,10 @@ With this proposal, we extend container images to kubernetes-support, where the 
         * Node selector labels
         ...
 
-   * Node selector labels
+   * Node selector labels<br/>
       A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. A node may have more labels. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
       
-   * Daemonset
+   * Daemonset<br/>
       A deamonset is a special kind of pod. Normally a pod is deployed in one or more nodes to meet the count of replicas required as per manifest. But deamonset is different, that a daemonset is deployed as only one replica per node in all nodes that matches all labels and more.
            
 ## Basic on `how` for a daemonset:
