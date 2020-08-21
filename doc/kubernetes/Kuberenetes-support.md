@@ -6,17 +6,26 @@ The existing mode, which we term as '**Local mode**' has all container images bu
 With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". For short we use the word "kube" interchangeably.
 
 # A Brief on Kubernetes
+  [Disclaimer: This brief on kubernetes is only to give some basics on these terms, so as to help with  reading this doc. For full & official details, please refer to kubernetes documentation ] (https://kubernetes.io/docs/home/)
   This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates that is customizable per app. The common use case, is to deploy applications in a desired scale among the available nodes, that takes into account the needs of app and deploy at nodes where the needs can be met. If a node would crash or the environment changes or app requires an update, and many more, the engine manages it all transparently.
   
   ## Key terms:
+  The key terms are described very briefly in simple terms, so as to familiarize the reader with these terms, as they are used in this doc. For in-depth details, please look up in 
    * Kubernetes master
       This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...
       
    * HA kubernetes-master / kubernetes master cluster:
       Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
       
-    * etcd
-      This is the internal DB used by master. 
+   * etcd
+      This is the DB used by master for all its data. In a cluster, it is shared across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
+      
+   * node
+      The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps
+      
+   * pods
+      This is the unit of kubernetes deploymenet. A pod could runn o
+   
       
   
 # Requirements
