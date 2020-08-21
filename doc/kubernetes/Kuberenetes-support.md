@@ -9,21 +9,19 @@ With this proposal, we extend container images to kubernetes-support, where the 
   
   ***Disclaimer**: This brief on kubernetes is only to give some basics on these terms, so as to help with  reading this doc. For full & official details, please refer to [kubernetes documentation](https://kubernetes.io/docs/home/)
   
-  This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates that is customizable per app. The common use case, is to deploy applications in a desired scale among the available nodes, that takes into account the needs of app and deploy at nodes where the needs can be met. If a node would crash or the environment changes or app requires an update, and many more, the engine manages it all transparently.
+  This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates that is customizable per app. The common use case, is to deploy applications in a desired scale among the available nodes, that takes into account the needs of app and deploy at nodes where the needs can be met. Kubernetes manages the lifetime of the pod in a node.
   
   ## Key terms:
-  The key terms are described very briefly in simple terms, so as to familiarize the reader with these terms, as they are used in this doc. For in-depth details, please look up in 
+  The key terms are described very briefly in simple terms, so as to familiarize the reader with these terms, as they are used in this doc. For in-depth details, please look up in [kubernetes documentation](https://kubernetes.io/docs/home/).
+  
    * Kubernetes master<br/>
       This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...
       
    * HA kubernetes-master / kubernetes master cluster:<br/>
-      Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
-      
-   * etcd<br/>
-      This is the DB used by master for all its data. In a cluster, it is clustered across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
+      Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single clustered entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
       
    * node<br/>
-      The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps and take action on failure.
+      A system that is ready to run apps, join the master as node. Commonly a master manages a cluster of nodes. The master deploys apps in nodes that meet app's needs on resources, dependencies and more. A node may run single/none/multiple instances of same app. Master watch the health of the apps and take action on failure.
       
    * pods<br/>
       This is the unit of kubernetes deploymenet. A pod could run one or more containers. A manifest describes a pod.
@@ -44,10 +42,10 @@ With this proposal, we extend container images to kubernetes-support, where the 
         ...
 
    * Node selector labels<br/>
-      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. A node may have more labels. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
+      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
       
    * Daemonset<br/>
-      A deamonset is a special kind of pod. Normally a pod is deployed in one or more nodes to meet the count of replicas required as per manifest. But deamonset is different, that a daemonset is deployed as only one replica per node in all nodes that matches all labels and more.
+      A deamonset is a special kind of pod. Normally a pod is deployed in one or more nodes to meet the count of replicas required as per manifest. This implies that a pod/app may not be deployed in all nodes. But deamonset is different. A manifest can describe a pod as daemonset. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node.
            
 ## Basic on `how` for a daemonset:
   1) Set up a master cluster
