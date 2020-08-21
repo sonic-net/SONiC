@@ -22,10 +22,14 @@ Test to install an unsigned image, expect the unsigned image never be installed 
  * Expect the installation failed with image not signed
 
 ### 3. Test fast-reboot/warm-reboot from signed image into another signed image
+Test the fast-reboot/warm-reboot into another signed image, make sure the secure boot option still exist.
 
 **Steps:**
- * Basic boot up test
- * Allowlist not cover this scenario.
+ * Copy a signed image
+ * Run the sonic installer command: sonic_installer install <image>
+ * Run fast-reboot
+ * Check for secure_boot_enable=y in /proc/cmdline
+ * Run warm-reboot
  * Check for secure_boot_enable=y in /proc/cmdline
  
 ### 4. Test not able to reboot from unsigned image when running fast-reboot/warm-reboot
@@ -37,7 +41,7 @@ Test to install an unsigned image, expect the unsigned image never be installed 
  * Run warn-reboot
  * Expect the switch is not reboot with verification failure message
 
-### 6. Test Boot from untrusted signed image
+### 6. Test boot from untrusted signed image
 
 **Steps:**
  * Sign image using self-signed certificate not installed in switch
@@ -62,7 +66,8 @@ Test CA rotation, CA expired need to change another CA
 
 **Steps:**
  * Change a bit in the image
- * Expect the reboot will be failed
+ * Reboot the SONiC switch
+ * Expect system hanging on the bootloader
 
 ### 9. Test no executable files in rw folder after reboot
 If there are any files with -x option in rw folder, the option will be removed after the SONiC switch reboot.
