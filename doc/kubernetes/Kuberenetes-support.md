@@ -23,10 +23,47 @@ With this proposal, we extend container images to kubernetes-support, where the 
       This is the DB used by master for all its data. In a cluster, it is shared across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
       
    * node
-      The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps
+      The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps and take action on failure.
       
    * pods
-      This is the unit of kubernetes deploymenet. A pod could runn o
+      This is the unit of kubernetes deploymenet. A pod could run one or more containers. A manifest describes a pod.
+      
+   * manifest
+      A manifest describes the pod as below. 
+        * Assigns a name
+        * The kind of object
+        * count of replicas
+        * List of containers
+        * Description of each container
+          * Image URL
+          * mounts
+          * runtime args
+          * environment variables
+          ...
+        * Node selector labels
+        ...
+
+   * Node selector labels
+      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. A node may have more labels. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
+      
+   * Daemonset
+      A deamonset is a special kind of pod. Normally a pod is deployed in one or more nodes to meet the count of replicas required as per manifest. But deamonset is different, that a daemonset is deployed as only one replica per node in all nodes that matches all labels and more.
+           
+## Basic on `how` for a daemonset:
+  1) Set up a master cluster
+  2) Configure nodes with VIP of the cluster
+  3) Nodes join the master, whenever they are ready
+  4) The container images are stored in container registry, like Azure Container Registry
+  5) Manifests are applied in master.
+     For a better control, manifests can be checked into a github repo.
+     A tool can watch for updates and apply manifest.
+  6) For any new manifest, the master applies to all eligible nodes.
+      * The node downloads the container image from URL in the manifest
+      * The container is started in the node with runtime setup as described in manifest
+  7) For any manifest update, the master does the following on all eligible nodes
+      * Stop the currently running pod
+      * Follow the same steps as above for the new manifest.
+  
    
       
   
