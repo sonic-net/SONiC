@@ -62,7 +62,20 @@ With this proposal, we extend container images to kubernetes-support, where the 
       * Stop the currently running pod
       * Follow the same steps as above for the new manifest.
      
-  
+
+# Problem to solve:
+Currently, all docker images are hard burned into insallable SONiC image. For any code update, even a minor fix for a container, requires a re-build of entire and the rest of the heavy weight process to qualify the image to run in a production switch and in phases, install the entire image. We need to do this irrespective of however minor the change is.
+
+## Proposal:
+Build the image as today. Install the image as today. In addition configure a subset of dockers as "could be kube managed". When the switch would join a master and if the master has a manifest for a docker marked as kube-managed, deploy the docker per manifest.
+
+This way, we could update a container in a switch with a central control at kubernetes master. 
+This could be extended to containers that are not built as part of image, but could be enabled to run in selected switches.
+
+# Goal:
+1) Enable run of containers that are not part of SONiC image to run in a switch running SONiC
+2) Enable containers that are part of SONiC image to become controllable by kubernetes as needed, with an ability to revert back to local.
+
 # Requirements
 The following are the high level requirements to meet.
 1. Kubernetes mode is optional.
