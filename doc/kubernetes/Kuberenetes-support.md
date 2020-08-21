@@ -6,7 +6,9 @@ The existing mode, which we term as '**Local mode**' has all container images bu
 With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". For short we use the word "kube" interchangeably.
 
 # A Brief on Kubernetes
-  [Disclaimer: This brief on kubernetes is only to give some basics on these terms, so as to help with  reading this doc. For full & official details, please refer to kubernetes documentation ] (https://kubernetes.io/docs/home/)
+  
+  ***Disclaimer**: This brief on kubernetes is only to give some basics on these terms, so as to help with  reading this doc. For full & official details, please refer to ![kubernetes documentation](https://kubernetes.io/docs/home/)*
+  
   This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates that is customizable per app. The common use case, is to deploy applications in a desired scale among the available nodes, that takes into account the needs of app and deploy at nodes where the needs can be met. If a node would crash or the environment changes or app requires an update, and many more, the engine manages it all transparently.
   
   ## Key terms:
