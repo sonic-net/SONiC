@@ -19,8 +19,8 @@ With this proposal, we extend container images to kubernetes-support, where the 
    * HA kubernetes-master / kubernetes master cluster:<br/>
       Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
       
-   * etcd<br/><br/>
-      This is the DB used by master for all its data. In a cluster, it is shared across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
+   * etcd<br/>
+      This is the DB used by master for all its data. In a cluster, it is clustered across as replicated with a master/slaver relationship, managed by kubernetes as a multi-node etcd cluster.
       
    * node<br/>
       The nodes that can run apps, join the master. The master deploys apps in nodes, such that app's needs are met. A node may run single/none/multiple copies of same app. Master watch the health of the apps and take action on failure.
@@ -63,9 +63,7 @@ With this proposal, we extend container images to kubernetes-support, where the 
   7) For any manifest update, the master does the following on all eligible nodes
       * Stop the currently running pod
       * Follow the same steps as above for the new manifest.
-  
-   
-      
+     
   
 # Requirements
 The following are the high level requirements to meet.
@@ -99,9 +97,8 @@ The following are the high level requirements to meet.
 6. The monit service would monitor the processes transparently across both modes.
 
 
-# Non requirements
-The following are required, but not addressed in this design doc. This would be addressed in one or more separate docs.
-
+# Mandates on deployed images
+The following are required, but external to then node/switch, hence not addressed in this design doc. 
 1. The feature deployed by kubernetes must have passed nightly tests.
 2. The manifest for the feature must honor controls laid by switch as start/stop.
 3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
@@ -585,6 +582,7 @@ Points to note:
    * Every kube-managed feature should have an entry in CONFIG-DB, FEATURE table.
    * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB.
    
+ A couple of proposals are listed below. The pick & implementation of the proposal is outside this doc. 
    
  ## Proposal - 1:
    *  The kubernetes master manages manifests. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
@@ -597,7 +595,7 @@ Points to note:
         
    
 ## Proposal - 2:
-   Templatize the service file creation.
+   Templatize the service file creation. 
    
    Most common requirements for any service are,  
    *  This feature/service ***requires*** the presence of one or more other services/features. 
@@ -616,6 +614,30 @@ Points to note:
 ## Proposal - 3:
    Run an external service, to install required service files in each node, explicitly. The scope of this proposal is outside this doc.
 
+# Image management
+  For a kube managed container, when updates happen, it downloads a new image, which can result in multiple container images for a single feature. This is a requirement, but not addressed in this doc. This doc, just touches the possibilities.
+  
+  ## Garbage collection:
+  We could extend kubelet's garbage collection facility and configure it appropriately. 
+  
+  ## local image
+  Every switch image comes with container images for all features. We may remove it and tag the downloaded image as local, so the switch can keep one copy for both kube & local modes.
+
+# Failure mode detection & rollback
+  With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
+  This brings in two questions
+  a)  How to detect the failure?
+  b)  How do we rollback ?
+  
+  This requirement is outside this doc, but discuss some possibilities.
+  
+  ## Failure detection
+   * We could use a monitor script both at host level and internally within the container. 
+   * The CONFIG-DB FEATURE table entry could be used to configure failure mode detection parameters for either.
+   * The STATE-DB FEATURE entry could be used by both monitoring facilitlies to report the error.
+   * The CONFIG-DB FEATURE, could set the rollback policy as alert-only, switch-to-local, ...
+   * The hostcfgd or another daemon could carry out the task, upon STATE-DB FEATURE table reporting failure.
+   
 # Implementation phases:
 The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
 
