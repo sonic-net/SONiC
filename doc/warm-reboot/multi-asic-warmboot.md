@@ -28,7 +28,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 The approach is to do an action eg: stop bgp, in all the asic_instances at the same time and wait for it to be donw and state to be Ok in all the asic_instances before proceeding to the next state.
 
-**Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
+**1. Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
 ```
 WARM_RESTART_TABLE
 ;Stores warm-reboot lifecycle state for that asic_instance
@@ -51,10 +51,12 @@ There needs to be a process or a script to watch the state of an "asic_instance"
 
   2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
-**Save the Redis DB in each ASIC instance**
+
+**2. Save the Redis DB in each ASIC instance**
 <TODO>
   
-**Save the SAI states in each ASIC instance**
+  
+**3. Save the SAI states in each ASIC instance**
 <TODO>
 
 
