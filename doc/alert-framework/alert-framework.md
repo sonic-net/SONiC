@@ -256,7 +256,8 @@ The alarm will stil be in the Current Alarm List until the application which rai
 Log handler per each NBI should contain logic to take the alert record, augment it with vendor specific information, format the message and 
 send it to the destination.
 
-
+Ex: a particular vendor might want to add few fields specific to their platform based on event-id and send with the syslog message. OR the vendor
+might want to have a different syslog message format.
 
 Various vendors can add their log handlers at sonic-buildimage/organization_extensions/vendor/ for the build system to overwrite the default log hander in eventd container.
 
@@ -533,24 +534,6 @@ N/A
 - Verify various show commands
 
 # 10 Internal Design Information
-*** THIS NEED TO BE DELETED BEFORE SHARING WITH COMMUNITY ***
-For Dell, the log messages need to contain fields of EEMI specification. 
-Most important EEMI fields:
-- SequenceNumber
-- Timestamp
-- MessageID = Prefix + Number Ex:RED005, AMP030
-- Message
-- Detailed Description
-- Category (System Health, Configuration, Storage, Audit, Update, Work Notes)
-- Severity (1-Critical, 2-Warning, 3-Information)
-- Recommended Response Action
-
 Each log handler can maintain another mapping table of alert-id and relevant vendor specific static information to be sent in the log messages. 
 ( TODO: explore any other efficient ways to achieve it )
-
-For Dell, log handlers will have log handler map with this following vendor specific static information:
-- MessageID = Prefix + Number Ex:RED005, AMP030
-- Detailed Description
-- Category (System Health, Configuration, Storage, Audit, Update, Work Notes)
-- Recommended Response Action ( This could be generic field; need to move to static_event_table )
 
