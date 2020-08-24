@@ -7,54 +7,53 @@ With this proposal, we extend container images to kubernetes-support, where the 
 
 # A Brief on Kubernetes
   
-  ***Disclaimer**: This brief on kubernetes is only to give some basics on these terms, so as to help with  reading this doc. For full & official details, please refer to [kubernetes documentation](https://kubernetes.io/docs/home/)*
+  ***Disclaimer**: This brief on kubernetes is only to give some basics on these terms, related to this doc. For full & official details, please refer to [kubernetes documentation](https://kubernetes.io/docs/home/)*
   
-  This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates that is customizable per app. The common use case, is to deploy applications in a desired scale among the available nodes, that takes into account the needs of app and deploy at nodes where the needs can be met. Kubernetes manages the lifetime of the pod in a node.
+  This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates and customizable per app. 
   
   ## Key terms:
-  The key terms are described very briefly in simple terms, so as to familiarize the reader with these terms, as they are used in this doc. For in-depth details, please look up in [kubernetes documentation](https://kubernetes.io/docs/home/).
-  
-   * Kubernetes master<br/>
-      This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...
-      
-   * HA kubernetes-master / kubernetes master cluster:<br/>
-      Being the brain behind, the availability become highly critical. Hence often, multiple instances of the master are run as single clustered entity. This cluster is configured behind a VIP (Virtual IP), which is often serviced by a Load Balancer. The access to VIP would direct to any of the masters in the cluster, that are active.
+   * Kubernetes master/cluster<br/>
+      This is the brain behind the kubernetes system. Comprised of many deamons, which includes API server, scheduler, controller, kubelet, proxy, etcd, ...<br/>
+      To ensure high availability two or more masters could be installed as a cluster behind a VIP.<br/>
+      A kubernetes cluster is externally installed to manage SONiC switches.
+      This is outside the scope of this doc.
       
    * node<br/>
-      A system that is ready to run apps, join the master as node. Commonly a master manages a cluster of nodes. The master deploys apps in nodes that meet app's needs on resources, dependencies and more. A node may run single/none/multiple instances of same app. Master watch the health of the apps and take action on failure.
+      A SONiC switch joins a kubernetes cluster as a node, to facilitate kube manage dockers in the switch.
       
    * pods<br/>
-      This is the unit of kubernetes deploymenet. A pod could run one or more containers. A manifest describes a pod.
+      This is the unit of kubernetes deploymenet. In SONiC switches, a pod runs a single container. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
       
    * manifest<br/>
       A manifest describes the pod as below. 
         * Assigns a name
-        * The kind of object
-        * count of replicas
         * List of containers
         * Description of each container
           * Image URL
           * mounts
           * runtime args
           * environment variables
-          ...
+          * ...
         * Node selector labels
-        ...
-
+        *...
+      In SONiC, the list of containers contains only one.
+    
    * Node selector labels<br/>
       A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
       
+      SONiC switch can add labels describing its version, platform, ... as labels. This can help create manifests for specific version and platform and ...
+      
    * Daemonset<br/>
-      A deamonset is a special kind of pod. Normally a pod is deployed in one or more nodes to meet the count of replicas required as per manifest. This implies that a pod/app may not be deployed in all nodes. But deamonset is different. A manifest can describe a pod as daemonset. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node.
+      A deamonset is a special kind of pod. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node. The kube manages pods on SONiC switches using the kind daemonset only.
            
 ## Basic on `how` for a daemonset:
   1) Set up a master cluster
-  2) Configure nodes with VIP of the cluster
-  3) Nodes join the master, whenever they are ready
-  4) The container images are stored in container registry, like Azure Container Registry
-  5) Manifests are applied in master.
+  2) The container images are stored in container registry, like Azure Container Registry
+  3) Manifests are applied in master.
      For a better control, manifests can be checked into a github repo.
      A tool can watch for updates and apply manifest.
+  4) Configure SONiC switches with VIP of the cluster
+  5 Run a script on switch to join the master, transparently or on user control.
   6) For any new manifest, the master applies to all eligible nodes.
       * The node downloads the container image from URL in the manifest
       * The container is started in the node with runtime setup as described in manifest
