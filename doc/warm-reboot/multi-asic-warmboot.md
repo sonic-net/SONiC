@@ -29,7 +29,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 The approach is to do an action eg: stop bgp, in all the asic_instances at the same time and wait for it to be donw and state to be Ok in all the asic_instances before proceeding to the next state.
 
 **Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
-
+```
 WARM_RESTART_TABLE
 ;Stores application and orchdameon warm start status
 ;Status: work in progress
@@ -41,7 +41,7 @@ key             = WARM_RESTART_TABLE|asic_instance        ; asic_instance is a u
 state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_done" / "database_done"
                                                              ; FSM state of the services bound to a particular 
                                                              ; asic_instance.
-
+```
 There needs to be a process or a script to watch the state of an "asic_instance" group of services. Two approaches here 
 
   1. Introduce a new process named "warmBootd" running in the linux host.
