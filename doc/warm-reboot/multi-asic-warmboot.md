@@ -51,6 +51,13 @@ There needs to be a process or a script to watch the state of an "asic_instance"
 
   2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
+** Save the Redis DB in each ASIC instance **
+<TODO>
+  
+** Save the SAI states in each ASIC instance **
+<TODO>
+
+
 
 ## Steps done when the device comes back up after warm boot
 
