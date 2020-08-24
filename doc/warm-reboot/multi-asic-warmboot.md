@@ -31,8 +31,8 @@ The approach is to do an action eg: stop bgp, in all the asic_instances at the s
 **Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
 ```
 WARM_RESTART_TABLE
-;Stores application and orchdameon warm start status
-;Status: work in progress
+;Stores warm-reboot lifecycle state for that asic_instance
+
 
 key             = WARM_RESTART_TABLE|asic_instance        ; asic_instance is a unique ID or name to identify
                                                           ; the instance of set of services <database, swss
@@ -52,7 +52,7 @@ There needs to be a process or a script to watch the state of an "asic_instance"
   2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
 
-## Steps done when the device comed back up after warm boot
+## Steps done when the device comes back up after warm boot
 
 On the way up after warm reboot, the sequence could be same as what we do for a single ASIC platform. The design change would be with the 
   - usage of different redis database saved file per ASIC instance
