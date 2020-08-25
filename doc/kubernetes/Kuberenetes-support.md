@@ -591,6 +591,15 @@ For some features multiple instances are running as one per ASIC, and possibly o
   * Mounts differ
     Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance.
     
+In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC.
+
+## FEATURE config:
+The configuration of FEATURE is CONFIG-DB. This controls set_owner, fallback, ... parameters per FEATURE. 
+
+* The config can be shared or can be distinct per ASIC.
+
+
+    
     
 # Service install for kube managed features
 
