@@ -647,7 +647,7 @@ Points to note:
   a)  How to detect the failure?
   b)  How to do rollback ?
   
-  This requirement is outside this doc, but discuss some possibilities.
+  This requirement is outside the scope of this doc, but discuss some possibilities.
   
   ## Failure detection
   * A monitor script could be used both at host level and internally within the container to look for failure.
@@ -670,34 +670,35 @@ Points to note:
   
   # Safety Check Service
   When a manifest is deployed in master, it gets instantly applied to all eligible nodes. In a production environment, this flooding of updates across all at the same time point, may not be acceptable, as this involves
-    a) restart of service, which could have data plane disruption
-    b) New code may not be good, causing failure across entire fleet of devices
-    
-  Requirements:
+    * restart of service, which could have data plane disruption
+    * New code may not be good, causing failure across entire fleet of devices at the same time.<br/>
+
+  ***Note:*** The Safety Check Service is a critical requirement, but outside the scope of this doc.
+  
+  A brief brainstorming is attempted, more to highlight the problem to solve.
+  
+  ## High level requirements:
     a) The master should not flood but make the updates in batches, where a single batch would have a subset of nodes.
     b) The selection of batches and its members had to be done diligently
     c) An update on a batch, may involve isolating devices from traffic, before marking the batch as ready for update.
     d) Rolling updates in batches be controlled based on results of deployment done so far.
     e) Have a way to rollback, when a batch fails
     
-  ***Note:*** These requirements are outside the scope of this doc. 
   
-  A possibility:
-  * Each manifest be assigned unique label as one of NodeSelector labels
-  * When a manifest is applied, none of the nodes would be elgible, as none of the nodes would have this new label.
-  * An external entity identifies the subset of nodes to update
-  * For each node in that set, 
-    * remove the unique label for the existing manifest (older copy)<br/>
-      This cause kube to undeploy the pods from older manifest in all these nodes.
-    * add this unique label<br/>
-      This cause kube to install the pod per updated manifest 
-  * Wait for deployment to complete. Give sometime to watch the health
+  ## A possibility:
+  * Each manifest be assigned with an unique label as one of NodeSelector labels
+  * When a manifest is applied, none of the nodes would be eligible, as none of the nodes would have this new label.
+  * An external entity identifies the subset of nodes to update.
+  * For each node in that set, add this unique label, that will make the selected subset of nodes as eligible for update
+      * If this is a manifest update, make sure to remove the unique label that was added for the last update
+      * This removal will make kube undeploy the old one.
+      * Addition of the new label will enable deployment of the current update.
+  * Wait for deployment to a batch complete. Give sometime to watch the health
   * Depending on the result, either
     * repeat the above steps from identifying next set of nodes to update<br/>
     OR
     * remove the new label and add the old label to rollback for each node.
-  
-    
+     
     
 # Implementation phases:
 The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
