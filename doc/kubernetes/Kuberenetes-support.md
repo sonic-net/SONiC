@@ -1,13 +1,13 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The SONiC image has all the container images burned/embedded inside, with each container managing a service, like swss, syncd, snmp, .... The systemd manages the services. The systemctl service commands calls service specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers. This current mode is referred as '**Local mode**' in this doc.
+The SONiC image has all the container images burned/embedded inside, with each container managing a feature, like swss, syncd, snmp, .... The systemd manages the features. The systemctl service commands calls service specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers. This current mode is referred as '**Local mode**' in this doc.
 
-With this proposal, the management of container images is extended to kubernetes-support, where an image could be downloaded from external repositaries and kubernetes control the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
+With this proposal, the management of container images is extended to kubernetes-support, where an image could be downloaded from external repositaries and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
 
 # A Brief on Kubernetes
   
-  ***Disclaimer**: This brief on kubernetes is only to give some basics on these terms, related to this doc. For full & official details, please refer to [kubernetes documentation](https://kubernetes.io/docs/home/)*
+  ***Disclaimer**: This brief on kubernetes is only to give some basics on few terms, related to this doc. For full & official details, please refer to [kubernetes documentation](https://kubernetes.io/docs/home/)*
   
   This is a well known open source platform for managing containerized loads. To describe kubernetes in simple terms, it is a management engine, which can deploy applications in nodes, scale it, manage it, roll updates and customizable per app. 
   
@@ -22,7 +22,7 @@ With this proposal, the management of container images is extended to kubernetes
       A SONiC switch joins a kubernetes cluster as a node, to facilitate kube manage dockers in the switch.
       
    * pods<br/>
-      This is the unit of kubernetes deploymenet. In SONiC switches, a pod runs a single container. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
+      This is the unit of kubernetes deploymenet. In SONiC switches, a pod runs a single container only. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
       
    * manifest<br/>
       A manifest describes the pod as below. 
@@ -49,17 +49,19 @@ With this proposal, the management of container images is extended to kubernetes
 ## Basic on `how` for a daemonset:
   1) Set up a master cluster
   2) The container images are stored in container registry, like Azure Container Registry
-  3) Manifests are applied in master.
-     For a better control, manifests can be checked into a github repo.
-     A tool can watch for updates and apply manifest on each update or remove, if manifest is deleted.
-  4) Configure SONiC switches with VIP of the cluster
-  5) Run a config command on switch to join the master on user control or transparently.
-  6) For any new manifest, the master applies it to all eligible nodes.
-      * The node downloads the container image from URL in the manifest
-      * The container is started in the node with runtime setup as described in manifest
-  7) For any manifest update, the master does the following on all eligible nodes
-      * Stop the currently running pod
-      * Follow the same steps as above for the new manifest.
+  3) The manifests are created for each feature.
+     * The manifest describes the runtime options for the docker, like mounts, environment, args, ...
+     * The manifest is assigned with node-selector labels
+  4) Manifests are applied in master.
+     * For a better control, manifests can be checked into a github repo.
+     * A script running in master can watch for updates and apply manifest on each update or remove, if manifest is deleted.
+  5) Configure SONiC switches with VIP of the cluster
+     * The minigraph provides the VIP.
+  6) Run a config command in switch to join the master manually or transparently.
+  7) The master deploys pods in all eligible nodes that have joined.
+     * On any manifest update, it stops the current pod running in node and deploy the new one.
+     * On any manifest removed, it stops tbe current pod
+  
      
 
 # Problem to solve:
