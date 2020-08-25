@@ -583,6 +583,15 @@ For some features multiple instances are running as one per ASIC, and possibly o
     e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
     
   * NAMESPACE_ID - the environment variable
+    none for host instance and for each ASIC, it ranges from 0 to 5.
+  
+  * Hostname
+    The host instance carry the hostname. The ASIC instances carry an unique ID. All docker of running in that ASIC share that ID.
+    
+  * Mounts differ
+    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance.
+    
+    
 # Service install for kube managed features
 
 Points to note:
