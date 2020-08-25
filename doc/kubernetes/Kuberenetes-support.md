@@ -39,7 +39,7 @@ With this proposal, we extend container images to kubernetes-support, where the 
       In SONiC, the list of containers contains only one.
     
    * Node selector labels<br/>
-      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is one of the many requirements to meet, for deployment of a pod.
+      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is the requirement to meet, for deployment of a pod, in SONiC usage scenario.
       
       SONiC switch can add labels describing its version, platform, ... as labels. This can help create manifests for specific version and platform and ...
       
@@ -51,10 +51,10 @@ With this proposal, we extend container images to kubernetes-support, where the 
   2) The container images are stored in container registry, like Azure Container Registry
   3) Manifests are applied in master.
      For a better control, manifests can be checked into a github repo.
-     A tool can watch for updates and apply manifest.
+     A tool can watch for updates and apply manifest on each update or remove, if manifest is deleted.
   4) Configure SONiC switches with VIP of the cluster
-  5 Run a script on switch to join the master, transparently or on user control.
-  6) For any new manifest, the master applies to all eligible nodes.
+  5) Run a config command on switch to join the master on user control or transparently.
+  6) For any new manifest, the master applies it to all eligible nodes.
       * The node downloads the container image from URL in the manifest
       * The container is started in the node with runtime setup as described in manifest
   7) For any manifest update, the master does the following on all eligible nodes
@@ -63,16 +63,16 @@ With this proposal, we extend container images to kubernetes-support, where the 
      
 
 # Problem to solve:
-Currently, all docker images are hard burned into insallable SONiC image. For any code update, even a minor fix for a container, requires a re-build of entire and the rest of the heavy weight process to qualify the image to run in a production switch and in phases, install the entire image. We need to do this irrespective of however minor the change is.
+Currently, all docker images are hard burned into installable SONiC image. For any code update in a container image, however minor, requires re-build of the entire SONiC image and the rest of the heavy weight process to qualify the image to run in a production switch followed by install  of the image in controlled phases. 
 
 ## Proposal:
-Build the image as today. Install the image as today. In addition configure a subset of dockers as "could be kube managed". When the switch would join a master and if the master has a manifest for a docker marked as kube-managed, deploy the docker per manifest.
+Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*". Whenever the switch would join a master and if the master has a manifest for a docker marked as kube-managed, master deploys the docker per manifest.<br/>
+For any code update for a container, just build the container only, qualify the container image only through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected nodes, transparently, with the only cost of restarting that service only. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
 
-This way, we could update a container in a switch with a central control at kubernetes master. 
 This could be extended to containers that are not built as part of image, but could be enabled to run in selected switches.
 
 # Goal:
-1) Enable run of containers that are not part of SONiC image to run in a switch running SONiC
+1) Enable to deploy containers that are not part of SONiC image to run in a switch running SONiC
 2) Enable containers that are part of SONiC image to become controllable by kubernetes as needed, with an ability to revert back to local.
 
 # Requirements
@@ -262,7 +262,7 @@ The following are required, but external to then node/switch, hence not addresse
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   transition_mode = ""/"none"/"kube_pending"/"kube_ready";
+   kube_request = ""/"none"/"kube_pending"/"kube_ready";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
 ```
