@@ -523,7 +523,13 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 #### pods
    `show kubernetes pods`
-   Lists all pods in the current cluster. This command would work, only when kubernets master is reachable.
+   Lists all active pods in the current node. This command would work, only when kubernets master is reachable.
+   
+   ```
+   admin@str-s6000-acs-13:/usr/lib/python2.7/dist-packages/show$ show kube pods  
+   NAME             READY   STATUS    RESTARTS   AGE
+   snmp-sv2-577ff   1/1     Running   0          17h
+   ```
 
 #### status
    `show kubernetes status`
