@@ -533,11 +533,17 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 #### status
    `show kubernetes status`
-   It describes the kubernetes status of the node.
+   It describes the kubernetes status of the node.<br/>
+   Provides the output of `kubectl describe node <name of this node>`
 
 #### show FEATURE <name>
-   This would list FEATURE table data from both CONFIG-DB & STATE-DB
-   
+   This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
+   ```
+   admin@str-s6000-acs-13:~$ show features
+   Feature    Status    set_owner    current_owner    current_owner_update    docker_id     kube_request
+   ---------  --------  -----------  ---------------  ----------------------  ------------  --------------
+   snmp       enabled   kube         kube             1598323562              4333d9d5004a  kube_ready
+   ```
 # Reboot support
 
 ## Warm-reboot support
