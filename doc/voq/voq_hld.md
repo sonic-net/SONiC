@@ -37,7 +37,7 @@
 	  * [2.6.1 Inband Recycle Port Option](#261-inband-recycle-port-option)
 	    * [2.6.1.1 Routing Protocol Peering between SONiC Instances](#2611-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics](#2612-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	  * [2.6.2 Inband VLAN Option](#263-inband-vlan-option)
+	  * [2.6.2 Inband VLAN Option](#262-inband-vlan-option)
 	    * [2.6.2.1 Routing Protocol Peering between SONiC Instances](#2621-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics](#2622-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
 	  * [2.6.3 Comparing Options](#263-comparing-options)
