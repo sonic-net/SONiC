@@ -57,7 +57,7 @@
 | 0.9 | 05/04/2020   |  Arun Barboza      | Work In Progress server DNS name  |
 | 0.10| 06/30/2020   |  Arun Barboza      | source-interface, and NAS-IP-Addr |
 | 0.11| 08/12/2020   |  Arun Barboza      | many_to_one=n/y, Unconfirmed Users|
-| 0.12| 08/25/2020   |  Arun Barboza      | Comments from 0.11                |
+| 0.12| 08/25/2020   |  Arun Barboza      | Comments from 0.11 (Rev a)        |
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -281,6 +281,10 @@ Note:
    previously cached MPL and MPL returned in Access-Accept response are
    the same.
 
+3. In step 3, the user is not found in the local /etc/passwd file only on the
+   very first authentication attempt for this user. Subsequent attempts would
+   use the local user information created on the first attempt.
+
 ## PAM
 
 The PAM to RADIUS authentication module allows any Linux device to become
@@ -325,6 +329,15 @@ information obtained from the RADIUS server during authentication, to
 determine the user information that is needed to create a local user, at
 the time of first login. The information of this local user is returned
 during a getpwnam_r() library call.
+
+This is similar to the [TACACS+](#TACPLUS-Authentication) NSS module in
+some respects. TACACS+ protocol provides an Authorization request
+that can be used to get some user attributes like privilege level. Most
+TACACS+ servers allow an authorization request to precede an Authentication
+request. However, the RADIUS protocol has no such request. The RADIUS
+server provides the privilege level only upon successful authentication.
+Because of this, for RADIUS authentication to succeed, the local user
+needs to be created *unconfirmed* prior to authentication.
 
 ### Unconfirmed Users
 
