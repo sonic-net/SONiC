@@ -501,13 +501,29 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    `show kubernetes server`
    Lists all the configured entries for the server and the status as connected or not, and when did the last state change happened.
    
+   ```
+   admin@str-s6000-acs-13:~$ show kube server
+   KUBERNETES_MASTER SERVER IP 10.10.10.10
+   KUBERNETES_MASTER SERVER insecure False
+   KUBERNETES_MASTER SERVER disable False
+   KUBERNETES_MASTER SERVER connected True
+   KUBERNETES_MASTER SERVER last_update_ts 1000
+   ```
+   
 #### nodes
    `show kubernetes nodes`
    Lists all nodes in the current cluster. This command would work, only when kubernets master is reachable.
+   
+   ```
+   admin@str-s6000-acs-13:~$ show kube nodes
+   NAME               STATUS   ROLES    AGE   VERSION
+   str-renuka-01      Ready    master   29d   v1.18.6
+   str-s6000-acs-13   Ready    <none>   18d   v1.18.6
+  ```
 
 #### pods
    `show kubernetes pods`
-   Lists all nodes in the current cluster. This command would work, only when kubernets master is reachable.
+   Lists all pods in the current cluster. This command would work, only when kubernets master is reachable.
 
 #### status
    `show kubernetes status`
