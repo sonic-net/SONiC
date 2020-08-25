@@ -34,13 +34,10 @@
       * [2.3.5 VOQ DB Schemas](#235-voq-db-schemas)
     * [2.5 Orchestration agent](#25-orchestration-agent)
     * [2.6 Design Options for Host IP connectivity](#26-design-options-for-host-ip-connectivity)
-	  * [2.6.1 Option1 Kernel Neighbor table matches SAI and ASIC](#261-option1-kernel-neighbor-table-matches-sai-and-asic)
+	  * [2.6.1 Inband Recycle Port Option](#261-inband-recycle-port-option)
 	    * [2.6.1.1 Routing Protocol Peering between SONiC Instances](#2611-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics](#2612-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	  * [2.6.2 Option2 PORT Kernel Neighbor table differs from SAI and ASIC](#262-option2-port-kernel-neighbor-table-differs-from-sai-and-asic)
-	    * [2.6.2.1 Routing Protocol Peering between SONiC Instances](#2621-routing-protocol-peering-between-sonic-instances)
-	    * [2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics](#2622-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	    * [2.6.2.3 Kernel Routing Table Footprint](#2623-kernel-routing-table-footprint)
+	    * [2.6.1.3 Kernel Routing Table Footprint](#2613-kernel-routing-table-footprint)
 	  * [2.6.3 Option2 with VLAN Software Routing variation](#263-option2-with-vlan-software-routing-variation)
 	    * [2.6.3.1 Routing Protocol Peering between SONiC Instances](#2631-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics](#2632-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
@@ -376,10 +373,10 @@ Any additional routes programmed into the kernel will use these neighbor IP addr
 The routing information for Recycle port interfaces (Recycle-system-port, RIF, Recycle-neighbor-ip/mac, Recycle-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (Recycle-port-host-interface, Recycle-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the Recycle port neighbors from the other asics is the local-asic Recycle port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the local Recycle port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the Recycle-system-port of the destination SONiC instance. On the destination asic the packets loop around to the Recycle port ingress. They are then subject host packet trap rules and get trapped to the CPU. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
  ![](../../images/voq_hld/option2-cpu-flow-tables.png)
 
-The figure below shows the packet flows between a pair of SONiC instances using the recycle .
+The figure below shows the packet flows between a pair of SONiC instances using the recycle port.
  ![](../../images/voq_hld/recycle-port-cpu-to-cpu-flows.png)
 
-### 2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics
+### 2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics
 The VOQ System Database allows the routing information for all the neighbors (system-port, rif, neighbor-ip, neighbor-mac, meighbor-encap-index) to be available to all the SONiC instances. This results in the creation of the following in the Linux tables and equivalent entries in asic via the SAI interface. Note the difference in the neighbor entries in the Kernel Vs SAI.
 
 - System Port creation corresponding to every Network port
@@ -393,18 +390,18 @@ Show below are the tables for the example two asic system which we considered in
 The figure below shows the system port net devices and host packet flows for the network ports for the 2-asic system above.
  ![](../../images/voq_hld/option2-network-port-net-device-packet-flows.png)
 
-The figure below shows the packet flows when the "inband" port is the recycle port.
+The figure below shows the packet flows using the recycle port for host packet flows for the 2-asic system above
  ![](../../images/voq_hld/recycle-port-cpu-to-network-flow.png)
 
-### 2.6.2.3 Kernel Routing Table Footprint
+### 2.6.1.3 Kernel Routing Table Footprint
 The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
 1.  Much smaller in the kernel footprint for SONiC(very few routes in kernel)
 2.  Much greater fate sharing between terminated and forwarded packet flows.
 
-### 2.6.3 Option2 with VLAN Software Routing variation
+### 2.6.2 Inband VLAN Option
 *Note: The information in this section is sourced orignally from the Kathik and Eswaran both from documents posted/presented and verbal comments during the review 07/24/2020. It may not have the required details (need for vlan flooding support, MAC learning, static MAC records etc). It is expected to be completed following additonal reviews*
 
-This is a variation of Option2 described above. In this option a special "inband" VLAN is used for cross ASIC host IP connectivity. This inband vlan has as its members the CPU system port of all the asics in the distributed VOQ system. An IP interface is created on this inband vlan and each asic asic is assigned a unique IP address within the prefix of this interface. The following packet flows are proposed.
+This is a variation of the Option described above. In this option a special "inband" VLAN is used for cross ASIC host IP connectivity. This inband vlan has as its members the CPU system port of all the asics in the distributed VOQ system. An IP interface is created on this inband vlan and each asic asic is assigned a unique IP address within the prefix of this interface. The following packet flows are proposed.
 1.  The SONiC instances are directly connected neighbors on the "inband" vlan. This allows IP connectivity between them.
 2.  For host connectivity via the network ports of another ASIC, the IP stack of the other ASIC is utilized as a software router between the inband VLAN and its network ports.
 3.  The kernel and the SAI neighbor records are manipulated to achieve this software routing for host packs flows (see examples below for details)
@@ -414,14 +411,14 @@ In the example below VLAN-4094 is used as the "inband" vlan.
 The figure below shows vlan (special) being offloaded to hardware and Linecard CPU Software routing for any CPU inbound and outbound packets for remote system ports. 
  ![](../../images/voq_hld/option2b_vlan_lcpu_flow_picture1.png)
 
-#### 2.6.3.1 Routing Protocol Peering between SONiC Instances
+#### 2.6.2.1 Routing Protocol Peering between SONiC Instances
 The figure below shows inband vlan tables in the kernel and SAI for the four asic system example. Note the difference in Kernel for SAI neighbor records for the inband vlan.
  ![](../../images/voq_hld/option2b-vlan-cpu-flow-tables.png)
 
 The figure below shows inband vlan net devices and packet flows for the four asic system example
  ![](../../images/voq_hld/option2b-vlan-cpu-to-cpu-packet-flows.png)
 
-### 2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics
+### 2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics
 Show below are the tables for the example two asic system which we considered with the other options. Note the difference in the Kernel Vs SAI Neighbor tables for the inband vlan.
 
  ![](../../images/voq_hld/option2b-vlan-network-port-tables.png)
@@ -451,16 +448,8 @@ The figure below shows the inband vlan net device and host packet flows for the 
 ```
 "inband_interface_name" is the name of the inband system port or inband vlan or any other existing front panel port dedicated for cpu communication. "vlan_id" and "vlan_members" are applicable only when "inband_type" is "vlan".
 
-### 2.6.4 Comparing Options
-The table below compares the two options discussed above. 
-
-#### 2.6.4.1 Option1 Vs Option2 PORT
-This table compares Option1 Vs Option2 PORT. Many of the statements about Option2 PORT are also true for Option2 VLAN
-
- ![](../../images/voq_hld/comparison-of-host-flow-options.png)
-
-#### 2.6.4.2 Option2 PORT Vs Option2 VLAN
-This table compares Option2 PORT Vs Option2 VLAN.
+### 2.6.3 Comparing Options
+The table below compares the Inband Recycle Port and Inband VLAN options discussed above. 
 
  ![](../../images/voq_hld/comparison-of-option2-port-vs-vlan.png)
 
