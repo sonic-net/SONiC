@@ -37,13 +37,12 @@
 	  * [2.6.1 Inband Recycle Port Option](#261-inband-recycle-port-option)
 	    * [2.6.1.1 Routing Protocol Peering between SONiC Instances](#2611-routing-protocol-peering-between-sonic-instances)
 	    * [2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics](#2612-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	    * [2.6.1.3 Kernel Routing Table Footprint](#2613-kernel-routing-table-footprint)
-	  * [2.6.3 Option2 with VLAN Software Routing variation](#263-option2-with-vlan-software-routing-variation)
-	    * [2.6.3.1 Routing Protocol Peering between SONiC Instances](#2631-routing-protocol-peering-between-sonic-instances)
-	    * [2.6.3.2 SONiC Host IP Connectivity via Network Ports of other asics](#2632-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
-	  * [2.6.4 Comparing Options](#264-comparing-options)
-	    * [2.6.4.1 Option1 Vs Option2 PORT](#2641-option1-vs-option2-port)
-	    * [2.6.4.2 Option2 PORT Vs Option2 VLAN](#2642-option2-port-vs-option2-vlan)
+	  * [2.6.2 Inband VLAN Option](#263-inband-vlan-option)
+	    * [2.6.2.1 Routing Protocol Peering between SONiC Instances](#2621-routing-protocol-peering-between-sonic-instances)
+	    * [2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics](#2622-sonic-host-ip-connectivity-via-network-ports-of-other-asics)
+	  * [2.6.3 Comparing Options](#263-comparing-options)
+	  * [2.6.4 Kernel Routing Table Footprint](#264-kernel-routing-table-footprint)
+	  * [2.6.5 Configuration Options for Inband](#265-configuration-options-for-inband)
     * [2.7 SAI](#27-sai)
 	* [2.8 CLI](#28-cli)
 	* [2.9 VOQ Monitoring and Telemetry](#29-voq-monitoring-and-telemetry)
@@ -391,11 +390,6 @@ Show below are the tables for an example two asic system. Note the difference in
 The figure below shows the packet flows using the recycle port for host packet flows for the 2-asic system above
  ![](../../images/voq_hld/recycle-port-cpu-to-network-flow.png)
 
-### 2.6.1.3 Kernel Routing Table Footprint
-The use of the Datappath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
-1.  Much smaller in the kernel footprint for SONiC(very few routes in kernel)
-2.  Much greater fate sharing between terminated and forwarded packet flows.
-
 ### 2.6.2 Inband VLAN Option
 *Note: The information in this section is sourced orignally from the Kathik and Eswaran both from documents posted/presented and verbal comments during the review 07/24/2020. It may not have the required details (need for vlan flooding support, MAC learning, static MAC records etc). It is expected to be completed following additonal reviews*
 
@@ -424,6 +418,18 @@ Show below are the tables for the example two asic system which we considered wi
 The figure below shows the inband vlan net device and host packet flows for the network ports for the 2-asic system above.
  ![](../../images/voq_hld/option2b-vlan-network-port-net-device-packet-flows.png)
 
+### 2.6.3 Comparing Options
+The table below compares the Inband Recycle Port and Inband VLAN options discussed above. 
+
+ ![](../../images/voq_hld/inband-recycle-port-vs-vlan-comparison.png)
+
+### 2.6.4 Kernel Routing Table Footprint
+The use of the Datapath to route host packet flows for ports on other asics raises the question of whether we need the full routing table in the Kernel. The answer (pending a bit more investigation) seems to be that the kernel does NOT need all the routes. In fact seems logical to conclude that the only routes that are needed in the kernel are the direct routes for the interfaces configured on the local SONiC instance. All other routes can be eliminated from the kernel and replaced with the simple default route that points to the local cpu-port-interface as the Next-Hop. This would ensure that all host packet flows (outside of directly attached hosts) could be routed by the datapath. The advantages of this are kind of obvious
+1.  Much smaller in the kernel footprint for SONiC(very few routes in kernel)
+2.  Much greater fate sharing between terminated and forwarded packet flows.
+Note: This is just an observation of what might be possible in terms of reducing kernel routing table footprint. It is not a recommendation to change the implementation.
+
+### 2.6.5 Configuration Options for Inband
 ```
 // VOQ inband interface config in CONFIG DB
 {
@@ -445,11 +451,6 @@ The figure below shows the inband vlan net device and host packet flows for the 
 
 ```
 "inband_interface_name" is the name of the inband system port or inband vlan or any other existing front panel port dedicated for cpu communication. "vlan_id" and "vlan_members" are applicable only when "inband_type" is "vlan".
-
-### 2.6.3 Comparing Options
-The table below compares the Inband Recycle Port and Inband VLAN options discussed above. 
-
- ![](../../images/voq_hld/comparison-of-option2-port-vs-vlan.png)
 
 ## 2.7 SAI
 Shown below tables represent main SAI attributes which shall be used for VOQ related objects.
