@@ -11,10 +11,6 @@
 
   * [Scope](#scope)
 
-  * [Definitions/Abbreviation](#definitionsabbreviation)
- 
-  * [Reference Architecture](#reference-architecture)
-  
   * [1 Requirements Overview](#1-requirements-overview)
     * [1.1 Functional requirements](#11-functional-requirements)
     * [1.2 Platform requirements](#12-platform-requirements)
@@ -70,31 +66,10 @@
 |     |             |                                                                                    |                                   |
 
 # About this Manual
-A Distributed VOQ System consists of one or more VOQ-SAI capable switches interconnected via their Fabric Links. In such a system a single pass through the SAI pipeline requires that the packet first pass through an ingress switch followed by an egress switch. The ingress and egress switch could be two different devices. It may also pass through a Fabric switch between the ingress and the egress. Certain SAI objects and and some of their attribute values are required to be consistently programmed on both the ingress and egress switches to ensure correct packet forwarding. The VOQ-SAI specification standardized the SAI objects, attributes, the APIs and the procedures required for a VOQ system. This includes - System Port, Routing Interface on System Port, Neighbor on System Port, Encap index assigned to a Neighbor on a System port. They are collectively referred to as VOQ-SAI attributes in this document.
-
-This document is the design specification for supporting SONiC on a Distributed VOQ System. A key design goal is to leverage previous work on multi-asic SONiC which allows each asic to be controlled independently by a separate instance of the "SONiC Network Stack" (comprising bgp, swss, syncd, lldp, teamd etc ..). Currently multi-asic in SONiC assumes that the connection between the different ASICs in the system is via Network ports. This design extends the multi-asic model to support connection via fabric ports..
+This document describes the design details for supporting SONiC on a Distributed VOQ System. It aligns with the SONiC Distributed VOQ-Architecture and should be read in conjunction with that document. It also adopts the SONiC Multi-ASIC architecture is adopted - which allows each asic within an FSI to be controlled independently by a separate instance of the "SONiC Network Stack" (comprising bgp, swss, syncd, lldp, teamd etc ..).
 
 # Scope
 This specification is foussed primarily on IPv4/IPv6 unicast routing over Ethernet. No attempt is made in this specification to discuss how features like L2/L3 Multicast, Routing/Bridging over tunnels etc... might work with SONiC across a Distributed VOQ System. The expectation is that such features could be implemented in subsequent phases and would require additional work in SONiC and possibly additional SAI enhancements. But that is outside the scope of this document.
-
-Primary motivation for this work is to support SONiC on modular chassis systems using VOQ-SAI capable hardware. But this spec does not preclude support for other form factors - for example a fixed configuration system with two VOQ-SAI asics connected back-to-back using their fabric ports. This document also does not specifically cover how shared peripheral components (Fans, Power Supply, System LED etc ..) are managed on a modular chassis supporting SONiC. It is expected that the topic will be covered in a separate design document.
-
-# Definitions/Abbreviation
-###### Table 1: Abbreviations
-| Term                     | Description                    |
-|--------------------------|--------------------------------|
-| VOQ                      | Virtual Output Queue           |
-
-# Reference Architecture
- The figure below shows the reference architecture for a Distributed VOQ system. Each asic in the system is controlled by a separate instance of the SONiC network stack. Additionally there is a new "VOQ System Database". This database has the VOQ-SAI infromation (System Port, Routing Interface on System Port, Neighbor with Encap Index) that needs to be programmed via the SAI of each ASIC in the system. For the Phase-1 implementation, it is assumed that the System Port information (for the entire VOQ system) is available in this database prior to any of the SONiC instances doing a "switch create". This constraint of the System Ports having to be statically known in advance is intended to accommodate initial limitations in SAI implementations that might require the complete system port list to be provided at switch creation time.  This restriction does not apply to routing interfaces and neighbors which are allowed to be dynamic. This database allows each SONiC instance to discover the relevant "Remote VOQ-SAI information" it needs from other asics. Additional details are described in the sections that follow.
-
-The figures below show the components of this architecture on a modular chassis with separate line cards, each with multiple Forwarding asics, control card and multiple Switch Fabric asics. The terms Line Card and Control Card are architectural and not necessarily separate phyiscal elements of a Distributed VOQ system (though a modular chassis typically implements them as separate physical elements). For example it is possible that the entire VOQ system consists of a single card. Where applicable it is assumed that Control Card and Line Card components can exist on the same card (or fixed configuration device).
-
- ![](../../images/voq_hld/voq-bigpicture.png)
-
-Each LC above is a Single SONiC Linux System. Each LC may have one or more asics. Each asic is controlled by a separate instance of the SONiC Network Stack (lldpd, bgp, swss, syncd, redis, teamd, ..). No changes are proposed to any of the shared (by all the asics on the line card) SONiC components on the card. 
-
-The Control Card is its own separate SONiC Linux System. It does not run any of the SONiC Network protocol components (lldp, bgp, teamd ...). But it has an SWSS and SYNCD instance for control of the Switch Fabric asics.
 
 # 1 Requirements Overview
 ## 1.1 Functional Requirements
@@ -111,7 +86,7 @@ The VOQ feature implementation shall support the following
 9.  Automatic determination of Switch_Id for each asic (optional).
 
 ## 1.2 Platform requirements
-Every ASIC in the system needs be assigned a unique Switch_ID. Each ASIC consumes as many consecutive switch_id values as it has cores. So the next valid switch_id assignment should skip ahead by a number equal to the number of cores in the asic. This can be done via an additional configuration attribute. Another option is atuomatic determination of sWwitch_ID. Vendor supplied platform specific components are aware of details (line card number, asic number with in the line card, number of cores for the asic etc...) which allow them to automatically calculate the Switch_ID for each asic. For this reason it is proposed the PMON could populate the Switch_ID for an asic into the APPL_DB.
+Every ASIC in the system needs be assigned a unique Switch_ID. Each ASIC consumes as many consecutive switch_id values as it has cores. So the next valid switch_id assignment should skip ahead by a number equal to the number of cores in the asic. This can be done via an additional configuration attribute. Another option is atuomatic determination of sWwitch_ID. Vendor supplied platform specific components are aware of details (line card number, asic number with in the line card, number of cores for the asic etc...) which allow them to automatically calculate the Switch_ID for each asic. For this reason it is proposed that the PMON could populate the Switch_ID for an asic into the APPL_DB.
 
 ## 1.3 Configuration requirements
 Phase-1 of the Distributed VOQ System should support static configuration of the following
