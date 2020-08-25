@@ -355,70 +355,28 @@ IP communication support is required between
 - SONiC instances over the Fabric Links. This is required to support routing protocol peering between the SONiC instances.
 - A SONiC instance and IP hosts in the network reachable via ports on another asic in the system.
 
-A couple of design options for supporting these packet flows are discussed below followed by a comparison of these options. Both the options are identical in terms of the SAI and datapath programming. They also prescribe the use of an IP interface attached to the cpu-port of the of each asic. The differences are in what is programmed into the kernel tables and the changes in SWSS required to support them.
+There are two options for supporting these requirements. The proposed configuration model allows the user to select between the two options. The first option (Inband Recycle Port Option) requires the asic to support a special "RECYLE" port (described below). The second option (Inbnad VLAN Option) uses SAI Host interface of type VLAN. Both of the options are described below along with a comparison between the two options. It is recommended that the Inband Recycle Port Option be used if the asic is capable of supporting it and the Inband VLAN Option be used if the asic does not support a "RECYCLE" port.
 
-### 2.6.1 Option1 Kernel Neighbor table matches SAI and ASIC
-This option proposes that a host interface should be created against each System Port from another asic. This could be a Network port or the cpu port. The Linux IP stack uses this interface to exchange packets, program Neighbor, Routes etc. Additional details of the proposed design are described below.
-
-*Note: There is no need to assign an IP address to the host interface if it is for a sytem port on another asic. Source IP for packets sent out using host interfaces for another asic could be a loopback IP address of the local asic.*
-
-SONiC programs all entries that appear in its routing table and neighbor table into the Linux Kernel. The Neighbor records are programmed against the host interface for the corresponding port (or vlan or port channel). In a Distributed VOQ system - the neighbor could be on a local network port or a system port (could be either network/cpu port) of another asic.
-
-In order to achieve a simple design and minimize the changes to SONiC code it is proposed that - the Neighbor record for a neighbor on the SystemPort from another asic should be created against the host interface of that System Port. Also a host route for the neighbor IP should be created with the next-hop as the Host Interface (instead of an IP address). Additional Routes can then be created with the Neighbor IP as the next-hop. This design ensures that the forwarding information programmed into the Linux kernel is consistent with how it is programmed into the asic via SAI.
-
-#### 2.6.1.1 Routing Protocol Peering between SONiC Instances
-The routing information for cpu-port interfaces (CPU-system-port, RIF, cpu-neighbor-ip/mac, cpu-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (cpu-port-host-interface, cpu-neighbor-ip/mac, host-route) is created in the kernel. The kernel IP stack is then able to fully resolve resolve next-hop (host interface and mac) information for the cpu-port IP addresses every asics. A packet can be injected into the local asic instructing it to send the packet the cpu-port of another asic. Address lokups are SKIPPED in the asic. This enables IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note that equivalent entries would also be created in the asic via the SAI interface.
- ![](../../images/voq_hld/host-tables.png)
-
-The figure below shows cpu-port net devices and packet flows for a four asic system.
- ![](../../images/voq_hld/cpu-netdevice-packet-flows.png)
-
-### 2.6.1.2 SONiC Host IP Connectivity via Network Ports of other asics
-The VOQ System Database allows the routing information for all the neighbors (system-port, rif, neighbor-ip, neighbor-mac, meighbor-encap-index) to be available to all the SONiC instances. This results in the creation of the following in the Linux tables and equivalent entries in asic via the SAI interface.
-- System Port creation corresponding to every Network port
-- Host Interface corresponding to that every system-port
-- Routing interface on the System Port
-- Neighbor on the Routing interface
-
-Please note that the the IP address associated with the routing interface is only needed on the asic instance to which the system port is local. Other asics only need the routing interface and the neighbors reachable via that interface. The figure below show this for an an example two asic system in which each asic has two ports, each port has one neighbor and the routing table has one prefix that uses that neighbor as the next-hop. This model can be can be extended for any number of asics, ports and neighbors.
-
- ![](../../images/voq_hld/two-asic-topo.png)
-
-The figure below shows the system port net devices and host packet flows for the network ports for the 2-asic system above.
- ![](../../images/voq_hld/network-port-net-device-packet-flows.png)
-
-### 2.6.2 Option2 PORT Kernel Neighbor table differs from SAI and ASIC
-This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and one "special" host interface. This "special" host interface should satisfy the following conditions.
-1.  Packets sent by the host on this interface should NOT bypass ingress route lookups in ASIC (more generically should be subject to all the ingress lookups)
-2.  It should be possible to send packets from any Port (any network port or cpu-port) in the whole VOQ system to this interface. The SAI host interface driver should -
-    *  Classify these packet as being received on this "special" interface AND
-    *  Should NOT require a host interface for the actual Ingress System Port.
-
-*SAI Host Interface Driver Behavior: All received packets are presented on the Host Interface of the Ingress port. If a host interface does not exist for the Ingress port - received packets are dropped. For example if we use SAI host interface type VLAN, it satisfies Requirement#1 above (NOT bypassing the ingress lookups), but does not satisfy Requirement#2. It does not seem to be able to classify the incoming packets as being received on the vlan host interface. Any VLAN support seems to rely on attaching the host interfaces of the VLAN member ports to a standard Linux Bridge (as oppossed to Native SAI support). This implies a dependence on having a host interface for all system ports (and not just the local asic ports)*
-
-The most practical choice for achieving Option-2 seems to be a port that connects the packets received on the egress pipeline to a ingress receive port on the same asic. A less practical option is for the asic to have an extra port that can be connected to the CPU like regular ethernet interface (less practical because it has implications on hardware). In the descriptions below, this special port is being referred as a "cpu-port" (could also be called an "inband" port)
+### 2.6.1 Inband Recycle Port Option
+This option proposes that the "recycle" port be used for host IP packets flows that cross an asic boundary. Recycle port is a special port for which the Egress of the port is looped back to the Ingress. It can be used like any other port for forwarding operations (Routing, ACL, Mirror, Queues, Buffers etc..). This option proposes that a SONiC instance should create host interfaces ONLY for the its own system ports (ports that "belong" to its asic). This includes host interfaces for the network ports on the local asic and also the Recycle port.
 
 The following rules are observed in terms of the kernel neighbor tables
 1.  Neighbor on a local system-port:
       No changes from existing behavior. It is created on the host interface of that system port
 2.  Neighbor on another asic system-port:
-      Neighbor record is created on the net device representing the cpu-port interface. The MAC address for the neighbor is set equal to that interface mac address.
-      Additionally a host route for the neighbor is created with the next-hop specified as the cpu-port
+      Neighbor record is created on the host interface representing the Recycle port. The MAC address for the neighbor is set equal to that interface mac address.
+      Additionally a host route for the neighbor is created with the next-hop specified as the Recycle port
 
-As a result of this choice, the neighbor records in the kernel will be pointing to a different interface (cpu-port and mac) compared to what is programmed via the SAI into the asic (actual system port on another asic and actual neighbor MAC address). In order to ensure this behavior -
-1.  Neighsyncd should be modified to ignore kernel notifications for neighbors on system ports that are from another SONiC instance.
+As a result of this choice, the neighbor records in the kernel will be pointing to a different interface ( recycle port) and local-asic mac compared to what is programmed via the SAI into the asic (actual system port on another asic and actual neighbor MAC address). In order to ensure this behavior -
+1.  Neighsyncd should be modified to ignore kernel notifications for neighbors on the Recycle port that are from another SONiC instance.
 
 Any additional routes programmed into the kernel will use these neighbor IP addresses as Next-Hop. This part is the same as current sonic model.
 
-#### 2.6.2.1 Routing Protocol Peering between SONiC Instances
-The routing information for cpu-port interfaces (CPU-system-port, RIF, cpu-neighbor-ip/mac, cpu-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (cpu-port-host-interface, cpu-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the CPU neighbor is cpu-port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the cpu-port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the cpu-system-port of the destination SONiC instance. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
+#### 2.6.1.1 Routing Protocol Peering between SONiC Instances
+The routing information for Recycle port interfaces (Recycle-system-port, RIF, Recycle-neighbor-ip/mac, Recycle-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (Recycle-port-host-interface, Recycle-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the Recycle port neighbors from the other asics is the local-asic Recycle port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the local Recycle port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the Recycle-system-port of the destination SONiC instance. On the destination asic the packets loop around to the Recycle port ingress. They are then subject host packet trap rules and get trapped to the CPU. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
  ![](../../images/voq_hld/option2-cpu-flow-tables.png)
 
-
-The figure below shows cpu-port net devices and packet flows for a four asic system.
- ![](../../images/voq_hld/option2-cpu-to-cpu-packet-flows.png)
-
-The figure below shows the packet flows when the "inband" port is the recycle port.
+The figure below shows the packet flows between a pair of SONiC instances using the recycle .
  ![](../../images/voq_hld/recycle-port-cpu-to-cpu-flows.png)
 
 ### 2.6.2.2 SONiC Host IP Connectivity via Network Ports of other asics
