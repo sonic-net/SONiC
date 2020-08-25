@@ -577,7 +577,12 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 ## reboot
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
    
-   
+# multi-ASIC support:
+For some features multiple instances are running as one per ASIC, and possibly one for host too. They all use same built image, but with some differences in runtime parameters as below
+  * Name of the container
+    e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
+    
+  * NAMESPACE_ID - the environment variable
 # Service install for kube managed features
 
 Points to note:
