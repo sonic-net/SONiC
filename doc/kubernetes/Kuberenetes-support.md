@@ -539,10 +539,10 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 #### show FEATURE <name>
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
    ```
-   admin@str-s6000-acs-13:~$ show features
-   Feature    Status    set_owner    current_owner    current_owner_update    docker_id     kube_request
-   ---------  --------  -----------  ---------------  ----------------------  ------------  --------------
-   snmp       enabled   kube         kube             1598323562              4333d9d5004a  kube_ready
+   admin@str-s6000-acs-13:~$ show features 
+   Feature    Status    set_owner    fallback    current_owner    current_owner_update    docker_id     kube_request
+   ---------  --------  -----------  ----------  ---------------  ----------------------  ------------  --------------
+   snmp       enabled   kube         true        kube             1598323562              4333d9d5004a  kube_ready
    ```
 # Reboot support
 
@@ -552,7 +552,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. 
    The warm_reboot script needs to be updated as 
       * Disable kubelet service (`systemctl disable kubelet`)
-      * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option not to check for kubelet service. 
+      * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
       * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
       * Ensure all kube managed features have local images.
          * If not, tag the currently downloaded image appropriately
@@ -562,9 +562,9 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    Reason for the changea:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
    * Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
-      * Pass the option not to check for kubelet service, to save time from redundant check.
+      * Pass the option to skip any updates to save time, as system is going for a reboot.
    * Carry over kubelet related context, to enable transparent join and interaction with master.
-   * Upon reboot, the switch could take some solid time to establish connection with kubernetes master. Until then, the containers that are marked as kube-managed with no fallback, can't start. Hence ensure availability of local image & fallback, so the containers can start immediately from local copy. The set_owner remaining as kube, will help kube to manage, whenever the switch successfully connects to the master. BTW, connecting to the master is done by kubelet transparently.
+   * Upon reboot, the switch could take some solid time to establish connection with kubernetes master. Until then, the containers that are marked as kube-managed with no fallback, can't start. Hence ensure availability of local image & fallback, so the containers can start immediately from local copy. The set_owner remaining as kube, will help kube to manage, whenever the switch successfully connects to the master.<br/>BTW, connecting to the master is done by kubelet transparently.
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
@@ -586,20 +586,19 @@ Points to note:
    * Every kube-managed feature should have an entry in CONFIG-DB, FEATURE table.
    * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB.
    
- A couple of proposals are listed below. The pick & implementation of the proposal is outside this doc. 
+ A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming for now. 
    
  ## Proposal - 1:
-   *  The kubernetes master manages manifests. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
-      *  A possible input source is a git repo, cloned locally in each master.
-      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
-   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
-   *  Master can make the metadata & service package files available through an https end-point for nodes.
-   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
-   *  The installation would include .service file, any associated scripts and update of FEATURE table in CONFIG-DB.
-        
-   
-## Proposal - 2:
-   Templatize the service file creation. 
+  Provide a config command that can create a .service and bash scripts for a feature with simple requirements like, 
+    * This feature depends on zero or more features &&
+    * No other feature depends on this feature &&
+    * Transparent to wam-reboot & fast-reboot
+      implying it does not affect data plane traffic directly or indirectly.
+  The `config feature install <name> [<required services list>]` would create the necessary files.
+  
+  
+  ## proposal - 2:
+    Templatize the service file creation. 
    
    Most common requirements for any service are,  
    *  This feature/service ***requires*** the presence of one or more other services/features. 
@@ -615,21 +614,32 @@ Points to note:
    These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.  
    NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
    
-## Proposal - 3:
-   Run an external service, to install required service files in each node, explicitly. The scope of this proposal is outside this doc.
+ ## Proposal - 3:
+   *  The kubernetes master manages manifests. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
+      *  A possible input source is a git repo, cloned locally in each master.
+      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
+   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
+   *  Master can make the metadata & service package files available through an https end-point for nodes.
+   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
+   *  The installation would include .service file, any associated scripts and update of FEATURE table in CONFIG-DB.
+        
+   
+
+## Proposal - 4:
+   Run an external service, to install required service files in each node, explicitly.
 
 # Image management
-  For a kube managed container, when updates happen, it downloads a new image, which can result in multiple container images for a single feature.
+  For a kube managed container, when updates happen, it downloads a new image, which can eventually result in multiple container images for a single feature.
   
   ***Note:*** This requirement is outside the scope of this doc. This doc, just touches the possibilities.
   
   ## Garbage collection:
   The kubelet's [garbage collection](https://kubernetes.io/docs/concepts/cluster-administration/kubelet-garbage-collection/) feature could be utilized.<br/>
-  For a tighter control, a custom soultion would need to be looked in, which could monitor & manage as configured.
+  For a tighter control, a custom soultion might be required which could monitor & manage as configured.
   
   
   ## local image
-  Every switch comes with locally available container images for all embedded services. When a kube downloads an image for an embedded service, potentially the local image for that could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
+  Every switch comes with locally available container images for all embedded services. When a kube downloads an image for an embedded service, potentially the local image for that feature could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
 
 # Failure mode detection & rollback
   With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
@@ -640,13 +650,25 @@ Points to note:
   This requirement is outside this doc, but discuss some possibilities.
   
   ## Failure detection
-   * A monitor script could be used both at host level and internally within the container. 
-   * The CONFIG-DB FEATURE table entry could be used to configure failure mode detection parameters for either.
-   * The STATE-DB FEATURE entry could be used by both monitoring facilitlies to report the error.
-   * The CONFIG-DB FEATURE, could set the rollback policy as alert-only, switch-to-local, ...
-   * The hostcfgd or another daemon could carry out the task, upon STATE-DB FEATURE table reporting failure.
+  * A monitor script could be used both at host level and internally within the container to look for failure.
+    * The monitoring could either report on error or touch heartbeat to show healthy
+  * The CONFIG-DB could be used to provide some configurable parameters for the failure detection algorithm
+  * The STATE-DB could be used as the place to save heartbeat or errors
+   
+  ## Self-mitigation:
+  *  Switch comes by default with a local image, which can be considered ***Golden***.
+  *  Any downloaded image, could be certified as ***Golden***, if it ran healthy for < N > seconds.
+  *  Always keep one copy of one ***Golden*** image in the system for every feature.
+     * Ensure that garbage collection does not touch the ***Golden*** image.
+     * When you mark a new image as ***Golden***, unmark the previous ***Golden*** image as not ***Golden*** anymore
+  *  Make sure starting a feature in local mode runs this ***Golden*** image.
+  *  Whenever new downloaded image reports failure and the failure persists for more than < M > seconds,
+     * mark the Feature's fallback to 'true'.
+     * set kube_mode = "none"
+     * restart the service, which would end up running from local ***Golden*** image.
   
-# Safety Check Service
+  
+  # Safety Check Service
   When a manifest is deployed in master, it gets instantly applied to all eligible nodes. In a production environment, this flooding of updates across all at the same time point, may not be acceptable, as this involves
     a) restart of service, which could have data plane disruption
     b) New code may not be good, causing failure across entire fleet of devices
