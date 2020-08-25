@@ -370,8 +370,9 @@ As a result of this choice, the neighbor records in the kernel will be pointing 
 Any additional routes programmed into the kernel will use these neighbor IP addresses as Next-Hop. This part is the same as current sonic model.
 
 #### 2.6.1.1 Routing Protocol Peering between SONiC Instances
-The routing information for Recycle port interfaces (Recycle-system-port, RIF, Recycle-neighbor-ip/mac, Recycle-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (Recycle-port-host-interface, Recycle-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the Recycle port neighbors from the other asics is the local-asic Recycle port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the local Recycle port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the Recycle-system-port of the destination SONiC instance. On the destination asic the packets loop around to the Recycle port ingress. They are then subject host packet trap rules and get trapped to the CPU. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation. Please note the differences in the neighbor entries in the Kernel Vs SAI.
- ![](../../images/voq_hld/option2-cpu-flow-tables.png)
+The routing information for Recycle port interfaces (Recycle-system-port, RIF, Recycle-neighbor-ip/mac, Recycle-neighbor-host-route) from all the asics is programmed into the SAI. Equivalent information (Recycle-port-host-interface, Recycle-neighbor-ip/mac, host-route) is created in the kernel. There is one important difference in the kernel entries - the interface and mac used for the Recycle port neighbors from the other asics is the local-asic Recycle port and local asic-mac. For injected packets, the kernel resolves next-hop information to be the local Recycle port and local asic-mac. The local asic perform address lookups on injected packets and resolve the next-hop to be the Recycle-system-port of the destination SONiC instance. On the destination asic the packets loop around to the Recycle port ingress. They are then subject host packet trap rules and get trapped to the CPU. This enables routed IP reachabilty between the SONiC instances allowing BGP protocol peering to happen. The tables below show how the Interface, Neighbor and Route tables would be in such an implementation (rcy represents Recycle port). Please note the differences in the neighbor entries in the Kernel Vs SAI.
+
+ ![](../../images/voq_hld/recycle-port-cpu-flow-tables.png)
 
 The figure below shows the packet flows between a pair of SONiC instances using the recycle port.
  ![](../../images/voq_hld/recycle-port-cpu-to-cpu-flows.png)
@@ -383,12 +384,9 @@ The VOQ System Database allows the routing information for all the neighbors (sy
 - Routing interface on the System Port
 - Neighbor on the Routing interface. *NOTE - the interface and MAC information in the SAI and the kernel are different for a neighbor.*
 
-Show below are the tables for the example two asic system which we considered in Option-1. Note the difference in the Kernel Vs SAI tables.
+Show below are the tables for an example two asic system. Note the difference in the Kernel Vs SAI tables.
 
- ![](../../images/voq_hld/option2-network-port-tables.png)
-
-The figure below shows the system port net devices and host packet flows for the network ports for the 2-asic system above.
- ![](../../images/voq_hld/option2-network-port-net-device-packet-flows.png)
+ ![](../../images/voq_hld/recycle-port-network-port-tables.png)
 
 The figure below shows the packet flows using the recycle port for host packet flows for the 2-asic system above
  ![](../../images/voq_hld/recycle-port-cpu-to-network-flow.png)
