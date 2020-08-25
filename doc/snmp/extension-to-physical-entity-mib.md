@@ -252,8 +252,8 @@ A new field is_replaceable will be added to FAN_INFO, PSU_INFO and TRANSCEIVER_I
 New fields 'current', 'power', 'is_replaceable' will be added to PSU_INFO table:
 
     ; Defines information for a psu
-	key                     = PSU_INFO|psu_name              ; information for the psu
-	; field                 = value
+    key                     = PSU_INFO|psu_name              ; information for the psu
+    ; field                 = value
     ...
     current                 = FLOAT                          ; current of the psu
     power                   = FLOAT                          ; power of the psu
@@ -286,22 +286,22 @@ New field 'is_replaceable' will be added to TRANSCEIVER_INFO table:
 Currently, we only store fan drawer name in FAN_INFO table and that is not enough to describe all the attributes of a fan drawer. A new table FAN_DRAWER_INFO will be added. Thermalctld is responsible for saving data to FAN_DRAWER_INFO table. See table definition:
 
     ; Defines information for a fan drawer
-	key                     = FAN_DRAWER_INFO|object_name    ; name of the fan drawer object
-	; field                 = value
+    key                     = FAN_DRAWER_INFO|object_name    ; name of the fan drawer object
+    ; field                 = value
     presence                = BOOLEAN                        ; presence of the fan drawer
-	model                   = STRING                         ; model name of the fan drawer
-	serial                  = STRING                         ; serial number of the fan drawer
-	status                  = BOOLEAN                        ; status of the fan drawer
+    model                   = STRING                         ; model name of the fan drawer
+    serial                  = STRING                         ; serial number of the fan drawer
+    status                  = BOOLEAN                        ; status of the fan drawer
     led_status              = STRING                         ; led status of the fan drawer
     is_replaceable          = BOOLEAN                        ; indicate if the fan drawer is replaceable
 
 As discussed in section 4.1 and 4.2, we need more information in database to implement entPhysicalParentRelPos and entPhysicalContainedIn. There is an option that we could add these information to existing table such as PSU_INFO, FAN_INFO etc. However, as these two MIB objects are used to describe the relationship between physical entities and table like PSU_INFO is used for saving attributes of a physical entity, we prefer to store the relation info to a new table. A new table PHYSICAL_ENTITY_INFO will be added:
 
-	; Defines information to store physical entity relationship
-	key                     = PHYSICAL_ENTITY_INFO|object_name   ; name of the entity object
-	; field                 = value
-	position_in_parent      = INTEGER                            ; physical position in parent device
-	parent_name             = STRING                             ; name of parent device
+    ; Defines information to store physical entity relationship
+    key                     = PHYSICAL_ENTITY_INFO|object_name   ; name of the entity object
+    ; field                 = value
+    position_in_parent      = INTEGER                            ; physical position in parent device
+    parent_name             = STRING                             ; name of parent device
 
 The data of PHYSICAL_ENTITY_INFO will be collected by thermalctld, psud and xcvrd.
 
