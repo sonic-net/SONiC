@@ -1,7 +1,7 @@
 # RADIUS Management User Authentication
 
 ## High Level Design Document
-#### Rev 0.11
+#### Rev 0.12
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -57,6 +57,7 @@
 | 0.9 | 05/04/2020   |  Arun Barboza      | Work In Progress server DNS name  |
 | 0.10| 06/30/2020   |  Arun Barboza      | source-interface, and NAS-IP-Addr |
 | 0.11| 08/12/2020   |  Arun Barboza      | many_to_one=n/y, Unconfirmed Users|
+| 0.12| 08/25/2020   |  Arun Barboza      | Comments from 0.11                |
 
 # About this Manual
 This document provides general information about the RADIUS management user
@@ -332,7 +333,18 @@ SSH, a getpwnam_r() call can precede the authentication request to the RADIUS
 server. To satisfy this call, an *unconfirmed* user is created. These
 users must be confirmed within a certain time interval, otherwise they
 can be aged out. Confirming a user happens automatically on a successful
-authentication.
+authentication. Once confirmed, a user is stored permanently in the
+SONiC Linux local user store (/etc/passwd).
+
+Example of an *unconfirmed* user entry in the /etc/passwd file:
+
+```
+raduser:x:1001:1001:Unconfirmed-1598315382:/home/raduser:/usr/bin/sonic-launch-shell
+```
+
+where 1598315382 is a timestamp returned by the time() system call. The unix
+password on the account is locked, but other means (Eg: RADIUS password) can
+be used to login.
 
 Some of the parameters controlling *unconfirmed* users creation, and ageing
 out are:
@@ -346,6 +358,10 @@ out are:
 
 Eg: unconfirmed_disallow=y
 
+If a site has a policy of not allowing *unconfirmed* user creation, this
+setting can be used to requre the user to login successfully to the console, or
+another application not requiring *unconfirmed* user creation, prior to allowing
+SSH access for them.
 
 #### unconfirmed_ageout
 
@@ -353,16 +369,28 @@ Eg: unconfirmed_disallow=y
 |:-----:|:-------------------------------------------------------------------:|
 | secs  | (Default=600). Wait time before purging unconfirmed users.          |
 
-Eg: unconfirmed_ageout=900
+Eg: unconfirmed_ageout=360
 
-The actual purge of an unconfirmed user might occur at any time after
-expiration of this time, on any successful RADIUS user login.
+Confirming a user happens automatically on a successful authentication by
+that user. Once confirmed, a user is stored permanently in the
+SONiC Linux local user store (/etc/passwd).
+
+If there are authentication attempts that are abandoned, during the
+first or initial login, there would be leftover *unconfirmed* users in the
+SONiC Linux local user store (/etc/passwd). These users are aged out after
+some time. The actual purge of an *unconfirmed* user might occur at any time
+after expiration of this time. During the deletion of an *unconfirmed* users,
+all associated artifacts, for example, their home directory, are also deleted.
+
+By default, the SSH LoginGraceTime is 120 seconds. With allowance for a few
+subsequent attempts, a default of 600 seconds has been chosen. This can be
+adjusted for a site as needed.
 
 #### unconfirmed_regexp
 
 | Value | Description                                                         |
 |:-----:|:-------------------------------------------------------------------:|
-| regexp| (Default=(.*: <user> \[priv\])\|(.*: \[accepted\])).                 |
+| regexp| (Default=(.*: user \[priv\])\|(.*: \[accepted\])).                |
 |       | The RE to match the command line of processes for which the         |
 |       | creation of unconfirmed users are to be allowed.                    |
 
@@ -373,8 +401,12 @@ would create an *unconfirmed* user non-existent. To avoid unintentional
 user creation, the RADIUS NSS only creates *unconfirmed* users when it
 detects a pattern in the cmdline of the process requesting access.
 
-Note: <user> is not an actual RE token, but it is shown only for illustration
+Note: *user* is not an actual RE token, but it is shown only for illustration
 of what match criteria is being used by default.
+
+The default match criteria should satisfy SSH getpwnam_r() requests to RADIUS
+NSS. In the future, if other applications make similar request sequences,
+this setting can be adjusted.
 
 ### Mapping Users
 
