@@ -293,12 +293,17 @@ Some common scenarios are described below, to help understand the transition in 
 
 ### Basic info:
    *  At a high level, a feature could switch between local & kube-managed or a feature could be kube managed only.
-   *  In either mode, a container start is preceded by systemctl start.
+   *  The [`systemctl stop` action is always performed](https://man7.org/linux/man-pages/man5/systemd.service.5.html) when the container exits.
+      * The container exit may be due to an explicit call to `systemctl stop` or
+      * The container may exit due to internal container process termination or kubelet removing the pod.
+   *  A `systemctl start` always precedes the container start.
+      * Whenever container exits, not due to `systemctl stop`, and if the feature is enabled for auto-restart, the start action is performed transparently.
+      * This helps kubelet deploy a new updated pod,upon removing the running pod.
    *  The kube mode
       *  none  - No initiative from kube on this feature
       *  kube_pending - Kube is ready to deploy and waiting to proceed
       *  kube_ready - kube container can proceed to run 
-   *  At anytime only one container from any mode can be active
+   *  At anytime only one container from any mode can be running its application processes.
       
 ### State descriptions
 #### state INIT
@@ -307,13 +312,13 @@ system state = down
 current_owner = none<br/>
 kube_mode = any or N/A
 
-In this state, no container is running. The systemd has stopped the feature.
+In this state, no container is running. The systemd has performed stop action on the feature.
 
 The current_owner = none implies that the feature's container is *not* running.<br/>
 This is the initial state upon boot, and it could be reached from other states too. 
 
-The feature remains in this state until `systemctl start`. <br/>
-Upon `systemctl start`, the destination state is LOCAL, if set_owner == LOCAL or KUBE with fallback enabled, else KUBE_READY.
+The feature remains in this state until `systemctl start` action is performed. <br/>
+Upon `systemctl start`, the destination state is LOCAL, if set_owner == local or kube with fallback enabled, else KUBE_READY.
 
 The `systemctl stop` brings back to this state from any state.
 
@@ -326,15 +331,11 @@ kube_mode = none
 
 The container is running using local image, started by docker command.<br/>
 
-This state is reachable in three ways:
-   * From INIT state, upon `systemctl start`, if set_owner = local or {set_owner = local && fallback_to_local)
-   * From KUBE_RUNNING, if set_owner is set to "local"
-   * From KUBE_READY, if set_owner is set to "local"
+This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback_to_local)
    
-The feature remains in this state until either of the  following occurs.
-   * `systemctl stop` takes back to INIT state
-   * The set_owner == kube and kube is deploying the image, which takes it to 'KUBE_RUNNING' state
-   
+The feature remains in this state until `systemctl stop` action is performed.
+
+
 ####  state KUBE_READY
 ***Semi-stable*** state<br/><br/>
 system state = up
@@ -343,14 +344,12 @@ kube_mode = kube_ready
 
 There is no container running. The `systemctl status` would indicate 'waiting for kube deployment'.<br/>
 
-This state is reachable in two ways:
-   * From INIT state, upon `systemctl start`, if  {set_owner = kube && not fallback_to_local)
-   * From KUBE_RUNNING, when container exits (may be kube undeploy or crash)
+This state is reached from INIT state, upon `systemctl start`, if set_owner = kube and either of the following is true
+  * The fallback_to_local == false, so it transitons to KUBE_READY state <br/>
+  OR
+  * The kube_mode != none, implying kube is pending deployment. So even with fallback set, go to KUBE_READY.
    
-The feature remains in this state until either of the  following occurs.
-   * `systemctl stop` takes back to INIT state
-   * The kube is deploying the image, which takes it to 'KUBE_RUNNING' state.
-   * set_owner is set to local, which transitions to 'LOCAL' state
+The feature remains in this state until `systemctl stop` action is performed.
    
 ####  state KUBE_RUNNING
 ***Stable*** state<br/><br/>
@@ -360,61 +359,23 @@ kube_mode = kube_ready
 
 The kube  deployed container is running.<br/>
 
-This state is reachable in two ways:
-   * From KUBE_READY state, upon kube deploying the image
-   * From LOCAL, when container exits (may be kube undeploy or crash)
+This state is reached from KUBE_READY state, upon kube deploying the image
    
-The feature remains in this state until either of the  following occurs.
-   * `systemctl stop` takes back to INIT state
-   * The set_owner is changed to local, which transitions to LOCAL state.
-   * The docker exited transitions it to KUBE_READY
-     The docker exit might be due to
-      * The manifest is updates, so it removes the current running container, to deploy the new
-      * Any fatal faulure encountered
-      * The manifest is removed at master, hence kube is un-deploying
-      
-   
-### Transient State descriptions
-When the feature is switching between 'local' & 'kube', it moves through one or two short lived transient states. 
+The feature remains in this state until `systemctl stop` action is performed.<br/>
+BTW, the kubelet stopping the container to deploy a new one, or an internal container crash would auto trigger this `systemctl stop` action.
 
+   
 #### state LOCAL_TO_KUBE
-system state = up
+***Transient*** state<br/><br/>
+system state = up<br/>
 current_owner = local<br/>
 kube_mode = kube_pending
 
-In this state, the local container is running. The kube has deployed its container, which sets the kube_mode to kube_pending and goes into waiting loop for local container to exit.
+In this state, the local container is running. The kube has deployed its container, which sets the kube_mode to kube_pending and goes into a forever sleep mode. NOTE: The application processes inside the kube deployed container are not started yet.
 
-This state reachable only from LOCAL.
+This state reached only from LOCAL, upon deployment by kube.
 
-The feature remains in this state until hostcfgd notices the kube_mode change to pending and call `docker stop`. 
-
-When the container running local image stops, it transitions to the next transient state "KUBE_PENDING". 
-
-
-#### state KUBE_PENDING
-system state = up
-current_owner = none<br/>
-kube_mode = kube_pending
-
-In this state no container is running and kube has to notice that local container has exited and proceed<br/>
-
-This state reachable only from LOCAL_TO_KUBE.
-
-The feature remains in this state until the kube deployed container realizes that local container has stopped. 
-
-When the container notices that local container stopped, it transitions to the next stable state "KUBE_RUNNING". 
-
-
-#### state KUBE_STOPPED
-system state = up
-current_owner = none<br/>
-kube_mode = kube_ready
-
-In this state no container is running and awaiting hostcfgd to call `system container start`. <br/>
-
-This state reachable only from KUBE_RUNNING and it is reached upon hostcfgd calling `system container stop`.
-
-The feature will remains in this state, only until hostcfgd call `system container start` and the container starts from local image and transition to the stable state "LOCAL".
+The feature remains in this state until hostcfgd notices the kube_mode, invokes `systemctl stop`, which would transition it to INIT state. 
 
 
 ### Common set of scenarios
