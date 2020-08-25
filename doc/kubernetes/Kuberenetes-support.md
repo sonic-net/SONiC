@@ -1,9 +1,9 @@
 # Introduction
 The scope of this document is to provide the requirements and a high-level design proposal for Sonic dockers management using Kubernetes. 
 
-The existing mode, which we term as '**Local mode**' has all container images burned in the image and the systemd manages the features. Under the hood, the systemctl service calls feature specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers.
+The SONiC image has all the container images burned/embedded inside, with each container managing a service, like swss, syncd, snmp, .... The systemd manages the services. The systemctl service commands calls service specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers. This current mode is referred as '**Local mode**' in this doc.
 
-With this proposal, we extend container images to kubernetes-support, where the image could be downloaded from external repositaries. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode, we term as "**kubernetes mode**". For short we use the word "kube" interchangeably.
+With this proposal, the management of container images is extended to kubernetes-support, where an image could be downloaded from external repositaries and kubernetes control the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
 
 # A Brief on Kubernetes
   
@@ -163,7 +163,7 @@ The following are required, but external to then node/switch, hence not addresse
      
    * Container stop<br/>
       Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
-      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, we remove the label instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command/script that failed to remove, will auto disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
+      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, the label is removed instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command/script that failed to remove, will auto disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
       
    * Container kill<br/>
       Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
@@ -630,21 +630,23 @@ Points to note:
   ***Note:*** This requirement is outside the scope of this doc. This doc, just touches the possibilities.
   
   ## Garbage collection:
-  We could extend kubelet's garbage collection facility and configure it appropriately. 
+  The kubelet's [garbage collection](https://kubernetes.io/docs/concepts/cluster-administration/kubelet-garbage-collection/) feature could be utilized.<br/>
+  For a tighter control, a custom soultion would need to be looked in, which could monitor & manage as configured.
+  
   
   ## local image
-  Every switch image comes with container images for all features. We may remove it and tag the downloaded image as local, so the switch can keep one copy for both kube & local modes.
+  Every switch comes with locally available container images for all embedded services. When a kube downloads an image for an embedded service, potentially the local image for that could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
 
 # Failure mode detection & rollback
   With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
   This brings in two questions
   a)  How to detect the failure?
-  b)  How do we rollback ?
+  b)  How to do rollback ?
   
   This requirement is outside this doc, but discuss some possibilities.
   
   ## Failure detection
-   * We could use a monitor script both at host level and internally within the container. 
+   * A monitor script could be used both at host level and internally within the container. 
    * The CONFIG-DB FEATURE table entry could be used to configure failure mode detection parameters for either.
    * The STATE-DB FEATURE entry could be used by both monitoring facilitlies to report the error.
    * The CONFIG-DB FEATURE, could set the rollback policy as alert-only, switch-to-local, ...
