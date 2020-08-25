@@ -11,7 +11,7 @@
 
 ## 1. Overview 
 
-The Entity MIB contains several groups of MIB objects, currently SONiC only implemented part of the entityPhysical group following RFC2737. The group contains a single table called "entPhysicalTable" to identify the physical components of the system. The MIB objects of "entityPhysical" group listed as below:
+The Entity MIB contains several groups of MIB objects: entityPhysical group, entityLogical group and so on. Currently SONiC only implemented part of the entityPhysical group following RFC2737. Since entityPhysical group is mostly common used, this extension will focus on entityPhysical group and leave other groups for future implementation. The group entityPhysical contains a single table called "entPhysicalTable" to identify the physical components of the system. The MIB objects of "entityPhysical" group listed as below:
 
 	EntPhysicalEntry ::= SEQUENCE {
 		entPhysicalIndex          PhysicalIndex,
@@ -95,17 +95,19 @@ Another thing need to highlight is that in the current implementation, "entPhysi
 
 ## 4. The data source of the MIB entries
 
-Thermalctl daemon, Xcvrd, psud, are collecting physical device info to state DB, now we have PSU_INFO tale, FAN_INFO table, and TEMPERATURE_INFO table which can provide information for MIB entries.
+Thermalctl daemon, xcvrd, psud, are collecting physical device info to state DB, now we have PSU_INFO tale, FAN_INFO table, and TEMPERATURE_INFO table which can provide information for MIB entries.
 
 Thermal sensors MIB info will come from TEMPERATURE_INFO, FAN_INFO will feed to FAN MIB entries and PSU_INFO will be the source of the PSU related entries.
 
-The current already implemented cable and cable DOM sensors getting data from tables(TRANSCEIVER_INFO and TRANSCEIVER_DOM_SENSOR) which maintained by xcvrd.
+The current already implemented cable and cable DOM sensors getting data from tables(TRANSCEIVER_INFO and TRANSCEIVER_DOM_SENSOR) which is maintained by xcvrd.
 
 ### 4.1 entPhysicalParentRelPos implementation
 
-entPhysicalParentRelPos is a mib object that reflect the relative position of a physical entity in its parent entity. In current implementation, there are following issues:
+entPhysicalParentRelPos is an indication of the relative position of this 'child' component among all its 'sibling' components. Sibling components are defined as entPhysicalEntries which share the same instance values of each of the entPhysicalContainedIn and entPhysicalClass objects. 
 
-1. There is no position information in current platform API. Take fan as an example, now fan objects are saved as an list in chassis object, but the list index cannot reflect the physical fan position. There might be two problems, one is that the list can be initialized with arbitrary order, the other is that the order might change when remove/insert a fan object.
+In current SONiC implementation, there are following issues:
+
+1. There is no position information in current platform API. Take fan as an example, now fan objects are saved as an list in chassis object, but the list index cannot reflect the physical fan position. There might be two problems, one is that the list can be initialized with arbitrary order, the other is that the order might change when remove/insert a fan to switch.
 2. Now all thermal objects are stored in chassis object, but not all thermal objects are the directly children of chassis. For example, we have PSU thermal and SFP module thermal object whose parent device is not chassis.
 
 In order to provide reliable data for entPhysicalParentRelPos, a few changes will be made in platform API.
@@ -216,25 +218,92 @@ class SfpBase(device_base.DeviceBase):
         return thermal
 ```
 
-A new database table will be added to store the position information. The new table will be discussed in section 4.3.
+A new database table will be added to store the position information. The new table will be discussed in section 4.4.
 
 ### 4.2 entPhysicalContainedIn implementation
 
-According to RFC, entPhysicalContainedIn indicates the sub ID of the parent physical entity for a physical entity. Now platform API uses a hierarchy structure to store platform devices. This hierarchy structure can be used for entPhysicalContainedIn implementation.
+According to RFC, entPhysicalContainedIn indicates the value of entPhysicalIndex for the physical entity which 'contains' this physical entity. A value of zero indicates this physical entity is not contained in any other physical entity. 
 
-The parent device name will be saved to the database(see section 4.3). Snmp agent will use the parent device name to retrieve the parent sub ID and fill it to entPhysicalContainedIn field.
+Now platform API uses a hierarchy structure to store platform devices. This hierarchy structure can be used for entPhysicalContainedIn implementation. For example, chassis object has a list of PSU objects, and PSU object has a list of PSU fan objects, we can deduce parent device based on such information and no new platform API is needed.
 
-### 4.3 Adding new table to state DB to store physical entity relationship
+Thermalctld, psud, xcvrd will collect the parent device name and save the information to the database(see section 4.4). Snmp agent will use the parent device name to retrieve the parent sub ID and fill it to entPhysicalContainedIn field.
 
-A new table PHYSICAL_RELATION_INFO will be added:
+### 4.3 entPhysicalIsFRU implementation
 
-	; Defines information to store physical entity relationship
-	key                     = PHYSICAL_RELATION_INFO|object_name   ; name of the entity object
-	; field                 = value
-	position_in_parent      = INTEGER                              ; physical position in parent device
-	parent_name             = STRING                               ; name of parent device
+The entPhysicalIsFRU object indicates whether or not this physical entity is considered a 'field replaceable unit' by the vendor. If this object contains the value 'true(1)' then this entPhysicalEntry identifies a field replaceable unit.  For all entPhysicalEntries which represent components that are permanently contained within a field replaceable unit, the value 'false(2)' should be returned for this object.
 
-The data of this table will be collected by thermalctld, psud and xcvrd.
+A new platform API DeviceBase.is_replaceable will be added to get such information. Vendor should override this method in order to support entPhysicalIsFRU.
+
+```python
+class DeviceBase(object):
+	def is_replaceable(self):
+		"""
+		Indicate whether this device is replaceable.
+		Returns:
+		    bool: True if it is replaceable.
+		"""
+		raise NotImplementedError
+```
+
+A new field is_replaceable will be added to FAN_INFO, PSU_INFO and TRANSCEIVER_INFO table (See detail in section 4.4). Thermalctld, psud, xcvrd will collect this information and save it to database.
+
+### 4.4 Database change
+
+New fields 'current', 'power', 'is_replaceable' will be added to PSU_INFO table:
+
+    ; Defines information for a psu
+    key                     = PSU_INFO|psu_name              ; information for the psu
+    ; field                 = value
+    ...
+    current                 = FLOAT                          ; current of the psu
+    power                   = FLOAT                          ; power of the psu
+    is_replaceable          = BOOLEAN                        ; indicate if the psu is replaceable
+
+New field 'is_replaceable' will be added to FAN_INFO table:
+
+    ; Defines information for a fan
+    key                     = FAN_INFO|fan_name              ; information for the fan
+    ; field                 = value
+    ...
+    is_replaceable          = BOOLEAN                        ; indicate if the fan is replaceable
+
+New field 'is_replaceable' will be added to TEMPERATURE_INFO table:
+
+    ; Defines information for a thermal object
+    key                     = TEMPERATURE_INFO|object_name   ; name of the thermal object(CPU, ASIC, optical modules...)
+    ; field                 = value
+    ...
+    is_replaceable          = BOOLEAN                        ; indicate if the thermal is replaceable
+
+New field 'is_replaceable' will be added to TRANSCEIVER_INFO table:
+
+    ; Defines Transceiver information for a port
+    key                         = TRANSCEIVER_INFO|ifname    ; information for SFP on port
+    ; field                     = value
+    ...
+    is_replaceable          = BOOLEAN                        ; indicate if the SFP is replaceable
+
+Currently, we only store fan drawer name in FAN_INFO table and that is not enough to describe all the attributes of a fan drawer. A new table FAN_DRAWER_INFO will be added. Thermalctld is responsible for saving data to FAN_DRAWER_INFO table. See table definition:
+
+    ; Defines information for a fan drawer
+    key                     = FAN_DRAWER_INFO|object_name    ; name of the fan drawer object
+    ; field                 = value
+    presence                = BOOLEAN                        ; presence of the fan drawer
+    model                   = STRING                         ; model name of the fan drawer
+    serial                  = STRING                         ; serial number of the fan drawer
+    status                  = BOOLEAN                        ; status of the fan drawer
+    led_status              = STRING                         ; led status of the fan drawer
+    is_replaceable          = BOOLEAN                        ; indicate if the fan drawer is replaceable
+
+As discussed in section 4.1 and 4.2, we need more information in database to implement entPhysicalParentRelPos and entPhysicalContainedIn. There is an option that we could add these information to existing table such as PSU_INFO, FAN_INFO etc. However, as these two MIB objects are used to describe the relationship between physical entities and table like PSU_INFO is used for saving attributes of a physical entity, we prefer to store the relation info to a new table. A new table PHYSICAL_ENTITY_INFO will be added:
+
+    ; Defines information to store physical entity relationship
+    key                     = PHYSICAL_ENTITY_INFO|object_name   ; name of the entity object
+    ; field                 = value
+    position_in_parent      = INTEGER                            ; physical position in parent device
+    parent_name             = STRING                             ; name of parent device
+
+The data of PHYSICAL_ENTITY_INFO will be collected by thermalctld, psud and xcvrd.
 
 ### 4.4 entPhysicalIndex implementation
 
@@ -292,3 +361,4 @@ New test cases will be added to cover the new MIB entries:
 2. Get fan MIB info and cross-check with the FAN_INFO table.
 3. Get PSU related MIB info and cross-check with PSU_INFO and related tables
 4. Remove/Add DB entries from related tables to see whether MIB info can be correctly updated.
+5. Currently, each platform API is tested by sonic-mgmt, see [here](https://github.com/Azure/sonic-mgmt/tree/master/tests/platform_tests/api). We will add regression test case for each newly added platform API to verify them.
