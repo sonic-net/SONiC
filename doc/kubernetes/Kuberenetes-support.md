@@ -65,13 +65,13 @@ With this proposal, the management of container images is extended to kubernetes
      
 
 # Problem to solve:
-Currently, all docker images are hard burned into installable SONiC image. For any code update in a container image, however minor, requires re-build of the entire SONiC image and the rest of the heavy weight process to qualify the image to run in a production switch followed by install  of the image in controlled phases. 
+Currently, all docker images are hard burned into installable SONiC image. For any code update in a container image, however minor, requires re-build of the entire SONiC image and the rest of the heavy weight process to qualify the image to run in a production switch followed by install of the image in controlled phases with a mandatory reboot required.
 
 ## Proposal:
-Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*". Whenever the switch would join a master and if the master has a manifest for a docker marked as kube-managed, master deploys the docker per manifest.<br/>
-For any code update for a container, just build the container only, qualify the container image only through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected nodes, transparently, with the only cost of restarting that service only. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
+Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the docker per manifest.<br/>
+For any code update for a container, just build the container only, qualify the container image only through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected & eligible nodes, transparently, with the only cost of restarting that service only. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
 
-This could be extended to containers that are not built as part of image, but could be enabled to run in selected switches.
+This could be extended to features that are not built as part of image, but could be enabled to run in selected switches.
 
 # Goal:
 1) Enable to deploy containers that are not part of SONiC image to run in a switch running SONiC
@@ -95,22 +95,20 @@ The following are the high level requirements to meet.
     
 4. A feature could be configured as kubernetes-mode only.
     * The switch image need not have this container image as embedded (in other words no local copy).
-    * The switch must have systemctl service file and any associated bash scripts for this feature.
+    * The switch must have systemctl service file and any associated bash scripts for this feature, as required by systemd.
     * The service/scripts must ensure all dependencies across other features are met.
     * The feature is still controlled by systemd as start/stop/enable/disable.
    
 5. A kubernetes deployed container image must comply with guidelines set by SONiC.
    * Required to under go nightly tests to qualify.
    * Kubernetes masters are required to deploy only qualified images.
-   * Switch must have a control over a known label that let switch control, when a manifest can be deployed.
+   * Switch must have a control over a known node-selector label that let switch control, when a manifest can be deployed.
    * Masters control what manifests to deploy and switches/nodes control when to deploy.
    * Containers are expected to call a script at host, on post-start & pre-exit, that record their state.
        
-6. The monit service would monitor the processes transparently across both modes.
-
 
 # Mandates on deployed images
-The following are required, but external to then node/switch, hence not addressed in this design doc. 
+The following are required, but external to the node/switch, hence not addressed in this design doc. 
 1. The feature deployed by kubernetes must have passed nightly tests.
 2. The manifest for the feature must honor controls laid by switch as start/stop.
 3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
@@ -145,7 +143,7 @@ The following are required, but external to then node/switch, hence not addresse
 
    Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
    
-   With this proposal, for features configured as managed by kubernetes, start/stop would add/remove label `<feature name>_enabled=true` and, use docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
+   With this proposal, for features configured as managed by kubernetes, container start/stop commands would add/remove label `<feature name>_enabled=true` and use docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
    
    To accomplish this, the docker commands are replaced as listed below.
 
@@ -156,7 +154,7 @@ The following are required, but external to then node/switch, hence not addresse
    * docker inspect --> system container inspect
    * docker exec    --> system container exec
    
-   The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. In addition, any script that call docker commands will be switched to these new commands. A sample could be the reboot scripts, which call `docker kill ...`.
+   The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. In addition, any script that call docker commands will be switched to these new commands. A sample could be the reboot scripts, which call `docker kill/stop ...`.
    
    
 * The new "system container ..." commands in brief<br/>
@@ -165,7 +163,7 @@ The following are required, but external to then node/switch, hence not addresse
      
    * Container stop<br/>
       Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
-      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, the label is removed instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), the command/script that failed to remove, will auto disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
+      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, the label is removed instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), it would auto disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
       
    * Container kill<br/>
       Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
@@ -184,7 +182,7 @@ The following are required, but external to then node/switch, hence not addresse
       * `docker_id = <ID of the container>`
       * `current_owner_update_ts = <Time stamp of change>`
     
-     The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/local>`, which in turn would do the above update.
+     The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/local>`, which in turn would do the above update. The application process is started after the call to container_state script.
       
    * On pre-stop
       * `current_owner = none` 
