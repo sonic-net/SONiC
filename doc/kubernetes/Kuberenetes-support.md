@@ -262,7 +262,7 @@ The following are required, but external to the node/switch, hence not addressed
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   kube_request = ""/"none"/"kube_pending"/"kube_ready";
+   kube_mode = ""/"none"/"kube_pending"/"kube_ready";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
 ```
@@ -458,7 +458,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
  
 ### hostcfgd update
-   The hostcfgd watches for `kube_request == pending`. When set, stops the service, wait till service stops, set `kube_request=ready` and start the service. This ensures smooth transfer from local mode to kube mode and as well ensure service start precedes container start by kubernetes.
+   The hostcfgd watches for `kube_mode == kube_pending`. When set, stops the service, wait till service stops, set `kube_mode=kube_ready` and start the service. This ensures smooth transfer from local mode to kube mode and as well ensure service start precedes container start by kubernetes.
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
    
