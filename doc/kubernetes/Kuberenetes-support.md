@@ -493,7 +493,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
   
   If the required list is not provided, it would default to "swss" as the required service.
   
-  The reboot scripts would need to auto invoke this command for kubernetes only features to ensure, that the .service & bash scripts required by systemd are present in the new image.
+  On image upgrade, if that involves carrying config over, either these created files need to be carried along or run this command in the new image for all kube-only features.
    
 #### config feature uninstall <name> 
    Removes the corresponding .service file, associated bash scripts. It does not affect the corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
@@ -537,7 +537,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 #### status
    `show kubernetes status`
    It describes the kubernetes status of the node.<br/>
-   Provides the output of `kubectl describe node <name of this node>`.
+   Provides the output of `kubectl describe node <name of this node>`.<br/>
    This command requires kubernets master as reachable
 
 #### show feature <name>
@@ -554,7 +554,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    This [warm-reboot](https://github.com/Azure/SONiC/blob/master/doc/warm-reboot/SONiC_Warmboot.md) support is for updating/restarting with no data-plane disruption. The `/usr/bin/warm_reboot` script is a complex script that does many pre-requisites, kill the containers and eventually call a specific command for reboot. The individual service level support for warm-start lies within its code/implementation-logic. When configured for warm start, upon start-up, the service should be able to acquire its i/p data from all its channels as ever, but instead of pushing it in entirety to the consumer/DB, read the pre-boot data (which is made available in APP-DB), find the diffs as stale/new/update and only push the diffs. With every app doing it and, with some additional complex steps for critical processes like orchagent & syncd, the data plane traffic goes unaffected, except for the changes pushed into ASIC,  which is a normal runtime experience of consuming changes as it happens.
    
    In short if a service supports warmboot, it would continue to support in both local & kube modes transparently. 
-   The warm_reboot script needs to be updated as 
+   The warm_reboot script needs few updates as below.
       * Disable kubelet service (`systemctl disable kubelet`)
       * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
       * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
