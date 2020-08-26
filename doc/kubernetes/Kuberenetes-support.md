@@ -22,7 +22,7 @@ With this proposal, the management of container images is extended to kubernetes
       A SONiC switch joins a kubernetes cluster as a node, to facilitate kube manage dockers in the switch.
       
    * pods<br/>
-      This is the unit of kubernetes deploymenet. In SONiC switches, a pod runs a single container only. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
+      This is the unit of kubernetes deployment. In SONiC switches, a pod runs a single container only. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
       
    * manifest<br/>
       A manifest describes the pod as below. 
@@ -35,7 +35,7 @@ With this proposal, the management of container images is extended to kubernetes
           * environment variables
           * ...
         * Node selector labels
-        *...
+        * ...<br/>
       In SONiC, the list of containers contains only one.
     
    * Node selector labels<br/>
