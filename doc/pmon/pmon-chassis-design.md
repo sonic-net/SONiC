@@ -320,18 +320,21 @@ Thermalctld is monitoring temperatures, monitoring fan speed and allowing polici
     * Temperature sensors are on the control-card
     * Temperature sensors are on the line-card
     * Temperature sensors are on the SFMs.
-2. The FAN control is limited to the control-card 
+2. All thermal sensor info should be available to the control-card.
+3. The FAN control is limited to the control-card. The Fan algorithm could be implemented as part of thermal-policy or by the platform.
 
 ![Tempearature and Fan Control](pmon-chassis-images/pmon-chassis-distributed-thermalctld.png)
 
 #### Proposal
 1.  Chassisd notified line-card up/down events are subscribed up Thermalctld.
 2.  All local temperatures sensors are recorded on both control and line-cards for monitoring. The control-card monitors temperature sensors of SFMs.
-3.  Chassisd on control-card will periodically fetch the summary-info from each of the line-cards. Alternately, the thermalctld on control-card can subscribe for the line-card sensors updates.
+3.  Chassisd on control-card will periodically fetch/subscribe the thermal-sensors info from each of the line-cards. Alternately, the thermalctld on line-card can directly update the DB on the control-card.
 5.  The local-temperatures of control-card, line-cards and fabric-cards are passed onto the Fan-Control algorithm.
 6.  The fan-control algorithm can be implemented ina PMON or ina the platform-driver. 
 
-Changes ina thermalctld is to have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card.
+Changes in thermalctld would follow one of the 2 approaches:
+1. Have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card and update the DB on the control-card.
+2. The TemperatureUpdater class in each line-card will update the local-DB on its card as well as the global-DB on the control-card.
 
 ```
 In src/sonic-platform-daemons/sonic-thermalctld/scripts/thermalctld:
@@ -371,6 +374,9 @@ class ThermalInfo(ThermalPolicyInfoBase):
     def collect(self, chassis):
         #Vendor specific calculation from all available sensor values on chassis
 ```
+
+There could be 2 approaches for where the Fan-Control algorithm could be implemented.
+
 In approach-1, the thermal_policy.json can provide additional action to check if line-card temperature exceeded the threshold etc. The thermalctld.run_policy() will match the required condition and take the appropriate action to set fan speed.
 
 In approach-2, the sensors information could be passed on the platform-driver which can then control the fan speed.
