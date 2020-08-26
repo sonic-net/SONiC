@@ -589,28 +589,33 @@ In multi-asic platform,
   * Some features run in multiple instances as one per ASIC. e.g. syncd
   * Some features run in multiple instances as one per ASIC and one in host too. e.g. database
   
-All these features single or multiple, share the same image with only runtime differences.
-Multi-ASIC support would be a *best* effort approach. Any additional work required for multi-asic support would be outside the scope of this doc.
+All these features single or multiple, share the same image with only runtime differences.<br/>
+The kubernetes management of Multi-ASIC platform would be a *best* effort approach. Any additional work required for multi-asic support would be outside the scope of this doc.
 
 ## Manifests
-For kube managed dockers, the runtime is defined in manifests. Following are the differences observed across multiple instances of same feature.
+For kube managed dockers, the runtime is defined in manifests.<br/>
+Following are the differences observed across multiple instances of same feature in a multi-ASIC platform.
   * Name of the container
+    The name is suffixed with the asic number that runs from 0 to count-1. The instance running in host carry no suffix.
+    
     e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
+    
     This is well defined across ASICs, hence can be auto coined.
     
-  * NAMESPACE_ID - the environment variable
-    none for host instance and for each ASIC, it ranges from 0 to 5. This is well defined across ASICs.
+  * NAMESPACE_ID.
+    This is provided to each instance running for a ASIC as environment variable. The instance running in host does not have this environment variable.<br/>
+    The ID ranges from 0 to count-1. As this is well defined across ASICs, it can be auto-coined.
   
   * Hostname
-    The host instance carry the hostname. The ASIC instances carry an unique ID. All docker of running in that ASIC share that ID.
+    The host instance carry the actual hostname. The ASIC instances carry an unique ID. All dockers of running in an ASIC share that ID.
     ***TODO/Questions:***
-      1) How is this identified per ASIC ?
-      2) Can this be pre-identified and be common across switches of the same platform ?
+      1) How is this coined per ASIC ?
+      2) Can this be pre-identified and be common across all switches of the same platform ?
     
   * Mounts differ
-    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance. This is well defined across ASICs.
+    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance. This is well defined across ASICs. Hence can be auto-coined.
     
-In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC.
+In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC. We would need to be able to share a manifest across all switches of the same platform.
 
 ### Summary:
 * There will be a ***manifest per instance*** in switch, which could be one per ASIC and/or one per host.
@@ -619,7 +624,7 @@ In short, same image, but with different runtime parameters. This can be easily 
   * This is outside scope of this doc
 * Even when master is applied with manifests that all point to same URL, the point of switching one image to other, can be asynchronous across ASICs.
   * The hostcfgd is a single instance and it would need to circle through ASIC instances, when switching between kube to local and viceversa
-  * Hopefully, this would be an acceptable delay between instances
+  * Hopefully, this would be an acceptable offset/delay between instances
   * If not, further investigation & customization would be required.
   * Any fine tuning, would be an RFE and not in the scope of this doc.
 
@@ -646,14 +651,15 @@ Points to note:
    * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB.
    
  A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming for now. 
-   
+ 
+ 
  ## Proposal - 1:
   Provide a config command that can create a .service and bash scripts for a feature with simple requirements like, 
     * This feature depends on zero or more features &&
     * No other feature depends on this feature &&
     * Transparent to wam-reboot & fast-reboot
       implying it does not affect data plane traffic directly or indirectly.
-  The `config feature install <name> [<required services list>]` would create the necessary files.
+  The `config feature install <name>` would create the necessary files.
   
   
   ## proposal - 2:
@@ -671,10 +677,10 @@ Points to note:
       * ...
       
    These requirements could be provided as an input to a service-create utility, that will create the required  .service, bash scripts and entries in FEATURE table.  
-   NOTE: The tools that wipe off & re-create CONFIG-DB, would need to persist this FEATURE table into a transient cache and restore upon re-populating DB. A sample could be `sudo config load_minigraph`.
+   
    
  ## Proposal - 3:
-   *  The kubernetes master manages manifests. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
+   *  The kubernetes master requires manifests that describes deployment. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
       *  A possible input source is a git repo, cloned locally in each master.
       *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
    *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
@@ -683,9 +689,9 @@ Points to note:
    *  The installation would include .service file, any associated scripts and update of FEATURE table in CONFIG-DB.
         
    
-
 ## Proposal - 4:
    Run an external service, to install required service files in each node, explicitly.
+
 
 # Image management
   For a kube managed container, when updates happen, it downloads a new image, which can eventually result in multiple container images for a single feature.
@@ -698,12 +704,12 @@ Points to note:
   
   
   ## local image
-  Every switch comes with locally available container images for all embedded services. When a kube downloads an image for an embedded service, potentially the local image for that feature could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
+  Every switch comes with locally available container images for all embedded services. When kube downloads an image for an embedded service, potentially the local image for that feature could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
 
 # Failure mode detection & rollback
   With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
-  This brings in two questions
-  a)  How to detect the failure?
+  This brings in two questions<br/>
+  a)  How to detect the failure?<br/>
   b)  How to do rollback ?
   
   This requirement is outside the scope of this doc, but discuss some possibilities.
