@@ -40,9 +40,9 @@ With this proposal, the management of container images is extended to kubernetes
       In SONiC, the list of containers contains only one.
     
    * Node selector labels<br/>
-      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short of full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is the requirement to meet, for deployment of a pod, in SONiC usage scenario.
+      A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short a full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is the requirement to meet, for deployment of a pod, in SONiC usage scenario.
       
-      SONiC switch can add labels describing its version, platform, ... as labels. This can help create manifests for specific version and platform and ...
+      SONiC switch can add labels describing its version, platform, .... This can help create manifests for specific version and platform and ...
       
    * Daemonset<br/>
       A deamonset is a special kind of pod. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node. The kube manages pods on SONiC switches using the kind daemonset only.
@@ -53,7 +53,7 @@ With this proposal, the management of container images is extended to kubernetes
   3) The manifests are created for each feature.
      * The manifest describes the runtime options for the docker, like mounts, environment, args, ...
      * The manifest is assigned with node-selector labels
-  4) Manifests are applied in master.
+  4) The manifests are applied in master.
      * For a better control, manifests can be checked into a github repo.
      * A script running in master can watch for updates and apply manifest on each update or remove, if manifest is deleted.
   5) Configure SONiC switches with VIP of the cluster
@@ -70,9 +70,9 @@ Currently, all docker images are hard burned into installable SONiC image. For a
 
 ## Proposal:
 Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the docker per manifest.<br/>
-For any code update for a container, just build the container only, qualify the container image only through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected & eligible nodes, transparently, with the only cost of restarting that service only. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
+For any code update for a container, just build the container only, qualify *only* the container image through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected & eligible nodes, transparently, with the only cost of restarting that updated service. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
 
-This could be extended to features that are not built as part of image, but could be enabled to run in selected switches.
+This could be extended to features that are not built as part of SONiC image, but could be enabled to run in SONiC switches.
 
 # Goal:
 1) Enable to deploy containers that are not part of SONiC image to run in a switch running SONiC
@@ -478,22 +478,22 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
       
    It resets connection to master.
 
-### config FEATURE
+### config feature
 
-#### config FEATURE <name> owner <local/kube> fallback <true/false> failmode < N seconds > [-y]
+#### config feature <name> owner <local/kube> fallback <true/false> failmode < N seconds > [-y]
    This command sets owner, fallback & failmode detection for a feature.<br/>
    This command has the potential to restart the service as required. So a confirmation prompt would be provided.
    
-### config FEATURE install
+### config feature install
    This command would help install a new FEATURE with simple requirements.
    
-#### config FEATURE install <name> [required < list of services required >] 
+#### config feature install <name> [required < list of services required >] 
    This command will create a .service file for systemd and other required bash scripts with required services listed here, such that this service would only run as long as all the required services are running.<br/>
    If the required list is not provided, it would default to "swss" as the required service.
    This would also create an entry in CONFIG-DB FEATURE table as kube-managed with no fallback or failmode check.
-   This could be modified using, `CONFIG FEATURE ...` command.
+   This could be modified using, `config feature ...` command.
    
-#### config FEATURE uninstall <name> 
+#### config feature uninstall <name> 
    Removes the corresponding .service file, associated bash scripts and corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
    
 ### show kubernetes 
@@ -537,7 +537,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    It describes the kubernetes status of the node.<br/>
    Provides the output of `kubectl describe node <name of this node>`
 
-#### show FEATURE <name>
+#### show feature <name>
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
    ```
    admin@str-s6000-acs-13:~$ show features 
