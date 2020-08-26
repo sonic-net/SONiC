@@ -767,24 +767,23 @@ Points to note:
      
     
 # Implementation phases:
-The final goal for this work item would be to remove nearly all container images from SONiC switch image and manage all through kubernetes only. The proposal here is to take smaller steps towards this goal.
+The final goal for this work item would be to manage nearly all container images on SONiC switch. The proposal here is to take smaller steps towards this goal.
 
 ## Phase 1:
-   Support services that meet *all* of the following criteria
+   Support services that meet ***all*** of the following criteria
 
-   * A simple service that has few *required* other services and no service depends on this service.
-   * A service that does not affect dataplane traffic
+   * A kube-only feature that is not available in SONiC image
+   * A simple feature that has few *required* services and no service depends on this feature.
+   * A feature that does not affect dataplane traffic
       * Transparent to warm-reboot & fast-reboot.
-   * A service with no local image, hence to be managed by kube only
-  
-Run an config utility with input file that provides the list of required services, and this creates the service file along with bash scripts as required by the service and an update to FEATURE table in CONFIG-DB, with set_owner = kube and no fallback.
+    
+The config command could be used to create the FEATURE entry and the required systemd files.
 
-## Phase 1:
-   A deviation from phase 1.<br/>
-   * Support a locally available image between local & kube.
-   * Only for features that does not affect dataplane, like snmp, pmon, lldp, ...
+## Phase 2:
+  Extend support to features that meet ***all*** of the following criteria:
+   * A locally available feature which can be switched between local & kube.
+   * A feature that does not affect dataplane, like snmp, pmon, lldp, ...
  
-The service files are already available. The FEATURE table would be auto created, when user runs the command to switch owner to kube.
-
+The service files are already available. The FEATURE table would need to be updated, with the minium of set_owner.
 
    
