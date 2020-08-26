@@ -144,7 +144,8 @@ The following are required, but external to the node/switch, hence not addressed
 
    Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
    
-   With this proposal, for features configured as managed by kubernetes, container start/stop commands would add/remove label `<feature name>_enabled=true` and use docker start/stop for locally managed containers. In case of container wait, use container-id instead of name.
+   But start/stop of a kube deployed containers are done through add/remove of `<feature name>_enabled=true` label and use `docker start/stop` only for local containers.
+   In case of container wait, use container-id instead of name.
    
    To accomplish this, the docker commands are replaced as listed below.
 
