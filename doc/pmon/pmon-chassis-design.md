@@ -8,25 +8,25 @@
   * [About this Manual](#about-this-manual)
   * [Scope](#scope)
   * [Acronyms](#acronyms)
-  * [1. Modular VOQ Chassis - Reference](#1-modular-voq-chassis-reference)
-  * [2. SONiC Platform Management & Monitoring](#2-sonic-platform-management-monitoring)
+  * [1. Modular VOQ Chassis Reference](#1-modular-voq-chassis-reference)
+  * [2. SONiC Platform Management and Monitoring](#2-sonic-platform-management-and-monitoring)
     * [2.1 Functional Requirements](#21-functional-requirements)
     * [2.2 Chassis Platform Stack](#22-chassis-platform-stack)
   * [3. Detailed Workflow](#3-detailed-workflow)
-    * [3.1 Chassis Boot Process](#31-chassis-boot-sequence)
+    * [3.1 Chassis Boot Process](#31-chassis-boot-process)
       * [3.1.1 Controlcard Boot Process](#311-controlcard-boot-process)
       * [3.1.2 Linecard Boot Process](#312-linecard-boot-process)
     * [3.2 Chassis Platform Management](#32-chassis-platform-management)
       * [3.2.1 Midplane Ethernet](#321-midplane-ethernet)
-      * [3.2.2 Chassis Monitoring & ChassisD](#322-chassis-monitoring-chassisd)
+      * [3.2.2 Chassis Monitoring and ChassisD](#322-chassis-monitoring-and-chassisd)
       * [3.2.3 Chassis Local Sonic Image Hosting Service](#323-chassis-local-sonic-image-hosting-service)
       * [3.2.4 Disaggregated vs Global DB](#324-disaggregated-vs-global-db)
     * [3.3 Peripheral Management](#33-peripheral-management)
       * [3.3.1 PSUd](#331-psud)
       * [3.3.2 Thermalctld](#332-thermalctld)
       * [3.3.3 Xcvrd/SFP](#333-xcvrdsfp)
-      * [3.3.4 LEDd](#334-led)
-      * [3.3.5 Syseepromd](#335-syseeprom)
+      * [3.3.4 LEDd](#334-ledd)
+      * [3.3.5 Syseepromd](#335-syseepromd)
       * [3.3.6 Midplane Ethernet](#336-midplane-ethernet)
       
 ### Revision ###
@@ -54,14 +54,12 @@ Control Plane Stack - Set of Processes, Daemons, Dockers implementing control pl
 
 Datapath Stack - Set of Processes, Daemons, Dockers, API's implementing datapath ASIC hardware programming via SAI interface.
 
-## 1. Modular VOQ Chassis - Reference
+## 1. Modular VOQ Chassis Reference
 The below picture shows reference of VOQ chassis highlevel hardware architecture. Chassis has 1 or 2 control cards (aka supervisor cards), 1 or more linecards and 1 or more switch fabric cards. It also has 1 or more FAN tray, 1 or more PSUs and midplane ethernet. In general, control cards manages the perpherals like fan, psu, midplane ethernet, etc.
 
 ![Modular VOQ Chassis](pmon-chassis-images/voq-chassis.png)
 
-As an example, Nokia modular VQO chassis is IXR-7250 which has control card (i.e CPMv1, CPMv2) and linecards(i.e imm36-400g-qsfpdd, imm36-32x100g-4x400g-qsfpdd, etc), Fabric cards (i.e SFMv1, SFMv2)
-
-## 2. SONiC Platform Management & Monitoring
+## 2. SONiC Platform Management and Monitoring
 ### 2.1. Functional Requirements
 At a functional level of a chssis, SONiC will manage control cards, line cards and all other peripheral devices of the chassis as required by chassis platform vendor specification. Below requirements capture some of the key areas that is required to operate a VOQ chassis. 
 
@@ -94,7 +92,7 @@ In a modular disaggregated SONiC software architecture, each linecard will run a
     
 SONiC supports ONIE as a boot method and also provides vendor specific boot method. In either boot method, control card of chassis will be booted first and followed by linecard. For first phase of design, it assumes that control card should be operationally ready before linecards to boot. This is important because some of the sensors and fan settings are managed in a control card and it has to set with correct values when linecards are running to make chassis healthy and avoid over heating.
     
-#### 3.1.1 Control Card Boot Process
+#### 3.1.1 Controlcard Boot Process
     
 Control card can be booted using ONiE method. Upon boot, unique ONIE_PLATFORM string will be provided in a ONIE firmware to differentiate the cards and services/dockers it could start via systemd-generator. In case of control card, there wont be dockers like BGP, LLDP, etc started. This service list is included as part of platform specific service list file.
 
@@ -125,7 +123,7 @@ HW_TYPE=IOM
 sonic-buildimage/device/nokia/x86_64-nokia_ixr7250_36x400g-r0$
 ```
 
-#### 3.1.2 Line Card Boot Process
+#### 3.1.2 Linecard Boot Process
 Linecard boot process is very similar to control card and main difference is services that is started on linecard will include protocol dockers such BGP, LLDP, etc. Also, SyncD docker will started for VOQ ASIC instead of SF ASIC.
 
 ### 3.2 Chassis Platform Management
@@ -144,8 +142,9 @@ In order to allow direct access to linecards from outside of the chassis over ex
 
 Allowing DHCP relay or DHCP client on these internal midplane ethernet aren't considered for first phase of the design. 
 
+Approach 1 will be the preferred approach. The external management and midplane ethernet networks will be isolated.
 
-#### 3.2.2 Chassis Monitoring & ChassisD
+#### 3.2.2 Chassis Monitoring and ChassisD
 
 Modular Chassis has control-cards, line-cards and fabric-cards along with other peripherals. The different types of cards have to be managed and monitored. 
 
@@ -155,12 +154,14 @@ Modular Chassis has control-cards, line-cards and fabric-cards along with other 
 * Monitor the status of the line-card, fabric-card etc using new PMON 2.0 APIs. The assumption is that each vendor will have platform-drivers or implementation to detect the status of the cards in the chassis.
 * The status will need to be persisted in REDIS-DB.
 * PMON processes can subscribe to UP/DOWN events of these cards.
+* The UP/DOWN events will be added to syslog. 
+* Vendor-specific API will be provided to take action on any change event.
 
 #### Schema
 
 The schema for CHASSIS_CARD_INFO table in State DB is:
 ```
-key                                   = CHASSIS_CARD <card index> |"state_db"      ; 
+key                                   = CHASSIS_CARD_INFO | <card index>; 
 ; field                               = value
 name                                  = STRING                          ; name of the card
 slot                                  = 1*2DIGIT                        ; slot number in the chassis
@@ -238,6 +239,8 @@ class LineCard(LineCardBase):
     def __init__(self, linecard_index):
 
 ```
+
+Additionally, *get_change_event()* can be implemented to handle asynchronous notification of the line-card UP/DOWN events.
 
 #### Show command
 The *show platform* command is enhanced to show chassis information
@@ -584,6 +587,7 @@ Syseepromd will run on control and line-cards indepenedently and monitor for any
 To manage and monitor midplace ethernet, the following vendor-specific PMON 2.0 APIs can be introduced:
 
 *  API to initialize the midplane on both control and line cards - init_midplane_switch()
+    * This API will *not* be used to intialize the drivers or configure the IP-address. The drivers should be initialized and IP-addresses should be configured before the Database-dockers are brought up.  
 *  APIs to check midplane connectivity:
     *  On line-card to check if control-card is reachable via midplane  - is_midplane_controlcard_reachable() 
     *  On control-card to check if line-card on slot is reachable via midplane - is_midplane_linecard_reachable(slot)
@@ -633,4 +637,3 @@ class midplane_monitor_task:
                 
         logger.log_info("Stop midplane task loop")
 ```
-
