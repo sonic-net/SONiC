@@ -26,9 +26,12 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 ### The design changes for multi-ASIC platform.
 
-The approach is to do an action eg: stop bgp, in all the asic_instances at the same time and wait for it to be donw and state to be Ok in all the asic_instances before proceeding to the next state.
+The approach is to do an action eg: stop bgp, in all the asic_instances at the same time and wait for it to be done and state to be Ok in all the asic_instances before proceeding to the next state.
 
 **1. Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
+
+This Warm restart table will store the lifecycle state per asic instance.
+
 ```
 WARM_RESTART_TABLE
 ;Stores warm-reboot lifecycle state for that asic_instance
@@ -52,19 +55,22 @@ There needs to be a process or a script to watch the state of an "asic_instance"
     - It proceeds to the next state only of the state in WARM_RESTART_TABLE for all asic_instances is advanced to the next state.
     - In case of error in any of the asic_instance, try again ? or do a cold reboot ? can we revert back to the original state here ?
 
+
   2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
 
 
 
 **2. Save the Redis DB in each ASIC instance**
-<TODO>
+
+TODO
   
 
 
 
 **3. Save the SAI states in each ASIC instance**
-<TODO>
+
+TODO
 
 
 
@@ -72,7 +78,8 @@ There needs to be a process or a script to watch the state of an "asic_instance"
 
 ## Steps done when the device comes back up after warm boot
 
-On the way up after warm reboot, the sequence could be same as what we do for a single ASIC platform. The design change would be with the 
-  - usage of different redis database saved file per ASIC instance
-  - usage of different sai warboot saved files per ASIC instance.
+On the way up after warm reboot, the sequence could be same as what we do for a single ASIC platform. The design change would be related to 
+  - restore from different redis database saved file per ASIC instance
+  
+  - restore from different sai warboot saved files per ASIC instance.
  
