@@ -42,7 +42,10 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
                                                              ; FSM state of the services bound to a particular 
                                                              ; asic_instance.
 ```
-There needs to be a process or a script to watch the state of an "asic_instance" group of services. Two approaches here 
+
+**2. Approach to control the warm restart lifecycle with multiple instances**
+
+There needs to be a process or a script to watch the state of an "asic_instance" group of services. 
 
   1. Introduce a new process named "warmBootd" running in the linux host.
     - It monitors the WARM_RESTART_TABLE which we introduced above on the state of an asic_instance, when an action is initiated.
@@ -52,12 +55,18 @@ There needs to be a process or a script to watch the state of an "asic_instance"
   2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
 
+
+
 **2. Save the Redis DB in each ASIC instance**
 <TODO>
   
-  
+
+
+
 **3. Save the SAI states in each ASIC instance**
 <TODO>
+
+
 
 
 
