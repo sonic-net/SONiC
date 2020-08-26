@@ -577,7 +577,9 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 ## reboot
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
    
-# multi-ASIC support:
+# Multi-ASIC support:
+
+## Manifests
 For some features multiple instances are running as one per ASIC, and possibly one for host too. They all use same built image, but with some differences in runtime parameters as below
   * Name of the container
     e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
@@ -593,10 +595,29 @@ For some features multiple instances are running as one per ASIC, and possibly o
     
 In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC.
 
-## FEATURE config:
-The configuration of FEATURE is CONFIG-DB. This controls set_owner, fallback, ... parameters per FEATURE. 
+### Summary:
+* There will be a ***manifest per instance*** in switch, which could be one per ASIC and/or one per host.
+* Manifest also controls, the URL of the image, hence theoretically, this could result in multiple ASICs running different versions.
+  * There need to be an external control to ensure that all manifests across ASICs for a switch carry same URL, if that is a requirement.
+  * This is outside scope of this doc
+* Even when master is applied with manifests that all point to same URL, the point of switching one image to other, can be asynchronous across ASICs.
+  * The hostcfgd is a single instance aand it would need to circle through ASIC instances, when switching between kube to local and viceversa
+  * Hopefully, this would be an acceptable delay between instances
+  * If not, further investigation & customization would be required.
+  * Any tuning, would be an RFE and not in the scope of this doc.
 
-* The config can be shared or can be distinct per ASIC.
+## FEATURE config:
+The configuration of FEATURE is in CONFIG-DB. This controls set_owner, fallback, enabled,... parameters per FEATURE.
+
+The config could be distributed per ASIC or it could be one shared instance that controls across all ASICs & host.
+
+The proposal is to have ***FEATURE config in single host instance*** that serves all ASICs & host. 
+The same instance, which carries system level config like TACACS, syslog, ...
+
+
+## FEATURE status:
+* The status has to be instance specific and hence would be ***distributed as per ASIC and one for host***. 
+* The hostcfgd would watch all instances of STATE-DB to make effect.
 
 
     
