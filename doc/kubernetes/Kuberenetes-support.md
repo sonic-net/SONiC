@@ -578,33 +578,44 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
    
 # Multi-ASIC support:
+In multi-asic platform,
+  * Some features run in single instance like in other platforms. e.g. ACMS
+  * Some features run in multiple instances as one per ASIC. e.g. syncd
+  * Some features run in multiple instances as one per ASIC and one in host too. e.g. database
+  
+All these features single or multiple, share the same image with only runtime differences.
+Multi-ASIC support would be a *best* effort approach. Any additional work required for multi-asic support would be outside the scope of this doc.
 
 ## Manifests
-For some features multiple instances are running as one per ASIC, and possibly one for host too. They all use same built image, but with some differences in runtime parameters as below
+For kube managed dockers, the runtime is defined in manifests. Following are the differences observed across multiple instances of same feature.
   * Name of the container
     e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
+    This is well defined across ASICs, hence can be auto coined.
     
   * NAMESPACE_ID - the environment variable
-    none for host instance and for each ASIC, it ranges from 0 to 5.
+    none for host instance and for each ASIC, it ranges from 0 to 5. This is well defined across ASICs.
   
   * Hostname
     The host instance carry the hostname. The ASIC instances carry an unique ID. All docker of running in that ASIC share that ID.
+    ***TODO/Questions:***
+      1) How is this identified per ASIC ?
+      2) Can this be pre-identified and be common across switches of the same platform ?
     
   * Mounts differ
-    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance.
+    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance. This is well defined across ASICs.
     
 In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC.
 
 ### Summary:
 * There will be a ***manifest per instance*** in switch, which could be one per ASIC and/or one per host.
-* Manifest also controls, the URL of the image, hence theoretically, this could result in multiple ASICs running different versions.
+* Manifest also controls, the URL of the image, hence theoretically, this could result in multiple ASICs running different images for the same feature.
   * There need to be an external control to ensure that all manifests across ASICs for a switch carry same URL, if that is a requirement.
   * This is outside scope of this doc
 * Even when master is applied with manifests that all point to same URL, the point of switching one image to other, can be asynchronous across ASICs.
-  * The hostcfgd is a single instance aand it would need to circle through ASIC instances, when switching between kube to local and viceversa
+  * The hostcfgd is a single instance and it would need to circle through ASIC instances, when switching between kube to local and viceversa
   * Hopefully, this would be an acceptable delay between instances
   * If not, further investigation & customization would be required.
-  * Any tuning, would be an RFE and not in the scope of this doc.
+  * Any fine tuning, would be an RFE and not in the scope of this doc.
 
 ## FEATURE config:
 The configuration of FEATURE is in CONFIG-DB. This controls set_owner, fallback, enabled,... parameters per FEATURE.
@@ -616,11 +627,9 @@ The same instance, which carries system level config like TACACS, syslog, ...
 
 
 ## FEATURE status:
-* The status has to be instance specific and hence would be ***distributed as per ASIC and one for host***. 
+* The status has to be instance specific and hence would be ***distributed as per ASIC and one for host in STATE-DB***. 
 * The hostcfgd would watch all instances of STATE-DB to make effect.
-
-
-    
+   
     
 # Service install for kube managed features
 
