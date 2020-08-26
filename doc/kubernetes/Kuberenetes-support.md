@@ -555,13 +555,13 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
    In short if a service supports warmboot, it would continue to support in both local & kube modes transparently.</br>
    The warm_reboot script needs few updates as below.<br/>
-      * Disable kubelet service (`systemctl disable kubelet`)
-      * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
-      * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
-      * Carry the .service & bash scripts created for kube only features to new image.
-      * Ensure all kube managed features have local images.
-         * If not, tag the currently downloaded image appropriately
-      * Ensure all kube managed features are enabled to fallback to local image.
+   * Disable kubelet service (`systemctl disable kubelet`)
+   * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
+   * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
+   * Carry the .service & bash scripts created for kube only features to new image.
+   * Ensure all kube managed features have local images.
+      * If not, tag the currently downloaded image appropriately
+   * Ensure all kube managed features are enabled to fallback to local image.
       
    
    Reason for the changea:
