@@ -22,23 +22,22 @@ With this proposal, the management of container images is extended to kubernetes
       A SONiC switch joins a kubernetes cluster as a node, to facilitate kube manage dockers in the switch.
       
    * pods<br/>
-      This is the unit of kubernetes deployment. In SONiC switches, a pod runs a single container only. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
+      This is the unit of kubernetes deployment. A manifest describes the pod. In SONiC switches, a pod runs a single container only. The master is configured with manifests that decides what containers/pods to deploy on SONiC switches. The SONiC switches keeps the control of when the deployment can happen.
       
    * manifest<br/>
       A manifest describes the pod as below. 
         * Assigns a name
         * List of containers
+          * In case of sonic, only one container
         * Description of each container
           * Image URL
-          * mounts
+          * volume mounts
           * runtime args
           * environment variables
           * ...
         * Node selector labels
         * ...<br/>
       
-      In SONiC, the list of containers contains only one.
-    
    * Node selector labels<br/>
       A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short a full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is the requirement to meet, for deployment of a pod, in SONiC usage scenario.
       
@@ -47,12 +46,12 @@ With this proposal, the management of container images is extended to kubernetes
    * Daemonset<br/>
       A deamonset is a special kind of pod. A daemonset pod is deployed in every node that matches the requirments per manifest. In case of daemonset, there is only one instance per node. The kube manages pods on SONiC switches using the kind daemonset only.
            
-## Basic on `how` for a daemonset:
+## A high level overview on setup:
   1) Set up a master cluster
   2) The container images are stored in container registry, like Azure Container Registry
   3) The manifests are created for each feature.
      * The manifest describes the runtime options for the docker, like mounts, environment, args, ...
-     * The manifest is assigned with node-selector labels
+     * The manifest is assigned with node-selector labels possibly to select nodes by platform, OSVersion, ...
   4) The manifests are applied in master.
      * For a better control, manifests can be checked into a github repo.
      * A script running in master can watch for updates and apply manifest on each update or remove, if manifest is deleted.
@@ -69,10 +68,10 @@ With this proposal, the management of container images is extended to kubernetes
 Currently, all docker images are hard burned into installable SONiC image. For any code update in a container image, however minor, requires re-build of the entire SONiC image and the rest of the heavy weight process to qualify the image to run in a production switch followed by install of the image in controlled phases with a mandatory reboot required.
 
 ## Proposal:
-Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the docker per manifest.<br/>
+Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the container per manifest.<br/>
 For any code update for a container, just build the container only, qualify *only* the container image through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected & eligible nodes, transparently, with the only cost of restarting that updated service. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
 
-This could be extended to features that are not built as part of SONiC image, but could be enabled to run in SONiC switches.
+This could be extended to features that are ***not part of SONiC image***, but could be enabled to run in SONiC switches.
 
 # Goal:
 1) Enable to deploy containers that are not part of SONiC image to run in a switch running SONiC
@@ -193,7 +192,7 @@ The following are required, but external to the node/switch, hence not addressed
       
      A local monitor script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
      
-   The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active services. The code that gets i/p fron this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
+   The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active features. The code that gets i/p from this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
 *  The hostcfgd helps switch between local and kube modes.
    
@@ -275,11 +274,11 @@ The following are required, but external to the node/switch, hence not addressed
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
    
-   The labels push from transient-info being asynchronous, if kubelet service reaches the server before the labels are synced to the master, there could be some unexpected behaviors. Hence anytime, a label can't be added/removed, the kubelet service is disabled. This would not affect the dockers started by kubelet. Later whenever, all the labels were synced to master, the kubelet service will be enabled. Kubelet now could carry out the updates per updated labels.
+   The labels control, what to deploy/un-deploy. This implies that the kubelet which does the job of deploy/un-deploy of containers, should be in sync with labels update. Hence in scenarios, where master become unreachable and so labels can't be pushed to master, the kubelet is disabled. The kubelet remains disabled until all labels are synced and at that point, it gets re-enabled. If kubelet is *not* disabled and if it reaches server before labels are synced, the kubelet's actions could be unexpected/undesired.
    
+   *NOTE*: Disabling kubelet does not affect containers deployed by it. So if stop/kill is required, when kubelet is disabled, make explicit docker call.
+    
    Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command. At the end of succesful completion, it ensures that the kubelet service is enabled.
-   
-   
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
