@@ -53,7 +53,9 @@
 	* [3.4 Voq Neighbor Creation](#34-voq-neighbor-creation)
 	* [3.5 Voq Database sync](#35-voq-database-sync)
   * [4 Example configuration](#4-example-configuration)
-  * [5 References](#5-references)
+  * [5 Future Work](#5-future-work)
+    * [5.1 Dynamic System Ports](#51-dynamic-system-ports)
+  * [6 References](#6-references)
 
 ###### Revision
 | Rev |     Date    |       Author                                                                       | Change Description                |
@@ -98,7 +100,7 @@ Phase-1 of the Distributed VOQ System should support static configuration of the
 
 ### PortsOrch:
  - Should be SystemPorts aware
- - Should initialize system ports list and create host interfaces for system ports
+ - Should initialize system ports list and create host interfaces for local ports (including the recycle port if configured)
 
 ### IntfsOrch:
 - Should create/delete/update router interfaces against local-asic ports
@@ -337,7 +339,7 @@ switch_id                             = 1*4DIGIT                            ; sw
 ### VOQ Switch Creation
 Prior to switch creation - OrchAgent determines whether or not it is a VOQ Switch by checking if VOQ specific information is present in the APP DB. It could do this by checking for the presence of my_switch_id (or max_cores or connection information for VOQ System DB) in the VOQ System Information. If it is not a VOQ Switch - switch creation goes ahead as it does currently. VOQ Switch creation requires additional information - max_cores, my_switch_id and system port list (see previous srctions for table names). It waits until this information is available from the APP DB before going ahead with switch creation. 
 ### Portsorch
-This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creats host interfaces for all the system ports. PortOrch PortChannel processing is made aware of system port channels. 
+This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creates host interfaces for the local ports (inclduing the recycle port if used for inband). 
 ### Intfsorch
 The router interface creation for system ports is driven by configuration in "INTERFACE" table ConfigDB. The router interface creation and ip address assignments are done as needed in the similar fashion as how they are done for local ports. No changes in IntfsOrh for voq systems.
 ### NeighOrch
@@ -790,6 +792,18 @@ Example coniguration for voq inband interface type "port" is presented
    }
 }
 ```
+# 5 Future Work
 
-# 5 References
+## 5.1 Dynamic System Ports 
+
+Dynamic system port support is required to support the following forwarding scenarios
+
+* Addition of a new forwarding module into an existing running system
+* Replacing a forwarding module with another module of a different hardware SKU (such as replacing a linecard with a new linecard of a different SKU in a chassis slot).
+
+Both these scenarios can be supported smoothly as long as the global system port numbering scheme is maintained and the modifications to system ports can be performed without impacting the System Port IDs of the running system.
+
+Support for dynamic system ports requires SAI support for the `create_port` and `remove_port` calls. In addition, forwarding features that are dependent on System Ports need to react to these changes and reprogram the related forwarding plane state such as routing nexthops, LAG membership etc.
+
+# 6 References
 To be completed
