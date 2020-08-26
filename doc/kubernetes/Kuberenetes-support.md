@@ -242,7 +242,9 @@ The following are required, but external to the node/switch, hence not addressed
                                                 considered as "failed". The alert logs will be raised.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
-
+   required_services = <list of names>;         Optional entry. A kube only feature may provide this info to enable auto-create
+                                                required .service & .bash scripts to enable systemd manage it as service.
+  
 
 ```
   
@@ -318,7 +320,7 @@ In this state, no container is running. This is the initial state upon boot and 
 The current_owner = none implies that the feature's container is *not* running in any mode.<br/>
 
 The feature remains in this state until `systemctl start` action is performed. <br/>
-Upon `systemctl start`, the destination state is LOCAL, if set_owner == local or kube with fallback enabled, else KUBE_READY.
+Upon `systemctl start`, the destination state is LOCAL, if set_owner == local or kube with fallback enabled and kube_mode is none, else KUBE_READY.
 
 The `systemctl stop` brings back to this state from any state.
 
@@ -331,7 +333,7 @@ kube_mode = none
 
 The container is running using local image, started by docker command.<br/>
 
-This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback_to_local)
+This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback_to_local && kube_mode = none)
    
 The feature remains in this state until `systemctl stop` action is performed, which transitions it back to INIT state.
 
@@ -402,7 +404,7 @@ Upon system boot, the state is at INIT. The `systemctl start`, sets kube_mode to
 When a manifest is re-deployed/un-deployed or container exits, the behavior is same as in case above, with the exceptiom of never fallback to LOCAL state.
 
 ### Switching from kube managed to local mode:
-In kube-managed mode, the state is either "KUBE_READY" or "KUBE_RUNNING". When owner is switched to local, the hostcfgd notices it, call `system container stop` if in KUBE_RUNNING mode and then call `system container start`, which takes it to LOCAL mode.
+In kube-managed mode, the state is either "KUBE_READY" or "KUBE_RUNNING". When owner is switched to local, the hostcfgd notices it, call `system container stop` which would transition to INIT state and then call `system container start`, which takes it to LOCAL state.
 
 ### Switching from local to kube managed:
 The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd create a label to enable kube deployment. At a later point, whenever kube deploys, it follows the same steps as described in `Kube managing feature with fallback enabled` section above. 
@@ -480,21 +482,18 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 ### config feature
 
-#### config feature <name> owner <local/kube> fallback <true/false> failmode < N seconds > [-y]
-   This command sets owner, fallback & failmode detection for a feature.<br/>
-   This command has the potential to restart the service as required. So a confirmation prompt would be provided.
+#### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required <list of required services> ] [-y]
+   This command can be used to sets all properties of a FEATURE.br/>
+   The set_owner update has the potential to restart the service as required. If yes, a confirmation prompt would be provided.
    
-### config feature install
-   This command would help install a new FEATURE with simple requirements.
-   
-#### config feature install <name> [required < list of services required >] 
-   This command will create a .service file for systemd and other required bash scripts with required services listed here, such that this service would only run as long as all the required services are running.<br/>
+### config feature install <name>
+   Every feature requires .service & bash scripts to enable systemd to manage it.
+   This command would help create a .service file for systemd and other required bash scripts with required services, such that this service would only run as long as all the required services are running.<br/>
    If the required list is not provided, it would default to "swss" as the required service.
-   This would also create an entry in CONFIG-DB FEATURE table as kube-managed with no fallback or failmode check.
-   This could be modified using, `config feature ...` command.
+   The reboot scripts would need to auto invoke this command for kubernetes only features to ensure, that the .service & bash scripts required by systemd are present in the new image.
    
 #### config feature uninstall <name> 
-   Removes the corresponding .service file, associated bash scripts and corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
+   Removes the corresponding .service file, associated bash scripts. It does not affect the corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
    
 ### show kubernetes 
 
@@ -513,7 +512,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
 #### nodes
    `show kubernetes nodes`
-   Lists all nodes in the current cluster. This command would work, only when kubernets master is reachable.
+   Lists all nodes in the current cluster. This command requires kubernets master as reachable.
    
    ```
    admin@str-s6000-acs-13:~$ show kube nodes
@@ -524,7 +523,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 #### pods
    `show kubernetes pods`
-   Lists all active pods in the current node. This command would work, only when kubernets master is reachable.
+   Lists all active pods in the current node. This command requires kubernets master as reachable.
    
    ```
    admin@str-s6000-acs-13:/usr/lib/python2.7/dist-packages/show$ show kube pods  
@@ -535,7 +534,8 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 #### status
    `show kubernetes status`
    It describes the kubernetes status of the node.<br/>
-   Provides the output of `kubectl describe node <name of this node>`
+   Provides the output of `kubectl describe node <name of this node>`.
+   This command requires kubernets master as reachable
 
 #### show feature <name>
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
@@ -555,6 +555,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
       * Disable kubelet service (`systemctl disable kubelet`)
       * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
       * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
+      * Carry the .service & bash scripts created for kube only features to new image.
       * Ensure all kube managed features have local images.
          * If not, tag the currently downloaded image appropriately
       * Ensure all kube managed features are enabled to fallback to local image.
@@ -565,6 +566,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
       * Pass the option to skip any updates to save time, as system is going for a reboot.
    * Carry over kubelet related context, to enable transparent join and interaction with master.
+   * The .service & bash scripts for kube only features, may not be available in new image. To save the time of re-create, just take the files over to the new image.
    * Upon reboot, the switch could take some solid time to establish connection with kubernetes master. Until then, the containers that are marked as kube-managed with no fallback, can't start. Hence ensure availability of local image & fallback, so the containers can start immediately from local copy. The set_owner remaining as kube, will help kube to manage, whenever the switch successfully connects to the master.<br/>BTW, connecting to the master is done by kubelet transparently.
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
