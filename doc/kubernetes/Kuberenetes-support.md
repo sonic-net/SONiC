@@ -36,6 +36,7 @@ With this proposal, the management of container images is extended to kubernetes
           * ...
         * Node selector labels
         * ...<br/>
+      
       In SONiC, the list of containers contains only one.
     
    * Node selector labels<br/>
