@@ -483,11 +483,11 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 ### config feature
 
 #### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required <list of required services> ] [-y]
-   This command can be used to sets all properties of a FEATURE.br/>
+   This command can be used to sets all properties of a FEATURE.<br/>
    The set_owner update has the potential to restart the service as required. If yes, a confirmation prompt would be provided.
    
 ### config feature install <name>
-   Every feature requires .service & bash scripts to enable systemd to manage it.
+   Every feature requires .service & bash scripts to enable systemd to manage it. The features that are part of SONiC image has those files embedded. For new features that are added, this command could be used to create.<br/>
    This command would help create a .service file for systemd and other required bash scripts with required services, such that this service would only run as long as all the required services are running.<br/>
    If the required list is not provided, it would default to "swss" as the required service.
    The reboot scripts would need to auto invoke this command for kubernetes only features to ensure, that the .service & bash scripts required by systemd are present in the new image.
