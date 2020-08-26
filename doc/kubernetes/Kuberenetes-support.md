@@ -709,6 +709,7 @@ Points to note:
 # Failure mode detection & rollback
   With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
   This brings in two questions<br/>
+  
   a)  How to detect the failure?<br/>
   b)  How to do rollback ?
   
@@ -735,8 +736,8 @@ Points to note:
   
   # Safety Check Service
   When a manifest is deployed in master, it gets instantly applied to all eligible nodes. In a production environment, this flooding of updates across all at the same time point, may not be acceptable, as this involves
-    * restart of service, which could have data plane disruption
-    * New code may not be good, causing failure across entire fleet of devices at the same time.<br/>
+  * restart of service, which could have data plane disruption
+  * New code may not be good, causing failure across entire fleet of devices at the same time.<br/>
 
   ***Note:*** The Safety Check Service is a critical requirement, but outside the scope of this doc.
   
