@@ -192,7 +192,7 @@ The following are the high level requirements to meet.
    
 *  The hostcfgd helps switch between local and kube modes.
    
-   When set_owner is switched to kube while running in local mode, it creates the label to enable kube-deploy and whenever kube deploys asynchronously, it stops the local container, so as to help kube deployed container take over. Vice versa, when switching to local, while running in kube mode, it calls `system container stop`, which stops the running kube deployed container, followed by call to `system container start` which starts the local container. The entire switching from kube to local is synchronous.
+   When owner is switched to kube while running in local mode, it creates the label to enable kube-deploy and whenever kube deploys asynchronously, it stops the local container, so as to help kube deployed container take over. Vice versa, when switching to local, while running in kube mode, it calls `system container stop`, which stops the running kube deployed container, followed by call to `system container start` which starts the local container. The entire switching from kube to local is synchronous.
  
      
 * A daemon could help switch from kubernetes to local if deploy would not happen for a period.
