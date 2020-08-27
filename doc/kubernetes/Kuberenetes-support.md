@@ -584,41 +584,34 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
    
 # Multi-ASIC support:
+
+***Note:*** The kubernetes management of Multi-ASIC platform would be a ***best*** effort approach. Any additional work required for multi-asic support would be outside the scope of this doc.
+
 In multi-asic platform,
   * Some features run in single instance like in other platforms. e.g. ACMS
   * Some features run in multiple instances as one per ASIC. e.g. syncd
   * Some features run in multiple instances as one per ASIC and one in host too. e.g. database
   
 All these features single or multiple, share the same image with only runtime differences.<br/>
-The kubernetes management of Multi-ASIC platform would be a *best* effort approach. Any additional work required for multi-asic support would be outside the scope of this doc.
 
 ## Manifests
-For kube managed dockers, the runtime is defined in manifests.<br/>
-Following are the differences observed across multiple instances of same feature in a multi-ASIC platform.
-  * Name of the container
-    The name is suffixed with the asic number that runs from 0 to count-1. The instance running in host carry no suffix.
-    
-    e.g. "bgp, bgp0, bgp1, bgp2, bgp3, bgp4, bgp5"
-    
-    This is well defined across ASICs, hence can be auto coined.
-    
-  * NAMESPACE_ID.
-    This is provided to each instance running for a ASIC as environment variable. The instance running in host does not have this environment variable.<br/>
-    The ID ranges from 0 to count-1. As this is well defined across ASICs, it can be auto-coined.
-  
-  * Hostname
-    The host instance carry the actual hostname. The ASIC instances carry an unique ID. All dockers of running in an ASIC share that ID.
-    ***TODO/Questions:***
-      1) How is this coined per ASIC ?
-      2) Can this be pre-identified and be common across all switches of the same platform ?
-    
-  * Mounts differ
-    Path mounts differ per ASIC. For example, each ASIC instance maps its own redis instance. This is well defined across ASICs. Hence can be auto-coined.
-    
-In short, same image, but with different runtime parameters. This can be easily extended as multiple manifests as one manifest per ASIC. We would need to be able to share a manifest across all switches of the same platform.
+All the different docker  instances are created with ASIC specific runtime differences.
+For a sample, it differs in
+* docker name
+* path mounts
+  * socket path(s) for redis
+  * feature specific
+* Environment variables
+  * NAMESPACE_ID
+* Container network
+
+All of the above can be expressed in manifests. There can be multiple manifests as one per ASIC and one for host.
+
+
 
 ### Summary:
 * There will be a ***manifest per instance*** in switch, which could be one per ASIC and/or one per host.
+* The manifests ca
 * Manifest also controls, the URL of the image, hence theoretically, this could result in multiple ASICs running different images for the same feature.
   * There need to be an external control to ensure that all manifests across ASICs for a switch carry same URL, if that is a requirement.
   * This is outside scope of this doc
@@ -641,7 +634,25 @@ The same instance, which carries system level config like TACACS, syslog, ...
 * The status has to be instance specific and hence would be ***distributed as per ASIC and one for host in STATE-DB***. 
 * The hostcfgd would watch all instances of STATE-DB to make effect.
    
+
+# Manifests generation:
+NOTE: The discussion below on manifests generation is outside the scope of this doc. Provided here to kick off the brainstorming multiple options.
+
+The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.
+
+In SONiC these runtime environment are hard coded in the systemd's start command as part of `docker create`, inside the bash scripts (e.g. /usr/bin/snmp.sh -- start() function).
+
+These bash scripts are auto-created using templates, as part of image build.
+
+## Proposal: Extend the auto-create to create manifests.
+  * A separate template could be provided for manifest creation
+  * A manifest per feature per ASIC/host is created.
+    * Platform & HWSKU related paths can be generalized, with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
+    * This could avoid the need to go per platform per HWSKU granularity.
+  * Use these generated manifests in nightly tests to help validate
+    * preferably, it could be extended to VS tests that run as part of PR-builds, to help catch failure ahead.
     
+  
 # Service install for kube managed features
 
 Points to note:
