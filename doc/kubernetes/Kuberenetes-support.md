@@ -327,7 +327,7 @@ The `systemctl stop` brings back to this state from any state.
 
 ####  state LOCAL
 ***Stable*** state<br/>
-system state = up
+system state = up<br/>
 current_owner = local<br/>
 kube_mode = none
 
@@ -382,25 +382,6 @@ NOTE: The application processes inside the kube deployed container are not start
 This state reached only from LOCAL, upon deployment by kube.
 
 The feature remains in this state until hostcfgd notices the kube_mode, invokes `systemctl stop`, which would transition it to INIT state. 
-
-#### state KUBE_TO_KUBE
-***Transient*** state<br/>
-system state = up<br/>
-current_owner = local<br/>
-kube_mode = kube_pending
-
-In this state, the kube container is running and kube deployed another container for the same feature, which sets the kube_mode to kube_pending and goes into a forever sleep mode.
-NOTE: The application processes inside the new kube deployed container are not started yet.
-
-In normal manifest update that results in container update involves the following steps in sequence.
-* Termination of running pod/container
-* Download of the new image per the updated manifest
-* Start the new container.
-
-Being sequential, the container termination kick off to start of new container could take a minute or more. To speed up, one may create a new manifest instead of update of existing with the URL of new image and apply that. Being new, this would be applied to node, while the current one is still running. This would involve download of the new iage and kick off. Upon the new container started, it would raise the kube_request to kube_pending, which could trigger hostcfgd to restart the service. This would result in chain of KUBE_RUNNING -->KUBE_TO_KUBE --> INIT --> KUBE_READY --> KUBE_RUNNING of the new container in the order of seconds. Essentially the time taken for the upgrade is same as time taken for service restart.
-
-This transient stat is reached from KUBE_RUNNING, when another container for same feature is launched by kube. 
-The hostcfgd calls for `systemctl stop` which would take it to INIT state, instantaneously.
 
 
 ### Common set of scenarios
@@ -783,7 +764,70 @@ Points to note:
     OR
     * remove the new label and add the old label to rollback for each node.
      
-    
+
+# Minimize downtime during Kube upgrade
+***NOTE***: The following discussion is to identify a problem and possible proposal for brainstorming only. Otherwise it is out of scope for this doc.
+
+To update a container with new image, the manifest is updated with URL for new image and is applied at master. The master undeploy the old pod/container and deploy the new one in all eligible nodes.
+
+The process of undeploy & re-deploy happens as below, ***sequentially***
+* Stop the current running pod ('terminating')
+* Start the creation of new pod ('creating')
+  * Start download of the image from given URL
+* Start the container using downloaded image ('running')
+
+```
+snmp-sv2-2j9xh   1/1     Terminating         0          3m22s   10.3.147.253   str-s6000-acs-13   <none>           <none>
+snmp-sv2-2j9xh   0/1     Terminating         0          3m35s   10.3.147.253   str-s6000-acs-13   <none>           <none>
+snmp-sv2-2j9xh   0/1     Terminating         0          3m40s   10.3.147.253   str-s6000-acs-13   <none>           <none>
+snmp-sv2-2j9xh   0/1     Terminating         0          3m40s   10.3.147.253   str-s6000-acs-13   <none>           <none>
+snmp-sv2-k2nqv   0/1     Pending             0          0s      <none>         <none>             <none>           <none>
+snmp-sv2-k2nqv   0/1     Pending             0          0s      <none>         str-s6000-acs-13   <none>           <none>
+snmp-sv2-k2nqv   0/1     ContainerCreating   0          0s      10.3.147.253   str-s6000-acs-13   <none>           <none>
+snmp-sv2-k2nqv   1/1     Running             0          20s     10.3.147.253   str-s6000-acs-13   <none>           <none>
+```
+
+From the spew above, it has taken 20seconds. When the same process is attempted with pre-downloaded image, it only took 2s, implying a good percentage of time is spent in image download. 
+
+***conclusion***: If the new image is pre-downloaded, the container ***upgrade time would be same as service restart time***.
+
+## Proposal 1: Check with Kubernetes
+An [issue](https://github.com/kubernetes/kubernetes/issues/94270) is created with github to get any inherent solution from Kubernetes.
+
+## Proposal 2: Use new manifest instead of update
+This is an extension to Safety Check proposal discussed above. 
+
+### brief:
+Create a new manifest for the updated image. Apply that while old one is in place. Upon image download & container started, the old one stops and new one resumes. This will precisely match the service restart time. 
+
+### Detail:
+1) Each new manifest gets two new/update entries
+  * A new unique label as a node selector label
+  * An environment variable with current timestamp  -- Say, "MANIFEST_TS"
+
+2) When this manifest is applied, none of the connnected nodes would be eligible as this new label will not be on any nodes.
+
+3) The Safety check script, select a batch of nodes for deploy and add this new label to each selected node.
+
+4) The new manifest will be applied to these nodes
+  * Image will be downloaded
+  * container will be started
+  
+5)  The container will call "container_state <feature name> up kube". This would set kube_request to kube_pending and sleep forever, as there is another instance running.
+    * Before calling container_state script, it would STATE-DB FEATURE|<name> with { manifest_ts = <MANIFEST_TS from its environment> }
+  
+6) The hostcfgd would initiate service restart.
+    * Upon stop both kube started containers go down
+    * Upon start both containers would be started by kube
+
+7) When container starts, it checks STATE-DB FEATURE|<name> { manifest_ts } against its own environment value of MANIFEST_TS.<br/>
+   * The instance that matches, proceeed to call `containere_state <name> up kube" and subsequently start the application
+   * The instance does not match, proceed to sleep forever.
+  
+8) The Safety check script watches the state of deploy of new manifest
+   * Upon successful deployment, remove the unique label that was previously added for older manifest
+   * This removes the sleeping pod/container from all the nodes, where the new pod/container is successfully running.
+  
 # Implementation phases:
 The final goal for this work item would be to manage nearly all container images on SONiC switch. The proposal here is to take smaller steps towards this goal.
 
