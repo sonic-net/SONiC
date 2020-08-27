@@ -26,7 +26,7 @@ Schema:
 ```
 NEIGH_STATE_TABLE {
     "<neigh_ip>" { 
-        "State" : "Idle/Idle (Admin)/Connect/Active/OpenSent/OpenConfirm/Established/Clearing"
+        "State" : "Idle/Connect/Active/OpenSent/OpenConfirm/Established/Clearing"
     }
 }
 ```
