@@ -376,11 +376,31 @@ system state = up<br/>
 current_owner = local<br/>
 kube_mode = kube_pending
 
-In this state, the local container is running. The kube has deployed its container, which sets the kube_mode to kube_pending and goes into a forever sleep mode. NOTE: The application processes inside the kube deployed container are not started yet.
+In this state, the local container is running. The kube has deployed its container, which sets the kube_mode to kube_pending and goes into a forever sleep mode.<br/>
+NOTE: The application processes inside the kube deployed container are not started yet.
 
 This state reached only from LOCAL, upon deployment by kube.
 
 The feature remains in this state until hostcfgd notices the kube_mode, invokes `systemctl stop`, which would transition it to INIT state. 
+
+#### state KUBE_TO_KUBE
+***Transient*** state<br/>
+system state = up<br/>
+current_owner = local<br/>
+kube_mode = kube_pending
+
+In this state, the kube container is running and kube deployed another container for the same feature, which sets the kube_mode to kube_pending and goes into a forever sleep mode.
+NOTE: The application processes inside the new kube deployed container are not started yet.
+
+In normal manifest update that results in container update involves the following steps in sequence.
+* Termination of running pod/container
+* Download of the new image per the updated manifest
+* Start the new container.
+
+Being sequential, the container termination kick off to start of new container could take a minute or more. To speed up, one may create a new manifest instead of update of existing with the URL of new image and apply that. Being new, this would be applied to node, while the current one is still running. This would involve download of the new iage and kick off. Upon the new container started, it would raise the kube_request to kube_pending, which could trigger hostcfgd to restart the service. This would result in chain of KUBE_RUNNING -->KUBE_TO_KUBE --> INIT --> KUBE_READY --> KUBE_RUNNING of the new container in the order of seconds. Essentially the time taken for the upgrade is same as time taken for service restart.
+
+This transient stat is reached from KUBE_RUNNING, when another container for same feature is launched by kube. 
+The hostcfgd calls for `systemctl stop` which would take it to INIT state, instantaneously.
 
 
 ### Common set of scenarios
