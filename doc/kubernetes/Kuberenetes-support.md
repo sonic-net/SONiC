@@ -34,9 +34,11 @@ With this proposal, the management of container images is extended to kubernetes
           * volume mounts
           * runtime args
           * environment variables
+          * Network
           * ...
         * Node selector labels
         * ...<br/>
+      A sample manifest [here](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/snmp_pod_manifest.yaml)
       
    * Node selector labels<br/>
       A label is a `<key>=<value>` pair. A manifest may carry multiple labels. Each node that joined, can be described with multiple labels. A pod will be deployed only in nodes, where all the labels of the manifest are matched with the labels on the node. In short a full/subset of node labels should completely match with all labels on the manifest. This leads to the term "eligible nodes", where node labels matching is the requirement to meet, for deployment of a pod, in SONiC usage scenario.
@@ -48,17 +50,17 @@ With this proposal, the management of container images is extended to kubernetes
            
 ## A high level overview on setup:
   1) Set up a master cluster
-  2) The container images are stored in container registry, like Azure Container Registry
-  3) The manifests are created for each feature.
+  2) Upload the container images to a container registry, like Azure Container Registry
+  3) Create manifests for each feature.
      * The manifest describes the runtime options for the docker, like mounts, environment, args, ...
      * The manifest is assigned with node-selector labels possibly to select nodes by platform, OSVersion, ...
-  4) The manifests are applied in master.
+  4) Apply the manifests in master.
      * For a better control, manifests can be checked into a github repo.
      * A script running in master can watch for updates and apply manifest on each update or remove, if manifest is deleted.
   5) Configure SONiC switches with VIP of the cluster
      * The minigraph provides the VIP.
   6) Run a config command in switch to join the master manually or transparently.
-  7) The master deploys pods in all eligible nodes that have joined.
+  7) Now the master deploys pods in all eligible nodes that have joined.
      * On any manifest update, it stops the current pod running in node and deploy the new one.
      * On any manifest removed, it stops tbe current pod
   
@@ -68,10 +70,15 @@ With this proposal, the management of container images is extended to kubernetes
 Currently, all docker images are hard burned into installable SONiC image. For any code update in a container image, however minor, requires re-build of the entire SONiC image and the rest of the heavy weight process to qualify the image to run in a production switch followed by install of the image in controlled phases with a mandatory reboot required.
 
 ## Proposal:
-Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the container per manifest.<br/>
-For any code update for a container, just build the container only, qualify *only* the container image through tests, upload the image to container registry and update the manifest in master. The master now deploys the updated container to all connected & eligible nodes, transparently, with the only cost of restarting that updated service. For containers that does not affect data plane, the restart can be transparent. For containers that do affect, it can be restarted in warm-reboot mode, so it could be updated with no traffic disruption.
+Build the image as today. Install the image as today. In addition configure a subset of dockers as "*could be kube managed*", which could even be hardcoded in minigraph.py. Whenever the switch would join a master and if the master has a manifest for a feature marked as kube-managed for this node, master deploys the container per manifest.
+
+For any code update for a container, update the container image, qualify the container image, upload to registry, update manifest, and the infrastructure would carry it to all masters, which would do a safe deployment in nodes. For services that do not affect dataplane or support warm restart, the impact could be as simple as service restart. If not, some additional safety process may need to be followed before service restart.
 
 This could be extended to features that are ***not part of SONiC image***, but could be enabled to run in SONiC switches.
+
+The above proposal has multiple challenges to brainstorm and solve<br/>
+
+***This doc addresses the SONiC node side changes only to adopt to the above proposal in phases.***
 
 # Goal:
 1) Enable to deploy containers that are not part of SONiC image to run in a switch running SONiC
@@ -100,22 +107,11 @@ The following are the high level requirements to meet.
     * The feature is still controlled by systemd as start/stop/enable/disable.
    
 5. A kubernetes deployed container image must comply with guidelines set by SONiC.
-   * Required to under go nightly tests to qualify.
-   * Kubernetes masters are required to deploy only qualified images.
+   * Meet the set Test requirements to qualify.
    * Switch must have a control over a known node-selector label that let switch control, when a manifest can be deployed.
    * Masters control what manifests to deploy and switches/nodes control when to deploy.
    * Containers are expected to call a script at host, on post-start & pre-exit, that record their state.
        
-
-# Mandates on deployed images
-The following are required, but external to the node/switch, hence not addressed in this design doc. 
-1. The feature deployed by kubernetes must have passed nightly tests.
-2. The manifest for the feature must honor controls laid by switch as start/stop.
-3. The kube managed container image be built with same base OS & tools docker-layers as switch version, to save disk/memory size.
-4. The container image deployed must have cleared standard security checks laid for any SONiC images
-5. The secured access to master kubernetes nodes and the container registries is ensured.
-6. The secrets requied to access container registry is provided by master through secured objects.
-
     
 # Design proposal
 
