@@ -600,26 +600,13 @@ For a sample, it differs in
 * docker name
 * path mounts
   * socket path(s) for redis
-  * feature specific
+  * feature specific socket paths
 * Environment variables
   * NAMESPACE_ID
 * Container network
 
 All of the above can be expressed in manifests. There can be multiple manifests as one per ASIC and one for host.
 
-
-
-### Summary:
-* There will be a ***manifest per instance*** in switch, which could be one per ASIC and/or one per host.
-* The manifests ca
-* Manifest also controls, the URL of the image, hence theoretically, this could result in multiple ASICs running different images for the same feature.
-  * There need to be an external control to ensure that all manifests across ASICs for a switch carry same URL, if that is a requirement.
-  * This is outside scope of this doc
-* Even when master is applied with manifests that all point to same URL, the point of switching one image to other, can be asynchronous across ASICs.
-  * The hostcfgd is a single instance and it would need to circle through ASIC instances, when switching between kube to local and viceversa
-  * Hopefully, this would be an acceptable offset/delay between instances
-  * If not, further investigation & customization would be required.
-  * Any fine tuning, would be an RFE and not in the scope of this doc.
 
 ## FEATURE config:
 The configuration of FEATURE is in CONFIG-DB. This controls set_owner, fallback, enabled,... parameters per FEATURE.
