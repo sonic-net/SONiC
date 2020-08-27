@@ -627,11 +627,11 @@ NOTE: The discussion below on manifests generation is outside the scope of this 
 
 The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.
 
-In SONiC these runtime environment are hard coded in the systemd's start command as part of `docker create`, inside the bash scripts (e.g. /usr/bin/snmp.sh -- start() function).
+In SONiC these runtime environment are hard coded in the systemd's start command as part of `docker create`, inside the bash script's (e.g. /usr/bin/snmp.sh) start() function.
 
 These bash scripts are auto-created using templates, as part of image build.
 
-## Proposal: Extend the auto-create to create manifests.
+## Proposal: Extend the auto-create code to create manifests too.
   * A separate template could be provided for manifest creation
   * A manifest per feature per ASIC/host is created.
     * Platform & HWSKU related paths can be generalized, with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
