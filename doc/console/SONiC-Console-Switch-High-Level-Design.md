@@ -6,13 +6,71 @@
 #### Revision 0.1
 
 # Table of Contents
+- [SONiC Console Switch](#sonic-console-switch)
+- [High Level Design Document](#high-level-design-document)
+      - [Revision 0.1](#revision-01)
+- [Table of Contents](#table-of-contents)
+- [List of Tables](#list-of-tables)
+- [Revision](#revision)
+- [About this Manual](#about-this-manual)
+- [Scope](#scope)
+- [Definition/Abbreviation](#definition-abbreviation)
+    + [Table 1: Abbreviations](#table-1--abbreviations)
+- [1 Feature Overview](#1-feature-overview)
+  * [1.1 Requirements](#11-requirements)
+    + [1.1.1 Functional Requirements](#111-functional-requirements)
+    + [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
+  * [1.2 Design Overview](#12-design-overview)
+    + [1.2.1 Basic Approach](#121-basic-approach)
+    + [1.2.2 Container](#122-container)
+- [2 Functionality](#2-functionality)
+  * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
+  * [2.2 Functional Description](#22-functional-description)
+  * [2.3 Limitations](#23-limitations)
+- [3 Design](#3-design)
+  * [3.1 Overview](#31-overview)
+    + [3.1.1 Persist console port configurations](#311-persist-console-port-configurations)
+    + [3.1.2 Connect to a remote device](#312-connect-to-a-remote-device)
+    + [3.1.3 Reverse SSH](#313-reverse-ssh)
+  * [3.2 DB Changes](#32-db-changes)
+    + [3.2.1 CONFIG_DB](#321-config-db)
+      - [CONSOLE_PORT_TABLE](#console-port-table)
+    + [3.2.2 APP_DB](#322-app-db)
+    + [3.2.3 STATE_DB](#323-state-db)
+    + [3.2.4 ASIC_DB](#324-asic-db)
+    + [3.2.5 COUNTER_DB](#325-counter-db)
+  * [3.3 CLI](#33-cli)
+  * [3.3.1 Consutil Command](#331-consutil-command)
+    + [3.3.1.1 Show line](#3311-show-line)
+    + [3.3.1.2 Clear line](#3312-clear-line)
+    + [3.3.1.3 Connect line](#3313-connect-line)
+  * [3.4 Reverse SSH](#34-reverse-ssh)
+    + [3.4.1 Basic Usage](#341-basic-usage)
+    + [3.4.2 Port based Forwarding](#342-port-based-forwarding)
+    + [3.4.3 IP based Forwarding](#343-ip-based-forwarding)
+  * [3.5 Example Configuration](#35-example-configuration)
+    + [3.5.1 CONFIG_DB object for console port](#351-config-db-object-for-console-port)
+- [4 Flow Diagrams](#4-flow-diagrams)
+  * [4.1 Creating of Console Port Objects](#41-creating-of-console-port-objects)
+  * [4.2 Show lines](#42-show-lines)
+  * [4.3 Clear line](#43-clear-line)
+  * [4.4 Connect line in SONiC](#44-connect-line-in-sonic)
+  * [4.5 Connect line via SSH](#45-connect-line-via-ssh)
+    + [4.5.1 Basic Usage](#451-basic-usage)
+    + [4.5.2 Port based Forwarding](#452-port-based-forwarding)
+    + [4.5.3 IP based Forwarding](#453-ip-based-forwarding)
+- [5 Error Handling](#5-error-handling)
+- [6 Serviceability and Debug](#6-serviceability-and-debug)
+- [7 Warm Boot Support](#7-warm-boot-support)
+- [8 Scalability](#8-scalability)
 
 # List of Tables
+[Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
 | Rev |     Date    |          Authors             | Change Description                |
 |:---:|:-----------:|:----------------------------:|-----------------------------------|
-| 0.1 | 08/20/2020  |  Jing Kan | Initial version                   |
+| 0.1 | 08/28/2020  |  Jing Kan | Initial version                   |
 
 # About this Manual
 
@@ -145,22 +203,25 @@ For A, user need to specific the line number by following a colon after username
 ssh tom:1@host
 ```
 
-By default, the content between ```:``` and ```@``` will be trimed by sshd before it do authentication and the trimed string will be dropped silently. To use this segment as line number for reverse SSH feature, we need to modify the source of OpenSSH and put this segment to a environment variable ```$SSH_TARGET_CONSOLE_LINE```, then we can insert a short script into ```/etc/bash.bashrc``` and run command ```consutil connect $SSH_TARGET_CONSOLE_LINE``` to enter the management session automatically after user login.
+By default, the content between ```:``` and ```@``` will be trimed by sshd before it do authentication and the trimed string will be dropped silently. To use this segment as line number for reverse SSH feature, we need to modify the source ode of OpenSSH and put this segment to a environment variable ```$SSH_TARGET_CONSOLE_LINE```, then we can insert a short script into ```/etc/bash.bashrc``` and run command ```consutil connect $SSH_TARGET_CONSOLE_LINE``` to enter the management session automatically after user login.
 
 For B, there are multiple management IPs binding to the SONiC device and mapping to each console port, for example:
 ```
-   IP    ->  Console Line Number -> Remote Device
-10.0.0.1 ->          1           ->   DeviceA
-10.0.0.2 ->          2           ->   DeviceB
-10.0.0.3 ->          3           ->   DeviceC
+   IP       ->  Console Line Number -> Remote Device
+2001:db8::1 ->          1           ->   DeviceA
+2001:db8::2 ->          2           ->   DeviceB
+2001:db8::3 ->          3           ->   DeviceC
 ```
 Then we can use below commands to connect to a remote device, what's more, we can use DNS to help us access the remote device more directly.
 ```bash
 # example
-ssh tom@10.0.0.1
-ssh tom@10.0.0.2
+# connect to deviceA
+ssh tom@2001:db8::1
 
-# Assume that domain name DeviceC.co point to 10.0.0.3
+# connect to DeviceB
+ssh tom@2001:db8::2
+
+# Assume that domain name DeviceC.co point to 2001:db8::3
 ssh tom@DeviceC.co
 ```
 The mechanism behind it is actually very similar to mode A. We will record the target ssh host IP address to a environment variable ```$SSH_TARGET_IP```. Since we have stored the relationship between line number and it's management IP, then we can easily start the management session automaticaaly after user login by calling ```consutil connect``` command in ```/etc/bash.bashrc```
@@ -188,7 +249,6 @@ flow_control  = "0"/"1"                 ; "0" means disable flow control
                                         ; "1" means enable flow control
 mgmt_ip       = ipv4_prefix/ipv6_prefix ; optional field,
                                         ; use for ip forwarding
-
 ```
 
 ### 3.2.2 APP_DB
@@ -225,10 +285,10 @@ Options:
 Commands:
   clear    Clear preexisting connection to line
   connect  Connect to switch via console device - TARGET...
-  show     Show all /dev/ttyUSB lines and their info
+  show     Show all lines and their info
 ```
 
-Please notice that a driver is required for add-on console device. The driver need to mapping its console lines to a device under```/dev``` with specific format, then the consutil command can interact with the target device with picocom/minicom and retrive required runtime information from system.
+Please notice that a driver is required for add-on console device. The driver need to mapping its console lines to a device under```/dev``` directory with specific format, then the consutil command can interact with the target device with picocom and retrive required runtime information from system.
 
 The ```driver``` field in ```CONFIG_DB``` will indicate which device naming format will be applied.
 
@@ -237,7 +297,7 @@ The ```driver``` field in ```CONFIG_DB``` will indicate which device naming form
 Show all registered lines and their infomations.
 
 ```
-Usage: sudo consutil show
+Usage: consutil show
 ```
 
 Following information will be display:
@@ -256,10 +316,24 @@ A ```*``` mark will display in front of line number if it is busy now.
 Clear preexisting connection to line.
 
 ```
-Usage: consutil clear [OPTIONS] LINENUM
+Usage: consutil clear [OPTIONS] TARGET
 ```
 
-It will sending SIGTERM to process if the line is busy now, otherwise the command will exit.
+The TARGET can be remote device name or line management IP if specific option ```--devicename``` or ```--mgmtip```.
+
+It will sending SIGTERM to process if the line is busy now, otherwise the command will exit directly.
+
+Sample Usage:
+```bash
+# clear connection on line 1
+consutil clear 1
+
+# clear connection to remote deviceA
+consutil clear --devicename deviceA
+
+# clear connection to remote deviceA via its line management IP
+consutil clear --mgmtip 2001:db8::1
+```
 
 ### 3.3.1.3 Connect line
 
@@ -269,9 +343,9 @@ Connect to switch via console.
 Usage: consutil connect [OPTIONS] TARGET
 ```
 
-The TARGET can be remoete device name or line management IP if specific ```--devicename``` or ```--mgmtip```.
+The TARGET can be remote device name or line management IP if specific option ```--devicename``` or ```--mgmtip```.
 
-This command will connect to remote device by using picocom, it will create a interactive cli if target line is not busy.
+This command will connect to remote device by using picocom, it will create a interactive cli and join it if target line is not busy.
 
 Sample Usage:
 ```bash
@@ -282,10 +356,8 @@ consutil connect 1
 consutil connect --devicename deviceA
 
 # connect to remote device via line management IP
-consutil connect --mgmtip 10.0.0.1
+consutil connect --mgmtip 2001:db8::1
 ```
-
-This command use picocom to create an interactive cli. It will create a picocom process with a specific device under ```/dev``` and join the interactive cli.
 
 ## 3.4 Reverse SSH
 
@@ -320,7 +392,7 @@ Console port 1 connect to a remote device ```switch1``` with baud_rate 9600 and 
             "remote_device": "switch1",
             "baud_rate": "9600",
             "flow_control": "1",
-            "mgmt_ip": "10.0.0.1"
+            "mgmt_ip": "2001:db8::1"
         }
     }
 }
@@ -328,10 +400,10 @@ Console port 1 connect to a remote device ```switch1``` with baud_rate 9600 and 
 User can manage remote device ```switch1``` by using below commands:
 ```bash
 ssh <user>@<host> consutil connect 1
-ssh <user>@<host> consutil connect switch1
-ssh <user>@<host> consutil connect 10.0.0.1
+ssh <user>@<host> consutil connect --devicename switch1
+ssh <user>@<host> consutil connect --mgmtip 2001:db8::1
 ssh <user>:1@<host>
-ssh <user>@10.0.0.1
+ssh <user>@2001:db8::1
 ```
 
 Console port 2 connect to a remote device ```switch2``` with baud_rate 9600 and disable flow control.
@@ -350,7 +422,7 @@ Console port 2 connect to a remote device ```switch2``` with baud_rate 9600 and 
 User can manage remote device ```switch2``` by using below commands:
 ```bash
 ssh <user>@<host> consutil connect 2
-ssh <user>@<host> consutil connect switch2
+ssh <user>@<host> consutil connect --devicename switch2
 ssh <user>:2@<host>
 ```
 
@@ -397,13 +469,10 @@ Refer to section 3.4.3
 # 5 Error Handling
 
 - Invalid config errors will be displayed via console and configuration will be rejected
-- Internal processing errors within SwSS will be logged in syslog with ERROR level
 
 # 6 Serviceability and Debug
 
 Debug output will be captured as part of tech support.
-
-- Internal processing errors within SwSS will be logged in syslog with ERROR level
 
 # 7 Warm Boot Support
 
@@ -417,5 +486,3 @@ The maximum number of console port setting is specific to the console hardware S
 
 If use USB, then the maximum number of add-on console device is specific to the maximum USB dasiy-chain capability.
 
----
-# References
