@@ -977,6 +977,15 @@ The subcommand `set` is designed for modifying an existing PG from dynamic calcu
 
 The subcommand `remove` is designed for removing an existing PG. The option `pg-map` must be an existing PG. All lossless PGs will be removed in case no `pg-map` provided.
 
+Note:
+
+This command provides the ability of configuring the PG as lossless. However, to make lossless traffic run on a PG other than `3-4`, the maps in `PORT_QOS_MAP`, like `tc_to_pg_map`, `dscp_to_tc_map`, should also be configured properly. This can be done only manually because:
+
+- By default most of the maps global and shared by multiple ports. We can not set the global port because doing so means the map of all ports will be affected.
+- In theory, to change a port's map needs to create a new map in `TC_TO_PRIORITY_GROUP_MAP` or `DSCP_TO_TC_MAP` table and then to point the port's `tc_to_pg_map` or `dscp_to_tc_map` to the newly created map.
+
+Meanwhile, the egress queue should also be configure properly.
+
 ### To configure cable length
 
 The command `configure interface cable_length` is designed to configure the cable length of a port.
