@@ -238,10 +238,9 @@ The following are the high level requirements to meet.
                                                 considered as "failed". The alert logs will be raised.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
-   required_services = <list of names>;         Optional entry. A kube only feature may provide this info to enable auto-create
+   required_services = <list of names>;         Optional entry. A kube only feature may provide this info to enable auto-create of the 
                                                 required .service & .bash scripts to enable systemd manage it as service.
-  
-
+                                                  
 ```
   
 ## STATE-DB
@@ -620,7 +619,9 @@ The same instance, which carries system level config like TACACS, syslog, ...
    
 
 # Manifests generation:
-NOTE: The discussion below on manifests generation is outside the scope of this doc. Provided here to kick off the brainstorming multiple options.
+***NOTE***: The discussion below on manifests generation is outside the scope of this doc.
+
+*This discussion here is to record the challenge to solve and kick off the brainstorming with a proposal.*
 
 The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.
 
@@ -630,9 +631,10 @@ These bash scripts are auto-created using templates, as part of image build.
 
 ## Proposal: Extend the auto-create code to create manifests too.
   * A separate template could be provided for manifest creation
-  * A manifest per feature per ASIC/host is created.
+  * A manifest per feature is created.
     * Platform & HWSKU related paths can be generalized, with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
     * This could avoid the need to go per platform per HWSKU granularity.
+    * For multi-ASIC, as runtime parameters differs across multiple instances, there has to be multiple manifests as one per instance.
   * Use these generated manifests in nightly tests to help validate
     * preferably, it could be extended to VS tests that run as part of PR-builds, to help catch failure ahead.
     
@@ -645,15 +647,15 @@ Points to note:
    * Every kube-managed feature should have an entry in CONFIG-DB, FEATURE table.
    * Any utility that requires the list of all features would refer to this FEATURE table in CONFIG-DB.
    
- A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming for now. 
- 
+ A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming.
  
  ## Proposal - 1:
   Provide a config command that can create a .service and bash scripts for a feature with simple requirements like, 
     * This feature depends on zero or more features &&
     * No other feature depends on this feature &&
-    * Transparent to wam-reboot & fast-reboot
+    * Transparent to warm-reboot & fast-reboot
       implying it does not affect data plane traffic directly or indirectly.
+      
   The `config feature install <name>` would create the necessary files.
   
   
