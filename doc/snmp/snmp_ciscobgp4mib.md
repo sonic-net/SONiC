@@ -26,15 +26,15 @@ Schema:
 ```
 NEIGH_STATE_TABLE {
     "<neigh_ip>" { 
-        "State" : "Idle/Connect/Active/OpenSent/OpenConfirm/Established/Clearing"
+        "State" : "Idle/Idle (Admin)/Connect/Active/OpenSent/OpenConfirm/Established/Clearing"
     }
 }
 ```
 Currently, NEIGH_STATE_TABLE will be used by SNMP. This table can be used by telemetry or any other docker in future.
 
 ### Bgpmond daemon to update STATE_DB
-This is the new daemon that runs inside of each BGP docker.  It will periodically (every 15 seconds) pull the bgp neighbor information by calling "show bgp summary json" and use the output to update the State DB accordingly.  In order to prevent unnecessary update to the State DB, a copy of each neighbor state is cached and used to detect if there are any changes from each newly pulled neighbor state.  Only when there is a change, then that particular entry is updated.  In a steady state situation, there is rarely a need to update the state DB.  If the neighbor is deleted from configuration, the corresponding state DB entry will also be cleaned up.
-In the future, if there are additional neighbor information that is needed we can add it to this new state table.
+This is the new daemon that runs inside of each BGP docker.  It will periodically (every 15 seconds) check if there are any BGP activities by examining the modified timestamp of "/var/log/frr/frr.log" file against the cached timestamp value from last detected activities. If BGP activity detected, this new daemon will then pull the bgp neighbor information by calling "show bgp summary json" and use the output to update the State DB accordingly.  In order to prevent unnecessary update to the State DB, a copy of each neighbor state is also cached and used to check for delta changes from each newly pulled neighbor state.  Only when there is a change, then that particular entry in the state DB is updated.  In a steady state situation, there is rarely a need to pulled the BGP states nor update made to the state DB.  If the neighbor is deleted from configuration, the corresponding state DB entry will also be cleaned up.
+In the future, if there are features that require additional neighbor information other then the BGP neighbor IP address and its state, we can raise a new PR to add those new required attributes to the state DB table.
 
 ### Changes in SNMP
 snmp_ax_impl will be updated to talk to STATE_DB and retrieve NEIGH_STATE_TABLE. This change will affect both single and multi asic platforms. In case of multi-asic platforms, snmp_ax_impl will retrive data from STATE_DB of all namespaces.
