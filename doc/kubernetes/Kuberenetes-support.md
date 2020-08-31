@@ -659,7 +659,7 @@ The same instance, which carries system level config like TACACS, syslog, ...
 
 *This discussion here is to record the challenge to solve and kick off the brainstorming with a proposal.*
 
-The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.  A sample manifest [here](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/snmp_pod_manifest.yaml)
+The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.  A sample manifest is [here](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/snmp_pod_manifest.yaml) for reference.
 
 In SONiC these runtime environment are hard coded in the systemd's start command as part of `docker create`, inside the bash script's (e.g. /usr/bin/snmp.sh) start() function.
 
@@ -687,10 +687,11 @@ Points to note:
  
  ## Proposal - 1:
   Provide a config command that can create a .service and bash scripts for a feature with simple requirements like, 
-    * This feature depends on zero or more features &&
-    * No other feature depends on this feature &&
-    * Transparent to warm-reboot & fast-reboot
-      implying it does not affect data plane traffic directly or indirectly.
+  
+  * This feature depends on zero or more features &&
+  * No other feature depends on this feature &&
+  * Transparent to warm-reboot & fast-reboot
+    implying it does not affect data plane traffic directly or indirectly.
       
   The `config feature install <name>` would create the necessary files.
   
