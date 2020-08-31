@@ -596,7 +596,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Ensure all kube managed features are enabled to fallback to local image.
       
    
-   Reason for the changea:
+   Reason for the changes:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
    * Containers started by kube, can't be referred by name. The `system container kill` command would fetch the corresponding docker-id from STATE-DB  and use that to kill.
       * Pass the option to skip any updates to save time, as system is going for a reboot.
@@ -659,7 +659,7 @@ The same instance, which carries system level config like TACACS, syslog, ...
 
 *This discussion here is to record the challenge to solve and kick off the brainstorming with a proposal.*
 
-The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.
+The manifests set the runtime environment for a docker. This include, name, mounts, environment variables, and more.  A sample manifest [here](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/snmp_pod_manifest.yaml)
 
 In SONiC these runtime environment are hard coded in the systemd's start command as part of `docker create`, inside the bash script's (e.g. /usr/bin/snmp.sh) start() function.
 
