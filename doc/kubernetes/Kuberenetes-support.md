@@ -478,7 +478,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 ### config feature
 
-#### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required <list of required services> ] [-y]
+#### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required < list of required services > ] [-y]
    This command can be used to sets all properties of a FEATURE.<br/>
    The set_owner update has the potential to restart the service as required. If yes, a confirmation prompt would be provided.
    
