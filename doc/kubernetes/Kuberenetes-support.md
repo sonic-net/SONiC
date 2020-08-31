@@ -833,12 +833,13 @@ An [issue](https://github.com/kubernetes/kubernetes/issues/94270) is created wit
 This is an extension to Safety Check proposal discussed above. 
 
 ### brief:
-Create a new manifest for the updated image. Apply that while old one is in place. Upon image download & container started, the old one stops and new one resumes. This will precisely match the service restart time. 
+Create a new manifest for the updated image, instead of updating the existing. Apply that while old one is in place. Upon image download & container started, the old one stops and new one resumes. This will precisely match the service restart time. 
 
 ### Detail:
-1) Each new manifest gets two new/update entries
+1) Each new manifest is assigned with the following.
   * A new unique label as a node selector label
-  * An environment variable with current timestamp  -- Say, "MANIFEST_TS"
+  * An environment variable with current timestamp  -- Say, "MANIFEST_TS = <current time>"<br/>
+    Or you may use a generation ID that is strictly increasing across updates.
 
 2) When this manifest is applied, none of the connnected nodes would be eligible as this new label will not be on any nodes.
 
