@@ -714,7 +714,7 @@ Points to note:
    
    
  ## Proposal - 3:
-   *  The kubernetes master requires manifests that describes deployment. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same source could be extended to provide service-file-packages too.
+   *  The kubernetes master requires manifests that describes deployment. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same input source could be extended to provide service-file-packages too. A service file package will hold the .service file and bash scripts required by the .service file.
       *  A possible input source is a git repo, cloned locally in each master.
       *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
    *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
