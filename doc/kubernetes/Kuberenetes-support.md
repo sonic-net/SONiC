@@ -480,12 +480,19 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 #### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required < list of required services > ] [-y]
    This command can be used to sets all properties of a FEATURE.<br/>
-   The set_owner update has the potential to restart the service as required. If yes, a confirmation prompt would be provided.
+   The update of owner might require a service restart. If yes, a confirmation prompt would be provided.
    
 ### config feature install <name>
    Every feature requires .service & bash scripts to enable systemd to manage it. The features that are part of SONiC image has those files embedded. For new features that are added, this command could be used to create.
   
    This command would help create a .service file for systemd and other required bash scripts with required services, such that this service would only run as long as all the required services are running.<br/>
+  
+  ***Question***: <br/>
+  a) Should we automate it, on each config update, config load & reload, if the feature is marked explicitly for auto-service-create.<br/>
+     Upon creation, compare with existing files if any and overerite only if they differ. 
+     
+  b) Upon overwrite, do we start/restart the service ?
+  ***Question END***<br/>
   
   If the required list is not provided, it would default to "swss" as the required service.
   
@@ -500,6 +507,11 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    `show kubernetes server`
    Lists all the configured entries for the server and the status as connected or not, and when did the last state change happened.
    
+   ***Question***: <br/>
+   This show combines config & status in one o/p. Is this OK?
+   There is a dedicated command for `show kubernetes status`
+   ***Question END***<br/>
+     
    ```
    admin@str-s6000-acs-13:~$ show kube server
    KUBERNETES_MASTER SERVER IP 10.10.10.10
@@ -513,6 +525,13 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    `show kubernetes nodes`
    Lists all nodes in the current cluster. This command requires kubernets master as reachable.
    
+  ***Question***: <br/>
+  1) This command shows all nodes that are connected to the same master, including this.
+  2) Is there any value in this command from this device's perspective ?
+     The show server command above, would indicate the status as connected or not.
+  ***Question END***<br/>
+
+   
    ```
    admin@str-s6000-acs-13:~$ show kube nodes
    NAME               STATUS   ROLES    AGE   VERSION
@@ -523,7 +542,16 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 #### pods
    `show kubernetes pods`
    Lists all active pods in the current node. This command requires kubernets master as reachable.
-   
+
+  ***Question***: <br/>
+  This is k8s specific info. Refers container by the name kube provided.
+  But this is one place to see all dockers deployed by kube.
+  Other: List from STATE-DB, all features that has current_owner == kube
+  
+  May be list that table instead or `show feature` command is good enough
+ 
+  ***Question END***<br/>
+
    ```
    admin@str-s6000-acs-13:/usr/lib/python2.7/dist-packages/show$ show kube pods  
    NAME             READY   STATUS    RESTARTS   AGE
@@ -535,6 +563,14 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    It describes the kubernetes status of the node.<br/>
    Provides the output of `kubectl describe node <name of this node>`.<br/>
    This command requires kubernets master as reachable
+   
+  ***Question***: <br/>
+  The spew is more k8s specific. May be we should just the status, as 
+  
+  status: connected /dis-connected
+  time-stamp: < timestamp of current change >
+  ***Question END***<br/>
+
 
 #### show feature <name>
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
