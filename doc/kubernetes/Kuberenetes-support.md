@@ -491,8 +491,6 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
   
   On image upgrade, if that involves carrying config over, either these created files need to be carried along or run this command in the new image for all kube-only features.
    
-#### config feature uninstall <name> 
-   Removes the corresponding .service file, associated bash scripts. It does not affect the corresponding entries in FEATURE table from both CONFIG-DB & STATE-DB.
    
 ### show kubernetes 
 
@@ -500,11 +498,6 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    `show kubernetes server`
    Lists all the configured entries for the server and the status as connected or not, and when did the last state change happened.
    
-   ***Question***: <br/>
-   This show combines config & status in one o/p. Is this OK?
-   There is a dedicated command for `show kubernetes status`
-   ***Question END***<br/>
-     
    ```
    admin@str-s6000-acs-13:~$ show kube server
    KUBERNETES_MASTER SERVER IP 10.10.10.10
