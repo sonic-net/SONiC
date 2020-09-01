@@ -533,8 +533,6 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
    * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
    * Carry the .service & bash scripts created for kube only features to new image.
-   * Ensure all kube managed features have local images.
-      * If not, tag the currently downloaded image appropriately
    * Ensure all kube managed features are enabled to fallback to local image.
       
    
@@ -822,7 +820,7 @@ The config command could be used to create the FEATURE entry and the required sy
 ## Phase 2:
   Extend support to features that meet ***all*** of the following criteria:
    * A locally available feature which can be switched between local & kube.
-   * A feature that does not affect dataplane, like snmp, pmon, lldp, ...
+   * A feature that does not affect dataplane, like snmp, pmon, lldp, dhcp_relay,...
  
 The service files are already available. The FEATURE table would need to be updated, with the minium of set_owner.
 
