@@ -61,7 +61,7 @@ With this proposal, the management of container images is extended to kubernetes
      * The minigraph provides the VIP.
   6) Run a config command in switch to join the master manually or transparently.
   7) Now the master deploys pods in all eligible nodes that have joined.
-  8) For any update, push new container image to registry; update manifest; propagate to all masters.
+  8) For any update, push new container image to registry; update manifest; propagate manifest to all masters.<br/>
      For each connected node,
      * On any manifest update, kube stops the current pod running in node and deploy the new one.
      * On any manifest removed, it stops tbe current pod
