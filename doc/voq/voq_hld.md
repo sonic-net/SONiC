@@ -393,12 +393,14 @@ The figure below shows the packet flows using the recycle port for host packet f
  ![](../../images/voq_hld/recycle-port-cpu-to-network-flow.png)
 
 ### 2.6.2 Inband VLAN Option
-*Note: The information in this section is sourced orignally from the Kathik and Eswaran both from documents posted/presented and verbal comments during the review 07/24/2020. It may not have the required details (need for vlan flooding support, MAC learning, static MAC records etc). It is expected to be completed following additonal reviews*
+This is a variation of the Option described above. Each ASIC in the system is provisioned with an Inband CPU port that provides connectivity to other ASICs in the chassis over the internal fabric. The inband CPU port is just a system port. The inband port on each chip is named as LinecardN.K|Cpu where N is the slot number and K is the chip number within the slot. A special "inband" VLAN is provisioned to facilitate L2 connectivity in between the inband CPU ports. This inband vlan has as its members the CPU system port of all the asics in the distributed VOQ system. The 'inband vlan' netdevice in the kernel acts as the L3 endpoint. The inband vlan of each ASIC is assigned a unique IP address within the prefix of this interface.
 
-This is a variation of the Option described above. In this option a special "inband" VLAN is used for cross ASIC host IP connectivity. This inband vlan has as its members the CPU system port of all the asics in the distributed VOQ system. An IP interface is created on this inband vlan and each asic asic is assigned a unique IP address within the prefix of this interface. The following packet flows are proposed.
+![](../../images/voq_hld/inband-interfaces.png)
+
+The inband vlan hostif is created in SAI as type 'vlan'. This means that the packets injected into the ASIC from the CPU goes through the forwarding pipeline of the ASIC. The following packet flows are proposed.
 1.  The SONiC instances are directly connected neighbors on the "inband" vlan. This allows IP connectivity between them.
 2.  For host connectivity via the network ports of another ASIC, the IP stack of the other ASIC is utilized as a software router between the inband VLAN and its network ports.
-3.  The kernel and the SAI neighbor records are manipulated to achieve this software routing for host packs flows (see examples below for details)
+3.  The kernel and the SAI neighbor records are manipulated to achieve this software routing for host packet flows (see examples below for details)
 
 In the example below VLAN-4094 is used as the "inband" vlan.
 
@@ -408,6 +410,8 @@ The figure below shows vlan (special) being offloaded to hardware and Linecard C
 #### 2.6.2.1 Routing Protocol Peering between SONiC Instances
 The figure below shows inband vlan tables in the kernel and SAI for the four asic system example. Note the difference in Kernel for SAI neighbor records for the inband vlan.
  ![](../../images/voq_hld/option2b-vlan-cpu-flow-tables.png)
+
+The SAI neighbor entries are created for the inband IP addresses because there could be other routes (loopback IPs for example) that use the inband IP addresses as nexthops.
 
 The figure below shows inband vlan net devices and packet flows for the four asic system example
  ![](../../images/voq_hld/option2b-vlan-cpu-to-cpu-packet-flows.png)
