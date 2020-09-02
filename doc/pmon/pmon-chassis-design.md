@@ -157,16 +157,16 @@ Modular Chassis has control-cards, line-cards and fabric-cards along with other 
 * The UP/DOWN events will be added to syslog. 
 * Vendor-specific API will be provided to take action on any change event.
 
-#### Schema
+#### State-DB Schema
 
-The schema for CHASSIS_CARD_INFO table in State DB is:
+The schema for CHASSIS_MODULE_TABLE in State DB is:
 ```
-key                                   = CHASSIS_CARD_INFO | <card index>; 
+key                                   = CHASSIS_MODULE_INFO | <card index>; 
 ; field                               = value
 name                                  = STRING                          ; name of the card
-slot                                  = 1*2DIGIT                        ; slot number in the chassis
+instance                              = 1*2DIGIT                        ; slot number in the chassis for cards
 status                                = "Empty" | "Online" | "Offline"  ; status of the card
-type                                  = "control"| "line" | "fabric"    ; card-type
+device-type                           = "CONTROL-CARD"| "LINE-CARD" | "FABRIC-CARD"    ; card-type
 ```
 
 #### Prototype Code
@@ -242,6 +242,26 @@ class LineCard(LineCardBase):
 
 Additionally, *get_change_event()* can be implemented to handle asynchronous notification of the line-card UP/DOWN events.
 
+#### Configuration
+Configuration will be provided to administratively bring down a line-card or fabric-card. This can be further extended to other components of the chassis like PSUs and FANs.
+
+```
+Configuration to administratively bring down the module
+#config chassis_modules admin_down <module_name> <device_type> <instance_number>
+
+Configuration to remove the adminstrative down state of module
+#config chassis_modules del <module_name>
+```
+
+#### Config-DB Schema
+The schema for CHASSIS_MODULE table in Config DB is:
+```
+key                                   = CHASSIS_MODULE | <unique-name>; 
+; field                               = value
+instance                              = 1*2DIGIT                                     ; instance number of the device-type
+device-type                           = "LINE-CARD" | "FABRIC-CARD" |"PSU" | "FAN"   ; device-type
+admin-status                          = "up" | "down"                                ; admin-status
+```
 #### Show command
 The *show platform* command is enhanced to show chassis information
 
