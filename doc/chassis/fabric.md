@@ -141,7 +141,7 @@ PORT            RxCells     TxCells      Crc       Fec  Corrected
  3           :        0         2         0         0       193
 ```
 
-### 2.8 Fabric Status
+### 2.7.1 Fabric Status
 
 In a later phase, a `show fabric status` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will show the status as `down`. The status will also be `down` for fabric links that are down due to some other physical error. To identify links that are down due to error vs links that are not expected to be up because of the chassis connectivity, we need to build up a list of expected fabric connectivity for each ASIC. This can be computed ahead of time based on the vendor configuration and populated in the minigraph. This will be implemented in a later phase.
 
