@@ -226,17 +226,6 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
 A **new** table for system port configuration
 
 ```
-SYSTEM_PORT:{{system_port_name = PORT.port_name}}
-    "system_port_id": {{index_number}}
-    "switch_id": {{index_number}}
-    "core_index": {{index_number}}
-    "core_port_index": {{index_number}}
-    "speed": {{index_number}}
-```
-
-OR
-
-```
 SYSTEM_PORT:{{system_port_name}}
     "system_port_id": {{index_number}}
     "switch_id": {{index_number}}
@@ -265,6 +254,7 @@ switch_id                             = 1*4DIGIT                ; 0 to 1023 atta
 core_index                            = 1*4DIGIT                ; 1 to 2048 switch core id
 core_port_index                       = 1*3DIGIT                ; 1 t0 256 port index in a core
 speed                                 = 1*7DIGIT                ; port line speed in Mbps
+local_port                            = PORT.port_name          ; Optional local port name corresponding to the system port
 ```
 
 No changes in the schema of other CONFIG_DB tables. The name of the system ports used as key in the SYSTEM_PORT table is unique across chassis. The system_port_name can be same as the PORT table name as long as the PORT table name is unique across the chassis or it can be any character string which does not include ":". If a system port is used as inband interface, the name of that system port must be a name that will be accepted by kernel for netdevice name.
