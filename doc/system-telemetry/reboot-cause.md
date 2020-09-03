@@ -15,9 +15,9 @@
 For 1st part, process-reboot-cause copies the previous-reboot-cause.txt 
 to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp 
 at the end of file name after processing the reboot-cause.
-Currently previous-reboot-cause.txt is plan text format but this file content will be formatized to be parsed easily.
+Currently previous-reboot-cause.txt is plain text format but this file content will be formatted to be parsed easily.
 Read each reboot-cause information from saved previous-reboot-cause files
-And update reboot-cause information upto 10 entries to state-DB.  
+And update reboot-cause information up to 10 entries to state-DB.  
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
 ```
@@ -28,7 +28,7 @@ previous-reboot-cause-20200902T015048.txt
 ```
 The following example shows the content of the previous reboot-cause file - previous-reboot-cause-20200903T232033.txt.
 ```
-TIMESTATEMP: "20200903T232033"
+TIMESTAMP: "20200903T232033"
 CAUSE: "reboot"
 USER: "admin"
 TIME: "Thu 03 Sep 2020 11:15:30 PM UTC"
@@ -65,7 +65,7 @@ Verify that from state-DB data is available via telemetry agent
 
 Currently `show reboot-cause` displays the last reboot-cause and performing `cat /host/reboot-cause/previous-reboot-cause.txt` to show the reboot-cause. 
 With new design, the reboot-cause will be read from state-DB and displayed with new format.
-`show reboot-cause history` will be added and displays the previous `reboot-cause` upto 10 entries from state-DB.
+`show reboot-cause history` will be added and displays the previous `reboot-cause` up to 10 entries from state-DB.
 
 The example shows the output of `show reboot-cause` which is same as current output and displays only the last reboot-cause.
 ```
