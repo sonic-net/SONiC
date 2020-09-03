@@ -28,6 +28,8 @@
       * [3.3.4 LEDd](#334-ledd)
       * [3.3.5 Syseepromd](#335-syseepromd)
       * [3.3.6 Midplane Ethernet](#336-midplane-ethernet)
+  * [4. Review Comments](#4-review-comments)
+    * [4.1 Future Items](#41-future-items)
       
 ### Revision ###
 
@@ -252,7 +254,6 @@ Configuration to administratively bring down the module
 Configuration to remove the adminstrative down state of module
 #config chassis_modules del <module_name>
 ```
-
 #### Config-DB Schema
 The schema for CHASSIS_MODULE table in Config DB is:
 ```
@@ -262,6 +263,7 @@ instance                              = 1*2DIGIT                                
 device-type                           = "LINE-CARD" | "FABRIC-CARD" |"PSU" | "FAN"   ; device-type
 admin-status                          = "up" | "down"                                ; admin-status
 ```
+
 #### Show command
 The *show platform* command is enhanced to show chassis information
 
@@ -663,3 +665,11 @@ class midplane_monitor_task:
                 
         logger.log_info("Stop midplane task loop")
 ```
+
+## 4. Review Comments
+### 4.1 Future Items
+
+Items that are out of scope of this HLD will need to be taken up in the future. As part of the review, the following items were identified:
+1.  Hardware upgrades of Chassis components like firmware, BIOS etc. This will need to cover high level work-flow, responsibilities of control-card vs line-card in the upgrade process, supported commands etc.
+2.  Management of status LEDs like board-LED,  chassis-LED etc. This will need to cover responsibilities of control-card (PSU led, FAN led etc) and line-card (board led etc). Need a 'show LED' command support at Chassis level.
+3.  Support for operational commands. As part of chassis will need support of reload and reboot commands.
