@@ -21,7 +21,7 @@ To avoid multiple-socket approach, the data required by CiscoBgp4MIB can be popu
 2. Neighbor BGP state
 Currently snmp_ax_impl parses the data from Bgpd vtysh to get 'neighbor ip' and 'state'.
 
-Proposal is to add a new daemon called 'bgpmond' which will populate STATE_DB with the above infomration. 
+Proposal is to add a new daemon called 'bgpmon' which will populate STATE_DB with the above infomration. 
 Schema:
 ```
 NEIGH_STATE_TABLE {
@@ -32,7 +32,7 @@ NEIGH_STATE_TABLE {
 ```
 Currently, NEIGH_STATE_TABLE will be used by SNMP. This table can be used by telemetry or any other docker in future.
 
-### Bgpmond daemon to update STATE_DB
+### Bgpmon daemon to update STATE_DB
 This is the new daemon that runs inside of each BGP docker.  It will periodically (every 15 seconds) check if there are any BGP activities by examining the modified timestamp of "/var/log/frr/frr.log" file against the cached timestamp value from last detected activities. If BGP activity detected, this new daemon will then pull the bgp neighbor information by calling "show bgp summary json" and use the output to update the State DB accordingly.  In order to prevent unnecessary update to the State DB, a copy of each neighbor state is also cached and used to check for delta changes from each newly pulled neighbor state.  Only when there is a change, then that particular entry in the state DB is updated.  In a steady state situation, there is rarely a need to pulled the BGP states nor update made to the state DB.  If the neighbor is deleted from configuration, the corresponding state DB entry will also be cleaned up.
 In the future, if there are features that require additional neighbor information other then the BGP neighbor IP address and its state, we can raise a new PR to add those new required attributes to the state DB table.
 
@@ -41,4 +41,4 @@ snmp_ax_impl will be updated to talk to STATE_DB and retrieve NEIGH_STATE_TABLE.
 
 
 ### Future work
-SONiC uses snmpd implementation for Bgp4MIB(1.3.6.1.2.1.15). This implemenation uses bgpd as a subagent for this MIB tree. This implementation cannot be extended for multi-asic platform where multiple bgpd exists. Multiple entries exist within Bgp4MIB and is currently not supported for multi-asic platform. Bgp4MIB In order to support this MIB, bgpmond can be extended in future, to add the required data in STATE_DB which can be retrieved by snmp_ax_impl. 
+SONiC uses snmpd implementation for Bgp4MIB(1.3.6.1.2.1.15). This implemenation uses bgpd as a subagent for this MIB tree. This implementation cannot be extended for multi-asic platform where multiple bgpd exists. Multiple entries exist within Bgp4MIB and is currently not supported for multi-asic platform. Bgp4MIB In order to support this MIB, bgpmon can be extended in future, to add the required data in STATE_DB which can be retrieved by snmp_ax_impl. 
