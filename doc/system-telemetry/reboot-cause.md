@@ -12,10 +12,11 @@
 ### Enable sonic streaming telemetry agent to send Reboot-cause information
 
 ##### Part 1 
-For 1st part, Daemon code will be added under sonic-buildimage/files/image_config.  A Daemon will start when OS starts. At every 2 min interval it will do following:  
-Delete all entries for Reboot-cause information from state db  
-Read Reboot-cause information from Reboot-cause history file
-Update Reboot-cause information upto 10 entries to state-DB.  
+For 1st part, process-reboot-cause copies the previous-reboot-cause.txt 
+to "/host/reboot-cause/previous_reboot-cause/" with adding timestamp 
+at the end of file name after processing the reboot-cause.
+Read each reboot-cause information from saved previous-reboot-cause files
+And update reboot-cause information upto 10 entries to state-DB.  
 
 Details of CLI and state-DB given below. 
 Cli command to retrieve the Reboot-cause information
@@ -60,7 +61,7 @@ REBOOT_CAUSE|4276
 "user"  
 "admin"  
 "comment"  
-""  
+"User issued 'reboot' command [User: admin, Time: Wed 02 Sep 2020 05:48:42 PM UTC]"  
 ```
 Hardware `Unknown` cause example : 
 ```
@@ -77,5 +78,5 @@ REBOOT_CAUSE|4170
 "user"  
 ""
 "comment"  
-"faults reg: 00 00 00 00 00 00 00 00 00 00 00 00 00 00"  
+"Unknown"
 ```
