@@ -1,0 +1,40 @@
+# 1. Scope
+This document describes the design for the configuration of synchronous mode between orchagent and syncd.
+
+# 2. A brief of synchronous mode
+An illustrative figure of the synchronous mode is shown below. The synchronous mode achieves a closed-loop execution if SAI APIs from orchagent. In contrast to the previous asynchronous mode which cannot properly handle SAI API failures, the synchronous mode can gracefully handle SAI API failures by conducting the proper actions in orchagent. Therefore, the synchronous mode can substantially improve the reliability of SONiC.
+
+<img src="synchronous-mode-diagram.png" width="500">
+
+# 3. Configuration design 
+### 3.1 Configuration Requirements
+1.	Allow users to enable or disable synchronous mode via CLI.
+2.	Follow the image-specified mode when upgrading an image with cold/warm/fast-reboot if the synchronous mode configuration is not explicitly specified by users in configDB.
+3.	Use the user-specified mode when an explicit configuration of synchronous mode exists in configDB.
+4.	Support enabling/disabling the synchronous mode when deploying a minigraph.
+
+### 3.2 ConfigDB changes
+The following field is added to `DEVICE_METADATA|localhost` in configDB to support the configuration of synchronous mode
+```
+DEVICE_METADATA|localhost
+    "synchronous_mode": "enable|disable"
+```
+There are three possibilities for the field with the behavior as follows:
+| Field value               | Behavior                          |
+|---------------------------|-----------------------------------|
+| enable                    | Enable synchronous mode.           |
+| disable                   | Disable synchronous mode.          |
+| Field does not exist      | Orchagent and syncd use the mode specified by `orchagent.sh` and `syncd-init-common.sh`, respectively. |
+
+### 3.3 CLI command
+A CLI command is provided to enable or disable synchronous mode: 
+
+`config synchronous_mode {enable|disable}`
+
+Note that the CLI command only writes the configuration into configDB. To further apply the configuration, it is required to restart swss. A message will be provided to the users to remind them of the need for swss restart after calling the command. The necessity of swss restart should also be included in the help message of the command line. This CLI command achieves requirement 1 in Section 3.1.
+
+### 3.4 Configuration with SONiC images
+A SONiC image does not write any configuration into `DEVICE_METADATA|localhost|synchronous_mode` by loading the image. If there is no previously defined synchronous mode configuration in configDB, the configuration specified by `orchagent.sh` and `syncd-init-common.sh` would be used for orchagent and syncd, respectively. Otherwise, the configuration in configDB would be applied. Note that the default configuration in `orchagent.sh` and `syncd-init-common.sh` is defined by the image. As such, requirements 2 and 3 in Section 3.1 are met. 
+
+### 3.5 Minigraph parser
+The minigraph parser would explicitly write either "disable" or "enable" into `DEVICE_METADATA|localhost|synchronous_mode` in config_DB as the ground-truth configuration. And the configuration will be applied after swss restarts. Such a design complies with requirement 4 in Section 3.1.
