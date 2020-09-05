@@ -22,7 +22,7 @@ The format of this dictionary, i.e. the member fields, and the contents of all t
 This dictionary, once created by xcvrd, is published to the Redis DB, as a record in the TRANSCEIVER_INFO table.  NPU-configuration and CLI code will obtain transceiver information from there.
 ### Current format
 An example of the transceiver information dictionary constructed by xcvrd is as follows:
-~~~
+~~
 {
 	"Connector": "No separable connector", 
 	"cable_length": "2", 
@@ -41,21 +41,23 @@ An example of the transceiver information dictionary constructed by xcvrd is as 
 	"vendor_date": "2019-06-17 ", 
 	"vendor_oui": "3c-18-a0"
 }
-~~~
+~~
 ### Proposed format
 The intention is to maintain existing field names and their contents, for backward-compatibility.  New fields shall be added.
 
-The following shall be added to the dictionary:
+The following fields shall be added to the dictionary:
 
 <h4>cable_breakout</h4>
 <table style="border-style:none;">
 	<tr>
 		<td valign="top">Description</td>
-		<td>Breakout of attached cable, if any, i.e. the number of cables directly attached to transceiver</td>
+		<td>Breakout of attached cable (if any)</td>
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>integer; 0 when no directly-attached cable</td>
+		<td>string; one of '1x1', '1x2', '1x4', '2x2', etc.
+        <br>
+        Contains an empty string ('') when no adapter installed</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -66,11 +68,13 @@ The following shall be added to the dictionary:
 <table style="border-style:none;">
 	<tr>
 		<td valign="top">Description</td>
-		<td>Length of directly-attached cable, in metres</td>
+		<td>Length, in metres, of directly-attached cable (if any)</td>
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>float; 0.0 when no directly-attached cable</td>
+		<td>string; length of cable, floating point value with 1 decimal place, as string, e.g. '10.0'
+        <br>
+        Contains an empty string ('') when adapter has no directly-attached cable, or no adapter installed</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -85,11 +89,14 @@ The following shall be added to the dictionary:
 <table style="border-style:none;">
 	<tr>
 		<td valign="top">Description</td>
-		<td>Type of directly-attached cable</td>
+		<td>Type of directly-attached cable (if any)</td>
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>string, one of "DAC", "RJ45", "FIBER", "AOC", "ACC"</td>
+		<td>string, one of "DAC", "RJ45", "FIBER", "AOC", "ACC"
+        <br>
+		Contains empty string ('') when adapter has no directly-attached cable, or no adapter is installed
+		</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -100,11 +107,14 @@ The following shall be added to the dictionary:
 <table style="border-style:none;">
 	<tr>
 		<td valign="top">Description</td>
-		<td>String suitable for displaying description of transceiver</td>
+		<td>String suitable for displaying description of transceiver for user</td>
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>string</td>
+		<td>string
+        <br>
+		Contains empty string ('') when no adapter installed
+		</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -116,7 +126,9 @@ The following shall be added to the dictionary:
 	</tr>
 	<tr>
 		<td valign="top">Examples</td>
-		<td>"SFP+ 10GBASE-DWDM-TUNABLE", "QSFP28 100GBASE-CR4-0.5M"</td>
+		<td>"SFP+ 10GBASE-DWDM-TUNABLE"
+        <br>
+        "QSFP28 100GBASE-CR4-0.5M"</td>
 	</tr>
 </table>
 <h4>lane_count</h4>
@@ -127,7 +139,10 @@ The following shall be added to the dictionary:
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>integer, 1..N</td>
+		<td>string; representing a positive integer, 1..N
+        <br>
+		Contains empty string ('') when no adapter installed
+		</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -142,7 +157,10 @@ The following shall be added to the dictionary:
 	</tr>
 	<tr>
 		<td valign="top">Value</td>
-		<td>string, one of "SR", "CR", "ZR", "DR", "EDR", "BASE-T"</td>
+		<td>string, one of "BIDI", "BX", "CLR", "CR", "CWDM", "CX", "DR", "DWDM", "ER", "FR", "FX", "LR", "LRM", "LX", "PSM", "PX", "SR", "SWDM", "SX", "T", "WDM"
+        <br>
+		Contains empty string ('') when no adapter installed
+		</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -157,7 +175,10 @@ The following shall be added to the dictionary:
 	</tr>
 	<tr>
 		<td valign="top">Value(s)</td>
-		<td>string, one of "SFP", "SFP+", "SFP28", "QSFP+", "QSFP28", "QSFP28-DD", "QSFP56-DD", "RJ45"</td>
+		<td>string, one of "SFP", "SFP+", "SFP28", "SFP56-DD", "QSFP+", "QSFP28", "QSFP28-DD", "QSFP56-DD", "RJ45"
+        <br>
+        Contains empty string ('') when no adapter installed
+</td>
 	</tr>
 	<tr>
 		<td valign="top">Needed by</td>
@@ -168,3 +189,6 @@ The following shall be added to the dictionary:
 		<td>This field is intended as a replacement for the existing "type_abbrv_name" field.  That field does not fully discriminate a transceiver "type".  For example, a QSFP-DD transceiver may be a QSFP28-DD or QSFP56-DD.  Also, other types, such as "SFP28", are missing.<br/>Rather than introduce new values, such as "SFP28", "QSFP-DD28" and "QSFP-DD56" for the existing field, and deprecating old values, such as "QSFP-DD", a new field will be introduced, that fully discriminates a "type", and the old field shall be deprecated.</td>
 	</tr>
 </table>
+
+## Implementation Note
+Details of how an adapter EEPROM is parsed, e.g. the reading of the EEPROM bytes from the adapter, the decoding of EEPROM bytes, according to various standards, memory maps (DD or otherwise), etc. is the responsibility of the code implementing the Python data model described here, and code previously implemented in xcvrd; implementation details are not discussed in this document. 
