@@ -123,7 +123,12 @@ The following are the high level requirements to meet.
 * A feature's change of state could affect the state of other features.
 * All the complex dependencies across features are met through systemd service management.
 
+![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/local_mode.png)
+
 ## Proposed behavior at high level
+
+![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/kube_mode.png)
+
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    
