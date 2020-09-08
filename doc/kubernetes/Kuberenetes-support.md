@@ -308,11 +308,11 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    
    The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
-   The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
-    
-   Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command.
+   Labels can be added as `<key>=<value>` or removed which is specified as `<key>-`. For any key, only the last update as `add`/`remove` is saved in this transient info. In case of `add` followed by `remove`, only the `remove` is saved and vice versa. For example, in case of `add` followed by `remove`, it would only persist `remove` which when later applied to the kubernetes master, it would become a no-op as `add` never happened and vice versa in case of `remove` followed by `add`. As the server handles no-op clean, SONiC may just replay the last command.
+     
+   Any `sudo config kubernetes label ...` command would be merged with any existing transient info and the entire cached set is applied.
    
-   When remove a label to stop/kill fails, explicit docker command would be used.
+   When remove a label to stop/kill a container fails, explicit docker command would be used. So a kube managed docker can be stopped, even when remove label fails, but same is only partially true for start. A new kube deployment can't happen when label can't be created. But for containers currently managed by kubelet, if container would exit the kubelet would restart per last applied manifest, even when it can't reach the server.
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
