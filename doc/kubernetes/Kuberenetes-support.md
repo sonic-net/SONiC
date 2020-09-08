@@ -589,7 +589,8 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * For kube managed features
       * Tag the last kube downloaded image as local image.<br/>
       * Set fallback to local as true<br/>
-   This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master. Whenever the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would block its deployment, until a manifest update that would boost the image version. 
+This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master.<br/>
+Later when the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would block its deployment, until a manifest update that would change the image version. In short, local image will continue to run w/o a restart, even upon kube ready to deploy.
    
 # Multi-ASIC support:
 
@@ -603,7 +604,7 @@ In multi-asic platform,
 All these features single or multiple, share the same image with only runtime differences.<br/>
 
 ## Manifests
-All the different docker  instances are created with ASIC specific runtime differences.
+All the different docker containers are created with ASIC specific runtime differences.
 For a sample, it differs in
 * docker name
 * path mounts
@@ -643,8 +644,8 @@ These bash scripts are auto-created using templates, as part of image build.
 
 ## Proposal: Extend the auto-create code to create manifests too.
   * A separate template could be provided for manifest creation
-  * A manifest per feature is created.
-    * Platform & HWSKU related paths can be generalized, with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
+  * A manifest per feature per ASIC is created.
+    * Platform & HWSKU related paths can be simplified with pre-created softlinks that point to approrpriate dir for that platform/hardware sku.
     * This could avoid the need to go per platform per HWSKU granularity.
     * For multi-ASIC, as runtime parameters differs across multiple instances, there has to be multiple manifests as one per instance.
   * Use these generated manifests in nightly tests to help validate
@@ -662,14 +663,14 @@ Points to note:
  A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming.
  
  ## Proposal - 1:
-  Provide a config command that can create a .service and bash scripts for a feature with simple requirements like, 
+  Provide a way to auto create a .service and bash scripts for a feature with simple requirements like, 
   
   * This feature depends on zero or more features &&
   * No other feature depends on this feature &&
   * Transparent to warm-reboot & fast-reboot
     implying it does not affect data plane traffic directly or indirectly.
       
-  The `config feature install <name>` would create the necessary files.
+  Setting `auto_service_install=true` in config of FEATURE would auto create/update the service files & bash scripts per configuration.
   
   
   ## proposal - 2:
