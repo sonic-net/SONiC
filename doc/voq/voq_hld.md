@@ -232,7 +232,6 @@ SYSTEM_PORT:{{system_port_name}}
     "core_index": {{index_number}}
     "core_port_index": {{index_number}}
     "speed": {{index_number}}
-    "local_port" : {{local_port}} <!-- name of the local port -->
 ```
 ### 2.2.3 ConfigDB Schemas
 **Existing** schema for DEVICE_METADATA in configuration DB
@@ -254,7 +253,6 @@ switch_id                             = 1*4DIGIT                ; 0 to 1023 atta
 core_index                            = 1*4DIGIT                ; 1 to 2048 switch core id
 core_port_index                       = 1*3DIGIT                ; 1 t0 256 port index in a core
 speed                                 = 1*7DIGIT                ; port line speed in Mbps
-local_port                            = PORT.port_name          ; Optional local port name corresponding to the system port
 ```
 
 No changes in the schema of other CONFIG_DB tables. The name of the system ports used as key in the SYSTEM_PORT table is unique across chassis. The system_port_name can be same as the PORT table name as long as the PORT table name is unique across the chassis or it can be any character string which does not include ":". If a system port is used as inband interface, the name of that system port must be a name that will be accepted by kernel for netdevice name.
@@ -514,6 +512,7 @@ Example coniguration for voq inband interface type "port" is presented
  {
      "DEVICE_METADATA": {
         "localhost": {
+	   "switch_type": "voq",
 	   "switch_id": "0",
 	   "max_cores": "48"
 	}
@@ -631,6 +630,7 @@ Example coniguration for voq inband interface type "port" is presented
  {
      "DEVICE_METADATA": {
         "localhost": {
+	   "switch_type": "voq",
 	   "switch_id": "2",
 	   "max_cores": "48"
 	}
@@ -747,6 +747,8 @@ Example coniguration for voq inband interface type "port" is presented
 ```
 {
    "SYSTEM_INTERFACE": {
+      "Inband0": {},
+      "Inband1": {},
       "Slot1|Asic0|Ethernet1": {},
       "Slot1|Asic0|Ethernet2": {},
       "Slot1|Asic0|Ethernet3": {},
