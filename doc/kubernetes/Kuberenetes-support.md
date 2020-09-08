@@ -129,6 +129,8 @@ The following are the high level requirements to meet.
 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/kube_mode.png)
 
+![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/overview.png)
+
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    
