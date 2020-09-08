@@ -465,7 +465,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
  
 ### hostcfgd update
-   The hostcfgd watches for `kube_mode == kube_pending`. When set, stops the service, wait till service stops, set `kube_mode=kube_ready` and start the service. This ensures smooth transfer from local mode to kube mode and as well ensure service start precedes container start by kubernetes.
+   The hostcfgd watches for `kube_mode == kube_pending` and also set_owner change. In either case, if transition is required, it stops & starts the service. This ensures smooth transition across modes.
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
    
