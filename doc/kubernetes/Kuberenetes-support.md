@@ -129,6 +129,18 @@ The following are the high level requirements to meet.
 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/kube_mode.png)
 
+### A Snippet of CONFIG & STATE-DB changes
+To adopt, the FEATURE table in CONFIG-DB & STATE-DB are updated as below.
+
+#### CONFIG-DB:
+```
+   Key: "FEATURE|<name>"
+   set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
+   
+   fallback_to_local = true/false;              When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+                                                Default: false.
+                                                
+                                                
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/overview.png)
 
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
