@@ -145,12 +145,12 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
 #### STATE-DB -- change overview:
 ```
    Key: "FEATURE|<name>"
-   current_owner           = local/kube/none/"";   
+   current_owner = local/kube/none/"";   
                                               Empty or none implies that this container is not running
-   kube_mode = ""/"none"/"kube_ready"/"kube_pending"/"kube_running"/"kube_stopped";
+   kube_mode     = ""/"none"/"kube_ready"/"kube_pending"/"kube_running"/"kube_stopped";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
-   Docker-id = <container ID>;                Expected, when current_owner != none
+   Docker-id     = <container ID>;            Expected, when container is running
 ```                                                
                                                 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/overview.png)
