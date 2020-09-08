@@ -72,7 +72,7 @@ The example shows the output of `show reboot-cause` which is same as current out
 $ show reboot-cause
 User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]
 ```
-above output will be stored inside state-DB as follows for the reboot-cause information
+Above output will be stored inside state-DB as follows for the reboot-cause information
 ```
 REBOOT_CAUSE|20200903T112033
 "cause"  
@@ -89,11 +89,11 @@ The example shows the output of `show reboot-cause history` and the previous reb
 ```
 $ show reboot-cause history
 TIMESTAMP       REBOOT-CAUSE        Details
-20200903T232033 reboot              User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:20:33 PM UTC]
+20200903T232033 reboot              User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]
 20200902T101105 Unknown             Unknown
 20200902T015048 fast-reboot         User issued 'fast-reboot' command [User: admin, Time: Wed 02 Sep 2020 01:48:33 AM UTC]
 ```
-above output will be stored inside state-DB as follows for the previous reboot-cause in addition to the last reboot-cause
+Above output will be stored inside state-DB as follows for the previous reboot-cause in addition to the last reboot-cause
 ```
 REBOOT_CAUSE|20200902T101105
 "cause"  
