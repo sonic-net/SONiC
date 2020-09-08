@@ -130,9 +130,9 @@ The following are the high level requirements to meet.
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/kube_mode.png)
 
 ### A Snippet of CONFIG & STATE-DB changes
-To adopt, the FEATURE table in CONFIG-DB & STATE-DB are updated as below.
+To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & STATE-DB are updated as below. The following is only a snippet of the changes. The full set of changes are provided in a section below.
 
-#### CONFIG-DB:
+#### CONFIG-DB -- change overview:
 ```
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
@@ -140,6 +140,18 @@ To adopt, the FEATURE table in CONFIG-DB & STATE-DB are updated as below.
    fallback_to_local = true/false;              When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
                                                 Default: false.
                                                 
+   local_image_version = <version>;             Defaults to SONiC image version
+```
+#### STATE-DB -- change overview:
+```
+   Key: "FEATURE|<name>"
+   current_owner           = local/kube/none/"";   
+                                              Empty or none implies that this container is not running
+   kube_mode = ""/"none"/"kube_pending"/"kube_ready";
+                                              Helps dynamic transition to kube deployment.
+                                              Details below.
+   Docker-id = <container ID>;                Expected, when current_owner != none
+```                                                
                                                 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/overview.png)
 
