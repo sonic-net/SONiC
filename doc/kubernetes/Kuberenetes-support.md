@@ -587,8 +587,8 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    Regular reboot could be optionally updated with following changes, to minimize service restarts
    
    * For kube managed features
-    * Tag the last kube downloaded image as local image.<br/>
-    * Set fallback to local as true<br/>
+      * Tag the last kube downloaded image as local image.<br/>
+      * Set fallback to local as true<br/>
    This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master. Whenever the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would block its deployment, until a manifest update that would boost the image version. 
    
 # Multi-ASIC support:
