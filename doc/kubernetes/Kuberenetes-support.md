@@ -161,7 +161,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
 * The systemd would continue to manage features running in both local & kubernetes mode. 
    *  The current set of systemctl commands would continue to manage as before in both modes.
    
-* For kubernetes controlled features, master decides on *what to deploy* and node controls the *when to deploy*.
+* For kubernetes controlled features, master decides on *what to deploy* through manifests and node controls the *when to deploy* through labels.
    * The kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
    * The switch/node would create/remove a label to control the start/stop of container deployment by kubernetes.
    * The manifest could add more labels to select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
@@ -193,7 +193,6 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
      
    * Container stop<br/>
       Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
-      ***Note***: For a kubelet managed containers, an explicit docker stop will not work, as kubelet would restart. That is the reason, the label is removed instead, which instruct kubelet to stop it. But if label remove failed (*mostly because of kubernetes master unreachable*), it would auto disable kubelet transparently. Hence if label-remove would fail, the explicit docker-stop would be effective.
       
    * Container kill<br/>
       Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
@@ -210,14 +209,12 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    * On post-start
       * `current_owner = local/kube` 
       * `docker_id = <ID of the container>`
-      * `current_owner_update_ts = <Time stamp of change>`
     
      The start.sh of the container (*called from supervisord*) is updated to call `system container state <name> up <kube/local>`, which in turn would do the above update. The application process is started after the call to container_state script.
       
    * On pre-stop
       * `current_owner = none` 
       * `docker_id = ""`
-      * `current_owner_update_ts = <Time stamp of change>`
       
      A local monitor script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
      
@@ -225,7 +222,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    
 *  The hostcfgd helps switch between local and kube modes.
    
-   When owner is switched to kube while running in local mode, it creates the label to enable kube-deploy and whenever kube deploys asynchronously, it stops the local container, so as to help kube deployed container take over. Vice versa, when switching to local, while running in kube mode, it calls `system container stop`, which stops the running kube deployed container, followed by call to `system container start` which starts the local container. The entire switching from kube to local is synchronous.
+   When owner is switched between local to kube and vice versa, it initiates a restart to trigger the switching.
  
      
 * A daemon could help switch from kubernetes to local if deploy would not happen for a period.
@@ -276,6 +273,9 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                                 
    auto_service_install = true/false            Every kube only feature requires, corresponding .service file. Setting this to true
                                                 will auto-create these files upon everry update. Default is false.
+                                                
+   local_version = <version of local container image>;
+                                                Optional. Defaults to SONiC image version
                                                   
 ```
   
@@ -296,9 +296,12 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   kube_mode = ""/"none"/"kube_pending"/"kube_ready";
+   kube_mode               = ""/"none"/"kube_ready"/"kube_pending"/"kube_running"/"kube_stopped";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
+   running_version         = <version of running image>;
+                                              Required when owner = kube;
+                                              Optional when owner = local. Defaults to SONiC image version                                        
 ```
 
    ### Transient info:
@@ -306,12 +309,10 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
    The pending labels are appended into this list in the same order as they arrive. A label to add will look like `<key>=<val>` and label to remove will look like `<key>-`.
-   
-   The labels control, what to deploy/un-deploy. This implies that the kubelet which does the job of deploy/un-deploy of containers, should be in sync with labels update. Hence in scenarios, where master become unreachable and so labels can't be pushed to master, the kubelet is disabled. The kubelet remains disabled until all labels are synced and at that point, it gets re-enabled. If kubelet is *not* disabled and if it reaches server before labels are synced, the kubelet's actions could be unexpected/undesired.
-   
-   *NOTE*: Disabling kubelet does not affect containers deployed by it. So if stop/kill is required, when kubelet is disabled, make explicit docker call.
     
-   Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command. At the end of succesful completion, it ensures that the kubelet service is enabled.
+   Any `sudo config kubernetes label ...` command to add/remove a label, would first drain the transient-info, before executing this command.
+   
+   When remove a label to stop/kill fails, explicit docker command would be used.
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
