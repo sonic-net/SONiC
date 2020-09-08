@@ -560,8 +560,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
    * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
    * Carry the .service & bash scripts created for kube only features to new image.
-   * Ensure all kube managed features are enabled to fallback to local image.
-      
+   * Ensure all kube managed features are enabled to fallback to local image.     
    
    Reason for the changes:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
@@ -580,7 +579,12 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
   
    
 ## reboot
-   Regular reboot is supported transparently, as it just restarts the entire system and  goes through systemd, as long as `system container ...` commands are used instead of corresponding `docker ...` commands.
+   Regular reboot could be optionally updated with following changes, to minimize service restarts
+   
+   * For kube managed features
+    * Tag the last kube downloaded image as local image.<br/>
+    * Set fallback to local as true<br/>
+   This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master. Whenever the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would block its deployment, until a manifest update that would boost the image version. 
    
 # Multi-ASIC support:
 
