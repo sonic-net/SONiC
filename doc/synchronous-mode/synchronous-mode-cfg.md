@@ -26,7 +26,9 @@ There are three possibilities for the field with the behavior as follows:
 |---------------------------|---------------------------------------|
 | enable                    | Enable synchronous mode.              |
 | disable                   | Disable synchronous mode.             |
-| Field does not exist      | Use the mode defined by the image. This is expected if users only load images but never write the field in configDB with the minigraph parser or CLI command.|
+| Field does not exist      | Use the default mode defined by the image. This is expected if users only load images but never write the field in configDB with the minigraph parser or CLI command.|
+
+The orchagent and syncd read the field and apply the configuration accordingly when `orchagent.sh` and ` syncd_init_common.sh` starts the two processes, respectively.
 
 ### 3.3 CLI command
 A CLI command is provided to enable or disable synchronous mode: 
@@ -44,3 +46,6 @@ When the synchronous mode configuration exists in configDB, the configuration in
 
 ### 3.5 Minigraph parser
 The minigraph parser would explicitly write either "disable" or "enable" into `DEVICE_METADATA|localhost|synchronous_mode` in config_DB as the ground-truth configuration. And the configuration will be applied after swss restarts. Such a design complies with requirement 4 in Section 3.1.
+
+### Configuration with L2 switch mode
+When configuring a device to [L2 Switch mode](https://github.com/Azure/SONiC/wiki/L2-Switch-mode), the configuration of synchronous mode in config_DB will be removed. In the scenario that there is no user-specified configuration for the synchronous mode in configDB before configuring to L2 Switch mode, the device will keep using the same default mode specified by the image after configuring to L2 switch mode. If the user would like to use a specific configuration for the synchronous mode, the user needs to specify the configuration with the CLI in Section 3.3 to explicitly wite the configuration into config_DB after configuring the switch to L2 switch mode.
