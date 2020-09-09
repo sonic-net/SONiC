@@ -13,13 +13,12 @@
 
   * [1 Requirements Overview](#1-requirements-overview)
     * [1.1 Functional requirements](#11-functional-requirements)
-    * [1.2 Platform requirements](#12-platform-requirements)
-    * [1.3 Configuration requirements](#13-configuration-requirements)
-    * [1.4 Orchagent requirements](#14-orchagent-requirements)
-    * [1.5 Host IP Connectivity requirements](#15-host-ip-connectivity-requirements)
-    * [1.6 CLI requirements](#16-cli-requirements)
-    * [1.7 Scalability requirements](#17-scalability-requirements)
-    * [1.8 Warm Restart requirements ](#18-warm-restart-requirements)
+    * [1.2 Configuration requirements](#12-configuration-requirements)
+    * [1.3 Orchagent requirements](#13-orchagent-requirements)
+    * [1.4 Host IP Connectivity requirements](#14-host-ip-connectivity-requirements)
+    * [1.5 CLI requirements](#15-cli-requirements)
+    * [1.6 Scalability requirements](#16-scalability-requirements)
+    * [1.7 Warm Restart requirements ](#17-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 System Port Configuration on Sonic Instance](#21-system-port-configuration-on-sonic-instance)
     * [2.2 Config DB](#22-config-db)
@@ -80,19 +79,15 @@ The VOQ feature implementation shall support the following
 6.  Routing protocol peering between SONiC instances over the datapath.
 7.  Static provisioning of System Ports in the VOQ System Database.
 8.  Dynamic discovery of Routing Interfaces and Neighbors on other asics via the VOQ System Database.
-9.  Automatic determination of Switch_Id for each asic (optional).
 
-## 1.2 Platform requirements
-Every ASIC in the system needs be assigned a unique Switch_ID. Each ASIC consumes as many consecutive switch_id values as it has cores. So the next valid switch_id assignment should skip ahead by a number equal to the number of cores in the asic. This can be done via an additional configuration attribute. Another option is atuomatic determination of sWwitch_ID. Vendor supplied platform specific components are aware of details (line card number, asic number with in the line card, number of cores for the asic etc...) which allow them to automatically calculate the Switch_ID for each asic. For this reason it is proposed that the PMON could populate the Switch_ID for an asic into the APPL_DB.
-
-## 1.3 Configuration requirements
+## 1.2 Configuration requirements
 Phase-1 of the Distributed VOQ System should support static configuration of the following
 1. Connection parameters for the Central VOQ System Database (IP address, Port)
 2. All the system ports in the entire system. The configuration of each system port should specify - system_port_id, switch_id, cored_index, core_port_index and speed.
 3. Maximum number of cores in the system.
 4. Switch_ID for each asic
 
-## 1.4 Orchagent requirements
+## 1.3 Orchagent requirements
 ### Switch Creation
  - Should create the switch with the correct values for max_cores and switch_id
  - Should create the switch with complete list of system port for all the system ports during initialization
@@ -117,7 +112,7 @@ Phase-1 of the Distributed VOQ System should support static configuration of the
  - Should discover Fabric ports, Fabric port neighbor and Fabric port reachability
  - Should monitor Fabric port state, statistics, errors etc
 
-## 1.5 Host IP Connectivity requirements
+## 1.4 Host IP Connectivity requirements
 In a "non-VOQ" Distributed SONiC System (and VOQ SONiC systems with a single VOQ asic) all network communication to/from asic namespace on the SONiC host is supported by creating host interfaces (in the asic namespace) for each of the network ports of the asic. This includes - 
 1.  Packets that are trapped to the host asic namespace because of an exception (unresolved ARP for example)
 2.  Packets that are sent to the host asic namespace because the destination address on the packet is an interface address for SONiC on the asic and
@@ -140,14 +135,14 @@ The figure below shows the cpu-to-cpu packet flows that needs to be supported
 The figure below shows the cpu-to-network-port packet flows that need to be supported
  ![](../../images/voq_hld/network-to-cpu-packet-flows.png)
 
-## 1.6 CLI requirements
+## 1.5 CLI requirements
 User should be able to display/retrieve the following VOQ information
 - system-port id for the system ports
 - Switch-id
 - max-cores
 - Neighbor Encap index
 
-## 1.7 Scalability requirements
+## 1.6 Scalability requirements
 
 ###### Table 2: VOQ scalability
 | VOQ component            | Expected value              |
@@ -158,7 +153,7 @@ User should be able to display/retrieve the following VOQ information
 
 The initial scaling should at least support the requirements of a "large" modular chassis deploying ports based routing interfaces. Virtual interfaces (VLAN based routing interfaces) and directly attached hosts are still supported, but achieving higher scaling for those deployments is not a goal of the initial implementation.
 
-## 1.8 Warm Restart requirements
+## 1.7 Warm Restart requirements
 At this time warm restart capability is not factored into the design. This shall be revisited as a Phase #2 enhancement
 
 # 2 Modules Design
