@@ -865,4 +865,35 @@ The config command could be used to create the FEATURE entry and the required sy
  
 The service files are already available. The FEATURE table would need to be updated, with the minium of set_owner.
 
+
+# RFE -- For brain storming
+## Warm-restart 
+During runtime, a FEATURE could auto restart
+  1. When kube is re-deploying per updated manifest
+  2. When kube is deploying in LOCAL mode -- local-to-kube transition
+  3. When owner is set to `local` and kube-to-local transition occurs
+  4. Failure exit of container and systemd auto-restart.
+  
+With exception of the 'failure exit', the rest are initiated to do a transformation. In all these cases, one may do a warm restart, to minimize impact to an active switch.
+
+## Tag downloaded as local image
+The fallback to local is a very handy feature to be able to 
+  * start a service quickly on reboot.
+  * Run a service when kube master is unreachable or join not initiated.
+  * The kube master has some issues w.r.t deploying.
+
+The version of the local image is highly likely to be lower than the downloaded image. Falling back local image of lower version is *not* advisable for following reasons.
+  * The lower version may have bugs, or not compatible with state left behind by later version.
+  * When kube connects, the service restart is imminent, causing two starts in succession upon boot.
+  
+To avoid falling back to lower version, we could have a qualifying time to assess health of a FEATURE and when deemed healthy, remove the local image and tag the downloaded as local. This way we have the latest downloaded as local too. Upon boot, the FEATURE could start from local and when kube is ready to deploy, it could back off, when it notices the same version is already running.
+
+## Backoff/Restart -- when local version == kube version
+When local image is running the same version,
+
+Option 1: Fail the kube deploy, which will retry finite count of times, with exponential backoff timer and give up, until next manifest update. 
+OR
+Option 2: Warm restart to do a quick switching, to keep it unified that all kube managed containers are indeed managed by kube.
+
+As for switch is concerned, in either case same version of the image is used with one additional restart cost in the later option. The option 2 would be a cleaner approach that a telemetry data from master will give a clear data on successful deployments and *real* failures in deployments.
    
