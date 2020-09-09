@@ -137,7 +137,8 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
    
-   fallback_to_local = true/false;              When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+   no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+                                                set no_fallback_to_local =  true, to disable any fallback.
                                                 Default: false.
                                                 
    local_image_version = <version>;             Defaults to SONiC image version
@@ -261,7 +262,8 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
    
-   fallback_to_local = true/false;              When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+   no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+                                                Set to True, to disable any fallback.
                                                 Default: false.
    
    kube_failure_detection = <N>;                When set_owner == kube and if container is not running for N minutes, it is 
@@ -370,7 +372,7 @@ kube_mode = none
 
 The container is running using local image, started by docker command.<br/>
 
-This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback_to_local && kube_mode = none)
+This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback-enabled && kube_mode = none)
    
 The feature remains in this state until `systemctl stop` action is performed, which transitions it back to INIT state.
 
@@ -384,7 +386,7 @@ kube_mode = kube_ready
 There is no container running. The `systemctl status` would indicate 'waiting for kube deployment'.<br/>
 
 This state is reached from INIT state, upon `systemctl start`, if set_owner = kube and either of the following is true
-  * The fallback_to_local == false, so it transitons to KUBE_READY state <br/>
+  * The fallback is disabled, so it transitons to KUBE_READY state <br/>
   OR
   * The kube_mode != none, implying kube is either pending deployment or just exited. So even with fallback set, go to KUBE_READY, as kube is most likely ready to deploy.
    
@@ -520,7 +522,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
 
 ### config feature
 
-#### config feature <name> [owner <local/kube>] [fallback <true/false>] [failmode < N seconds >] [required < list of required services > ] [-y]
+#### config feature <name> [owner <local/kube>] [no-fallback <true/false>] [failmode < N seconds >] [required < list of required services > ] [-y]
    This command can be used to sets all properties of a FEATURE.<br/>
    The update of owner might require a service restart. If yes, a confirmation prompt would be provided.
    
