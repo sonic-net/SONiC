@@ -567,7 +567,8 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
    * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
    * Carry the .service & bash scripts created for kube only features to new image.
-   * Ensure all kube managed features are enabled to fallback to local image.     
+   * Ensure all kube managed features are enabled to fallback to local image.
+   * Carry the kube downloaded image, if it is higher in version, to replace the local copy
    
    Reason for the changes:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
@@ -576,6 +577,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    * Carry over kubelet related context, to enable transparent join and interaction with master.
    * The .service & bash scripts for kube only features, may not be available in new image. To save the time of re-create, just take the files over to the new image.
    * Upon reboot, the switch could take some solid time to establish connection with kubernetes master. Until then, the containers that are marked as kube-managed with no fallback, can't start. Hence ensure availability of local image & fallback, so the containers can start immediately from local copy. The set_owner remaining as kube, will help kube to manage, whenever the switch successfully connects to the master.<br/>BTW, connecting to the master is done by kubelet transparently.
+   * If kube downloaded image is later then local image, it would cause a service restart, when kubelet connects upon warm-reboot. To avoid, if downloaded version is later then destination version, carry over the image of later version.
    
    For new features that are not known to warm-reboot script, some hooks could be allowed for registration of feature-custom scripts. This could help with some preparation steps before reboot, like caching some data, setting some DB values, ...
    
@@ -590,9 +592,9 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
    * For kube managed features
       * Tag the last kube downloaded image as local image.<br/>
-      * Set fallback to local as true<br/>
+      * Enable fallback to local. <br/>
 This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master.<br/>
-Later when the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would block its deployment, until a manifest update that would change the image version. In short, local image will continue to run w/o a restart, even upon kube ready to deploy.
+Later when the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would back out, until a manifest update that would change the image version. In short, local image will continue to run w/o a restart, even upon kube ready to deploy.
    
 # Multi-ASIC support:
 
