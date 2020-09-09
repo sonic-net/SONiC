@@ -1,6 +1,6 @@
 # VOQ SONiC
 # High Level Design Document
-### Rev 1.0
+### Rev 1.1
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -59,7 +59,8 @@
 | Rev |     Date    |       Author                                                                       | Change Description                |
 |:---:|:-----------:|:----------------------------------------------------------------------------------:|-----------------------------------|
 | 1.0 | 06/29/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) | Initial public version            |
-|     |             |                                                                                    |                                   |
+| 1.1 | 09/08/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) | Updates after reviews             |
+|     |             | Eswaran Bhaskaran, Kartik Chandran (Arista Networks)                               |                                   |
 
 # About this Manual
 This document describes the design details for supporting SONiC on a Distributed VOQ System. It aligns with the SONiC Distributed VOQ-Architecture and should be read in conjunction with that document. It also adopts the SONiC Multi-ASIC architecture is adopted - which allows each asic within an FSI to be controlled independently by a separate instance of the "SONiC Network Stack" (comprising bgp, swss, syncd, lldp, teamd etc ..).
