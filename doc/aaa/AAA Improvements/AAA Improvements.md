@@ -8,11 +8,12 @@ This document identifies a few gaps in the current implementation of Authenticat
 
 ### Revision history
 
-| Revision | Date      | Author          | Change description |
-| -------- | --------- | --------------- | ------------------ |
-| 0.1      | 2/24/2020 | Martin Bélanger | Draft              |
-| 0.2      | 4/2/2020  | Martin Bélanger | Internal reviews   |
-| 0.3      | 5/28/2020 | Martin Bélanger | External reviews   |
+| Revision | Date      | Author          | Change description                                           |
+| -------- | --------- | --------------- | ------------------------------------------------------------ |
+| 0.1      | 2/24/2020 | Martin Bélanger | Draft                                                        |
+| 0.2      | 4/2/2020  | Martin Bélanger | Internal reviews                                             |
+| 0.3      | 5/28/2020 | Martin Bélanger | External reviews                                             |
+| 0.4      | 6/18/2020 | Martin Bélanger | Add more limitations to existing design. More precisely the fact that the current design does not work with Aruba ClearPass TACACS+ server. Also listed Linux group name restrictions. |
 
 ### Document conventions and limitations
 
@@ -96,6 +97,13 @@ In a regular ssh session, a remote user, in this example, **bob**, uses a progra
     The sudo program requires users to authenticate themselves before it runs a command. Unfortunately, when we map a RADIUS/TACACS+ user to **remote_user_su**, that user ceases to be the user defined by the RADIUS/TACACS+ server, and it takes on the identity of **remote_user_su**. And since **remote_user_su** does not have login privileges and thus the ability to authenticate, users mapped to **remote_user_su** cannot run commands with sudo.
   
 - **Authentication for containers is not supported.** Applications running in containers have no visibility of the PAM/NSS configuration that resides on the host. They are entirely unaware of any RADIUS/TACACS+ configuration. The way we make this work today is by establishing an ssh connection from the container to the host. If the connection is successful, then we conclude that the authentication was successful. Using ssh may work for applications that we design ourselves (e.g., REST server), but that won't work with standard Linux applications. For example, when running a bash shell inside a container, one would not be able to be authenticated by sudo or su.
+
+- **Some TACACS+ servers may not allow requesting Authorization before Authentication.** This is the case for Aruba ClearPass TACACS+ server. In this case, when we invoke getpwnam() and the underlying tacacs NSS module performs an Authorization request with the ClearPass TACACS+ server, the server will simply deny the request. This prevents users from logging in using an Aruba ClearPass TACACS+ server.
+
+- **Using Linux groups for the roles forces restrictions on the role names.** Linux imposes [restrictions on group names. If we save the roles to Linux groups, these restrictions will need to be applied to role names. RBAC allows customers to define their own roles. This means that the naming restrictions that apply to Linux group names must be applied to roles and customers must be made aware of these restrictions. Here are the two major restrictions that will need to apply to role names.
+
+  - Group names must start with a lower case letter or an underscore, followed by lower case letters, digits, underscores, or dashes. They can end with a dollar sign. In regular expression terms: `[a-z_][a-z0-9_-]*[$]?`
+  - Group names may only be up to 16 characters long.
 
 ## Proposal for hardening and securing SONiC AAA
 
