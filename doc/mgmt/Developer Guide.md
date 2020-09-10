@@ -1569,8 +1569,21 @@ Invoke REST API.. `ApiClient` object supports get, post, put, patch and delete o
 All these operations send a REST request and return a response object wrapping the REST response data.
 
 ```python
-response = api.get(path)
+response = api.get(path, response_type=None)
 ```
+
+An optional argument known as response_type is applicable only for GET and POST operations. 
+It instructs the REST Client infrastructure to return the response from REST server in the form of 
+JSON string instead of JSON (python dictionary).
+If the API does not specify value for response_type, the default is JSON. 
+The supported values for response_type are string and json.
+
+**The use case for using response_type**
+
+If the response from the rest server contains a non-hierarchical JSON string and if it's quite big enough, 
+then the recommendation is to operate on the JSON string itself instead of converting it to python dictionary.
+This will help the actioner consume less memory. It was observed that loading into dictionary takes considerably
+large memory.
 
 Check API status through `response.ok()` function, which returns true if API was success (HTTP 2xx status).
 `ok()` function returns false if server returned an error.
@@ -1593,14 +1606,23 @@ Examples of other REST API calls.
 jsonDict = {}
 jsonDict["acl-set"]=[{ "name":the_acl_name, .... }]
 
-# POST request
+# POST request with default response_type i.e. JSON
 response = api.post(path, data=jsonDict)
+
+# POST request with string as response_type
+response = api.post(path, data=jsonDict, response_type='string')
 
 # PUT reuest
 reponse = api.put(path, data=jsonDict)
 
 # PATCH request
 response = api.patch(path, data=jsonDict)
+
+# GET request with default response_type i.e. JSON
+response = api.get(path)
+
+# GET request with string as response_type
+response = api.get(path, response_type='string')
 
 # DELETE request
 response = api.delete(path)
