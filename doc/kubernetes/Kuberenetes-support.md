@@ -310,7 +310,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    
    The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
-   Labels can be added as `<key>=<value>` or removed which is specified as `<key>-`. For any key, only the last update as `add`/`remove` is saved in this transient info. In case of `add` followed by `remove`, only the `remove` is saved and vice versa. For example, in case of `add` followed by `remove`, it would only persist `remove` which when later applied to the kubernetes master, it would become a no-op as `add` never happened and vice versa in case of `remove` followed by `add`. As the server handles no-op clean, SONiC may just replay the last command.
+   Labels to be added are saved as `<key>=<value>` or to be removed are saved as `<key>-`. For any key, only the last update as `add`/`remove` is saved in this transient info. In case of `add` followed by `remove`, only the `remove` is saved and vice versa. For example, in case of `add` followed by `remove`, it would only persist `remove` which when later applied to the kubernetes master, it would become a no-op as `add` never happened and vice versa in case of `remove` followed by `add`. As the server handles no-op clean, SONiC may just replay the last command.
      
    Any `sudo config kubernetes label ...` command would be merged with any existing transient info and the entire cached set is applied.
    
@@ -318,7 +318,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
-   @labels: [<list of labels>]
+   @labels: [<list of unique labels>]
    ```
    
 ## State diagram
