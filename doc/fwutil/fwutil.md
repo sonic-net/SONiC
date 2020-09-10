@@ -31,16 +31,14 @@
                 - [2.2.2.4.1 Overview](#22241-overview)
                 - [2.2.2.4.2 Description](#22242-description)
                 - [2.2.2.4.3 Custom FW Update Script](#22243-custon-fw-update-script)
-                - [2.2.2.4.4 Auto-update Use Cases](#22243-auto-update-use-cases)
+                - [2.2.2.4.4 Platform FW Update Reboot Plugin](#22244-plarform-fw-update-reboot-plugin)
+                - [2.2.2.4.5 Auto-update Use Cases](#22245-auto-update-use-cases)
 - [3 Flows](#3-flows)
     - [3.1 Show components status](#31-show-components-status)
     - [3.2 Show available updates](#32-show-available-updates)
     - [3.3 Install component FW](#33-install-component-fw)
         - [3.3.1 Non modular chassis platform](#331-non-modular-chassis-platform)
         - [3.3.2 Modular chassis platform](#332-modular-chassis-platform)
-    - [3.4 Auto-update component FW](#34-auto-update-component-fw)
-        - [3.4.1 Auto-update Platform API](#331-auto-update-w-platform-api)
-        - [3.4.2 Auto-update with Custom FW Update script](#332-auto-update-w-custom-fw-update-script)
 - [4 Tests](#4-tests)
     - [4.1 Unit tests](#41-unit-tests)
 
@@ -58,8 +56,6 @@ This document provides general information about FW utility implementation in SO
 | 0.4 | 18/12/2019 | Nazarii Hnydyn | CLI review feedback               |
 | 0.5 | 05/05/2020 | Nazarii Hnydyn | Automatic FW update per component |
 | 0.6 | 08/03/2020 | Sujin Kang     | Add firmware auto-update command  |
-|     |            |                | based on platform-components.json, |
-|     |            |                | support custom component fw script|
 
 ## Abbreviations
 
@@ -117,16 +113,18 @@ we might need a dedicated FW utility.
 
 **This feature will support the following functionality:**
 1. Manual FW installation for particular platform component
-2. Automatic FW installation for particular platform component
+2. Complete FW installation for particular platform component
 3. Querying platform components and FW versions
 4. Querying available FW updates for all platform components
+5. Automatic FW updates for all available platform components
 
 ### 1.2.2 Command interface
 
 **This feature will support the following commands:**
-1. show: display FW versions/updates
-2. install: manual FW installation
-3. update: automatic FW installation
+1. show: Display FW versions/updates
+2. install: Manual FW installation
+3. update: Complete FW installation
+3. auto-update: Automatic FW updates
 
 ### 1.2.3 Error handling
 
@@ -153,10 +151,13 @@ we might need a dedicated FW utility.
 | FW binary downloading over URL: error     | ERROR    |
 | FW binary installation: start/end         | INFO     |
 | FW binary installation: error             | ERROR    |
+| Auto-update reboot task creation: creat   | INFO     |
+| Auto-update reboot task creation: error   | ERROR    |
 
 **Note:** Some extra information also will be logged:
 1. Component location (e.g., Chassis1/Module1/BIOS)
 2. Operation result (e.g., success/failure)
+3. FW binary source location (e.g., current/next/custom)
 
 # 2 Design
 
@@ -184,6 +185,7 @@ non modular chassis platforms. Both modular and non modular chassis platforms sh
 but may have different implementation.
 
 SONiC FW utility uses platform API to interact with the various platform components.
+SONiC FW utility extends to support for the automatic firmware update based on <platform>_components.json and next reboot option.
 
 ## 2.2 FW utility
 
@@ -216,13 +218,7 @@ fwutil
 |              |--- fw -y|--yes -f|--force -i|--image=<current|next>
 |
 |--- auto-update
-     |--- chassis
-     |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
-     |--- module <module_name>
-     |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>  --b|--boot=<any|none|fast|warm|cold|powercycle>
-     |--- fw -y|--yes -f|--force -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
+     |--- fw -y|--yes -f|--force -z|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
      |--- fw -y|--yes -f|--force -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
      
 ```
@@ -303,6 +299,15 @@ BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / NA                  upda
 CPLD        <image_path>/cpld.bin  5 / 10                                   update is required  Power cycle
 FPGA        <image_path>/fpga.bin  5 / NA                                   up-to-date          Cold reboot
 SSD         <image_path>/ssd.bin   4 / 5                                    update is required  Cold reboot, Fast reboot
+```
+
+4. Auto-update status
+```bash
+root@sonic:~# fwutil show auto-updates status
+Component   Firmware               Version (current/available)              Status
+----------  ---------------------  ---------------------------------------  -------------------------  
+CPLD        <image_path>/cpld.bin  5 / 10                                   updated but need a power-cycle
+SSD         <image_path>/ssd.bin   4 / 5                                    scheduled in cold reboot
 ```
 
 **Supported options:**
@@ -501,84 +506,31 @@ Aborted!
 #### 2.2.2.4 Auto-update commands
 
 ##### 2.2.2.4.1 Overview
+The purpose of the auto-update commands group is to provide and interface for automatic fw updates of various platform components 
+based on the boot option and the platform firmwareupdate configuration file - platform_components.json.
 
-The purpose of the auto-update commands group is to provide an interface  
-for automatic FW installation of various platform components.
+The existing FWutil infra supports the upgrade of platform components which can be performed during run time.
+The SSD upgrade for certain platforms requires the unmount of the filesystems and this needs to be incorporated as part of the reboot scripts.
+To integrate the upgrade of these platform components which can’t be performed during run time, 
+the FWutil requires few more enhancements that specifies the reboot-type during which the user expects the upgrade to happen.
+The fwutil infra section below indicates the necessary changes to add support for auto update during reboot. 
+The Platform plugins section describes the plugins that a platform must implement to support auto updates when the platform component APIs are not available.
 
 Automatic FW installation requires default platform_components.json to be created and placed at:  
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 default image path = /usr/share/sonic/<platform_name>/<onie_platform>/fw_update/
 
-Auto-update command can also support the standalone custom firmware image package with --fw-image option. 
+Auto-update command can support the standalone custom firmware image package with --fw-image option. 
 The package can be any format between `.tar` or `.tar.gz`.
-The `fwutil` commands uncompress the package and parse the `platform_components.json` to retrieve the firmware information.
+The `fwutil auto-update` commands uncompress the package and parse the `platform_components.json` to retrieve the firmware information.
 
-If the script path is available for the component firmware configuration in the `platform_components.json`, it means that the specific component firmware upgrade shall use the script to process the fwutil commands.
-`2.2.2.4.3 Component Firmware Update Script Interface Requirement` explains the requirement of the component firmware upgrade script to interfere with the fwutil to support the auto-update command - mainly status and install.
+If the script path is available for the component firmware configuration in the `platform_components.json`, 
+it means that the specific component firmware upgrade shall use the script to process the fwutil commands.
+`2.2.2.4.3 Component Firmware Update Script Interface Requirement` explains the requirement of the component firmware upgrade script 
+to interfere with the fwutil to support the auto-update command - mainly status and install.
 
 **Example:**
-
-1. Platform component fw update configuration with boot options
-```json
-{
-    "chassis": {
-        "Chassis1": {
-            "component": {
-                "BIOS": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
-                    "version": "0ACLH003_02.02.010",
-                    "boot-action": "any"
-                },
-                "CPLD": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
-                    "version": "10",
-                    "boot-action": "power"
-                },
-                "FPGA": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
-                    "version": "5",
-                    "boot-action": "cold"
-                }
-            }
-        }
-    }
-}
-```
-
-2. Platform component fw update configuration with platform specific script and boot options
-```json
-{
-    "chassis": {
-        "Chassis1": {
-            "component": {
-                "BIOS": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
-                    "version": "0ACLH003_02.02.010"
-                    "boot-action": "any",
-                },
-                "CPLD": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
-                    "version": "10",
-                    "boot-action": "power"
-                },
-                "FPGA": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
-                    "version": "5",
-                    "boot-action": "cold"
-                },
-                "SSD": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/ssd.bin",
-                    "script": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/ssd_fw_update",
-                    "version": "5",
-                    "boot-action": "cold, fast"
-                }
-            }
-        }
-    }
-}
-```
-
-3. Platform component fw update configuration with platform specific script and boot options with --fw-image command line option
+1. Platform component fw update configuration with platform specific script and boot options with --fw-image command line option
 The firmware image 
 ```json
 {
@@ -586,18 +538,15 @@ The firmware image
         "BIOS": {
             "firmware": "bios.bin",
             "version": "0ACLH003_02.02.010",
-            "boot-action": "any"
         },
         "CPLD": {
             "firmware": "cpld.bin",
             "version": "10",
-            "boot-action": "power"
         },
         "SSD": {
             "firmware": "SSD.bin",
             "script": "ssd_fw_update",
             "version": "5",
-            "boot-action": "cold"
         }
     }
 }
@@ -609,29 +558,47 @@ The firmware image
 
 ##### 2.2.2.4.2 Description
 
-**The following command updates FW automatically based on the fw update configuration file:**
-1. Non modular chassis platform
+**The following command updates FW Automatically with installing the available component firmware, creating task(s) for update during reboot:**
+1. auto-update command for installation and reboot task creation
+```bash
+root@sonic:~# fwutil auto-update --yes --image=<current|next> --boot=<boot_type>
+Available FW updates with <boot_type> from <current|next> boot image  : COMPONENT1 (and COMPONENT2)
+<COMPONENT1> firmware update will be done during <boot_type> with version <#new_version> (current version #current_version)
+...
+<COMPONENT2> firmware update is starting with version <#new_version2> (current version #current_version2)
+...
+<COMPONENT2> firmware update is in progress with version <#new_version2> (current version #current_version2)
+...
+<COMPONENT2> firmware update is done during <boot_type> with version <#new_version> (current version #current_version)
+...
+All firmware update has been completed.
+```
+
+This is examples of a platform which supports the SSD firmware update during fast reboot and cold reboot with different commands 
+along with CPLD firmware update available only for the cold reboot which can perform a power cycle triggered by some register setting.
+
+Example 1: SSD firmware update is available for fast-reboot upgrade path. 
+SSD firmware update is logged in a platform defined designated file and it will be updated during fast-reboot.
+```bash
+root@sonic:~# fwutil auto-update --yes --image=next --boot=fast
+Available FW updates with fast-reboot from next boot image : SSD
+SSD firmware update will be done during fastreboot with version 5 (current version 4)
+All firmware update has been completed.
+```
+Example 2: SSD and CPLD update is available for cold reboot upgrade path. 
+SSD firmware update is logged in a platform defined designated file and it will be updated during cold reboot.
+CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot 
+once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
 ```bash
 root@sonic:~# fwutil auto-update --yes --image=next --boot=cold
-Warning: <firmware_update_notification>
+Available FW updates with fast-reboot from next boot image : SSD and CPLD
+SSD firmware update will be done during cold-reboot with version 5 (current version 4)
 ...
-FW update in progress ...
+CPLD firmware update is in progress with version 5 (current version 4)
 ...
-root@sonic:~# fwutil auto-update --yes --image=next --boot=any
-Warning: <firmware_update_notification>
+CPLD firmware update is completed with version 5 (current version 4)
 ...
-FW update in progress ...
-...
-root@sonic:~# fwutil auto-update --yes --image=next --boot=fast --component=ssd
-Warning: SSD firmware update will be performed during Fast-reboot!
-Logged 
-...
-...
-root@sonic:~# fwutil auto-update --yes --fw-image=<fw_image_file> --boot=cold --commponent=ssd
-Warning: <firmware_update_notification>
-...
-FW update in progress ...
-...
+All firmware update has been completed.
 ```
 
 **Supported options:**
@@ -641,79 +608,42 @@ FW update in progress ...
 4. -b|--boot - following boot option after the upgrade
 6. -z|--fw-image - firmware package downloaded during run time (this is an exclusive option from --image)
 
-**Note:** the default option is _--image=current_, _--boot=any_,and  _--action=none_ 
+**Note:** the default option is _--image=current_ and _--boot=any_
 
-##### 2.2.2.4.3 Component Firmware Update Script requirement
+##### 2.2.2.4.4.3 PLATFORM-FW-UPDATE-REBOOT-PLUGIN to support the platform specific fw update support for different reboot types
+When Vendor doesn't have platform API ready to suppport all platform component APIs to support the auto-update interfaces,
+PLATFORM-FW-UPDATE-REBOOT-PLUGIN will do the equivalent thing of auto-update platform component APIs
+This plugin will create a task file for specified reboot type issued through the FWutil command. 
+This file will include the components that needs to be upgraded during individual reboot.
+The task file will be platform dependent. It is up to the platform plugin to determine the order of upgrade.
 
-##### 2.2.2.4.3.1 Overview
+Platform Plugin 1:
+The platform plugin 1 will unpack the below files presented in tar in appropriate place
+1.	Firmware
+2.	Update-utility (if provided)
 
-The purpose of the <component>_fw_upgrade commands group is to provide an interface for:
-1. The specific platform component related information query (version, description, etc.)
-2. Available component FW update related information query (fw, version, status, etc.)
-2. Update the component firmware based on the following boot-action
+This plugin will create a task file for specified reboot type issued through the FWutil command. 
+This file will include the components that needs to be upgraded during individual reboot.
+The task file will be platform dependent. It is up to the platform plugin to determine the order of upgrade.
+The below plugin needs to be called by the FWutil command.
+if [[ -x ${ PLATFORM_FWUTIL_CREATE_AUTO_UPDATE_TASK } ]]; then
+    debug "Creating task file for boot type ${boot-option}””
+    ${ PLATFORM_FWUTIL_CREATE_AUTO_UPDATE_TASK } ${tar file/firmware path} ${boot-option} ${update-utility}
+fi    
 
-##### 2.2.2.4.3.1.1 Description
+Platform Plugin 2:
+The reboot scripts will invoke the below plugin which will analyze the corresponding task file and 
+execute the upgrade commands for the components present in task file.
 
-1. <compoenent>_fw_update show status --fw-image=<fw_image_file>
-**This command displays platform component name and FW version:**
-```bash
-root@sonic:~# fwutil show status
-Warning : <platform> doesn't support for the component platform API
-```
-```bash
-root@sonic:~# fwutil show status --fw-image=<fw_image_file>
-=>> Fwutil will perform this command to retrieve the current component firmware installation status using the script available in the firmware update package.
-    `<component>_fw_update show status --fw-image=<fw_image_file>`
-```
+ if [[ -x ${ PLATFORM_FWUTIL_HANDLE_AUTO_UPDATE_TASK } ]]; then
+    debug "Handling task file for boot type ${REBOOT_TYPE}”
+    ${ PLATFORM_FWUTIL_HANDLE_AUTO_UPDATE_TASK } ${REBOOT_TYPE}
+fi    
 
-2. <compoenent>_fw_update show updates --fw-image=<fw_image_file>
-**This command displays available FW updates:**
-```bash
-root@sonic:~# fwutil show updates --fw-image=<fw_image_file> 
-Component   Firmware               Version (current/available)              Status              Required Boot Action
----------   ---------------------  ---------------------------------------  ------------------  -----------------------
-<component> <component>.bin                <current_ver> / <avail_ver>      <update to date /   <supported reboot option>
-                                                                            update is required> 
-```
-Example of show updates command with  when the fw update package has only ssd firmware image.
-```bash
-root@sonic:~# fwutil show updates --fw-image=fw_update.tar.gz
-=>> Fwutil will perform this command to retrieve all available component firmware information based on platform_components.json in the firmware update package.
-    `<component>_fw_update show updates --fw-image=<fw_image_file>`
-Component   Firmware               Version (current/available)              Status              Required Boot Action
----------   ---------------------  ---------------------------------------  ------------------  -----------------------
-SSD         ssd.bin                4 / 5                                    update is required  Cold/Fast reboot
-```
-
-3. <compoenent>_fw_update auto-updates --fw-image=<fw_image_file> --boot=cold
-**This command performs the component FW update:**
-```bash
-root@sonic:~# fwutil auto-update --fw-image=<fw_image_file> --boot=cold 
-=>> Fwutil would perform the following command to perform the firmware upgrade using the available script and firmware image in the firmware update package.
-    `<component>_fw_update auto-update --fw-image=<fw_image_file> --boot=cold`
-Warning: <>
-...
-<component> FW update in progress ...
-...
-```
-Example of ssd_fw_update script interfaces for SSD FW Updates
-```bash
-root@sonic:~# fwutil auto-update --fw-image=fw_update.tar.gz --boot=cold 
-=>> this cli calls `ssd_fw_update auto-update --boot=cold ./ssd_fw.bin`
-Warning: SSD FW update is starting ...
-...
-SSD FW update in progress ...
-...
-```
-
-**Supported options:**
-1. -b|--boot - following boot option after the upgrade
-
-**Note:** the default option is _--boot=any_
 
 ##### 2.2.2.4.4 Auto-update Use Cases
 
-##### 2.2.2.4.4.1 Run time firmware update - Ex) Kubernete 
+##### 2.2.2.4.4.1 Standalone firmware update during run time
 During the run time, SONiC device can have a component firmware updated without interrupting the data plan if the component firmware update doesn't need any boot action.
 ```bash
 root@sonic:~# fwutil auto-update --yes --fw-image=aboot-fw-update.tar.gz --boot=none
@@ -723,121 +653,42 @@ Or, device can be updated only a specific firmware update with a possible boot o
 root@sonic:~# fwutil auto-update --yes --fw-image=ssd-fw-update.tar.gz --boot=fast
 ```
 
-##### 2.2.2.4.4.2 Sonic_to_Sonic upgrade 
-During the sonic image upgrade, all available platform component firmware can be upgraded.
+##### 2.2.2.4.4.2 Firmware upgrade during Sonic_to_Sonic upgrade 
+During the sonic image upgrade, all available platform component firmware can be upgraded for the specific following boot option.
 ```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=fast
-```
-Also  
-```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=cold --component=cpld,ssd
-```
-Example : SONiC firmware upgrade script changes to support automatic firmware update
+PLATFORM_FW_UPDATE="/usr/bin/fwutil"
 
-    ```
-    PLATFORM_FW_UPDATE="/usr/bin/fwutil"
+CURRENT_FW=`sonic_installer list |grep "Current" |awk '{print $2}'`
 
-    CURRENT_FW=`sonic_installer list |grep "Current" |awk '{print $2}'`
+if grep -q aboot /host/machine.conf; then
+    TARGET_FW=`unzip -p /tmp/$FILENAME boot0 |grep -m 1 "image_name" |sed -n "s/.*image-\(.*\)\".*/\1/p"`
+else
+    TARGET_FW=`cat -v /tmp/$FILENAME |grep -m 1 "image_version" | sed -n "s/.*image_version=\"\(.*\)\".*/\1/p"`
+fi
 
-    if grep -q aboot /host/machine.conf; then
-        TARGET_FW=`unzip -p /tmp/$FILENAME boot0 |grep -m 1 "image_name" |sed -n "s/.*image-\(.*\)\".*/\1/p"`
-    else
-        TARGET_FW=`cat -v /tmp/$FILENAME |grep -m 1 "image_version" | sed -n "s/.*image_version=\"\(.*\)\".*/\1/p"`
-    fi
-
-    sonic_installer install -y /tmp/$FILENAME || FAILED=1
-    sync;sync;sync || exit 14
+sonic_installer install -y /tmp/$FILENAME || FAILED=1
+sync;sync;sync || exit 14
 
 
-    if [[ -x ${PLATFORM_FW_UPDATE} ]]; then
-        FS_PATH="/host/image-${TARGET_FW#SONiC-OS-}/fs.squashfs"
-        FS_MOUNTPOINT="/tmp/image-${TARGET_FW#SONiC-OS-}-fs"
+if [[ -x ${PLATFORM_FW_UPDATE} ]]; then
+    FS_PATH="/host/image-${TARGET_FW#SONiC-OS-}/fs.squashfs"
+    FS_MOUNTPOINT="/tmp/image-${TARGET_FW#SONiC-OS-}-fs"
 
-        mkdir -p "${FS_MOUNTPOINT}"
-        mount -t squashfs "${FS_PATH}" "${FS_MOUNTPOINT}" || exit 111
+    mkdir -p "${FS_MOUNTPOINT}"
+    mount -t squashfs "${FS_PATH}" "${FS_MOUNTPOINT}" || exit 111
 
-        ${PLATFORM_FW_UPDATE} auto-update --yes --image=next --boot=${REBOOT_TYPE}
-    fi
-    ```
-
-##### 2.2.2.4.4.3 FW-UPDATE-PLUGIN for reboot scripts - reboot/fast-reboot/warm-reboot
-If any firmware needs to be done during the reboot, which needs to be done only after any service or
-docker stops and/or disk unmounting is done, then each component platform update needs to log the firmware update detail
-in <platform>_fw_update_<reboot_type>.log which can be read by fw_update_reboot_plugin during reboot.
-
-```bash
-root@sonic:~# fwutil auto-update --yes --image=<current|next> --boot=<boot_type>
-Available FW updates with <boot_type> from <current|next> boot image  : COMPONENT1
-<COMPONENT1> firmware update will be done during <boot_type> with version <#new_version> (current version #current_version)
-<COMPONENT1> firmware update has been logged in <platform>_fw_update_<boot_type>.log
-...
-<COMPONENT2> firmware update is starting with version <#new_version2> (current version #current_version2)
-...
-<COMPONENT2> firmware update is in progress with version <#new_version2> (current version #current_version2)
-...
-<COMPONENT2> firmware update is done during <boot_type> with version <#new_version> (current version #current_version)
-...
-<COMPONENT2> firmware update has been logged in <platform>_fw_update_<boot_type>.log
-All firmware update has been completed.
-```
-Example 1: SSD firmware update is available for fast-reboot upgrade path. 
-SSD firmware update is logged in <platform>_fw_update_fast-reboot.log file and it will be updated during fast-reboot.
-```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=fast
-Available FW updates with fast-reboot from next boot image : SSD
-SSD firmware update will be done during fastreboot with version 5 (current version 4)
-SSD firmware update is logged in <platform>_fw_update_fast-reboot.log
-All firmware update has been completed.
-```
-Example 2: SSD and CPLD update is available for cold reboot upgrade path. 
-SSD firmware update is logged in <platform>_fw_update_cold-reboot.log and it will be updated during cold-reboot.
-CPLD firmware update is going to be done with this command and the firmware update completion's also logged 
-```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=cold
-SSD firmware update will be done during cold-reboot with version 5 (current version 4)
-SSD firmware update is logged in <platform>_fw_update_cold-reboot.log
-...
-CPLD firmware update is starting with version 5 (current version 4)
-...
-CPLD firmware update is in progress with version 5 (current version 4)
-...
-CPLD firmware update is completed with version 5 (current version 4)
-...
-CPLD firmware update has been logged in <platform>_fw_update_cold-reboot.log
-All firmware update has been completed.
+    ${PLATFORM_FW_UPDATE} auto-update --yes --image=next --boot=${REBOOT_TYPE}
+fi
 ```
 
-Now <platform>_fw_update_<reboot_type>.log has been created to log the firmware update that need to be run duirng reboot.
-Example of <platform>_fw_update_fast-reboot.log with SSD firmware update which needs to run during fast-reboot.
+##### 2.2.2.4.4.3  Firmware upgrade during a reboot
+During the reboot, the created task(s) needs to be performed for each component firmware updates.
 ```bash
-SSD firmware update needs to be run in fast-reboot.
-CMD : ssd_fw_update auto-update --boot=fast ./ssd_fw.bin
-```
-Example of <platform>_fw_update_cold-reboot.log with SSD firmware update which needs to be run during cold reboot.
-```bash
-SSD firmware update needs to be run in cold-reboot.
-CMD : ssd_fw_update auto-update --boot=cold ./ssd_fw.bin
-CPLD firmware update needs to be run in cold-reboot.
-```
-
-To support the automatic firmware upgrade during reboot based on the /tmp/<platform>_fw_update_<reboot-type>.log,
-`fw_update_reboot_plugin` needs to be added to parse the log file and perform the component firmware updates using the command in the log file.
-`fw_update_reboot_plugin` parses /tmp/<platform>_fw_update_<reboot_type>.log based on the --boot option passing to the plugin.
-And it searches for the firmware update command from the log file and performs the firmware updates if needed.
-
-Example : Reboot script changes to support the automatic firmware update during a reboot using the fw_update_reboot_plugin.
-```bash
-    ...
-    FW_UPDATE_REBOOT_PLUGIN="/usr/bin/fw_update_reboot_plugin"
-    ...
-    ...
-    if [[ -x ${FW_UPDATE_REBOOT_PLUGIN} ]]; then
-        debug "updating platform fw for ${REBOOT_TYPE}"
-        ${FW_UPDATE_REBOOT_PLUGIN} --boot=${REBOOT_TYPE}
-    fi
- 
-    if [ -x ${DEVPATH}/${PLATFORM}/${PLAT_REBOOT} ]; then
-    ...
+PLATFORM_FWUTIL="/usr/bin/fwutil"
+if [[ -x ${ PLATFORM_FWUTIL } ]]; then
+    debug "Platform components firmware update for boot type ${boot-option}””
+    ${ PLATFORM_FWUTIL } --yes --boot={BOOT_TYPE}
+fi    
 ```
 
 # 3 Flows
@@ -867,17 +718,6 @@ Example : Reboot script changes to support the automatic firmware update during 
 ![FW install (modular) flow](images/install_modular_flow.svg "Figure 5: FW install (modular) flow")
 
 ###### Figure 5: FW install (modular) flow
-
-## 3.4 Auto FW Update
-
-### 3.4.1 Auto FW update based on the configuration file
-
-![Auto FW update flow with downloaded firmware package](images/update_w_fw_package.svg "Figure 6: Auto FW update flow with downloaded firmware package")
-
-1. Find the available firmware based on boot type from platform specific fw update configuration file. 
-   Exit if no configuration file exists.
-2. Update the firmware using the script if it's specified in the configuration. Otherwise, fwutil will use the platform api to update the firmware.
-   Exit if the update fails in any step.
 
 # 4 Tests
 
