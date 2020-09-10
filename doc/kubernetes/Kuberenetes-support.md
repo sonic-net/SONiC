@@ -868,19 +868,19 @@ The service files are already available. The FEATURE table would need to be upda
 
 # RFE -- For brain storming
 ## Warm-restart 
-During runtime, a FEATURE could auto restart
+During runtime, a FEATURE could auto restart  using warm-restart to minimize traffic disruptions. The possible restart scenarios are listed below.
   1. When kube is re-deploying per updated manifest
-  2. When kube is deploying in LOCAL mode -- local-to-kube transition
+  2. When kube is deploying while in LOCAL mode -- local-to-kube transition
   3. When owner is set to `local` and kube-to-local transition occurs
-  4. Failure exit of container and systemd auto-restart.
+  4. When container exits due to internal failure and systemd auto-restart.
   
-With exception of the 'failure exit', the rest are initiated to do a transformation. In all these cases, one may do a warm restart, to minimize impact to an active switch.
+With exception of the 'failure exit', the rest are initiated to do an expectes/explicit transition. In all these cases, one may do a warm restart, to minimize impact to an active switch.
 
 ## Tag downloaded as local image
 The fallback to local is a very handy feature to be able to 
   * start a service quickly on reboot.
   * Run a service when kube master is unreachable or join not initiated.
-  * The kube master has some issues w.r.t deploying.
+  * run local when kube master has some issues w.r.t deploying.
 
 The version of the local image is highly likely to be lower than the downloaded image. Falling back local image of lower version is *not* advisable for following reasons.
   * The lower version may have bugs, or not compatible with state left behind by later version.
