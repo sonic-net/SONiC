@@ -108,7 +108,6 @@ At a high level the following should be supported:
 - Enable or disable the XPN feature by the wpa_cli
 - Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
 - CLI command `show macsec` to monitor mka session and statistics of MACsec
-- MACsec can support confidentiality offset setting
 
 #### Phase III
 
@@ -159,7 +158,7 @@ The following new tables will be added to Config DB. Unless otherwise stated, th
 ``` rfc5234
 MACSEC_PROFILE|{{profile}}
     "priority":{{priority}}
-    "cipher_suite":{{cipher_suite}} (OPTIONAL)
+    "cipher_suite":{{cipher_suite}}
     "primary_cak":{{primary_cak}}
     "primary_ckn":{{primary_ckn}}
     "fallback_cak":{{fallback_cak}} (OPTIONAL)
