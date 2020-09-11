@@ -307,7 +307,7 @@ The data of PHYSICAL_ENTITY_INFO will be collected by thermalctld, psud and xcvr
 
 ### 4.4 entPhysicalIndex implementation
 
-For transceivers and its DOM sensors, there is already rule to generate entPhysicalIndex for them. For new entity such as FAN, PSU, the entPhysicalIndex generating rule is described below:
+The existing rule for generating entPhysicalIndex is too simple. There is risk that two different entities might have the same entPhysicalIndex. Here we design a new rule for generating the entPhysicalIndex:
 
 ```
 For non-port entity, the rule to generate entPhysicalIndex describes below:
