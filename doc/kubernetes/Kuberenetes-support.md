@@ -308,15 +308,15 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                               Optional when owner = local. Defaults to SONiC image version                                        
 ```
 
-   ### Transient info:
+   ### Labels:
    
-   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. In this case, these failed requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
+   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. This could cost a minimum of 5 seconds, even for a quickest timeout. To make it quick & consistent, the add/remove request would instead push the request to a state-DB queue. A daemon watching STATE-DB for transition changes, would also watch for requests & apply.
+   
+ The outstanding requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
   
    Labels to be added are saved as `<key>=<value>` or to be removed are saved as `<key>-`. For any key, only the last update as `add`/`remove` is saved in this transient info. In case of `add` followed by `remove`, only the `remove` is saved and vice versa. For example, in case of `add` followed by `remove`, it would only persist `remove` which when later applied to the kubernetes master, it would become a no-op as `add` never happened and vice versa in case of `remove` followed by `add`. As the server handles no-op clean, SONiC may just replay the last command.
      
-   Any `sudo config kubernetes label ...` command would be merged with any existing transient info and the entire cached set is applied.
-   
-   When remove a label to stop/kill a container fails, explicit docker command would be used. So a kube managed docker can be stopped, even when remove label fails, but same is only partially true for start. A new kube deployment can't happen when label can't be created. But for containers currently managed by kubelet, if container would exit the kubelet would restart per last applied manifest, even when it can't reach the server.
+As label add/remove are aysynchronous, for label remove, also docker-stop is done to ensure that the docker exits. But with label not removed yet, kubelet could try restarting, but the ttransition-mode will hold it back, until it is signaled to go.
    
    ```
    key: "KUBE_SERVER|PENDING_LABELS"
