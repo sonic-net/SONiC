@@ -150,7 +150,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    Key: "FEATURE|<name>"
    current_owner = local/kube/none/"";   
                                               Empty or none implies that this container is not running
-   kube_mode     = ""/"none"/"kube_ready"/"kube_pending"/"kube_running"/"kube_stopped";
+   remote_state     = ""/"none"/"ready"/"pending"/"running"/"stopped";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
    Docker-id     = <container ID>;            Expected, when container is running
@@ -300,7 +300,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   kube_mode               = ""/"none"/"kube_ready"/"kube_pending"/"kube_running"/"kube_stopped";
+   remote_state               = ""/"none"/"ready"/"pending"/"running"/"stopped";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
    running_version         = <version of running image>;
@@ -342,10 +342,10 @@ Some common scenarios are described below, to help understand the transition in 
       * The hostcfgd initiates a restart, whenever transition is required between local and kube modes
    *  The kube mode
       *  none  - No initiative from kube on this feature
-      *  kube_pending - Kube is ready to deploy and waiting to proceed
-      *  kube_ready - kube container is signaled to proceed
-      *  kube_running - The container started by kube is running
-      *  kube_stopped - The container started by kube has exited
+      *  pending - Kube is ready to deploy and waiting to proceed
+      *  ready - kube container is signaled to proceed
+      *  running - The container started by kube is running
+      *  stopped - The container started by kube has exited
       
    *  At anytime only one container from any mode can be running its application processes.
       
@@ -354,14 +354,14 @@ Some common scenarios are described below, to help understand the transition in 
 ***Stable*** state<br/>
 system state = down<br/>
 current_owner = none<br/>
-kube_mode = any or N/A
+remote_state = any or N/A
 
 In this state, no container is running. This is the initial state upon boot and upon performing `systemctl stop` from any state.
 
 The current_owner = none implies that the feature's container is *not* running in any mode.<br/>
 
 The feature remains in this state until `systemctl start` action is performed. <br/>
-Upon `systemctl start`, the destination state is LOCAL, if set_owner == local or kube with fallback enabled and kube_mode is none, else KUBE_READY.
+Upon `systemctl start`, the destination state is LOCAL, if set_owner == local or kube with fallback enabled and remote_state is none, else KUBE_READY.
 
 The `systemctl stop` brings back to this state from any state.
 
@@ -370,11 +370,11 @@ The `systemctl stop` brings back to this state from any state.
 ***Stable*** state<br/>
 system state = up<br/>
 current_owner = local<br/>
-kube_mode = none
+remote_state = none
 
 The container is running using local image, started by docker command.<br/>
 
-This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback-enabled && kube_mode = none)
+This state is reached from INIT state, upon `systemctl start`, if set_owner = local or {set_owner = kube && fallback-enabled && remote_state = none)
    
 The feature remains in this state until `systemctl stop` action is performed, which transitions it back to INIT state.
 
@@ -383,14 +383,14 @@ The feature remains in this state until `systemctl stop` action is performed, wh
 ***Semi-stable*** state<br/>
 system state = up<br/>
 current_owner = none<br/>
-kube_mode = kube_ready
+remote_state = kube_ready
 
 There is no container running. The `systemctl status` would indicate 'waiting for kube deployment'.<br/>
 
 This state is reached from INIT state, upon `systemctl start`, if set_owner = kube and either of the following is true
   * The fallback is disabled, so it transitons to KUBE_READY state <br/>
   OR
-  * The kube_mode != none, implying kube is either pending deployment or just exited. So even with fallback set, go to KUBE_READY, as kube is most likely ready to deploy.
+  * The remote_state != none, implying kube is either pending deployment or just exited. So even with fallback set, go to KUBE_READY, as kube is most likely ready to deploy.
    
 The feature remains in this state until
   * kube deploys the container, which transitions it to KUBE_RUNNING state.<br/>
@@ -401,7 +401,7 @@ The feature remains in this state until
 ***Stable*** state<br/>
 system state = up<br/>
 current_owner = kube<br/>
-kube_mode = kube_running
+remote_state = running
 
 The kube  deployed container is running.
 
@@ -415,14 +415,14 @@ The container exit could be due to internal error or explicit termination by kub
 ***Transient*** state<br/>
 system state = up<br/>
 current_owner = local<br/>
-kube_mode = kube_pending
+remote_state = pending
 
-In this state, the local container is running. The kube has deployed its container, which sets the kube_mode to kube_pending and goes into a forever sleep mode.<br/>
+In this state, the local container is running. The kube has deployed its container, which sets the remote_state to pending and goes into a forever sleep mode.<br/>
 NOTE: The application processes inside the kube deployed container are not started yet.
 
 This state reached only from LOCAL, upon deployment by kube.
 
-The feature remains in this state until hostcfgd notices the kube_mode, invokes `systemctl stop`, which would transition it to INIT state. The subsequent `systemctl start` by hostcfgd would take it to KUBE_READY state.
+The feature remains in this state until hostcfgd notices the remote_state, invokes `systemctl stop`, which would transition it to INIT state. The subsequent `systemctl start` by hostcfgd would take it to KUBE_READY state.
 
 
 ### Common set of scenarios
@@ -433,15 +433,15 @@ None of the features are configured with set_owner = kube. Here it swings betwee
 
 
 ### Kube managing feature with fallback enabled:
-Upon system boot, the state is at INIT. The `systemctl start` takes it to state LOCAL and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, the deployed-container sets kube_mode to kube_pending and gets into a forever sleep mode. This action by kube transitions to the transient state LOCAL_TO_KUBE. The hostcfgd interferes, call for `systemctl stop`, which transitions it to INIT state. Subsequently hostcfgd call for `systemctl start`, which would transition it to KUBE_READY state, waiting for re-deploy from kube. The re-deploy by kube would be *instantaneous or nearly synchronous*, and it notices the mode to be kube_ready, hence proceeds to start the application processes, transitioning to KUBE_RUNNING state. 
+Upon system boot, the state is at INIT. The `systemctl start` takes it to state LOCAL and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, the deployed-container sets remote_state to pending and gets into a forever sleep mode. This action by kube transitions to the transient state LOCAL_TO_KUBE. The hostcfgd interferes, call for `systemctl stop`, which transitions it to INIT state. Subsequently hostcfgd call for `systemctl start`, which would transition it to KUBE_READY state, waiting for re-deploy from kube. The re-deploy by kube would be *instantaneous or nearly synchronous*, and it notices the mode to be ready, hence proceeds to start the application processes, transitioning to KUBE_RUNNING state. 
 
-The feature stays in state-KUBE_RUNNING state, until container exits. In normal conditions, the exit is mostlikely because kube un-deployed to handle a manifest update. This action of container exit, triggers systemd to perform stop action, which would transition it to INIT state. As it is auto-container exit, if this feature is enabled for auto restart by systemd, the systemd would transparently perform start action. Ths start action would transition to state KUBE_READY, as kube_mode == kube_stopped, which is `!= none`. The kubelet deploys the container per updated-manifest instantaneously, which takes it back to state-KUBE_RUNNING. In case of any crash, the transitions are the same, just that kubelet would be restarting the container from the same image. In case the manifest is removed, the feature will remain in KUBE_READY state, until `systemctl stop` would transition to INIT state. 
+The feature stays in state-KUBE_RUNNING state, until container exits. In normal conditions, the exit is mostlikely because kube un-deployed to handle a manifest update. This action of container exit, triggers systemd to perform stop action, which would transition it to INIT state. As it is auto-container exit, if this feature is enabled for auto restart by systemd, the systemd would transparently perform start action. Ths start action would transition to state KUBE_READY, as remote_state == stopped, which is `!= none`. The kubelet deploys the container per updated-manifest instantaneously, which takes it back to state-KUBE_RUNNING. In case of any crash, the transitions are the same, just that kubelet would be restarting the container from the same image. In case the manifest is removed, the feature will remain in KUBE_READY state, until `systemctl stop` would transition to INIT state. 
 
-In other words, once kube deploys, it would not go to LOCAL mode, even with fallback set, unless the kube_mode is explicitly set to none, followed by a `systemctl restart`, which would transition briefly to INIT state and ends in LOCAL state. If a feature is stuck in KUBE_READY for too long, this action could be executed to fallback to LOCAL state
+In other words, once kube deploys, it would not go to LOCAL mode, even with fallback set, unless the remote_state is explicitly set to none, followed by a `systemctl restart`, which would transition briefly to INIT state and ends in LOCAL state. If a feature is stuck in KUBE_READY for too long, this action could be executed to fallback to LOCAL state
 
 
 ### kube managing feature with fallback disable:
-Upon system boot, the state is at INIT. The `systemctl start`, sets kube_mode to 'kube_ready' which takes it to state KUBE_READY and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the current_owner to 'kube', which is state KUBE_RUNNING. 
+Upon system boot, the state is at INIT. The `systemctl start`, sets remote_state to 'kube_ready' which takes it to state KUBE_READY and as well add a label that enables kube-deployment. Whenever kube deploys in future, asyhnchronously, it sets the current_owner to 'kube', which is state KUBE_RUNNING. 
 
 When a manifest is re-deployed/un-deployed or container exits, the behavior is same as in case above, with the exceptiom of never fallback to LOCAL state.
 
@@ -469,7 +469,7 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    
  
 ### hostcfgd update
-   The hostcfgd watches for `kube_mode == kube_pending` and also set_owner change. In either case, if transition is required, it stops & starts the service. This ensures smooth transition across modes.
+   The hostcfgd watches for `remote_state == pending` and also set_owner change. In either case, if transition is required, it stops & starts the service. This ensures smooth transition across modes.
    
    ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
    
@@ -554,9 +554,9 @@ The feature is in LOCAL mode. When set_owner is changed to KUBE, the hostcfgd cr
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
    ```
    admin@str-s6000-acs-13:~$ show features 
-   Feature    Status    set_owner    fallback    current_owner    current_owner_update    docker_id     kube_request
+   Feature    Status    set_owner    fallback    current_owner    current_owner_update    docker_id     remote_state
    ---------  --------  -----------  ----------  ---------------  ----------------------  ------------  --------------
-   snmp       enabled   kube         true        kube             1598323562              4333d9d5004a  kube_ready
+   snmp       enabled   kube         true        kube             1598323562              4333d9d5004a  ready
    ```
 # Reboot support
 
@@ -747,7 +747,7 @@ Points to note:
   *  Make sure starting a feature in local mode runs this ***Golden*** image.
   *  Whenever new downloaded image reports failure and the failure persists for more than < M > seconds,
      * mark the Feature's fallback to 'true'.
-     * set kube_mode = "none"
+     * set remote_state = "none"
      * restart the service, which would end up running from local ***Golden*** image.
   
   
@@ -832,7 +832,7 @@ Create a new manifest for the updated image, instead of updating the existing. A
   * Image will be downloaded
   * container will be started
   
-5)  The container will call "container_state <feature name> up kube". This would set kube_request to kube_pending and sleep forever, as there is another instance running.
+5)  The container will call "container_state <feature name> up kube". This would set kube_request to pending and sleep forever, as there is another instance running.
     * Before calling container_state script, it would STATE-DB FEATURE|<name> with { manifest_ts = <MANIFEST_TS from its environment> }
   
 6) The hostcfgd would initiate service restart.
