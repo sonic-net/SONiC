@@ -132,6 +132,7 @@ Console Switch enable user to manage routers/switches via console port.
 1. Support configuration using SONiC CONFIG_DB
 1. Support configuration using SONiC MINIGRAPH
 1. Support configuration using SONiC config CLI
+1. Support record the console line state in STATE_DB
 
 ## 1.2 Design Overview
 
