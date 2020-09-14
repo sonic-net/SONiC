@@ -288,7 +288,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
 ```
    key: "KUBERNETES_MASTER|SERVER"
    connected      = True/False
-   server_IP      = <IP address of server>
+   server_ip      = <IP address of server>
    last_update_ts = <seconds since epoch>
 ```
 
