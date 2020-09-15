@@ -24,7 +24,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 |Feature                    | Version  |
 | ------------------------- | --------------- |
 | Linux kernel version      | linux_4.9.0-11-2 (4.9.189-3+deb9u2)   |
-| SAI   version             | SAI v1.5.1    |
+| SAI   version             | SAI v1.6.3    |
 | FRR                       | 7.2    |
 | LLDPD                     | 0.9.6-1    |
 | TeamD                     | 1.28-1    |
@@ -115,16 +115,12 @@ Thermal control daemon has been added to monitor the temperature of devices (CPU
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.5_Release_notes]([https://github.com/kannankvs/md2/blob/master/SAI_1.5%20Release%20notes.md](https://github.com/kannankvs/md2/blob/master/SAI_1.5 Release notes.md))
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.6.3 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.6.3.md)
 
-| S.No | Feature                     | API                                                          |
-| ---- | --------------------------- | ------------------------------------------------------------ |
-| 1    | TAM                         | 1. sai_create_tam_report_fn<br/>   2. sai_remove_tam_int_f<br/>   3. sai_set_tam_int_attribute_fn<br/>   4. sai_get_tam_int_attribute_fn<br/>   5. sai_tam_telemetry_get_data_fn |
-| 2    | NAT                         | 1. sai_create_nat_range_fn<br/>   2. sai_remove_nat_range_fn<br/>   3. sai_get_nat_range_attribute_fn<br/>   4. sai_get_nat_range_attribute_fn<br/>   5. sai_create_nat_fn<br/>   6. sai_remove_nat_fn<br/>   7. sai_set_nat_attribute_fn<br/>   8. sai_get_nat_attribute_fn |
-| 3    | sFLOW                       | 1. sai_hostif_type_genetlink<br/>   2. sai_hostif_attr_genetlink_mcgrp_name<br/>   3. sai_hostif_table_entr_channel_type_genetlink |
-| 4    | Generic Resource Monitoring | 1. sai_object_type_get_availability                          |
-| 5    | SAI counter                 | 1. sai_create_counter_fn<br/>   2. sai_remove_counter_fn<br/>   3. sai_set_counter_attribute_fn<br/>   4. sai_get_counter_attribute_fn<br/>   5. sai_get_counter_stats_fn<br/>   6. sai_get_counter_stats_ext_fn<br/>   7. sai_clear_counter_stats_fn |
-| 6    | Drop Counters               | 1. sai_create_debug_counter_fn<br/>   2. sai_remove_debug_counter_fn<br/>   3. sai_set_debug_counter_attribute_fn<br/>   4. sai_get_debug_counter_attribute_fn |
+| S.No | Feature                     | 
+| ---- | --------------------------- |
+| 1    | MACSEC                      |
+| 2    | System Port API             |
 
 
 
