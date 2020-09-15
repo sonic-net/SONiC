@@ -666,11 +666,12 @@ if [[ -x ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ]]; then
     ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ${tar file/firmware path} ${boot-option} ${update-utility}
 fi    
 ```
-The reboot scripts will invoke the FWutil and the FWutil will invoke the plugin with boot-type, which will analyze the corresponding task file and execute the upgrade commands for the components present in task file.
+The reboot scripts will invoke the platform firmware update reboot plugin with boot-type, which will analyze the reboot firmware task file and execute the upgrade commands for the components present in task file.
 ```bash
-if [[ -x ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ]]; then
+PLATFORM_FWUTIL_AU_REBOOT_HANDL="platform_fw_au_reboot_handle"
+if [[ -x ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ]]; then
     debug "Handling task file for boot type ${REBOOT_TYPE}”
-    ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ${REBOOT_TYPE}
+    ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ${REBOOT_TYPE}
 fi    
 ```
 
@@ -721,15 +722,6 @@ fi
 ```
 
 ##### 2.2.2.4.4.3  Firmware upgrade during a reboot
-During the reboot, the created task(s) needs to be performed for each component firmware updates.
-This fwutil call needs to be performed right before calling the platform specific reboot plugin.
-```bash
-PLATFORM_FWUTIL="/usr/bin/fwutil"
-if [[ -x ${PLATFORM_FWUTIL} ]]; then
-    debug "Platform components firmware update for boot type ${boot-option}””
-    ${PLATFORM_FWUTIL} auto-update --yes --boot={BOOT_TYPE}
-fi    
-```
 
 # 3 Flows
 
