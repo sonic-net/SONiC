@@ -103,7 +103,7 @@ The current already implemented cable and cable DOM sensors getting data from ta
 
 ### 4.1 entPhysicalParentRelPos implementation
 
-entPhysicalParentRelPos is an indication of the relative position of this 'child' component among all its 'sibling' components. Sibling components are defined as entPhysicalEntries which share the same instance values of each of the entPhysicalContainedIn and entPhysicalClass objects. 
+entPhysicalParentRelPos is an indication of the relative position of this 'child' component among all its 'sibling' components. Sibling components are defined as entPhysicalEntries which share the same instance values of each of the entPhysicalContainedIn and entPhysicalClass objects.
 
 In current SONiC implementation, there are following issues:
 
@@ -307,44 +307,54 @@ The data of PHYSICAL_ENTITY_INFO will be collected by thermalctld, psud and xcvr
 
 ### 4.4 entPhysicalIndex implementation
 
-For transceivers and its DOM sensors, there is already rule to generate entPhysicalIndex for them. For new entity such as FAN, PSU, the entPhysicalIndex generating rule is described below:
+The existing rule for generating entPhysicalIndex is too simple. There is risk that two different entities might have the same entPhysicalIndex. Here we design a new rule for generating the entPhysicalIndex:
 
 ```
-For fan drawer:
-entPhysicalIndex = 500000000 + entPhysicalParentRelPos * 1000000
+For non-port entity, the rule to generate entPhysicalIndex describes below:
+The entPhysicalIndex is divided into 3 layers:
+    1. Module layer which includes modules located on system (e.g. fan drawer, PSU)
+    2. Device layer which includes system devices (e.g. fan )
+    3. Sensor layer which includes system sensors (e.g. temperature sensor, fan sensor)
+The entPhysicalIndex is a 9 digits number, and each digit describes below:
+Digit 1: Module Type
+Digit 2~3: Module Index
+Digit 4~5: Device Type
+Digit 6~7: Device Index
+Digit 8: Sensor Type
+Digit 9: Sensor Index
 
-For fan:
-entPhysicalIndex = entPhysicalContainedIn + 20020 + entPhysicalParentRelPos
+Module Type describes below:
+2 - Management
+5 - Fan Drawer
+6 - PSU
+Device Type describes below:
+01 - PS
+02 - Fan
+24 - Power Monitor (temperature, power, current, voltage...)
+99 - Chassis Thermals
+Sensor Type describes below:
+1 - Temperature
+2 - Fan Tachometers
+3 - Power
+4 - Current
+5 - Voltage
 
-For fan tachometers:
-entPhysicalIndex = entPhysicalContainedIn + 10000
+e.g. 501000000 means the first fan drawer, 502020100 means the first fan of the second fan drawer
 
-For PSU:
-entPhysicalIndex = 600000000 + entPhysicalParentRelPos * 1000000
+As we are using ifindex to generate port entPhysicalIndex and ifindex might be a value larger than 99 which cannot be hold by 2 digits, we uses a different way to generate port entPhysicalIndex.
 
-For PSU fan:
-entPhysicalIndex = entPhysicalContainedIn + 20020 + entPhysicalParentRelPos
+For port entity, the entPhysicalIndex is a 10 digits number, and each digit describes below:
+Digit 1: 1
+Digit 2~8: ifindex
+Digit 9: Sensor Type
+Digit 10: Sensor Index
 
-For PSU fan tachometers:
-entPhysicalIndex = entPhysicalContainedIn + 10000 + entPhysicalParentRelPos
-
-For PSU temperature:
-entPhysicalIndex = entPhysicalContainedIn + 40011
-
-For PSU power:
-entPhysicalIndex = entPhysicalContainedIn + 40030
-
-For PSU current:
-entPhysicalIndex = entPhysicalContainedIn + 40040
-
-For PSU voltage:
-entPhysicalIndex = entPhysicalContainedIn + 40050
-
-For chassis management:
-entPhysicalIndex = 200000000
-
-For chassis thermal:
-entPhysicalIndex = 200000000 + 100000 + entPhysicalParentRelPos
+Port Sensor Type describes below:
+1 - Temperature
+2 - TX Power
+3 - RX Power
+4 - TX BIAS
+5 - Voltage
 ```
 
 ## 5. Entity MIB extension test
