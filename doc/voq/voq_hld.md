@@ -195,7 +195,7 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
         "redis-chassis_db":{
             "hostname" : "{{HOST_IP}}",
             "port" : 6380,
-            "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis.sock",
+            "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis-chassis_db.sock",
             "persistence_for_warm_boot" : "no",
 {%- if sonic_asic_platform_cardtype == "linecard" %}
             "run_server": "no"
@@ -317,7 +317,7 @@ switch_id                             = 1*4DIGIT                            ; sw
 
 ## 2.5 Orchestration agent
 ### VOQ Switch Creation
-Prior to switch creation - OrchAgent determines whether or not it is a VOQ Switch by checking if VOQ specific information is present in the APP DB. It could do this by checking for the presence of my_switch_id (or max_cores or connection information for VOQ System DB) in the VOQ System Information. If it is not a VOQ Switch - switch creation goes ahead as it does currently. VOQ Switch creation requires additional information - max_cores, my_switch_id and system port list (see previous srctions for table names). It waits until this information is available from the APP DB before going ahead with switch creation. 
+Prior to switch creation - OrchAgent determines whether or not it is a VOQ Switch by checking if VOQ specific information is present in the CONFIG DB. It could do this by checking for the presence of switch_id (or max_cores or connection information for VOQ System DB) in the VOQ System Information. If it is not a VOQ Switch - switch creation goes ahead as it does currently. VOQ Switch creation requires additional information - max_cores, switch_id and system port list (see previous srctions for table names). It waits until this information is available from the APP DB before going ahead with switch creation. 
 ### Portsorch
 This is made aware of voq system port. During PortOrch initialization, portsorch makes a list of all the system ports created during switch creation (above). After "PortInitDone" for all the local ports, portsorch adds system ports to ports list and creates host interfaces for the local ports (inclduing the recycle port if used for inband). 
 ### Intfsorch
