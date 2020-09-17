@@ -25,12 +25,12 @@
       * [2.2.1 DEVICE_METADATA](#221-device_metadata)
       * [2.2.2 System Port Table](#222-system-port-table)
       * [2.2.3 ConfigDB Schemas](#223-configdb-schemas)
-    * [2.3 GLOBAL_APP_DB](#23-global_app_db)
+    * [2.3 CHASSIS_APP_DB](#23-chassis_app_db)
       * [2.3.1 System Port interface table](#231-system-port-interface-table)
       * [2.3.2 System Neighbor table](#232-system-neighbor-table)
       * [2.3.3 System PortChannel table](#233-system-portchannel-table)
       * [2.3.4 System PortChannel Member table](#234-system-portchannel-member-table)
-      * [2.3.5 GLOBAL_APP_DB Schemas](#235-global_app_db-schemas)
+      * [2.3.5 CHASSIS_APP_DB Schemas](#235-chassis_app_db-schemas)
     * [2.5 Orchestration agent](#25-orchestration-agent)
     * [2.6 Design Options for Host IP connectivity](#26-design-options-for-host-ip-connectivity)
 	  * [2.6.1 Inband Recycle Port Option](#261-inband-recycle-port-option)
@@ -100,13 +100,13 @@ Phase-1 of the Distributed VOQ System should support static configuration of the
 ### IntfsOrch:
 - Should create/delete/update router interfaces against local-asic ports
 - Should create/delete/update remote-asic router interfaces on the local switch
-- Should export local-asic router interface information into the "GLOBAL_APP_DB"
+- Should export local-asic router interface information into the "CHASSIS_APP_DB"
 
 ### NeighOrch:
  - Should be aware of Neighbors on other asics
  - Should be able to create/delete/update "remote-asic" Neighbors on the local switch.
  - Should be able to create/delete/update next hops for "remote-asic" neighbors on the local switch.
- - Should export local-asic Neighbor information into the "GLOBAL_APP_DB"
+ - Should export local-asic Neighbor information into the "CHASSIS_APP_DB"
 
 ### Switch Fabric Orchestration
  - Should initialize and create switch for fabric (switch type = FABRIC)
@@ -179,7 +179,7 @@ DEVICE_METADATA: {
 }
 ```
 
-GLOBAL_APP_DB and Global DB instance will be specified using database_config.json.j2 and it will be generated in control card and linecard differently. Control card will be the server and line card will be connecting to the GLOBAL_APP_DB. DBConnectors will use this config to connect correct Global DB instance.
+CHASSIS_APP_DB and Chassis DB instance will be specified using database_config.json.j2 and it will be generated in control card and linecard differently. Control card will be the server and line card will be connecting to the CHASSIS_APP_DB. DBConnectors will use this config to connect correct Chassis DB instance.
 
 sonic-buildimage/dockers/docker-database/database_config.json.j2
 
@@ -192,7 +192,7 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
             "persistence_for_warm_boot" : "yes"
         },
 {%- if sonic_asic_platform == "voq" %}
-        "redis-global_db":{
+        "redis-chassis_db":{
             "hostname" : "{{HOST_IP}}",
             "port" : 6380,
             "unix_socket_path" : "/var/run/redis{{NAMESPACE_ID}}/redis.sock",
@@ -210,10 +210,10 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
             "instance" : "redis"
         },
         ...
-        "GLOBAL_APP_DB" : {
+        "CHASSIS_APP_DB" : {
             "id" : 11,
             "separator": ":",
-            "instance" : "redis-global_db"
+            "instance" : "redis-chassis_db"
         },
 ```
         
@@ -257,8 +257,8 @@ For router interface and address configurations for the system ports, the existi
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
-## 2.3 GLOBAL_APP_DB
-This is a **new** database which resides in global redis server accessible by all sonic instances. This database is modeled as Application DB. The OrchAgent in all the sonic instances will write their local information such as INTERFACE, NEIGH, PORTCHANNEL and PORTCHANNEL_MEMBER tables to GLOBAL_APP_DB with hardware identifier's. The OrchAgent also reads sync-ed remote info such as SYSTEM_INTERFACE, SYSTEM_NEIGH, SYSTEM_PORTCHANNEL and SYSTEM_PORTCHANNEL_MEMBER tables of all sonic instances with hardware information such as hardware index.
+## 2.3 CHASSIS_APP_DB
+This is a **new** database which resides in chassis redis server accessible by all sonic instances. This database is modeled as Application DB. The OrchAgent in all the sonic instances will write their local information such as INTERFACE, NEIGH, PORTCHANNEL and PORTCHANNEL_MEMBER tables to CHASSIS_APP_DB with hardware identifier's. The OrchAgent also reads sync-ed remote info such as SYSTEM_INTERFACE, SYSTEM_NEIGH, SYSTEM_PORTCHANNEL and SYSTEM_PORTCHANNEL_MEMBER tables of all sonic instances with hardware information such as hardware index.
 
 ### 2.3.1 System Port interface table
 A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config.
@@ -288,7 +288,7 @@ SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
 A table SYSTEM_PORTCHANNEL_MEMBER for members of portchannel in the whole system. This is populated by OrchAgent.
 Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
 
-### 2.3.5 GLOBAL_APP_DB Schemas
+### 2.3.5 CHASSIS_APP_DB Schemas
 
 ```
 ; Defines schema for interfaces for VOQ System ports
@@ -738,7 +738,7 @@ Example coniguration for voq inband interface type "port" is presented
  }
 ```
 
-#### GLOBAL_APP_DB Objects:
+#### CHASSIS_APP_DB Objects:
 
 ```
 {
