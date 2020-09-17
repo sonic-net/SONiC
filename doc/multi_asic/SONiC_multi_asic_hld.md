@@ -273,8 +273,8 @@ The ASIC host-interface(knet) driver links the ports to namespace, where the sws
 
   1. **asic_port_name** tells the ASIC internal port name, to which this SONiC port is mapped
      The asic_port_name has the port ***<ASIC_index><port_index>***
-  2. **role** tells if the port is internal or external. This column can have values of ***I*** or ***E***.
-      ***I*** indicates internal or backplane ports and ***E*** indicates external or front panel ports
+  2. **role** tells if the port is internal or external. This column can have values of ***Int*** or ***Ext***.
+      ***Int*** indicates internal or backplane ports and ***Ext*** indicates external or front panel ports
 
 The SONiC interface name is unique across the device.
 
@@ -283,14 +283,14 @@ This port_config.ini is used to generate the port configuration for every ASIC
 Sample port_config.ini
  ```                                                                                                                                       
  # name          lanes          alias            asic_port_name   role
-Ethernet0     33,34,35,36      Ethernet1/1      Eth0-ASIC0        E
-Ethernet4     29,30,31,32      Ethernet1/2      Eth1-ASIC0        E
-Ethernet8     41,42,43,44      Ethernet1/3      Eth2-ASIC0        E
-Ethernet12    37,38,39,40      Ethernet1/4      Eth3-ASIC0        E
-Ethernet-BP0  13,14,15,16      Ethernet-BP0     Eth4-ASIC0        I
-Ethernet-BP4  17,18,19,20      Ethernet-BP4     Eth5-ASIC0        I
-Ethernet-BP8  21,22,23,24      Ethernet-BP8     Eth6-ASIC0        I
-Ethernet-BP12 25,26,27,28      Ethernet-BP12    Eth7-ASIC0        I 
+Ethernet0     33,34,35,36      Ethernet1/1      Eth0-ASIC0        Ext
+Ethernet4     29,30,31,32      Ethernet1/2      Eth1-ASIC0        Ext
+Ethernet8     41,42,43,44      Ethernet1/3      Eth2-ASIC0        Ext
+Ethernet12    37,38,39,40      Ethernet1/4      Eth3-ASIC0        Ext
+Ethernet-BP0  13,14,15,16      Ethernet-BP0     Eth4-ASIC0        Int
+Ethernet-BP4  17,18,19,20      Ethernet-BP4     Eth5-ASIC0        Int
+Ethernet-BP8  21,22,23,24      Ethernet-BP8     Eth6-ASIC0        Int
+Ethernet-BP12 25,26,27,28      Ethernet-BP12    Eth7-ASIC0        Int
  ```
 
 ### 2.4.3. Configuration
