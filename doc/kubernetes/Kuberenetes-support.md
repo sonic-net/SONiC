@@ -268,14 +268,13 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                                 considered as "failed". The alert logs will be raised.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
-   required_services = <list of names>;         Optional entry. A kube only feature may provide this info to enable auto-create of the 
-                                                required .service & .bash scripts to enable systemd manage it as service.
-                                                
-   auto_service_install = true/false            Every kube only feature requires, corresponding .service file. Setting this to true
-                                                will auto-create these files upon everry update. Default is false.
-                                                
+
    local_version = <version of local container image>;
                                                 Optional. Defaults to SONiC image version
+                                                
+   local_deploy_id = <An integer>               An ID that is used for comparison, when multiple deployments go active concurrently
+                                                The deployment with later ID is successfully deployed.
+                                                Default: 0
                                                   
 ```
   
@@ -285,7 +284,7 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    key: "KUBERNETES_MASTER|SERVER"
    connected      = True/False
    server_ip      = <IP address of server>
-   last_update_ts = <seconds since epoch>
+   last_update_ts = <Timestamp of last update>
 ```
 
    ### Feature Status
