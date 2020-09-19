@@ -131,29 +131,6 @@ The following are the high level requirements to meet.
 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/transition.png)
 
-### A Snippet of CONFIG & STATE-DB changes
-To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & STATE-DB are updated as below. The following is only a snippet of the changes. The full set of changes are provided in a section below.
-
-#### CONFIG-DB -- change overview:
-```
-   Key: "FEATURE|<name>"
-   set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
-   
-   no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
-                                                set no_fallback_to_local =  true, to disable any fallback.
-                                                Default: false.
-```
-#### STATE-DB -- change overview:
-```
-   Key: "FEATURE|<name>"
-   current_owner = local/kube/none/"";   
-                                              Empty or none implies that this container is not running
-   remote_state     = ""/"none"/"ready"/"pending"/"running"/"stopped";
-                                              Helps dynamic transition to kube deployment.
-                                              Details below.
-   Docker-id     = <container ID>;            Expected, when container is running
-```                                                
-
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
    
