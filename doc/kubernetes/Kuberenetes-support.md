@@ -296,29 +296,18 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                               The timestamp of last current owner update
    docker-id               = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string or missing field.
-   remote_state               = ""/"none"/"ready"/"pending"/"running"/"stopped";
+   remote_state            = ""/"none"/"ready"/"pending"/"running"/"stopped";
                                               Helps dynamic transition to kube deployment.
                                               Details below.
-   running_version         = <version of running image>;
+   version                 = <version of running image>;
                                               Required when owner = kube;
-                                              Optional when owner = local. Defaults to SONiC image version                                        
+                                              Optional when owner = local. Defaults to SONiC image version
+   deploy_id                = <Deploy ID of running image>
+                                              Required when owner = kube;
+                                              Defaults to 0
 ```
 
-   ### Labels:
-   
-   The kubernetes label creation requests are directed to API server running in kubernetes master and they are synchronous. These requests would timeout, if the server is unreachable. This could cost a minimum of 5 seconds, even for a quickest timeout. To make it quick & consistent, the add/remove request would instead push the request to a state-DB queue. A daemon watching STATE-DB for transition changes, would also watch for requests & apply.
-   
- The outstanding requests are persisted in this Transient-info entry. A monitoring script would watch and push, at the next time point the server is reachable. The action of explicit disconnect from master, will purge this entry. 
-  
-   Labels to be added are saved as `<key>=<value>` or to be removed are saved as `<key>-`. For any key, only the last update as `add`/`remove` is saved in this transient info. In case of `add` followed by `remove`, only the `remove` is saved and vice versa. For example, in case of `add` followed by `remove`, it would only persist `remove` which when later applied to the kubernetes master, it would become a no-op as `add` never happened and vice versa in case of `remove` followed by `add`. As the server handles no-op clean, SONiC may just replay the last command.
-     
-As label add/remove are aysynchronous, for label remove, also docker-stop is done to ensure that the docker exits. But with label not removed yet, kubelet could try restarting, but the ttransition-mode will hold it back, until it is signaled to go.
-   
-   ```
-   key: "KUBE_SERVER|PENDING_LABELS"
-   @labels: [<list of unique labels>]
-   ```
-   
+      
 ## State diagram
 The following diagram depicts various states and the transitions. 
 
