@@ -142,8 +142,6 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
    no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
                                                 set no_fallback_to_local =  true, to disable any fallback.
                                                 Default: false.
-                                                
-   local_image_version = <version>;             Defaults to SONiC image version
 ```
 #### STATE-DB -- change overview:
 ```
@@ -155,8 +153,6 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
                                               Details below.
    Docker-id     = <container ID>;            Expected, when container is running
 ```                                                
-                                                
-![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/overview.png)
 
 * Maintain the current behavior (*as given above*) in new mode with exception of few updates as explained below.
    * There would not be any changes required in the .service or bash scripts associated with the service, except for few minor updates described below.
@@ -195,10 +191,10 @@ To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & 
      Do a docker start, if in local mode, else create a label that would let kubelet start.
      
    * Container stop<br/>
-      Do a docker stop, if in local mode, else remove the label that would let kubelet stop. If remove label would fail, do an explicit docker stop using the ID.<br/>
+      Do a docker stop and in addition remove the label that would let kubelet stop deploying. 
       
    * Container kill<br/>
-      Do a docker kill, if in local mode, else remove the label, then do docker kill on the docker-id.<br/> 
+      Do a docker kill and remove the label to disable kube deploy.<br/> 
       Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down` to update the container state.
       
    * Container wait/inspect/exec<br/>
