@@ -146,10 +146,7 @@ The following are the high level requirements to meet.
 
 *  Replace a subset of docker commands with a new set of "system container" commands
 
-   Currently when systemd intends to start/stop/wait-for a service, it calls a feature specific bash script (e.g. /usr/bin/snmp.sh). This script ensures all the rules are met and eventually calls corresponding docker commands to start/stop/wait to start/stop or wait on the container.
-   
-   But start/stop of a kube deployed containers are done through add/remove of `<feature name>_enabled=true` label and use `docker start/stop` only for local containers.
-   In case of container wait, use container-id instead of name.
+   In this hybrid mode of local & kube managing dockers, the docker start/stop/kill involves create/remove of kubernetes labels, additionally. The containers started by kubernetes do not use feature name as container name. Hence all docker commands that need docker name, would need to use docker-ID instead. 
    
    To accomplish this, the docker commands are replaced as listed below.
 
@@ -157,8 +154,8 @@ The following are the high level requirements to meet.
    * docker stop  --> system container stop
    * docker kill  --> system container kill
    * docker wait  --> system container wait
-   * docker inspect --> system container inspect
-   * docker exec    --> system container exec
+   * Use `system container id` command to get container ID to use with docker commands that require name or ID like, docker exec/inspect/...
+   
    
    The bash scripts called by systemd service would be updated to call these new commands in place of docker commands. In addition, any script that call docker commands will be switched to these new commands. A sample could be the reboot scripts, which call `docker kill/stop ...`.
    
