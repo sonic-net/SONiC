@@ -170,12 +170,12 @@ The following are the high level requirements to meet.
    * Container kill<br/>
       Do a docker kill and remove the label to disable kube deploy.<br/> 
       Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down` to update the container state.
+   * container wait
+      Do a docker wait on container ID, if it is started. If not, wait until kube deploys, which would set `remote_state=pending`, switch the state as `remote_state=ready` and then proceed to wait on the container ID
       
-   * Container wait/inspect/exec<br/>
-      * For docker wait/inspect/exec, run that command on docker-id instead of name.
-      * There is no control on names of the dockers started by kubernetes
-      * All the containers are required to record their docker-id in State-DB
-      * Use the docker-id from STATE-DB, to run the docker commands.
+   * Container id<br/>
+      This returns the container ID of the feature. This can be used for docker commands that demand name or ID. All running dockers are required to record their container ID in the STATE-DB and this command fetch the ID from there.
+      Note: There is no control on names of the dockers started by kubernetes
  
 * The containers started in either mode, are required to record their start & end as follows in STATE-DB.
   This informtion would be helpful to learn/show the current status and as well the actions to take for start/stop/wait/...
@@ -193,9 +193,9 @@ The following are the high level requirements to meet.
      
    The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active features. The code that gets i/p from this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
-*  The hostcfgd helps switch between local and kube modes.
+*  The hostcfgd & a daemon watching STATE-DB, helps switch between local and kube modes and from kube to kube.
    
-   When owner is switched between local to kube and vice versa, it initiates a restart to trigger the switching.
+  This is accomplished by service restart or add/remove of kubernetes label.
  
      
 * A daemon could help switch from kubernetes to local if deploy would not happen for a period.
