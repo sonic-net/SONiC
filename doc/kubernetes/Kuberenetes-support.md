@@ -282,28 +282,6 @@ The following are the high level requirements to meet.
 ```
 
       
-## Internal commands
-
-### Container start/stop/kill/wait:
-   The container start/stop/kill/wait replace the corresponding docker commands. The logic is explained in the flow chart below. The waiting for docker-id will timeout, in case of local image, after N seconds. In case of kubernetes mode, it will wait for ever, as the image deployment depends on many external factors.
-     
-   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_start_stop_wait.png)
-   
-
-
-### container state up/down
-   Each container calls this upon start and upon termination. This helps gets the current mode as local/kubernetes, docker-id and the status as running or not.
-   Ths following chart depicts the flow.
-   
-   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/container_state.png)
-   
- 
-### hostcfgd update
-   The hostcfgd watches for `remote_state == pending` and also set_owner change. In either case, if transition is required, it stops & starts the service. This ensures smooth transition across modes.
-   
-   ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/hostcfgd.png)
-   
-   
 ## CLI commands
   
 ### config kube server
