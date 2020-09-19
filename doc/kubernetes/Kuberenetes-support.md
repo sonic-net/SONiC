@@ -129,7 +129,7 @@ The following are the high level requirements to meet.
 
 ![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/kube_mode.png)
 
-![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/Transition.png)
+![](https://github.com/renukamanavalan/SONiC/blob/kube_systemd/doc/kubernetes/transition.png)
 
 ### A Snippet of CONFIG & STATE-DB changes
 To support this new ways of managing FEATUREs, the FEATURE table in CONFIG-DB & STATE-DB are updated as below. The following is only a snippet of the changes. The full set of changes are provided in a section below.
