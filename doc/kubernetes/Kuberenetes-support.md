@@ -169,7 +169,7 @@ The following are the high level requirements to meet.
       
    * Container kill<br/>
       Do a docker kill and remove the label to disable kube deploy.<br/> 
-      Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down` to update the container state.
+     
    * container wait
       Do a docker wait on container ID, if it is started. If not, wait until kube deploys, which would set `remote_state=pending`, switch the state as `remote_state=ready` and then proceed to wait on the container ID
       
@@ -190,6 +190,8 @@ The following are the high level requirements to meet.
       * `docker_id = ""`
       
      A local monitor script is added to supervisord. This script is started by start.sh inside the container under supervisord control. This script sleeps until SIGTERM. Upon SIGTERM, call `system container state <name> down`, which in turn would do the above update.
+     
+      Please note, in either mode, docker kill will *not* give an opportunity for graceful stop. Hence explicitly call `/etc/sonic/scripts/container_state <name> down` to update the container state.
      
    The containers that could be managed by kube, ***must*** call the `system container state ...` commands. It would be handy, if all containers follow this irrespective of whether kube may or may not manage it, as that way STATE-DB/FEATURE table could be one place to get the status of all active features. The code that gets i/p from this table has to be aware of the possibility of not all containers may call it, but it can be assured that all kube manageable containers would have an entry.
    
@@ -243,13 +245,12 @@ The following are the high level requirements to meet.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
 
-   local_version = <version of local container image>;
-                                                Optional. Defaults to SONiC image version
-                                                
-   local_deploy_id = <An integer>               An ID that is used for comparison, when multiple deployments go active concurrently
-                                                The deployment with later ID is successfully deployed.
-                                                Default: 0
-                                                  
+   container_version = <version of local container image>;
+                                                The container images could carry their own versions in the format 
+                                                <Major>.<Minor>.<Patch>. Local container images may not have any, which
+                                                would default to 0.0.0.
+                                                When there are multiple deployments, one with higher version gets elected.
+                                                                                                  
 ```
   
 ## STATE-DB
@@ -266,20 +267,19 @@ The following are the high level requirements to meet.
    Key: "FEATURE|<name>"
    current_owner           = local/kube/none/"";   
                                               Empty or none implies that this container is not running
-   current_owner_update_ts = <second since epoch>
-                                              The timestamp of last current owner update
-   docker-id               = ""/"<container ID>";
-                                              Set to ID of the container, when running, else empty string or missing field.
+                                              
+   last_update_ts = <second since epoch>      The timestamp of last update
+   
+   container-id            = ""/"<container ID>";
+                                              Set to ID of the container, when running, else empty string.
+                                              
    remote_state            = ""/"none"/"ready"/"pending"/"running"/"stopped";
-                                              Helps dynamic transition to kube deployment.
-                                              Details below.
-   version                 = <version of running image>;
-                                              Required when owner = kube;
-                                              Optional when owner = local. Defaults to SONiC image version
-   deploy_id                = <Deploy ID of running image>
-                                              Required when owner = kube;
-                                              Defaults to 0
-```
+                                              Helps with dynamic transition to kube deployment.
+                                           
+   container_version       = <version of running container image>;
+                                              <Major>.<Minor>.<Patch>. Local container images may not have any, which
+                                              would default to 0.0.0.
+ ```
 
       
 ## CLI commands
