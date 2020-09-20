@@ -138,8 +138,9 @@ The following are the high level requirements to meet.
    *  The current set of systemctl commands would continue to manage as before in both modes.
    
 * For kubernetes controlled features, master decides on *what to deploy* through manifests and node controls the *when to deploy* through labels.
-   * The kubernetes manifests are ***required*** to honor `<feature name>_enabled=true` as one of the node-selector labels.
-   * The switch/node would create/remove a label to control the start/stop of container deployment by kubernetes.
+   * The kubernetes manifests are ***required*** to honor the following as node-selector labels.
+    * `<feature name>_enabled=true`  -- This would be used to control start/stop deploy by kube
+    * `<feature name>_<version>_enabled=true` -- This would be used to disable a version, which is already available locally or a higher version is running.
    * The manifest could add more labels to select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
    * The node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
    * Master would deploy on nodes that match *all* labels.
@@ -480,14 +481,14 @@ Points to note:
  A couple of proposals are listed below. The poposal-1, the easiest option is provided as part of this doc. The rest are *only* suggestions for brainstorming.
  
  ## Proposal - 1:
-  Provide a way to auto create a .service and bash scripts for a feature with simple requirements like, 
+  Provide a way to create a .service and bash scripts for a feature with simple requirements like, 
   
   * This feature depends on zero or more features &&
   * No other feature depends on this feature &&
   * Transparent to warm-reboot & fast-reboot
     implying it does not affect data plane traffic directly or indirectly.
       
-  Setting `auto_service_install=true` in config of FEATURE would auto create/update the service files & bash scripts per configuration.
+  The `sudo config feature install <name> [<list of reequired services>]` create/update the service files & bash scripts per configuration. In the absence of required services list, it would default to `swss`.
   
   
   ## proposal - 2:
@@ -508,17 +509,12 @@ Points to note:
    
    
  ## Proposal - 3:
-   *  The kubernetes master requires manifests that describes deployment. With a distributed system of multiple masters sharing the same set of manifests, there is likely a single input source for the manifests. The same input source could be extended to provide service-file-packages too. A service file package will hold the .service file and bash scripts required by the .service file.
-      *  A possible input source is a git repo, cloned locally in each master.
-      *  A periodic pull & monitor can identify new/update/delete of manifests, which can be applied transparently.
-   *  A single metadata file could be available in the same source that explains all the service packages and optionally additional filters to select elgible target nodes, per package.
-   *  Master can make the metadata & service package files available through an https end-point for nodes.
-   *  A node can watch for this meta-data file update at master through https end-point, pull the update, look for any new/updated/deleted packages that this node is eligible for, pull down those packages and, install/uninstall the same.
-   *  The installation would include .service file, any associated scripts and update of FEATURE table in CONFIG-DB.
+   *  For every new feature, make the .service & bash scripts as a package and available in a known location.
+   *  Propagate to the switches in push or pull mode.
         
    
-## Proposal - 4:
-   Run an external service, to install required service files in each node, explicitly.
+## Proposal - ...:
+   The new upcoming feature Application-Extension is addressing this challenge in package driven format. Brainstorm that plan and make a unified way.
 
 
 # Image management
@@ -580,84 +576,19 @@ Points to note:
     
   
   ## A possibility:
-  * Each manifest be assigned with an unique label as one of NodeSelector labels
-  * When a manifest is applied, none of the nodes would be eligible, as none of the nodes would have this new label.
+  * For each update, create a new manifest, instead of updating existing.
+    In addition to helping with Safety check, using new manifest helps with quick transition from one to anoter in a switch with very low service down time.
+  * The manifest would get an unique label as <feature name>_<version>_enabled=true as of NodeSelector labels
   * An external entity identifies the subset of nodes to update.
   * For each node in that set, add this unique label, that will make the selected subset of nodes as eligible for update
-      * If this is a manifest update, make sure to remove the unique label that was added for the last update
-      * This removal will make kube undeploy the old one.
-      * Addition of the new label will enable deployment of the current update.
-  * Wait for deployment to a batch complete. Give sometime to watch the health
+  * Wait for deployment to a batch complete. Give sometime to watch the health.
+  * Remove the label used by older manifest for these nodes, to ensure kube would not attempt to deploy older instance
+    Node may do this removal. This action would ensure the label is removed, if node has problem reaching kube master.
   * Depending on the result, either
     * repeat the above steps from identifying next set of nodes to update<br/>
     OR
     * remove the new label and add the old label to rollback for each node.
      
-
-# Minimize downtime during Kube upgrade
-***NOTE***: The following discussion is to identify a problem and possible proposal for brainstorming only. Otherwise it is out of scope for this doc.
-
-To update a container with new image, the manifest is updated with URL for new image and is applied at master. The master undeploy the old pod/container and deploy the new one in all eligible nodes.
-
-The process of undeploy & re-deploy happens as below, ***sequentially***
-* Stop the current running pod ('terminating')
-* Start the creation of new pod ('creating')
-  * Start download of the image from given URL
-* Start the container using downloaded image ('running')
-
-```
-snmp-sv2-2j9xh   1/1     Terminating         0          3m22s   10.3.147.253   str-s6000-acs-13   <none>           <none>
-snmp-sv2-2j9xh   0/1     Terminating         0          3m35s   10.3.147.253   str-s6000-acs-13   <none>           <none>
-snmp-sv2-2j9xh   0/1     Terminating         0          3m40s   10.3.147.253   str-s6000-acs-13   <none>           <none>
-snmp-sv2-2j9xh   0/1     Terminating         0          3m40s   10.3.147.253   str-s6000-acs-13   <none>           <none>
-snmp-sv2-k2nqv   0/1     Pending             0          0s      <none>         <none>             <none>           <none>
-snmp-sv2-k2nqv   0/1     Pending             0          0s      <none>         str-s6000-acs-13   <none>           <none>
-snmp-sv2-k2nqv   0/1     ContainerCreating   0          0s      10.3.147.253   str-s6000-acs-13   <none>           <none>
-snmp-sv2-k2nqv   1/1     Running             0          20s     10.3.147.253   str-s6000-acs-13   <none>           <none>
-```
-
-From the spew above, it has taken 20seconds. When the same process is attempted with pre-downloaded image, it only took 2s, implying a good percentage of time is spent in image download. 
-
-***conclusion***: If the new image is pre-downloaded, the container ***upgrade time would be same as service restart time***.
-
-## Proposal 1: Check with Kubernetes
-An [issue](https://github.com/kubernetes/kubernetes/issues/94270) is created with github to get any inherent solution from Kubernetes.
-
-## Proposal 2: Use new manifest instead of update
-This is an extension to Safety Check proposal discussed above. 
-
-### brief:
-Create a new manifest for the updated image, instead of updating the existing. Apply that while old one is in place. Upon image download & container started, the old one stops and new one resumes. This will precisely match the service restart time. 
-
-### Detail:
-1) Each new manifest is assigned with the following.
-  * A new unique label as a node selector label
-  * An environment variable with current timestamp  -- Say, "MANIFEST_TS = <current time>"<br/>
-    Or you may use a generation ID that is strictly increasing across updates.
-
-2) When this manifest is applied, none of the connnected nodes would be eligible as this new label will not be on any nodes.
-
-3) The Safety check script, select a batch of nodes for deploy and add this new label to each selected node.
-
-4) The new manifest will be applied to these nodes
-  * Image will be downloaded
-  * container will be started
-  
-5)  The container will call "container_state <feature name> up kube". This would set kube_request to pending and sleep forever, as there is another instance running.
-    * Before calling container_state script, it would STATE-DB FEATURE|<name> with { manifest_ts = <MANIFEST_TS from its environment> }
-  
-6) The hostcfgd would initiate service restart.
-    * Upon stop both kube started containers go down
-    * Upon start both containers would be started by kube
-
-7) When container starts, it checks STATE-DB FEATURE|<name> { manifest_ts } against its own environment value of MANIFEST_TS.<br/>
-   * The instance that matches, proceeed to call `containere_state <name> up kube" and subsequently start the application
-   * The instance does not match, proceed to sleep forever.
-  
-8) The Safety check script watches the state of deploy of new manifest
-   * Upon successful deployment, remove the unique label that was previously added for older manifest
-   * This removes the sleeping pod/container from all the nodes, where the new pod/container is successfully running.
-  
 # Implementation phases:
 The final goal for this work item would be to manage nearly all container images on SONiC switch. The proposal here is to take smaller steps towards this goal.
 
@@ -701,12 +632,3 @@ The version of the local image is highly likely to be lower than the downloaded 
   
 To avoid falling back to lower version, we could have a qualifying time to assess health of a FEATURE and when deemed healthy, remove the local image and tag the downloaded as local. This way we have the latest downloaded as local too. Upon boot, the FEATURE could start from local and when kube is ready to deploy, it could back off, when it notices the same version is already running.
 
-## Backoff/Restart -- when local version == kube version
-When local image is running the same version,
-
-Option 1: Fail the kube deploy, which will retry finite count of times, with exponential backoff timer and give up, until next manifest update. 
-OR
-Option 2: Warm restart to do a quick switching, to keep it unified that all kube managed containers are indeed managed by kube.
-
-As for switch is concerned, in either case same version of the image is used with one additional restart cost in the later option. The option 2 would be a cleaner approach that a telemetry data from master will give a clear data on successful deployments and *real* failures in deployments.
-   
