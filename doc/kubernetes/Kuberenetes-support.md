@@ -245,10 +245,12 @@ The following are the high level requirements to meet.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
 
-   container_version = <version of local container image>;
+   local_container_version = <version of local container image>;
                                                 The container images could carry their own versions in the format 
                                                 <Major>.<Minor>.<Patch>. Local container images may not have any, which
-                                                would default to 0.0.0.
+                                                would default to 0.0.0. 
+                                                Potentially a new or kube downloaded image could be tagged as local and
+                                                in that case, set its version as local image version.
                                                 When there are multiple deployments, one with higher version gets elected.
                                                                                                   
 ```
@@ -332,7 +334,7 @@ The following are the high level requirements to meet.
 
 ### config feature
 
-#### config feature <name> [owner <local/kube>] [no-fallback <true/false>] [failmode < N seconds >] [required < list of required services > ] [-y]
+#### config feature <name> [owner <local/kube>] [no-fallback <true/false>] [failmode < N seconds >] [-y]
    This command can be used to sets all properties of a FEATURE.<br/>
    The update of owner might require a service restart. If yes, a confirmation prompt would be provided.
    
