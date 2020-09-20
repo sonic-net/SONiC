@@ -171,7 +171,7 @@ The following are the high level requirements to meet.
    * Container kill<br/>
       Do a docker kill and remove the label to disable kube deploy.<br/> 
      
-   * container wait
+   * container wait<br/>
       Do a docker wait on container ID, if it is started. If not, wait until kube deploys, which would set `remote_state=pending`, switch the state as `remote_state=ready` and then proceed to wait on the container ID
       
    * Container id<br/>
@@ -198,7 +198,7 @@ The following are the high level requirements to meet.
    
 *  The hostcfgd & a daemon watching STATE-DB, helps switch between local and kube modes and from kube to kube.
    
-  This is accomplished by service restart or add/remove of kubernetes label.
+   This is accomplished by service restart or add/remove of kubernetes label.
  
      
 * A daemon could help switch from kubernetes to local if deploy would not happen for a period.
