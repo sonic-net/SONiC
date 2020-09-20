@@ -139,8 +139,8 @@ The following are the high level requirements to meet.
    
 * For kubernetes controlled features, master decides on *what to deploy* through manifests and node controls the *when to deploy* through labels.
    * The kubernetes manifests are ***required*** to honor the following as node-selector labels.
-    * `<feature name>_enabled=true`  -- This would be used to control start/stop deploy by kube
-    * `<feature name>_<version>_enabled=true` -- This would be used to disable a version, which is already available locally or a higher version is running.
+      * `<feature name>_enabled=true`  -- This would be used to control start/stop deploy by kube
+      * `<feature name>_<version>_enabled=true` -- This would be used to disable a version, which is already available locally or a higher version is running.
    * The manifest could add more labels to select the eligible nodes, based on OS version, platform, HWSKU, device-mode, ...
    * The node upon joining the master would create labels for OS version, platform, HWSKU, device-mode, ..., as self description
    * Master would deploy on nodes that match *all* labels.
