@@ -338,9 +338,10 @@ The following are the high level requirements to meet.
    This command can be used to sets all properties of a FEATURE.<br/>
    The update of owner might require a service restart. If yes, a confirmation prompt would be provided.
    
-   Every feature requires .service & bash scripts to enable systemd to manage it. The features that are part of SONiC image has those files embedded. For new features that are added. Settinhg auto-service-install=true enables auto-create of .service & required bash scripts.
+#### config feature install <name> [<required services>]
+   Every feature requires .service & bash scripts to enable systemd to manage it. The features that are part of SONiC image has those files embedded. This command can be used to create the .service & bash scripts.  
   
-  If the required list is not provided, it would default to "swss" as the required service, during auto-service create.
+  If the required list is not provided, it would default to "swss" as the required service.
   
   On image upgrade, if that involves carrying config over, either these created files need to be carried along or run this command in the new image for all kube-only features.
    
