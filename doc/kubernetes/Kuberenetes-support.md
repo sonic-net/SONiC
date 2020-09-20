@@ -377,11 +377,11 @@ The following are the high level requirements to meet.
    In short if a service supports warmboot, it would continue to support in both local & kube modes transparently.</br>
    The warm_reboot script needs few updates as below.<br/>
    * Disable kubelet service (`systemctl disable kubelet`)
-   * Replace all `docker kill` commands with corresponding `system container kill` commands, with an option to skip any updates. 
+   * Replace all `docker stop/kill` commands with corresponding `system container stop/kill` commands, with an option to skip any updates. 
    * kubelet config/context, kube certs/keys and, /etc/sonic/kube_admin.conf  needs to be carried over to the new image.
    * Carry the .service & bash scripts created for kube only features to new image.
    * Ensure all kube managed features are enabled to fallback to local image.
-   * Carry the kube downloaded image, if it is higher in version, to replace the local copy
+ 
    
    Reason for the changes:
    * With kubelet running, it would restart any container that is manually stopped or killed. Hence disable it
