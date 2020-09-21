@@ -209,8 +209,20 @@ The following are the high level requirements to meet.
 
    The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
-   There are multiple ways of accomplishing this requirement. This is analyzed in an independent section below.
+   There are multiple ways of accomplishing this requirement. This proposal would include a CLI command for a feature with simple requirements only. This command would accept the features, this feature depends on and create the required .service & bash scripts.
    
+* Reboot support
+  
+  Meet the requirements for warm, fast & cold reboots. Details below.
+  
+* Image management
+  
+  This proposal includes a simple image management solution. The base idea would be to set some rules to qualify the last downloaded image as good. Once deemed good
+    * Older images could be purged
+    * This new image could be tagged as local
+    * The original local container image (part of SONiC image) could be purged
+  The "could be" is tuned with configuration.
+  This would be a phase-1 solution, which would be tuned in future updates.
 
 *  The scripts are provided to join-to/reset-from master.
    *  kube_join
@@ -245,17 +257,40 @@ The following are the high level requirements to meet.
                                                 considered as "failed". The alert logs will be raised.
                                                 A value of 0 implies infinity, implying no failure monitoring.
                                                 Default: 0
-
-   local_container_version = <version of local container image>;
-                                                The container images could carry their own versions in the format 
-                                                <Major>.<Minor>.<Patch>. Local container images may not have any, which
-                                                would default to 0.0.0. 
-                                                Potentially a new or kube downloaded image could be tagged as local and
-                                                in that case, set its version as local image version.
-                                                When there are multiple deployments, one with higher version gets elected.
                                                                                                   
 ```
-  
+ ### Image management configuration:
+```
+   Key: "IMAGE_MGMT|GLOBAL"                     Provides the global image management settings for all features.
+                                                A feature could override with its own settings.
+
+   Disable = <true/false>;                      Disable image management. Default: False
+                                                                  
+   active_time_to_mark_good = <N>[s/m/h/d];     When the feature remains active >= N,  it is deemed good.
+                                                STATE-DB tracks the state of a feature.
+                                                A value of 0 implies, no check.
+                                                Defaults to 0.
+   
+   purge_older_image = <true/false>;            Upon finding new image as good, purge the older ones
+                                                Default: False
+
+   tag_new_as_local = <true/false>;             Upon finding new image as good, tag it as local image.
+                                                Running local image as fallback or set_owner = local, will run this
+                                                new image.
+                                                Default: False
+
+   purge_local_copy = <true/false>;             Upon tagging new one as local, purge the original local image from the disk.
+                                                The original local copy is part of SONiC image.
+                                                NOTE: This would block from restoring back to factory default setting
+                                                Default: False
+
+
+   Key: "IMAGE_MGMT|<feature>"                  Provides a wayt to override the global image management settings.
+                                                for this feature only. One/subset/all the above could be re-configured.
+                                                The global settings would act as default, if absent.
+
+   
+```
 ## STATE-DB
    ### Kubernetes Server Status:
 ```
@@ -271,7 +306,7 @@ The following are the high level requirements to meet.
    current_owner           = local/kube/none/"";   
                                               Empty or none implies that this container is not running
                                               
-   last_update_ts = <second since epoch>      The timestamp of last update
+   last_update_ts = <second since epoch>      The timestamp of last owner update
    
    container-id            = ""/"<container ID>";
                                               Set to ID of the container, when running, else empty string.
@@ -282,6 +317,7 @@ The following are the high level requirements to meet.
    container_version       = <version of running container image>;
                                               <Major>.<Minor>.<Patch>. Local container images may not have any, which
                                               would default to 0.0.0.
+                                              
  ```
 
       
