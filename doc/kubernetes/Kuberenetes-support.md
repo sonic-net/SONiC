@@ -557,18 +557,16 @@ Points to note:
 # Image management
   For a kube managed container, when updates happen, it downloads a new image, which can eventually result in multiple container images for a single feature.
   
-  ***Note:*** This requirement is outside the scope of this doc. This doc, just touches the possibilities.
+  This doc addresses with one simple solution. This needs more deep-diving to understand all challenges and brainstorm the options, which is outside the scope of this doc.
   
   ## Garbage collection:
   The kubelet's [garbage collection](https://kubernetes.io/docs/concepts/cluster-administration/kubelet-garbage-collection/) feature could be utilized.<br/>
   For a tighter control, a custom soultion might be required which could monitor & manage as configured.
   
   
-  ## local image
-  Every switch comes with locally available container images for all embedded services. When kube downloads an image for an embedded service, potentially the local image for that feature could be removed and tag the downloaded image as the local copy, as it is with higher probability that downloaded image would be higher in quality and/or features, in relation to the locally burned container image.
-
 # Failure mode detection & rollback
-  With kubernetes managing features, it involves new code being pulled in dynamically, which has the potential to fail.<br/>
+  For kubernetes managed features, when the system is expecting kube to deploy, many external factors could block the deployment. The kube deployment could be unhealthy and may need to block kube from deploying this version. 
+  
   This brings in two questions<br/>
   
   a)  How to detect the failure?<br/>
