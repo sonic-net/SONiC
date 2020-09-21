@@ -209,7 +209,7 @@ The following are the high level requirements to meet.
 
    The features that are not part of SONiC image would not have service files in the image and hence not in the switch too. The service files and an entry in FEATURE table are ***required*** to enable a feature run in a switch.
    
-   There are multiple ways of accomplishing this requirement. This proposal would include a CLI command for a feature with simple requirements only. This command would accept the features, this feature depends on and create the required .service & bash scripts.
+   There are multiple ways of accomplishing this requirement. This proposal would include a CLI command for a feature with simple requirements only. This command would accept list of other features, this feature depends on and create the required .service & bash scripts.
    
 * Reboot support
   
@@ -217,12 +217,14 @@ The following are the high level requirements to meet.
   
 * Image management
   
+  Each deployment by kube, is likely to download a new image.This implies the need for image manaagement/garbage collection of unused images.
   This proposal includes a simple image management solution. The base idea would be to set some rules to qualify the last downloaded image as good. Once deemed good
-    * Older images could be purged
-    * This new image could be tagged as local
-    * The original local container image (part of SONiC image) could be purged
-  The "could be" is tuned with configuration.
-  This would be a phase-1 solution, which would be tuned in future updates.
+    * The older images *could* be purged
+    * This new image *could* be tagged as local
+    * The original local container image (part of SONiC image) *could* be purged<br/>
+    
+  All the "*could be*" are tunable with configuration.
+  This would be a phase-1 solution, which would be further deep dived into, in future updates.
 
 *  The scripts are provided to join-to/reset-from master.
    *  kube_join
