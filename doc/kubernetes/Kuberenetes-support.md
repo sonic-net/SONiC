@@ -218,7 +218,9 @@ The following are the high level requirements to meet.
 * Image management
   
   Each deployment by kube, is likely to download a new image.This implies the need for image manaagement/garbage collection of unused images.
-  This proposal includes a simple image management solution. The base idea would be to set some rules to qualify the last downloaded image as good. Once deemed good
+  This proposal includes a simple image management solution. The base idea would be to set some rules to qualify the last downloaded image as good.
+  
+  Once deemed good:
     * The older images *could* be purged
     * This new image *could* be tagged as local
     * The original local container image (part of SONiC image) *could* be purged<br/>
@@ -251,7 +253,8 @@ The following are the high level requirements to meet.
    Key: "FEATURE|<name>"
    set_owner   = local/kube;                    Defaults to local, if this field/key is absent or empty string.
    
-   no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment is not active.
+   no_fallback_to_local = true/false;           When set_owner == kube, it could fallback to local image, when/where kube deployment
+                                                is not active.
                                                 Set to True, to disable any fallback.
                                                 Default: false.
    
@@ -277,8 +280,8 @@ The following are the high level requirements to meet.
                                                 Default: False
 
    tag_new_as_local = <true/false>;             Upon finding new image as good, tag it as local image.
-                                                Running local image as fallback or set_owner = local, will run this
-                                                new image.
+                                                With this update, upon set_owner=local or fallback, this new image
+                                                will run as local.
                                                 Default: False
 
    purge_local_copy = <true/false>;             Upon tagging new one as local, purge the original local image from the disk.
@@ -287,7 +290,7 @@ The following are the high level requirements to meet.
                                                 Default: False
 
 
-   Key: "IMAGE_MGMT|<feature>"                  Provides a wayt to override the global image management settings.
+   Key: "IMAGE_MGMT|<feature>"                  Provides a way to override the global image management settings.
                                                 for this feature only. One/subset/all the above could be re-configured.
                                                 The global settings would act as default, if absent.
 
@@ -440,13 +443,9 @@ The following are the high level requirements to meet.
   
    
 ## reboot
-   Regular reboot could be optionally updated with following changes, to minimize service restarts
-   
-   * For kube managed features
-      * Tag the last kube downloaded image as local image.<br/>
-      * Enable fallback to local. <br/>
-This helps with starting the last downloaded image upon boot but in local mode. Running in local mode, helps with quick startup time and also no dependency on when the node could connect to master.<br/>
-Later when the node connects to master and kube attempts to take over, if it notices that the same version as what it is going to deploy is running currently, it would back out, until a manifest update that would change the image version. In short, local image will continue to run w/o a restart, even upon kube ready to deploy.
+Upon reboot, all kube managed features would start from 'local' image, if fallback is set to True. The kube managed features with no fallback, would be started by kubelet, upon joining the master. If the kubernetes master is reachable, this would not add much overhead. 
+
+NOTE: Features that are marked as kube owned with fallback and if last downloaded image is not tagged as local, there would be a local to kube transition, upon kubelet connecting to master and deploying the version that is higher.
    
 # Multi-ASIC support:
 
