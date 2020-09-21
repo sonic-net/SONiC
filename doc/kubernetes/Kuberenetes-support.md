@@ -3,7 +3,15 @@ The scope of this document is to provide the requirements and a high-level desig
 
 The SONiC image has all the container images burned/embedded inside, with each container managing a feature, like swss, syncd, snmp, .... The systemd manages the features. The systemctl service commands calls service specific scripts for start/stop/wait. These scripts ensure all complex dependency rules are met and use `docker start/stop/wait` to manage the containers. This current mode is referred as '**Local mode**' in this doc.
 
-With this proposal, the management of container images is extended to kubernetes-support, where an image could be downloaded from external repositaries and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
+# Vision
+The vision here is to open up container management to external management infrastructure. There are few options here, like Kubernetes, DockerSwarm, OpenShift, ... As a first step/phase, this doc takes up with Kubernetes support. The reason for the pick is that
+  * Widely adopted by many
+  * World wide community support
+  
+The goal it to keep the design open for future integration with other technologies too. With a minimal build time change, one should be able to build SONiC image that supports the selected tool.
+
+This proposal deals in depth with kubernetes-support. With this proposal, an image could be downloaded from external repositaries and kubernetes does the deployment. The external Kubernetes masters could be used to deploy container image updates at a massive scale, through manifests. This new mode is referred as "**kubernetes mode**". For short word "kube" is used interchangeably to refer kubernetes.
+
 
 # A Brief on Kubernetes
   
