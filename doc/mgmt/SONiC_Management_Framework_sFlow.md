@@ -1,7 +1,7 @@
 # Feature Name
 sFlow Support in Management Framework
 # High Level Design Document
-#### Rev 0.3
+#### Rev 0.8
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -22,6 +22,8 @@ sFlow Support in Management Framework
 | 0.4 | 10/15/2019  |   Garrick He       | Add information on default value and SONiC sFlow YANG                  |
 | 0.5 | 11/01/2019  |   Garrick He       | Add default values for polling intervals and updated sFlow Data models |
 | 0.6 | 11/15/2019  |   Garrick He       | Remove redundant 'port' keyword from CLI                               |
+| 0.7 | 05/25/2020  |   Garrick He       | Update to OpenConfig sFlow YANG model                                  |
+| 0.8 | 06/17/2020  |   Venkatesan Mahalingam  | Add management VRF support                                       |
 
 # About this Manual
 This document provides general information about sFlow support in SONiC Management Framework
@@ -92,47 +94,55 @@ This feature will allow the user to make/show sFlow configuration changes to CON
 
 ## 3.6 User Interface
 ### 3.6.1 Data Models
-There are no OpenConfig YANG models available for sFlow so additions were made to SONiC YANG.
-Supported SONiC YANG URIs available from Swagger WebUI:
+A few extensions had to be added to the OpenConfig sampling model for sFlow
+* polling-interval
+* agent
+
+The collector list had to be extended to accomodate VRF name.
 ```
-/sonic-sflow:sonic-sflow/SFLOW
-{
-  "sonic-sflow:SFLOW": {
-    "SFLOW_LIST": [
-      {
-        "sflow_key": "global",
-        "admin_state": "up",
-        "polling_interval": 0,
-        "agent_id": "string"
-      }
-    ]
-  }
-}
-
-/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR
-/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR={collector_name}
-{
-  "sonic-sflow:SFLOW_COLLECTOR": [
-    {
-      "collector_name": "string",
-      "collector_ip": "string",
-      "collector_port": 0
-    }
-  ]
-}
-
-/sonic-sflow:sonic-sflow/SFLOW_SESSION
-/sonic-sflow:sonic-sflow/SFLOW_SESSION={ifname}
-{
-  "sonic-sflow:SFLOW_SESSION": [
-    {
-      "admin_state": "up",
-      "ifname": "Ethernet0",
-      "sample_rate": 4400
-    }
-  ]
-}
-
+module: openconfig-sampling
+  +--rw sampling
+     +--rw config
+     +--ro state
+     +--rw sflow
+     |  +--rw config
+     |  |  +--rw enabled?                            boolean
+     |  |  +--rw source-address?                     oc-inet:ip-address
+     |  |  +--rw sampling-rate?                      uint32
+     |  |  +--rw sample-size?                        uint16
+     |  |  +--rw oc-sampling-ext:polling-interval?   uint32
+     |  |  +--rw oc-sampling-ext:agent?              oc-if:base-interface-ref
+     |  +--ro state
+     |  |  +--ro enabled?          boolean
+     |  |  +--ro source-address?   oc-inet:ip-address
+     |  |  +--ro sampling-rate?    uint32
+     |  |  +--ro sample-size?      uint16
+     |  +--rw collectors
+     |  |  +--rw oc-sampling-ext:collector-ext* [address port vrf]
+     |  |     +--rw oc-sampling-ext:address    -> ../config/address
+     |  |     +--rw oc-sampling-ext:port       -> ../config/port
+     |  |     +--rw oc-sampling-ext:vrf        -> ../config/vrf
+     |  |     +--rw oc-sampling-ext:config
+     |  |     |  +--rw oc-sampling-ext:address?   oc-inet:ip-address
+     |  |     |  +--rw oc-sampling-ext:port?      oc-inet:port-number
+     |  |     |  +--rw oc-sampling-ext:vrf?       -> /oc-netinst:network-instances/network-instance/name
+     |  |     +--ro oc-sampling-ext:state
+     |  |        +--ro oc-sampling-ext:address?        oc-inet:ip-address
+     |  |        +--ro oc-sampling-ext:port?           oc-inet:port-number
+     |  |        +--ro oc-sampling-ext:vrf?            -> /oc-netinst:network-instances/network-instance/name
+     |  |        +--ro oc-sampling-ext:packets-sent?   oc-yang:counter64
+     |  +--rw interfaces
+     |     +--rw interface* [name]
+     |        +--rw name      -> ../config/name
+     |        +--rw config
+     |        |  +--rw name?            oc-if:base-interface-ref
+     |        |  +--rw enabled?         boolean
+     |        |  +--rw sampling-rate?   uint32
+     |        +--ro state
+     |           +--ro name?              oc-if:base-interface-ref
+     |           +--ro enabled?           boolean
+     |           +--ro sampling-rate?     uint32
+     |           +--ro packets-sampled?   oc-yang:counter64
 ```
 
 ### 3.6.2 CLI
@@ -161,29 +171,47 @@ Syntax:
 
 port# : [0 - 65535] (default is: 6343)
 
-`sflow collector <collector name> <IPv4/IPv6 address> [port #]`
+`sflow collector <IPv4/IPv6 address> [port #]`
 
 ```
-sonic(config)# sflow collector col1 1.1.1.1
+sonic(config)# sflow collector 1.1.1.1
 sonic(config)#
 ```
 
 ##### Add sFlow Collector with port number
 ```
-sonic(config)# sflow collector col2 1.1.1.2 4451
+sonic(config)# sflow collector 1.1.1.2 4451
 sonic(config)#
 ```
 
 ##### Remove a sFlow Collector
 Syntax:
 
-`no sflow collector <collector name>`
+`no sflow collector <collector ip-address>`
 
 ```
-sonic(config)# no sflow collector col1
+sonic(config)# no sflow collector 1.1.1.1
+sonic(config)#
+```
+##### Add sFlow Collector with VRF name
+Syntax:
+
+`sflow collector <collector ip-address> vrf <VRF-name>`
+
+```
+sonic(config)# sflow collector 1.1.1.2 vrf mgmt
 sonic(config)#
 ```
 
+##### Remove a sFlow Collector
+Syntax:
+
+`no sflow collector <collector ip-address> vrf <VRF-name>`
+
+```
+sonic(config)# no sflow collector 1.1.1.2 vrf mgmt
+sonic(config)#
+```
 ##### Configure sFlow agent interface
 Syntax:
 
@@ -273,8 +301,12 @@ Global sFlow Information
         admin state:       up
         polling-interval:  20
         agent-id:          default
+		configured collectors:  2
+         1.1.1.1             6343        default
+         1.1.1.2             4511        mgmt
 sonic#
 ```
+Note: Currently only default & mgmt VRFs are supported.
 ##### Show sFlow interface configurations
 ```
 sonic# show sflow interface
@@ -330,6 +362,9 @@ DELETE - Delete a existing sFlow configuration from CONFIG DB. This will cause s
 # 4 Flow Diagrams
 
 # 5 Error Handling
+Since the IP address is used to identify the collector. The user **cannot** modify the IP address field. If
+the user wants to change a collector IP address, they will need to delete the collector in question and recreate
+it with the desired IP address.
 
 # 6 Serviceability and Debug
 
@@ -352,6 +387,7 @@ The unit-test for this feature will include:
 | Disable polling-interval | Verify sFlow polling-interval is removed from Config DB (back to default)
 | Add a collector | Verify a collector has been added into Config DB |
 | Add a collector with port # | Verify a collector has been added into Config DB with user supplied port #|
+| Add a collector with mgmt VRF name | Verify a collector has been added into Config DB with user supplied VRF name|
 | Delete a collector | Verify a collector has been deleted from Config DB
 | Add agent-id information | Verify sFlow agent interface is set
 | Disable sFlow agent | Verify sFlow agent interface is back to default
@@ -377,4 +413,3 @@ Same test as CLI configuration Test but using REST POST request
 #### Get configuration via REST (GET)
 
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
-

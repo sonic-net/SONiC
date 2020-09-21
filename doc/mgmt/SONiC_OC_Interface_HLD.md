@@ -57,7 +57,8 @@ Provide management framework capabilities to handle:
 - PortChannel creation and deletion
 - Addition of ports to PortChannel
 - Removal of ports from PortChannel
-- MTU, min-links, admin-status, IP address and LACP fallback configuration
+- MTU, admin-status and IP address configuration
+- Min-links, mode, LACP fallback and interval configuration during creation of PortChannel
 - Associated show commands
 - Support clearing PortChannel counter values.
 
@@ -279,14 +280,17 @@ module: openconfig-interfaces
 +         |  |  +--ro oc-lag:aggregate-id?             -> /oc-if:interfaces/interface/name
 +         +--rw oc-lag:aggregation
 +         |  +--rw oc-lag:config
-          |  |  +--rw oc-lag:lag-type?    aggregation-type
++         |  |  +--rw oc-lag:lag-type?    aggregation-type
 +         |  |  +--rw oc-lag:min-links?   uint16
++         |  |  +--rw if-agmnt:fallback?  boolean  //Augmented
++         |  |  +--rw if-agmnt:fast-rate? boolean  //Augmented
 +         |  +--ro oc-lag:state
-          |  |  +--ro oc-lag:lag-type?    aggregation-type
++         |  |  +--ro oc-lag:lag-type?    aggregation-type
 +         |  |  +--ro oc-lag:min-links?   uint16
           |  |  +--ro oc-lag:lag-speed?   uint32
 +         |  |  +--ro oc-lag:member*      oc-if:base-interface-ref
 +         |  |  +--ro if-agmnt:fallback?  boolean  //Augmented
++         |  |  +--ro if-agmnt:fast-rate? boolean  //Augmented
 ```
 
 #### List of yang models required for Clear Counters support:
@@ -383,25 +387,29 @@ sonic(conf-if-po4)# no switchport access Vlan
 ```
 #### 3.6.2.1.2 PORTCHANNEL
 #### Create a PortChannel
-`interface PortChannel <channel-number>`<br>
+`interface PortChannel <channel-number> [mode <active | on>] [ min-links <value> ] [fallback] [fast_rate] `<br>
 - *Supported channel-number range: 0-9999*<br>
-- *By default, the admin status is UP and MTU is 9100*
+- *Supported Min links range: 1-255*<br>
+- Default values:<br>
+   admin status - UP<br>
+   MTU - 9100<br>
+   mode - active<br>
+   min-links - 0<br>
+   fallback - disabled<br>
+   fast_rate - disabled<br>
 ```
-sonic(config)# interface PortChannel 1
+sonic(config)# interface PortChannel 1 mode active min-links 2 fallback
 ```
-#### Configure min-links
-`minimum-links <number>`
-<br>
-- *As per [teamd](https://www.systutorials.com/docs/linux/man/5-teamd.conf/), supported range: 1-255 & default value:0*
 ```
-sonic(config)# interface PortChannel 1
-sonic(conf-if-po1)# minimum-links 1
+sonic(config)# interface PortChannel 2 mode active fallback
 ```
-#### Remove min-links
-`no minimum-links` --> Reset to default value of 0
 ```
-sonic(conf-if-po1)# no minimum-links
+sonic(config)# interface PortChannel 3 mode on min-links 3
 ```
+```
+sonic(config)# interface PortChannel 4 mode active fast_rate
+```
+
 #### Configure MTU
 `mtu <mtu-val>`
 ```
@@ -421,17 +429,6 @@ sonic(conf-if-po1)# no shutdown
 `shutdown`
 ```
 sonic(conf-if-po1)# shutdown
-```
-#### Enable Fallback
-`fallback enable`<br>
-- *By default, LACP fallback is disabled*
-```
-sonic(conf-if-po1)# fallback enable
-```
-#### Disable Fallback
-`no fallback`
-```
-sonic(conf-if-po1)# no fallback
 ```
 #### Configures an IPv4 address
 `ip address <ip-address/mask>`
@@ -458,13 +455,6 @@ sonic(conf-if-po1)# no ipv6 address a::e
 ```
 sonic(config)# interface Ethernet4
 sonic(conf-if-Ethernet4)# channel-group 1
-```
-#### Configure the port mode for the link in a PortChannel
-`channel-group <channel-number> mode [active|on]`
-- active — Sets Channeling mode to Active
-- on — Sets Channeling mode to static
-```
-sonic(conf-if-Ethernet4)# channel-group 1 mode active
 ```
 #### Remove a port member
 `no channel-group`
@@ -611,6 +601,7 @@ Group   PortChannel            Type    Protocol    Member Ports
 1       PortChannel1    (D)     Eth      LACP       Ethernet56(D)
                                                     Ethernet60(U)
 10      PortChannel10   (U)     Eth      LACP       Ethernet40(D)
+12      PortChannel12   (D)     Eth      NONE       Ethernet48(D)
 111     PortChannel111  (D)     Eth      LACP
 
 ```
@@ -620,13 +611,12 @@ Group   PortChannel            Type    Protocol    Member Ports
 `show interface PortChannel <id>` - Display details about a specific PortChannel.
 ```
 sonic# show interface PortChannel 1
-PortChannel 1 is up, line protocol is down, mode LACP
+PortChannel 1 is up, line protocol is up, mode LACP
 Fallback: Enabled
-MTU 1532 bytes, IP MTU 1500 bytes
+MTU 1532 bytes
 Minimum number of links to bring PortChannel up is 1
-LACP mode active, interval slow, priority 65535, address 90:b1:1c:f4:a8:7e
-Members in this channel: Ethernet56
-selected True
+LACP mode ACTIVE, interval SLOW, priority 65535, address 90:b1:1c:f4:a8:7e
+Members in this channel: Ethernet56(Selected)
 LACP Actor port 56  address 90:b1:1c:f4:a8:7e key 1
 LACP Partner port 0  address 00:00:00:00:00:00 key 0
 Last clearing of "show interface" counters: 2019-12-06 21:23:20
@@ -638,6 +628,27 @@ Output statistics:
         74169 packets, 10678293 octets
         70186 Multicasts, 3983 Broadcasts, 0 Unicasts
         0 error, 0 discarded
+```
+
+```
+sonic# show interface PortChannel 2
+PortChannel2 is up, line protocol is down, mode Static
+Minimum number of links to bring PortChannel up is 1
+MTU 9100
+sonic#
+
+```
+
+```
+sonic# show interface PortChannel 5
+PortChannel5 is up, line protocol is down, mode LACP
+Minimum number of links to bring PortChannel up is 1
+Fallback: Disabled
+MTU 9100
+LACP mode ACTIVE interval FAST priority 65535 address 90:b1:1c:f4:aa:b2
+
+sonic#
+
 ```
 
 #### 3.6.2.2.3 LOOPBACK
@@ -682,7 +693,7 @@ N/A
 #### PORTCHANNEL
 **PATCH**
 - Create a PortChannel: `/openconfig-interfaces:interfaces/interface={name}/config`
-- Set min-links: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/min-links`
+- Set min-links/mode/lacp fallback/lacp interval: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/config/[min-links|lag-type|openconfig-interfaces-ext:fallback|openconfig-interfaces-ext:fast_rate]`
 - Set MTU/admin-status: `/openconfig-interfaces:interfaces/interface={name}/config/[admin-status|mtu]`
 - Set IP: `/openconfig-interfaces:interfaces/interface={name}/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address={ip}/config`
 - Add member: `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id`
@@ -695,8 +706,8 @@ N/A
 Get PortChannel details: 
 - `/openconfig-interfaces:interfaces/interface={name}`
 - `/openconfig-interfaces:interfaces/interface={name}/state/[mtu|admin-status|oper-status]`
-- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member]`
-- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/dell-intf-augments:fallback`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[min-links|member|lag-type]`
+- `/openconfig-interfaces:interfaces/interface={name}/openconfig-if-aggregate:aggregation/state/[dell-intf-augments:fallback|dell-intf-augments:fast_rate]`
 
 #### LOOPBACK
 **PATCH**
@@ -760,7 +771,9 @@ N/A
 | Configure min-links | Verify min-links is configured <br> Verify error returned if min-links value out of supported range |
 | Remove min-links config | Verify min-links reset to default value |
 | Configure MTU, admin-status| Verify MTU, admin-status configured |
-| Configure Fallback | Verify Fallback configured |
+| Configure Mode | Verify Mode configured using "show interface PortChannel" command |
+| Configure Fallback | Verify Fallback configured using "show interface PortChannel" command |
+| Configure Fast Rate | Verify Fast Rate configured using "show interface PortChannel" command |
 | Configure IPv4 address | Verify IPv4 address configured |
 | Configure IPv6 address | Verify IPv6 address configured |
 | Add ports to PortChannel| Verify Port added using "show PortChannel" command |
