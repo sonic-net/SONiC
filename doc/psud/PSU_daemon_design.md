@@ -94,7 +94,7 @@ We define a few abnormal PSU events here. When any PSU event happens, syslog sho
 
     Recover Message: PSU voltage warning cleared: <psu_name> voltage is back to normal.
 
-#### 5.1.2 PSU tenmperature too hot
+#### 5.1.2 PSU temperature too hot
 
     Alert Message: PSU temperature warning: <psu_name> temperature too hot, temperature=<current_temperature>, threshold=<threshold>.
 
