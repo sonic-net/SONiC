@@ -101,8 +101,6 @@ There needs to be a new process or a enhancement to the existing script to watch
          
           --- Stopping all remaining containers 
    
- --- use kexec to reboot with the added kernel parameters
-
 ```
    
 
