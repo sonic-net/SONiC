@@ -43,7 +43,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 The following are the main thoughts into the warm boot design approach for multi-asic.
 
-**1. Introduce a warm restart table in the StateDB**
+#### 1. Introduce a warm restart table in the StateDB
 
 This Warm restart table will store the lifecycle state per asic instance.
 
@@ -62,7 +62,7 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
 ```
 
 
-**2. Approach to control the warm restart lifecycle with multiple instances**
+#### 2. Approach to control the warm restart lifecycle with multiple instances
 
 There needs to be a new process or a enhancement to the existing script to watch the state of services per "asic_instance".
 
@@ -74,7 +74,7 @@ There needs to be a new process or a enhancement to the existing script to watch
 **Approach 2.** Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
 - Similar to above the parent task will check each thread for the progress and move to the next state on completion.
 
-**3 Warm-boot sequence and Failure scenario**
+#### 3 Warm-boot sequence and Failure scenario
 
    In case of Multi-asic we do the warm boot of each ASIC in parallel. The idea is to do the "more failure prone activities" at begining of the warm reboot lifecycle after pre-check and be able to revert ( if possible ) the system to a good state in case of failure in any one of the ASIC threads.
    
@@ -103,15 +103,14 @@ There needs to be a new process or a enhancement to the existing script to watch
    
 ```
    
-
-**4. Save the Redis DB in each ASIC instance**
+#### 4. Save the Redis DB in each ASIC instance
 
 TODO
   
 
 
 
-**5. Save the SAI states in each ASIC instance**
+#### 5. Save the SAI states in each ASIC instance
 
 TODO
 
@@ -124,4 +123,11 @@ TODO
 On the way up after warm reboot, the sequence could be same as what we do for a single ASIC platform. The design change would be related to 
   - restore from different redis database saved file per ASIC instance
   - restore from different sai warboot saved files per ASIC instance.
+  
+
+
+## Updates for fast-reboot
+
+TODO
+
  
