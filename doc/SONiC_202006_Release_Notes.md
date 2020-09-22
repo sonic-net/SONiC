@@ -1,4 +1,4 @@
-# SONiC 201911 Release Notes
+# SONiC 202006 Release Notes
 
 This document captures the new features added and enhancements done on existing features/sub-features for the SONiC 202006 release.
 
@@ -24,7 +24,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 |Feature                    | Version  |
 | ------------------------- | --------------- |
 | Linux kernel version      | linux_4.9.0-11-2 (4.9.189-3+deb9u2)   |
-| SAI   version             | SAI v1.6.3    |
+| SAI   version             | SAI v1.5.1    |
 | FRR                       | 7.2    |
 | LLDPD                     | 0.9.6-1    |
 | TeamD                     | 1.28-1    |
@@ -40,7 +40,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 
 # Security Updates
 
-1. Kernal upgraded from 4.9.110-3deb9u6 (SONiC Release 201904) to 4.9.168-1+deb9u5 in this SONiC release. 
+1. Kernel upgraded from 4.9.110-3deb9u6 (SONiC Release 201904) to 4.9.168-1+deb9u5 in this SONiC release. 
    Change log: https://tracker.debian.org/media/packages/l/linux/changelog-4.9.168-1deb9u5
 2. Docker upgraded from 18.09.2\~3-0\~debian-stretch to 18.09.8\~3-0\~debian-stretch. 
    Change log: https://docs.docker.com/engine/release-notes/#18098 
@@ -48,13 +48,11 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 # Feature List
 
 #### Build Improvements 
-This document provides functional design and specifications of BFD protocol as defined in RFC 5880, 5881, 5882 and 5883.BFD protocol defines a method of rapid detection of the failure of a forwarding path by checking that the next hop router is alive. The protocol will be able to detect the forwarding path failure in milliseconds depending on the actual configuration. 
-<br> Refer [HLD document]() and below mentioned PR's for more details. 
+DPKG caching framework provides the infrastructure to cache the sonic module/target .deb files into a local cache by tracking the target dependency files.SONIC build infrastructure is designed as a plugin framework where any new source code can be easily integrated into sonic as a module and that generates output as a .deb file.This provides a huge improvement in build time and also supports the true incremental build by tracking the dependency files.
 <br> **Pull Requests** : [3292](https://github.com/Azure/sonic-buildimage/pull/3292), [4117](https://github.com/Azure/sonic-buildimage/pull/4117), [4425](https://github.com/Azure/sonic-buildimage/pull/4425) 
 
 #### Bulk API for route
-This document provides functional design and specifications of BFD protocol as defined in RFC 5880, 5881, 5882 and 5883.BFD protocol defines a method of rapid detection of the failure of a forwarding path by checking that the next hop router is alive. The protocol will be able to detect the forwarding path failure in milliseconds depending on the actual configuration. 
-<br> Refer [HLD document]() and below mentioned PR's for more details. 
+This feature provides bulk routes and next hop group members as coded in the PR mentioned below.
 <br> **Pull Requests** : [1238](https://github.com/Azure/sonic-swss/pull/1238)  
 
 #### D-Bus to Host Communications 
@@ -63,11 +61,10 @@ This document describes a means (framework) for an application executed inside a
 <br> **Pull Requests** : [4840](https://github.com/Azure/sonic-buildimage/pull/4840)
 
 #### Debian 10 upgrade, base image,driver 
-
-<br> Refer [HLD document]() and below mentioned PR's for more details. 
+This feature provides change in kernel version. By changing the kernel ABI from version 6 to version 6-2, this will allow to disable the kernel ABI check which Debian performs at the very end of the kernel build.
 <br> **Pull Requests** : [145](https://github.com/Azure/sonic-linux-kernel/pull/145), [4711](https://github.com/Azure/sonic-buildimage/pull/4711) 
 
-#### Dynamic port break
+#### Dynamic port breakout
 Ports can be broken out to different speeds with various lanes in most HW today. However, on SONiC, the port breakout modes are hard-coded in the profiles and only loaded at initial time. In case we need to have a new port breakout mode, we would potentially need a new image or at least need to restart services which would impact the traffic of the box on irrelevant ports. The feature is to address the above issues.
 <br> Refer [HLD document](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md) and below mentioned PR's for more details. 
 <br> **Pull Requests** : [4235](https://github.com/Azure/sonic-buildimage/pull/4235), [3910](https://github.com/Azure/sonic-buildimage/pull/3910), [1242](https://github.com/Azure/sonic-swss/pull/1242), [1219](https://github.com/Azure/sonic-swss/pull/1219), [1151](https://github.com/Azure/sonic-swss/pull/1151), [1150](https://github.com/Azure/sonic-swss/pull/1150), [1148](https://github.com/Azure/sonic-swss/pull/1148), [1112](https://github.com/Azure/sonic-swss/pull/1112), [1085](https://github.com/Azure/sonic-swss/pull/1085), [766](https://github.com/Azure/sonic-utilities/pull/766), [72](https://github.com/Azure/sonic-platform-common/pull/72), [859](https://github.com/Azure/sonic-utilities/pull/859), [767](https://github.com/Azure/sonic-utilities/pull/767), [765](https://github.com/Azure/sonic-utilities/pull/765), [3912](https://github.com/Azure/sonic-buildimage/pull/3912), [3911](https://github.com/Azure/sonic-buildimage/pull/3911), [3909](https://github.com/Azure/sonic-buildimage/pull/3909), [3907](https://github.com/Azure/sonic-buildimage/pull/3907), [3891](https://github.com/Azure/sonic-buildimage/pull/3891), [3874](https://github.com/Azure/sonic-buildimage/pull/3874), [3861](https://github.com/Azure/sonic-buildimage/pull/3861), [3730](https://github.com/Azure/sonic-buildimage/pull/3730)
@@ -77,14 +74,13 @@ Quality of Service (QoS) scheduling and shaping features enable better service t
 <br> Refer [HLD document](https://github.com/Azure/SONiC/blob/41e55d2762e9267454a4910b42a1eb7ad07acda8/doc/qos/scheduler/SONiC_QoS_Scheduler_Shaper.md) and below mentioned PR's for more details. 
 <br> **Pull Requests** : [1296](https://github.com/Azure/sonic-swss/pull/1296), [991](https://github.com/Azure/sonic-swss/pull/991)
 
-#### FW utils extension: SSD upgrade 
+#### FW utils extension  
 A modern network switch is a sophisticated equipment which consists of many auxiliary components which are responsible for managing different subsystems (e.g., PSU/FAN/QSFP/EEPROM/THERMAL) and providing necessary interfaces (e.g., I2C/SPI/JTAG).Basically these components are complex programmable logic devices with it's own HW architecture and software. It is very important to always have the latest recommended software version to improve device stability, security and performance. In order to make software update as simple as possible and to provide a nice user frindly interface for various maintenance operations (e.g., install a new FW or query current version) we might need a dedicated FW utility.
 <br> Refer [HLD document](https://github.com/Azure/SONiC/blob/master/doc/fwutil/fwutil.md) and below mentioned PR's for more details. 
 <br> **Pull Requests** : [4764](https://github.com/Azure/sonic-buildimage/pull/4764), [4758](https://github.com/Azure/sonic-buildimage/pull/4758), [941](https://github.com/Azure/sonic-utilities/pull/941), [942](https://github.com/Azure/sonic-utilities/pull/942), [87](https://github.com/Azure/sonic-platform-common/pull/87), [82](https://github.com/Azure/sonic-platform-common/pull/82)
 
 #### Getting docker ready for Debian 10
-
-<br> Refer [HLD document]() and below mentioned PR's for more details. 
+This change adds support to build dockers using buster as base.sonic-mgmt-framework docker is updated to build using buster as base.
 <br> **Pull Requests** : [4671](https://github.com/Azure/sonic-buildimage/pull/4671), [4727](https://github.com/Azure/sonic-buildimage/pull/4727), [4726](https://github.com/Azure/sonic-buildimage/pull/4726), [4665](https://github.com/Azure/sonic-buildimage/pull/4665), [4515](https://github.com/Azure/sonic-buildimage/pull/4515),  [4598](https://github.com/Azure/sonic-buildimage/pull/4598), [4529](https://github.com/Azure/sonic-buildimage/pull/4529), [4480](https://github.com/Azure/sonic-buildimage/pull/4480)
 
 #### Port Mirroring
@@ -100,8 +96,8 @@ When an interface is enabled with "proxy_arp", the same is enabled in the kernel
 #### Pytest 100% moved from ansible to Pytest 
 
 #### SPytest
-
-<br> Refer [HLD Document]() for more details. 
+This is an initial version of spytest framework and first set of test scripts for 202006 release.
+<br> Refer [HLD Document](https://github.com/Azure/sonic-mgmt/blob/master/spytest/Doc/intro.md) for more details.
 <br> **Pull Requests** :  [1533](https://github.com/Azure/sonic-mgmt/pull/1533)
 
 #### Thermal control 
@@ -121,7 +117,6 @@ Please find the list of API's classified along the newly added SAI features. For
 | ---- | --------------------------- |
 | 1    | MACSEC                      |
 | 2    | System Port API             |
-
 
 
 # Contributors 
