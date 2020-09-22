@@ -30,7 +30,7 @@ This document describes how BGP will be configured on a VoQ chassis.
 # Scope
 
 The configuration described here is intended to ensure that routes programmed
-for BGP-learned prefixes are the same for each FSI in a VoQ chassis.
+for BGP-learned prefixes are the same for each ASIC Instance in a VoQ chassis.
 
 This document describes:
 - BGP configuration changes
@@ -39,28 +39,28 @@ This document describes:
 
 # 1 Requirements
 
-Traffic ingressing on any FSI should be routed the same, regardless of which
-FSIs learned the route from their eBGP peers.
+Traffic ingressing on any ASIC Instance should be routed the same, regardless of which
+ASIC Instances learned the route from their eBGP peers.
 
 To achieve this:
-- Each FSI must advertise eBGP-learned routes to the other FSIs in the chassis.
-- Each FSI in a chassis should choose the same BGP route for each prefix.
-- When ECMP is enabled and equal-cost routes are learned by any FSI, all FSIs should compute the same ECMP nexthop.
+- Each ASIC Instance must advertise eBGP-learned routes to the other ASIC Instances in the chassis.
+- Each ASIC Instance in a chassis should choose the same BGP route for each prefix.
+- When ECMP is enabled and equal-cost routes are learned by any ASIC Instance, all ASIC Instances should compute the same ECMP nexthop.
 
 # 2 Design
 
 ## 2.1 BGP Setup
 
-All FSIs in the chassis are members of the same AS.  All routes learned from
-all neighboring eBGP routers must be learned on all FSIs.  To accomplish this,
-an iBGP full mesh will be established between all FSIs, with the additional
+All ASIC Instances in the chassis are members of the same AS.  All routes learned from
+all neighboring eBGP routers must be learned on all ASIC Instances.  To accomplish this,
+an iBGP full mesh will be established between all ASIC Instances, with the additional
 paths feature enabled for neighbors in the mesh.
 
 There may also be an iBGP route monitor in the network.  This route monitor
-must be configured to peer with each FSI; otherwise it will not be
+must be configured to peer with each ASIC Instance; otherwise it will not be
 participating in the iBGP mesh and would not learn all the routes.
 
-The following diagram shows the BGP sessions associated with three FSIs in the
+The following diagram shows the BGP sessions associated with three ASIC Instances in the
 chassis, each with one or two eBGP peers.  The red lines are the new iBGP mesh.
 
 ![Example BGP Topology](./chassis_bgp_topology.png)
@@ -69,16 +69,16 @@ chassis, each with one or two eBGP peers.  The red lines are the new iBGP mesh.
 
 Routers will automatically advertise routes learned from eBGP peers to iBGP
 peers, with the nexthop unchanged.  We rely on the global neighbor table to
-provide routes for each neighboring router to all FSIs so that the nexthops are
-recursively resolvable.  For example, a route readvertised from FSI1 with a
-nexthop of 10.0.1.2 would be recursively resolvable on FSI2 over the
+provide routes for each neighboring router to all ASIC Instances so that the nexthops are
+recursively resolvable.  For example, a route readvertised from ASIC1 with a
+nexthop of 10.0.1.2 would be recursively resolvable on ASIC2 over the
 10.0.1.2/32 route created from the global neighbor table.
 
-To ensure that each FSI computes the same ECMP group:
-- Enable additional-path send all for each chassis iBGP peer.  If FSI1 learns a route from both R1 and R4, both must be advertised to other FSIs.
-- Allow BGP to form ECMP groups with paths learned from both eBGP and iBGP peers.  The best path algorithm normally prefers eBGP paths (RFC 4271 section 9.1.2.2 step d).  Without this change, if a route is learned from R1, R2, and R4, FSI1 would create ECMP group {R1,R4}, FSI2 would use {R2}, and FSI3 would use {R1,R2,R4}.
+To ensure that each ASIC Instance computes the same ECMP group:
+- Enable additional-path send all for each chassis iBGP peer.  If ASIC1 learns a route from both R1 and R4, both must be advertised to other ASIC Instances.
+- Allow BGP to form ECMP groups with paths learned from both eBGP and iBGP peers.  The best path algorithm normally prefers eBGP paths (RFC 4271 section 9.1.2.2 step d).  Without this change, if a route is learned from R1, R2, and R4, ASIC1 would create ECMP group {R1,R4}, ASIC2 would use {R2}, and ASIC3 would use {R1,R2,R4}.
 - The maximum ECMP group size must be set the same for eBGP and iBGP.
-- Turn off the eBGP connected route check.  In an ECMP group with both eBGP- and iBGP-learned nexthops, the latter are not reachable over connected routes and would otherwise be discarded from the FIB, resulting in different forwarding on different FSIs.
+- Turn off the eBGP connected route check.  In an ECMP group with both eBGP- and iBGP-learned nexthops, the latter are not reachable over connected routes and would otherwise be discarded from the FIB, resulting in different forwarding on different ASIC Instances.
 
 The FRR BGP configuration for these four changes is:
 - `neighbor <neighbor> addpath-tx-all-paths`
@@ -87,7 +87,7 @@ The FRR BGP configuration for these four changes is:
 - `bgp disable-ebgp-connected-route-check`
 
 Note that if more equal-cost paths are learned for a given route than the
-maximum ECMP group size, each FSI may still choose a different subset of paths
+maximum ECMP group size, each ASIC Instance may still choose a different subset of paths
 to program.
 
 ## 2.3 FRR Changes
@@ -111,7 +111,7 @@ path is guaranteed to be eBGP.
 CONFIG_DB currently contains three tables specifying BGP neighbors:
 BGP_NEIGHBOR for typical router peers (R1 etc. in the diagram), BGP_MONITORS
 for route monitor(s), and BGP_PEER_RANGE for dynamic peers.  A fourth table
-will be added, BGP_VOQ_CHASSIS_NEIGHBOR, to include the FSI neighbors in the
+will be added, BGP_VOQ_CHASSIS_NEIGHBOR, to include the ASIC Instance neighbors in the
 iBGP mesh.  Entries in this table will use the same schema as BGP_NEIGHBOR.
 
 This new table will allow the most natural use of the FRR configuration system,
