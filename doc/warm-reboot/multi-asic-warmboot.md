@@ -43,7 +43,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 The following are the main thoughts into the warm boot design approach for multi-asic.
 
-#### 1. Introduce a warm restart table in the StateDB
+#### 1. Introduce a warm restart table in the StateDB in the global database instance running in linux host
 
 This Warm restart table will store the lifecycle state per asic instance.
 
