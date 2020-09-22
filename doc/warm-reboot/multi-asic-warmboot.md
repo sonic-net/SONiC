@@ -74,9 +74,15 @@ There needs to be a new process or a enhancement to the existing script to watch
 **Approach 2.** Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
 - Similar to above the parent task will check each thread for the progress and move to the next state on completion.
 
-#### 3 Warm-boot sequence and Failure scenario
+#### 3 Warm-boot sequence and Failure scenarios
 
-   In case of Multi-asic we do the warm boot of each ASIC in parallel. The idea is to do the "more failure prone activities" at begining of the warm reboot lifecycle after pre-check and be able to revert ( if possible ) the system to a good state in case of failure in any one of the ASIC threads.
+   In case of Multi-asic we do the warm boot of each ASIC in parallel. Couple of questions to think on 
+   
+   * Should we diffentiate the IBGP sessions between the ASIC's and the EBGP sessions with external peers
+   * should we differentiate the internal Portchannels between the ASIC's and the ones with external neighbors
+   * Should we warm boot the front-end ASIC's first and then the back end ASIC.
+   
+   The idea is to do the "more failure prone activities" at begining of the warm reboot lifecycle after pre-check and be able to revert ( if possible ) the system to a good state in case of failure in any one of the ASIC threads.
    
    The most critical activities where a failure could result in the warm-reboot fail are **Pausing orchagent** and **Syncd pre-shutdown**.The Syncd pre-shutdown is where the SAI_SWITCH_ATTR_PRE_SHUTDOWN attribute is send to let SAI/SDK do save the state, shutdown most functions. The CPU port will remain active so that packets could be send out from control plane.
 
