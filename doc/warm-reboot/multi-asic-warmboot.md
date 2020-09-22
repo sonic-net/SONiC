@@ -1,16 +1,15 @@
 # Approch note for Warmboot in multi-asic platforms.
-This design note details the warm boot approach in fixed format SKU's with multiple AISCs handling the data path traffic.
 
+This design note details the warm boot approach in fixed format SKU's with multiple AISCs handling the data path traffic.
 In the multi-asic platforms these are the notable changes that needs to be considered.
 
 ![Multi ASIC namespaces](img/architecture_diagram.jpg)
 
 
-  - the following services viz databse, swss, syncd, teamd, bgp, lldp are replicated and one instance per ASIC that is present in the platform.
-  - each of these above set of services run in their own linux network namespace.
-  - there are port channel interfaces present between the ASIC's. These interfaces are allways up and bundled with backplane interfaces.
-  - there are IBGP sessions between the BGP instances running in various ASIC namespace.
-
+- the following services viz databse, swss, syncd, teamd, bgp, lldp are replicated and one instance per ASIC that is present in the platform.
+- each of these above set of services run in their own linux network namespace.
+- there are port channel interfaces present between the ASIC's. These interfaces are allways up and bundled with backplane interfaces.
+- there are IBGP sessions between the BGP instances running in various ASIC namespace.
 
 ## Steps done when the device goes down during warm boot
 
@@ -42,9 +41,9 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 ### The design changes for multi-ASIC platform.
 
-The following are the main thoughts into the design approach for multi-asic.
+The following are the main thoughts into the warm boot design approach for multi-asic.
 
-**1. Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
+**1. Introduce a warm restart table in the StateDB**
 
 This Warm restart table will store the lifecycle state per asic instance.
 
@@ -68,24 +67,25 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
 There needs to be a new process or a enhancement to the existing script to watch the state of services per "asic_instance".
 
   1. Introduce a new process named "warmBootd" running in the linux host.
-    - It forks multiple processes per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
+    - It forks multiple threads per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
+    - The job of the parent process is to check each ASIC process does finish the activities in a state 
+    - If all of the ASIC threads reach a state, move to the next state.
     
   2. Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
-    - add the state check and wait loop at various points so that the warm-reboot lifecycle is followed.
-
+    - Similar to above the parent task will check each thread for the progress and move to the next state on completion.
 
 **3 Warm-boot sequence and Failure scenario**
 
-   In case of Multi-asic we do the warm boot activities in parallel. So there is a need to make sure the "more failure prone activities" are done at begining of the warm reboot lifecycle after pre-check and be able to revert the system to a good state in case of failure.
+   In case of Multi-asic we do the warm boot of each ASIC in parallel. The idea is to do the "more failure prone activities" at begining of the warm reboot lifecycle after pre-check and be able to revert ( if possible ) the system to a good state in case of failure in any one of the ASIC threads.
    
-   The most critical activities where a failure could result in the warm-reboot fail are **Pausing orchagent** and **Syncd pre-shutdown**.The Syncd pre-shutdown is the state where the SAI_SWITCH_ATTR_PRE_SHUTDOWN attribute is send to let SAI/SDK backup all states and status, shutdown most functions except leaving CPU port active - so that packets could be send out via CPU port from control plane.
+   The most critical activities where a failure could result in the warm-reboot fail are **Pausing orchagent** and **Syncd pre-shutdown**.The Syncd pre-shutdown is where the SAI_SWITCH_ATTR_PRE_SHUTDOWN attribute is send to let SAI/SDK do save the state, shutdown most functions. The CPU port will remain active so that packets could be send out from control plane.
 
    The following sequence is proposed in each of the thread handling warm reboot lifecycle per asic.
    
    ```
    
-  --- Pausing orchagent  < check failure, if failure exit > 
-    --- Syncd pre-shutdown   < check failure, if fail unpause orchagent, exit > 
+  --- Pausing orchagent  < check failure, if failure in any ASIC, can we unpause and recover ? > 
+    --- Syncd pre-shutdown   < check failure, if failure in any exit, ask user to do cold reboot ? > 
     
      -------- From here on no looking back -------- 
     
