@@ -66,13 +66,13 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
 
 There needs to be a new process or a enhancement to the existing script to watch the state of services per "asic_instance".
 
-  1. Introduce a new process named "warmBootd" running in the linux host.
-    - It forks multiple threads per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
-    - The job of the parent process is to check each ASIC process does finish the activities in a state 
-    - If all of the ASIC threads reach a state, move to the next state.
+**Approach 1.** Introduce a new process named "warmBootd" running in the linux host.
+- It forks multiple threads per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
+- The job of the parent process is to check each ASIC process does finish the activities in a state 
+- If all of the ASIC threads reach a state, move to the next state.
     
-  2. Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
-    - Similar to above the parent task will check each thread for the progress and move to the next state on completion.
+**Approach 2.** Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
+- Similar to above the parent task will check each thread for the progress and move to the next state on completion.
 
 **3 Warm-boot sequence and Failure scenario**
 
