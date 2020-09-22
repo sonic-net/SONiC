@@ -308,7 +308,7 @@ For example, we can create below mapping table, it defined the sequence of conso
 #### Table 2: Underlying device mapping definition sample
 
 | tty device name | product port | console port name  | tty device alias |
-|---|---|---|---|---|
+|---|---|---|---|
 | ttyUSB0 | 1 | 0 | ttySONiC0 |
 | ttyUSB1 | 2 | 1 | ttySONiC1 |
 | ttyACM0 | 1 | 2  | ttySONiC2 |
