@@ -62,23 +62,25 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
                                                              ; asic_instance.
 ```
 
+
 **2. Approach to control the warm restart lifecycle with multiple instances**
 
-There needs to be a new process or a script to watch the state of an "asic_instance" group of services. 
+There needs to be a new process or a enhancement to the existing script to watch the state of services per "asic_instance".
 
   1. Introduce a new process named "warmBootd" running in the linux host.
-    - It monitors the WARM_RESTART_TABLE, introduced above on the state of an asic_instance.
+    - It forks multiple processes per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
     
   2. Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
     - add the state check and wait loop at various points so that the warm-reboot lifecycle is followed.
 
+
 **3 Warm-boot sequence and Failure scenario**
 
-   In case of Multi-asic we do the warm boot activities in parallel - we need to make sure the failure rate is less and we do the more failure prone activities at begin and be able to revert the system to a good state.
+   In case of Multi-asic we do the warm boot activities in parallel. So there is a need to make sure the "more failure prone activities" are done at begining of the warm reboot lifecycle after pre-check and be able to revert the system to a good state in case of failure.
    
    The most critical activities where a failure could result in the warm-reboot fail are **Pausing orchagent** and **Syncd pre-shutdown**.The Syncd pre-shutdown is the state where the SAI_SWITCH_ATTR_PRE_SHUTDOWN attribute is send to let SAI/SDK backup all states and status, shutdown most functions except leaving CPU port active - so that packets could be send out via CPU port from control plane.
 
-   The following sequence is proposed in each of the thread handling warm reboot lifecycle in each asic.
+   The following sequence is proposed in each of the thread handling warm reboot lifecycle per asic.
    
    ```
    
