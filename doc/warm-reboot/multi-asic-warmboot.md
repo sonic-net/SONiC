@@ -15,7 +15,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
 ### For single ASIC platform.
 
-  These are the actions taken while the system goes down on warm reboot 
+  These are the steps when the system goes down on warm reboot 
 
 ```
   --- Pausing orchagent 
