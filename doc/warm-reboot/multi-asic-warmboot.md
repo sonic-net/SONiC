@@ -1,32 +1,48 @@
 # Approch note for Warmboot in multi-asic platforms.
 This design note details the warm boot approach in fixed format SKU's with multiple AISCs handling the data path traffic.
 
+![Multi ASIC namespaces](img/architecture_diagram.jpg)
+
+
 In the multi-asic platforms these are the notable changes that needs to be considered.
   - the following services viz databse, swss, syncd, teamd, bgp, lldp are replicated and one instance per ASIC that is present in the platform.
   - each of these above set of services run in their own linux network namespace.
   - there are port channel interfaces present between the ASIC's. These interfaces are allways up and bundled with backplane interfaces.
   - there are IBGP sessions between the BGP instances running in various ASIC namespace.
 
-
 ## Steps done when the device goes down during warm boot
 
 ### For single ASIC platform.
 
-  - stop bgp docker 
-  - stop teamd docker
-  - stop swss docker
-  - save the whole Redis database into ```/host/warmboot/dump.rdb```
-  - stop syncd docker
-  - warm shutdown
-  - save the SAI states in ```/host/warmboot/sai-warmboot.bin```
-  - kill syncd docker
-  - stop database
-  - use kexec to reboot, plus one extra kernel argument
+  These are the actions taken while the system goes down on warm reboot 
+
+```
+  --- Pausing orchagent 
+  
+   --- Stopping radv
+   
+    --- Stopping bgp 
+    
+     --- Syncd pre-shutdown 
+      
+       --- Backing up database
+       
+        --- Stopping teamd 
+        
+         --- Stopping syncd 
+         
+          --- Stopping all remaining containers 
+          
+           --- use kexec to reboot, plus one extra kernel argument
+
+```
+
+In the above sequence the most critical seems to **Pausing orchagent** and **Syncd pre-shutdown** which could fail and the warm boot can be aborted.
 
 
 ### The design changes for multi-ASIC platform.
 
-The approach is to do an action eg: stop bgp, in all the asic_instances at the same time and wait for it to be done and state to be Ok in all the asic_instances before proceeding to the next state.
+The following are the main thoughts into the design approach for multi-asic.
 
 **1. Introduce a warm restart table in the StateDB in the global database docker service running on the linux host.**
 
@@ -48,27 +64,28 @@ state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_do
 
 **2. Approach to control the warm restart lifecycle with multiple instances**
 
-There needs to be a process or a script to watch the state of an "asic_instance" group of services. 
+There needs to be a new process or a script to watch the state of an "asic_instance" group of services. 
 
   1. Introduce a new process named "warmBootd" running in the linux host.
-    - It monitors the WARM_RESTART_TABLE which we introduced above on the state of an asic_instance, when an action is initiated.
-    - It proceeds to the next state only of the state in WARM_RESTART_TABLE for all asic_instances is advanced to the next state.
-    - In case of error in any of the asic_instance, try again ? or do a cold reboot ? can we revert back to the original state here ?
+    - It monitors the WARM_RESTART_TABLE, introduced above on the state of an asic_instance.
+    
+  2. Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
+    - add the state check and wait loop at various points so that the warm-reboot lifecycle is followed.
+
+**3 Warm-boot sequence and Failure scenario**
+
+   
 
 
-  2. Enhance the warm-reboot script to add the state check and wait loop at various points so that the services will be cleaned stopped.
 
-
-
-
-**2. Save the Redis DB in each ASIC instance**
+**4. Save the Redis DB in each ASIC instance**
 
 TODO
   
 
 
 
-**3. Save the SAI states in each ASIC instance**
+**5. Save the SAI states in each ASIC instance**
 
 TODO
 
@@ -80,6 +97,5 @@ TODO
 
 On the way up after warm reboot, the sequence could be same as what we do for a single ASIC platform. The design change would be related to 
   - restore from different redis database saved file per ASIC instance
-  
   - restore from different sai warboot saved files per ASIC instance.
  
