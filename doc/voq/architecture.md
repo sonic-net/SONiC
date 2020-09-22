@@ -1,7 +1,7 @@
 # Distributed Forwarding in a Virtual Output Queue (VOQ) Architecture
 
 # High Level Design Document
-#### Rev 2.0
+#### Rev 2.1
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -9,16 +9,16 @@
 * [Revision](#revision)
 * [About this Manual](#about-this-manual)
 * [Scope](#scope)
-* [Definitions/Abbreviation](#definitionsabbreviation)
 * [1 Requirements](#1-requirements)
 * [2 Design](#2-design)
 * [3 Testing](#3-testing)
+* [4 Future Work](#4-future-work)
 
 # List of Tables
-* [Table 1: Abbreviations](#definitionsabbreviation)
+* [Table 1: Abbreviations](#definitions-and-abbreviations) 
 
 # List of Figures
-* [Figure 1: VoQ Distributed Forwarding Architecture](#41-general-flow)
+* [Figure 1: VoQ Distributed Forwarding Architecture](#23-state-sharing)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description |      
@@ -27,6 +27,7 @@
 | 0.2 | June-22 2020 | Kartik Chandran (Arista Networks) | First set of review comments from public review |
 | 1.0 | June-26 2020 | Kartik Chandran (Arista Networks) | Final set of review comments from public review |
 | 2.0 | Aug-5 2020 | Kartik Chandran (Arista Networks)   | Revisions after further community review including description of global DB structure, removing sections on system ports, testing and future work to be covered in other documents |
+| 2.1 | Sep-17 2020 | Kartik Chandran (Arista Networks)   | Rename Global DB to Chassis DB  |
 
 # About this Manual
 
@@ -52,7 +53,7 @@ The initial target for this work is a VOQ chassis system in which linecards runn
 However, this architecture makes no hard assumptions about operating within a chassis and can be extended to other form factors with the same VOQ architecture. 
 
 
-# Definitions/Abbreviations
+# Definitions and Abbreviations
 
 |      |                    |                                |
 |------|--------------------|--------------------------------|
@@ -106,13 +107,13 @@ Support for VOQ based forwarding in SONiC is dependent on the [SAI VOQ API](http
 
 ## 2.3 State Sharing
 
-![](../../images/chassis/architecture.png)
+![](../../images/voq/architecture.png)
 
-All state of global interest to the entire system is stored in the SSI in a new Redis instance with a database called “Global DB”. This instance is accessible over the internal management network. FSIs connect to this instance in addition to their own local Redis instance to access and act on this global state.
+All state of global interest to the entire system is stored in the SSI in a new Redis instance with a database called "Chassis DB". This instance is accessible over the internal management network. FSIs connect to this instance in addition to their own local Redis instance to access and act on this global state.
 
-##  2.3.1 Global DB Organization
+##  2.3.1 Chassis DB Organization
 
-The Global DB is hosted in a new redis instance called `redis_global`. This new redis instance runs in a new container known as `docker-database-global`. This ensures both that the global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
+The Chassis DB is hosted in a new redis instance called `redis_chassis`. This new redis instance runs in a new container known as `docker-database-chassis`. This ensures both that the global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
 
 ### 2.3.1.1 Starting redis_global in the SSI
 
@@ -220,16 +221,16 @@ The details regarding the schemas, Orch agent logic changes and flows are descri
 
 If an FSI fails due to an OS issue or if the hardware is removed from service, then the expected behavior outcome is
 
-- The Global DB connection is torn down
+- The Chassis DB connection is torn down
 - Internal control plane connectivity to that LSI is broken which triggers topology recovergence to avoid use of any forwarding paths through that LSI.
 
-## 2.7.2 Loss of connectivity from working FSI to Global DB 
+## 2.7.2 Loss of connectivity from working FSI to Chassis DB 
 
-Loss of connectivity to the Global DB can prevent forwarding state from other FSIs from being propagated. To avoid traffic impact, The FSI must take defensive action to disconnect from the outside world (for example by ceasing protocol sessions) with neighbors to avoid any traffic flows through the FSI.
+Loss of connectivity to the Chassis DB can prevent forwarding state from other FSIs from being propagated. To avoid traffic impact, The FSI must take defensive action to disconnect from the outside world (for example by ceasing protocol sessions) with neighbors to avoid any traffic flows through the FSI.
 
 ## 2.7.3 SSI Device or OS failure
 
-Failure of the SSI at the very least results in loss of connectivity to the Global DB and the actions described in 2.7.2 take place on all FSIs leading to the entire system being disconnected from the outside world.
+Failure of the SSI at the very least results in loss of connectivity to the Chassis DB and the actions described in 2.7.2 take place on all FSIs leading to the entire system being disconnected from the outside world.
 
 # 3 Testing
 
@@ -269,7 +270,7 @@ Warm standby can be supported in SWSS as follows
 
 - Gracefully handle the loss of connectivity to the SSI and terminate OrchAgent, syncd and all related containers
 - Modify the Redis database address that the FSI needs to connect to
-- Start all the containers which will now connect to the standby Global DB and continue operation.
+- Start all the containers which will now connect to the standby Chassis DB and continue operation.
 
 ### Hot Standby
 
@@ -277,9 +278,9 @@ In the hot standby mode, the standby supervisor has the control plane running in
 
 At a high level, hot standby mode requires
 
-- Starting the Global DB on standby SSI in standby mode where it mirrors the active Global DB.
-- Live sync of Global DB state between active and standby Global DB.
+- Starting the Chassis DB on standby SSI in standby mode where it mirrors the active Chassis DB.
+- Live sync of Chassis DB state between active and standby Chassis DB.
 - Graceful handling in OrchAgent of loss of connectivity to SSI and continuing to operate autonomously.
-- Reconnecting to Global DB when Standby SSI is ready.
-- Reconciling relevant Global DB state with SAI Asic DB state and modifying SAI state as appropriate to be in sync with Global DB.
+- Reconnecting to Chassis DB when Standby SSI is ready.
+- Reconciling relevant Chassis DB state with SAI Asic DB state and modifying SAI state as appropriate to be in sync with Chassis DB.
   
