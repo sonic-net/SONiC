@@ -308,9 +308,11 @@ The following are the high level requirements to meet.
    ### Kubernetes Server Status:
 ```
    key: "KUBERNETES_MASTER|SERVER"
-   connected      = True/False
-   server_ip      = <IP address of server>
-   last_update_ts = <Timestamp of last update>
+   connected           = True/False             This switch has joined the master as a node
+   server_ip           = <IP address of server> The IP of the server
+   server_reachability = True/False             The server reachability. 
+   last_update_ts =    = <Timestamp of last update>  
+
 ```
 
    ### Feature Status
