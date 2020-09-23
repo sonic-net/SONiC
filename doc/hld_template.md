@@ -64,14 +64,14 @@ This should also explain the CLICK and/or KLISH related configuration/show in de
 
 This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
 		
-### Warmboot and Fastboot Design  
-Mention whether this feature/enhancement has got any requirements/dependencies w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+### Warmboot and Fastboot Design Impact  
+Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
 
 ### Restrictions/Limitations  
 
 ### Testing Requirements/Design  
 Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data distruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
+Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
 Example sub-sections for unit test cases and system test cases are given below. 
 
 #### Unit Test cases  
