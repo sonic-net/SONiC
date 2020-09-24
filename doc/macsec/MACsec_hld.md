@@ -136,7 +136,7 @@ The following figure depicts the data flow and related components of MACsec. Dif
 - The orange means these components belong to MACsec container. This container include the control plane of MACsec that include MACsec enable/disable, MACsec session negotiation and key exchange. And it consists of daemons, MACsecMgr and wpa_supplicant, and a tool, wpa_cli. Meanwhile MACsec container should be running after SWSS container start, because MACsec feature depends on the Orchagent that interacts with MACsec SAI for the management of SecY.
   - **MACsecMgr** controls the availability of MACsec on specified interfaces by using wpa_cli commands to communicate with wpa_supplicant daemon.
   - **wpa_supplicant** uses the MKA protocol to manage the MACsec session and key exchange in MACsec control plane. It calls the predefined MACsec plugin APIs to communicate with SONiC MACsec plugin.
-  - **SONiC** MACsec Plugin is a plugin of wpa_supplicant that follows the predefined APIs of wpa_supplicant. It is responsible for bi-directional conversion of the MACsec parameters and SONiC database entries.
+  - **SONiC MACsec Plugin** is a plugin of wpa_supplicant that follows the predefined APIs of wpa_supplicant. It is responsible for bi-directional conversion of the MACsec parameters and SONiC database entries.
 
 - The green means these components are in SWSS container. This container uses the SAI APIs to control the MACsec security entities(SecY) according to databases entries and to synchronize the statistics from SecY to COUNTERS_DB.
   - **MACsecOrch** is a module of orchagent, that uses SAI APIs to manage the SecY according to messages from databases and synchronized the statistics of SecY to COUNTERS_DB.
