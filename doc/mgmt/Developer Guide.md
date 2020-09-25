@@ -521,7 +521,8 @@ TODO
 
 #### 2.4.3 DB Access APIs
 
-TODO
+The DB access layer implements a wrapper over the go-redis package enhancing the functionality as described in:
+[Management Framework HLD, DB access layer](https://github.com/Azure/SONiC/blob/master/doc/mgmt/Management%20Framework.md#32264-db-access-layer)
 
 #### 2.4.4 Logging
 
