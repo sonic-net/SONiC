@@ -119,9 +119,9 @@ At a high level the following should be supported:
 
 ## 2 Architecture Design
 
-This chapter shows the MACsec interface stack of virtual switch and real switch.
+This chapter shows the MACsec interface stack of SAI virtual switch and real switch.
 
-Virtual switch use the Linux MACsec driver as the MACsec Security Entity(SecY) to support the functionality of MACsec and the SecY is imposed on the physical port.
+SAI virtual switch use the Linux MACsec driver as the MACsec Security Entity(SecY) to support the functionality of MACsec and the SecY is imposed on the physical port.
 
 Real switch use the cipher chip as SecY which will also be imposed on physical interface. But the ASIC of the switch is located between the Port and the SecY.
 
@@ -141,9 +141,9 @@ The following figure depicts the data flow and related components of MACsec. Dif
 - The green means these components are in SWSS container. This container uses the SAI APIs to control the MACsec security entities(SecY) according to databases entries and to synchronize the statistics from SecY to COUNTERS_DB.
   - **MACsecOrch** is a module of orchagent, that uses SAI APIs to manage the SecY according to messages from databases and synchronized the statistics of SecY to COUNTERS_DB.
 
-- The blue one is MACsecSAI in SYNCD container. MACsecSAI is a set of APIs that are defined to communicate with the SecY. In the virtual switch, the SecY is Linux MACsec driver and MACsecSAI will use the ip commands to manage them. But in the real switch, the SecY is the MACsec cipher chip and the implementation of MACsecSAI will be provided by the vendor of the cipher chip.
+- The blue one is MACsecSAI in GEARBOX SYNCD(GBSYNCD) container. MACsecSAI is a set of APIs that are defined to communicate with the SecY. In the SAI virtual switch, the SecY is Linux MACsec driver and MACsecSAI will use the ip commands to manage them. But in the real switch, the SecY is the MACsec cipher chip and the implementation of MACsecSAI will be provided by the vendor of the cipher chip.
 
-- The yellow one is Linux MACsec Driver (<https://github.com/torvalds/linux/blob/master/drivers/net/macsec.c>) running in the kernel space, which will only be used in virtual switch and be managed by ip commands.
+- The yellow one is Linux MACsec Driver (<https://github.com/torvalds/linux/blob/master/drivers/net/macsec.c>) running in the kernel space, which will only be used in SAI virtual switch and be managed by ip commands.
 
 - The gray one is MACsec cipher chip which will only be used in real switch and be provided by the vendor.
 
