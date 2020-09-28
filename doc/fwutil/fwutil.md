@@ -30,7 +30,7 @@
             - [2.2.2.4 Auto-Update commands](#2224-auto-update-commands)
                 - [2.2.2.4.1 Overview](#22241-overview)
                 - [2.2.2.4.2 Description](#22242-description)
-                - [2.2.2.4.3 Platform FW Update Reboot Plugin](#22243-plarform-fw-update-reboot-plugin)
+                - [2.2.2.4.3 Platform FW Update utility](#22243-plarform-fw-update-utility)
                 - [2.2.2.4.4 Auto-update Use Cases](#22244-auto-update-use-cases)
 - [3 Flows](#3-flows)
     - [3.1 Show components status](#31-show-components-status)
@@ -78,11 +78,11 @@ This document provides general information about FW utility implementation in SO
 
 ## List of figures
 
-[Figure 1: FW utility High Level Design](#figure-1-fw-utility-high-level-design)  
-[Figure 2: Show components status flow](#figure-2-show-components-status-flow)  
-[Figure 3: Show available updates flow](#figure-3-show-available-updates-flow)  
-[Figure 4: FW install (non modular) flow](#figure-4-fw-install-non-modular-flow)  
-[Figure 5: FW install (modular) flow](#figure-5-fw-install-modular-flow)  
+[Figure 1: FW utility High Level Design](#figure-1-fw-utility-high-level-design)
+[Figure 2: Show components status flow](#figure-2-show-components-status-flow)
+[Figure 3: Show available updates flow](#figure-3-show-available-updates-flow)
+[Figure 4: FW install (non modular) flow](#figure-4-fw-install-non-modular-flow)
+[Figure 5: FW install (modular) flow](#figure-5-fw-install-modular-flow)
 
 ## List of tables
 
@@ -92,18 +92,18 @@ This document provides general information about FW utility implementation in SO
 
 ## 1.1 Feature overview
 
-A modern network switch is a sophisticated equipment which consists of many auxiliary components  
-which are responsible for managing different subsystems (e.g., PSU/FAN/QSFP/EEPROM/THERMAL)  
+A modern network switch is a sophisticated equipment which consists of many auxiliary components
+which are responsible for managing different subsystems (e.g., PSU/FAN/QSFP/EEPROM/THERMAL)
 and providing necessary interfaces (e.g., I2C/SPI/JTAG).
 
-Basically these components are complex programmable logic devices with it's own HW architecture  
+Basically these components are complex programmable logic devices with it's own HW architecture
 and software. The most important are BIOS/CPLD/FPGA etc.
 
-It is very important to always have the latest recommended software version to improve device stability,  
+It is very important to always have the latest recommended software version to improve device stability,
 security and performance. Also, software updates can add new features and remove outdated ones.
 
-In order to make software update as simple as possible and to provide a nice user frindly  
-interface for various maintenance operations (e.g., install a new FW or query current version)  
+In order to make software update as simple as possible and to provide a nice user frindly
+interface for various maintenance operations (e.g., install a new FW or query current version)
 we might need a dedicated FW utility.
 
 ## 1.2 Requirements
@@ -150,8 +150,8 @@ we might need a dedicated FW utility.
 | FW binary downloading over URL: error     | ERROR    |
 | FW binary installation: start/end         | INFO     |
 | FW binary installation: error             | ERROR    |
-| Auto-update reboot task creation: creat   | INFO     |
-| Auto-update reboot task creation: error   | ERROR    |
+| FW binary auto-update : start/end         | INFO     |
+| FW binary auto-update : error             | ERROR    |
 
 **Note:** Some extra information also will be logged:
 1. Component location (e.g., Chassis1/Module1/BIOS)
@@ -170,17 +170,17 @@ In order to improve scalability and performance a modern network switches provid
 1. Non modular chassis platforms
 2. Modular chassis platforms
 
-Non modular chassis platforms may contain only one chassis.  
+Non modular chassis platforms may contain only one chassis.
 A chassis may contain it's own set of components.
 
-Modular chassis platforms may contain only one chassis.  
-A chassis may contain one or more modules and it's own set of components.  
+Modular chassis platforms may contain only one chassis.
+A chassis may contain one or more modules and it's own set of components.
 Each module may contain it's own set of components.
 
 Basically each chassis/module may contain one or more components (e.g., BIOS/CPLD/FPGA).
 
-SONiC platform API provides an interface for FW maintenance operations for both modular and  
-non modular chassis platforms. Both modular and non modular chassis platforms share the same platform API,  
+SONiC platform API provides an interface for FW maintenance operations for both modular and
+non modular chassis platforms. Both modular and non modular chassis platforms share the same platform API,
 but may have different implementation.
 
 SONiC FW utility uses platform API to interact with the various platform components.
@@ -217,9 +217,9 @@ fwutil
 |              |--- fw -y|--yes -f|--force -i|--image=<current|next>
 |
 |--- auto-update
-     |--- fw -y|--yes -f|--force -z|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
-     |--- fw -y|--yes -f|--force -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
-     
+     |--- fw -z|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
+     |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
+
 ```
 
 ### 2.2.2 Command interface
@@ -276,7 +276,7 @@ Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH
                    SSD         <image_path>/ssd.bin   4 / 5                                    update is required  N/A
 ```
 
-2. Non modular chassis platform when the "boot" key and value are available in `platform_components.json` 
+2. Non modular chassis platform when the "boot" key and value are available in `platform_components.json`
 ```bash
 root@sonic:~# fwutil show updates --image=next
 Chassis   Module   Component   Firmware               Version (current/available)              Status              Required Boot Action
@@ -315,7 +315,7 @@ SSD         <image_path>/ssd.bin   4 / 5                                    upda
 ```bash
 root@sonic:~# fwutil show auto-updates status
 Component   Firmware               Version (current/available)              Status
-----------  ---------------------  ---------------------------------------  -------------------------  
+----------  ---------------------  ---------------------------------------  -------------------------
 CPLD        <image_path>/cpld.bin  5 / 10                                   updated but need a power-cycle
 SSD         <image_path>/ssd.bin   4 / 5                                    scheduled in cold reboot
 ```
@@ -330,7 +330,7 @@ SSD         <image_path>/ssd.bin   4 / 5                                    sche
 
 ##### 2.2.2.2.1 Overview
 
-The purpose of the install commands group is to provide an interface  
+The purpose of the install commands group is to provide an interface
 for manual FW installation of various platform components.
 
 ##### 2.2.2.2.2 Description
@@ -386,10 +386,10 @@ Aborted!
 
 ##### 2.2.2.3.1 Overview
 
-The purpose of the update commands group is to provide an interface  
+The purpose of the update commands group is to provide an interface
 for automatic FW installation of various platform components.
 
-Automatic FW installation requires platform_components.json to be created and placed at:  
+Automatic FW installation requires platform_components.json to be created and placed at:
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 default image path = /usr/share/sonic/device/<onie_platform>/fw_update/
 
@@ -547,48 +547,25 @@ The purpose of the auto-update commands group is to provide and interface for au
 
 The existing FWutil infra supports the upgrade of platform components which can be performed during run time.
 The SSD upgrade for certain platforms requires the unmount of the filesystems and this needs to be incorporated as part of the reboot scripts.
-To integrate the upgrade of these platform components which can’t be performed during run time, 
+To integrate the upgrade of these platform components which can’t be performed during run time,
 the FWutil requires few more enhancements that specifies the reboot-type during which the user expects the upgrade to happen.
-The FWutil infra section below indicates the necessary changes to add support for auto update during reboot. 
+The FWutil infra section below indicates the necessary changes to add support for auto update during reboot.
 The Platform plugins section describes the plugins that a platform must implement to support auto updates when the platform component APIs are not available.
 
-Automatic FW installation requires default platform_components.json to be created and placed at:  
+Automatic FW installation requires default platform_components.json to be created and placed at:
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 default image path = /usr/share/sonic/device/<onie_platform>/
 
-Auto-update command can support the standalone custom firmware image package with --fw-image option. 
+Auto-update command can support the standalone custom firmware image package with --fw-image option.
 The package can be any format between `.tar` or `.tar.gz` and should have the `platform_components.json`, the firmware image(s).
 The package can have the auto-update plugin if the platform doesn't support platform api or if plugin needs to be updatedplugin.
 The package can also have the component upgrade utility(script) and the utility will be used for the component firmware upgrade if it's specified in `platform_compnents.json`.
 The `fwutil auto-update` commands uncompress the package and parse the `platform_components.json` to retrieve the firmware information.
 
-If the script path is available for the component firmware configuration in the `platform_components.json`, 
+If the script path is available for the component firmware configuration in the `platform_components.json`,
 it means that the specific component firmware upgrade shall use the script to process the fwutil commands.
-`2.2.2.4.3 Component Firmware Update Script Interface Requirement` explains the requirement of the component firmware upgrade script 
+`2.2.2.4.3 Platform Component Firmware Update Utility` explains the requirement of the component firmware upgrade utility
 to interfere with the fwutil to support the auto-update command - mainly status and install.
-
-**Example:**
-1. Platform component fw update configuration with platform specific script and boot options with --fw-image command line option
-The firmware image 
-```json
-{
-    "component": {
-        "BIOS": {
-            "firmware": "bios.bin",
-            "version": "0ACLH003_02.02.010",
-        },
-        "CPLD": {
-            "firmware": "cpld.bin",
-            "version": "10",
-        },
-        "SSD": {
-            "firmware": "SSD.bin",
-            "script": "ssd_fw_update",
-            "version": "5",
-        }
-    }
-}
-```
 
 **Note:**
 1. FW update will be disabled if component definition is not provided (e.g., 'BIOS': { })
@@ -599,7 +576,7 @@ The firmware image
 **The following command updates FW Automatically with installing the available component firmware, creating task(s) for update during reboot:**
 1. auto-update command for installation and reboot task creation
 ```bash
-root@sonic:~# fwutil auto-update --yes --image=<current|next> --boot=<boot_type>
+root@sonic:~# fwutil auto-update fw --yes --image=<current|next> --boot=<boot_type>
 Available FW updates with <boot_type> from <current|next> boot image  : COMPONENT1 (and COMPONENT2)
 <COMPONENT1> firmware update will be done during <boot_type> with version <#new_version> (current version #current_version)
 ...
@@ -612,23 +589,23 @@ Available FW updates with <boot_type> from <current|next> boot image  : COMPONEN
 All firmware update has been completed.
 ```
 
-This is examples of a platform which supports the SSD firmware update during fast reboot and cold reboot with different commands 
+This is examples of a platform which supports the SSD firmware update during fast reboot and cold reboot with different commands
 along with CPLD firmware update available only for the cold reboot which can perform a power cycle triggered by some register setting.
 
-Example 1: SSD firmware update is available for fast-reboot upgrade path. 
+Example 1: SSD firmware update is available for fast-reboot upgrade path.
 SSD firmware update is logged in a platform defined designated file and it will be updated during fast-reboot.
 ```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=fast
+root@sonic:~# fwutil auto-update fw --yes --image=next --boot=fast
 Available FW updates with fast-reboot from next boot image : SSD
 SSD firmware update will be done during fastreboot with version 5 (current version 4)
 All firmware update has been completed.
 ```
-Example 2: SSD and CPLD update is available for cold reboot upgrade path. 
+Example 2: SSD and CPLD update is available for cold reboot upgrade path.
 SSD firmware update is logged in a platform defined designated file and it will be updated during cold reboot.
-CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot 
+CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot
 once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
 ```bash
-root@sonic:~# fwutil auto-update --yes --image=next --boot=cold
+root@sonic:~# fwutil auto-update fw --yes --image=next --boot=cold
 Available FW updates with fast-reboot from next boot image : SSD and CPLD
 SSD firmware update will be done during cold-reboot with version 5 (current version 4)
 ...
@@ -640,39 +617,71 @@ All firmware update has been completed.
 ```
 
 **Supported options:**
-1. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
-2. -f|--force - install FW regardless the current version
 3. -i|--image - update FW using current/next SONiC image
 4. -b|--boot - following boot option after the upgrade
 6. -z|--fw-image - firmware package downloaded during run time (this is an exclusive option from --image)
 
 **Note:** the default option is _--image=current_ and _--boot=any_
 
-##### 2.2.2.4.4.3 PLATFORM-FWUTIL-AUTO-UPDATE-PLUGIN to support the platform specific fw update support for different reboot types
-When Vendor doesn't have platform API ready to support all platform component APIs to support the auto-update interfaces, PLATFORM-FWUTIL-AUTO-UPDATE-PLUGIN will do the equivalent thing of auto-update platform component APIs.
-This plugin will create a task file for specified reboot type issued through the FWutil command. 
-This file will include the components that needs to be upgraded during individual reboot.
-The task file will be platform dependent. It is up to the platform plugin to determine the order of upgrade.
+##### 2.2.2.4.3 Platform Component Firmware Update Utility
+When Vendor doesn't have platform API ready to support all platform component APIs including the auto-update interface,
+the platform component utility will perform the equivalent process of `auto-update` platform component api.
+The component utility can perform the firmware update if the firmware update doesn't need any boot action required after the update.
+Otherwise, it will create a task file if any process or handling for the component firmware update needs to be done during the reboot
+and also if the update can be done for the specified reboot type.
+The componenet utility should be defined with key value `utility` in the component object of `platform_component.json` to be called by fwutil instead of the platform api.
+The task file will be platform-specific.
 
-The platform plugin can have three passing arguments from fwutil. 
+**Example:**
+1. `platform_component.json` with platform specific utility.
+```json
+{
+    "component": {
+        "BIOS": {
+            "firmware": "bios.bin",
+            "version": "0ACLH003_02.02.010",
+        },
+        "CPLD": {
+            "firmware": "cpld.bin",
+            "utility": "cpldupdate",
+            "version": "10",
+        },
+        "SSD": {
+            "firmware": "SSD.bin",
+            "utility": "ssd_fw_update",
+            "version": "5",
+        }
+    }
+}
+```
+
+The Utility can have two passing arguments and one option for actions from fwutil.
 1.	Firmware
-2.	Boot-option for creating a reboot fwupdate task /Boot-type for completing the task
-3.	Update-utility (if provided)
+2.	Boot action following after the firmware auto-update process
+3.	Fwutil action : -a(--autoupdate)
+**Utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
 
-The plugin needs to be called by the FWutil command to perform the firmware update .
+The plugin needs to be called by the FWutil command to perform the firmware auto-update process.
 ```bash
-if [[ -x ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ]]; then
-    debug "Creating task file for boot type ${boot-option}””
-    ${PLATFORM_FWUTIL_CREATE_HANDLE_AUTO_UPDATE_TASK} ${tar file/firmware path} ${boot-option} ${update-utility}
-fi    
+...
+firmware_path = parser[self.__pcp.FIRMWARE_KEY]
+utility_path = parser[self.__pcp.UTILITY_KEY]
+if os.path.isfile(utility_path) and os.access(utility_path, os.X_OK):
+    cmd = "{} -a {} {}".format(
+        utility_path,
+        firmware_path,
+        boot
+    )
+    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+...
 ```
 The reboot scripts will invoke the platform firmware update reboot plugin with boot-type, which will analyze the reboot firmware task file and execute the upgrade commands for the components present in task file.
 ```bash
-PLATFORM_FWUTIL_AU_REBOOT_HANDL="platform_fw_au_reboot_handle"
+PLATFORM_FWUTIL_AU_REBOOT_HANDLE="platform_fwutil_au_reboot_handle"
 if [[ -x ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ]]; then
     debug "Handling task file for boot type ${REBOOT_TYPE}”
     ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ${REBOOT_TYPE}
-fi    
+fi
 ```
 
 ##### 2.2.2.4.4 Auto-update Use Cases
@@ -682,18 +691,18 @@ Since FWutil auto-update can support the firmware update using a custom firmware
 
 SONiC device can have a component firmware updated without interrupting the data plan if the component firmware update doesn't need any boot action.
 ```bash
-root@sonic:~# fwutil auto-update --yes --fw-image=aboot-fw-update.tar.gz --boot=none
+root@sonic:~# fwutil auto-update fw --fw-image=aboot-fw-update.tar.gz --boot=none
 ```
 
 SONiC device can also be updated only a specific firmware update with a possible boot option that can be supported on a certain topology.
 But in this case, the firmware update can be completed by following reboot which is indicated in the boot option of fwutil auto-update command.
 ```bash
-root@sonic:~# fwutil auto-update --yes --fw-image=ssd-fw-update.tar.gz --boot=fast
+root@sonic:~# fwutil auto-update fw --fw-image=ssd-fw-update.tar.gz --boot=fast
 ...
 root@sonic:~# sudo fast-reboot
 ```
 
-##### 2.2.2.4.4.2 Firmware upgrade during Sonic_to_Sonic upgrade 
+##### 2.2.2.4.4.2 Firmware upgrade during Sonic_to_Sonic upgrade
 During the sonic image upgrade, all available platform component firmware can be upgraded for the specific following boot option.
 ```bash
 PLATFORM_FW_UPDATE="/usr/bin/fwutil"
@@ -711,17 +720,9 @@ sync;sync;sync || exit 14
 
 
 if [[ -x ${PLATFORM_FW_UPDATE} ]]; then
-    FS_PATH="/host/image-${TARGET_FW#SONiC-OS-}/fs.squashfs"
-    FS_MOUNTPOINT="/tmp/image-${TARGET_FW#SONiC-OS-}-fs"
-
-    mkdir -p "${FS_MOUNTPOINT}"
-    mount -t squashfs "${FS_PATH}" "${FS_MOUNTPOINT}" || exit 111
-
-    ${PLATFORM_FW_UPDATE} auto-update --yes --image=next --boot=${REBOOT_TYPE}
+    ${PLATFORM_FW_UPDATE} auto-update fw --yes --image=next --boot=${REBOOT_TYPE}
 fi
 ```
-
-##### 2.2.2.4.4.3  Firmware upgrade during a reboot
 
 # 3 Flows
 
@@ -762,4 +763,4 @@ fi
 5. Install BIOS/CPLD/FPGA FW on modular chassis
 6. Update BIOS/CPLD/FPGA FW on non modular chassis
 7. Update BIOS/CPLD/FPGA FW on modular chassis
-8. Auto Update BIOS/CPLD/FPGA FW with boot-action options 
+8. Auto Update BIOS/CPLD/FPGA FW with boot-action options
