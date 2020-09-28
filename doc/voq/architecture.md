@@ -115,43 +115,43 @@ All state of global interest to the entire system is stored in the SSI in a new 
 
 The Chassis DB is hosted in a new redis instance called `redis_chassis`. This new redis instance runs in a new container known as `docker-database-chassis`. This ensures both that the global state is isolated from the rest of the databases in the instance and can also be conditionally started only on the SSI.
 
-### 2.3.1.1 Starting redis_global in the SSI
+### 2.3.1.1 Starting redis_chassis in the SSI
 
-To detect if the `docker-database-global` container needs to be started, a new configuration file called `globaldb.conf` is introduced at `/usr/share/sonic/device/<platform>/globaldb.conf`. 
+To detect if the `docker-database-chassis` container needs to be started, a new configuration file called `chassisdb.conf` is introduced at `/usr/share/sonic/device/<platform>/chassis.conf`. 
 The contents of this file will be 
 
 ```
-start_global_db=1
-global_db_address=<IP Address of redis_global instance>
+start_chassis_db=1
+chassis_db_address=<IP Address of redis_chassis instance>
 ```
 
 Since this is a per-platform file, the IP address to host the redis instance can be platform specific and the platform implementation is expected to provide connectivity to this IP address for all the sonic instances running within the system.
-A new systemd service `config-globaldb` starts the docker-database-global container in the SSI by inspecting the contents of the `globaldb.conf` file. 
+A new systemd service `config-chassisdb` starts the docker-database-chassis container in the SSI by inspecting the contents of the `chassisdb.conf` file. 
 
-### 2.3.1.2 Connecting to redis_global from FSI
-In the FSI, the contents of `/usr/share/sonic/device/<platform>/globaldb.conf` are
+### 2.3.1.2 Connecting to redis_chassis from FSI
+In the FSI, the contents of `/usr/share/sonic/device/<platform>/chassisdb.conf` are
 
 ```
-global_db_address=<IP Address of redis_global instance>
+chassis_db_address=<IP Address of redis_chassis instance>
 ```
 
-The `docker-database-global` container does not have to start in the FSI. However, the FSIs do need to connect to the `redis_global` redis instance that is running in the SSI. To achieve this, the `config-globaldb` service in the FSI read the contents of `globaldb.conf` and populate `/etc/hosts` with the IP address for the `redis_global.server` host. The per-ASIC database_config.json includes the redis_global instance information so that orchagent in FSI can connect to the global DB. The server name `redis_global.server` is used here to describe the reachability of the redis_global redis instance.
+The `docker-database-chassis` container does not have to start in the FSI. However, the FSIs do need to connect to the `redis_chassis` redis instance that is running in the SSI. To achieve this, the `config-chassisdb` service in the FSI read the contents of `chassisdb.conf` and populate `/etc/hosts` with the IP address for the `redis_chassis.server` host. The per-ASIC database_config.json includes the redis_chassis instance information so that orchagent in FSI can connect to the chassis DB. The server name `redis_chassis.server` is used here to describe the reachability of the redis_chassis redis instance.
 ```
 database_config.json:
-    "redis_global":{
-            "hostname" : "redis_global.server",
+    "redis_chassis":{
+            "hostname" : "redis_chassis.server",
             "port": 6385,
-            "unix_socket_path": "/var/run/redis-global/redis_global.sock",
+            "unix_socket_path": "/var/run/redis-chassis/redis_chassis.sock",
             "unix_socket_perm" : 777
     }
     
-    "GLOBAL_APP_DB" : {
+    "CHASSIS_APP_DB" : {
            "id" : 8,
            "separator": ":",
-           "instance" : "redis_global"
+           "instance" : "redis_chassis"
     }
 ```
-As described earlier, the platform implementation is responsible for providing IP connectivity to the redis_global.server throughout the system. For example, this IP address could be in a 127.1/16 subnet so that the traffic is limited to staying within the system. The exact mechanisms for this IP connectivity is outside the scope of this document. 
+As described earlier, the platform implementation is responsible for providing IP connectivity to the redis_chassis.server throughout the system. For example, this IP address could be in a 127.1/16 subnet so that the traffic is limited to staying within the system. The exact mechanisms for this IP connectivity is outside the scope of this document. 
 
 ## 2.4 Chip Management
 There are two kinds of chips that are of interest 
