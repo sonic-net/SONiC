@@ -675,6 +675,9 @@ if os.path.isfile(utility_path) and os.access(utility_path, os.X_OK):
     output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
 ...
 ```
+From the above `platform_component.json` example, if the platform needs the SSD firmware update, then the auto-update can be triggered with following command.
+`$PWD/ssd_fw_update -a $PWD/SSD.bin fast` 
+
 The reboot scripts will invoke the platform firmware update reboot plugin with boot-type, which will analyze the reboot firmware task file and execute the upgrade commands for the components present in task file.
 ```bash
 PLATFORM_FWUTIL_AU_REBOOT_HANDLE="platform_fwutil_au_reboot_handle"
