@@ -661,6 +661,13 @@ The Utility can have two passing arguments and one option for actions from fwuti
 3.	Fwutil action : -a(--autoupdate)
 **Utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
 
+The expected utility response can be as follows.
+```json
+"True" : "completed"
+"True" : "scheduled"
+"False" : Error
+```
+
 The plugin needs to be called by the FWutil command to perform the firmware auto-update process.
 ```bash
 ...
