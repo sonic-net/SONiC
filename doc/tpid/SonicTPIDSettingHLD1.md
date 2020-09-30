@@ -87,40 +87,24 @@ CLI config precheck, SONiC during boot up will query SAI using SAI capability qu
 PORT and LAG objects. This capability query result will be stored in the STATE\_DB so that the front-end CLI handler will be able to check and
 reject TPID setting on port/LAG if such capability is not supported by the SAI vendor running this HW platform. SONiC will be adding two
 entries in STATE\_DB under the existing "SWITCH\_CAPABILITY\|switch" table:
-*127.0.0.1:6379\[6\]\> hgetall \"SWITCH\_CAPABILITY\|switch\"*
-*1) \"**PORT_TPID_CAPABLE**\"*
-*2) \"**true**\"*
-*3) \"**LAG_TPID_CAPABLE**\"*
-*4) \"**false**\"*
-*5) \"MIRROR\"*
-*6) \"true\"*
-*7) \"MIRRORV6\"*
-*8) \"true\"*
-*9) \"ACL\_ACTIONS\|INGRESS\"*
-*10) \"PACKET\_ACTION,MIRROR\_INGRESS\_ACTION\"*
-*11) \"ACL\_ACTIONS\|EGRESS\"*
-*12) \"PACKET\_ACTION\"*
-*13) \"ACL\_ACTION\|PACKET\_ACTION\"*
-*14) \"DROP,FORWARD\"*
-*127.0.0.1:6379\[6\]\>*
-```
-127.0.0.1:6379[6]> hgetall "SWITCH_CAPABILITY|switch"
- 1) "PORT_TPID_CAPABLE"
- 2) "true"
- 3) "LAG_TPID_CAPABLE"
- 4) "false"
- 5) "MIRROR"
- 6) "true"
- 7) "MIRRORV6"
- 8) "true"
- 9) "ACL_ACTIONS|INGRESS"
-10) "PACKET_ACTION,MIRROR_INGRESS_ACTION"
-11) "ACL_ACTIONS|EGRESS"
-12) "PACKET_ACTION"
-13) "ACL_ACTION|PACKET_ACTION"
-14) "DROP,FORWARD"
-127.0.0.1:6379[6]>
-```
+
+*127.0.0.1:6379\[6\]\> hgetall \"SWITCH\_CAPABILITY\|switch\"*  
+*1) \"**PORT_TPID_CAPABLE**\"*  
+*2) \"**true**\"*  
+*3) \"**LAG_TPID_CAPABLE**\"*  
+*4) \"**false**\"*  
+*5) \"MIRROR\"*  
+*6) \"true\"*  
+*7) \"MIRRORV6\"*  
+*8) \"true\"*  
+*9) \"ACL\_ACTIONS\|INGRESS\"*  
+*10) \"PACKET\_ACTION,MIRROR\_INGRESS\_ACTION\"*  
+*11) \"ACL\_ACTIONS\|EGRESS\"*  
+*12) \"PACKET\_ACTION\"*  
+*13) \"ACL\_ACTION\|PACKET\_ACTION\"*  
+*14) \"DROP,FORWARD\"*  
+*127.0.0.1:6379\[6\]\>*  
+
 For the STATE\_DB shown above this switch/router is only capable of handling PORT TPID setting but not for LAG TPID setting.
 
 **TPID Configuration Flow**
@@ -172,118 +156,118 @@ TPID 0x0800 is not allowed. Allowed: 0x8100, 0x9100, 0x9200, or 0x88A8.
 
 Before configuring TPID on Ethernet64:
 
-*admin\@SONiC:\~\$ redis-cli -n 4*
-*127.0.0.1:6379\[4\]\> hgetall \"PORT\|Ethernet64\"*
-*1) \"index\"*
-*2) \"16\"*
-*3) \"lanes\"*
-*4) \"65,66,67,68\"*
-*5) \"description\"*
-*6) \"ARISTA01T0:Ethernet1\"*
-*7) \"admin\_status\"*
-*8) \"up\"*
-*9) \"mtu\"*
-*10) \"9100\"*
-*11) \"alias\"*
-*12) \"fortyGigE0/64\"*
-*13) \"pfc\_asym\"*
-*14) \"off\"*
-*15) \"speed\"*
-*16) \"40000\"*
-***17) \"tpid\"***
-***18) \"0x8100\"***
-*127.0.0.1:6379\[4\]\>*
+*admin\@SONiC:\~\$ redis-cli -n 4*  
+*127.0.0.1:6379\[4\]\> hgetall \"PORT\|Ethernet64\"*  
+*1) \"index\"*  
+*2) \"16\"*  
+*3) \"lanes\"*  
+*4) \"65,66,67,68\"*  
+*5) \"description\"*  
+*6) \"ARISTA01T0:Ethernet1\"*  
+*7) \"admin\_status\"*  
+*8) \"up\"*  
+*9) \"mtu\"*  
+*10) \"9100\"*  
+*11) \"alias\"*  
+*12) \"fortyGigE0/64\"*  
+*13) \"pfc\_asym\"*  
+*14) \"off\"*  
+*15) \"speed\"*  
+*16) \"40000\"*  
+***17) \"tpid\"***  
+***18) \"0x8100\"***  
+*127.0.0.1:6379\[4\]\>*  
 ```
 admin@SONiC:~$ sudo config interface tpid Ethernet64 0x9200
 admin@SONiC:~$ redis-cli -n 4
 ```
 
-*127.0.0.1:6379\[4\]\> hgetall \"PORT\|Ethernet64\"*
-*1) \"index\"*
-*2) \"16\"*
-*3) \"lanes\"*
-*4) \"65,66,67,68\"*
-*5) \"description\"*
-*6) \"ARISTA01T0:Ethernet1\"*
-*7) \"admin\_status\"*
-*8) \"up\"*
-*9) \"mtu\"*
-*10) \"9100\"*
-*11) \"alias\"*
-*12) \"fortyGigE0/64\"*
-*13) \"pfc\_asym\"*
-*14) \"off\"*
-*15) \"speed\"*
-*16) \"40000\"*
-***17) \"tpid\"***
-***18) \"0x9200\"***
-*127.0.0.1:6379\[4\]\>*
+*127.0.0.1:6379\[4\]\> hgetall \"PORT\|Ethernet64\"*  
+*1) \"index\"*  
+*2) \"16\"*  
+*3) \"lanes\"*  
+*4) \"65,66,67,68\"*  
+*5) \"description\"*  
+*6) \"ARISTA01T0:Ethernet1\"*  
+*7) \"admin\_status\"*  
+*8) \"up\"*  
+*9) \"mtu\"*  
+*10) \"9100\"*  
+*11) \"alias\"*  
+*12) \"fortyGigE0/64\"*  
+*13) \"pfc\_asym\"*  
+*14) \"off\"*  
+*15) \"speed\"*  
+*16) \"40000\"*  
+***17) \"tpid\"***  
+***18) \"0x9200\"***  
+*127.0.0.1:6379\[4\]\>*  
 
 Sample output for LAG after TPID configured:
 ```
 admin@SONiC:~$ sudo config interface tpid PortChannel0002 0x9100
 admin@SONiC:~$ redis-cli -n 4
 ```
-*127.0.0.1:6379\[4\]\> hgetall \"PORTCHANNEL\|PortChannel0002\"*
-*1) \"mtu\"*
-*2) \"9100\"*
-*3) \"admin\_status\"*
-*4) \"up\"*
-*5) \"members@\"*
-*6) \"Ethernet0,Ethernet4\"*
-*7) \"min\_links\"*
-*8) \"2\"*
-***9) \"tpid\"***
-***10) \"0x9100\"***
-*127.0.0.1:6379\[4\]\>*
+*127.0.0.1:6379\[4\]\> hgetall \"PORTCHANNEL\|PortChannel0002\"*  
+*1) \"mtu\"*  
+*2) \"9100\"*  
+*3) \"admin\_status\"*  
+*4) \"up\"*  
+*5) \"members@\"*  
+*6) \"Ethernet0,Ethernet4\"*  
+*7) \"min\_links\"*  
+*8) \"2\"*  
+***9) \"tpid\"***  
+***10) \"0x9100\"***  
+*127.0.0.1:6379\[4\]\>*  
 
 ### **TPID setting in APP\_DB**
 
 Sample APP\_DB for Ethernet64 after TPID configured with 0x9200:
 
-*admin\@SONiC:\~\$ redis-cli -n 0*
-*127.0.0.1:6379\> hgetall \"PORT\_TABLE:Ethernet64\"*
-*1) \"index\"*
-*2) \"16\"*
-*3) \"lanes\"*
-*4) \"65,66,67,68\"*
-*5) \"description\"*
-*6) \"ARISTA01T0:Ethernet1\"*
-*7) \"admin\_status\"*
-*8) \"up\"*
-*9) \"mtu\"*
-*10) \"9100\"*
-*11) \"alias\"*
-*12) \"fortyGigE0/64\"*
-*13) \"pfc\_asym\"*
-*14) \"off\"*
-*15) \"speed\"*
-*16) \"40000\"*
-*17) \"oper\_status\"*
-*18) \"up\"*
-*19) \"ipredriver\"*
-*20) \"0x1,0x1,0x1,0x1\"*
-*21) \"preemphasis\"*
-*22) \"0xa760,0xa760,0xa760,0xa760\"*
-*23) \"idriver\"*
-*24) \"0x1,0x1,0x1,0x1\"*
-***25) \"tpid\"***
-***26) \"0x9200\"***
-*127.0.0.1:6379\>*
+*admin\@SONiC:\~\$ redis-cli -n 0*  
+*127.0.0.1:6379\> hgetall \"PORT\_TABLE:Ethernet64\"*  
+*1) \"index\"*  
+*2) \"16\"*  
+*3) \"lanes\"*  
+*4) \"65,66,67,68\"*  
+*5) \"description\"*  
+*6) \"ARISTA01T0:Ethernet1\"*  
+*7) \"admin\_status\"*  
+*8) \"up\"*  
+*9) \"mtu\"*  
+*10) \"9100\"*  
+*11) \"alias\"*  
+*12) \"fortyGigE0/64\"*  
+*13) \"pfc\_asym\"*  
+*14) \"off\"*  
+*15) \"speed\"*  
+*16) \"40000\"*  
+*17) \"oper\_status\"*  
+*18) \"up\"*  
+*19) \"ipredriver\"*  
+*20) \"0x1,0x1,0x1,0x1\"*  
+*21) \"preemphasis\"*  
+*22) \"0xa760,0xa760,0xa760,0xa760\"*  
+*23) \"idriver\"*  
+*24) \"0x1,0x1,0x1,0x1\"*  
+***25) \"tpid\"***  
+***26) \"0x9200\"***  
+*127.0.0.1:6379\>*  
 
 Sample APP\_DB for Portchannel0002 after TPID configured with 0x9100
 
-*admin\@SONiC:\~\$ redis-cli -n 0*
-*127.0.0.1:6379\> hgetall \"LAG\_TABLE:PortChannel0002\"*
-*1) \"mtu\"*
-*2) \"9100\"*
-*3) \"admin\_status\"*
-*4) \"up\"*
-*5) \"oper\_status\"*
-*6) \"up\"*
-***7) \"tpid\"***
-***8) \"0x9100\"***
-*127.0.0.1:6379\>*
+*admin\@SONiC:\~\$ redis-cli -n 0*  
+*127.0.0.1:6379\> hgetall \"LAG\_TABLE:PortChannel0002\"*  
+*1) \"mtu\"*  
+*2) \"9100\"*  
+*3) \"admin\_status\"*  
+*4) \"up\"*  
+*5) \"oper\_status\"*  
+*6) \"up\"*  
+***7) \"tpid\"***  
+***8) \"0x9100\"***  
+*127.0.0.1:6379\>*  
 
 **Show interface tpid cmd**
 ---------------------------
@@ -396,6 +380,7 @@ The following test cases are to be run manually (eventually as part of the pytes
 **References**
 ==============
 
-a)  SONiC Configuration Management
-b)  <https://github.com/Azure/SONiC/wiki/Architecture>
-c)  <https://github.com/opencomputeproject/SAI/pull/1089>
+a)  SONiC Configuration Management  
+b)  <https://github.com/Azure/SONiC/wiki/Architecture>  
+c)  <https://github.com/opencomputeproject/SAI/pull/1089> 
+ 
