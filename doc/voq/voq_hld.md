@@ -21,16 +21,16 @@
     * [1.7 Warm Restart requirements ](#17-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 System Port Configuration on Sonic Instance](#21-system-port-configuration-on-sonic-instance)
-    * [2.2 Config DB](#22-config-db)
-      * [2.2.1 DEVICE_METADATA](#221-device_metadata)
-      * [2.2.2 System Port Table](#222-system-port-table)
-      * [2.2.3 ConfigDB Schemas](#223-configdb-schemas)
-    * [2.3 CHASSIS_APP_DB](#23-chassis_app_db)
-      * [2.3.1 System Port interface table](#231-system-port-interface-table)
-      * [2.3.2 System Neighbor table](#232-system-neighbor-table)
-      * [2.3.3 System PortChannel table](#233-system-portchannel-table)
-      * [2.3.4 System PortChannel Member table](#234-system-portchannel-member-table)
-      * [2.3.5 CHASSIS_APP_DB Schemas](#235-chassis_app_db-schemas)
+    * [2.2 CHASSIS_APP_DB](#22-chassis_app_db)
+      * [2.2.1 System Port interface table](#221-system-port-interface-table)
+      * [2.2.2 System Neighbor table](#222-system-neighbor-table)
+      * [2.2.3 System PortChannel table](#223-system-portchannel-table)
+      * [2.2.4 System PortChannel Member table](#224-system-portchannel-member-table)
+      * [2.2.5 CHASSIS_APP_DB Schemas](#225-chassis_app_db-schemas)
+    * [2.3 Config DB](#23-config-db)
+      * [2.3.1 DEVICE_METADATA](#231-device_metadata)
+      * [2.3.2 System Port Table](#232-system-port-table)
+      * [2.3.3 ConfigDB Schemas](#233-configdb-schemas)
     * [2.5 Orchestration agent](#25-orchestration-agent)
     * [2.6 Design Options for Host IP connectivity](#26-design-options-for-host-ip-connectivity)
 	  * [2.6.1 Inband Recycle Port Option](#261-inband-recycle-port-option)
@@ -163,9 +163,66 @@ The system ports are configured on the Line Card. This information is then popul
 
  ![](../../images/voq_hld/control-card-system-port-config-flow.png)
 
-## 2.2 Config DB
+## 2.2 CHASSIS_APP_DB
+This is a **new** database which resides in chassis redis server. This runs on the control/supervisor card and is accessible to the sonic instances in all the FSIs. This database is modeled as Application DB. The OrchAgent in all the sonic instances will write their local information such as INTERFACE, NEIGH, PORTCHANNEL and PORTCHANNEL_MEMBER tables to CHASSIS_APP_DB with hardware identifier's. The OrchAgent also reads sync-ed remote info such as SYSTEM_INTERFACE, SYSTEM_NEIGH, SYSTEM_PORTCHANNEL and SYSTEM_PORTCHANNEL_MEMBER tables of all sonic instances with hardware information such as hardware index.
 
-### 2.2.1 DEVICE_METADATA
+### 2.2.1 System Port interface table
+A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config.
+```
+SYSTEM_INTERFACE:{{system_interface_name}} 
+    {}
+```
+The system_interface_name is same as the name of the system_port or system_portchannel
+
+### 2.2.2 System Neighbor table
+A table for neighbors learned or statically configured on system ports. The schema is same as the schema of "NEIGH" table in config DB with additional attribute for "encap_index".
+```
+SYSTEM_NEIGH:{{system_port_name}}:{{ip_address}} 
+    "neigh": {{mac_address}}
+    "encap_index": {{encap_index}}
+```
+
+### 2.2.3 System PortChannel Table
+A table for system portchannel information. This is populated by OrchAgent.
+```
+SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
+    "lag_id": {{index_number}}
+    "switch_id": {{index_number}}
+```
+    
+### 2.2.4 System PortChannel Member Table
+A table SYSTEM_PORTCHANNEL_MEMBER for members of portchannel in the whole system. This is populated by OrchAgent.
+Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
+
+### 2.2.5 CHASSIS_APP_DB Schemas
+
+```
+; Defines schema for interfaces for VOQ System ports
+key                                   = SYSTEM_INTERFACE:system_port_name:ip_address ; VOQ System port interface
+; field                               = value
+
+```
+
+```
+; Defines schema for VOQ Neighbor table attributes
+key                                   = SYSTEM_NEIGH:system_port_name:ip_address ; VOQ IP neighbor
+; field                               = value
+neigh                                 = 12HEXDIG                                       ; mac address of the neighbor
+encap_index                           = 1*4DIGIT                                       ; Encapsulation index of the remote neighbor.
+
+```
+
+```
+; Defines schema for VOQ PORTCHANNEL table attributes
+key                                   = SYSTEM_PORTCHANNEL:system_port_name ; VOQ port channel neighbor
+; field                               = value
+lag_id                                = 1*4DIGIT                            ; lag id
+switch_id                             = 1*4DIGIT                            ; switch id
+
+```
+## 2.3 Config DB
+
+### 2.3.1 DEVICE_METADATA
  The **existing** DEVICE_METADATA table is enhanced to add new entry to have VOQ related parameters
  
 ```
@@ -218,7 +275,7 @@ sonic-buildimage/dockers/docker-database/database_config.json.j2
 ```
         
 
-### 2.2.2 System Port Table
+### 2.3.2 System Port Table
 A **new** table for system port configuration
 
 ```
@@ -229,7 +286,7 @@ SYSTEM_PORT:{{system_port_name}}
     "core_port_index": {{index_number}}
     "speed": {{index_number}}
 ```
-### 2.2.3 ConfigDB Schemas
+### 2.3.3 ConfigDB Schemas
 **Existing** schema for DEVICE_METADATA in configuration DB
 ```
 key                                   = DEVICE_METADATA|"localhost"      ; 
@@ -256,64 +313,6 @@ No changes in the schema of other CONFIG_DB tables. The name of the system ports
 For router interface and address configurations for the system ports, the existing INTERFACE table in CONFIG_DB is used.
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
-
-## 2.3 CHASSIS_APP_DB
-This is a **new** database which resides in chassis redis server accessible by all sonic instances. This database is modeled as Application DB. The OrchAgent in all the sonic instances will write their local information such as INTERFACE, NEIGH, PORTCHANNEL and PORTCHANNEL_MEMBER tables to CHASSIS_APP_DB with hardware identifier's. The OrchAgent also reads sync-ed remote info such as SYSTEM_INTERFACE, SYSTEM_NEIGH, SYSTEM_PORTCHANNEL and SYSTEM_PORTCHANNEL_MEMBER tables of all sonic instances with hardware information such as hardware index.
-
-### 2.3.1 System Port interface table
-A table for interfaces of system ports.The schema is same as the schema of "INTERFACE" table in config.
-```
-SYSTEM_INTERFACE:{{system_interface_name}} 
-    {}
-```
-The system_interface_name is same as the name of the system_port or system_portchannel
-
-### 2.3.2 System Neighbor table
-A table for neighbors learned or statically configured on system ports. The schema is same as the schema of "NEIGH" table in config DB with additional attribute for "encap_index".
-```
-SYSTEM_NEIGH:{{system_port_name}}:{{ip_address}} 
-    "neigh": {{mac_address}}
-    "encap_index": {{encap_index}}
-```
-
-### 2.3.3 System PortChannel Table
-A table for system portchannel information. This is populated by OrchAgent.
-```
-SYSTEM_PORTCHANNEL:{{system_portchannel_name = PORTCHANNEL.portchannel_name}}
-    "lag_id": {{index_number}}
-    "switch_id": {{index_number}}
-```
-    
-### 2.3.4 System PortChannel Member Table
-A table SYSTEM_PORTCHANNEL_MEMBER for members of portchannel in the whole system. This is populated by OrchAgent.
-Table schema is same as **existing** PORTCHANNEL_MEMBER table. 
-
-### 2.3.5 CHASSIS_APP_DB Schemas
-
-```
-; Defines schema for interfaces for VOQ System ports
-key                                   = SYSTEM_INTERFACE:system_port_name:ip_address ; VOQ System port interface
-; field                               = value
-
-```
-
-```
-; Defines schema for VOQ Neighbor table attributes
-key                                   = SYSTEM_NEIGH:system_port_name:ip_address ; VOQ IP neighbor
-; field                               = value
-neigh                                 = 12HEXDIG                                       ; mac address of the neighbor
-encap_index                           = 1*4DIGIT                                       ; Encapsulation index of the remote neighbor.
-
-```
-
-```
-; Defines schema for VOQ PORTCHANNEL table attributes
-key                                   = SYSTEM_PORTCHANNEL:system_port_name ; VOQ port channel neighbor
-; field                               = value
-lag_id                                = 1*4DIGIT                            ; lag id
-switch_id                             = 1*4DIGIT                            ; switch id
-
-```
 
 ## 2.5 Orchestration agent
 ### VOQ Switch Creation
