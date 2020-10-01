@@ -52,7 +52,7 @@
 	* [3.4 Voq Neighbor Creation](#34-voq-neighbor-creation)
   * [4 Example configuration](#4-example-configuration)
   * [5 Test Considerations](#5-test-considerations)
-  * [6 Future Work](#5-future-work)
+  * [6 Future Work](#6-future-work)
     * [6.1 Dynamic System Ports](#61-dynamic-system-ports)
   * [7 References](#7-references)
 
