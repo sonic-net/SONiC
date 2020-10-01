@@ -51,9 +51,10 @@
 	* [3.3 Voq System Port Router Interface Creation](#33-voq-system-port-router-interface-creation)
 	* [3.4 Voq Neighbor Creation](#34-voq-neighbor-creation)
   * [4 Example configuration](#4-example-configuration)
-  * [5 Future Work](#5-future-work)
-    * [5.1 Dynamic System Ports](#51-dynamic-system-ports)
-  * [6 References](#6-references)
+  * [5 Test Considerations](#5-test-considerations)
+  * [6 Future Work](#5-future-work)
+    * [6.1 Dynamic System Ports](#61-dynamic-system-ports)
+  * [7 References](#7-references)
 
 ###### Revision
 | Rev |     Date    |       Author                                                                       | Change Description                |
@@ -779,9 +780,15 @@ Example coniguration for voq inband interface type "port" is presented
    }
 }
 ```
-# 5 Future Work
+# 5 Test Considerations
 
-## 5.1 Dynamic System Ports 
+## 5.1 test_virtual_chassis.py 
+This is the top level test driver that executes testcases against the virtual chassis. System Port handling is tested by test_chassis_sysport which validates that
+* System ports can be populated in CONFIG_DB
+* Orchagent programs the correct SAI Redis ASIC_DB state to represent the configured sysport in a multi-instance environment
+
+# 6 Future Work
+## 6.1 Dynamic System Ports 
 
 Dynamic system port support is required to support the following forwarding scenarios
 
@@ -792,5 +799,5 @@ Both these scenarios can be supported smoothly as long as the global system port
 
 Support for dynamic system ports requires SAI support for the `create_port` and `remove_port` calls. In addition, forwarding features that are dependent on System Ports need to react to these changes and reprogram the related forwarding plane state such as routing nexthops, LAG membership etc.
 
-# 6 References
+# 7 References
 To be completed
