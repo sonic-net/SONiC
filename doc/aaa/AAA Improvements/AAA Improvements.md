@@ -1,6 +1,6 @@
 # AAA Improvements
 
-**Rev. 0.3**
+**Rev. 0.4**
 
 ## Introduction
 
@@ -13,7 +13,7 @@ This document identifies a few gaps in the current implementation of Authenticat
 | 0.1      | 2/24/2020 | Martin Bélanger | Draft                                                        |
 | 0.2      | 4/2/2020  | Martin Bélanger | Internal reviews                                             |
 | 0.3      | 5/28/2020 | Martin Bélanger | External reviews                                             |
-| 0.4      | 6/18/2020 | Martin Bélanger | Add more limitations to existing design. More precisely the fact that the current design does not work with Aruba ClearPass TACACS+ server. Also listed Linux group name restrictions. |
+| 0.4      | 6/18/2020 | Martin Bélanger | Add mention that the Aruba ClearPass TACACS+ server does not allow Authorization requests w/o first being Authenticated. Add a note about Linux group naming restrictions. |
 
 ### Document conventions and limitations
 
