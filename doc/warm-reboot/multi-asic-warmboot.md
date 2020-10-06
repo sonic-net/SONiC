@@ -11,7 +11,7 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 - there are port channel interfaces present between the ASIC's. These interfaces are allways up and bundled with backplane interfaces.
 - there are IBGP sessions between the BGP instances running in various ASIC namespace.
 
-## Steps done when the device goes down during warm boot
+## Warm boot sequence
 
 ### For single ASIC platform.
 
@@ -34,10 +34,9 @@ In the multi-asic platforms these are the notable changes that needs to be consi
   * Stopping all remaining containers 
           
   * kexec to reboot with the added kernel parameters
-
-
-
-
+ 
+ 
+ 
 ### The design changes for multi-ASIC platform.
 
 The following are the main thoughts into the warm boot design approach for multi-asic.
