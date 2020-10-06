@@ -62,9 +62,9 @@ state           = "db_save_start/end" / bgp_start/end" / "swss_start/end" / "syn
 
 #### 2. Approach to control the warm restart lifecycle with multiple instances
 
-Enhance the existing script to watch the state of services per "asic_instance".
+Enhance the existing script to watch the warm boot sequence per "asic_instance".
 - The script will spawn multilple threads each doing warm restart per asic instance.
-- The threads communicate using Pub/Sub model by updating the WARM_RESTART_STATE_TABLE defined above.
+- The threads communicate using Pub/Sub model by updating the WARM_RESTART_STATE_TABLE defined each database instance.
 - The parent process would control the warm restart lifecycle in every asic instance, by 
     - writing the "state_start"
     - waiting for "state_end" from each of the asic instances 
