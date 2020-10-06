@@ -38,6 +38,9 @@
     - [3.3 Install component FW](#33-install-component-fw)
         - [3.3.1 Non modular chassis platform](#331-non-modular-chassis-platform)
         - [3.3.2 Modular chassis platform](#332-modular-chassis-platform)
+    - [3.4 Auto-update platform component firmwares](#33-Auto-update-platform-component-firmwares)
+        - [3.4.1 Auto-update platform component firmwares](#331-Auto-update-platform-component-firmwares)
+        - [3.4.2 Auto-update using platform utility](#332-Auto-update-using-platform-utility)
 - [4 Tests](#4-tests)
     - [4.1 Unit tests](#41-unit-tests)
 
@@ -401,7 +404,7 @@ default image path = /usr/share/sonic/device/<onie_platform>/fw_update/
         "Chassis1": {
             "component": {
                 "BIOS": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
+                    "firmware": "/usr/share/<platform_name>/<onie_platform>/fw_update/bios.bin",
                     "version": "0ACLH003_02.02.010"
                 },
                 "CPLD": {
@@ -636,39 +639,56 @@ The task file will be platform-specific.
 1. `platform_component.json` with platform specific utility.
 ```json
 {
-    "component": {
-        "BIOS": {
-            "firmware": "bios.bin",
-            "version": "0ACLH003_02.02.010",
-        },
-        "CPLD": {
-            "firmware": "cpld.bin",
-            "utility": "cpldupdate",
-            "version": "10",
-        },
-        "SSD": {
-            "firmware": "SSD.bin",
-            "utility": "ssd_fw_update",
-            "version": "5",
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "BIOS": {
+                    "firmware": "bios.bin",
+                    "version": "0ACLH003_02.02.010",
+                },
+                "CPLD": {
+                    "firmware": "cpld.bin",
+                    "utility": "cpldupdate",
+                    "version": "10",
+                },
+                "SSD": {
+                    "firmware": "SSD.bin",
+                    "utility": "ssd_fw_update",
+                    "version": "5",
+                }
+            }
         }
     }
 }
 ```
 
-The Utility can have two passing arguments and one option for actions from fwutil.
-1.	Firmware
-2.	Boot action following after the firmware auto-update process
-3.	Fwutil action : -a(--autoupdate)
-**Utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
+##### 2.2.2.4.3.1 Platform Component Firmware Update Utility Interface Requirement
 
-The expected utility response can be as follows.
-```json
-"True" : "completed"
-"True" : "scheduled"
-"False" : Error
-```
+The Utility should support the minimum requirements to perform the fwutil auto-update interface. 
+The minimum requirement is that the component api's get_frimware_version, get_firmware_update_notification(), and auto_update_firmware() needs to be supported by the utility.
+Here are the interface requirements to support them.
+1. {utility} -s(--status) : able to retrieve the current firmware version:
+    - equivalent to the component api's get_firmware_version()
+    - response : installed firmware version
+2. {utility} -n(--notification) : able to provide the update complete action :
+    - equivalent to the component api's get_firmware_update_notification(image_path) 
+    - response : the required action to complete the component installation
+3. {utility} -a(--autoupdate) : able to perform the auto-update action :
+    - equivalent to the component api's auto_update_firmware(image_path, boot_type) 
+    - auto-update interface needs two arguments : image_path and boot_type
+    - response : the result of auto-update as follows
+        ```json
+        "True" : "completed"
+        "True" : "scheduled"
+        "True" : "need_action"
+        "False" : ${ErrorCode}
+        ```
 
-The plugin needs to be called by the FWutil command to perform the firmware auto-update process.
+**Optional) The utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
+
+The component utility needs to be called by the FWutil command to perform the firmware auto-update process if it's defined in the `platform_component.json`, otherwise, the platform component api will be called.
+The componet utility path will be pased from the `platform_component.json` and be executed by fwutil.
+Below shows how the utility can be executed for the auto-update interface.
 ```bash
 ...
 firmware_path = parser[self.__pcp.FIRMWARE_KEY]
@@ -677,7 +697,7 @@ if os.path.isfile(utility_path) and os.access(utility_path, os.X_OK):
     cmd = "{} -a {} {}".format(
         utility_path,
         firmware_path,
-        boot
+        boot_type
     )
     output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
 ...
@@ -685,6 +705,7 @@ if os.path.isfile(utility_path) and os.access(utility_path, os.X_OK):
 From the above `platform_component.json` example, if the platform needs the SSD firmware update, then the auto-update can be triggered with following command.
 `$PWD/ssd_fw_update -a $PWD/SSD.bin fast` 
 
+##### 2.2.2.4.3.2 Platform Firmware Update Reboot Handle Plugin
 The reboot scripts will invoke the platform firmware update reboot plugin with boot-type, which will analyze the reboot firmware task file and execute the upgrade commands for the components present in task file.
 ```bash
 PLATFORM_FWUTIL_AU_REBOOT_HANDLE="platform_fwutil_au_reboot_handle"
@@ -761,6 +782,20 @@ fi
 ![FW install (modular) flow](images/install_modular_flow.svg "Figure 5: FW install (modular) flow")
 
 ###### Figure 5: FW install (modular) flow
+
+## 3.4 Auto-update platform component firmwares
+
+### 3.4.1 Auto-update using platform component apis 
+
+![FW Auto-update platform compoenent api flow](images/autoupdate_component_api_flow.svg "Figure 6: Platform Component FW Auto-update flow")
+
+###### Figure 6: Platform Component FW Auto-update flow
+
+### 3.4.2 Auto-update using platform utility
+
+![FW Auto-update platform utility flow](images/autoupdate_platform_utility_flow.svg "Figure 7: Platform Component FW Auto-update with platform utility flow")
+
+###### Figure 7: Platform Component FW Auto-update with platform utility flow
 
 # 4 Tests
 
