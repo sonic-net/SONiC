@@ -111,7 +111,7 @@ In the multi-asic platforms,
 * the BGP instance running in the front end ASIC's will do a **redistribute** routes to the fabric ASIC's
 * the BGP instance running in the fabric ASIC's will do a **route-reflector** of the routes to the front-end ASIC's 
 
-When the warm restart is initiated, the BGP instances running in each namespace, can go down at teh same time - after sending teh graceful restart message to teh internal/external peers.
+When the warm restart is initiated, the BGP instances running in each namespace, can go down at the same time - after sending the graceful restart message to the internal/external peers.
 
 On the way up, the following is the approach in **single ASIC** platforms,
   * The routes saved when the switch when down will be populated in the AppDB,
