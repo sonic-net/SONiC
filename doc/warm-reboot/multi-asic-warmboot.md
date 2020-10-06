@@ -17,70 +17,63 @@ In the multi-asic platforms these are the notable changes that needs to be consi
 
   These are the steps when the system goes down on warm reboot 
 
-```
-  --- Pausing orchagent 
+  * Pausing orchagent 
   
-   --- Stopping radv
+  * Stopping radv
    
-    --- Stopping bgp 
+  * Stopping bgp 
     
-     --- Syncd pre-shutdown 
+  * Syncd pre-shutdown 
       
-       --- Backing up database
+  * Backing up database
        
-        --- Stopping teamd 
+  * Stopping teamd 
         
-         --- Stopping syncd 
+  * Stopping syncd 
          
-          --- Stopping all remaining containers 
+  * Stopping all remaining containers 
           
-           --- use kexec to reboot with the added kernel parameters
+  * kexec to reboot with the added kernel parameters
 
-```
+
 
 
 ### The design changes for multi-ASIC platform.
 
 The following are the main thoughts into the warm boot design approach for multi-asic.
 
-#### 1. Introduce a warm restart table in the StateDB in the global database instance running in linux host
+#### 1. Introduce a warm restart state table in the StateDB
 
-This Warm restart table will store the lifecycle state per asic instance.
+This table will store the warm restart lifecycle state for that asic instance.
 
 ```
-WARM_RESTART_TABLE
+WARM_RESTART_STATE_TABLE
 ;Stores warm-reboot lifecycle state for that asic_instance
 
 
-key             = WARM_RESTART_TABLE|asic_instance        ; asic_instance is a unique ID or name to identify
-                                                          ; the instance of set of services <database, swss
-                                                          ; syncd, teamd, bgp, lldp> running in a namespace
+key             = WARM_RESTART_STATE_TABLE|asic_instance        ; asic_instance is a unique ID or name to identify
+                                                                ; the instance of set of services <database, swss
+                                                                ; syncd, teamd, bgp, lldp> running in a namespace
 
-state           = "db_save" / bgp_done" / "swss_done" / "syncd_done" / "teamd_done" / "database_done"
-                                                             ; FSM state of the services bound to a particular 
-                                                             ; asic_instance.
+state           = "db_save_start/end" / bgp_start/end" / "swss_start/end" / "syncd_start/end" / "teamd_start/end" / "database_start/end"
+                                                                ; FSM state of the services bound to a particular 
+                                                                ; asic_instance.
 ```
 
 
 #### 2. Approach to control the warm restart lifecycle with multiple instances
 
-There needs to be a new process or a enhancement to the existing script to watch the state of services per "asic_instance".
-
-**Approach 1.** Introduce a new process named "warmBootd" running in the linux host.
-- It forks multiple threads per ASIC and each one does the warm boot sequence, updates the WARM_RESTART_TABLE with the states in the lifecycle.
-- The job of the parent process is to check each ASIC process does finish the activities in a state 
-- If all of the ASIC threads reach a state, move to the next state.
+Enhance the existing script to watch the state of services per "asic_instance".
+- The script will spawn multilple threads each doing warm restart per asic instance.
+- The threads communicate using Pub/Sub model by updating the WARM_RESTART_STATE_TABLE defined above.
+- The parent process would control the warm restart lifecycle in every asic instance, by 
+    - writing the "state_start"
+    - waiting for "state_end" from each of the asic instances 
+    - Proceed to next state if we get state_end from all the instances.
     
-**Approach 2.** Enhance the warm-reboot script to spawn multiple python threads to work on asic's in parallel 
-- Similar to above the parent task will check each thread for the progress and move to the next state on completion.
-
 #### 3 Warm-boot sequence and Failure scenarios
 
-   In case of Multi-asic we do the warm boot of each ASIC in parallel. Couple of questions to think on 
-   
-   * Should we diffentiate the IBGP sessions between the ASIC's and the EBGP sessions with external peers
-   * should we differentiate the internal Portchannels between the ASIC's and the ones with external neighbors
-   * Should we warm boot the front-end ASIC's first and then the back end ASIC.
+   In case of Multi-asic we do the warm boot of each ASIC in parallel. 
    
    The idea is to do the "more failure prone activities" at begining of the warm reboot lifecycle after pre-check and be able to revert ( if possible ) the system to a good state in case of failure in any one of the ASIC threads.
    
@@ -88,35 +81,40 @@ There needs to be a new process or a enhancement to the existing script to watch
 
    The following sequence is proposed in each of the thread handling warm reboot lifecycle per asic.
    
-   ```
-   
-  --- Pausing orchagent  < check failure, if failure in any ASIC, can we unpause and recover ? > 
-    --- Syncd pre-shutdown   < check failure, if failure in any exit, ask user to do cold reboot ? > 
+   *  Pausing orchagent  < check failure, if failure in any ASIC, can we unpause and recover > 
+   *  Syncd pre-shutdown   < check failure, if failure in any exit, ask user to do cold reboot > 
     
-     -------- From here on no looking back -------- 
+   --------- From here on no looking back -------- 
     
-      --- Stopping radv
+   *  Stopping radv
       
-       --- Stopping bgp 
+   *  Stopping bgp 
    
-       --- Backing up database
+   *  Backing up database
        
-        --- Stopping teamd 
+   *  Stopping teamd 
         
-         --- Stopping syncd 
+   *  Stopping syncd 
          
-          --- Stopping all remaining containers 
+   *  Stopping all remaining containers 
    
-```
    
-#### 4. Save the Redis DB in each ASIC instance
+#### 4. LAG Convergence
+The teamd dockers will go down at the same time after sending the LACP frames to increase the link aggregation timers in the peers.
+On the way up after warm boot, the teamd dockers will come up together and establish all the internal LAGs along with the external LAGs.
+
+#### 5. BGP Convergence 
+![BGP sessions](img/multi_asic_bgp.PNG)
+
+
+#### 6. Save the Redis DB in each ASIC instance
 
 TODO
   
 
 
 
-#### 5. Save the SAI states in each ASIC instance
+#### 7. Save the SAI states in each ASIC instance
 
 TODO
 
