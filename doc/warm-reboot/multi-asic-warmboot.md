@@ -114,14 +114,14 @@ In the multi-asic platforms,
 When the warm restart is initiated, the BGP instances running in each namespace, can go down at teh same time - after sending teh graceful restart message to teh internal/external peers.
 
 On the way up, the following is the approach in single ASIC 
-  > The routes saved when the switch when down will be populated in the AppDB,
-  > Start a wr timer of 120 sec.
-  > Till the timer expires the fpmsyncd internally stores the routes 
-  > When the times expires after 120sec, the reconcilation is done.
+  * The routes saved when the switch when down will be populated in the AppDB,
+  * Start a wr timer of 120 sec.
+  * Till the timer expires the fpmsyncd internally stores the routes 
+  * When the times expires after 120sec, the reconcilation is done.
   
 For the multi-asic platforms, 
-  > The routes from the front-end ASIC's will be distributed to the fron-end ASIC's 
-  > The routes from one fron-end ASIC will be reflected to all other front-end ASIC's by the fabric ASIC.
+  * The routes from the front-end ASIC's will be distributed to the fron-end ASIC's 
+  * The routes from one fron-end ASIC will be reflected to all other front-end ASIC's by the fabric ASIC.
   
 Hence instead of a fixed timer of 120 sec - the reconcilation in front-end ASICs should be dependent on the convergence in fabric ASIC's.
 [TODO] 
