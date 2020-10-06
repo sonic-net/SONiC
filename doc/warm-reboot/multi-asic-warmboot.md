@@ -106,17 +106,36 @@ On the way up after warm boot, the teamd dockers will come up together and estab
 #### 5. BGP Convergence 
 ![BGP sessions](img/multi_asic_bgp.PNG)
 
+In the multi-asic platforms,
+
+* the BGP instance running in the front end ASIC's will do a **redistribute** routes to the fabric ASIC's
+* the BGP instance running in the fabric ASIC's will do a **route-reflector** of the routes to the front-end ASIC's 
+
+When the warm restart is initiated, the BGP instances running in each namespace, can go down at teh same time - after sending teh graceful restart message to teh internal/external peers.
+
+On the way up, the following is the approach in single ASIC 
+  > The routes saved when the switch when down will be populated in the AppDB,
+  > Start a wr timer of 120 sec.
+  > Till the timer expires the fpmsyncd internally stores the routes 
+  > When the times expires after 120sec, the reconcilation is done.
+  
+For the multi-asic platforms, 
+  > The routes from the front-end ASIC's will be distributed to the fron-end ASIC's 
+  > The routes from one fron-end ASIC will be reflected to all other front-end ASIC's by the fabric ASIC.
+  
+Hence instead of a fixed timer of 120 sec - the reconcilation in front-end ASICs should be dependent on the convergence in fabric ASIC's.
+[TODO] 
 
 #### 6. Save the Redis DB in each ASIC instance
 
-TODO
+[TODO]
   
 
 
 
 #### 7. Save the SAI states in each ASIC instance
 
-TODO
+[TODO]
 
 
 
@@ -132,6 +151,6 @@ On the way up after warm reboot, the sequence could be same as what we do for a 
 
 ## Updates for fast-reboot
 
-TODO
+[TODO]
 
  
