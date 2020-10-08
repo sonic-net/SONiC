@@ -459,33 +459,6 @@ default image path = /usr/share/sonic/device/<onie_platform>/fw_update/
 }
 ```
 
-3. Non modular chassis platform with Boot action
-```json
-{
-    "chassis": {
-        "Chassis1": {
-            "component": {
-                "BIOS": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/bios.bin",
-                    "version": "0ACLH003_02.02.010",
-                    "boot": "cold"
-                },
-                "CPLD": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/cpld.bin",
-                    "version": "10",
-                    "boot": "powercycle"
-                },
-                "FPGA": {
-                    "firmware": "/usr/share/sonic/<platform_name>/<onie_platform>/fw_update/fpga.bin",
-                    "version": "5",
-                    "boot": "cold"
-                }
-            }
-        }
-    }
-}
-```
-
 **Note:**
 1. FW update will be disabled if component definition is not provided (e.g., 'BIOS': { })
 2. FW version will be read from image if `version` field is not provided
