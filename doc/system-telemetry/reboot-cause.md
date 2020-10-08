@@ -13,9 +13,9 @@
 
 #### Part 1
 During the boot, the process-reboot-cause processes the last reboot-cause based on the hardware reboot-cause
-and the software reboot-cause information and creates previous-reboot-cause.txt with the information.
-To save the history of the previous reboot-cause, `process-reboot-cause` will save the previous reboot cause information
-to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
+and the software reboot-cause information and creates previous-reboot-cause.txt with the information as it does currently.
+In addition to save the history of the previous reboot-cause, `process-reboot-cause` will save the previous
+reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
 And the file will be formatted to be parsed easily.
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
