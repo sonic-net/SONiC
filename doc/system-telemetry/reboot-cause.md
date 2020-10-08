@@ -40,8 +40,8 @@ The following example shows the content of the previous reboot-cause file - prev
 ```
 
 #### Part 2
-A new service which will retrieve the saved reboot-cause files and read each reboot-cause information from the files
-and update reboot-cause information up to 10 entries to state-DB.
+A new service named as `post-process-reboot-cause.service` which will retrieve the saved reboot-cause files and read each reboot-cause information from the files
+and save the reboot-cause information up to 10 entries to state-DB.
 Verify the information from state-DB data is available via the cli command `show reboot-cause history` which is extended from `show reboot-cause`.
 
 ##### Reboot Cause Schema in state-DB
