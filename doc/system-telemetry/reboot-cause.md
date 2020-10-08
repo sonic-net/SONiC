@@ -14,10 +14,9 @@
 #### Part 1
 During the boot, the process-reboot-cause processes the last reboot-cause based on the hardware reboot-cause
 and the software reboot-cause information and creates previous-reboot-cause.txt with the information.
-To log upto 10 entries of the previous reboot-cause, `process-reboot-cause` will save the previous reboot cause information
-to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name after processing
-the reboot-cause and create a symbolic link.
-Currently previous-reboot-cause.txt is plain text format but this file content will be formatted to be parsed easily.
+To save the history of the previous reboot-cause, `process-reboot-cause` will save the previous reboot cause information
+to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
+And the file will be formatted to be parsed easily.
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
 ```
@@ -29,11 +28,15 @@ previous-reboot-cause-20200902T015048.txt
 ```
 The following example shows the content of the previous reboot-cause file - previous-reboot-cause-20200903T232033.txt.
 ```
-TIMESTAMP: "20200903T232033"
-CAUSE: "reboot"
-USER: "admin"
-TIME: "Thu 03 Sep 2020 11:15:30 PM UTC"
-COMMENT: "User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]"
+[
+    {
+        gen_time: "20200903T232033",
+        cause: "reboot",
+        user: "admin",
+        time: "Thu 03 Sep 2020 11:15:30 PM UTC",
+        comment: ""
+    }
+]
 ```
 
 #### Part 2
@@ -48,7 +51,7 @@ Here is the definition of Reboot-cause schema which will be stored in state-DB.
 ; Defines information for reboot-cause
 key                     = REBOOT_CAUSE|<timestamp>         ; last reboot-cause processing time
 ; field                 = value
-cause                   = STRING                         ; last reboot cause
+cause                   = STRING                         ; last reboot causek
 time                    = STRING                         ; time when the last reboot was initiated
 user                    = STRING                         ; user who the last reboot initiated
 comment                 = STRING                         ; unstructured json format data
