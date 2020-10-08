@@ -1,11 +1,12 @@
 # ASIC thermal monitoring High Level Design
-### Rev 0.1
+### Rev 0.2
 ## Table of Contents
 
 ## 1. Revision 
 Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 |v0.1 |01/10/2019  |Padmanabhan Narayanan | Initial version
+|v0.2 |10/07/2020  |Padmanabhan Narayanan | Update based on review comments and addess Multi ASIC scenario.
 
 ## 2. Scope
 ASICs typically have multiple internal thermal sensors. This document describes the high level design of a poller for ASIC thermal sensors. It details how the poller may be configured and the export of thermal values from SAI to the state DB.
@@ -35,26 +36,27 @@ A configurable ASIC sensors poller is introduced that periodically retrieves the
 
 ## 5. Requirements
 
-### 5.1 **Functional Requirements**
+### 5.1 Functional Requirements
 
-1. The ASIC sensors poller should be configurable (using CONFIG DB):
+1. The ASIC sensors poller should be configurable using CONFIG DB (for each ASIC in a multi ASIC platform):
     * There should be a way to enable/disable the poller
     * The polling interval should be configurable (from 5 to 300 secs)
-2. The retrieved values should be written to the STATE DB.
+2. The retrieved values should be written to the STATE DB (of each ASIC's DB instance in a multi ASIC platform).
+3. The ASIC internal sensor values retrieved should be useable by the Thermal Control infrastructure (https://github.com/Azure/SONiC/blob/master/thermal-control-design.md).
 
-### 5.2 **CLI requirements**
+### 5.2 CLI requirements
 
 "show platform temperature" should additionally display the ASIC internal sensors as well.
 
-### 5.3 **Platform API requirements**
+### 5.3 Platform API requirements
 
 It should be possible to query the ASIC internal sensors using the ThermalBase() APIs
 
 ## 6. Module Design
 
-### 6.1.1 **DB and Schema changes**
+### 6.1 DB and Schema changes
 
-A new ASIC_SENSORS ConfigDB table entry would be added. 
+A new ASIC_SENSORS ConfigDB table entry would be added to each ASIC's database instance:
 ```
 ; Defines schema for ASIC sensors configuration attributes
 key             = ASIC_SENSORS|ASIC_SENSORS_POLLER_STATUS   ; Poller admin status 
@@ -66,190 +68,65 @@ key             = ASIC_SENSORS|ASIC_SENSORS_POLLER_INTERVAL   ; Poller interval 
 interval        = 1*3DIGIT
 ```
 
-The TEMPERATORE_INFO stateDB table will be expanded to hold the ASIC internal temperatures. The object_name would be:
-asic_<0..(n-1)>_ internal_<0..(N-1)> where "n" is the number of ASIC and "N" is the number of internal sensors on the ASIC.
-...
-
-A new ASIC_SENSORS stateDB table is added which captures the following additional details:
+IN each ASIC's stateDB instance, a new ASIC_TEMPERATORE_INFO table will be added to hold the ASIC internal temperatures:
 
 ```
 ; Defines thermal information for an ASIC
-key                     = ASIC_SENSORS|object_name   ; ASIC thermal object(asic_0, asic_1...)
+key                     = ASIC_TEMPERATURE_INFO
 ; field                 = value
-num_temperature_sensors = 2*DIGIT                        ; Maximum number of internal thermal sensors on this ASIC
 average_temperature     = FLOAT                          ; current average temperature value
 maximum_temperature     = FLOAT                          ; maximum temperature value
+temperature_0           = FLOAT                          ; ASIC internal sensor 0 temperature value
+...
+temperature_N           = FLOAT                          ; ASIC internal sensor N temperature value
 ```
 
-### 6.1.1 SwitchOrch changes
+### 6.2 SwitchOrch changes
 
 Apart from APP_SWITCH_TABLE_NAME, SwitchOrch will also be a consumer of CFG_ASIC_SENSORS_TABLE_NAME ("ASIC_SENSORS") to process changes to the poller configuration. A new SelectableTimer (sensorsPollerTimer) is introduced with a default of 10 seconds.
 
-#### 6.1.1.1 Poller Configuration
+#### 6.2.1 Poller Configuration
 
 * If the admin_status is enabled, the sensorsPollerTimer is started. If the poller is disabled, a flag is set so that upon the next timer callback, the timer is stopped.
 * If there is any change in the polling interval, the sensorsPollerTimer is updated so that the new interval with take effect with the next timer callback.
 
-#### 6.1.1.1 sensorsPollerTimer
+#### 6.2.2 sensorsPollerTimer
 
 In the timer callback, the following actions are performed:
 
 * Handle change to timer disable : if the user disables the timer, timer is stopped.
 * Handle change to the polling interval : reset the timer if the polling interval has changed
-* Query SAI_SWITCH_ATTR_MAX_NUMBER_OF_TEMP_SENSORS and update the "num_temperature_sensors" field in the ASIC_SENSORS|asic_\<n\> table in the stateDB.
-* Get SAI_SWITCH_ATTR_TEMP_LIST and update the TEMPERATURE_INFO in the stateDB. The sensors values are exported as asic_<0..(n-1)>_ internal_<0..(N-1)>
-* If the ASIC SAI supports SAI_SWITCH_ATTR_AVERAGE_TEMP, query and update the average temperature field in the ASIC_SENSORS|asic_\<n\> table in the stateDB.
-* If the ASIC SAI supports SAI_SWITCH_ATTR_MAX_TEMP, query and update the maximum_temperature field in the ASIC_SENSORS|asic_\<n\> table in the stateDB.
+* Get SAI_SWITCH_ATTR_TEMP_LIST and update the ASIC_TEMPERATURE_INFO in the stateDB.
+* If the ASIC SAI supports SAI_SWITCH_ATTR_AVERAGE_TEMP, query and update the average temperature field in the ASIC_TEMPERATURE_INFO table in the stateDB.
+* If the ASIC SAI supports SAI_SWITCH_ATTR_MAX_TEMP, query and update the maximum_temperature field in the ASIC_TEMPERATURE_INFO table in the stateDB.
 
-#### 6.1.2 Platform API 2.0 support
+### 6.3 Platform API changes to support ASIC Thermals
 
-A new AsicBase class is defined that denotes a specific ASIC. The relevant snapshot of the AsicBase() definition is as follows:
+Platform owners typically provide the implementation for Thermals (https://github.com/Azure/sonic-platform-common/blob/master/sonic_platform_base/thermal_base.py). Apart from external sensors, platforms should include ASIC internal sensors in the _thermal_list[] of the Chassis / Module implementations.
 
-```
-class AsicBase(device_base.DeviceBase):
-    """
-    Abstract base class for ASIC
-    """
-    # Device type definition. Note, this is a constant.
-    DEVICE_TYPE = "asic"
+Assuming a Multi ASIC Chassis with 3 ASICs, the thermal names could be:
+ASIC0 Internal 0, ... ASIC0 Internal N0, ASIC1 Internal 0, ... ASIC1 Internal N1, ASIC2 Internal 0, ... ASIC2 Internal N2
+where ASIC0, ASIC1 and ASIC2 have N0, N1 and N2 internal sensors respectively.
 
-    # List of ThermalBase-derived objects representing all thermals
-    # available on the asic
-    _thermal_list = None
+The implementation of the threshold related APIs (get_high_threshold(), get_low_threshold(), get_high_critical_threshold(), etc..) are platform (ASIC) specific. The get_temperature() should retrieve the temperature from the ASIC_TEMPERATURE_INFO table of the stateDB from the concerned ASIC's DB instance. The thermalctld's TemperatureUpdater::_refresh_temperature_status() retreives the temperatures from ASIC_TEMPERATURE_INFO and populates the TEMPERATURE_INFO table in the globalDB's stateDB.
 
-    def __init__(self):
-            self._thermal_list = []
-
-    ##############################################
-    # THERMAL methods
-    ##############################################
-
-    def get_num_thermals(self):
-        """
-        Retrieves the number of thermals available on this module
-
-        Returns:
-            An integer, the number of thermals available on this module
-        """
-        return len(self._thermal_list)
-
-    def get_all_thermals(self):
-        """
-        Retrieves all thermals available on this module
-
-        Returns:
-            A list of objects derived from ThermalBase representing all thermals
-            available on this module
-        """
-        return self._thermal_list
-
-    def get_thermal(self, index):
-        """
-        Retrieves thermal unit represented by (0-based) index <index>
-
-        Args:
-            index: An integer, the index (0-based) of the thermal to
-            retrieve
-
-        Returns:
-            An object dervied from ThermalBase representing the specified thermal
-        """
-        thermal = None
-
-        try:
-            thermal = self._thermal_list[index]
-        except IndexError:
-            sys.stderr.write("THERMAL index {} out of range (0-{})\n".format(
-                             index, len(self._thermal_list)-1))
-
-        return thermal
-
-    def get_average_temperature(self):
-        """
-        Retrieves the average temperature reading from thermal
-
-        Returns:
-            A float number of average temperature in Celsius up to nearest thousandth
-            of one degree Celsius, e.g. 30.125
-        """
-        raise NotImplementedError
-
-    def get_maximum_temperature(self):
-        """
-        Retrieves the maximum temperature reading from thermal
-
-        Returns:
-            A float number of average temperature in Celsius up to nearest thousandth
-            of one degree Celsius, e.g. 30.125
-        """
-        raise NotImplementedError
-
-```
-
-The chassis_base and module_base of the sonic_platform package now contain the following additional lists and methods:
-
-```
-    # List of AsicBase-derived objects representing all ASICs
-    # available on the chassis/module
-    _asic_list = []
-
-    ##############################################
-    # Asic methods
-    ##############################################
-
-    def get_num_asics(self):
-        """
-        Retrieves the number of ASICs available on this chassis/module
-
-        Returns:
-            An integer, the number of ASIC modules available on this chassis/module
-        """
-        return len(self._asic_list)
-
-    def get_all_asics(self):
-        """
-        Retrieves all ASIC modules available on this chassis/module
-
-        Returns:
-            A list of objects derived from AsicBase representing all ASIC
-            modules available on this chassis/module
-        """
-        return self._asic_list
-
-    def get_asic(self, index):
-        """
-        Retrieves ASIC module represented by (0-based) index <index>
-
-        Args:
-            index: An integer, the index (0-based) of the ASIC module to
-            retrieve
-
-        Returns:
-            An object dervied from AsicBase representing the specified ASIC
-            module
-        """
-
-```
-
-The ThermalBase() implementation for ASIC sensors will return the latest values exported by the SwitchOrch to the stateDB's TEMPERATURE_INFO table.
-
-## 7 **Virtual Switch**
+## 7 Virtual Switch
 
 NA
 
-## 8 **Restrictions**
+## 8 Restrictions
 
-A CLI is not currently defined for the poller configuration (for setting/getting the Poller admin state and interval configuraiton).
+1. Unlike external sensors, ASIC's internal sensors are retrievable only thru the SDK/SAI. The proposed design eliminates the need for pmon from having to make SAI calls. Considering that thermalctld's default UPDATE_INTERVAL is 60 seconds, the ASIC_SENSORS_POLLER_INTERVAL should ideally be set to an appropriate lower value for better convergence. 
+2. A CLI is not currently defined for the poller configuration (for setting/getting the Poller admin state and interval configuration).
 
-## 9 **Unit Test cases**
+## 9 Unit Test cases
 Unit test case one-liners are given below:
 
 | #  | Test case synopsis   | Expected results |
 |-------|----------------------|------------------|
-|1| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "enable"   | Check that ASIC internal sensors are dumped periodically in the TEMPERATURE_INFO and the ASIC_SENSORS table
-|2| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "disable"  | Check that the poller stops
-|3| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_INTERVAL" "interval" to "30"  | Check that the poller interval changes from the default 10 seconds
-|4| Issue "show platform temperature" | Check that the ASIC interal temperatures are displayed
+|1| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "enable" for a specific ASIC instance | Check that ASIC internal sensors are dumped periodically in the ASIC_TEMPERATURE_INFO of the ASIC's stateDB instance and to the globalDB's TEMPERATURE_INFO table
+|2| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_STATUS" "admin_status" to "disable" for a specific ASIC instance | Check that the poller stops
+|3| Set "ASIC_SENSORS\|ASIC_SENSORS_POLLER_INTERVAL" "interval" to "30" for a specific ASIC instance | Check that the poller interval changes from the default 10 seconds
+|4| Issue "show platform temperature" | Check that the ASIC interal temperatures are displayed for all the ASICs
 
-## 10 **Action items**
-
+## 10 Action items
