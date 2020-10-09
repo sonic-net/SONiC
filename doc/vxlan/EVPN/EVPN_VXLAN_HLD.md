@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 0.8
+#### Rev 0.9
 
 # Table of Contents
 
@@ -43,12 +43,15 @@
   - [5.1 Click CLI](#51-click-based-cli)
     - [5.1.1 Configuration Commands](#511-configuration-commands)
     - [5.1.2 Show Commands](#512-show-commands)
-  - [5.2 SONiC CLI](52-#sonic-cli)
-    - [5.2.1 Configuration Commands](521-#configuration-commands)
+  - [5.2 KLISH CLI](#52-klish-cli)
+    - [5.2.1 Configuration Commands](#521-configuration-commands)
     - [5.2.2 Show Commands](#522-show-commands)
+  - [5.3 CONFIG DB Examples](#53-config-db-examples)
+  - [5.4 APP DB Examples](#54-app-db-examples)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
 - [7 Warm reboot Support](#7-warm-reboot-support)
 - [8 Unit Test Cases ](#8-unit-test-cases)
+- [9 References ](#9-references)
 
 # List of Tables
 
@@ -65,6 +68,7 @@
 | 0.6  |  | Kishore Kunal | Added Fdbsycnd details |
 | 0.7  |  | Rajesh Sankaran | Click and SONiC CLI added |
 | 0.8 | | Hasan Naqvi | Linux kernel section and fdbsyncd testcases added |
+| 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
 
 # Definition/Abbreviation
 
@@ -1093,15 +1097,15 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+-------------------+--------------+-------+--------+
    | VLAN    | MAC               | RemoteVTEP   |   VNI | Type   |
    +=========+===================+==============+=======+========+
-   | Vlan101 | 00:00:00:00:00:01 | 4.4.4.4      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:01 | 4.4.4.4      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:03 | 4.4.4.4      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:03 | 4.4.4.4      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:04 | 4.4.4.4      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:04 | 4.4.4.4      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:05 | 4.4.4.4      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:05 | 4.4.4.4      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
    | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3      |  1001 | static |
    +---------+-------------------+--------------+-------+--------+
@@ -1111,7 +1115,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+-------------------+--------------+-------+--------+
    | VLAN    | MAC               | RemoteVTEP   |   VNI | Type   |
    +=========+===================+==============+=======+========+
-   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | static |
+   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | dynamic|
    +---------+-------------------+--------------+-------+--------+
    | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3      |  1001 | static |
    +---------+-------------------+--------------+-------+--------+
@@ -1194,6 +1198,53 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 - VRF is already configured    
 - VNI VLAN map should be configured prior to VRF VNI map configuration, since VNI should be both L2 and L3.
 - VNI VLAN map cannot be deleted if there is corresponding VRF VNI map.
+
+```
+
+### 5.3 CONFIG DB examples
+
+```
+    "VXLAN_TUNNEL": {
+        "vtep1": {
+            "src_ip": "1.1.1.1"
+        }
+    }
+
+    "VXLAN_EVPN_NVO": {
+        "nvo1": {
+            "source_vtep": "vtep1"
+        }
+    }
+
+
+    "VXLAN_TUNNEL_MAP": {
+        "vtep1|map_50_Vlan5": {
+            "vlan": "Vlan5",
+            "vni": "50"
+        },
+        "vtep1|map_60_Vlan6": {
+            "vlan": "Vlan6",
+            "vni": "60"
+        }
+    }
+
+```
+
+The VXLAN_TUNNEL and VXLAN_TUNNEL_MAP are existing tables and are shown here for completeness.
+The VXLAN_EVPN_NVO table is being added as part of the EVPN VXLAN feature.
+
+### 5.4 APP DB examples
+
+```
+"VXLAN_REMOTE_VNI_TABLE:Vlan5:2.2.2.2": {
+"vni": "50"
+}
+
+"VXLAN_FDB_TABLE:Vlan5:00:00:00:00:00:03": {
+"type": "dynamic",
+"remote_vtep": "2.2.2.2",
+"vni": "50"
+}
 
 ```
 
@@ -1350,3 +1401,9 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 6. Install remote MAC entry in Linux kernel and verify MAC is present in VXLAN_FDB_TABLE
 7. Move remote MAC to local by programming same entry in STATE_FDB_TABLE and verify Linux and FRR are updated
 8. Move local MAC entry to remote by replacing fdb entry in Linux and verify VXLAN_FDB_TABLE and STATE_FDB_TABLE are updated.
+
+## 9 References
+
+- [SONiC VXLAN HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
+- [RFC 7432](https://tools.ietf.org/html/rfc7432)
+- [RFC 8365](https://tools.ietf.org/html/rfc8365)
