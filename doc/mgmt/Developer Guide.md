@@ -81,6 +81,8 @@
         * [2.13.3 Spytest](#2133-spytest)
 * [3 Appendix](#3-appendix)
     * [3.1 Code Generators](#31-code-generators)
+    * [3.2 Debugging](#32-debugging)
+    	* [3.2.1 Debugging performance issues](#321-debugging-performance-issues)
 
 ## List of Tables
 
@@ -98,7 +100,8 @@
 | 0.6 | 09/20/2019  | Prabhu Sreenivasan      | Updated reference links and yang path                                |
 | 0.7 | 09/23/2019  | Partha Dutta            | Updated SONiC YANG, CVL, gNMI section                                |
 | 0.8 | 06/18/2019  | Kwangsuk Kim            | Updated CLI section                                                  |
-| 0.9 | 06/22/2020  | Sachin Hola             | Incorporated Phase-II changes, with new repo structure.  |
+| 0.9 | 06/22/2020  | Sachin Hola             | Incorporated Phase-II changes, with new repo structure.  	     |
+| 1.0 | 10/09/2020  | Anand Kumar Subramanian | Debugging performance issues                                         |
 
 ## About this Manual
 
@@ -2171,3 +2174,19 @@ config ztp -y enable
 * ZTP-cli
 
 ```
+### 3.2 Debugging
+
+#### 3.2.1 Debugging performance issues
+
+For debugging performance issues we need to collect the profiling numbers which the REST query or the KLISH CLI is executed. Following is the procedure to collect the same.
+
+1. Restart the rest-server (command: "systemctl restart mgmt-framework")  as root user (This is to ensure the old data is not collected as part of profiling)
+2. From the client, execute only the REST API query or KLISH CLI for which you need to collect the profiling data
+3. Go to the  mgmt-framework docker (command: docker exec -it mgmt-framework bash)
+4. Send the "SIGUSR1" signal to the rest process (command: Kill -10 `pidof rest_server`)
+5. Copy the /var/log/rest_server/cpu.pprof.1 and /usr/sbin/rest_server file to your VDI
+6. To generate the report in a text file (command: go tool pprof --txt ./rest_server ./cpu.pprof.1 > report.txt)
+7. You would need to install the "graphviz" package to generate the pdf report (command: sudo apt-get install -y graphviz)
+8. To generate the report in pdf format (command:  go tool pprof --pdf ./rest_server ./ cpu.pprof.1 > report.pdf)
+
+The generated pdf will give the profiling information of all the calls in the REST server during the REST query or KLISH CLI. From this data we will come to know which function in the REST server is consuming more time during the execution.
