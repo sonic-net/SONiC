@@ -138,6 +138,8 @@ The following aspects are outside the scope of this document.
 - Multi-homing support described in the EVPN RFCs.
 
 
+
+
 # 2 Feature Requirements
 
 ## 2.1 Functional Requirements
@@ -194,6 +196,7 @@ Warm reboot is intended to be supported for the following cases:
 - Planned system warm reboot. 
 - Planned SwSS warm reboot.
 - Planned FRR warm reboot.
+
 
 
 # 3 Feature Description
@@ -1091,7 +1094,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 
 5. show vxlan remote_mac <remoteip/all> 
    - lists all the MACs learnt from the specified remote ip or all the remotes for all vlans. (APP DB view) 
-   - VLAN, MAC, RemoteVTEP, VNI, Type are the columns.
+   - VLAN, MAC, RemoteVTEP,  VNI,  Type are the columns.
 
    show vxlan remote_mac all
    +---------+-------------------+--------------+-------+--------+
@@ -1266,11 +1269,25 @@ __Figure 16: System Warm reboot and reconciliation sequence__
 
 During the system warm-reboot restoration/reconciliation, the fdbsyncd is dependent on Intf, Vlan, Vrf, Vxlan Mgrs to complete their data restoration to kernel. Before fdbsyncd can program the MACs to the kernel it needs to wait for these subsystems data replay to kernel. Without this the kernel programming for fdbsyncd will fail.  Subsequently if the FDB/VTEP info is not available in kernel/zebra for BGP to distribute to its peers, it will converge with premature info causing data-loss. To solve this dependency , we use a replay-done notification by each subsystem. The notification is passed between the subsystems by using the existing  WARM_RESTART_TABLE. A new state "replayed" in the data restoration flow  ( "state" = "replayed") is used by each subsystem to indicate it has replayed its data to kernel.
 
-The dependent subsystems use the WARM_RESTART_TABLE table to wait before attempting to program their info to the kernel.   fdbsyncd replays its info to kernel only after the data is replayed for Intf, Vlan, Vxlan and Vrf Mgrs.  BGP is configured/started only when FDB has replayed all its data to kernel. 
+The dependent subsystems use the WARM_RESTART_TABLE table to wait before attempting to program their info to the kernel.   fdbsyncd replays its info to kernel only after the data is replayed for Intf, Vlan, Vxlan and Vrf Mgrs.  BGP starts the session establishment with peers only when FDB has replayed all its data to kernel. 
 
 There is also a requirement that the app_db entries are not modified by *syncd subsystems until the orchagent has reconciled its data after warm-reboot. To achieve this dependency, the *syncd applications which write data to the app_db wait till orchagent reports "reconciled" status in the WARM_RESTART_TABLE.
 
 fpmsyncd and fdbsyncd also need to wait for some time for the BGP protocol to converge and populate the routing info from peers, before they can reconcile their respective app_db entries. Hence they start a fixed 120 seconds timer once BGP is started. Once this timer expires and orchagent is reconciled, they start the app_db reconciliation process.
+
+
+
+In summary -
+
+Before BGP can start neighbor establishment it waits for below subsystems.
+
+BGP			  :  depends on data replay from fdbsyncd to kernel   
+
+fdbsyncd 	:  depends on data replay from intfMgr, vlanMgr, vxlanMgr, VrfMgr  to kernel
+
+vxlan  		  :  depends on data replay from vlanMgr to kernel
+
+Once BGP sessions are established,  fdbsyncd waits for its own reconciliation timer to expire and also for orchagent to reach reconciled state before it can sweep/update its own app_db tables to complete reconciliation process.
 
 The below detailed sequence diagram explains the interaction during the restore, replay and reconcile phase.
 
@@ -1278,7 +1295,9 @@ The below detailed sequence diagram explains the interaction during the restore,
 
 __Figure 17: Warm reboot replay sequence__
 
-To achieve this dependency new states "replayed", "reconciled"  and "disabled" are added to the WARM_RESTART_TABLE  table in STATE_DB.  The value "disabled" is set when the subsystems perform a cold restart.
+**Note**: This dependence check is required for the EVPN warm-reboot processing. Hence the dependency check will be done only when EVPN is configured.
+
+To achieve this dependency new states "replayed", "reconciled"  and "disabled" are added to the WARM_RESTART_TABLE  table in STATE_DB.  The value "disabled" is set when the subsystems perform a cold restart. The value "unknown" is returned as status for the subsystem when it has not read and initialized the warm-reboot status for self. This way the caller can know that the status is not set yet and it needs to retry before making any dependency decision.
 
 Producer: multiple producers
 
@@ -1286,7 +1305,7 @@ Consumer: multiple consumers
 
 Description:
 
-- Value "replayed" "reconciled"  and "disabled" are added to the existing "state" variable.
+- Value "unknown" "replayed" "reconciled"  and "disabled" are added to the existing "state" variable.
 
 Schema:
 
@@ -1295,22 +1314,28 @@ Schema:
 key             = WARM_RESTART_TABLE|<application_name>   
 ; field         = value
 restore_count   = number    ;uint32
-state           = "restored"/"replayed"/"reconciled"/"disabled" 
+state           = "unknown"/"restored"/"replayed"/"reconciled"/"disabled" 
 ```
+
+Below are  two possible state transitions for subsystems based on if they restarted with cold or warm-reboot.
+
+Cold reboot :   "unknown" >> "disabled"
+
+Warm reboot : "unknown" >> "initialized" >> "restored" >> "replayed" >> "reconciled"
 
 **Configuration for EVPN  Warm reboot** 
 
 To support EVPN Warm reboot, system warm reboot must be enabled and BGP-GR must be configured for BGP on all the BGP peer nodes.
 
-The BGP GR restart and stale-path timers have a default value of 240 seconds and 720 seconds respectively.  To scale the system higher, these values may need to be tuned .  The restart timer should be long enough for the system to warm reboot ,  the IP connectivity to be re-established in the control plane and the data replay of the subsystems to the kernel to be complete.
+The BGP GR restart and stale-path timers have a default value of 120 seconds and 360 seconds respectively.  To scale the system higher and to handle the wait for EVPN dependency check , these values need to be increased when EVPN is configured.  The restart timer should be long enough for the system to warm reboot ,  the IP connectivity to be re-established in the control plane and the data replay of the subsystems to the kernel to be complete. 
 
 ```
 BGP GR configuration for FRR
 router bgp <AS-NUM>
  bgp graceful-restart
  bgp graceful-restart preserve-fw-state
- bgp graceful-restart stalepath-time 600  ( default 720)
- bgp graceful-restart restart-time 300    ( default 240)
+ bgp graceful-restart stalepath-time 720 ( example)
+ bgp graceful-restart restart-time 240 ( example)
 ```
 
 
