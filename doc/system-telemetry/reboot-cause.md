@@ -12,7 +12,7 @@
 ### Enable sonic streaming telemetry agent to send Reboot-cause information
 
 #### Part 1
-During the boot, the `determine-reboot-cause`(previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
+During the boot, the `determine-reboot-cause` service ( previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
 and the software reboot-cause information and creates previous-reboot-cause.txt with the information as it does currently.
 In addition, to save the history of the previous reboot-cause, `determine-reboot-cause` will save the previous
 reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
