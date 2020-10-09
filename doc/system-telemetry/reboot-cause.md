@@ -12,37 +12,43 @@
 ### Enable sonic streaming telemetry agent to send Reboot-cause information
 
 #### Part 1
-During the boot, the process-reboot-cause processes the last reboot-cause based on the hardware reboot-cause
+During the boot, the `determine-reboot-cause`(previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
 and the software reboot-cause information and creates previous-reboot-cause.txt with the information as it does currently.
-In addition to save the history of the previous reboot-cause, `process-reboot-cause` will save the previous
+In addition, to save the history of the previous reboot-cause, `determine-reboot-cause` will save the previous
 reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
 And the file will be formatted to be parsed easily.
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
 ```
-$ls /host/reboot-cause/previous-reboot-cause/
-previous-reboot-cause-20200903T232033.txt
-previous-reboot-cause-20200902T101105.txt
-previous-reboot-cause-20200902T015048.txt
+admin@sonic:~$ ls /host/reboot-cause/previous-reboot-cause/
+previous-reboot-cause-2020_10_09_01_56_59.txt
+previous-reboot-cause-2020_10_09_02_00_53.txt
+previous-reboot-cause-2020_10_09_02_33_06.txt
+previous-reboot-cause-2020_10_09_04_53_58.txt
 ...
 ```
-The following example shows the content of the previous reboot-cause file - previous-reboot-cause-20200903T232033.txt.
+
+The following example shows the content of the previous reboot-cause file - previous-reboot-cause-2020_10_09_04_53_58.txt.
+```
+admin@sonic:~$ sudo cat /host/reboot-cause/previous-reboot-cause/previous-reboot-cause-2020_10_09_04_53_58.txt
+{"comment": "", "gen_time": "2020_10_09_04_53_58", "cause": "warm-reboot", "user": "admin", "time": "Fri Oct  9 04:51:47 UTC 2020"}
+```
 ```
 [
     {
-        gen_time: "20200903T232033",
-        cause: "reboot",
+        gen_time: "2020_10_09_04_53_58",
+        cause: "warm-reboot",
         user: "admin",
-        time: "Thu 03 Sep 2020 11:15:30 PM UTC",
+        time: "Fri Oct  9 04:51:47 UTC 2020"
         comment: ""
     }
 ]
 ```
 
 #### Part 2
-A new service named as `post-process-reboot-cause.service` which will retrieve the saved reboot-cause files and read each reboot-cause information from the files
+A new service named as `process-reboot-cause.service` which will retrieve the saved reboot-cause files and read each reboot-cause information from the files
 and save the reboot-cause information up to 10 entries to state-DB.
-Verify the information from state-DB data is available via the cli command `show reboot-cause history` which is extended from `show reboot-cause`.
+Verify the information from state-DB data is available via the cli command `show reboot-history` which is extended from `show reboot-cause`.
 
 ##### Reboot Cause Schema in state-DB
 
@@ -63,54 +69,85 @@ comment                 = STRING                         ; unstructured json for
 
 Currently `show reboot-cause` displays the last reboot-cause and performing `cat /host/reboot-cause/previous-reboot-cause.txt` to show the reboot-cause.
 This will be same as current design.
-With new design, `show reboot-cause history` will be added to display the previous `reboot-cause` up to 10 entries from state-DB.
+With new design, `show reboot-history` will be added to display the previous reboot-cause information up to 10 entries from state-DB.
 
 The example shows the output of `show reboot-cause` which is same as current output and displays only the last reboot-cause.
 ```
-$ show reboot-cause
-User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]
+admin@sonic:~$ show reboot-cause
+User issued 'warm-reboot' command [User: admin, Time: Fri Oct  9 04:51:47 UTC 2020]
 ```
-Above output will be stored in the previous-reboot-cause.txt file and the reboot-cause information is also stored in state-DB as follows.
+
+Above output will be stored in the previous-reboot-cause.txt file.
+
+And the reboot-cause information is also stored in state-DB as follows.
 ```
-REBOOT_CAUSE|20200903T112033
+REBOOT_CAUSE|2020_10_09_04_53_58
 "cause"
-"reboot"
+"warm-reboot"
 "time"
-"Thu 03 Sep 2020 11:15:30 PM UTC"
+"Fri Oct  9 04:51:47 UTC 2020"
 "user"
 "admin"
 "comment"
-"User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]"
+""
 ```
 
-The example shows the output of `show reboot-cause history` and the previous reboot cause stored in state-DB in addition to the last reboot-cause.
+The example shows the output of `show reboot-history` and the previous reboot cause stored in state-DB in addition to the last reboot-cause.
 ```
-$ show reboot-cause history
-TIMESTAMP       REBOOT-CAUSE        Details
-20200903T232033 reboot              User issued 'reboot' command [User: admin, Time: Thu 03 Sep 2020 11:15:30 PM UTC]
-20200902T101105 Unknown             Unknown
-20200902T015048 fast-reboot         User issued 'fast-reboot' command [User: admin, Time: Wed 02 Sep 2020 01:48:33 AM UTC]
+admin@sonic:~$ show reboot-history 
+name                 cause        time                          user    comment
+-------------------  -----------  ----------------------------  ------  ---------
+2020_10_09_04_53_58  warm-reboot  Fri Oct  9 04:51:47 UTC 2020  admin
+2020_10_09_02_33_06  reboot       Fri Oct  9 02:29:44 UTC 2020  admin
+2020_10_09_02_00_53  fast-reboot  Fri Oct  9 01:58:04 UTC 2020  admin
+2020_10_09_01_56_59  reboot       Fri Oct  9 01:53:49 UTC 2020  admin
 ```
 Above output will be stored inside state-DB as follows for the previous reboot-cause in addition to the last reboot-cause
 ```
-REBOOT_CAUSE|20200902T101105
-"cause"
-"Unknown"
-"time"
-""
-"user"
-""
-"comment"
-"Unknown"
-```
-```
-REBOOT_CAUSE|20200902T015048
-"cause"
-"fast-reboot"
-"time"
-"Wed 02 Sep 2020 01:48:33 AM UTC"
-"user"
-"admin"
-"comment"
-"User issued 'fast-reboot' command [User: admin, Time: Wed 02 Sep 2020 01:48:33 AM UTC]"
+admin@sonic:~$ redis-cli -n 6 keys "REBOOT_CAUSE|*"
+1) "REBOOT_CAUSE|2020_10_09_02_33_06"
+2) "REBOOT_CAUSE|2020_10_09_01_56_59"
+3) "REBOOT_CAUSE|2020_10_09_02_00_53"
+4) "REBOOT_CAUSE|2020_10_09_04_53_58"
+
+admin@sonic:~$ redis-cli -n 6 hgetall "REBOOT_CAUSE|2020_10_09_04_53_58"
+1) "cause"
+2) "warm-reboot"
+3) "time"
+4) "Fri Oct  9 04:51:47 UTC 2020"
+5) "user"
+6) "admin"
+7) "comment"
+8) ""
+
+admin@sonic:~$ redis-cli -n 6 hgetall  "REBOOT_CAUSE|2020_10_09_02_33_06"
+1) "cause"
+2) "reboot"
+3) "time"
+4) "Fri Oct  9 02:29:44 UTC 2020"
+5) "user"
+6) "admin"
+7) "comment"
+8) ""
+
+admin@sonic:~$ redis-cli -n 6 hgetall  "REBOOT_CAUSE|2020_10_09_02_00_53"
+1) "cause"
+2) "fast-reboot"
+3) "time"
+4) "Fri Oct  9 01:58:04 UTC 2020"
+5) "user"
+6) "admin"
+7) "comment"
+8) ""
+
+admin@sonic:~$ redis-cli -n 6 hgetall  "REBOOT_CAUSE|2020_10_09_01_56_59"
+1) "cause"
+2) "reboot"
+3) "time"
+4) "Fri Oct  9 01:53:49 UTC 2020"
+5) "user"
+6) "admin"
+7) "comment"
+8) ""
+
 ```
