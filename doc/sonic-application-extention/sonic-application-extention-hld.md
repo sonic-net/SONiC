@@ -155,12 +155,8 @@ In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are reposito
 
 SONiC Packages must meet few requirements in order to be a SONiC compatible Docker image.
 - Package must provide a *manifest* file that is used to tell SONiC Application Extension Infrastructure how to integrate
-the package with the rest of the SONiC.
-- Applications running inside container have to support *CONTAINER_FEATURE* CONFIG DB configuration as well as container
-auto-restart functionality on critical process death. As this feature is implemented as part of the Docker container and not
-the host OS the infrastructure does not enforce such functionality. However, this is not a hard requirement for a package.
-The feature will correctly work if such functionality is missing, rather it is advised in order to be align with the behaviour
-of other containers.
+the package with the rest of the SONiC. If Package does not provide a *manifest* file then a default is used which integrates
+the package as a service that does not depend on any other SONiC service.
 - Any other requirement for the Docker container demanded by SONiC must be met.
   (e.g. container state recording
   [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md))
