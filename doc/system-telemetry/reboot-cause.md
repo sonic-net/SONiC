@@ -14,7 +14,7 @@
 #### Part 1
 During the boot, the `determine-reboot-cause` service ( previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
 and the software reboot-cause information and creates previous-reboot-cause.txt with the information as it does currently.
-In addition, to save the history of the previous reboot-cause, `determine-reboot-cause` will save the previous
+In addition, to save the history of the previous reboot-cause, `determine-reboot-cause` service will save the previous
 reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
 And the file will be formatted to be parsed easily.
 
@@ -48,7 +48,7 @@ admin@sonic:~$ sudo cat /host/reboot-cause/previous-reboot-cause/previous-reboot
 #### Part 2
 A new service named as `process-reboot-cause.service` which will retrieve the saved reboot-cause files and read each reboot-cause information from the files
 and save the reboot-cause information up to 10 entries to state-DB.
-Verify the information from state-DB data is available via the cli command `show reboot-history` which is extended from `show reboot-cause`.
+Verify the information from state-DB data is available via the cli command `show reboot-cause history` which is extended from `show reboot-cause`.
 
 ##### Reboot Cause Schema in state-DB
 
@@ -69,7 +69,7 @@ comment                 = STRING                         ; unstructured json for
 
 Currently `show reboot-cause` displays the last reboot-cause and performing `cat /host/reboot-cause/previous-reboot-cause.txt` to show the reboot-cause.
 This will be same as current design.
-With new design, `show reboot-history` will be added to display the previous reboot-cause information up to 10 entries from state-DB.
+With new design, `show reboot-cause history` will be added to display the previous reboot-cause information up to 10 entries from state-DB.
 
 The example shows the output of `show reboot-cause` which is same as current output and displays only the last reboot-cause.
 ```
@@ -92,9 +92,9 @@ REBOOT_CAUSE|2020_10_09_04_53_58
 ""
 ```
 
-The example shows the output of `show reboot-history` and the previous reboot cause stored in state-DB in addition to the last reboot-cause.
+The example shows the output of `show reboot-cause history` and the previous reboot cause stored in state-DB in addition to the last reboot-cause.
 ```
-admin@sonic:~$ show reboot-history 
+admin@sonic:~$ show reboot-cause history
 name                 cause        time                          user    comment
 -------------------  -----------  ----------------------------  ------  ---------
 2020_10_09_04_53_58  warm-reboot  Fri Oct  9 04:51:47 UTC 2020  admin
