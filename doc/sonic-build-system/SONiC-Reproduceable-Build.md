@@ -114,7 +114,7 @@ Developers can change the Pypi package version manually, and the Jenkins job wil
 
 The data flow diagram of version upgrade is as below:
 
-![](pypi-version-upgrade-automation.PNG)
+![](images/pypi-version-upgrade-automation.png)
 
 ## Work Items
 
@@ -279,7 +279,7 @@ Option A: Manually upload package (only for file storage admin)
 
 Option B: Automatically upload package (for all)
 
-![](C:\Users\xumia.FAREAST\OneDrive - Microsoft\doc\sonic\SONiC Reproduceable Build\upload-package-automation.PNG)
+![](images\upload-package-automation.png)
 
 1. Change the web package version configuration file to register the package.
 
@@ -306,7 +306,7 @@ Debian official mirror only supports a single version of each binary package in 
 
 The current design of the Debian package mirror is managed by [Aptly](https://www.aptly.info/). The [Azure Storage Static Website](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blob-static-website) is used to publish the mirror. The [Azure Content Delivery Network (CDN)](https://docs.microsoft.com/en-us/azure/cdn/cdn-overview) integrated with Azure Storage Account is enabled to cache content from Azure Storage. To improve availability and performance, [Azure Traffic Manager](https://docs.microsoft.com/en-us/azure/traffic-manager/traffic-manager-overview) that supports failover across multiple Azure CDN endpoints, is exposed to users.
 
-![](C:\Users\xumia.FAREAST\OneDrive - Microsoft\doc\sonic\SONiC Reproduceable Build\upload-package-automation.PNG)
+![](images\upload-package-automation.png)
 
 
 
