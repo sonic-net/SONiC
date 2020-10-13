@@ -24,7 +24,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 |Feature                    | Version  |
 | ------------------------- | --------------- |
 | Linux kernel version      | linux_4.9.0-11-2 (4.9.189-3+deb9u2)   |
-| SAI   version             | SAI v1.5.1    |
+| SAI   version             | SAI v1.6.5    |
 | FRR                       | 7.2    |
 | LLDPD                     | 0.9.6-1    |
 | TeamD                     | 1.28-1    |
@@ -101,9 +101,22 @@ This is an initial version of spytest framework and first set of test scripts fo
 <br> **Pull Requests** :  [1533](https://github.com/Azure/sonic-mgmt/pull/1533)
 
 #### Thermal control 
-Thermal control daemon has been added to monitor the temperature of devices (CPU, ASIC, optical modules, etc) and the running status of fan. It retrieves the switch device temperatures via platform APIs and raises alarms when the high/low thresholds are hit.It also stores temperature values fetched from sensors and thermal device running status to the DB. In addition it provides the policy based thermal control and fan speed tuning in configuration, and we are able to customize and/or add the platform specific policies as needed. Also, "PSU and FAN LED management", The PSU and FAN LED on switch will be set according to PSU and FAN presence and running status, for example if there is a failure happening to PSU or FAN, the corresponding LED will be set to red. On new plugins for fan, thermal and PSU the PSU plugin was extended with voltage, current and power supported, and the fan and thermal plugins were introduced.
+Thermal control daemon has been added to monitor the temperature of devices (CPU, ASIC, optical modules, etc) and the running status of fan. It retrieves the switch device temperatures via platform APIs and raises alarms when the high/low thresholds are hit.It also stores temperature values fetched from sensors and thermal device running status to the DB.In addition it provides the policy based thermal control and fan speed tuning in configuration, and we are able to customize and/or add the platform specific policies as needed. 
 <br> Refer  [HLD Document](https://github.com/Azure/SONiC/blob/master/thermal-control-design.md) for more details.
-<br> **Pull Requests** :  [73](https://github.com/Azure/sonic-platform-common/pull/73), [777](https://github.com/Azure/sonic-utilities/pull/777), [49](https://github.com/Azure/sonic-platform-daemons/pull/49), [3949](https://github.com/Azure/sonic-buildimage/pull/3949),[832](https://github.com/Azure/sonic-utilities/pull/832),[591](https://github.com/Azure/SONiC/pull/591),[4437](https://github.com/Azure/sonic-buildimage/pull/4437),[1580](https://github.com/Azure/sonic-mgmt/pull/1580),[881](https://github.com/Azure/sonic-utilities/pull/881),[54](https://github.com/Azure/sonic-platform-daemons/pull/54),[83](https://github.com/Azure/sonic-platform-common/pull/83),[4041](https://github.com/Azure/sonic-buildimage/pull/4041)
+<br> **Pull Requests** :  [73](https://github.com/Azure/sonic-platform-common/pull/73), [777](https://github.com/Azure/sonic-utilities/pull/777), [49](https://github.com/Azure/sonic-platform-daemons/pull/49), [3949](https://github.com/Azure/sonic-buildimage/pull/3949),[832](https://github.com/Azure/sonic-utilities/pull/832)
+
+#### PSU and FAN LED management 
+
+The PSU and FAN LED on switch will be set according to PSU and FAN presence and running status, for example if there is a failure happening to PSU or FAN, the corresponding LED will be set to red. 
+<br>Refer [HLD Document](https://github.com/Azure/SONiC/blob/master/thermal-control-design.md) and [HLD Document](https://github.com/Azure/SONiC/pull/591) for more details.
+<br> **Pull Requests** : [4437](https://github.com/Azure/sonic-buildimage/pull/4437);[1580](https://github.com/Azure/sonic-mgmt/pull/1580);[881](https://github.com/Azure/sonic-utilities/pull/881);[54](https://github.com/Azure/sonic-platform-daemons/pull/54);[83](https://github.com/Azure/sonic-platform-common/pull/83)
+
+#### PSU, thermal and FAN plugin extension
+
+On new plugins for fan, thermal and PSU the PSU plugin was extended with voltage, current and power supported, and the fan and thermal plugins were introduced.
+<br> **Pull Requests** : [4041](https://github.com/Azure/sonic-buildimage/pull/4041)
+
+
 
 
 <br>
@@ -111,7 +124,7 @@ Thermal control daemon has been added to monitor the temperature of devices (CPU
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.6.3 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.6.3.md)
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.6.5 Release Notes](https://github.com/opencomputeproject/SAI/blob/6d69a80a2810022364fc5a1caac0b286791a437c/doc/SAI_1.6.5_ReleaseNotes.md)
 
 | S.No | Feature                     | 
 | ---- | --------------------------- |
