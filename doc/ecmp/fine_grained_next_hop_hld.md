@@ -191,11 +191,11 @@ CLI commands:
 	config fg nhg prefix <add/del> <fg-nhg-group-name> <prefix>
 	config fg nhg member <add/del> <fg-nhg-group-name>  <next-hop-ip>
 	show fg nhg group <fg-nhg-group-name/all>
-	show ecmp fg-nhg-hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
-	show ecmp fg-nhg-active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
+	show fgnhg hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
+	show fgnhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
 
-### 2.3.1 CLI 'show ecmp fg-nhg-hash-view <fg-nhg-group-name>' Output Format
+### 2.3.1 CLI 'show fgnhg hash-view <fg-nhg-group-name>' Output Format
 ```
  
 NOTE: <fg-nhg-group-name> is an optional parameter containing the user-defined alias of nhg ipv4 or nhg ipv6 
@@ -204,80 +204,80 @@ or ipv6 next hops and banks accordingly. If it is not specified, by default both
 are displayed as shown below:
 
 
-+-----------------------------+--------------------+------------+
-| FG_NHG_PREFIX               | Active Next Hops   | Bank Ids   |
-+=============================+====================+============+
-| NHG_PREFIX: 100.50.25.12/32 | 200.200.200.4      | 0          |
-|                             |                    | 1          |
-|                             |                    | 2          |
-|                             |                    | 3          |
-|                             |                    | 4          |
-|                             |                    | 5          |
-|                             |                    | 6          |
-|                             |                    | 7          |
-|                             |                    | 8          |
-|                             |                    | 9          |
-|                             |                    | 10         |
-|                             |                    | 11         |
-|                             |                    | 12         |
-|                             |                    | 13         |
-|                             |                    | 14         |
-|                             |                    | 15         |
-+-----------------------------+--------------------+------------+
-| NHG_PREFIX: 100.50.25.12/32 | 200.200.200.5      | 16         |
-|                             |                    | 17         |
-|                             |                    | 18         |
-|                             |                    | 19         |
-|                             |                    | 20         |
-|                             |                    | 21         |
-|                             |                    | 22         |
-|                             |                    | 23         |
-|                             |                    | 24         |
-|                             |                    | 25         |
-|                             |                    | 26         |
-|                             |                    | 27         |
-|                             |                    | 28         |
-|                             |                    | 29         |
-|                             |                    | 30         |
-|                             |                    | 31         |
-+-----------------------------+--------------------+------------+
-| NHG_PREFIX: fc:5::/128      | 200:200:200:200::4 | 0          |
-|                             |                    | 1          |
-|                             |                    | 2          |
-|                             |                    | 3          |
-|                             |                    | 4          |
-|                             |                    | 5          |
-|                             |                    | 6          |
-|                             |                    | 7          |
-|                             |                    | 8          |
-|                             |                    | 9          |
-|                             |                    | 10         |
-|                             |                    | 11         |
-|                             |                    | 12         |
-|                             |                    | 13         |
-|                             |                    | 14         |
-|                             |                    | 15         |
-+-----------------------------+--------------------+------------+
-| NHG_PREFIX: fc:5::/128      | 200:200:200:200::5 | 16         |
-|                             |                    | 17         |
-|                             |                    | 18         |
-|                             |                    | 19         |
-|                             |                    | 20         |
-|                             |                    | 21         |
-|                             |                    | 22         |
-|                             |                    | 23         |
-|                             |                    | 24         |
-|                             |                    | 25         |
-|                             |                    | 26         |
-|                             |                    | 27         |
-|                             |                    | 28         |
-|                             |                    | 29         |
-|                             |                    | 30         |
-|                             |                    | 31         |
-+-----------------------------+--------------------+------------+
++-----------------------------+--------------------+----------------+
+| FG_NHG_PREFIX               | Next Hop           | Hash buckets   |
++=============================+====================+================+
+| NHG_PREFIX: 100.50.25.12/32 | 200.200.200.4      | 0              |
+|                             |                    | 1              |
+|                             |                    | 2              |
+|                             |                    | 3              |
+|                             |                    | 4              |
+|                             |                    | 5              |
+|                             |                    | 6              |
+|                             |                    | 7              |
+|                             |                    | 8              |
+|                             |                    | 9              |
+|                             |                    | 10             |
+|                             |                    | 11             |
+|                             |                    | 12             |
+|                             |                    | 13             |
+|                             |                    | 14             |
+|                             |                    | 15             |
++-----------------------------+--------------------+----------------+
+| NHG_PREFIX: 100.50.25.12/32 | 200.200.200.5      | 16             |
+|                             |                    | 17             |
+|                             |                    | 18             |
+|                             |                    | 19             |
+|                             |                    | 20             |
+|                             |                    | 21             |
+|                             |                    | 22             |
+|                             |                    | 23             |
+|                             |                    | 24             |
+|                             |                    | 25             |
+|                             |                    | 26             |
+|                             |                    | 27             |
+|                             |                    | 28             |
+|                             |                    | 29             |
+|                             |                    | 30             |
+|                             |                    | 31             |
++-----------------------------+--------------------+----------------+
+| NHG_PREFIX: fc:5::/128      | 200:200:200:200::4 | 0              |
+|                             |                    | 1              |
+|                             |                    | 2              |
+|                             |                    | 3              |
+|                             |                    | 4              |
+|                             |                    | 5              |
+|                             |                    | 6              |
+|                             |                    | 7              |
+|                             |                    | 8              |
+|                             |                    | 9              |
+|                             |                    | 10             |
+|                             |                    | 11             |
+|                             |                    | 12             |
+|                             |                    | 13             |
+|                             |                    | 14             |
+|                             |                    | 15             |
++-----------------------------+--------------------+----------------+
+| NHG_PREFIX: fc:5::/128      | 200:200:200:200::5 | 16             |
+|                             |                    | 17             |
+|                             |                    | 18             |
+|                             |                    | 19             |
+|                             |                    | 20             |
+|                             |                    | 21             |
+|                             |                    | 22             |
+|                             |                    | 23             |
+|                             |                    | 24             |
+|                             |                    | 25             |
+|                             |                    | 26             |
+|                             |                    | 27             |
+|                             |                    | 28             |
+|                             |                    | 29             |
+|                             |                    | 30             |
+|                             |                    | 31             |
++-----------------------------+--------------------+----------------+
 ```
 
-### 2.3.2 CLI 'show ecmp fg-nhg-active-hops' Output Format
+### 2.3.2 CLI 'show fgnhg active-hops' Output Format
 ```
 NOTE: 'fg-nhg-group-name' is an optional parameter containing the user-defined alias of nhg ipv4 or nhg ipv6 
 found in 'FG_NHG_PREFIX' section of config dB. If specified, the output will display either ipv4 active next hops
@@ -298,7 +298,7 @@ are displayed as shown below:
 ```
 
 
-Show CLI commands of ```show ecmp fg-nhg-hash-view``` and ```show ecmp fg-nhg-active-hops``` are implemented as a view of the state db table described in section 2.2
+Show CLI commands of ```show fgnhg hash-view``` and ```show fgnhg active-hops``` are implemented as a view of the state db table described in section 2.2
 
 
 ## 2.4 Orchestration Agent
