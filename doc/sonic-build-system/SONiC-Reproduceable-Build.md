@@ -247,6 +247,7 @@ The steps to do the reproduceable build for root filesystem.
 
 4. build the root filesystem using the tarball with frozen debian package versions.
 
+Another approach for debian base image reproduceable build is by [APT-TOOL](https://github.com/pauldotknopf/apt-tool). It supports to freeze the versions, and use the versions in the subsequent builds.
 
 
 # Packages downloaded by wget/curl
