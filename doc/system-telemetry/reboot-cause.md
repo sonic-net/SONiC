@@ -13,10 +13,9 @@
 
 #### Part 1
 During the boot, the `determine-reboot-cause` service ( previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
-and the software reboot-cause information and creates previous-reboot-cause.txt with the information as it does currently.
-In addition, to save the history of the previous reboot-cause, `determine-reboot-cause` service will save the previous
+and the software reboot-cause information and `determine-reboot-cause` service will save the formatted last previous
 reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
-And the file will be formatted to be parsed easily.
+`determine-reboot-cause` also will also create a symbolic link of the last reboot cause file to "/host/reboot-cause/previous-reboot-cause.txt"
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
 ```
@@ -67,8 +66,8 @@ comment                 = STRING                         ; unstructured json for
 
 ###### reboot-cause information
 
-Currently `show reboot-cause` displays the last reboot-cause and performing `cat /host/reboot-cause/previous-reboot-cause.txt` to show the reboot-cause.
-This will be same as current design.
+`show reboot-cause` displays the last reboot-cause saved in "/host/reboot-cause/previous-reboot-cause.txt".
+This will be same as current design but the file will be symbolic-linked to the last saved file with time stamp.
 With new design, `show reboot-cause history` will be added to display the previous reboot-cause information up to 10 entries from state-DB.
 
 The example shows the output of `show reboot-cause` which is same as current output and displays only the last reboot-cause.
@@ -76,8 +75,6 @@ The example shows the output of `show reboot-cause` which is same as current out
 admin@sonic:~$ show reboot-cause
 User issued 'warm-reboot' command [User: admin, Time: Fri Oct  9 04:51:47 UTC 2020]
 ```
-
-Above output will be stored in the previous-reboot-cause.txt file.
 
 And the reboot-cause information is also stored in state-DB as follows.
 ```
@@ -105,10 +102,10 @@ name                 cause        time                          user    comment
 Above output will be stored inside state-DB as follows for the previous reboot-cause in addition to the last reboot-cause
 ```
 admin@sonic:~$ redis-cli -n 6 keys "REBOOT_CAUSE|*"
-1) "REBOOT_CAUSE|2020_10_09_02_33_06"
-2) "REBOOT_CAUSE|2020_10_09_01_56_59"
+1) "REBOOT_CAUSE|2020_10_09_04_53_58"
+2) "REBOOT_CAUSE|2020_10_09_02_33_06"
 3) "REBOOT_CAUSE|2020_10_09_02_00_53"
-4) "REBOOT_CAUSE|2020_10_09_04_53_58"
+4) "REBOOT_CAUSE|2020_10_09_01_56_59"
 
 admin@sonic:~$ redis-cli -n 6 hgetall "REBOOT_CAUSE|2020_10_09_04_53_58"
 1) "cause"
