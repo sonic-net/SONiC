@@ -99,9 +99,10 @@ To tolerance that difference, we will introduce lua plugins. The idea is:
 
 ### The behavior of the dynamically headroom calculation solution
 
+- The dynamic headroom calculation will be enabled when SONiC switch is upgraded from the old image to the image supporting dynamic calculation if all the buffer configuration aligns the default value. In this case, a port's headroom size of all the lossless priority groups will be calculated. The shared buffer pool will be adjusted according to the headroom size if they're the default value in the old image.
+- The dynamic headroom calculation will be disabled when SONiC switch is configured via executing `config load_minigraph`. In this case, the traditional look-up model will be applied.
 - When a port's cable length, speed or MTU is updated, headroom of all lossless priority groups will be updated according to the well-known formula and then programed to ASIC.
 - When a port is shut down/started up or its headroom size is updated, the size of shared buffer pool will be adjusted accordingly. The less the headroom, the more the shared buffer and vice versa. By doing so, we are able to have as much shared buffer as possible.
-- When SONiC switch is upgraded from statically look-up to dynamically calculation, a port's headroom size of all the lossless priority groups will be calculated. The shared buffer pool will be adjusted according to the headroom size if they're the default value in the old image.
 - Pre-defined `pg_profile_lookup.ini` isn't required any more. When a new platform supports SONiC only a few parameters are required.
 - Support arbitrary cable length.
 - Support headroom override, which means user can configure static headroom on certain ports.
@@ -111,9 +112,23 @@ To tolerance that difference, we will introduce lua plugins. The idea is:
 
 ### Backward compatibility
 
-Backward compatibility is supported for vendors who haven't provided the related tables yet. In this section we will introduce the way it is achieved.
+Backward compatibility is supported in the following ways:
 
-Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf`](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) in `swss` docker.
+- For vendors supporting dynamic buffer mode:
+  - when the system is upgraded from an old image to an image supporting dynamic buffer
+    - the traditional mode will be applied if the buffer configuration isn't the default value
+    - the dynamic mode will be applied otherwise
+  - when the system is installed from scratch, the dynamic mode will be applied.
+  - when the `config load_minigraph` command is executed, the traditional mode will be applied
+  - when the `config qos reload` command is executed:
+    - with `--no-dynamic-mode` command provided, the traditional mode will be applied.
+    - otherwise, the dynamic mode will be applied.
+- For vendors not supporting dynamic buffer mode:
+  - traditional mode will always be applied.
+
+In this section we will introduce the ways it is achieved.
+
+Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf`](https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
 
 ```shell
 [program:buffermgrd]
@@ -130,19 +145,17 @@ For the vendors who implement dynamically buffer calculating, new command line o
 - `-a` followed by full path name of asic_table.json which contains the ASIC related parameters;
 - `-p` followed by full path name of peripheral_table.json which contains the peripheral related parameters like gearbox.
 
-As a result, the `supervisor` setting will be:
+The parameters for `buffermgrd` will be `-a <asic_table.json> -p <peripheral_table.json>`.
 
-```shell
-[program:buffermgrd]
-command=/usr/bin/buffermgrd -a <asic_table.json> -p <peripheral_table.json>
-priority=11
-autostart=false
-autorestart=false
-stdout_logfile=syslog
-stderr_logfile=syslog
-```
+We need to tolerance the difference between parameters of traditional and dynamic mode.
 
-A new class is introduced to implement the dynamically buffer calculating while the class for statically look-up solution is remained.
+Meanwhile, both mode can be applied on the platforms which support dynamic mode.
+
+To satisfy all the above requirement,
+
+- A new filed `buffer_model` in `DEVICE_METADATA|localhost` need to be introduced to represent which mode is currently applied.
+- A new class is introduced to implement the dynamically buffer calculating while the class for statically look-up solution is remained.
+
 When buffer manager starts it will test the command line options, loading the corresponding class according to the command line option.
 
 The database schema for the dynamically buffer calculation is added on top of that of the current solution without any field renamed or removed, which means it won't hurt the current solution.
@@ -176,6 +189,7 @@ The data schema design will be introduced in this section. Redis database tables
 6. All the dynamically calculated data will be exposed to `STATE_DB`.
 
 `Buffer Manager` will consume the tables in `CONFIG_DB` and generate corresponding tables in `APPL_DB`. `Buffer Orchagent` will consume the tables in `APPL_DB` and propagate the data to `ASIC_DB`.
+7. A new field `buffer_model` will be introduced in `DEVICE_METADATA|localhost`. It can be `dynamic` or `traditional`, representing dynamic buffer calculation or traditional look-up model respectively. It is `traditional` by default.
 
 ### STATE_DB
 
@@ -888,7 +902,7 @@ When system cold reboot from current implementation to new one, `db_migrator` wi
     - If a `BUFFER_PROFILE` entry has name convention of `pg_lossless_<speed>_<length>_profile` and the same `dynamic_th` value as `DEFAULT_LOSSLESS_BUFFER_PARAMETER.default_dynamic_th`, it will be treated as a dynamically generated profile based on the port's speed and cable length. In this case it will be removed from the `CONFIG_DB`.
     - If a `BUFFER_PROFILE` item doesn't meet any of the above conditions, it will be treated as a `static` profile.
 
-After that, `Buffer Manager` will start as normal flow which will be described in the next section.
+After that, `Buffer Manager` will start as normal flow which will be described in the section "Daemon starts".
 
 #### Upgrade by warm reboot
 
@@ -900,11 +914,13 @@ As a result, buffer configuration won’t be ready when orchagent is starting fr
 
 To copy buffer tables from `CONFIG_DB` to `APPL_DB` effectively avoid the failure in the above scenario.
 
-#### Daemon starts with -c option
+#### Daemon starts
 
 When the daemon starts, it will:
 
-1. Test the command line options. If `-c` option is provided, the class for dynamically buffer calculation will be instantiated. Otherwise it should be the current solution of calculating headroom buffers, which is out of the scope of this design.
+1. Test whether `DEVICE_METADATA|localhost.buffer_model` is `dynamic`.
+   - If yes, starts the daemon with options `-a`, which means the class for dynamically buffer calculation will be instantiated.
+   - Otherwise it should be the current solution of calculating headroom buffers, which is out of the scope of this design.
 2. Load table `ASIC_TABLE`, `PERIPHERAL_TABLE` from json files fed by CLI options into internal data structures.
 3. Load table `LOSSLESS_TRAFFIC_PATTERN` from `CONFIG_DB` into internal data structures.
 4. Load table `CABLE_LENGTH` and `PORT` from `CONFIG_DB` into internal data structures.
