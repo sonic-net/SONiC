@@ -15,21 +15,21 @@
 During the boot, the `determine-reboot-cause` service ( previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
 and the software reboot-cause information and `determine-reboot-cause` service will save the formatted last previous
 reboot cause information to "/host/reboot-cause/previous-reboot-cause/" with adding timestamp at the end of file name.
-`determine-reboot-cause` also will also create a symbolic link of the last reboot cause file to "/host/reboot-cause/previous-reboot-cause.txt"
+`determine-reboot-cause` also will also create a symbolic link of the last reboot cause file to "/host/reboot-cause/last-reboot-cause.json"
 
 The example shows the previous reboot-cause files stored in /host/reboot-cause/previous-reboot-cause/.
 ```
 admin@sonic:~$ ls /host/reboot-cause/previous-reboot-cause/
-reboot-cause-2020_10_09_01_56_59.txt
-reboot-cause-2020_10_09_02_00_53.txt
-reboot-cause-2020_10_09_02_33_06.txt
-reboot-cause-2020_10_09_04_53_58.txt
+reboot-cause-2020_10_09_01_56_59.json
+reboot-cause-2020_10_09_02_00_53.json
+reboot-cause-2020_10_09_02_33_06.json
+reboot-cause-2020_10_09_04_53_58.json
 ...
 ```
 
-The following example shows the content of the previous reboot-cause file - reboot-cause-2020_10_09_04_53_58.txt.
+The following example shows the content of the previous reboot-cause file - reboot-cause-2020_10_09_04_53_58.json.
 ```
-admin@sonic:~$ sudo cat /host/reboot-cause/previous-reboot-cause/reboot-cause-2020_10_09_04_53_58.txt
+admin@sonic:~$ sudo cat /host/reboot-cause/previous-reboot-cause/reboot-cause-2020_10_09_04_53_58.json
 {"comment": "", "gen_time": "2020_10_09_04_53_58", "cause": "warm-reboot", "user": "admin", "time": "Fri Oct  9 04:51:47 UTC 2020"}
 ```
 ```
@@ -66,7 +66,7 @@ comment                 = STRING                         ; unstructured json for
 
 ###### reboot-cause information
 
-`show reboot-cause` displays the last reboot-cause saved in "/host/reboot-cause/previous-reboot-cause.txt".
+`show reboot-cause` displays the last reboot-cause saved in "/host/reboot-cause/last-reboot-cause.json".
 This will be same as current design but the file will be symbolic-linked to the last saved file with time stamp.
 With new design, `show reboot-cause history` will be added to display the previous reboot-cause information up to 10 entries from state-DB.
 
