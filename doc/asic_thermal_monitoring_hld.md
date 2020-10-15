@@ -7,6 +7,7 @@ Rev | Rev	Date	| Author	| Change Description
 ---------|--------------|-----------|-------------------
 |v0.1 |01/10/2019  |Padmanabhan Narayanan | Initial version
 |v0.2 |10/07/2020  |Padmanabhan Narayanan | Update based on review comments and addess Multi ASIC scenario.
+|v0.3 |10/15/2020  |Padmanabhan Narayanan | Update Section 6.3 to indicate no change in thermalctld or Platform API definitions.
 
 ## 2. Scope
 ASICs typically have multiple internal thermal sensors. This document describes the high level design of a poller for ASIC thermal sensors. It details how the poller may be configured and the export of thermal values from SAI to the state DB.
@@ -100,15 +101,17 @@ In the timer callback, the following actions are performed:
 * If the ASIC SAI supports SAI_SWITCH_ATTR_AVERAGE_TEMP, query and update the average temperature field in the ASIC_TEMPERATURE_INFO table in the stateDB.
 * If the ASIC SAI supports SAI_SWITCH_ATTR_MAX_TEMP, query and update the maximum_temperature field in the ASIC_TEMPERATURE_INFO table in the stateDB.
 
-### 6.3 Platform API changes to support ASIC Thermals
+### 6.3 Platform changes to support ASIC Thermals
 
-Platform owners typically provide the implementation for Thermals (https://github.com/Azure/sonic-platform-common/blob/master/sonic_platform_base/thermal_base.py). Apart from external sensors, platforms should include ASIC internal sensors in the _thermal_list[] of the Chassis / Module implementations.
+Platform owners typically provide the implementation for Thermals (https://github.com/Azure/sonic-platform-common/blob/master/sonic_platform_base/thermal_base.py). While there is no change in existing Platform API definitions, apart from external/CPU sensors, platform vendors should also include ASIC internal sensors in the _thermal_list[] of the Chassis / Module implementations.
 
 Assuming a Multi ASIC Chassis with 3 ASICs, the thermal names could be:
 ASIC0 Internal 0, ... ASIC0 Internal N0, ASIC1 Internal 0, ... ASIC1 Internal N1, ASIC2 Internal 0, ... ASIC2 Internal N2
 where ASIC0, ASIC1 and ASIC2 have N0, N1 and N2 internal sensors respectively.
 
-The implementation of the threshold related APIs (get_high_threshold(), get_low_threshold(), get_high_critical_threshold(), etc..) are platform (ASIC) specific. The get_temperature() should retrieve the temperature from the ASIC_TEMPERATURE_INFO table of the stateDB from the concerned ASIC's DB instance. The thermalctld's TemperatureUpdater::_refresh_temperature_status() retreives the temperatures from ASIC_TEMPERATURE_INFO and populates the TEMPERATURE_INFO table in the globalDB's stateDB.
+The implementation of the APIs get_high_threshold(), get_low_threshold(), get_high_critical_threshold(), get_name(), get_presence() etc.. are platform (ASIC) specific. The get_temperature() should retrieve the temperature from the ASIC_TEMPERATURE_INFO table of the stateDB from the concerned ASIC's DB instance (which is populated by the SwitchOrch poller as described [above](#62-switchorch-changes)).
+
+The thermalctld's TemperatureUpdater::_refresh_temperature_status() retreives the temperatures of the ASIC internal sensors from the get_temperature() API - just as it would for any external sensor. Only that in the case of ASIC internal sensors, the get_temperature() API is going to retrieve and return the value from from ASIC_TEMPERATURE_INFO table. The thermalctld also updates these values to the TEMPERATURE_INFO table in the globalDB's stateDB. Thus, there is no change in the existing thermalctld infrastructure.
 
 ## 7 Virtual Switch
 
