@@ -340,20 +340,21 @@ Test details:
 - Test dynamic changes to the config_db bank + member defintion
 - Change ARP(NEIGH)/interface reachability and validate that ASIC_DB hash bucket members are as expected(ie: maintaining layered and consistent hashing)
 
-## Data Plane tests via pytest + PTF
+## Data Plane community tests via pytest + PTF
 A new Pytest and PTF test will be created for Fine Grained ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
 
 Test details:
 - Create FG_NHG config_db entry with 2 banks, 4 members per bank and deploy to DUT
 - Create 8 IP endpoints on PTF host and set up ARP entries for the 6 endpoints on the DUT
 - Create an interface on the DUT which can interact with the above IP endpoints, each endpoint created above should be on a different physical interface
-- Create a route entry with with 8 IPs as the next-hop, and an IP prefix as defined in FG_NHG, deploy it to the DUT
+- Create a route entry with 8 IPs as the next-hop, and an IP prefix as defined in FG_NHG, deploy it to the DUT
 - Pytest will now evoke the fine grained ECMP PTF test to send 1000 unique flows from the T1 interface destined to the unique IP prefix
 - Track which link receives which flow and store the mapping of flow to link
-- Change the DUT route entry to reduce 1 next-hop, validate that hash redistribution occured in the same bank and occured in a consistent fashion
-- Change the DUT route entry to add 1 next-hop, validate that hash redistribution occured in the same bank and occured in a consistent fashion
+- Change the DUT route entry to reduce 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
 - Change the DUT route entry to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
 - Change the DUT route entry to add 1st next-hop in a previously down bank0, now some of the flows should migrate to the newly added next-hop
+- Validate that in all cases the flow distribution per next-hop is roughly equal
 - Test both IPv4 and IPv6 above
-- (Stretch goal) Validate that in all cases the hash redistribution is roughly equal
+- The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested
 - Test warm reboot to ensure there is no traffic disruption and ECMP groups are correctly applied post warm boot
