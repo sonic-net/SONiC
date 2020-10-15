@@ -56,7 +56,7 @@ Here is the definition of Reboot-cause schema which will be stored in state-DB.
 ; Defines information for reboot-cause
 key                     = REBOOT_CAUSE|<timestamp>         ; last reboot-cause processing time
 ; field                 = value
-cause                   = STRING                         ; last reboot causek
+cause                   = STRING                         ; last reboot cause
 time                    = STRING                         ; time when the last reboot was initiated
 user                    = STRING                         ; user who the last reboot initiated
 comment                 = STRING                         ; unstructured json format data
