@@ -687,6 +687,18 @@ through this template outputs a systemd service file with all the unit propertie
 manifest file.
 
 <!-- omit in toc -->
+###### Manifest file path
+
+Path                              | Type                  | Mandatory   | Description
+--------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
+/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "breaks".
+/service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
+/service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
+/service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
+/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the
+
+
+<!-- omit in toc -->
 ##### /usr/local/bin/*feature*.sh
 
 The script under */usr/local/bin/* has two feature specific use cases.
@@ -746,12 +758,7 @@ after installation all the service scripts under */usr/local/bin/* are re-genera
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "breaks".
-/service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
-/service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
 /service/dependent-of             | lits of strnigs       | no          | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list.
-/service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
-/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start before on system boot.
 /service/post-start-action        | string                | no          | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.
 /service/pre-stop-action          | string                | no          | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.
 
