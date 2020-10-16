@@ -37,6 +37,9 @@
 - [SONiC-2-SONiC upgrade](#sonic-2-sonic-upgrade)
 - [Multi-ASIC](#multi-asic)
 - [Kubernetes & SONiC Application Extension](#kubernetes--sonic-application-extension)
+- [3rd party Docker images](#3rd-party-docker-images)
+- [Installing 3rd party image as is.](#installing-3rd-party-image-as-is)
+- [Prepare 3rd party image as to be SONiC compliant](#prepare-3rd-party-image-as-to-be-sonic-compliant)
 - [SONiC Build System](#sonic-build-system)
 - [SAI API](#sai-api)
 - [Restrictions/Limitations](#restrictionslimitations)
@@ -686,12 +689,13 @@ manifest file.
 <!-- omit in toc -->
 ##### /usr/local/bin/*feature*.sh
 
-The script under */usr/local/bin/* has two feature specific use cases. In case when the feature requires to execute specific
-container lifecycle actions the code to be executed after the container has started and before the container is going down
-is executed within this script. SONiC package manifest includes two data nodes - */service/post-start-action* and
-*/service/pre-shutdown-action*. This node is of type string and the value is the path to an executable to execute within
-Docker container. Note, *post-start-action* does not guaranty that the action will be executed before or after a the container
-ENTRYPOINT is started.
+The script under */usr/local/bin/* has two feature specific use cases.
+
+* In case when the feature requires to execute specific container lifecycle actions the code to be executed after the container
+has started and before the container is going down is executed within this script. SONiC package manifest includes two data
+nodes - */service/post-start-action* and */service/pre-shutdown-action*. This node is of type string and the value is the path
+to an executable to execute within Docker container. Note, *post-start-action* does not guaranty that the action will be executed
+before or after a the container ENTRYPOINT is started.
 
 Example of container lifecycle hook can apply to a database package. A database systemd service should not reach started state
 before redis process is ready otherwise other services will start but fail to connect to the database. Since, there is no control
@@ -702,9 +706,26 @@ The *pre-shutdown-action* might be usefull to execute a specific action to prepa
 SIGUSR1 to teamd to initiate warm shutdown. Note, the usage of the pre-shutdown action is not limited to warm restart and is invoked every
 time the container is about to be stopped or killed.
 
-Another use cases is to manage coldboot-only dependent services by conditionally starting and stopping dependent services based on the
+* Another use cases is to manage coldboot-only dependent services by conditionally starting and stopping dependent services based on the
 warm reboot configuration flag. For example, a DHCP relay service is a coldboot-only dependent service of swss service, thus a warm restart
-of swss should not restart DHCP relay, on the other hand a cold restart of swss must restart DHCP relay service.
+of swss should not restart DHCP relay, on the other hand a cold restart of swss must restart DHCP relay service. This is controlled by
+a node in manifest */service/dependent-of*. The DHCP relay package will have "swss" listed on the *dependent-of* list which will instruct
+auto-generation process to include the DHCP relay service in the list of dependent services in *swss*. This means *swss.sh* script has to
+be auto-generated as well. To avoid re-generating *swss.sh* script we will put dependent services in a separate file what *swss.sh* can read.
+The file path is chosen to be */etc/sonic/\<service_name\>_dependent* for single instance services and
+*/etc/sonic/\<service_name\>_dependent_multi_inst_dependent* for multi instance services.
+
+Example of required code change for swss is given below [swss.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/swss.sh):
+
+```bash
+DEPENDENT="radv dhcp_relay"
+MULTI_INST_DEPENDENT="teamd"
+```
+
+```
+DEPDENDENT=$(cat /etc/sonic/${SERVICE}_dependent)
+MULTI_INST_DEPENDENT=$(cat /etc/sonic/${SERVICE}_multi_inst_dependent)
+```
 
 The infrastructure is not deciding whether this script is needed for a particular package or not based on warm-reboot requirements or
 container lifetime hooks provided by a feature, instead this script is always generated and if no specific actions descirbed above
@@ -923,7 +944,7 @@ Will generate the following monit configuration:
 ## process list:
 ##  cpu-reportd
 ###############################################################################
-check program cpu-report|cpu-reportd with path "/usr/bin/process_checker cpu-report cpu-reportd:"
+check program cpu-report|cpu-reportd with path "/usr/bin/process_checker cpu-report /usr/bin/cpu-reportd"
     if status != 0 for 5 times within 5 cycles then alert
 ```
 
@@ -981,7 +1002,7 @@ and do a comparison between currently running and new SONiC image.
 Package                        | Version                                                                                                                | Action
 -------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
 Non-essential package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation in new SONiC image
-Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation in new SONiC image of currently running package version. If a package is compatible witg new SONiC image version the currently running essential package will migrate to new SONiC image
+Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation in new SONiC image of currently running package version.
 
 The old *packages.json* and new *packages.json* are merged together and updated in new SONiC image.
 
@@ -1026,7 +1047,7 @@ Besides of the manifest on the master, the SONiC switch has to have service file
 
 1. Package installed through SONiC package manager.
 
-During package installation these neccessary components will be auto-generated and installed on the switch. The auto-generation must honor new requirements
+During package installation these necessary components will be auto-generated and installed on the switch. The auto-generation must honor new requirements
 to support "local" and "kube" modes when in "local" mode the container gets started on systemctl start, while in "kube" mode the appropriate feature label
 is set.
 
@@ -1043,8 +1064,8 @@ where the container_action script set the container state to "ready" and the con
 3. Docker container deploy through Kubernetes.
 
 The case describe the scenario when the user is setting a label via "config kube label add <key>=<value>". If labels match the manifest on the master
-the docker image gets deployed. Using the same approach beteen "pending" and "ready" an auto-generation process can happen and register the Docker as
-a new package. With that, a deployed image will become an installed SONiC Package, that can be managed in "local" mode as well.
+the docker image gets deployed. Using the same approach, between "pending" and "ready" states an auto-generation process can happen and register the
+Docker as a new package. With that, a deployed image will become an installed SONiC Package, that can be managed in "local" mode as well.
 
 <!-- omit in toc -->
 ### Warmboot and Fastboot Design Impact
@@ -1089,6 +1110,51 @@ Path                              | Value                 | Mandatory  | Descrip
 /service/fast-shutdown/before     | lits of strings       | no         | Same as for warm-shutdown.
 /processes/\<name\>/reconciles    | boolean               | no         | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
 
+### 3rd party Docker images
+
+<!-- onit in toc -->
+### Installing 3rd party image as is.
+
+It is possible to install 3rd party Docker images if the installer will use a default manifest. This default manifest will have only mandatory fields
+and an auto-generated service will require only "docker" service to be started. The name of the service is derived from the name of the Package in *packages.json*.
+
+Default manifest:
+```json
+{
+  "service": {
+    "name": "<package-name>",
+    "requires": "docker",
+    "after": "docker"
+  }
+}
+```
+
+The default container run configuration have to be skipped for 3rd party Docker images. E.g. "--net=host", "-e NAMESPACE=$DEV" are not required
+for 3rd party. This settings have to be present in *container* properties in manifest.
+
+3rd party Docker image, as it has no knowledge of SONiC, will not meet the requirements described in section [SONiC Package]((#sonic-package)).
+Thus, for such Docker images the limitations are:
+- no controlled container auto-restart feature. According to current design, container is always auto-restarted on container exit.
+  (Could be changed if we change the container auto-restart design)
+- can be locally managed only, as the requirement for kube managed features is not met.
+
+
+Another possibility is to allow users to provide a manifest file.
+
+An example of the flow for a collectd Docker image:
+```
+admin@sonic:~$ sudo sonic-package-manager repository add collectd puckel/docker-collectd
+admin@sonic:~$ sudo sonic-package-manager install collectd --manifest ./collectd-manifest.json
+```
+
+
+<!-- onit in toc -->
+### Prepare 3rd party image as to be SONiC compliant
+
+This will require to build a new image based on existing 3rd party Docker image and do the change according to requirements described in
+[SONiC Package]((#sonic-package)).
+
+
 ### SONiC Build System
 
 SONiC build system will provide three docker images to be used as a base to build SONiC application extensions - *sonic-sdk-buildenv*, *sonic-sdk* and *sonic-sdk-dbg*.
@@ -1123,7 +1189,9 @@ No SAI API changes required for this feature.
 
 ### Restrictions/Limitations
 
-(TODO)
+The current design puts the following restrictions on SONiC packages that can be managed by Application Extension Framework:
+- No support to do ASIC programming from extension.
+- No support for REST/Klish CLI/gNMI extensions
 
 ### Testing Requirements/Design
 
