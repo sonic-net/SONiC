@@ -334,8 +334,8 @@ branching, publishing new images is out of the scope of this document.
 
 ### SONiC Application Extension Security Considerations
 
-There are a lots of aspects about security when it comes to running arbitrary 3rd party Dockers on SONiC,
-making sure the container is restricted to do only what it is supposed to is a complex functionality peace here.
+There are a lots of aspects about security when it comes to running arbitrary SONiC packages on SONiC.
+Making sure the container is restricted to do only what it is supposed to is a complex functionality peace here.
 Security considerations of Phase 1 of Application Extension feature stand on an assumptions that 3rd party Dockers
 are secured and trusted.
 
