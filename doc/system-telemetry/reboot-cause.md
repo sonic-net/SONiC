@@ -13,7 +13,7 @@
 
 #### Part 1
 During the boot, the `determine-reboot-cause` service ( previously `process-reboot-cause`) determines the last reboot-cause based on the hardware reboot-cause
-and the software reboot-cause information and `determine-reboot-cause` service will save the formatted last previous
+and the software reboot-cause information and `determine-reboot-cause` service will save the JSON-formatted last previous
 reboot cause information to "/host/reboot-cause/history/" with adding timestamp at the end of file name.
 `determine-reboot-cause` also will also create a symbolic link of the last reboot cause file to "/host/reboot-cause/previous-reboot-cause.json"
 
