@@ -249,18 +249,16 @@ Configuration will be provided to administratively bring down a line-card or fab
 
 ```
 Configuration to administratively bring down the module
-#config chassis_modules admin_down <module_name> <device_type> <instance_number>
+#config chassis_modules shutdown <module_name>
 
 Configuration to remove the adminstrative down state of module
-#config chassis_modules del <module_name>
+#config chassis_modules startup <module_name>
 ```
 #### Config-DB Schema
 The schema for CHASSIS_MODULE table in Config DB is:
 ```
-key                                   = CHASSIS_MODULE | <unique-name>; 
+key                                   = CHASSIS_MODULE | LINE-CARD<index>            ;//SUPERVISOR-CARD or FABRIC-CARD are other options 
 ; field                               = value
-instance                              = 1*2DIGIT                                     ; instance number of the device-type
-device-type                           = "LINE-CARD" | "FABRIC-CARD" |"PSU" | "FAN"   ; device-type
 admin-status                          = "up" | "down"                                ; admin-status
 ```
 
@@ -358,6 +356,29 @@ Changes in thermalctld would follow one of the 2 approaches:
 1. Have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card and update the DB on the control-card.
 2. The TemperatureUpdater class in each line-card will update the local-DB on its card as well as the global-DB on the control-card.
 
+We have chosen to take Approach 2. A GLOBAL_STATE_DB will be added in the chassis-redis instance similar to the STATE_DB in the local-redis instance.
+
+#### GLOBAL_STATE_DB Schema
+```
+key                                   = TEMPERATURE_INFO_<card-index> | <Sensor-Name>; 
+; field                               = value
+critical_high_threshold               = float;
+critical_low_threshold                = float;   
+high_threshold                        = float;
+low_threshold                         = float;
+maximum_temperature                   = float; //Maximum recorded temperature
+minimum_temperature                   = float; //Minimum recorded temperature
+temperature                           = float;
+
+```
+#### New APIs
+```
+2 additional APIs are introduced in src/sonic-platform-common/sonic_platform_base/thermal_base.py:
+
+def get_maximum_recorded():
+def get_minimum_recorded():
+```
+#### Code Modifications
 ```
 In src/sonic-platform-daemons/sonic-thermalctld/scripts/thermalctld:
 
