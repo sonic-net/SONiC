@@ -31,12 +31,14 @@
   * [4 Details](#4-details)
   * [5 Example configuration](#5-example-configuration)
   * [6 Warm boot support](#6-warm-boot-support)
+  * [7 Test Plan](#7-test-plan)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
 | 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
+| 1.1 | 05/26/2020  |    Anish Narsian   | Add test plan                     |
 
 
 # About this Manual
@@ -319,3 +321,40 @@ Warm boot works as follows:
 - If this is a non FG prefix then it continues to go through the regular routeorch processing
 - We receive config_db entries for FG_NHG* entries at some point and we update the local structure accordingly 
 - BGP comes up and any delta configuration gets pushed for routes and these go through the regular routeorch/fine grained behavior as usual
+
+# 7 Test Plan
+The following testing is planned for this feature:
+- SWSS unit tests via virtual switch testing
+- Data Plane tests via pytest + PTF
+
+## SWSS unit tests via virtual switch testing
+A new test called test_fgnhg.py will be created to test FG_NHG configurations. The test will check if the ASIC_DB state matches the expected hash bucket state upon creation/modification of FG_NHG entries and dynamic change in APP_DB route/ARP/interfaces as would occur in typical runtime scenarios. 
+
+Test details:
+- Create FG_NHG config_db entry with 2 banks, 3 members per bank
+- Create 6 interfaces with IPs, and program an APP_DB route with IP prefix + 6 next-hops matching above config_db entry: check if hash buckets are created as expected adhereing to the bank defintions
+- APP_DB route modified to reduce some number of next-hops: check if ASIC_DB hash bucket members show that the swss code maintains layered and consistent hashing
+- APP_DB route modified to remove all next-hops in bank0: check if ASIC_DB hash bucket members show that members of bank1 take the place bank0 members
+- APP_DB route modified to add 1st next-hop to bank0: check if ASIC_DB hash bucket members show that the added next-hop member takes up all the hash buckets assigened to the bank0
+- Test both IPv4 and IPv6 above
+- Test dynamic changes to the config_db bank + member defintion
+- Change ARP(NEIGH)/interface reachability and validate that ASIC_DB hash bucket members are as expected(ie: maintaining layered and consistent hashing)
+
+## Data Plane community tests via pytest + PTF
+A new Pytest and PTF test will be created for Fine Grained ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
+
+Test details:
+- Create FG_NHG config_db entry with 2 banks, 4 members per bank and deploy to DUT
+- Create 8 IP endpoints on PTF host and set up ARP entries for the 6 endpoints on the DUT
+- Create an interface on the DUT which can interact with the above IP endpoints, each endpoint created above should be on a different physical interface
+- Create a route entry with 8 IPs as the next-hop, and an IP prefix as defined in FG_NHG, deploy it to the DUT
+- Pytest will now evoke the fine grained ECMP PTF test to send 1000 unique flows from the T1 interface destined to the unique IP prefix
+- Track which link receives which flow and store the mapping of flow to link
+- Change the DUT route entry to reduce 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Change the DUT route entry to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
+- Change the DUT route entry to add 1st next-hop in a previously down bank0, now some of the flows should migrate to the newly added next-hop
+- Validate that in all cases the flow distribution per next-hop is roughly equal
+- Test both IPv4 and IPv6 above
+- The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested
+- Test warm reboot to ensure there is no traffic disruption and ECMP groups are correctly applied post warm boot

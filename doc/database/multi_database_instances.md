@@ -209,7 +209,7 @@ LRANGE_100 (first 100 elements): 6383.25 requests per second
 LRANGE_300 (first 300 elements): 2669.09 requests per second
 LRANGE_500 (first 450 elements): 1868.22 requests per second
 LRANGE_600 (first 600 elements): 1496.40 requests per second
-MSET (10 keys): 5550.62 requests per second 
+MSET (10 keys): 5550.62 requests per second
 ```
 
 ​        __So I don't think redis cluster is a good way to solve the problem of splitting databases into multiple redis instances
@@ -554,12 +554,12 @@ func init() {
                 Target2RedisDb[dbName] = redisDb
         }
     }
-} 
+}
 ```
 
 In the new Design, we added a new package at sonic\_db\_config/db\_config.go, which parse database\_config.json file and provided get APIs.
 
-Similar to C++ changes, when new package imported, database\_config.json file information is read and stored. 
+Similar to C++ changes, when new package imported, database\_config.json file information is read and stored.
 
 Later we use these get API to get the information when we want to use it.
 
@@ -734,7 +734,7 @@ For the script, today we just use the default redis instance and there is no -p/
 
 The scripts is used in shell, python, c and c++ system call, we need to change all these places.
 
-We added a new sonic-db-cli which is written in python, the function is the same as redis-cli, the only difference is to accept db name as the first parameter instead of '-n x' for redis-cli. 
+We added a new sonic-db-cli which is written in python, the function is the same as redis-cli, the only difference is to accept db name as the first parameter instead of '-n x' for redis-cli.
 
 Form the db name, we can using exising python swsssdk library to look up the db information and use them. This new sonic-db-cli is in swsssdk as well and will be installed where ever swsssdk is installed.
 
@@ -820,9 +820,11 @@ EXEC_WITH_ERROR_THROW(cmd, res);
 
 ## Programming Language
 
-One suggestion during SONiC meeting discussion is to write one DB_ID <-> DB_INST mapping function in C++, and then to generate the codes in Python and Go, which could avoid introduce the same mapping function for all the programming languages. 
+One suggestion during SONiC meeting discussion is to write one DB_ID <-> DB_INST mapping function in C++, and then to generate the codes in Python and Go, which could avoid introduce the same mapping function for all the programming languages.
 
 ## Warm-reboot
+
+### *Current implementation*
 
 We know that warm-reboot is supported in SONiC now.
 Today the single database instance is using "redis-cli save" in fast-reboot script to store data as RDB file.
@@ -830,26 +832,181 @@ Then restore it when database instance is up.
 
 ![center](./img/db_redis_save.png)
 
-For the new design, the database instances is changed in new version, so after the warm-reboot, it will restore data into the single default database only. We need to do something to move to databases into correct database instances according to the database\_config.json. I am think we can use "redis-cli MIGRATE" to place the database into the correct instance after database restore but before we start to use it.
-```powershell
-redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
-```
+### *Proposed new implementation*
 
-OR we need to restore all the new isntances with the same data in old isntances before warm-reboot and delete the unecessary ones via rdb files.
+The redis instances & databases mapping may change between versions, that means before warmboot, we may have, for example, 3 redis instances and after warmboot, the number of redis instances may be, for example, 2 or 4. This makes the original 3 saved rdb files CANNOT restore the 2 or 4 redis instances directly.  We need to do something to restore data based on the new redis instances & database mapping.
 
-Discussed with Guohan's team offline, we won't support all the warmreboot cases when the database\_config.json file changed. We only want to accept the database instances spliting situation. For example , before warmrebbot, there is two instances and after there are four isntances, we can use rdb file to restoring all data in four instances and then write a logic to flush unnecessary database on each instance. This logic will be done in a new script which will be executed after warmreboot database restoration.  
+Today we already assigned each database name with a unique number (APPL_DB 0, ASIC_DB 1, ...) and assign them into different redis instances in design. This makes it possible to migrate all data in all redis instances into one redis instance without any conflicts. Then we can handle this single redis instance the same as what we did today, since today we are only use single redis instance. So the poposed new idea is as below steps:
+
+1. When we normally start multiple redis instances, besides all the necessary and used redis isntances, we add one more unused/spare redis instance configration in database_config.json. This unused/spare redis instance is not accessed by any application and it is empty.
+2. In the shutdown stage of warmboot, we migrate the data on all used redis instances into the unused/spare/empty redis instance. In this way all the data are in one redis instance and we can issue "redis-cli save" now to generate a single rdb file containing all the data. After this point, everything is the same as what we did today for single redis instance,  copying rdb file to WARM_DIR and so on.
+3. When loading new images during warmboot, we copy the single full data rdb file to each instance's rdb file path as what we did today. Then all the instances have the full data after startup, each instance can access the data as usual based on the redis instances & databases mapping in database_config.json. The unused data could be deleted via "redis-cli flushdb".
+4. At this point, all the data are restored based on the new redis instance & database mapping. In this way, we don't need to find the delta between configurations and could handle all redis instances&database mapping cases.
+
+Below shows an example:
+
+- [x] Before warmboot, there are four redis instances and the mapping as shown.
+- [x] During warmboot, migrating all data into one redis intance and save rdb file.
+- [x] In new image, there are only three instances and after startup, each instances has full data. But ins0 only use DB0&DB1 based on configration in database_config.json, DB2&DB3 are never used and we can flushdb them.
 
 ![center](./img/db_restore_new.png)
 
+Now we see, the extra step for the new implementation is migrating all data into one redis instance and the "flushdb" operations after new redis instances started.
 
-1. we need to only allow warm-reboot/upgrade from one version to another version. In the new image, we can handle the warm-reboot/upgrading accordingly and know where to migrate the database since the "delta" between old and new database_config.json can be calculated. We can write a script to handle this case.
-2. other idea is welcome
+- For "flushdb" operations, it takes ~0.3 second. If we want to save this time as well , we can delay this operations until warmboot is done, otherwise we can add these operations during warmboot.
+
+- For the data migration, I did some test on local.
+  
+   The CPU on my local setup is as below, better CPU may have better performance:
+
+  ```shell
+  admin@ASW-7005:~$ lscpu
+  Architecture:        x86_64
+  CPU op-mode(s):      32-bit, 64-bit
+  Byte Order:          Little Endian
+  Address sizes:       36 bits physical, 48 bits virtual
+  CPU(s):              4
+  On-line CPU(s) list: 0-3
+  Thread(s) per core:  1
+  Core(s) per socket:  4
+  Socket(s):           1
+  NUMA node(s):        1
+  Vendor ID:           GenuineIntel
+  CPU family:          6
+  Model:               77
+  Model name:          Intel(R) Atom(TM) CPU  C2558  @ 2.40GHz
+  Stepping:            8
+  CPU MHz:             2393.975
+  CPU max MHz:         2400.0000
+  CPU min MHz:         1200.0000
+  BogoMIPS:            4787.94
+  Virtualization:      VT-x
+  L1d cache:           24K
+  L1i cache:           32K
+  L2 cache:            1024K
+  NUMA node0 CPU(s):   0-3
+  ```
+  
+  - [x] Third part script like redis-dump/load is very slow, usually takes **~23s** when data size is **~40K**, TCP and UNIX SOCKET connections almost take the same time.
+  - [x] redis-cli cmd shown as below works better, takes **~3s** when data size is **~40K**, TCP and UNIX SOCKET connections almost take the same time.
+  
+  ```shell
+  redis-cli -n 3 --raw KEYS '*' | xargs redis-cli -n 3 MIGRATE 127.0.0.1 6380 "" 1 5000 KEYS
+  ```
+
+  - [x] I also tried lua script as below, this way is the best, it takes about **~1s** when data size is **~40K** and **~2s** when data size is **~100K**, TCP and UNIX SOCKET connections almost take the same time. Sample codes migratedb as below:
+
+  ```python
+  #!/usr/bin/python
+  from __future__ import print_function
+  import sys
+  import swsssdk
+  import redis
+  
+  dblists = swsssdk.SonicDBConfig.get_dblist()
+  for dbname in dblists:
+      dbsocket = swsssdk.SonicDBConfig.get_socket(dbname)
+      #dbport = swsssdk.SonicDBConfig.get_port(dbname)
+      dbid = swsssdk.SonicDBConfig.get_dbid(dbname)
+      dbhost = swsssdk.SonicDBConfig.get_hostname(dbname)
+
+      r = redis.Redis(host=dbhost, unix_socket_path=dbsocket, db=dbid)
+  
+      script = """
+          local cursor = 0;
+          repeat
+              local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
+  	          cursor = dat[1];
+              redis.call('MIGRATE', KEYS[1], KEYS[2], '', KEYS[3], 5000, 'REPLACE', 'KEYS', unpack(dat[2]));
+          until cursor == '0';
+      """
+      r.eval(script, 3, '127.0.0.1', 6381, dbid)
+
+  ```
+  
+  we can loop on instances as well and operate each database inside lua script, the perfoemacne is the same as we did in the above script.
+  
+  ```python
+  #!/usr/bin/python
+  from __future__ import print_function
+  import sys
+  import swsssdk
+  import redis
+  
+  instlists = swsssdk.SonicDBConfig.get_instancelist()
+  for k, v in instlists.items():
+      instsocket = v['unix_socket_path']
+      r = redis.Redis(unix_socket_path=instsocket)
+  
+      script = """
+          local lines = redis.call('INFO', 'keyspace')
+          for line in lines:gmatch("([^\\n\\r]+)") do
+              local dbid = line:match("(%d+)")
+              if dbid ~= nil then
+                  local cursor = 0;
+                  redis.call('SELECT', dbid)
+                  repeat
+                      local  dat = redis.call('SCAN', cursor, 'COUNT', 7000);
+                      cursor = dat[1];
+                      redis.call('MIGRATE', KEYS[1], KEYS[2], '', dbid, 5000, 'COPY', 'REPLACE', 'KEYS', unpack(dat[2]));
+                  until cursor == '0';
+              end
+          end
+      """
+      r.eval(script, 2, '127.0.0.1', 6382)
+  ```
+  
+  Of course, we can preload the lua script to redis server to improve the performance, but from the test result, it is not helping, almost the same performance as we don't preload since the lua script is very simple and short.
+  
+  
+  
+  For example, migrating below four instances into one instance, total **data size ~100K, costs ~2.1s**. TCP and UNIX SOCKET connections almost take the same time.
+  
+  ```shell
+  admin@ASW-7005:~$ redis-cli -p 6379 info | grep Keyspace -A 10
+  # Keyspace
+  db0:keys=40012,expires=0,avg_ttl=0
+  db4:keys=99,expires=0,avg_ttl=0
+  db5:keys=3145,expires=0,avg_ttl=0
+  db6:keys=365,expires=0,avg_ttl=0
+  
+  admin@ASW-7005:~$ redis-cli -p 6380 info | grep Keyspace -A 10
+  # Keyspace
+  db1:keys=42834,expires=0,avg_ttl=0
+  
+  admin@ASW-7005:~$ redis-cli -p 6381 info | grep Keyspace -A 10
+  # Keyspace
+  
+  admin@ASW-7005:~$ redis-cli -p 6382 info | grep Keyspace -A 10
+  # Keyspace
+  db2:keys=7191,expires=0,avg_ttl=0
+  
+  admin@ASW-7005:~$ redis-cli -p 6383 info | grep Keyspace -A 10
+  # Keyspace
+  db3:keys=103,expires=0,avg_ttl=0
+  
+  admin@ASW-7005:~$ date +"%T.%N" ; sudo /etc/sonic/migratedb ;  date +"%T.%N"
+  23:15:08.350089582
+  23:15:10.486322265
+  
+  admin@ASW-7005:~$ redis-cli -p 6381 info | grep Keyspace -A 10
+  # Keyspace
+  db0:keys=40012,expires=0,avg_ttl=0
+  db1:keys=42834,expires=0,avg_ttl=0
+  db2:keys=7191,expires=0,avg_ttl=0
+  db3:keys=103,expires=0,avg_ttl=0
+  db4:keys=99,expires=0,avg_ttl=0
+  db5:keys=3145,expires=0,avg_ttl=0
+  db6:keys=365,expires=0,avg_ttl=0
+  ```
+
+So this method is good for warmboot database backup, we just need to add above python script to merge all data into one redis isntance and save data. The other changes are minor like copying files ....
 
 ## Platform VS
 
-platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. We provided database\_config.json in vs docker at /var/run/redis/sonic-db/, hence all the application can read database information. For vs test, it is enough to use on database instance at this moment. 
+platform vs is not changed at this moment. For the vs tests, they are still using one database instance since platform vs database configuration is different from that at database-docker. We provided database\_config.json in vs docker at /var/run/redis/sonic-db/, hence all the application can read database information. For vs test, it is enough to use on database instance at this moment.
 
-From the feedback in SONiC meeting, docker platform vs is suggested to have multiple database instances as well.  
+From the feedback in SONiC meeting, docker platform vs is suggested to have multiple database instances as well.
 
 ## Other unit testing
 
