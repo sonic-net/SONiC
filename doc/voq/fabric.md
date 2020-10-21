@@ -25,6 +25,7 @@
 |:---:|:-----------:|:------------------:|--------------------|
 | 1 | Aug-28 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Initial Version |
 | 1.1 | Sep-1 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Add hotswap handling |
+| 2 | Oct-20 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Update counter information |
 
 # About this Manual
 
@@ -37,7 +38,7 @@ This document covers:
 - Bring up of fabric ports in a VOQ chassis.
 - Monitoring the fabric ports in forwarding and fabric chips. 
 
-This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/90c1289eaf89a70939e7c81e042e261947c6a850/doc/chassis/architecture.md) and the multi-ASIC architecture discussed [here](https://github.com/Azure/SONiC/blob/2f320430c8199132c686c06b5431ab93a86fb98f/doc/multi_asic/SONiC_multi_asic_hld.md). 
+This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md) and the multi-ASIC architecture discussed [here](https://github.com/Azure/SONiC/blob/2f320430c8199132c686c06b5431ab93a86fb98f/doc/multi_asic/SONiC_multi_asic_hld.md). 
 
 # Definitions/Abbreviations
 
@@ -61,7 +62,7 @@ High level requirements:
 
 ## 2.1 Fabric ASICs
 
-Fabric asics are used to form a fabric network for connecting forwarding ASICs. For each fabric port on a forwarding ASIC, there is a fabric link in the fabric network connecting to a fabric port on a fabric asic. There are typically multiple fabric links between a pair of (NPU, fabric asic) to balance traffic. We use the same approach to initializing and managing fabric asics as we are doing today for forwarding ASICs. A typical chassis implementation will be to manage all the fabric ASICs in a chassis from the control card or the Supervior Sonic Instance (SSI). We will leverage the work done in the multi-ASIC HLD and instantiate groups of containers for the fabric ASICs.
+Fabric asics are used to form a fabric network for connecting forwarding ASICs. For each fabric port on a forwarding ASIC, there is a fabric link in the fabric network connecting to a fabric port on a fabric ASIC. There are typically multiple fabric links between a pair of (NPU, fabric ASIC) to balance traffic. We use the same approach to initializing and managing fabric ASICs as we are doing today for forwarding ASICs. A typical chassis implementation will be to manage all the fabric ASICs in a chassis from the control card or the Supervior Sonic Instance (SSI). We will leverage the work done in the multi-ASIC HLD and instantiate groups of containers for the fabric ASICs.
 
 For each fabric ASIC, there will be:
 
@@ -69,48 +70,70 @@ For each fabric ASIC, there will be:
 - Swss container
 - Syncd container
 
-Unlike forwarding ASICs, fabric ASICs do not have any front panel ports, but only fabric ports. So all the front panel port related containers like lldp can be disabled for fabric ASICs. 
+Unlike forwarding ASICs, fabric ASICs do not have any front panel ports, but only fabric ports. So all the front panel port related containers like lldp, teamd and bgpd can be disabled for fabric ASICs. 
 
 ## 2.2 Database Schemas
 
 ```
-DEVICE_METADATA: {
+DEVICE_METADATA|localhost: {
   "switch_type": “fabric”
   "switch_id": {{switch_id}}
 }
 ```
 
-The switch_id needs to be assigned to be unique for each fabric ASIC. The SAI VOQ specification recommends that this number be assigned to be different than the switch_id assigned to the forwarding ASICs in the chassis.
+Each fabric ASIC must be assigned a unique switch_id. The SAI VOQ specification recommends that this number be assigned to be different than the switch_id assigned to the forwarding ASICs in the chassis.
 
-Fabric port statistics will be stored in table FABRIC_PORT_TABLE in STATE_DB. Typically, the statistics about a fabric port includes:
+Fabric port status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
 
-- Status: Up or down.
-- Remote peer: Peer name, fabric port.
-- Link errors: CRC errors.
-- Counters: RX cells, TX cells, FEC (corrected, uncorrected).
-
-Fabric port statistics will be updated periodically, say, for every 10s.
+- Status: Up or down
+- If port is down, we may have some more information indicating reason e.g. CRC or misaligned
+- If port is up, we should know remote peer information including peer switch_id and peer fabric port.
 
 ```
 STATE_DB:FABRIC_PORT_TABLE:{{fabric_port_name}}
     "lane": {{number}}
-    "status": “up”|”down”
-    "remote_switch_id": {{number}}
-    "remote_lane": {{number}}
-    “rx_cells”: {{number}}
-    “tx_cells”: {{number}}
-    "crc_errors": {{number}}
-    “fec_errors”: {{number}}
-    “fec_errors_corrected”: {{number}}
+    "status": “up|down”
+    "crc": “yes”                           # if status: down
+    "misaligned": “yes”                    # if status: down
+    "remote_switch_id": {{number}}         # if status: up
+    "remote_lane": {{number}}              # if status: up
 ```
 
-Note that the FABRIC_PORT_TABLE will also have entries in the Linecard Sonic instances because there are fabric ports in each forwarding ASIC as well.
+Fabric port statistics include the following port counters:
+
+```
+    SAI_PORT_STAT_IF_IN_OCTETS,
+    SAI_PORT_STAT_IF_IN_ERRORS,
+    SAI_PORT_STAT_IF_IN_FABRIC_DATA_UNITS,
+    SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES,
+    SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES,
+    SAI_PORT_STAT_IF_IN_FEC_SYMBOL_ERRORS,
+    SAI_PORT_STAT_IF_OUT_OCTETS,
+    SAI_PORT_STAT_IF_OUT_FABRIC_DATA_UNITS
+```
+
+FabricPortsOrch defines the port counters in FLEX_COUNTER_DB and syncd's existing FlexCounters thread periodically collects and saves these counters in COUNTER_DB. “show” cli commands read COUNTER_DB and display statistics information.
+
+Fabric port also has a couple of queue counters. Similar to the port counters, the queue counters are also polled with FLEX_COUNTER_DB.
+```
+    SAI_QUEUE_STAT_WATERMARK_LEVEL,
+    SAI_QUEUE_STAT_CURR_OCCUPANCY_BYTES,
+    SAI_QUEUE_STAT_CURR_OCCUPANCY_LEVEL
+```
+
+Note that Linecard Sonic instances will also have STATE_DB|FABRIC_PORT_TABLE as well as port/queue counters because there are fabric ports in forwarding ASICs as well.
 
 ## 2.3 System Initialization
 
 As part of multi-ASIC support, /etc/sonic/generated_services.conf contains the list of services which will be created for each asic when the system boots up. This is read by systemd-sonic-generator to generate the service files for each container that needs to run. 
 
-Since the fabric ASIC doesn’t need lldp, bgpd and teamd containers to run, systemd-sonic-generator will be modified to not start these services for the fabric ASICs.
+Since the fabric ASIC doesn’t need lldp, bgpd and teamd containers to run, systemd-sonic-generator will be modified to not start these services for the fabric ASICs. A per-platform file called `asic_disabled_services` can list the services that are not needed for a given ASIC and systemd-sonic-generator will not generate the service files for these containers. For example,
+```
+0,lldp,teamd,bgp
+1,lldp,teamd,bgp
+2,lldp,teamd,bgp
+```
+will not start lldp, teamd and bgp containers for ASICs 0, 1 and 2.
 
 ## 2.4 Fabric Card Hotswap
 
@@ -129,7 +152,7 @@ When a forwarding ASIC is initialized, the fabric ports are initialized by defau
 ## 2.7 Cli commands
 
 ```
-> show fabric counters [asic_name] [port_id]
+> show fabric counters -n <asic_namespace> [port_id]
 
 asic2 fabric port counter (number of fabric ports: 192)
 
