@@ -7,7 +7,7 @@
 | 0.1 | 09/02/20 | Sujin Kang  | Initial version    |
 
 ## Scope
--Enable sonic streaming telemetry agent to send Reboot-cause information
+-Enable sonic streaming telemetry agent to send Reboot-cause information which is stored in state-db with the reboot-cause processed timestamp.
 
 ### Enable sonic streaming telemetry agent to send Reboot-cause information
 
