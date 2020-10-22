@@ -1028,9 +1028,43 @@ Application should be using swss-common library or swsssdk which take care of di
 
 ### Configuration Reload
 
-SONiC Packages should restart on initiated *config reload* commands. Service management and services dependencies management in SONiC is complex.
-*config reload* command has a list of services it needs to restart on reload. A service is restarted in this case if its dependency is restarted
-(like swss) or it is restarted explicitly. This list becomes dynamic with introduction of packages.
+*config reload* & *config load_minigraph* are used to clear current configuration and import new configuration from the input file
+or from /etc/sonic/config_db.json. This command shall stop all services before clearing the configuration and then restarts those services.
+Thus, any service that consumes CONFIG DB data has to be restarted on reload commands.
+
+As of today, *config reload* command implementation has a hard-coded list of services it needs to restart on reload.
+A service is restarted in this case if its dependency is restarted (like swss) or it is restarted explicitly by *config reload*.
+A problem arises when the switch will run a service which sonic-utilities is not aware about. Thus, a solution is proposed
+in which *reload* command implementation is not aware of exact list of services and order they should be restarted:
+
+1.	There will be a new target unit in systemd called – sonic.target that is wanted by ‘multi-user.target’
+
+2.	Every existing or newly installed extension service that requires restart on config reload would have the following
+    configuration in service file:
+
+```
+[Unit]
+BindsTo=sonic.target
+After=sonic.target
+
+[Install]
+WantedBy=sonic.target
+```
+
+* "WantedBy" tells systemd to start services when target starts.
+* "BindsTo" and "After" guaranty that services bound to sonic.target will be stopped
+  and the operation will be blocked till all services stop. Otherwise, service stop
+  can overlap with subsequent "restart" action.
+
+3.	Config reload would be simplified to:
+
+```
+systemctl stop sonic.target
+systemctl reset-failed `systemctl list-dependencies --plain sonic.target`
+systemctl restart sonic.target
+```
+
+
 
 A different approach is considered to make easier config reloads. Every SONiC service that has to be restarted on config reload can be defined
 as *PartOf* sonic.target. So the *systemctl restart sonic.target* will restart those services in the ordering is managed by systemd without a
