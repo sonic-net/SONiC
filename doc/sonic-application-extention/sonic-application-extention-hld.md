@@ -162,7 +162,8 @@ SONiC Packages must meet few requirements in order to be a SONiC compatible Dock
 
 - Manifest file must exists in a standard location so that the manifest is easily discoverable by the infrastructure.
   The path chosen for the manifest file is */var/lib/sonic-package/manifest.json* placed in Docker image.
-- An application inside container should subscribe for CONTAINER_FEATURE table for auto-restart configuration
+- (**NOTE**: This requirement is under discussion and can be removed later)
+  An application inside container should subscribe for CONTAINER_FEATURE table for auto-restart configuration
   [Auto-Restart HLD](https://github.com/Azure/SONiC/blob/8a908c2d84f7d58cdaaea2825df13bfda9b73296/doc/monitoring_containers/monitoring_containers.md#223-auto-restart-docker-container).
 - Requirement on the container state recording by [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md)).
 
