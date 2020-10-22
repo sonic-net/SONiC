@@ -154,7 +154,7 @@ Basic definitions:
 There are three notions: *package*, *repository* and *registry*. A repository is a Docker registry (private or open like Docker Hub)
 repository with tagged images for specific package.
 
-In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are repositories with a set of images tagged using a version number.
+In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are repositories with a set of images.
 
 ### SONiC Package
 
@@ -233,7 +233,7 @@ Path                     | Type               | Description
 /name                    | string             | Name of the package.
 /name/repository         | string             | Repository in Docker registry or a local image reference.
 /name/description        | string             | Application description field.
-/name/default-version    | string             | A tag which points to a package that will be a default installation candidate if not specified.
+/name/default-reference  | string             | A tag or digest of Docker image that will be a default installation candidate.
 /name/essential          | boolean            | A flag if a SONiC package is an essential package.
 /name/status             | string             | Status indicate the installation status of the package. It is either "installed" or "not-installed".
 /name/installed-version  | string             | Installed version string.
@@ -247,7 +247,7 @@ A sample of the content in JSON format:
     "repository": "docker-database",
     "description": "SONiC database service",
     "essential": true,
-    "default-version": "1.0.0",
+    "default-reference": "1.0.0",
     "status": "installed",
     "installed-version": "1.0.0"
   },
@@ -255,20 +255,20 @@ A sample of the content in JSON format:
     "repository": "docker-orchagent",
     "description": "SONiC switch state service",
     "essential": true,
-    "default-version": "1.0.0",
+    "default-reference": "1.0.0",
     "status": "installed",
     "installed-version": "2.0.1"
   },
   "cpu-report": {
     "repository": "Azure/sonic-dhcp-relay",
     "description": "DHCP relay feature",
-    "default-version": "1.0.0",
+    "default-reference": "sha256:5d41c289942008211c2964bca72800f5c9d5ea5aa4057528da617fb36463d4ab",
     "status": "not-installed"
   },
   "featureXXX": {
     "repository": "Azure/sonic-snmp",
     "description": "Simple Network Monitoring Protocol",
-    "default-version": "1.0.0",
+    "default-reference": "1.0.0",
     "status": "installed",
     "installed-version": "1.0.0"
   }
@@ -280,6 +280,9 @@ SONiC package installed at built time and have the installation status set. Besi
 OS at built time the *packages.json* also includes the repositories that are available for users to install. E.g. a DHCP relay
 feature may not come with SONiC by default, but the user will have a corresponding entry for DHCP relay package in *packages.json*
 which user can install.
+
+Community can extend *packages.json* with own developed packages. The recommended way of defining a 'default-reference' is by
+specifying a digest rather then a tag, so that a package entry points strictly to a specific image.
 
 Once a Docker becomes a SONiC package, user will have two options:
 
@@ -298,6 +301,9 @@ This documents proposes to use [semantic versioning](https://semver.org/) which 
 The schema for version is in the format of *\${MAJOR}.\${MINOR}.\${PATCH}* version. Semantic versioning can also include a suffix for pre-release
 identifiers and build id, like *1.0.0-dev+153*, that can be used for master branch builds. Such a schema allows for a simple logic for comparison,
 e.g: *1.0.0 < 1.1.0* and *1.5.1 > 1.4.20*. For more details of comparison rules follow the reference above.
+
+The version number is defined as part of the SONiC package manifest. Package maintainers must follow the above versioning approach and are encouraged
+to follow a commonly used convention in Docker by tagging images with a version number.
 
 The base OS has also have a version number that follows the same rules of semantic versioning so that a package can define a dependency on
 base OS version. A new variable is introduced in */etc/sonic/sonic_version.yml* called "base_os_compatibility_version" that follows semantic
@@ -409,12 +415,28 @@ dhcp-relay   Azure/dhcp-relay       DHCP relay service       N/A            Not 
 #### Repository management
 
 ```
-admin@sonic:~$ sudo sonic-package-manager add [NAME] [REPOSITORY] --description=[STRING] --default-version=[STRING]
+admin@sonic:~$ sudo sonic-package-manager add [NAME] [REPOSITORY] --description=[STRING] --default-reference=[STRING]
 admin@sonic:~$ sudo sonic-package-manager remove [NAME]
 ```
 
 <!-- omit in toc -->
 #### Package Installation
+
+```
+admin@sonic:~$ sudo sonic-package-manager install --help
+
+Usage: sonic-package-manager install [OPTIONS] [REFERENCE]
+
+  Install SONiC package.
+
+Options:
+  -y, --yes     Answer yes for any prompt.
+  -f, --force   Force installation.
+  --help        Show this message and exit
+```
+
+<!-- omit in toc -->
+###### Examples
 
 ```
 admin@sonic:~$ sudo sonic-package-manager install cpu-report
@@ -426,6 +448,17 @@ admin@sonic:~$ sudo sonic-package-manager install cpu-report==1.0.0
 ```
 
 Optionally specifying a version after package name separated by a '==' in CLI allows user to install any version of extension.
+
+Installing using a tag/version is a convenient methods to install packages for users. The downside of using tag as an image reference
+is the fact that a tag is mutable reference. Thus, an image tag might not point to the same image at any given time. Docker provides
+a digest (content-addressable identifier) as immutable reference. In case users download from Docker Hub rather then from trusted repository
+they might want to use a digest instead for their installations.
+
+Install using a digest:
+
+```
+admin@sonic:~$ sudo sonic-package-manager install cpu-report@sha256:8273733f491f362bb36710fd8a99f78c3fbaecd8d09333985c76f1064b80760f
+```
 
 For developer convenience or for unpublished SONiC packages,it is possible to install the extension from a Docker image tarball.
 
@@ -443,7 +476,7 @@ In the above example the following entry is added to *packages.json*:
 {
   "featureA": {
     "repository": "featureA",
-    "default-version": "1.0.0",
+    "default-reference": "1.0.0",
     "installed-version": "1.0.0",
     "status": "installed"
   }
@@ -461,6 +494,22 @@ WARN: feature depends on syncd^1.1.1 while installed version is 1.0.5. Ignoring.
 
 <!-- omit in toc -->
 #### Package Upgrade
+
+```
+admin@sonic:~$ sudo sonic-package-manager upgrade --help
+
+Usage: sonic-package-manager upgrade [OPTIONS] [REFERENCE]
+
+  Upgrade SONiC package.
+
+Options:
+  -y, --yes     Answer yes for any prompt.
+  -f, --force   Force upgrade.
+  --help        Show this message and exit
+```
+
+<!-- omit in toc -->
+###### Examples
 
 The command line example for package upgrade:
 ```
@@ -554,6 +603,7 @@ can be installed at any given time.
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
+/package/version                  | string                | yes         | Version of the package.
 /package/depends                  | list of strings       | no          | List of SONiC packages the service depends on. Defaults to [].
 /package/breaks                   | list of strings       | no          | List of SONiC package the service breaks. Defaults to [].
 /package/base-os-constraint       | string                | no          | Base image version dependency constraint. Defaults to  '*': allows any version.
