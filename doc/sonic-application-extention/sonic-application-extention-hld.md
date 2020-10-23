@@ -657,10 +657,14 @@ or
 <!-- omit in toc -->
 ###### Manifest file path
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/package/changelog                | dict                  | no          | Changelog dictionary.
-/package/changelog/\<version\>    | list of strings       | no          | Changelog messages for a given version.
+Path                                          | Type                  | Mandatory   | Description
+--------------------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
+/package/changelog                            | dict                  | no          | Changelog dictionary.
+/package/changelog/\<version\>                | dict                  | yes         | Package version.
+/package/changelog/\<version\>/changes        | list of strings       | yes         | Changelog messages for a given version.
+/package/changelog/\<version\>/author         | string                | yes         | Author name.
+/package/changelog/\<version\>/email          | string                | yes         | Author's email address.
+/package/changelog/\<version\>/date           | string                | yes         | Date and time in RFC 2822 format.
 
 Example:
 
@@ -668,13 +672,21 @@ Example:
 {
   "package": {
     "changelog": {
-      "1.0.0": [
-        "Initial release"
-      ],
-      "1.1.0": [
-        "Added functionality",
-        "Bug fixes"
-      ]
+      "1.0.0": {
+        "changes": ["Initial release"],
+        "author": "Stepan Blyshchak",
+        "email": "stepanb@nvidia.com",
+        "date": "Mon, 25 May 2020 12:24:30 +0300"
+      },
+      "1.1.0": {
+        "changes": [
+          "Added functionality",
+          "Bug fixes"
+        ],
+        "author": "Stepan Blyshchak",
+        "email": "stepanb@nvidia.com",
+        "date": "Fri, 23 Oct 2020 12:26:08 +0300"
+      }
     }
   }
 }
@@ -685,14 +697,18 @@ This information will be useful for user, so a command to show changelog for a p
 
 ```
 admin@sonic:~$ sonic-package-manager show package changelog <some-package>
-- 1.0.0:
+1.0.0:
 
   * Initial release
 
-- 1.1.0
+-- Stepan Blyshchak <stepanb@nvidia.com>  Mon, 25 May 2020 12:24:30 +0300
+
+1.1.0
 
   * Added functionality
   * Buf fixes
+
+-- Stepan Blyshchak <stepanb@nvidia.com>  Fri, 23 Oct 2020 12:26:08 +0300
 
 ```
 
