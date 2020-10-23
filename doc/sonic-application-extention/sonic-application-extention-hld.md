@@ -35,8 +35,9 @@
 - [Multi-DB support](#multi-db-support)
 - [Configuration Reload](#configuration-reload)
 - [System Dump](#system-dump)
-- [SONiC-2-SONiC upgrade](#sonic-2-sonic-upgrade)
 - [Multi-ASIC](#multi-asic)
+- [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+- [SONiC-2-SONiC upgrade](#sonic-2-sonic-upgrade)
 - [Kubernetes & SONiC Application Extension](#kubernetes--sonic-application-extension)
 - [3rd party Docker images](#3rd-party-docker-images)
 - [Installing 3rd party image as is.](#installing-3rd-party-image-as-is)
@@ -354,8 +355,6 @@ are secured and trusted.
 - Follows the Debian approach which does not have any security guard or restrictions about packages the user is installing.
 
 ### Configuration and management
-
-N/A (TODO)
 
 <!-- omit in toc -->
 #### CLI Enhancements
@@ -1107,34 +1106,6 @@ Path                           | Value             | Mandatory | Description
 -------------------------------|-------------------|-----------|----------------------------------------------------------------------
 /package/debug-dump            | string            | No        | A command to be executed during system dump
 
-### SONiC-2-SONiC upgrade
-
-SONiC-2-SONiC upgrade shall work for SONiC packages as well. An upgrade will take the new system *packages.json* and version requirements
-and do a comparison between currently running and new SONiC image.
-
-<!-- omit in toc -->
-###### Package migration scenarios
-
-Package                        | Version                                                                                                                | Action
--------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
-Non-essential package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation in new SONiC image
-Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation in new SONiC image of currently running package version.
-
-The old *packages.json* and new *packages.json* are merged together and updated in new SONiC image.
-
-Since the installation or upgrade of packages are required to be done on SONiC image installation time a new SONiC image filesystem
-needs to be mounted and *dockerd* has to be started in the chroot environment of new image as it is a requisite of *sonic-package-manager*.
-
-CONFIG DB shall not updated with initial config of the package and a new feature in the FEATURE table in this scenario. A package should
-keep it's configuration backward compatible with old version. After installation succeeded and reboot into new image is performed all
-previously installed extensions should be available.
-
-An option to skip migrating packages will be added for users that want to have a clean SONiC installation:
-
-```
-admin@sonic:~$ sudo sonic-installer install -y sonic.bin --no-package-migration
-```
-
 ### Multi-ASIC
 
 Based on current Multi-ASIC design, a service might be a host namespace service, like telemetry, SNMP, etc., or replicated per each ASIC namespace,
@@ -1149,41 +1120,6 @@ Path                             | Value               | Mandatory  | Descriptio
 /service/host-namespace          | boolean             | no         | Multi-ASIC field. Wether a service should run in host namespace. Default is True.
 /service/asic-namespace          | boolean             | no         | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False.
 
-### Kubernetes & SONiC Application Extension
-
-[Kubernetes HLD](https://github.com/Azure/SONiC/blob/be12cc665c316348352b868f515714f202861f63/doc/kubernetes/Kubernetes-support.md)
-
-This section is WIP and describes the approach in very high level and needs more deep investigation.
-
-The first thing to note here is that a Kubernetes manifest file can be auto-generated from SONiC Package manifest file as it cat provide all the info about
-how to run the container. This manifest auto-generation is related to Kubernetes master changes while we will be focusing on SONiC OS side, so it is out of
-the scope here.
-
-Besides of the manifest on the master, the SONiC switch has to have service files, configs, scripts installed for the feature.
-
-1. Package installed through SONiC package manager.
-
-During package installation these necessary components will be auto-generated and installed on the switch. The auto-generation must honor new requirements
-to support "local" and "kube" modes when in "local" mode the container gets started on systemctl start, while in "kube" mode the appropriate feature label
-is set.
-
-2. Docker container upgrades through Kubernetes.
-
-During that processes a new Docker container gets deployed and run on the switch. Kubernetes managed features introduces a state machine for a running
-container that is reflected in the STATE DB. When container starts it sets its state as "pending" and waits till there is a "ready" flag set.
-
-A state-db-watcherd is listening to those changes. If there is a need to regenerate service file and scripts it initiates sonic-package-manager
-upgrade re-generation processes. Since the image is already downloaded and running but pending, the package manifest can be read and based on manifest
-it can generate the required files. Then, the state-db-watcherd can proceed to systemctl stop old container, systemctl start new container
-where the container_action script set the container state to "ready" and the container resumes to run the applications.
-
-3. Docker container deploy through Kubernetes.
-
-The case describe the scenario when the user is setting a label via "config kube label add <key>=<value>". If labels match the manifest on the master
-the docker image gets deployed. Using the same approach, between "pending" and "ready" states an auto-generation process can happen and register the
-Docker as a new package. With that, a deployed image will become an installed SONiC Package, that can be managed in "local" mode as well.
-
-<!-- omit in toc -->
 ### Warmboot and Fastboot Design Impact
 
 A SONiC package can specify an order of shutdown on warm-reboot for a service. A "bgp" may specify "radv" in this field in order to avoid radv
@@ -1225,6 +1161,71 @@ Path                              | Value                 | Mandatory  | Descrip
 /service/fast-shutdown/after      | lits of strings       | no         | Same as for warm-shutdown.
 /service/fast-shutdown/before     | lits of strings       | no         | Same as for warm-shutdown.
 /processes/\<name\>/reconciles    | boolean               | no         | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
+
+
+### SONiC-2-SONiC upgrade
+
+SONiC-2-SONiC upgrade shall work for SONiC packages as well. An upgrade will take the new system *packages.json* and version requirements
+and do a comparison between currently running and new SONiC image.
+
+<!-- omit in toc -->
+###### Package migration scenarios
+
+Package                        | Version                                                                                                                | Action
+-------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
+Non-essential package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation/upgrade in new SONiC image
+Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation/upgrade in new SONiC image of currently running package version.
+
+The old *packages.json* and new *packages.json* are merged together and updated in new SONiC image.
+
+Since the installation or upgrade of packages are required to be done on SONiC image installation time a new SONiC image filesystem
+needs to be mounted and *dockerd* has to be started in the chroot environment of new image as it is a requisite of *sonic-package-manager*.
+
+CONFIG DB shall not updated with initial config of the package and a new feature in the FEATURE table in this scenario. A package should
+keep it's configuration backward compatible with old version. After installation succeeded and reboot into new image is performed all
+previously installed extensions should be available.
+
+An option to skip migrating packages will be added for users that want to have a clean SONiC installation:
+
+```
+admin@sonic:~$ sudo sonic-installer install -y sonic.bin --no-package-migration
+```
+
+
+### Kubernetes & SONiC Application Extension
+
+[Kubernetes HLD](https://github.com/Azure/SONiC/blob/be12cc665c316348352b868f515714f202861f63/doc/kubernetes/Kubernetes-support.md)
+
+This section is WIP and describes the approach in very high level and needs more deep investigation.
+
+The first thing to note here is that a Kubernetes manifest file can be auto-generated from SONiC Package manifest file as it cat provide all the info about
+how to run the container. This manifest auto-generation is related to Kubernetes master changes while we will be focusing on SONiC OS side, so it is out of
+the scope here.
+
+Besides of the manifest on the master, the SONiC switch has to have service files, configs, scripts installed for the feature.
+
+1. Package installed through SONiC package manager.
+
+During package installation these necessary components will be auto-generated and installed on the switch. The auto-generation must honor new requirements
+to support "local" and "kube" modes when in "local" mode the container gets started on systemctl start, while in "kube" mode the appropriate feature label
+is set.
+
+2. Docker container upgrades through Kubernetes.
+
+During that processes a new Docker container gets deployed and run on the switch. Kubernetes managed features introduces a state machine for a running
+container that is reflected in the STATE DB. When container starts it sets its state as "pending" and waits till there is a "ready" flag set.
+
+A state-db-watcherd is listening to those changes. If there is a need to regenerate service file and scripts it initiates sonic-package-manager
+upgrade re-generation processes. Since the image is already downloaded and running but pending, the package manifest can be read and based on manifest
+it can generate the required files. Then, the state-db-watcherd can proceed to systemctl stop old container, systemctl start new container
+where the container_action script set the container state to "ready" and the container resumes to run the applications.
+
+3. Docker container deploy through Kubernetes.
+
+The case describe the scenario when the user is setting a label via "config kube label add <key>=<value>". If labels match the manifest on the master
+the docker image gets deployed. Using the same approach, between "pending" and "ready" states an auto-generation process can happen and register the
+Docker as a new package. With that, a deployed image will become an installed SONiC Package, that can be managed in "local" mode as well.
+
 
 ### 3rd party Docker images
 
