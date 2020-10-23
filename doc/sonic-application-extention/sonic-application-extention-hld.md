@@ -25,6 +25,7 @@
 - [Manifest File](#manifest-file)
 - [SONiC Package Installation](#sonic-package-installation)
 - [SONiC Package Changelog](#sonic-package-changelog)
+- [SONiC Docker Container Resource restrictions](#sonic-docker-container-resource-restrictions)
 - [SONiC Package Docker Container Lifetime](#sonic-package-docker-container-lifetime)
 - [Initial Extension Configuration](#initial-extension-configuration)
 - [CLI extension](#cli-extension)
@@ -712,6 +713,13 @@ admin@sonic:~$ sonic-package-manager show package changelog <some-package>
 
 ```
 
+### SONiC Docker Container Resource restrictions
+
+This feature will allow user to specify resource restrictions for a container via FEATURE table in CONFIG DB.
+This feature is not related to SONiC Application Extension Design, as can be applied to any existing SONiC
+container with existing infrastructure. Every SONiC Package will automatically support this feature.
+
+**TODO**: Put a reference to the design doc of this feature when it becomes available.
 
 ### SONiC Package Docker Container Lifetime
 
