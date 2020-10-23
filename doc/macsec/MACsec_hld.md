@@ -52,7 +52,9 @@
       - [3.4.4.2 Flex Counter](#3442-flex-counter)
         - [3.4.4.2.1 Counter List](#34421-counter-list)
         - [3.4.4.2.2 Interval](#34422-interval)
-    - [3.4.5 vMACsec SAI](#345-vmacsec-sai)
+    - [3.4.5 virtual MACsec SAI](#345-virtual-macsec-sai)
+      - [State Change Actions](#state-change-actions)
+      - [MACsec Actions](#macsec-actions)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
@@ -695,9 +697,55 @@ Wpa_supplicant need to monitor the packet number for SAK refreshing. But if a co
 Meanwhile, the sampling period of MKA about packet number is a random interval between 0-2 seconds. It should be guaranteed that the copy of packet number can be updated and sampled within a preparation time of SAK.
 So the flex counter interval is set to **1** second, which can meet the above requirement.
 
-#### 3.4.5 vMACsec SAI
+#### 3.4.5 virtual MACsec SAI
 
-Create macsec netdev on the virtual physical port, and then configure the macsec netdev according to the SAI API.
+This section describes the design of MACsec SAI in virtual SAI that runs in the syncd. The following picture illustrates the architecture of virtual MACsec SAI.
+All boxes with black edge are components of virtual SAI and all boxes with purple edge are network devices of linux.
+
+- **SwitchStateMACsec** convert the state change action from SwitchStateBase to MACsecManager
+- **MACsecManager** execute `ip` command to manage Linux MACsec Device and to insert or delete MACsec filter to HostInterfaceInfo to control the traffic forwarding strategy.
+- **Traffic Filters** includes MACsec filter that can forward EAPOL traffic between `eth` device and `Ethernet` device, forward plaintext data traffic between `Ethernet` device and linux `macsec` device and forward encrypted data traffic between linux `macsec` device and `eth` device. This filter will be enabled only if MACsec was enabled at the port.
+
+![macsec virtual sai](images/vmacsecsai.png)  
+
+##### State Change Actions
+
+- Create MACsec SA
+  - Try to create MACsec SA. But if ACL entry isn't set to MACsec flow, this action will not be delivered to MACsec Manager to create MACsec SA.
+- Set ACL Entry to MACsec Flow
+  - Set ACL entry to MACsec flow or default action. If the action is set to MACsec flow, it should notify MACsecManager to create MACsec SAs under the corresponding MACsec flow. Otherwise to notify MACsecManager to delete all MACsec SAs under this flow.
+- Remove MACsec Port
+- Remove MACsec SC
+- Remove MACsec SA
+- Get MACsec SA packet number
+
+##### MACsec Actions
+
+- Crate MACsec Port
+  - `ip link add link <VETH_NAME> name <MACSEC_NAME> type macsec sci <SCI>`
+  - `ip link set dev <MACSEC_NAME> up`
+- Create MACsec Ingress SC
+  - `ip macsec add <MACSEC_NAME> rx sci <SCI>`
+- Create MACsec Ingress SA
+  - `ip macsec add <MACSEC_NAME> rx sci <SCI> sa <SA> pn <PN> on key <AUTH_KEY> <SAK>`
+- Create MACsec Egress SA
+  - `ip macsec add <MACSEC_NAME> tx sa <AN> pn <PN> on key <AUTH_KEY> <SAK>`
+  - `ip link set link <VETH_NAME> name <MACSEC_NAME> type macsec `
+- Delete MACsec Port
+  - `ip link del link <VETH_NAME> name <MACSEC_NAME> type macsec`
+- Delete MACsec Ingress SC
+  - `ip macsec set <MACSEC_NAME> rx sci <SCI> off`
+  - `ip macsec del <MACSEC_NAME> rx sci <SCI>`
+- Delete MACsec Ingress SA
+  - `ip macsec set <MACSEC_NAME> rx sci <SCI> sa <SA> off`
+  - `ip macsec del <MACSEC_NAME> rx sci <SCI> sa <SA>`
+- Delete MACsec Egress SA
+  - `ip macsec set <MACSEC_NAME> tx sa 0 off`
+  - `ip macsec del <MACSEC_NAME> tx sa 0`
+- Query MACsec SA packet number
+  - `ip macsec show <macsec_dev>`
+
+***MACsec egress sc will be automatically created/delete when the MACsec port is created/deleted***
 
 ## 4 Flow
 
