@@ -584,7 +584,7 @@ VXLAN_TUNNEL_MAP|{{source_vtep_name}}|{{tunnel_map_name}}
     "vlan" : {{vlan_id}}
 
 VRF|{{vrf_name}}
-    "l3vni" : {{vni_id}}
+    "vni" : {{vni_id}}
 
 VLAN_INTERFACE|Vlan{{vlan_id}}
     "vrf-name" : {{vrf_name}}
