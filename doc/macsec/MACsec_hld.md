@@ -84,6 +84,7 @@ This document provides general information about the MACsec feature implementati
 | SC           | Secure Channel                               |
 | SCI          | Secure Channel Identifier                    |
 | XPN          | Extension Packet Number                      |
+| SecY         | MACsec Security Entity                       |
 
 ## 1 Requirements Overview
 
@@ -95,7 +96,7 @@ At a high level the following should be supported:
 
 #### Phase I
 
-- MACsec can be enable at a specified [port](https://github.com/Azure/SONiC/wiki/Configuration#port)
+- MACsec can be enabled at a specified [port](https://github.com/Azure/SONiC/wiki/Configuration#port)
 - MACsec can co-work with the [port channel](https://github.com/Azure/SONiC/wiki/Configuration#port-channel)
 - Support Cipher: GCM-AES-128 and GCM-AES-256
 - Secure Association Key(SAK) can be replaced without service outage
@@ -141,7 +142,7 @@ The following figure depicts the data flow and related components of MACsec. Dif
 - The green means these components are in SWSS container. This container uses the SAI APIs to control the MACsec security entities(SecY) according to databases entries and to synchronize the statistics from SecY to COUNTERS_DB.
   - **MACsecOrch** is a module of orchagent, that uses SAI APIs to manage the SecY according to messages from databases and synchronized the statistics of SecY to COUNTERS_DB.
 
-- The blue one is MACsecSAI in GEARBOX SYNCD(GBSYNCD) container. MACsecSAI is a set of APIs that are defined to communicate with the SecY. In the SAI virtual switch, the SecY is Linux MACsec driver and MACsecSAI will use the ip commands to manage them. But in the real switch, the SecY is the MACsec cipher chip and the implementation of MACsecSAI will be provided by the vendor of the cipher chip.
+- The blue boxes are MACsecSAI in Switch SYNCD(syncd) container or GEARBOX SYNCD(gbsyncd) container. MACsecSAI is a set of [APIs](https://github.com/opencomputeproject/SAI/blob/master/inc/saimacsec.h) that are defined to communicate with the SecY. MACsec function can be installed in Switch ASIC or Gearbox ASIC. If the MACsec function is installed in Switch ASIC, MACsecSAI in Switch syncd is responsible for SecY management. Alternatively, if the MACsec function is enabled in Gearbox, all MACsec functions will be handed over by MACsecSAI in Gearbox SYNCD. For the real switch, the SAI will be provided by the vendor of the cipher chip. But for the SAI virtual switch scenario, we leverage the model of MACsec in Switch ASIC. It means MACsec management will be handled by virtual SAI in syncd and it will use the [ip-macsec](https://man7.org/linux/man-pages/man8/ip-macsec.8.html) to manage Linux MACsec driver.
 
 - The yellow one is Linux MACsec Driver (<https://github.com/torvalds/linux/blob/master/drivers/net/macsec.c>) running in the kernel space, which will only be used in SAI virtual switch and be managed by ip commands.
 
