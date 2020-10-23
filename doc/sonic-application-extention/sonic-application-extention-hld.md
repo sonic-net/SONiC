@@ -571,7 +571,7 @@ The following table shows the top-level objects in the manifest. In the next sec
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/version                          | string                | no          | Version of manifest file definition. Defaults to 1.0.0.
+/version                          | string                | no          | Version of manifest schema definition. Defaults to 1.0.0.
 /package                          | object                | no          | Package related metadata information.
 /service/                         | object                | yes         | Service management related properties.
 /container/                       | object                | no          | Container related properties.
