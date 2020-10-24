@@ -362,16 +362,21 @@ sonic(conf-if-vlan20)# ipv6 address a::b/64
 sonic(conf-if-vlan20)# no ipv6 address a::b
 ```
 #### Trunk VLAN addition to Member Port (Ethernet / Port-Channel)
-`switchport trunk allowed Vlan <vlan_list>`
+`switchport trunk allowed Vlan add <vlan_list>`
 ```
-sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan 20-22,40
-sonic(conf-if-po4)# switchport trunk allowed Vlan 50,40
+sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan add 20-22,40
+sonic(conf-if-po4)# switchport trunk allowed Vlan add 50,40
 ```
 #### Trunk VLAN removal from Member Port (Ethernet / Port-Channel)
-`no switchport trunk allowed Vlan <vlan_list>`
+```
+no switchport trunk allowed Vlan <vlan_list>
+switchport trunk allowed Vlan remove <vlan_list>
+```
 ```
 sonic(conf-if-Ethernet4)# no switchport trunk allowed Vlan 20-22,40
 sonic(conf-if-po4)# no switchport trunk allowed Vlan 50,40
+sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan remove 20-22,40
+sonic(conf-if-po4)# switchport trunk allowed Vlan remove 50,40
 ```
 #### Access VLAN addition to Member Port (Ethernet / Port-Channel)
 `switchport access Vlan <vlan-id>`
@@ -384,6 +389,12 @@ sonic(conf-if-po4)# switchport access Vlan 5
 ```
 sonic(conf-if-Ethernet4)# no switchport access Vlan
 sonic(conf-if-po4)# no switchport access Vlan
+```
+#### All VLANs removal from Member Port (Ethernet / Port-Channel)
+`no switchport allowed Vlan`
+```
+sonic(conf-if-Ethernet4)# no switchport allowed Vlan
+sonic(conf-if-po4)# no switchport allowed Vlan
 ```
 #### 3.6.2.1.2 PORTCHANNEL
 #### Create a PortChannel
