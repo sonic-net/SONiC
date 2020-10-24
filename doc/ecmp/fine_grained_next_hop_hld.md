@@ -1,6 +1,6 @@
 ﻿# SONiC Fine Grained ECMP 
 # High Level Design Document
-### Rev 0.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -39,6 +39,7 @@
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
 | 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
 | 1.1 | 05/26/2020  |    Anish Narsian   | Add test plan                     |
+| 1.1 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
 
 
 # About this Manual
@@ -79,6 +80,7 @@ Phase #1
 - Ability to enable consistent hashing via Fine grained ECMP for a statically defined ECMP group
 - Ability to specify a group(bank) in which ECMP redistribution should be performed out of a set of available next-hops
 - Warm restart support
+- Handling linkdown scenarios by evoking nexthop withdrawal/addition based on link operational status changes.
 
 Phase #2
 - CLI commands to configure Fine Grained ECMP
@@ -126,7 +128,8 @@ FG_NHG_PREFIX|{{IPv4 OR IPv6 prefix}}:
 
 FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6 address)}}:
     "FG_NHG":{{fg-nhg-group-name}}
-    "Bank": {{an index which specifies a bank/group in which the redistribution is performed}} 
+    "bank": {{an index which specifies a bank/group in which the redistribution is performed}} 
+    "interface": {{physical interface associated with member}} (Optional)
 ```
 
 
@@ -152,6 +155,7 @@ key                                   = FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6
 ; field                               = value
 FG_NHG                                = fg-nhg-group-name                                      ; Fine Grained next-hop group name
 BANK                                  = DIGITS                                                 ; An index which specifies a bank/group in which the redistribution is performed
+INTERFACE                             = iface_name                                             ; Link associated with next-hop-ip, if configured, enables next-hop withdrawal/addition per link's operational state changes
 ```
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
@@ -203,7 +207,7 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
  This is the swss orchetrator responsible for pushing routes down to the ASIC. It creates ECMP groups in the ASIC for cases where there are multiple next-hops. It also adds/removes next-hop members as neighbor availability changes(link up and down scnearios). It will evoke fgnhgorch for all prefixes which desire special ecmp behavior.
  	
  ### fgnhgorch
- This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch. It creates ecmp groups with the new SAI components in Table 3 and will be the orchestrator responsible for achieving the use cases highlighted above by modifying hash buckets in a special manner.
+ This is the swss orchestrator which receives FG_NHG entries and identifies the exact way in which the hash buckets need to be created and assigned at the time of BGP route modifications. For BGP route modifications/next-hop changes, fgnhgorch gets evoked by routeorch. It creates ecmp groups with the new SAI components in Table 3 and will be the orchestrator responsible for achieving the use cases highlighted above by modifying hash buckets in a special manner. Fgnhgorch will also be an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE from portsorch, this will allow operational state changes for links to be reflected in the ASIC per fine grained behavior.
  
 ![](../../images/ecmp/orch_flow.png)
  
@@ -237,7 +241,8 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 - Further, by pushing configuration with next-hop bank membership, we can ensure that we only refill the affected hash buckets with those next-hops within the same bank. Thus achieving consistent hashing within a bank itself and meeting the requirement/use case above.  
 - A distiction is made between Kernel routes and hardware routes for fine grained ECMP. The kernel route contains the prefix along with standard next-hops as learnt via BGP or any other means. Fine Grained ECMP takes that standard route(as pushed via APP DB + routeorch) and then creates a fine grained ECMP group by expanding it into the hash bucket membership. Further the kernel route and hw route are not equivalent due to the special redistribution behavior with respect to the bank defintion. Special logic is also present to ensure that any next-hops which don't match the static FG_NHG next-hop set for a prefix will cause the next-hop to be ignored to maintain consistency with the desired hw route and hashing state defined in FG_NHG. FG_NHG drives the final state of next-hop groups in the ASIC given a user programs the config_db entry for it.
 - Given that fgnhgorch can ignore next-hops in route addition in order to maintain consistency with FG_NHG, special syslog error messages will be displayed whenever fgnhgorch skips propagation of a next-hop to the ASIC.
-- A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3*2*1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3*2*1 + 3*2*1 = 12 hash buckets.
+- A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3x2x1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3x2x1 + 3x2x1 = 12 hash buckets.
+- fgnhgorch is an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE events, these events are used in conjunction with the IP to interface mapping(INTERFACE attribute of the FG NHG member table), to trigger next-hop withdrawal/addition depending on which interface's operational state transitioned to down/up. The next-hop withdrawal/addition is performed per consistent and layered hashing rules. The INTERFACE attribute is optional, so this functionality is activated based on user configuration.
 
 # 5 Example configuration
 
@@ -251,7 +256,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 {
 	"FG_NHG": {
 		"2-VM-Sets": {
-			"hash_bucket_size": 12
+			"bucket_size": 12
 		}
 	},
 	"FG_NHG_PREFIX": {
@@ -262,27 +267,33 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 	"FG_NHG_MEMBER": {
 		"1.1.1.1": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 0
+			"bank": 0,
+			"interface": "Ethernet4"
 		},
 		"1.1.1.2": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 0
+			"bank": 0,
+			"interface": "Ethernet8"
 		},
 		"1.1.1.3": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 0
+			"bank": 0,
+			"interface": "Ethernet12"
 		},
 		"1.1.1.4": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 1
+			"bank": 1,
+			"interface": "Ethernet16"
 		},
 		"1.1.1.5": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 1
+			"bank": 1,
+			"interface": "Ethernet20"
 		},
 		"1.1.1.6": {
 			"FG_NHG": "2-VM-Sets",
-			"Bank": 1
+			"bank": 1,
+			"interface": "Ethernet24"
 		}
 	}
 }
@@ -319,7 +330,7 @@ Warm boot works as follows:
 - fgNhgOrch checks if this is a warm_boot scenario, if so, it queries FG_ROUTE_TABLE in state db and populates local structures of prefixes with special handling
 - If this is a prefix which requires special handling then further local structures are re-populated based on FG_ROUTE_TABLE and we create SAI ECMP groups and members based on mapping from FG_ROUTE_TABLE given that the next-hops are identical(we expect that this is the case since warm reboot should not cause a change in APP_DB routes during warm reboot)
 - If this is a non FG prefix then it continues to go through the regular routeorch processing
-- We receive config_db entries for FG_NHG* entries at some point and we update the local structure accordingly 
+- We receive config_db entries for FG_NHG entries at some point and we update the local structure accordingly
 - BGP comes up and any delta configuration gets pushed for routes and these go through the regular routeorch/fine grained behavior as usual
 
 # 7 Test Plan
@@ -354,6 +365,7 @@ Test details:
 - Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
 - Change the DUT route entry to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
 - Change the DUT route entry to add 1st next-hop in a previously down bank0, now some of the flows should migrate to the newly added next-hop
+- Disable a link from the port to Ip mapping and validate that flows were redistributed in the same bank and occured in a consistent fashion
 - Validate that in all cases the flow distribution per next-hop is roughly equal
 - Test both IPv4 and IPv6 above
 - The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested
