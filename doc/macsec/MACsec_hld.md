@@ -17,7 +17,6 @@
     - [Phase I](#phase-i)
     - [Phase II](#phase-ii)
     - [Phase III](#phase-iii)
-    - [Phase IV](#phase-iv)
 - [2 Architecture Design](#2-architecture-design)
 - [3 Modules Design](#3-modules-design)
   - [3.1 Config DB](#31-config-db)
@@ -115,10 +114,6 @@ At a high level the following should be supported:
 #### Phase III
 
 - CLI commands to configure MACsec
-
-#### Phase IV
-
-- MACsec can support confidentiality offset setting
 
 ## 2 Architecture Design
 
