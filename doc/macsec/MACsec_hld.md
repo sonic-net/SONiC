@@ -699,7 +699,8 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 - **SwitchStateMACsec** convert the state change action from SwitchStateBase to MACsecManager
 - **MACsecManager** execute `ip` command to manage Linux MACsec Device and to insert or delete MACsec filter to HostInterfaceInfo to control the traffic forwarding strategy.
-- **Traffic Filters** includes MACsec filter that can forward EAPOL traffic between `eth` device and `Ethernet` device, forward plaintext data traffic between `Ethernet` device and linux `macsec` device and forward encrypted data traffic between linux `macsec` device and `eth` device. This filter will be enabled only if MACsec was enabled at the port.
+- **Traffic Filters** includes MACsec filter that can forward EAPOL traffic between `eth` device and `Ethernet` device, and forward plaintext data traffic from `Ethernet` device to linux `macsec` device. This filter will be enabled only if MACsec was enabled at the port.
+- **MACsec Forwarder** can forward decrypted data traffic from linux `macsec` device to `Ethernet`.
 
 ![macsec virtual sai](images/vmacsecsai.png)  
 
