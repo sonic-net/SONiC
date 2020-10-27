@@ -691,6 +691,12 @@ class midplane_monitor_task:
 ### 4.1 Future Items
 
 Items that are out of scope of this HLD will need to be taken up in the future. As part of the review, the following items were identified:
-1.  Hardware upgrades of Chassis components like firmware, BIOS etc. This will need to cover high level work-flow, responsibilities of control-card vs line-card in the upgrade process, supported commands etc.
-2.  Management of status LEDs like board-LED,  chassis-LED etc. This will need to cover responsibilities of control-card (PSU led, FAN led etc) and line-card (board led etc). Need a 'show LED' command support at Chassis level.
-3.  Support for operational commands. As part of chassis will need support of reload and reboot commands.
+* Infra - Hardware upgrades of Chassis components like firmware, BIOS etc. This will need to cover high level work-flow, responsibilities of control-card vs line-card in the upgrade process, supported commands etc.
+* Infra - Support for operational commands. As part of chassis will need support of reload and reboot commands.
+* Chassisd - Reboot with reason option. In module_base.py, reboot() API to be enhanced with reboot-cause. The level of reboot can also be taken as input – power reset, linux reboot, cpu module reset etc. 
+* Chassisd - Get_change_event() notification handling to detect async card up/down events. 
+* Infra - Platform (software) driven fault management handling - bottom up approach. 
+* Infra - Add new LED daemon (different from the one used for port LEDs) to monitor and manage all different LEDs like board, master-status for peripherals like FAN, PSUs. Also, add CLI command 'show led status' CLI to display them. Can this be captured as part of system health-monitoring process? 
+* Thermalctld - HLD needs to add section for Voltage, current environmental as TODO section. Required for managing these sensors and their use-cases - impact on board, LC & FC power consumption calculation. 
+* Thermalctld - Certain vendors/platforms have three categories to measure temperature severity - minor, major and critical - and raise alarms and perform actions accordingly. Requirement would be to have low_minor_threshold, high_minor_threshold, low_major_threshold, high_major_threshold, low_critical_threshold, high_critical_threshold. 
+* Infra - API for platform to provide this polling interval. For example, polling interval is set to 60s in thermalctld. This could be too relaxed for some vendor's board(s). Like some operate at 10 s polling for thermal. 
