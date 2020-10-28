@@ -123,7 +123,7 @@ SAI virtual switch use the Linux MACsec driver as the MACsec Security Entity(Sec
 
 Real switch use the cipher chip as SecY which will also be imposed on physical interface. But the ASIC of the switch is located between the Port and the SecY.
 
-In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. The MKA protocol traffics, EAPOL packets, sent by wpa_supplicant directly use the Port as the egress/ingress port but the SecY will be set as the bypass mode to the MKA protocol traffic, which means the SecY will not encrypt, decrypt or validate the EAPOL packets and directly deliver them to next interface. All traffics, except EAPOL packets, transmitted on the Port will be encrypted by SecY and then these traffics will be put to the physical port for transmission. While all traffics, except EAPOL packets, received on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
+In all scenarios, both virtual and real switch, the IP address will be assigned to the Port. The MKA protocol traffics, EAPOL packets, sent by wpa_supplicant directly use the Port as the egress/ingress port. All traffics, except EAPOL packets, transmitted on the Port will be encrypted by SecY and then these traffics will be put to the physical port for transmission. While all traffics, except EAPOL packets, received on the physical port will be validated and decrypted and then these traffics will be delivered to the Port or discarded if the validation fails.
 
 ![interface stack](images/interface_stack.png)  
 
@@ -179,9 +179,8 @@ primary_cak                 = 32HEXDIG / 64HEXDIG      ; Primary Connectivity As
 primary_ckn                 = 64HEXDIG                 ; Primary CAK Name
 fallback_cak                = 32HEXDIG / 64HEXDIG      ; Fallback Connectivity Association Key
 fallback_ckn                = 64HEXDIG                 ; Fallback CAK Name
-policy                      = "bypass" / "integrity_only" / "security"
+policy                      = "integrity_only" / "security"
                                                        ; MACsec policy.
-                                                       ; BYPASS: All traffics will bypass the SecY.
                                                        ; INTEGRITY_ONLY: All traffics, except EAPOL, will be
                                                        ; converted to MACsec packets without encryption.
                                                        ; SECURITY: All traffics, except EAPOL, will be
@@ -221,7 +220,6 @@ Fellowing new tables would be introduced to specify the MACsec parameters, SCs a
 "MACSEC_PORT":{{port_name}}
     "enable":{{true|false}}
     "cipher_suite":{{cipher_suite}}
-    "enable_protect":{{true|false}}
     "enable_encrypt":{{true|false}}
     "enable_replay_protect":{{true|false}}
     "replay_window":{{replay_window}}
@@ -233,13 +231,10 @@ key                         = MACSEC_PORT:name         ; MACsec port name
 enable                      = "true" / "false"         ; Whether enable this port
 cipher_suite                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
                                                        ; The cipher suite for MACsec.
-enable_protect              = "true" / "false"         ; Whether protect the traffic.
-enable_encrypt              = "true" / "false"         ; Whether encrypt the traffic,
-                                                       ; It is available only if ENABLE_PROTECT is true.
-; Fields, ENABLE_PROTECT and ENABLE_ENCRYPT, depend on the filed POLICY in MACSEC PROFILE TABLE of Config DB,
-; policy = bypass         enable_protect = false ENABLE_ENCRYPT = false
-; policy = integrity_only enable_protect = true  ENABLE_ENCRYPT = false
-; policy = security       enable_protect = true  ENABLE_ENCRYPT = true
+enable_encrypt              = "true" / "false"         ; Whether encrypt the traffic
+; Field, ENABLE_ENCRYPT, depends on the filed POLICY in MACSEC PROFILE TABLE of Config DB,
+; policy = integrity_only ENABLE_ENCRYPT = false
+; policy = security       ENABLE_ENCRYPT = true
 enable_replay_protect       = "true" / "false"         ; Whether enable replay protect.
 replay_window               = DIGITS                   ; Replay window size that is the number of
                                                        ; packets that could be out of order.
