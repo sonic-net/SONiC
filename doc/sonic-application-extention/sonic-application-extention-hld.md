@@ -22,7 +22,7 @@
 - [Configuration and management](#configuration-and-management)
 - [SONiC Package Uninstallation Flow](#sonic-package-uninstallation-flow)
 - [SONiC Package Upgrade Flow](#sonic-package-upgrade-flow)
-- [Manifest File](#manifest-file)
+- [Manifest](#manifest)
 - [SONiC Package Installation](#sonic-package-installation)
 - [SONiC Package Changelog](#sonic-package-changelog)
 - [SONiC Docker Container Resource restrictions](#sonic-docker-container-resource-restrictions)
@@ -162,8 +162,7 @@ In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are reposito
 
 SONiC Packages must meet few requirements in order to be a SONiC compatible Docker image.
 
-- Manifest file must exists in a standard location so that the manifest is easily discoverable by the infrastructure.
-  The path chosen for the manifest file is */var/lib/sonic-package/manifest.json* placed in Docker image.
+- A package must provide a manifest as part of the Docker image.
 - (**NOTE**: This requirement is under discussion and can be removed later)
   An application inside container should subscribe for CONTAINER_FEATURE table for auto-restart configuration
   [Auto-Restart HLD](https://github.com/Azure/SONiC/blob/8a908c2d84f7d58cdaaea2825df13bfda9b73296/doc/monitoring_containers/monitoring_containers.md#223-auto-restart-docker-container).
@@ -176,7 +175,7 @@ SONiC Packages must meet few requirements in order to be a SONiC compatible Dock
 <img src="img/sonic-package-integration.svg" alt="Figure 2. High Level Overview of SONiC Package integration">
 </p>
 
-The idea is to auto-generate most of the components on the host OS based on *manifest.json* file provided by SONiC Package.
+The idea is to auto-generate most of the components on the host OS based on *manifest* provided by SONiC Package.
 
 The scope of this document is limited to SONiC compatible Docker images only.
 
@@ -392,7 +391,7 @@ Options:
   --help  Show this message and exit
 
 Commands:
-  manifest    Print package manifest
+  manifest    Print package manifest.
   changelog   Print package changelog.
 ```
 
@@ -561,9 +560,22 @@ new one and start the service. The sequence is shown on the figure below:
 <img src="img/upgrade-flow.svg" alt="Figure 5. SONiC Package Upgrade Flow">
 </p>
 
-### Manifest File
+### Manifest
 
-Every SONiC Package that is not an built-in package must provide a *manifest.json* file in image filesystem under */var/lib/sonic-package/manifest.json*.
+Every SONiC Package that is not a built-in package must provide a *manifest*. *manifest* is a set of Docker image labels which describe
+the package and instruct SONiC how this package integrates in the system.
+
+Image labeling is a standard Docker way to add metadata information to the image. Besides, a label can be queried using Docker Registry API
+without the need to download the whole image.
+
+<!-- omit in toc -->
+###### Manifest Base
+```
+com.azure.sonic.manifest
+```
+
+The value should contain a JSON serialized as a string.
+
 The following table shows the top-level objects in the manifest. In the next sections it is described all the fields that are relevant.
 
 Path                              | Type                  | Mandatory   | Description
@@ -597,7 +609,7 @@ can be installed at any given time.
 
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
@@ -653,7 +665,7 @@ or
 ### SONiC Package Changelog
 
 <!-- omit in toc -->
-###### Manifest file path
+###### Manifest path
 
 Path                                          | Type                  | Mandatory   | Description
 --------------------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
@@ -756,10 +768,10 @@ The relation between those scripts is shown in the below two figures in high lev
 The service unit file defines a dependency relation between different units and start/stop ordering between them.
 The template for creating service files will be placed at */usr/share/sonic/templates/service.j2*. The manifest fed
 through this template outputs a systemd service file with all the unit properties set according to the package's
-manifest file.
+manifest.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
@@ -826,7 +838,7 @@ is doing a cold start. This means when a new package is installed it might affec
 after installation all the service scripts under */usr/local/bin/* are re-generated.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
@@ -841,7 +853,7 @@ The script under /usr/bin/ starts, stops or waits for container exit. This scrip
 [docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/4006ce711fa6545b0870186ffa05d4df24edb8b7/files/build_templates/docker_image_ctl.j2).
 To allow a runtime package installation, it is required to have this file as part of SONiC image and put it in
 */usr/share/sonic/templates/docker_image_ctl.j2*. The Jinja2 template will accept three arguments, *docker_container_name*,
-*docker_image_name* and *docker_run_options*, which derive from the */container/* node from manifest file. Besides of options
+*docker_image_name* and *docker_run_options*, which derive from the */container/* node from manifest. Besides of options
 defined in the manifest, the following default are used to start container to allow container to access base SONiC resources,
 like database and syslog:
 
@@ -861,7 +873,7 @@ docker create {{ docker_run_options }}
 ```
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
@@ -875,7 +887,7 @@ SONiC Package can provide an the initial configuration it would like to start wi
 The JSON file will be loaded into running CONFIG DB and boot CONFIG DB file during installation.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                        | Type                  | Mandatory | Description
 --------------------------- | --------------------- | ----------|-----------------------------------------------------------------------------
@@ -973,7 +985,7 @@ e.g. DHCP Helper Address may or may not be present in CLI depending on installed
 ave to be also auto-generated from YANG in the future.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                             | Type                  | Mandatory | Description
 -------------------------------- | --------------------- | ----------|------------------------------------------------------------------------------
@@ -993,7 +1005,7 @@ Processes information is also used to generate monit configuration file based on
 monit configuration reload by issueing *systemctl reload monit.service*.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                             | Type                  | Mandatory    | Description
 -------------------------------- | --------------------- | -------------|--------------------------------------------------------------------------
@@ -1094,11 +1106,11 @@ need to update the list of services in CLI.
 ### System Dump
 
 SONiC Package *can* specify a command to execute inside container to get the debug dump that should be included in system dump file.
-This command should be specified in manifest file. A command should write its debug dump to stdout which will be gzip-ed into a file
+This command should be specified in manifest. A command should write its debug dump to stdout which will be gzip-ed into a file
 during *show techsupport* execution. This file will be included in techsupport under *dump/\<package-name\>/dump.gz*.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                           | Value             | Mandatory | Description
 -------------------------------|-------------------|-----------|----------------------------------------------------------------------
@@ -1107,11 +1119,11 @@ Path                           | Value             | Mandatory | Description
 ### Multi-ASIC
 
 Based on current Multi-ASIC design, a service might be a host namespace service, like telemetry, SNMP, etc., or replicated per each ASIC namespace,
-like teamd, bgp, etc., or running in all host and ASICs namespaces, like lldp. Based on */host-namespace* and */per-namespace* fields in manifest file,
+like teamd, bgp, etc., or running in all host and ASICs namespaces, like lldp. Based on */host-namespace* and */per-namespace* fields in manifest,
 corresponding service files are created per each namespace. *systemd-sonic-generator* is invoked to create and install service units per each namespace.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                             | Value               | Mandatory  | Description
 ---------------------------------|---------------------|------------|---------------------------------------------------------------------------------
@@ -1148,7 +1160,7 @@ systemctl stop {{ service }}
 *warmboot-finalizer.sh* script must also be templatized and updated based on process *reconciles* flag.
 
 <!-- omit in toc -->
-###### Manifest file path
+###### manifest path
 
 Path                              | Value                 | Mandatory  | Description
 ----------------------------------|-----------------------|------------|--------------------------------------------------------------------
