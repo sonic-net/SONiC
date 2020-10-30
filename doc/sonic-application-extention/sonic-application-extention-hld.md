@@ -14,7 +14,7 @@
 - [Architecture Design](#architecture-design)
 - [High-Level Design](#high-level-design)
 - [SONiC Package](#sonic-package)
-- [Essential SONiC Packages](#essential-sonic-packages)
+- [Built-In SONiC Packages](#built-in-sonic-packages)
 - [SONiC Package Management](#sonic-package-management)
 - [SONiC Package Database](#sonic-package-database)
 - [SONiC Base Image and Packages Versioning](#sonic-base-image-and-packages-versioning)
@@ -180,16 +180,16 @@ The idea is to auto-generate most of the components on the host OS based on *man
 
 The scope of this document is limited to SONiC compatible Docker images only.
 
-### Essential SONiC Packages
+### Built-In SONiC Packages
 
-Every SONiC Docker image can be converted to be a SONiC Package, although it is naturally to expect that SONiC OS comes with a set of Docker images
-pre-installed. Those Docker images are considered to be essential. Like a debian essential package, SONiC essential package cannot be removed from the
-system, but also, it cannot be upgraded without an image upgrade.
+Every SONiC Docker image can be converted to be a SONiC Package, although a subset of SONiC Dockers will be converted to be a SONiC Package at first phase.
+These are Dockers for which it might be comlicated to separate the OS part from the Docker image itself. Those Docker images are considered to be built-in.
+Built-in packages cannot be removed and upgraded as SONiC Packages and the infrastructure will mark with a built-in flag.
 
 This will allow for a smooth transition of SONiC Docker images into SONiC packages by marking all of the existing Docker images as
-essential and then removing essential flag for images that became a SONiC packages.
+build-in and then removing this flag for images that become a SONiC packages.
 
-The following list enumerates essential Docker containers:
+The following list enumerates built-in Docker containers, that cannot be converted to SONiC Package as part of phase 1:
 - database
 - syncd
 - swss
@@ -197,10 +197,8 @@ The following list enumerates essential Docker containers:
 
 For those packages it might be a challenge to support installation, un-installation and upgrade using SONiC Application Extension framework.
 E.g. syncd contains vendor SDK which usually means there is a kernel driver installed on the host OS. Upgrading just the syncd may become
-challenging because of a need to upgrade kernel driver on the host.
-
-Those containers do not provide an individual feature, monitoring service or networking protocol implementation but rather are required
-to run other features.
+challenging because of a need to upgrade kernel driver on the host. Same is for the pmon Docker, swss and database - they are tightly integrated
+into base OS.
 
 ### SONiC Package Management
 
@@ -236,7 +234,7 @@ Path                     | Type               | Description
 /name/repository         | string             | Repository in Docker registry or a local image reference.
 /name/description        | string             | Application description field.
 /name/default-reference  | string             | A tag or digest of Docker image that will be a default installation candidate.
-/name/essential          | boolean            | A flag if a SONiC package is an essential package.
+/name/built-in           | boolean            | A flag to indicate that a Docker is a built-in package.
 /name/status             | string             | Status indicate the installation status of the package. It is either "installed" or "not-installed".
 /name/installed-version  | string             | Installed version string.
 
@@ -248,7 +246,7 @@ A sample of the content in JSON format:
   "database": {
     "repository": "docker-database",
     "description": "SONiC database service",
-    "essential": true,
+    "built-in": true,
     "default-reference": "1.0.0",
     "status": "installed",
     "installed-version": "1.0.0"
@@ -256,7 +254,7 @@ A sample of the content in JSON format:
   "swss": {
     "repository": "docker-orchagent",
     "description": "SONiC switch state service",
-    "essential": true,
+    "built-in": true,
     "default-reference": "1.0.0",
     "status": "installed",
     "installed-version": "2.0.1"
@@ -404,9 +402,9 @@ Commands:
 admin@sonic:~$ sonic-package-manager list
 Name         Repository             Description              Version        Status
 -----------  ---------------------  ------------------------ ------------   --------------
-database     docker-database        SONiC database           1.0.0          Essential
-swss         docker-orchagent       Switch state service     1.0.0          Essential
-syncd        docker-syncd-vs        SONiC ASIC sync service  1.0.0          Essential
+database     docker-database        SONiC database           1.0.0          Built-In
+swss         docker-orchagent       Switch state service     1.0.0          Built-In
+syncd        docker-syncd-vs        SONiC ASIC sync service  1.0.0          Built-In
 cpu-report   Azure/cpu-report       CPU time report feature  1.0.5          Installed
 dhcp-relay   Azure/dhcp-relay       DHCP relay service       N/A            Not installed
 ```
@@ -565,7 +563,7 @@ new one and start the service. The sequence is shown on the figure below:
 
 ### Manifest File
 
-Every SONiC Package that is not an essential package must provide a *manifest.json* file in image filesystem under */var/lib/sonic-package/manifest.json*.
+Every SONiC Package that is not an built-in package must provide a *manifest.json* file in image filesystem under */var/lib/sonic-package/manifest.json*.
 The following table shows the top-level objects in the manifest. In the next sections it is described all the fields that are relevant.
 
 Path                              | Type                  | Mandatory   | Description
@@ -1032,8 +1030,8 @@ check program cpu-report|cpu-reportd with path "/usr/bin/process_checker cpu-rep
 
 ### Feature Concept Integration
 
-SONiC controls optional feature (aka services) via FEATURE table in CONFIG DB. Once SONiC Package is installed in the system and it
-is not marked as essential it must be treated in the same way as any optional SONiC feature.
+SONiC controls optional feature (aka services) via FEATURE table in CONFIG DB. Once SONiC Package is installed in the system and
+it must be treated in the same way as any optional SONiC feature.
 The SONiC package installation process will register new feature in CONFIG DB.
 
 [Optional Feature HLD Reference](https://github.com/Azure/SONiC/blob/master/doc/Optional-Feature-Control.md)
@@ -1173,8 +1171,8 @@ and do a comparison between currently running and new SONiC image.
 
 Package                        | Version                                                                                                                | Action
 -------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
-Non-essential package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation/upgrade in new SONiC image
-Non-essential package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation/upgrade in new SONiC image of currently running package version.
+Non built-in package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation/upgrade in new SONiC image
+Non built-in package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation/upgrade in new SONiC image of currently running package version.
 
 The old *packages.json* and new *packages.json* are merged together and updated in new SONiC image.
 
