@@ -396,7 +396,7 @@ This table contains the default parameters when generating a ingress buffer prof
 
 ```schema
     default_dynamic_th      = 1*2DIGIT              ; Default dynamic_th for dynamically generated buffer profiles
-    default_size            = 1*7DIGIT              ; Default size for dynamically generated buffer profiles
+    default_hysteresis      = 1*7DIGIT              ; Default hysteresis for dynamically generated buffer profiles
                                                     ; Optional. If it isn't provided the size will be xon + xoff
 ```
 
