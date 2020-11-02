@@ -163,10 +163,8 @@ In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are reposito
 SONiC Packages must meet few requirements in order to be a SONiC compatible Docker image.
 
 - A package must provide a manifest as part of the Docker image.
-- (**NOTE**: This requirement is under discussion and can be removed later)
-  An application inside container should subscribe for CONTAINER_FEATURE table for auto-restart configuration
-  [Auto-Restart HLD](https://github.com/Azure/SONiC/blob/8a908c2d84f7d58cdaaea2825df13bfda9b73296/doc/monitoring_containers/monitoring_containers.md#223-auto-restart-docker-container).
 - Requirement on the container state recording by [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md)).
+- The DockerHub or a private registry containing SONiC images is always accessible from the SONiC switch.
 
 <!-- omit in toc -->
 ###### Figure 2. High Level Overview of SONiC Package integration
@@ -203,7 +201,7 @@ into base OS.
 
 As any mature OS distribution SONiC will use its own package management solution and provide a utility to manage packages.
 SONiC Package Manager will use a persistent storage for its purposes at */var/lib/sonic-packages/* on the host OS.
-There are *packages.json* file as well as a directory per each SONiC package with a package metadata. A database will have the following structure:
+There is a *packages.json* file representing local database of packages.
 
 ```
 /
@@ -211,9 +209,6 @@ There are *packages.json* file as well as a directory per each SONiC package wit
     lib/
       sonic-packages/
         packages.json
-        snmp/
-        lldp/
-        dhcp-relay/
 ```
 <!-- omit in toc -->
 ###### Example directory structure of SONiC Package Manager library
@@ -349,7 +344,13 @@ are secured and trusted.
   The community tests and verifies the package and only those packages which are trusted are added to the template.
 - If user manually adds an entry to *packages.json* file, it is user's responsibility to verify and check the package
   that user is trying to install.
-- Follows the Debian approach which does not have any security guard or restrictions about packages the user is installing.
+
+The SONiC Application Extension Framework may leverage Docker Content Trust feature which allows to pull only signed
+images. A set of trusted public keys may come as a default with SONiC image as well as user may add their own
+public keys. Using those public keys and a signature in Docker image docker validates the signature of the image.
+This way the user can ensure the integrity and the publisher of the image he is trying to install.
+
+[Docker Content Trust](https://docs.docker.com/engine/security/trust/)
 
 ### Configuration and management
 
@@ -735,7 +736,7 @@ container with existing infrastructure. Every SONiC Package will automatically s
 Container lifetime in SONiC is currently controlled by systemd. The current SONiC design for container management consists of a
 service unit, a container management script */usr/bin/\<feature\>.sh* and optionally */usr/local/bin/\<feature\>.sh*.Those two
 scripts and a service unit file will be auto-generated during SONiC Package installation. The information needed for them to be
-auto-generated is defined in the manifest file of a package.
+auto-generated is defined in the manifest of a package.
 
 The relation between those scripts is shown in the below two figures in high level:
 
@@ -1208,7 +1209,7 @@ admin@sonic:~$ sudo sonic-installer install -y sonic.bin --no-package-migration
 
 This section is WIP and describes the approach in very high level and needs more deep investigation.
 
-The first thing to note here is that a Kubernetes manifest file can be auto-generated from SONiC Package manifest file as it cat provide all the info about
+The first thing to note here is that a Kubernetes manifest file can be auto-generated from SONiC Package manifest as it cat provide all the info about
 how to run the container. This manifest auto-generation is related to Kubernetes master changes while we will be focusing on SONiC OS side, so it is out of
 the scope here.
 
@@ -1257,7 +1258,8 @@ Default manifest:
 ```
 
 The default container run configuration have to be skipped for 3rd party Docker images. E.g. "--net=host", "-e NAMESPACE=$DEV" are not required
-for 3rd party. This settings have to be present in *container* properties in manifest.
+for 3rd party unless. 'asic-service' field is ignored for 3rd party Docker image in this case.
+This settings have to be present in *container* properties in manifest.
 
 3rd party Docker image, as it has no knowledge of SONiC, will not meet the requirements described in section [SONiC Package]((#sonic-package)).
 Thus, for such Docker images the limitations are:
@@ -1266,13 +1268,15 @@ Thus, for such Docker images the limitations are:
 - can be locally managed only, as the requirement for kube managed features is not met.
 
 
-Another possibility is to allow users to provide a manifest file.
+Another possibility is to allow users to provide a manifest file URL.
 
 An example of the flow for a collectd Docker image:
 ```
 admin@sonic:~$ sudo sonic-package-manager repository add collectd puckel/docker-collectd
-admin@sonic:~$ sudo sonic-package-manager install collectd --manifest ./collectd-manifest.json
+admin@sonic:~$ sudo sonic-package-manager install collectd --manifest https://some-server/manifests/collectd/manifest.json
 ```
+
+The manifest is saved under */var/lib/sonic-package-manager/collectd/manifest.json* for future access.
 
 
 <!-- onit in toc -->
