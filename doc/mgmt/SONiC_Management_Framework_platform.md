@@ -17,6 +17,7 @@ Platform commands in Management Framework
 | Rev |     Date    |       Author       | Change Description                                                     |
 |:---:|:-----------:|:------------------:|------------------------------------------------------------------------|
 | 0.1 | 06/08/2020  |   Garrick He       | Initial version                                                        |
+| 0.2 | 11/02/2020  |   Garrick He       | Add platform firmware information                                      |
 
 
 # About this Manual
@@ -107,6 +108,13 @@ Example: `TEMPERATURE_INFO|TEMP 1`
 The other requirement for these three components is their key **MUST** be allocated consectively for each component category.
 For example, if you have 5 fans on the system, their keys must be {FAN 1, FAN 2, FAN 3, FAN 4, FAN 5}. They **cannot** be non-consective, 
 {FAN 1, FAN 5, FAN 7, FAN 8, FAN 9}.
+
+For firmware information, the table and key schema is:
+
+`FIRMWARE_INFO|FIRMWARE #`
+
+Example: `FIRMWARE_INFO|FIRMWARE 1`
+
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
 
@@ -220,6 +228,16 @@ module: openconfig-platform
         |     +--ro oc-pf-ext:speed-tolerance?   uint32
         |     +--ro oc-pf-ext:target-speed?      uint32
         |     +--ro oc-fan:speed?                uint32
+        +--rw chassis
+        |  +--rw config
+        |  +--ro state
+        |     +--ro oc-pf-ext:name?      string
+        |     +--ro oc-pf-ext:modules
+        |        +--ro oc-pf-ext:module* [name]
+        |           +--ro oc-pf-ext:name     -> ../state/name
+        |           +--ro oc-pf-ext:state
+        |              +--ro oc-pf-ext:name?   string
+
 ```
 
 ### 3.6.2 CLI
@@ -445,6 +463,39 @@ coretemp-isa-0000
        Core 2:                       +40.0 C  (high = +98.0 C, crit = +98.0 C)
        Core 3:                       +39.0 C  (high = +98.0 C, crit = +98.0 C)
 ```
+##### Show system firmware
+```
+sonic# show platform firmware
+Chassis    Module    Component    Version     Description
+---------  --------  -----------  ----------  ------------------------------------
+Z9100-ON   N/A       BIOS         3.23.0.0-7  Performs initialization of hardwa...
+                     CPLD1        6           Used for managing the system LEDs
+                     CPLD2        4           Used for managing QSFP28 modules ...
+                     CPLD3        4           Used for managing QSFP28 modules ...
+                     CPLD4        4           Used for managing QSFP28 modules ...
+                     FPGA         1.58        Platform management controller fo...
+
+sonic# show platform firmware detail
+Platform Firmware Details
+------------------------------------------------------------
+Component Name:	BIOS
+Chassis: Z9100-ON
+Module: N/A
+Version: 3.23.0.0-7
+Description: Performs initialization of hardware components during booting
+
+Component Name:	CPLD1
+Chassis: Z9100-ON
+Module: N/A
+Version: 6
+Description: Used for managing the system LEDs
+
+Component Name:	CPLD2
+Chassis: Z9100-ON
+Module: N/A
+Version: 4
+Description: Used for managing QSFP28 modules (1-12)
+```
 #### 3.6.2.3 Debug Commands
 #### 3.6.2.4 IS-CLI Compliance
 
@@ -480,6 +531,7 @@ The unit-test for this feature will include:
 | show platform fan status | Verify fan information in State DB |
 | show platform temperature information | Verify temperature information in State DB |
 | show platform environment information | Verify system sensor |
+| show platform firmware | Verify platform firmware information |
 #### GET via gNMI
 
 Same test as CLI configuration Test but using gNMI request
