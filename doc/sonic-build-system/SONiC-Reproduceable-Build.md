@@ -36,7 +36,7 @@
 | 2020/09/21 | Xuhui, added Debian/pypi repo part |
 | 2020/09/22 | Qi Luo, review |
 | 2020/10/10 | Xuhui, debootstrap supports reproduceable build |
-
+| 2020/11/01 | Xuhui, add Golang, component level build description |
 
 
 # Overview
@@ -48,6 +48,10 @@ The external dependencies contain pypi packages installed by pip/pip3, Debian pa
 Some of the dependent packages can be controlled by its version for the reproduceable build, such as pypi packages, Debian package. There is an assumption that the content of the packages should be the same for the packages with the same version. The other packages do not have a specified version, when the remote package changed, it cannot be detected by its URL, such as wget/curl. The file storage will be introduced to solve the package without version issue.
 
 When the reproduceable build is used, to catch up with the latest version of the dependent packages, sending pull request to update the versions is required, the automation Jenkins pipeline will be created to do it.
+
+The SONiC reproduceable build framework provides a way to lock the versions of the packages in scopes as above. It will lock the versions for all the docker images including the slave docker images, host images, and docker slave containers which are used to build the SONiC targets, such as deb files, python wheels, etc.
+
+It supports to control the version of the docker slave image, and also supports to control the slave container to build the targets including docker images, host images, debian packages, etc.
 
 In Scopes:
 
@@ -65,7 +69,9 @@ Next scopes:
 
 1. Support on the old branches like 201911
 
+Out of Scopes:
 
+1. Golang reproduceable build, suggest to use go.mod to support reproduceable build, see https://github.com/golang/go/wiki/Modules#faqs--gomod-and-gosum.
 
 # Pypi packages
 
@@ -102,17 +108,7 @@ pyangbind==0.6.0
 
 pyasn1==0.4.2
 
-The version auto/manual upgrade configure example is as below, the automation pipeline will not upgrade the version of the Pypi package pyasn1, because the upgrade=manual is set in the configure file, the default value is upgrade=auto for the other packages.
-
-Py==1.7.0
-
-pyang==2.3.2
-
-pyangbind==0.6.0
-
-pyasn1==0.4.2,upgrade=manual
-
-To generate the initial version configuration file, we can manually start the docker containers and print versions by command &quot;pip freeze&quot;.
+The current versions of the images will be dumped to the folder target/versions during the build. The initial/upgraded version configuration file can be generated based on it.
 
 ## Pypi Version Control and Check
 
@@ -123,9 +119,9 @@ In the Makefile or Dockerfile, if the version is specified for a Pypi package, i
 | Yes | No | Success |
 | No | Yes | Success |
 | No | No | Failed for version not specified |
-| Yes | Yes | Failed if different version |
+| Yes | Yes | Failed if different versions |
 
-The Pypi version conguration file will be used as a pip constraints file, some of the flags no used, like upgrade=manual, will be removed when used by pip command. see [pip constraints-files user guide](https://pip.pypa.io/en/stable/user_guide/#constraints-files). It will control the installing packages and the referenced packages.
+The Pypi version configuration file will be used as a pip constraints file, some of the flags no used, like upgrade=manual, will be removed when used by pip command. see [pip constraints-files user guide](https://pip.pypa.io/en/stable/user_guide/#constraints-files). It will control the installing packages and the referenced packages.
 
 The pip/pip3 command in Makefile and Dockerfile will be hooked with a new one, if version conflict, the build will break. It only installs the version of the package specified in the configuration file by adding the constraints option.
 
