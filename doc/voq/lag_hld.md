@@ -224,13 +224,13 @@ Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for 
 
 ## 6 Flows
 ### 6.1 Local LAG Create
-![](../../images/voq/voq_local_lag.png)
+![](../../images/voq_hld/voq_local_lag.png)
 ### 6.2 Local LAG Member Add
-![](../../images/voq/voq_local_lag_member.png)
+![](../../images/voq_hld/voq_local_lag_member.png)
 ### 6.3 Remote LAG Create
-![](../../images/voq/voq_remote_lag.png)
+![](../../images/voq_hld/voq_remote_lag.png)
 ### 6.4 Remote LAG Member Add
-![](../../images/voq/voq_remote_lag_member.png)
+![](../../images/voq_hld/voq_remote_lag_member.png)
 
 ## 7 Example Configurations
 
