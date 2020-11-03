@@ -20,7 +20,6 @@
 - [SONiC Base Image and Packages Versioning](#sonic-base-image-and-packages-versioning)
 - [SONiC Application Extension Security Considerations](#sonic-application-extension-security-considerations)
 - [Configuration and management](#configuration-and-management)
-- [SONiC Package Uninstallation Flow](#sonic-package-uninstallation-flow)
 - [SONiC Package Upgrade Flow](#sonic-package-upgrade-flow)
 - [Manifest](#manifest)
 - [SONiC Package Installation](#sonic-package-installation)
@@ -537,6 +536,7 @@ No CONFIG DB changes required for this feature.
 <img src="img/install-flow.svg" alt="Figure 3. SONiC Package Installation Flow">
 </p>
 
+<!-- omit in toc -->
 ### SONiC Package Uninstallation Flow
 
 <!-- omit in toc -->
