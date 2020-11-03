@@ -51,7 +51,13 @@ When the reproduceable build is used, to catch up with the latest version of the
 
 The SONiC reproduceable build framework provides a way to lock the versions of the packages in scopes as above. It will lock the versions for all the docker images including the slave docker images, host images, and docker slave containers which are used to build the SONiC targets, such as deb files, python wheels, etc.
 
-It supports to control the version of the docker slave image, and also supports to control the slave container to build the targets including docker images, host images, debian packages, etc.
+It supports to control the version of the docker slave image, and also supports to control the slave containers to build the targets including docker images, host images, debian packages, etc.
+
+It supports to enable some of the components. For instance, only enable the version control for py2 and py3, while using the latest versions of the debian packages, web packages, etc.
+
+It supports to only enable the features on some of the release branches, while using the latest versions of the packages in master branch. And the default feature flag can be overwritten by the build command line parameter.
+
+It supports to upgrade the versions automatically by Jenkins jobs, and developers can freeze the versions files on the dev box and commit the version changes.
 
 In Scopes:
 
