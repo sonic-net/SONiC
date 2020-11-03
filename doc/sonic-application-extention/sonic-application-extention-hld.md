@@ -174,8 +174,6 @@ SONiC Packages must meet few requirements in order to be a SONiC compatible Dock
 
 The idea is to auto-generate most of the components on the host OS based on *manifest* provided by SONiC Package.
 
-The scope of this document is limited to SONiC compatible Docker images only.
-
 ### Built-In SONiC Packages
 
 Every SONiC Docker image can be converted to be a SONiC Package, although a subset of SONiC Dockers will be converted to be a SONiC Package at first phase.
@@ -1263,10 +1261,7 @@ This settings have to be present in *container* properties in manifest.
 
 3rd party Docker image, as it has no knowledge of SONiC, will not meet the requirements described in section [SONiC Package]((#sonic-package)).
 Thus, for such Docker images the limitations are:
-- no controlled container auto-restart feature. According to current design, container is always auto-restarted on container exit.
-  (Could be changed if we change the container auto-restart design)
 - can be locally managed only, as the requirement for kube managed features is not met.
-
 
 Another possibility is to allow users to provide a manifest file URL.
 
