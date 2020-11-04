@@ -34,9 +34,10 @@
     + [3.1.2 Connect to a remote device](#312-connect-to-a-remote-device)
     + [3.1.3 Reverse SSH](#313-reverse-ssh)
     + [3.1.4 Underlying TTY Device Management](#314-underlying-tty-device-management)
-    + [Table 2: Underlying device mapping definition sample](#table-2--underlying-device-mapping-definition-sample)
+      - [Table 2: Underlying device mapping definition sample](#table-2--underlying-device-mapping-definition-sample)
   * [3.2 DB Changes](#32-db-changes)
     + [3.2.1 CONFIG_DB](#321-config-db)
+      - [CONSOLE_SWITCH_TABLE](#console-switch-table)
       - [CONSOLE_PORT_TABLE](#console-port-table)
     + [3.2.2 APP_DB](#322-app-db)
     + [3.2.3 STATE_DB](#323-state-db)
@@ -46,16 +47,19 @@
   * [3.3 CLI](#33-cli)
     + [3.3.1 General Command](#331-general-command)
       - [3.3.1.1 Show line](#3311-show-line)
-      - [3.3.1.2 Config](#3312-config)
-        * [3.3.1.2.1 Add/Del Console Port](#33121-add-del-console-port)
-        * [3.3.1.2.2 Update Remote device name for a Console Port](#33122-update-remote-device-name-for-a-console-port)
-        * [3.3.1.2.3 Update Baud for a Console Port](#33123-update-baud-for-a-console-port)
-        * [3.3.1.2.4 Enable Flow control for a Console Port](#33124-enable-flow-control-for-a-console-port)
-        * [3.3.1.2.5 Add/Del management IP for a Console Port](#33125-add-del-management-ip-for-a-console-port)
+      - [3.3.1.2 Clear line](#3312-clear-line)
+      - [3.3.1.3 Config](#3313-config)
+        * [3.3.1.3.1 Add/Del Console Port](#33131-add-del-console-port)
+        * [3.3.1.3.2 Update Remote device name for a Console Port](#33132-update-remote-device-name-for-a-console-port)
+        * [3.3.1.3.3 Update Baud for a Console Port](#33133-update-baud-for-a-console-port)
+        * [3.3.1.3.4 Enable Flow control for a Console Port](#33134-enable-flow-control-for-a-console-port)
+        * [3.3.1.3.5 Add/Del management IP for a Console Port](#33135-add-del-management-ip-for-a-console-port)
+        * [3.3.1.3.6 Enable/Disable Console Switch feature](#33136-enable-disable-console-switch-feature)
     + [3.3.2 Consutil Command](#332-consutil-command)
       - [3.3.2.1 Show line](#3321-show-line)
       - [3.3.2.2 Clear line](#3322-clear-line)
       - [3.3.2.3 Connect line](#3323-connect-line)
+      - [3.3.2.4 Sync state](#3324-sync-state)
   * [3.4 Reverse SSH](#34-reverse-ssh)
     + [3.4.1 Basic Usage](#341-basic-usage)
     + [3.4.2 Port based Forwarding](#342-port-based-forwarding)
@@ -89,6 +93,7 @@
 |:---:|:-----------:|:----------------------------:|-----------------------------------|
 | 0.1 | 08/28/2020  |  Jing Kan | Initial version                   |
 | 0.2 | 09/10/2020  |  Jing Kan | Addressed first version's comments                   |
+| 1.0 | 11/04/2020  |  Jing Kan | Add more commands description and fill more details                   |
 
 # About this Manual
 
@@ -326,9 +331,22 @@ This section describes the changes made to different DBs for supporting Console 
 
 ### 3.2.1 CONFIG_DB
 
-The CONSOLE_PORT_TABLE holds the configuration database for the purpose of console port connection parameters. This table is filled by the management framework.
+#### CONSOLE_SWITCH_TABLE
+
+The CONSOLE_SWITCH_TABLE holds the configuration database for the purpose of console switch features. This table is filled by the management framework.
+
+```
+; Console switch feature table
+key = CONSOLE_SWITCH
+
+; field = value
+console_mgmt = "0"/"1"      ; "0" means disable console management feature
+                            ; "1" means enable console management feature
+```
 
 #### CONSOLE_PORT_TABLE
+
+The CONSOLE_PORT_TABLE holds the configuration database for the purpose of console port connection parameters. This table is filled by the management framework.
 
 ```
 ; Console port table
@@ -389,9 +407,19 @@ show line
 
 Refer to [3.3.2.1 Show line](#3321-show-line)
 
-#### 3.3.1.2 Config
+#### 3.3.1.2 Clear line
 
-##### 3.3.1.2.1 Add/Del Console Port
+Alias of `consutil clear`
+
+```
+sonic-clear line
+```
+
+Refer to [3.3.2.2 Clear line](#3322-clear-line)
+
+#### 3.3.1.3 Config
+
+##### 3.3.1.3.1 Add/Del Console Port
 
 This command use for create/delete a console port configuration object.
 
@@ -414,7 +442,7 @@ config console add 2 --baud 9600 --flowcontrol
 config console del 1
 ```
 
-##### 3.3.1.2.2 Update Remote device name for a Console Port
+##### 3.3.1.3.2 Update Remote device name for a Console Port
 
 ```bash
 config console remote_device <port_name> <value>
@@ -427,7 +455,7 @@ Sample Usage:
 config console remote_device 1 switch1
 ```
 
-##### 3.3.1.2.3 Update Baud for a Console Port
+##### 3.3.1.3.3 Update Baud for a Console Port
 
 ```bash
 config console baud <port_name> <value>
@@ -440,7 +468,7 @@ Sample Usage:
 config console baud 1 115200
 ```
 
-##### 3.3.1.2.4 Enable Flow control for a Console Port
+##### 3.3.1.3.4 Enable Flow control for a Console Port
 
 ```bash
 config console flow_control {enable|disable} <port_name>
@@ -453,7 +481,7 @@ Sample Usage:
 config console flow_control enable 1
 ```
 
-##### 3.3.1.2.5 Add/Del management IP for a Console Port
+##### 3.3.1.3.5 Add/Del management IP for a Console Port
 
 ```bash
 config console mgmt_ip {add|del} <port_name> [<value>]
@@ -469,6 +497,22 @@ config console mgmt_ip del 1
 
 # Add the line management IP binding on console port 1
 config console mgmt_ip add 1 2001:db8::1
+```
+
+##### 3.3.1.3.6 Enable/Disable Console Switch feature
+
+```bash
+config console {enable/disable}
+```
+
+Sample Usage:
+
+```bash
+# Enable console switch feature
+config console enable
+
+# Disable console switch feature
+config console disable
 ```
 
 ### 3.3.2 Consutil Command
@@ -488,6 +532,7 @@ Commands:
   clear    Clear preexisting connection to line
   connect  Connect to switch via console device - TARGET...
   show     Show all lines and their info
+  sync     Sync all lines state
 ```
 
 #### 3.3.2.1 Show line
@@ -511,7 +556,7 @@ A `*` mark will display in front of line number if it is busy now.
 
 #### 3.3.2.2 Clear line
 
-Clear preexisting connection to line.
+Clear preexisting connection to line. Admin privilege required.
 
 ```
 consutil clear [OPTIONS] <TARGET>
@@ -559,6 +604,22 @@ consutil connect --devicename deviceA
 consutil connect --mgmtip 2001:db8::1
 ```
 
+#### 3.3.2.4 Sync state
+
+Refresh all console ports' state.
+```
+consutil sync
+```
+
+The console port state may stale if user communicate with console tty device unexpected or the communication process exit unexpected. This command will check existing processes and update the console ports' state in `STATE_DB` correspondingly.
+
+Sample Usage:
+
+```bash
+# refresh all console ports state
+consutil sync
+```
+
 ## 3.4 Reverse SSH
 
 Reverse SSH enable user to connect different remote devices via same TCP port.
@@ -589,6 +650,9 @@ Console port 1 connect to a remote device `switch1` with baud_rate 9600 and enab
 
 ```json
 {
+    "CONSOLE_SWITCH": {
+        "console_mgmt" : "1"
+    },
     "CONSOLE_PORT": {
         "1": {
             "remote_device": "switch1",
