@@ -3,13 +3,13 @@
 
 # High Level Design Document
 
-#### Revision 0.2
+#### Revision 1.0
 
 # Table of Contents
 
 - [SONiC Console Switch](#sonic-console-switch)
 - [High Level Design Document](#high-level-design-document)
-      - [Revision 0.2](#revision-02)
+      - [Revision 1.0](#revision-10)
 - [Table of Contents](#table-of-contents)
 - [List of Tables](#list-of-tables)
 - [Revision](#revision)
