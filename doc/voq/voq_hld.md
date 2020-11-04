@@ -461,7 +461,7 @@ The system port configuration has the parameters listed below.
 | Port line speed           | SAI_VOQ_SYSTEM_PORT_ATTR_OPER_SPEED                   |
 | Number of VOQs            | SAI_VOQ_SYSTEM_PORT_ATTR_NUM_VOQ                      |
 
-###### Table 3.3: Neighbor Entry SAI attributes (Existing table). Entry key {{ip_address}, {rif_id of system_port}, {switch_id}}
+###### Table 3.3: Neighbor Entry SAI attributes (Existing table). Entry key {{ip_address}}:{{rif_id of system_port}}:{{switch_id}}
 | Neibhbor component                             | SAI attribute                                         |
 |------------------------------------------------|-------------------------------------------------------|
 | Destination MAC                                | SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS               |
