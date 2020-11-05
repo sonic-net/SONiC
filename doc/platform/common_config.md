@@ -21,7 +21,7 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 11/03/2020  |  Systems Infra Team     | Initial version                   |
+| 0.1 | 11/03/2020  |  Geans PIN         | Initial version                   |
 
 # About this Manual
 We added support for a per-switching silicon common config.bcm file to assist with silicon-wide application configuration settings for all affected Broadcom platforms. The infrastructure saves development time by allowing applications to refactor common settings in a single location, and allows for platform-specific overrides. 
@@ -35,26 +35,21 @@ This document gives the details of Per-switching silicon Common config for Broad
 
 ### 1.1	Functional Requirements
 The functional requirements include :
--  Load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/broadcom-sonic-{$chip_id}  directory where the  $chip_id  is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. 
+- Load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/broadcom-sonic-{$chip_id}  directory where the  $chip_id  is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. 
 and standardize on the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm in this directory. This  file naming convention is not strictly enforced by the infrastructure, however. 
   
 - Merge common  broadcom-sonic-<chip abbreviation>.config.bcm  file is with the existing platform specific  config.bcm  file. Duplicate configuration entries in the platform specific file override entries in the common  broadcom-sonic-<chip abbreviation>.config.bcm  file.
 
 ## 2 Supported Platforms
 
-In Buzznik+ release, Per-switching silicon Common config is supported on all of the Broadcom platform if the common config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration :
-|-- x86_64-broadcom_b77
-|   `-- broadcom-sonic-td3.config.bcm
-|-- x86_64-broadcom_b85
-|   `-- broadcom-sonic-td2.config.bcm
-|-- x86_64-broadcom_b87
-|   `-- broadcom-sonic-td3.config.bcm
-|-- x86_64-broadcom_b96
-|   `-- broadcom-sonic-th.config.bcm
-|-- x86_64-broadcom_b97
-|   `-- broadcom-sonic-th2.config.bcm
-`-- x86_64-broadcom_b98
-    `-- broadcom-sonic-th3.config.bcm
+In Buzznik+ release, Per-switching silicon Common config is supported on all of the Broadcom platform if the common 
+config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration :
+|-- x86_64-broadcom_b77 -- broadcom-sonic-td3.config.bcm
+|-- x86_64-broadcom_b85 -- broadcom-sonic-td2.config.bcm
+|-- x86_64-broadcom_b87-- broadcom-sonic-td3.config.bcm
+|-- x86_64-broadcom_b96-- broadcom-sonic-th.config.bcm
+|-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
+|-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
 
 
 ## 4 Serviceability and DEBUG
@@ -92,8 +87,8 @@ sai_eapp_config_file=/etc/broadcom/eapps_cfg.json
 ## 5 Scalability
 NA
 ## 6 Unit Test
--	Check the system status to make sure syncd initial success
--   Check the syslog to make sure the common config merged to
-     config.bcm successfully
--   Check the final merged config.bcm dump from show tech dump 
+- Check the system status to make sure syncd initial success
+- Check the syslog to make sure the common config merged to
+   config.bcm successfully
+- Check the final merged config.bcm dump from show tech dump 
 
