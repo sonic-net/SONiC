@@ -553,6 +553,52 @@ New component api is introduced to support the component firmware auto-update as
         raise NotImplementedError
 ```
 The installed and updated firmware information and scheduled task should be logged in "<boot_type>_fw_auto_update" under "/tmp/fwupdate/" directory. This allows that fwutil to recognize the firmware auto-update status and handle any further firmware auto-update request.
+The "<boot_type>_fw_auto_update" is expected to be formatted as below.
+```
+{
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "COMPONENT1": {
+                    "status": "<updated|installed|scheduled>",
+                    "task": "<none|powercycle|reboot|schedule>"
+                },
+                "COMPONENT2": {
+                    "status": "<updated|installed|scheduled>",
+                    "task": "<none|powercycle|reboot|schedule>"
+                },
+            }
+        }
+    },
+}
+```
+Here is the example of the firmware update task file with cold reboot as boot_type action.
+And the components available for the update are BIOS, CPLD, and SSD.
+In this example, BIOS firmware got updated, CPLD firmware got installed but powercycle* is needed, and SSD firmware update is scheduled during boot.
+*powercycle can be triggered by cold reboot script in this case.
+```
+{
+    "chassis": {
+        "Chassis1": {
+            "component": {
+                "BIOS": {
+                    "status": "updated",
+                    "task": "N/A"
+                },
+                "CPLD": {
+                    "status": "installed",
+                    "task": "powercycle"
+                },
+                "SSD": {
+                    "status": "scheduled",
+                    "task": "update"
+                }
+            }
+        }
+    },
+}
+```
+
 
 The FWutil infra section below indicates the necessary changes to add support for auto update during reboot.
 The Platform plugins section describes the plugins that a platform must implement to support auto updates when the platform component APIs are not available.
