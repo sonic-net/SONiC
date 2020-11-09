@@ -201,6 +201,8 @@ fwutil
 |    |--- version
 |    |--- status
 |    |--- updates -i|--image=<current|next>
+|    |--- updates -z|--fw-image=<fw_package.tar.gz>
+|    |--- auto-update status
 |
 |--- install
 |    |--- chassis
@@ -221,7 +223,7 @@ fwutil
 |              |--- fw -y|--yes -f|--force -i|--image=<current|next>
 |
 |--- auto-update
-     |--- fw -z|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
+     |--- fw -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
      |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
 
 **Note:** <fw_path> can be absolute path or URL
@@ -316,7 +318,7 @@ SSD         ssd.bin                4 / 5                                    upda
 
 5. Auto-update status
 ```bash
-root@sonic:~# fwutil show auto-updates status
+root@sonic:~# fwutil show auto-update status
 Component   Firmware               Version (current/available)              Status
 ----------  ---------------------  ---------------------------------------  -------------------------
 CPLD        <image_path>/cpld.bin  5 / 10                                   updated but need a power-cycle
