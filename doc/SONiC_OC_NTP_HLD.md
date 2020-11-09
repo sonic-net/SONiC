@@ -3,7 +3,7 @@ NTP Support in Management Framework
 
 # High Level Design Document
 
-#### Rev 0.4
+#### Rev 0.5
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -22,17 +22,18 @@ NTP Support in Management Framework
 | 0.2 | 06/15/2020 |   Bing Sun         | Update based on comments          |
 | 0.3 | 09/21/2020 |   Bing Sun         | Add dhcp behavior                 |
 | 0.4 | 11/02/2020 |   Bing Sun         | Add support for NTP authentication|
+| 0.5 | 11/08/2020 |   Bing Sun         | Allow configuration of multiple NTP source interfaces|
   
   
 # About this Manual
 
-This document introduces the support of NTP configuration using management framework. It also describes the corresponding backend ntp configuration and service restart upon configuration changes discussed here.
+This document introduces the support of NTP configuration using management framework. It also describes the corresponding backend NTP configuration changes(/etc/ntp.conf and /etc/ntp.keys) as well as ntp service restart upon configuration changes.
 
 # Scope
 
-This document covers NTP "configuration" and "show" commands based on the OpenConfig YANG model, as well as the backend mechanism required to support each command.
-NTP unit tests are also included.
-
+This document covers NTP "configuration" and "show" commands based on the OpenConfig YANG model. In addition, it decribes the backend mechanism required to support each command.
+A summary of NTP unit test cases is presented at the end.
+        
 # Definition/Abbreviation
 
 ### Table 1: Abbreviations
@@ -47,11 +48,17 @@ NTP unit tests are also included.
 
 NTP stands for Network Time Protocol. It is used to synchronize the time of a computer or server to another server or reference time source.   
 
-SONiC click CLI provides commands to add and delete the IP address of a remote NTP server. Multiple NTP servers can be configured, and both IPv4 and IPv6 are supported. SONiC click CLI also provides the show command (output of "ntpq -pn").   
-
-This feature provides users the same capabilities via Management CLI, REST and gNMI using OpenConfig YANG models.
-In addition, it provides users to configure NTP source interface and NTP vrf. For this release, only "mgmt" and "default" vrf can be configured as NTP vrf.
-
+Today, SONiC click CLI provides commands to       
+- add and delete remote NTP servers with IPv4 or IPv6 addresses      
+- display NTP synchronization status with show command (output of "ntpq -pn")       
+        
+This feature provides the the same above mentioned capabilities via Management CLI, REST and gNMI using OpenConfig YANG models.
+In addition, it provides the following configuration,      
+- add remote NTP server with hostname
+- NTP source interfaces        
+- NTP vrf         
+- NTP authentication
+                 
 ## 1.1 Requirements
 
 ### 1.1.1 Front end configuration and get capabilities
@@ -61,8 +68,8 @@ In addition, it provides users to configure NTP source interface and NTP vrf. Fo
 ntp server 99.1.1.1
 ntp server pool.ntp.org
 ``` 
-Add/delete NTP server information in the Redis ConfigDB and in the ntp.conf file (NTP configuration file).   
-The NTP server can be IPv4 address, IPv6 address , or a ntp pool name.   
+Add/delete NTP server information in the Redis ConfigDB and in /etc/ntp.conf.   
+The NTP server can be IPv4 address, IPv6 address , or hostname.   
 Mutliple NTP servers can be configured.     
       
 #### 1.1.1.2 add/delete NTP source interface
@@ -83,14 +90,14 @@ ntp source-interface Management 0
 ```
     
 
-Add/delete the global NTP source interface in the Redis ConfigDB and in the ntp.conf file. The ip address of this interface will be used by ntpd as source ip for all NTP packets.     
-Only one NTP source interface can be configured. 
-Following interfaces can be used as NTP source interface,    
+Add/delete the global NTP source interface in the Redis ConfigDB and in /etc/ntp.conf. The ip address of this interface will be used by ntpd as source ip for all NTP packets.     
+Multiple NTP source interfaces can be configured. 
+Following interface types can be used as NTP source interface,    
 - Ethernet interface    
 - PortChannel    
 - Vlan interface    
 - Loopback interfacee    
-- eth0    
+- eth0(management interface)    
       
 #### 1.1.1.3 add/delete VRF name
 ```
@@ -109,20 +116,20 @@ For this release, only Management VRF and default instance are supported.
 show ntp association
 ```
 
-This displays the output of "ntpq -np" command.  
+This command displays the output of "ntpq -np" command.  
     
 #### 1.1.1.5 Overall Behavior related to NTP source interface and NTP vrf     
 ##### When mgmt VRF is configured      
 a.if no ntp vrf is configured, ntp service starts in mgmt VRF context by default           
 b.if "mgmt" is configured as NTP vrf, ntp service starts in mgmt VRF context        
-c.if "default" is configured as NTP vrf, ntp service starts in default vrf context      
+c.if "default" is again configured as NTP vrf, ntp service starts in default vrf context      
      
 ##### When mgmt VRF is not configured     
 ntp service always starts in default vrf context      
       
 ##### NTP source interface related      
-a.if NTP source interface has ip configured, ip address of this interface will be used as source ip for all ntp packets     
-b.if NTP source interface has no ip configured, it is treated as if no ntp source interface is configured     
+a.if a NTP source interface has IP address configured, the IP address will be used as source ip for all NTP packets exchanged with the respective NTP servers/clients    
+b.if a NTP source interface has no IP address configured, it is not being considered as an NTP source interface     
  
 #### 1.1.1.6 NTP authentication configuration
 NTP authentication enables an NTP client or peer to authenticate time received from their servers and peers.
@@ -132,8 +139,8 @@ NTP authentication enables an NTP client or peer to authenticate time received f
 ntp authenticate
 ```
 
-This command enable the NTP authentication feature
-    
+NTP server and NTP client use this command to enable the NTP authentication feature.
+        
 ##### ntp authentication-key
 ```
 ntp authentication-key 1 md5 "ntp client 1"
@@ -141,10 +148,10 @@ ntp authentication-key 1 md5 "ntp client 1"
 ntp authentication-key 2 md5 ntp_client2
 ```
     
-This command defines an authentication key with key number, authentication type and password.     
+NTP client uses this command to define an authentication key with key number, authentication type and password.     
 The key number is from 1 to 65535.     
 The authentication type supported is MD5, SHA1 and SHA2-256.     
-The password is configured with plaintext the first time. In runnning-configuration, it is encrypted with the flag "encrypted" at the end. Authentication key can then be configured with encrypted format and "encrypted" flag. 
+The password is configured with plaintext the first time. In runnning-configuration, it is encrypted and is indicated with "encrypted" at the end. Authentication key can then be configured with the encrypted format and "encrypted" flag. 
       
     
 ##### ntp trusted key
@@ -154,15 +161,15 @@ ntp trusted-key 1
 ntp trusted-key 2
 ```
     
-This command adds the list of key numbers that the NTP server must provide in its NTP packets in order for the NTP clients
-to synchronize to it.
+NTP server uses this command to add a list of key numbers that the NTP server must provide in its NTP packets in order for the NTP clients to synchronize to it.
+NTP client must configure a list with this command if it desires to authenticate the NTP server with any of the key number.      
 
 ##### ntp server key
 ```
 ntp server 99.1.1.1 key 1
 ```
      
-This command configures the key expected from a specific NTP server.
+NTP client uses this command to configure the key expected from a specific NTP server.        
 
 ### 1.1.2 Backend mechanisms to support configuration and get
 
@@ -191,9 +198,7 @@ This creates or deletes a NTP server entry in the Redis ConfigDB.
 ```
 
 A change in the NTP_SERVER entry triggers hostcfgd to start the NTP configuration script, which in turn writes each NTP server to the ntp.conf and then restart the ntp service.   
-   
-SONiC click CLI only supports IP address for NTP server. It can be extended to ntp pool name as well.   
-
+               
 
 #### 1.1.2.2 add/delete NTP source    
 
@@ -209,7 +214,6 @@ This creates or deletes a global NTP source interface entry in the Redis ConfigD
 ```
 
 A change in this entry triggers hostcfgd to start the NTP configuration script, which in turn writes the ntp source interface to the ntp.conf and then restart the ntp service.   
-Only one global NTP source entry is allowed.   
    
 SONiC click CLI can be extended to include this configuration.
     
@@ -238,7 +242,7 @@ Transformer function issues "ntpq -pn" command, parses the response and maps the
 
 #### 1.1.2.5 NTP authentication
      
-##### 1.1.2.5.1 enable or disable ntp authenticate 
+##### 1.1.2.5.1 Enable or disable ntp authenticate 
 
 When "authenticate" is enabled, "enable-ntp-auth" field is set to "true" in the NTP global entry, 
 
@@ -277,7 +281,7 @@ When an authentication key is configured with a key number, authentication type 
   }
 ```
         
-If "authenticate" is enabled, the file /etc/ntp.keys is populated with the configured authentication keys. The password in this file is in the plaintext format.
+If "authenticate" is enabled, the file /etc/ntp.keys is populated with the configured authentication keys. The password in this file is in the plaintext format. Only root user can read /etc/ntp.keys.
        
 When an ntp authentication key is removed, the ConfigDb and /etc/ntp.keys will be updated accordingly.
     
@@ -319,45 +323,64 @@ The file /etc/ntp.conf will be generated with the same key number for that NTP s
 server 99.1.1.1 iburst key 1
 ```
          
-##### 1.1.2.5.5 Sample ntp.conf and ntp.keys 
-###### Relevant entries in ntp.conf for NTP server
+##### 1.1.2.5.5 Sample NTP authentication CLI commands on NTP server and NTP client    
 ```
-keys /etc/ntp.keys
+NTP master ------------------------- SONiC switch ----------------------------------server
+Mgmt. IP: 100.94.121.15          mgmt. IP: 100.94.122.16  
+                                 Loopback100: 2001:aa:aa::1
 
-server 10.14.8.140 iburst
-
-# By default, exchange time with everybody, but don't allow configuration.
-restrict -4 default kod notrap nomodify nopeer noquery
-restrict -6 default kod notrap nomodify nopeer noquery
-
-interface listen Loopback100
-interface listen 127.0.0.1
-
-trustedkey 1 2
 ```
-     
-###### Relevant entries in ntp.keys on NTP server
-```
-1 MD5 ntp client 1
-2 MD5 ntp_client_2
-```
-      
-###### Relevant entries in ntp.conf on NTP client
-```
-keys /etc/ntp.keys
 
-server 99.1.1.1 iburst key 1
+Here the SONiC switch is a NTP client to the NTP master. It is also a NTP server to the downstream servers.    
+As a NTP client, SONiC switch uses NTP authentication to validate its NTP server.    
+As a NTP server, the downstream servers are the NTP client. It is up to the NTP client (server) whether NTP authentication is desired with its NTP server (SONiC switch).      
+SONiC switch can server as a NTP client and a NTP server simultaneously, with or without NTP authentication with either a remote NTP server or NTP client.           
+The NTP master reaches SONiC switch via its management interface. The downstream servers reach the SONiC switch via its front panel ports.        
+        
+###### Relevant CLI commmands on SONiC switch as NTP server
 
-interface listen Vlan100
-
-trustedkey 1
+```
+sonic(config)# ntp source-interface Loopback 100
+sonic(config)#ip vrf mgmt
+```
+        
+###### Relevant CLI commands on SONiC switch as NTP client 
+```
+sonic(config)#ntp authenticate
+sonic(config)#ntp authentication-key 1 MD5 force
+sonic(config)#ntp trusted-key 1
+sonic(config)#ntp server 100.94.121.15 key 1
+sonic(config)# ntp source-interface Management 0
+```
+              
+###### Relevant CLI commands on the server as NTP client without NTP authentication
+```
+sonic(config)#ntp server 2001:aa:aa::1 
+sonic(config)# ntp source-interface Vlan 100
 ``` 
       
-###### Relevant entries in ntp.keys on NTP client
+###### Relevant CLI commands for the server and SONiC switch with NTP authentication 
 ```
-1 MD5 ntp client 1
-```
+On the SONiC switch
 
+sonic(config)#ntp authenticate
+sonic(config)#ntp authentication-key 2 MD5 jungle 
+sonic(config)#ntp trusted-key 2
+sonic(config)# ntp source-interface Loopback 100
+sonic(config)#ip vrf mgmt
+```
+    
+```
+On the server
+
+sonic(config)#ntp authenticate
+sonic(config)#ntp authentication-key 2 MD5 jungle
+sonic(config)#ntp trusted-key 2
+sonic(config)#ntp server 2001:aa:aa::1 key 2 
+sonic(config)# ntp source-interface Vlan 100 
+
+```
+        
 ### 1.1.3 Functional Requirements      
 
 Provide management framework support to    
@@ -378,9 +401,9 @@ Details described in Section 3.
 - broadcast mode   
         
 ### 1.1.6 Scalability Requirements             
-Only 1 source interface, assuming the remote NTP peer has route to this source interface    
+Interface listening will not be enabled on all L3 interfaces. User can configure NTP source interfaces which are only a few.            
 Ntpd runs in one VRF context, default vrf or mgmt vrf.    
-Multiple ntp servers supported.    
+Multiple ntp servers supported, also only a few.           
     
 ### 1.1.7 Warm Boot Requirements         
 NA
@@ -420,10 +443,10 @@ SONiC click CLI enhancement if possible.
 If the management IP address is acquired via DHCP, and if the NTP server option specifies the NTP server, /etc/dhcp/dhclient-exit-hooks.d/ntp script will generate the file /var/lib/ntp/ntp.conf.dhcp. This file is a copy of the default /etc/ntp.conf with a modified server list from the DHCP server. 
 NTP daemon only uses one of the 2 files, and /var/lib/ntp/ntp.conf.dhcp takes precedence over the default /etc/ntp.conf. It is the existing behavior and is out of the scope of this HLD.
 
-NTP source-interface and NTP vrf discussed in the HLD are only guaranteed to take effect on the static configured NTP servers.
-For acquired NTP servers from DHCP server, NTP source-interface and NTP vrf will only take effect if /var/lib/ntp/ntp.conf.dhcp is generated based on the /etc/ntp.conf with user configured NTP source-interface.
+NTP source-interface, NTP vrf and NTP authentication discussed in the HLD are only guaranteed to take effect on the static configured NTP servers.
+For acquired NTP servers from DHCP server, NTP source-interface, NTP vrf and NTP authentication will only take effect if /var/lib/ntp/ntp.conf.dhcp is generated based on the /etc/ntp.conf with user configured NTP source-interface and NTP authentication.
 
-Applying the configured NTP source-interface and NTP vrf to acquired NTP servers from the DHCP server is not a requirement for this release.
+Applying the configured NTP source-interface, NTP vrf and NTP authentication to acquired NTP servers from the DHCP server is not a requirement for this release.
  
 # 3 Design    
 
@@ -471,14 +494,16 @@ Supported yang objects and attributes:
       |  +--rw config
       |  |  +--rw enabled?                           boolean
 +     |  |  +--rw enable-ntp-auth?                   boolean
-+     |  |  +--rw oc-sys-ext:ntp-source-interface?   oc-if:base-interface-ref
++     |  |  +--rw oc-sys-ext:ntp-source-interface*   oc-if:base-interface-ref
 +     |  |  +--rw oc-sys-ext:vrf?                    string
++     |  |  +--rw oc-sys-ext:trustedkey*             uint16
       |  +--ro state
       |  |  +--ro enabled?                           boolean
 +     |  |  +--ro enable-ntp-auth?                   boolean
       |  |  +--ro auth-mismatch?                     oc-yang:counter64
 +     |  |  +--ro oc-sys-ext:ntp-source-interface?   oc-if:base-interface-ref
 +     |  |  +--ro oc-sys-ext:vrf?                    string
++     |  |  +--rw oc-sys-ext:trustedkey*             uint16
 +     |  +--rw ntp-keys
 +     |  |  +--rw ntp-key* [key-id]
 +     |  |     +--rw key-id    -> ../config/key-id
@@ -510,12 +535,12 @@ Supported yang objects and attributes:
       |           +--ro association-type?        enumeration
       |           +--ro iburst?                  boolean
       |           +--ro prefer?                  boolean
-+     |           +--rw oc-sys-ext:key-id?       uint16
 +     |           +--ro stratum?                 uint8
       |           +--ro root-delay?              uint32
       |           +--ro root-dispersion?         uint64
       |           +--ro offset?                  uint64
 +     |           +--ro poll-interval?           uint32
++     |           +--rw oc-sys-ext:key-id?       uint16
 +     |           +--ro oc-sys-ext:peerdelay?    decimal64
 +     |           +--ro oc-sys-ext:peeroffset?   decimal64
 +     |           +--ro oc-sys-ext:peerjitter?   decimal64
@@ -528,25 +553,23 @@ Supported yang objects and attributes:
       
 ```diff
 module: sonic-system-ntp
-+  +--rw sonic-system-ntp
 +     +--rw NTP
 +     |  +--rw NTP_LIST* [global_key]
-+     |     +--rw global_key        enumeration
-+     |     +--rw src_intf?         union
-+     |     +--rw vrf?              union
-+     |     +--rw enable-ntp-auth?  boolean
++     |     +--rw global_key      enumeration
++     |     +--rw src_intf*       union
++     |     +--rw vrf?            union
++     |     +--rw auth_enabled?   boolean
 +     |     +--rw trustedkeys*    -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/key_id
 +     +--rw NTP_AUTHENTICATION_KEY
 +     |  +--rw NTP_AUTHENTICATION_KEY_LIST* [key_id]
 +     |     +--rw key_id           uint16
-+     |     +--rw key_type?        enumeration
-+     |     +--rw key_value?       string
++     |     +--rw key_type         enumeration
++     |     +--rw key_value        string
 +     |     +--rw key_encrypted?   boolean
 +     +--rw NTP_SERVER
 +        +--rw NTP_SERVER_LIST* [server_address]
 +           +--rw server_address    inet:host
 +           +--rw key_id?           -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/key_id
-
 ```
 
 ### 3.6.2 CLI
@@ -631,10 +654,14 @@ sonic(config)#
 ##### 3.6.2.1.4 Delete NTP source interface
 
 ```
-sonic(config)# no ntp source-interface
+sonic(config)# no ntp source-interface PortChannel 100
 
 ```
-    
+   
+```
+sonic(config)# no ntp source-interface
+```
+       
 ##### 3.6.2.1.5 Configure NTP vrf
 
 ```
@@ -755,8 +782,10 @@ sonic# show ntp global
 ----------------------------------------------
 NTP Global Configuration
 ----------------------------------------------
-NTP source-interface:   Ethernet24
-NTP vrf:                default
+NTP source-interface:   eth0
+                        Loopback100 
+                        
+NTP vrf:                mgmt 
 
 ``` 
 
@@ -779,22 +808,25 @@ ntp trusted-keys 1
 ntp trusted-keys 2 
 !
 
-sonic(config)# ntp server 10.11.0.1
-sonic(config)# ntp server pool.ntp.org
-sonic(config)# ntp source-interface Ethernet 16
-sonic(config)# do show running-configuration 
+sonic(config)#ntp server 10.11.0.1
+sonic(config)#ntp server pool.ntp.org
+sonic(config)#ntp source-interface Management 0
+sonic(config)#ntp source-interface Loopback 100 
+sonic(config)#do show running-configuration 
 !
 ntp server 10.11.0.1
 ntp server pool.ntp.org
-ntp source-interface Ethernet 16
+ntp source-interface Management 0
+ntp source-interface Loopback 100 
 !
 
-sonic(config)# no ntp source-interface 
+sonic(config)# no ntp source-interface Loopback 100 
 sonic(config)# ntp vrf mgmt 
 sonic(config)# do show running-configuration 
 !
 ntp server 10.11.0.1
 ntp server pool.ntp.org
+ntp source-interface Management 0
 ntp vrf mgmt
 !
 
@@ -803,6 +835,7 @@ sonic(config)# do show running-configuration
 !
 ntp server 10.11.0.1
 ntp server pool.ntp.org
+ntp source-interface Management 0
 ntp vrf default
 !
 
@@ -837,6 +870,8 @@ ifconfig lo-m
 
 show mgmt-vrf
 
+ntpq -pn
+
 ```
     
 #### 3.6.2.4 IS-CLI Compliance
@@ -869,22 +904,21 @@ The unit-test for this feature will include:
 
 | Test Name | Test Description |
 | :-------- | :----- |
-| Configure NTP server | Verify NTP servers are installed correctly in the configDB and reflected in the NTP peers |
-| Delete NTP server | Verify NTP server is deleted from the configDB and reflected in the NTP peers  |
+| Configure NTP server | Verify NTP servers are installed correctly in the configDB and reflected in the NTP peer status |
+| Delete NTP server | Verify NTP server is deleted from the configDB and reflected in the NTP peer status  |
 | Configure NTP source interface| Verify NTP source interface is installed correctly in the configDB, NTP packets are transmitted and received over this source |
-|                               | Verify that NTP source interface cannot be configured if NTP vrf is mgmt|
+|                               | Verify that multiple NTP source interfaces can be configured, for both default and mgmt vrf cases|
 | Delete NTP source interface| Verify that NTP source interface is removed from the configDB, NTP packets are transmitted and received over the default interface|
 | Configure NTP vrf| Verify that NTP vrf is installed correctly in the configDB and ntp service is running in the specified VRF|
 |                  | Verify that only default and mgmt can be configured as NTP vrf|
-|                  | Verify that mgmt cannot be configured as NTP vrf if NTP source interface is configured|
 | Delete NTP vrf| Verify that NTP vrf is removed from the configDB and ntp service is running in the default instance|
 | Configure NTP authentication for NTP server| Verify that NTP authentication-key can be created correctly|
 |                                            | Verify that NTP trusted-keys can be added correctly|
-|                                            | Verify that NTP authentiate can be enabled and disabled|
+|                                            | Verify that NTP authentication can be enabled and disabled|
 | Configure NTP authentication for NTP client| Verify that NTP authentication-key can be created correctly|
 |                                            | Verify that NTP trusted-keys can be added correctly|
 |                                            | Verify that key number can be added to a NTP server |
-|                                            | Verify that NTP authenticate can be enabled and disabled|
+|                                            | Verify that NTP authentication can be enabled and disabled|
 |                                            | Verify NTP server is accepted if authentication keys match on NTP server and NTP client|
 |                                            | Verify NTP server is rejected if authentication keys mismatch on NTP server and NTP client|
 | show ntp associations | Verify ntp associations are displayed correctly |
