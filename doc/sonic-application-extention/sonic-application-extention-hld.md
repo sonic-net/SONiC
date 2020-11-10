@@ -1283,18 +1283,11 @@ This will require to build a new image based on existing 3rd party Docker image 
 
 ### SONiC Build System
 
-SONiC build system will provide three docker images to be used as a base to build SONiC application extensions - *sonic-sdk-buildenv*, *sonic-sdk* and *sonic-sdk-dbg*.
+<!-- omit in toc -->
+#### SONiC SDK Docker Images
 
-*sonic-sdk-buildenv* will have common SONiC packages required to build SONiC application extension and will be a minimal version of sonic-slave container:
-
-- build-essential
-- libhiredis-dev
-- libnl*-dev
-- libswsscommon-dev
-- libsairedis-dev
-- libsaimeta-dev
-- libsaimetadata-dev
-- tools, etc.
+SONiC build system will provide three docker images to be used as a base to build SONiC application
+extensions - *sonic-sdk-buildenv*, *sonic-sdk* and *sonic-sdk-dbg*.
 
 *sonic-sdk* will be based on *docker-config-engine* with addition of packages needed at run time:
 
@@ -1306,8 +1299,80 @@ SONiC build system will provide three docker images to be used as a base to buil
 - libsaimeta
 - libsaimetadata
 
-Corresponding *-dbg* packages will be added for *sonic-sdk-dbg* image. A list of packages will be extended on demand when a common package is required by community.
-If a package is required but is specific to the SONiC application extension it should not be added to this list.
+Corresponding *-dbg* packages will be added for *sonic-sdk-dbg* image. A list of packages will be extended on demand
+when a common package is required by community. If a package is required but is specific to the SONiC package
+it should not be added to this list.
+
+*sonic-sdk-buildenv* is based on *sonic-sdk* and has common SONiC packages required to build SONiC package.
+The idea of this Docker image is a minimalistic sonic-slave container which contains only those packages which are
+SONiC specific. E.g. libswsscommon is SONiC specific as cannot be downloaded pre-built from Debian repositories.
+On the other hand, libteam and teamd are container specific and should be built per SONiC package which require these
+packages.
+
+The list of packages added to *sonic-sdk-buildenv* in addition to *sonic-sdk*:
+
+- build-essential
+- libhiredis-dev
+- libnl*-dev
+- libswsscommon-dev
+- libsairedis-dev
+- libsaimeta-dev
+- libsaimetadata-dev
+- tools, etc.
+
+<!-- omit in toc -->
+#### SONiC SDK Build Metadata
+
+The SDK images built should be labeled with metadata about the build to give the user an idea about base OS version
+compatibility as well as some core packages version compatibility. Packages like *libswsscommon* and *libsairedis*
+have a relation to database, swss, syncd containers they were built togather with.
+However, the packages dependencies contraints do not derive from these labels, instead a package maintainer
+must test and verify the package on a set of version range.
+
+The following list of labels are going to be used:
+
+```
+LABEL com.azure.sonic.sdk.versions.base-os
+LABEL com.azure.sonic.sdk.versions.config-engine
+LABEL com.azure.sonic.sdk.versions.database
+LABEL com.azure.sonic.sdk.versions.swss
+LABEL com.azure.sonic.sdk.versions.syncd
+```
+
+<!-- omit in toc -->
+#### SONiC SDK Usage with Docker Multi-Stage Builds
+
+The user of those Docker images can levarage Docker Multi-Stage Builds to efficiently use both build environment image
+and runtime image:
+
+```Dockerfile
+FROM sonic-sdk-buildenv:1.0.2 as buildenv
+
+WORKDIR /src/application
+RUN debuild -b -us -uc -j$(nproc)
+
+FROM sonic-sdk:1.0.2 as runenv
+
+COPY --from=buildenv /src/application_1.0.0_amd64.deb /tmp/
+RUN dpkg -i /tmp/application_1.0.0_amd64.deb
+
+ENTRYPOINT /usr/bin/application
+```
+
+<!-- omit in toc -->
+#### SONiC SDK Disk Space Usage Optimizations
+
+SONiC Packages might or might not use SONiC SDK but it is strongly advised to be based on SONiC SDK due to disk space optimizations.
+Ideally, all SONiC Packages use the same version of SONiC SDK; in this case Docker maintains a single copy of SONiC SDK image.
+The worst scenario will be when all SONiC Packages use different version of SONiC SDK and SONiC SDK use different versions of
+base debian distribution; in this case Docker will need to have copies of all base layers. This may increase the total size of
+SONiC image twice or more depending on the number of SONiC packages installed.
+
+Considering the fact that within a release the base debian Docker image does not change and SONiC SDK libraries change rarely
+comparing to the packages this should not be a big concern. The versioning information put in a labels of SONiC SDK Docker image
+may help the user to install or upgrade packages considering disk space optimization either manually or the sonic-package-manager
+might be extended with an option to do disk space optimization. In any case, while only limited number of Dockers will become SONiC
+packages this is not a big concern.
 
 ### SAI API
 
