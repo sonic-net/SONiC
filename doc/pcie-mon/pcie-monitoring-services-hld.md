@@ -1,6 +1,6 @@
 # SONiC PCIe Monitoring services HLD #
 
-### Rev 0.3 ###
+### Rev 0.4 ###
 
 ### Revision
  | Rev |     Date    |            Author            | Change Description                             |
@@ -10,6 +10,7 @@
  |     |             |                              | Add pcied to PMON for runtime monitoring       |
  | 0.3 |             | Arun Saravanan Balachandran  | Add AER stats update support in pcied          |
  |     |             |                              | Add command to display AER stats               |
+ | 0.4 |             | Arun Saravanan Balachandran  | Add platform API to collect AER stats          |
 
 ## About This Manual ##
 
@@ -127,7 +128,35 @@ For AER supported PCIe device, the AER stats belonging to severities `correctabl
 
 ### 2.2 PCIe AER stats collection in pcied ###
 
-For PCIe devices that pass PcieUtil `get_pcie_check`, the AER stats if available will be retrieved and updated in the STATE_DB periodically every minute by pcied.
+A common platform API `get_pcie_aer_stats` is defined in class `PcieBase` for retrieving AER stats of a PCIe device:
+
+```
+    @abc.abstractmethod
+    def get_pcie_aer_stats(self, domain, bus, dev, fn):
+        """
+        Returns a nested dictionary containing the AER stats belonging to a
+        PCIe device
+
+	Args:
+	    domain, bus, dev, fn: Domain, bus, device, function of the PCIe
+	    device respectively
+
+        Returns:
+            A nested dictionary where key is severity 'correctable', 'fatal' or
+            'non_fatal', value is a dictionary of key, value pairs in the format:
+		{'AER Error type': Error count}
+
+	    Ex. {'correctable': {'BadDLLP': 0, 'BadTLP': 0},
+		 'fatal': {'RxOF': 0, 'MalfTLP': 0},
+		 'non_fatal': {'RxOF': 0, 'MalfTLP': 0}}
+        """
+        return {}
+```
+
+Default `get_pcie_aer_stats`is implemented in PcieUtil class at sonic_platform_base/sonic_pcie/pcie_common.py.
+It returns the AER stats for a given PCIe device obtained from the AER sysfs under `/sys/bus/pci/devices/<Domain>:<Bus>:<Dev>.<Fn>`
+
+For PCIe devices that pass PcieUtil `get_pcie_check`, AER stats will be retrieved using `get_pcie_aer_stats` and updated in the STATE_DB periodically every minute by pcied.
 
 ### 2.3 STATE_DB keys and value ###
 
