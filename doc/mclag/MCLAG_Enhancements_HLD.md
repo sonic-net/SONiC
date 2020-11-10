@@ -184,7 +184,7 @@ This document captures the feature enhancements of SONiC ICCP MCLAG. This includ
 The following improvements are made in this enhancement: 
 
 - Convert FDB and VLAN related linked list to binary trees to improve scaling performance
-- When MCLAG node learns a new MAC address via ICCP from peer MCLAG node learned over remote orphan port, it sends a age notification back to peer to indicate MAC is locally aged, this updated is not necessary as MAC not learned locally. Avoid sending the local age notification back to peer MCLAG node each time a MAC address is learned from peer.  
+- When MCLAG node learns a new MAC address via ICCP from peer MCLAG node learned over remote orphan port, it sends a age notification back to peer to indicate MAC is locally aged, this update is not necessary as MAC not learned locally. Avoid sending the local age notification back to peer MCLAG node each time a MAC address is learned from peer.  
 
 ### 2.1.8 Isolation group support
 
@@ -278,6 +278,8 @@ ifname         = 1*64VCHAR        ; name of the MCLAG Interface (PortChannel)
 
 ```
 
+Note: Same PortChannel name (ifname) is required to configure across all the MCLAG peer nodes towards MHD. 
+
 #### 3.2.1.3 MCLAG UniqueIP Table
 
 Producer: Configuration
@@ -322,7 +324,7 @@ traffic_disable    = "true"/"false"    ;default is false
 
 Producer: MclagSyncd 
 Consumer: FdbOrch agent
-Description: New  table to stores the MAC addresses learned via ICCP. FdbOrch processes the FDB updates to program in HW.
+Description: New  table to store the MAC addresses learned via ICCP. FdbOrch processes the FDB updates to program in HW.
 
 ```    
 ; Stores MCLAG FDB entries which were learned via ICCP 
