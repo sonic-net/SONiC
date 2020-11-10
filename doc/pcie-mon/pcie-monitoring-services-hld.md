@@ -137,18 +137,21 @@ A common platform API `get_pcie_aer_stats` is defined in class `PcieBase` for re
         Returns a nested dictionary containing the AER stats belonging to a
         PCIe device
 
-	Args:
-	    domain, bus, dev, fn: Domain, bus, device, function of the PCIe
-	    device respectively
+        Args:
+            domain, bus, dev, fn: Domain, bus, device, function of the PCIe
+            device respectively
 
         Returns:
             A nested dictionary where key is severity 'correctable', 'fatal' or
             'non_fatal', value is a dictionary of key, value pairs in the format:
-		{'AER Error type': Error count}
+                {'AER Error type': Error count}
 
-	    Ex. {'correctable': {'BadDLLP': 0, 'BadTLP': 0},
-		 'fatal': {'RxOF': 0, 'MalfTLP': 0},
-		 'non_fatal': {'RxOF': 0, 'MalfTLP': 0}}
+            Ex. {'correctable': {'BadDLLP': 0, 'BadTLP': 0},
+                 'fatal': {'RxOF': 0, 'MalfTLP': 0},
+                 'non_fatal': {'RxOF': 0, 'MalfTLP': 0}}
+
+            For PCIe devices that do not support AER, the value for each severity
+            key is an empty dictionary.
         """
         return {}
 ```
