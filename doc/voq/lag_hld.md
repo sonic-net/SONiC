@@ -51,6 +51,8 @@ The audience for this document is expected to be familiar with the architecture 
 Link Aggregation Group with port members spanning more than one ASIC will not be supported. All other LAG related capabilities are expected to be supported on par with how SONiC supports LAG on a single asic system. Specifically the following are expected to be supported.
 *  Forwarding of traffic ingressing on one asic and egressing on anther ASIC via a LAG. Egress LAG member port selection must be on par with how it would happen if the ingress and egress ports were on the same asic.
 *  Use of LACP
+*  Dynamic creation/deletion of LAG.
+*  Dynamic changes to LAG membership configuration
 
 # 2 Design Constraints and Proposal
 The design must satisfy both of the following constraints
@@ -63,14 +65,14 @@ The following rules apply with regard to programming LAG information via SAI on 
 *  Every LAG needs to be created in SAI of all of the asics in the system. This is irrespective of which asic the member ports of a LAG "belong" to.
 *  The active member port list for each LAG should be the same in the SAI instance of every asic. 
 *  LAG members can be added and deleted at runtime. Any update to the member port list of any LAG must be propagated to all of the SAI instances.
-*  The chnages made to SAI for VOQ support allow the member port list for a LAG to be specified as a list of system ports
+*  The changes made to SAI for VOQ support allow the member port list for a LAG to be specified as a list of system ports
 *  SAI allows the application layer to specify a "LAG_ID" (SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID) as part of LAG creation. For a given LAG - the same value must be used on all the SAI instances.
 
 ## 2.3 High Level Proposal
-The high level proposal is described here. The details are in the sections that follow. Each asic SONiC instance is responsible for LAG and LAG member ports that belong to that asic. Among other things this includes processing the configuration and keeping the application database updated with each LAG and its member port list.
+The high level proposal is described here. The details are in the sections that follow. Each asic SONiC instance is responsible for LAG and LAG member ports that belong to that asic. Among other things this includes processing the configuration and keeping the application database updated with each LAG and its active member port list.
+*  The LAG configuration for an asic is limited to those LAGs which have its own network ports as members.
 *  Two new tables are defined and are a part of the Centralized Database CHASSIS_APP_DB. They are - "System LAG Table" and "System LAG Membership Table"
 *  The "System LAG Table" has an attribute called the "system_lag_id".
-*  Two new tables are defined and are a part of the Centralized Database CHASSIS_APP_DB. They are - "System LAG Table" and "System LAG Membership Table"
 *  The SONiC network stack instance associated with an asic updates the entries in these tables for LAG and LAG Members that are controlled by that asic.
 *  All of the asic SONiC instances subscribe to these two tables and receive updates for remote LAG and LAG membership changes. These updates are programmed into the asic via the SAI APIs.
 Please note that the only per asic SONiC components that are aware of a remote LAG are SWSS and SYNCD. Other components (like teamd for example) are only aware of local LAG.
@@ -79,8 +81,8 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 ### 3.1 Configuration
 
-* The **LAG configuration** in chassis is same as is done in non-chassis system except that the chassis LAG (system LAG) requires configuration of an additional attribute called "system_lag_id" in the PORTCHANNEL table. The system_lag_id is a non-zero number. This number is unique across the chassis system, which is used to indentify the correct lag while sending traffic across the chassis on LAG.
-* No changes in **LAG Member** configuration and **LAG Interface** configutations. PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table are used in the same way how they are used in non-chassis system.
+* A new configuration attribute called the "system_lag_id" is added to the PORTCHANNEL table. This attribute is required only for a Distributed VOQ System and must have a unique value for each LAG in the system. No other **LAG configuration** changes are required.
+* Also no changes are required for **LAG Member** configuration and **LAG Interface** configurations. PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table are used in the same way how they are used in non-chassis system.
 
 ### 3.2 Modules Design
 
