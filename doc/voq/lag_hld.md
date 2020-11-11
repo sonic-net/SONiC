@@ -111,7 +111,7 @@ Changes in orchagent/portsorch include:
  * Port structure enhancement to store the system lag info such as system lag name (alias), system lag id and switch_id.
  * Subscribing to SYSTEM_LAG_TABLE and SYSTEM_LAG_MEMBER_TABLE from CHASSIS_APP_DB 
  * Enhancements to lag and lag member processing tasks to process the entries from above mentioned tables in addition to processing LAG_TABLE and LAG_MEMBER_TABLE from local APP_DB. Same APIs are used for processing both local and remote LAGs with minor modifications
- * Vaidation for availability of givem system_lag_id and alerting if the given system_lag_id is already used.
+ * Vaidation for availability of given system_lag_id and alerting if the given system_lag_id is already used.
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
  * Syncing local LAG and LAG members to centralized database CHASSIS_APP_DB.
  * Creating entry in LAG_TABLE in STATE_DB for remote LAGs with system_lag_id and update LAG_TABLE entry with system_lag_id for local LAGs.
