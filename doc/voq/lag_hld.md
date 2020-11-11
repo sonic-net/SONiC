@@ -64,7 +64,7 @@ Each ASIC within the system is under the control of its own set of instances of 
 The following rules apply with regard to programming LAG information via SAI on a distributed VOQ system
 *  Every LAG needs to be created in SAI of all of the asics in the system. This is irrespective of which asic the member ports of a LAG "belong" to.
 *  The active member port list for each LAG should be the same in the SAI instance of every asic. 
-*  LAG members can be added and deleted at runtime. Any update to the member port list of any LAG must be propagated to all of the SAI instances.
+*  Any update to the member port list of any LAG must be propagated to all of the SAI instances.
 *  The changes made to SAI for VOQ support allow the member port list for a LAG to be specified as a list of system ports
 *  SAI allows the application layer to specify a "LAG_ID" (SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID) as part of LAG creation. For a given LAG - the same value must be used on all the SAI instances.
 
@@ -81,6 +81,7 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 ### 3.1 Configuration
 
+* The name of the LAG in the PORTCHANNEL table should be unique within the entire VOQ System.
 * A new configuration attribute called the "system_lag_id" is added to the PORTCHANNEL table. This attribute is required only for a Distributed VOQ System and must have a unique value for each LAG in the system. No other **LAG configuration** changes are required.
 * Also no changes are required for **LAG Member** configuration and **LAG Interface** configurations. PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table are used in the same way how they are used in non-chassis system.
 
@@ -88,22 +89,22 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 #### teamd: teammgrd
 
-teammgrd, while receving PortChannel configuration, validates the given system_lag_ld for whether it is already used or not. The STATE_DB LAG_TABLE entry is used for this validation. The same STATE_DB LAG_TABLE entry used for recording LAG state is used to record system_lag_id after a LAG id is created with it. If the given system_lag_id is found to be used already, team device will not be created.
+teammgrd, while receving PortChannel configuration, validates the given system_lag_ld for whether it is already used or not. The STATE_DB LAG_TABLE entry is used for this validation. If the given system_lag_id is found to be used already, team device will not be created.
 
 Changes in teamd/teammgrd include:
  * Retrieving "system_lag_id" from CONFIG_DB PortChannel configuration
- * Accessing STATE_DB LAG_TABLE to check availability
+ * Accessing STATE_DB LAG_TABLE to validate system_lag_id
 
 #### teamd: teamsyncd
 
-teamsyncd in teamd docker sends "system_lag_id" as additional information to orchagent. The configuration of PortChannel results in creation of team device in the kernel. Upon detection of this device, teamsyncd retrieves the "system_lag_id" corresponding to the team device from CONFIG_DB PORTCHANNEL table. This system_lag_id along with other PortChannel information are sent to APPL_DB LAB_TABLE
+teamsyncd in teamd docker sends "system_lag_id" as additional information to orchagent. The configuration of PortChannel results in creation of team device in the kernel. Upon detection of this device, teamsyncd retrieves the "system_lag_id" corresponding to the team device from CONFIG_DB PORTCHANNEL table. This system_lag_id along with other PortChannel information are sent to APPL_DB LAG_TABLE
 
 Changes in teamd/teamsyncd include:
  * Connection to CONFIG_DB to get system_lag_id of local LAG
- * Enhancements to the process to send lag to APPL_DB to include system_lag_id
+ * Enhancements to include system_lag_id in the information sent to the APPL_DB
 
 #### orchagent: portsorch
-**Local LAG**: portsorch sends the system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. This system_lag_id is the user supplied system_lag_id in the PortChannel entry from APPL_DB LAG_TABLE entry. After creating local LAG, the PortChannel with switch_id and system_lag_id is synced to SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. The lag members of the local LAG use local port ids. Any member addition/removal members to a local LAG is synced to SYSTEM_LAG_MEMBER_TABLE in centralized database CHASSIS_DB. While syncing lag members, the PortChannel name and system port alias of the local port members are used as the key. 
+**Local LAG**: portsorch sends the system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. This system_lag_id is the newly added attribute in the PortChannel entry from APPL_DB LAG_TABLE entry. After creating local LAG, the PortChannel with switch_id and system_lag_id is written to the SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. The lag members of the local LAG use local port ids. Any member addition/removal members to a local LAG is written to the SYSTEM_LAG_MEMBER_TABLE in centralized database CHASSIS_DB. For lag members, the PortChannel name and system port alias of the local port members are used as the key. 
 
 **Remote LAG**: To create LAG corresponding to the remote LAG, the system_lag_id will be from corresponding entry from SYSTEM_LAG_TABLE from CHASSIS_APP_DB. The Lag members for a remote LAG will be specified using the OID of the corresponding system port objects.
 
@@ -111,9 +112,9 @@ Changes in orchagent/portsorch include:
  * Port structure enhancement to store the system lag info such as system lag name (alias), system lag id and switch_id.
  * Subscribing to SYSTEM_LAG_TABLE and SYSTEM_LAG_MEMBER_TABLE from CHASSIS_APP_DB 
  * Enhancements to lag and lag member processing tasks to process the entries from above mentioned tables in addition to processing LAG_TABLE and LAG_MEMBER_TABLE from local APP_DB. Same APIs are used for processing both local and remote LAGs with minor modifications
- * Vaidation for availability of given system_lag_id and alerting if the given system_lag_id is already used.
+ * Validation of system_lag_id and generating a waring/log message if the validation fails.
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
- * Syncing local LAG and LAG members to centralized database CHASSIS_APP_DB.
+ * Writing local LAG and LAG members to centralized database CHASSIS_APP_DB.
  * Creating entry in LAG_TABLE in STATE_DB for remote LAGs with system_lag_id and update LAG_TABLE entry with system_lag_id for local LAGs.
 
 ## 4 Databases
