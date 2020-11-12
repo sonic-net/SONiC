@@ -202,7 +202,7 @@ fwutil
 |    |--- status
 |    |--- updates -i|--image=<current|next>
 |    |--- updates -z|--fw-image=<fw_package.tar.gz>
-|    |--- auto-update status
+|    |--- auto_update_status
 |
 |--- install
 |    |--- chassis
@@ -222,7 +222,7 @@ fwutil
 |         |--- component <component_name>
 |              |--- fw -y|--yes -f|--force -i|--image=<current|next>
 |
-|--- auto-update
+|--- auto_update
      |--- fw -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
      |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
 
@@ -310,19 +310,20 @@ Chassis1           BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH
 4. Custom FW Package when the "boot" key and value are available in `platform_components.json`
 ```bash
 root@sonic:~# fwutil show updates --fw-image=fw_update.tar.gz
-Component   Firmware               Version (current/available)              Status
-----------  ---------------------  ---------------------------------------  ------------------
-CPLD        cpld.bin               5 / 10                                   update is required
-SSD         ssd.bin                4 / 5                                    update is required
+Chassis   Module    Component   Firmware                       Version (current/available)              Status
+--------  -------   ----------  -----------------------------  ---------------------------------------  ------------------
+Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10                                   update is required
+                    SSD         <fwpackage_path>/ssd.bin       4 / 5                                    update is required
 ```
 
 5. Auto-update status
 ```bash
-root@sonic:~# fwutil show auto-update status
-Component   Firmware               Version (current/available)              Status
-----------  ---------------------  ---------------------------------------  -------------------------
-CPLD        <image_path>/cpld.bin  5 / 10                                   updated but need a power-cycle
-SSD         <image_path>/ssd.bin   4 / 5                                    scheduled in cold reboot
+root@sonic:~# fwutil show auto_update_status
+Firmware auto-update performed for cold reboot
+Component      Status    Info
+-------------  --------  ---------
+MSN2700/SSD    True      installed
+MSN2700/CPLD1  True      installed
 ```
 
 **Supported options:**
@@ -554,50 +555,51 @@ New component api is introduced to support the component firmware auto-update as
         """
         raise NotImplementedError
 ```
-The installed and updated firmware information and scheduled task should be logged in "<boot_type>_fw_auto_update" under "/tmp/fwupdate/" directory. This allows that fwutil to recognize the firmware auto-update status and handle any further firmware auto-update request.
-The "<boot_type>_fw_auto_update" is expected to be formatted as below.
+The installed and updated firmware information and scheduled task should be logged in "<boot_type>_fw_auto_update" under "/tmp/firmwareupdate/" directory. Since each platform plugin will parse the <boot_type>_auto_update file to perform the update during the reboot, the contents can be defined and used by the platform vendors.
+
+This allows that fwutil to recognize the firmware auto-update status and handle any further firmware auto-update request along with fw_auto_updated_status which contains the performed auto-updated status information.
+The "fw_auto_updated_status" is located at /tmp/firmwareupdate/ directory same as reboot task file and it will be formatted and contains the component's firmware auto-updated status information as below and parsed for `fwutil show auto_updated_status` command.
+
 ```
 {
-    "chassis": {
-        "Chassis1": {
-            "component": {
-                "COMPONENT1": {
-                    "status": "<updated|installed|scheduled>",
-                    "task": "<none|powercycle|reboot|schedule>"
-                },
-                "COMPONENT2": {
-                    "status": "<updated|installed|scheduled>",
-                    "task": "<none|powercycle|reboot|schedule>"
-                },
-            }
+    "<boot_type>": [
+        {
+            "status": <true/false>,
+            "comp": "<component_path>",
+            "info": "<installed/updated/scheduled/ErrorMsg>"
+        },
+        {
+            "status": <true/false>,
+            "comp": "<component_path>",
+            "info": "<installed/updated/scheduled/ErrorMsg>"
         }
-    },
+    ]
 }
 ```
-Here is the example of the firmware update task file with cold reboot as boot_type action.
+Here is the example of the firmware update status file with cold reboot as boot_type action.
 And the components available for the update are BIOS, CPLD, and SSD.
 In this example, BIOS firmware got updated, CPLD firmware got installed but powercycle* is needed, and SSD firmware update is scheduled during boot.
 *powercycle can be triggered by cold reboot script in this case.
 ```
+admin@sonic:~/fwutil$ cat /tmp/firmwareupdate/fw_auto_update_status
 {
-    "chassis": {
-        "Chassis1": {
-            "component": {
-                "BIOS": {
-                    "status": "updated",
-                    "task": "N/A"
-                },
-                "CPLD": {
-                    "status": "installed",
-                    "task": "powercycle"
-                },
-                "SSD": {
-                    "status": "scheduled",
-                    "task": "update"
-                }
-            }
+    "cold": [
+        {
+            "status": true,
+            "comp": "MSN2700/BIOS",
+            "info": "updated"
+        },
+        {
+            "status": true,
+            "comp": "MSN2700/SSD",
+            "info": "scheduled"
+        },
+        {
+            "status": true,
+            "comp": "MSN2700/CPLD1",
+            "info": "installed"
         }
-    },
+    ]
 }
 ```
 
@@ -630,15 +632,15 @@ to interfere with the fwutil to support the auto-update command - mainly status 
 1. auto-update command for installation and reboot task creation
 ```bash
 root@sonic:~# fwutil auto-update fw --yes --image=<current|next> --boot=<boot_type>
-<COMPONENT1> firmware auto-update starting: <firmware_path> with <boot_type>
+<COMPONENT1_PATH> firmware auto-update starting: <firmware_path> with <boot_type>
 ...
-<COMPONENT1> firmware auto-update status: <status> with <info>
+<COMPONENT1_PATH> firmware auto-update status: <status> with <info>
 ...
-<COMPONENT2> firmware auto-update starting: <firmware_path> with <boot_type>
+<COMPONENT2_PATH> firmware auto-update starting: <firmware_path> with <boot_type>
 ...
-<COMPONENT2> firmware auto-update status: <status> with <info>
+<COMPONENT2_PATH> firmware auto-update status: <status> with <info>
 ...
-All firmware update has been completed.
+All firmware auto-update has been performed.
 ```
 
 This is examples of a platform which supports the SSD firmware update during fast reboot and cold reboot with different commands
@@ -649,15 +651,16 @@ BIOS firmware update is going to be updated and no further task is needed during
 SSD firmware update is logged in a platform defined designated file and it will be updated during fast-reboot.
 ```bash
 root@sonic:~# fwutil auto-update fw --yes --image=next --boot=fast
-BIOS firmware auto-update starting: bios.bin with fast
+Firmware auto-update for boot_type fast is allowed
+MSN2700/BIOS firmware auto-update starting: /lib/firmware/mlnx/bios.bin with fast
 ...
 BIOS firmware auto-update status: True with Updated
 ...
-SSD firmware auto-update starting: ssd.bin with fast
+MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with fast
 ...
 SSD firmware auto-update status: True with Scheduled
 ...
-All firmware update has been completed.
+All firmware auto-update has been performed.
 ```
 Example 2: BIOS, SSD and CPLD update is available for cold reboot upgrade path.
 BIOS firmware update is going to be updated and no further task is needed during reboot.
@@ -666,19 +669,33 @@ CPLD firmware update is going to be done with this command and the CPLD completi
 once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
 ```bash
 root@sonic:~# fwutil auto-update fw --yes --image=next --boot=cold
-BIOS firmware auto-update starting: bios.bin with cold
+Firmware auto-update for boot_type cold is allowed
+MSN2700/BIOS firmware auto-update starting: /lib/firmware/mlnx/bios.bin with cold
 ...
 BIOS firmware auto-update status: True with Updated
 ...
-SSD firmware auto-update starting: ssd.bin with cold
+MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with cold
 ...
 SSD firmware auto-update status: True with Scheduled
 ...
-CPLD firmware auto-update starting: cpld.bin with cold
+MSN2700/CPLD firmware auto-update starting: /lib/firware/mlnx/cpld.bin with cold
 ...
 CPLD firmware auto-update status: True with Installed
+All firmware auto-update has been performed.
+```
+
+Example 3: SSD and CPLD update is available for cold reboot upgrade path.
+BIOS firmware update is going to be updated and no further task is needed during reboot.
+SSD firmware update is logged in a platform defined designated file and it will be updated during cold reboot.
+CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot
+once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
+```
+admin@sonic:~# sudo fwutil auto_update fw --fw_image=fwpackage.tar.gz --boot=cold
+Firmware auto-update for boot_type cold is allowed
+MSN2700/CPLD1 firmware auto-update starting: /tmp/firmwareupdate/fwpackage/fwpackage/sn2700_cpld.mpfa with boot_type cold
 ...
-All firmware update has been completed.
+CPLD1 firmware auto-update status: True with installed
+All firmware auto-update has been performed.
 ```
 
 **Supported options:**
