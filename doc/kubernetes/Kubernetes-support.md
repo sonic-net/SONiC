@@ -496,6 +496,29 @@ The same instance, which carries system level config like TACACS, syslog, ...
 * The hostcfgd would watch all instances of STATE-DB to make effect.
    
 
+# Kubernetes cluster unreachable impacts
+The kubernetes deployment is initiated & managed by Kubernetes master, through kubelet agent running in switch. This signifies the need for High-avaialbility of master. To meet the requirement, the kubernetes is installed as a cluster of 3 or 5 masters, under a single VIP. Despite all this, there are always scenarios where a node may lose its connectivity to Kubernetes master. Here are some heads-up and expected reactions.
+
+* kubelet will continue to retry until it is connected to master.
+* kubelet will continue to work per last context received from master
+  * Say master applied manifest for "feature-foo" version "1.0.0" and it is successfully deployed in node
+  * Say, later master become unreachable
+  * Say, user removes the feature-foo manifest at master.
+  * But node will continue to run feature-foo and infact, if it would crash/restarted, kubelet will re-deploy, as kubelet is not aware of the manifest removal.
+  * The feature-foo will be undeployed, only upon node reaching master (which is in future)
+  
+* SONiC impacts
+  * When using new manifests for version upgrade, the older one may not get removed (as per master plan), but continue to run while higher version is already running.
+  * kubelet could deploy a feature, when any of the following is true.
+    * systemctl stopped the feature (systemct status down)
+    * Ownership of the feature switched to "local"
+    * A higher version of the same feature running
+    * This version of the feature is expliciltly blocked locally by node.
+    
+* SONiC handling:
+
+  Whenever a container comes up, the start.sh is expected to call "container_startup.py". This script would check the current status of the node and if this deployment is incorrect/unexpected, it puts this start script to sleep forever with periodic logs.
+  
 # Manifests generation:
 ***NOTE***: The discussion below on manifests generation is outside the scope of this doc.
 
