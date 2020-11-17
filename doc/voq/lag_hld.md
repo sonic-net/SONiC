@@ -97,7 +97,7 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 Changes in orchagent/portsorch include: 
  * Port structure enhancement to store the system lag info such as system lag name (alias), system lag id and switch_id.
- * Connecting to SYSTEM_LAG_ID_ALLOC_TABLE in CHASSIS_APP_DB to get allocated unique system_lad_id
+ * Getting a chassis wide unique system_lag_id from centralized databse using lua script that atomizes the alocation/deallocation of system_lag_id globally
  * Subscribing to SYSTEM_LAG_TABLE and SYSTEM_LAG_MEMBER_TABLE from CHASSIS_APP_DB 
  * Enhancements to lag and lag member processing tasks to process the entries from above mentioned tables in addition to processing LAG_TABLE and LAG_MEMBER_TABLE from local APP_DB. Same APIs are used for processing both local and remote LAGs with minor modifications
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
@@ -203,22 +203,72 @@ key                 = SYSTEM_LAG_MEMBER_TABLE|system lag name|System port name
 ```
 The System port name used in the key is the system port alias of the member of the LAG and system lag name is the PortChannel name used to create LAGs locally.
 
-#### System LAG Id Alloc Table
-This is a new table added for allocating and de-allocating system wide unique system_lag_id when requested by orchagent. This table has one entry for the global system_lag_id storage. This storage tracks the allocated system_lag_id-s. This is updated after allocation (while creating LAG) and de-allocation (while removing LAG).
+#### System LAG ID Start
+This a simple variable that is initialized during system start by supervisor card. This holds the starting number of the system_lag_id pool
+```
+SYSTEM_LAG_ID_START
+```
+**Schema:**
 
 ```
-SYSTEM_LAG_ID_ALLOC_TABLE:{"chassis_system_lag_id"}
+; Defines schema for SYSTEM_LAG_ID_START variable
+key                       = ""
+; field                   = value
+SYSTEM_LAG_ID_START       = 1*10DIGIT                                       ; Start of the system_lag_id pool
+```
+#### System LAG ID End
+This a simple variable that is initialized during system start by supervisor card. This holds the ending (last) number of the system_lag_id pool
+```
+SYSTEM_LAG_ID_END
+```
+**Schema:**
+
+```
+; Defines schema for SYSTEM_LAG_ID_END variable
+key                       = ""
+; field                   = value
+SYSTEM_LAG_ID_END       = 1*10DIGIT                                       ; End of the system_lag_id pool
+```
+
+#### System LAG ID Usage Table
+This is a new table added for storing system_lag_id that are allocated and currently in use in whole chassis.
+
+```
+SYSTEM_LAG_ID_USAGE_TABLE:{{system lag name}}
     "system_lag_id": {{index_number}}
 ```
 
 **Schema:**
 
 ```
-; Defines schema for SYSTEM_LAG_ID_ALLOC_TABLE table attributes
-key                 = SYSTEM_LAG_ID_ALLOC_TABLE|"chassis_system_lag_id"   ; Name system_lag_id storage
+; Defines schema for SYSTEM_LAG_ID_USAGE_TABLE table attributes
+key                 = SYSTEM_LAG_ID_USAGE_TABLE|{{system lag name}}   ; System lag name
 ; field             = value
-system_lag_id       = 1*10DIGIT                                           ; system_lag_id storage
+system_lag_id       = 1*10DIGIT                                       ; system_lag_id used by system lag 
 ```
+
+#### System LAG ID SET
+A SET used to store all the allocated system_lag_id as set data structure.
+
+```
+SYSTEM_LAG_ID_SET: {
+    <allocated system_lag_id 1>,
+    <allocated system_lag_id 2>,
+    .
+    .
+    .
+}
+```
+**Schema:**
+
+```
+; Defines schema for SYSTEM_LAG_ID_SET
+key                 = SYSTEM_LAG_ID_SET   ; System set key
+; values
+""                  = 1*10DIGIT           ; One or ore of system_lag_id values 
+```
+
+The system_lag_id allocation/deallocation works by accessing centralized database using a lua scipt that uses system lag id start (SYSTEM_LAG_ID_START), system lag id end (SYSTEM_LAG_ID_END), list of port channels with their system_lag_id-s (SYSTEM_LAG_ID_USAGE) and set of used system lag id (SYSTEM_LAG_ID) are used. When ADD is requested while creating LAG, an available system_lag id is allocated form the pool of system_lag_ids bound between SYSTEM_LAG_ID_START and SYSTEM_LAG_ID_END. When DEL is requested, while removing LAG, the given system LAG released into the pool.
 
 ## 5 SAI
 Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for LAG in VOQ chassis systems
