@@ -72,7 +72,7 @@ The following rules apply with regard to programming LAG information via SAI on 
 The high level proposal is described here. The details are in the sections that follow. Each asic SONiC instance is responsible for LAG and LAG member ports that belong to that asic. Among other things this includes processing the configuration and keeping the application database updated with each LAG and its active member port list.
 *  The LAG configuration for an asic is limited to those LAGs which have its own network ports as members.
 *  Two new tables are defined and are a part of the Centralized Database CHASSIS_APP_DB. They are - "System LAG Table" and "System LAG Membership Table"
-*  The "System LAG Table" has an attribute called the "system_lag_id".
+*  The "System LAG Table" has an attribute called the "system_lag_id". This attribute will be automatically generated (mechanism is described further down in this document).
 *  The SONiC network stack instance associated with an asic updates the entries in these tables for LAG and LAG Members that are controlled by that asic.
 *  All of the asic SONiC instances subscribe to these two tables and receive updates for remote LAG and LAG membership changes. These updates are programmed into the asic via the SAI APIs.
 Please note that the only per asic SONiC components that are aware of a remote LAG are SWSS and SYNCD. Other components (like teamd for example) are only aware of local LAG.
@@ -94,11 +94,11 @@ Please note that the only per asic SONiC components that are aware of a remote L
 #### orchagent: portsorch
 **Local LAG**: portsorch obtains a system wide unique system_lag_id from centralized database CHASSIS_APP_DB. portsorch sends this system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. After creating local LAG, the PortChannel with switch_id and system_lag_id is written to the SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. The lag members of the local LAG use local port ids. Any member addition/removal members to a local LAG is written to the SYSTEM_LAG_MEMBER_TABLE in centralized database CHASSIS_DB. For lag members, the PortChannel name and system port alias of the local port members are used as the key. 
 
-**Remote LAG**: To create LAG corresponding to the remote LAG, the system_lag_id will be from corresponding entry from SYSTEM_LAG_TABLE from CHASSIS_APP_DB. The Lag members for a remote LAG will be specified using the OID of the corresponding system port objects.
+**Remote LAG**: To create LAG corresponding to a LAG on another asic, the system_lag_id will be from corresponding entry in the SYSTEM_LAG_TABLE from CHASSIS_APP_DB. The Lag members for a remote LAG will be specified using the OID of the corresponding system port objects.
 
 Changes in orchagent/portsorch include: 
  * Port structure enhancement to store the system lag info such as system lag name (alias), system lag id and switch_id.
- * Getting a chassis wide unique system_lag_id from centralized databse using lua script that atomizes the alocation/deallocation of system_lag_id globally
+ * Getting a chassis wide unique system_lag_id from centralized databse using lua script that can do atomic allocation/deallocation of system_lag_id globally
  * Subscribing to SYSTEM_LAG_TABLE and SYSTEM_LAG_MEMBER_TABLE from CHASSIS_APP_DB 
  * Enhancements to lag and lag member processing tasks to process the entries from above mentioned tables in addition to processing LAG_TABLE and LAG_MEMBER_TABLE from local APP_DB. Same APIs are used for processing both local and remote LAGs with minor modifications
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
@@ -106,7 +106,7 @@ Changes in orchagent/portsorch include:
 
 ### 3.3 System LAG ID management
 
-redis-server running on supervisor module will keep tracke unique id allocation and also allocate unique id in a **atomic fashion** for all sonic instance. Boundaries of the system lag id will be loaded from platform specific init upon chassis-app-db in the supervisor node. This configuration will be specificed under /device/<vendor>/<sku>/chassis-sai.conf.
+redis-server running on supervisor module is responsible for allocation of a unique system_lag_id for for each LAG and also keeps track of allocated values. This is done in an  **atomic fashion** for all sonic instance. Boundaries of the system lag id will be loaded from platform specific init upon chassis-app-db in the supervisor node. This configuration will be specificed under /device/<vendor>/<sku>/chassis-sai.conf.
 
 for example
 
