@@ -26,6 +26,7 @@
 | 1 | Aug-28 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Initial Version |
 | 1.1 | Sep-1 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Add hotswap handling |
 | 2 | Oct-20 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Update counter information |
+| 2.1 | Nov-17 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Minor update on container starts |
 
 # About this Manual
 
@@ -134,6 +135,8 @@ Since the fabric ASIC doesn’t need lldp, bgpd and teamd containers to run, sys
 2,lldp,teamd,bgp
 ```
 will not start lldp, teamd and bgp containers for ASICs 0, 1 and 2.
+
+NOTE: Longer term, we would like to use the FEATURE table to control which containers need to be started for fabric chips. However, that requires multi-ASIC support for the FEATURE table. This will be pursued as a separate project.
 
 ## 2.4 Fabric Card Hotswap
 
