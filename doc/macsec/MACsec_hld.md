@@ -701,13 +701,20 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 ##### State Change Actions
 
+- Create MACsec Port
+  - Insert MACsec filters into `HostInterfaceInfo` and drop all non-EAPOL traffic.
+- Create MACsec (Egress) SC
+  - Create MACsec device and MACsec forwarder.
 - Create MACsec SA
   - Try to create MACsec SA. But if ACL entry isn't set to MACsec flow, this action will not be delivered to MACsec Manager to create MACsec SA.
 - Set ACL Entry to MACsec Flow
   - Set ACL entry to MACsec flow or default action. If the action is set to MACsec flow, it should notify MACsecManager to create MACsec SAs under the corresponding MACsec flow. Otherwise to notify MACsecManager to delete all MACsec SAs under this flow.
 - Remove MACsec Port
+  - Remove MACsec filters from `HostInterfaceInfo`.
 - Remove MACsec SC
+  - Remove MACsec forwarder and MACsec device.
 - Remove MACsec SA
+  - If all MACsec SA in a MACsec SC have been removed, To remove the corresponding MACsec SC.
 - Get MACsec SA packet number
 
 ##### MACsec Actions
