@@ -21,6 +21,7 @@
   * [3 Design Details](#3-design-details)
     * [3.1 Configuration](#31-configuration)
     * [3.2 Modules Design](#32-modules-design)
+    * [3.3 System LAG ID management](#33-system-lag-id-management)
   * [4 Databases](#4-databases)
     * [4.1 CONFIG_DB](#41-config_db) 
     * [4.2 APPL_DB](#42-appl_db) 
@@ -103,6 +104,53 @@ Changes in orchagent/portsorch include:
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
  * Writing local LAG and LAG members to centralized database CHASSIS_APP_DB.
 
+### 3.3 System LAG ID management
+
+redis-server running on supervisor module will keep tracke unique id allocation and also allocate unique id in a **atomic fashion** for all sonic instance. Boundaries of the system lag id will be loaded from platform specific init upon chassis-app-db in the supervisor node. This configuration will be specificed under /device/<vendor>/<sku>/chassis-sai.conf.
+
+for example
+
+```
+SYSTEM_LAG_ID_START=1
+SYSTEM_LAG_ID_END=100
+```
+
+Below are abstract API's for managing unique system lag id. All these api's will be run under redis-server as lua extention to obtain unique id allocation.
+
+lag_id_add(<key>, <id=current-id>) 
+{
+  // if current-id != 0
+      {
+           check key exist and current-id = found-id, return found-id.
+           check if current-id is free and allocate current id and return it.
+      }
+  // check key exist and return found-id.
+  // else allocate unique id within the range. 
+  // return -1 if all id's already used up. 
+}
+
+lag_id_delete(<key>)
+{
+  // free id and return non-zero if freed.
+  // return 0 if key not found
+}
+
+lag_id_get(<key>)
+{
+  // return -1 if key not exists. 
+  // else return found-id.
+}
+
+Restart scenario's:
+
+1. Restart of FSI or single Sonic Instance 
+
+When sonic instance gets restarted and orchagent comes up with warmboot mode, it will try readd existing system_lag_id using lag_id_add and passing previously allocated id. If this id is free or matches with existing key, same id will be allocated and used. 
+
+2. Restart SSI or global redis server
+
+For initial implementation, restart of SSI or global redis server **without warmboot**, all sonic instances will be exit as well. This is inline with current pizza box implementation. When we support database with graceful restart, these unique lag-id can be readded from Orchagent.
+
 ## 4 Databases
 
 ### 4.1 CONFIG_DB
@@ -184,7 +232,7 @@ key                 = SYSTEM_LAG_TABLE|system lag name   ; System LAG name
 system_lag_id       = 1*10DIGIT                          ; LAG id.
 switch_id           = 1*4DIGIT                           ; Switch id
 ```
-The the system lag name in the key is unique across chassis system. This is the name of the PortChannel locally created. 
+{{system lag name}} is unique name across sonic instance of the chassis. {{system lag name}} is dervied out of local port channel name, slot and asic like PortChannel<P>_Slot<N>_Asic<X>.
 
 #### System LAG Member Table
 This is a new table added to sync local PortChannel Members to centralized database so facilitate remote asics to add/remove remote members to/from LAGs. This table contains entries synced by different asics of the chassis system.
@@ -204,7 +252,7 @@ key                 = SYSTEM_LAG_MEMBER_TABLE|system lag name|System port name
 The System port name used in the key is the system port alias of the member of the LAG and system lag name is the PortChannel name used to create LAGs locally.
 
 #### System LAG ID Start
-This a simple variable that is initialized during system start by supervisor card. This holds the starting number of the system_lag_id pool
+This a simple variable that is initialized during system start by supervisor card upon chassis_app_db init. This holds the starting number of the system_lag_id pool
 ```
 SYSTEM_LAG_ID_START
 ```
@@ -230,21 +278,21 @@ key                       = ""
 SYSTEM_LAG_ID_END       = 1*10DIGIT                                       ; End of the system_lag_id pool
 ```
 
-#### System LAG ID Usage Table
+#### System LAG ID Table
 This is a new table added for storing system_lag_id that are allocated and currently in use in whole chassis.
 
 ```
-SYSTEM_LAG_ID_USAGE_TABLE:{{system lag name}}
+SYSTEM_LAG_ID_TABLE:{{system lag name}}
     "system_lag_id": {{index_number}}
 ```
 
 **Schema:**
 
 ```
-; Defines schema for SYSTEM_LAG_ID_USAGE_TABLE table attributes
-key                 = SYSTEM_LAG_ID_USAGE_TABLE|{{system lag name}}   ; System lag name
+; Defines schema for SYSTEM_LAG_ID_TABLE table attributes
+key                 = SYSTEM_LAG_ID_TABLE|{{system lag name}}   ; System lag name
 ; field             = value
-system_lag_id       = 1*10DIGIT                                       ; system_lag_id used by system lag 
+system_lag_id       = 1*10DIGIT                                 ; system_lag_id used by system lag 
 ```
 
 #### System LAG ID SET
