@@ -117,6 +117,7 @@ SYSTEM_LAG_ID_END=100
 
 Below are abstract API's for managing unique system lag id. All these api's will be run under redis-server as lua extention to obtain unique id allocation.
 
+```
 lag_id_add(<key>, <id=current-id>) 
 {
   // if current-id != 0
@@ -141,13 +142,15 @@ lag_id_get(<key>)
   // else return found-id.
 }
 
-Restart scenario's:
+```
 
-1. Restart of FSI or single Sonic Instance 
+#### Restart scenario's:
+
+##### Restart of FSI or single Sonic Instance 
 
 When sonic instance gets restarted and orchagent comes up with warmboot mode, it will try readd existing system_lag_id using lag_id_add and passing previously allocated id. If this id is free or matches with existing key, same id will be allocated and used. 
 
-2. Restart SSI or global redis server
+##### Restart SSI or global redis server
 
 For initial implementation, restart of SSI or global redis server **without warmboot**, all sonic instances will be exit as well. This is inline with current pizza box implementation. When we support database with graceful restart, these unique lag-id can be readded from Orchagent.
 
