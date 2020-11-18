@@ -463,7 +463,6 @@ The system port configuration has the parameters listed below.
 
 
 ###### Table 3.3: Neighbor Entry SAI attributes (Existing table). Entry key {{ip_address}}:{{rif_id of system_port}}:{{switch_id}}
-
 | Neibhbor component                             | SAI attribute                                         |
 |------------------------------------------------|-------------------------------------------------------|
 | Destination MAC                                | SAI_NEIGHBOR_ENTRY_ATTR_DST_MAC_ADDRESS               |
