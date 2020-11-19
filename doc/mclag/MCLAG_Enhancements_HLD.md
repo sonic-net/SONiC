@@ -39,7 +39,7 @@ Rev 0.1
 		- [3.2.3 STATE DB](#3_2_3-STATE-DB)
 			- *[3.2.3.1 STATE_MCLAG_TABLE](#3_2_3_1-STATE_MCLAG_TABLE)*
 			- *[3.2.3.2 STATE_MCLAG_REMOTE_INTF_TABLE](#3_2_3_2-STATE_MCLAG_REMOTE_INTF_TABLE)*
-			- *[3.2.3.3 STATE_MCLAG_ARP_FDB_TABLE](#3_2_3_3-STATE_MCLAG_ARP_FDB_TABLE)*
+			- *[3.2.3.3 STATE_MCLAG_REMOTE_FDB_TABLE](#3_2_3_3-STATE_MCLAG_REMOTE_FDB_TABLE)*
 	- [3.3 ICCP Changes](#3_3-ICCP-Changes)
 		- [3.3.1 MCLAG interface flap handling](#3_3_1-MCLAG-interface-flap-handling)
 		- [3.3.2 MCLAG configuration change handling](#3_3_2-MCLAG-configuration-change-handling)
@@ -55,7 +55,7 @@ Rev 0.1
 			- *[3.4.1.1 Isolation group orch agent](#3_4_1_1-Isolation-group-orch-agent)*
 			- *[3.4.1.2 PortsOrch Changes](#3_4_1_2-PortsOrch-Changes)*
 			- *[3.4.1.3 FdbOrch Changes](#3_4_1_3-FdbOrch-Changes)*
-			- *[3.4.1.4 MCLAG ARP MAC update to Kernel](#3_4_1_4-MCLAG-ARP-MAC-update-to-Kernel)*
+			- *[3.4.1.4 MCLAG REMOTE MAC update to Kernel](#3_4_1_4-MCLAG-REMOTE-MAC-update-to-Kernel)*
 	- [3.5 SyncD](#3_5-SyncD)
 	- [3.6 MclagSyncD](#3_6-MclagSyncD)
 		- [3.6.1 FDB Changes](#3_6_1-FDB-Changes)
@@ -224,9 +224,8 @@ Below is the summary of the changes for each flow number mentioned in the above 
 10. FdbOrch updates remote MAC addresses with new SAI attribute not to age them out. 
 11. Syncd gets the ICCP learned remote MAC addresses with new SAI attribute SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE set .
 12. Syncd programs the remote MAC to HW
-13. FdbOrch registers with NeighborOrch for all the ICCP learned remote MAC addresses.
-14. NeighborOrch update the MAC address to STATE_DB MCLAG ARP MAC Table.
-15. FdbSycd gets the MAC updates from STATE_DB MCLAG ARP MAC Table.
+14. FdbOrch update the MAC address to STATE_DB MCLAG REMOTE FDB Table.
+15. FdbSycd gets the MAC updates from STATE_DB MCLAG REMOTE FDB Table.
 16. FdbSyncd programs the MAC updates to kernel.
 
 ## 3.2 DB Changes
@@ -370,16 +369,16 @@ ifname         = 1*64VCHAR        ; name of the MCLAG Interface (PortChannel)
 
 ```
 
-#### 3.2.3.3 STATE_MCLAG_ARP_FDB_TABLE
+#### 3.2.3.3 STATE_MCLAG_REMOTE_FDB_TABLE_NAME
 
 Producer: FdbOrch
-Consumer: NeighborOrch 
-Description: New table to populate the ICCP learned remote MAC entries which have ARP entries are associated. 
+Consumer: FdbSyncd
+Description: New table to populate the ICCP learned remote MAC entries for kernel programming.
 Schema:
 
 ```
-; New STATE_MCLAG_ARP_FDB_TABLE
-key            = MCLAG_ARP_FDB_TABLE:"Vlan"vlanid:mac_address
+; New STATE_MCLAG_REMOTE_FDB_TABLE_NAME
+key            = MCLAG_REMOTE_FDB_TABLE:"Vlan"vlanid:mac_address
 
 ;value annotations
 vlanid 	   	   = DIGIT 1-4095     ; VLAN id.
@@ -457,15 +456,11 @@ When a static MAC address is configured locally and same MAC address is learned 
 
 If the ICCP learned MAC is static, then any dynamic MAC move will be discarded by FdbOrch.
 
-#### 3.4.1.4 MCLAG ARP MAC update to Kernel
+#### 3.4.1.4 MCLAG remote FDB update to Kernel
 
-ARP entries present in the system will need the associated MAC entries to be programmed in kernel to allow the local system and applications to reach the associated IP address. When ICCP receives a MAC update, if an ARP entry is associated with the MAC address then the MAC address needs to be programmed in kernel.  FdbOrch notifies NeighborOrch when MAC is learned via ICCP and NeighborOrch updates the MCLAG_ARP_FDB_TABLE in STATE_DB accordingly. FDBSyncd subscribes to this table and programs the kernel as required. A similar path is used to update kernel MAC entry If there is an interface change associated with the MAC or when the MAC address is deleted. 
+MCLAG remote MAC entries to be programmed in kernel to allow the local system and applications to reach the associated IP address. ICCP received MAC address needs to be programmed in kernel.  FdbOrch  updates the MCLAG_REMOTE_FDB_TABLE in STATE_DB accordingly. FDBSyncd subscribes to this table and programs the kernel as required. A similar path is used to update kernel MAC entry If there is an interface change associated with the MAC or when the MAC address is deleted. 
 
-Below Diagram show the remote ICCP MAC update to Kernel.
 
-![MCLAG ARP MAC kernel update Diagram](images/MclagArpFdbKernelUpdate.png "MCLAG ARP interested MAC kernel programming Flow")
-
-**Figure 2: MCLAG ARP interested MAC kernel programming Flow**
 
 ## 3.5 SyncD
 No change to SyncD
