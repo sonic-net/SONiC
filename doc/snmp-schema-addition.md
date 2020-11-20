@@ -7,20 +7,20 @@ The following document proposes the database Schema in Json format and the list 
 
 ## Current configurtions for SNMP ##
 sonic-buidimage and sonic-snmpagent depend on the following files:
-1. */etc/sonic/snmp.yaml*
+* */etc/sonic/snmp.yaml*
     defines 2 keys:  
-        *snmp_rocommunity:*  
-        *snmp_location:*  
+  * *snmp_rocommunity:*  
+  * *snmp_location:*  
    this file is consumed in the snmp docker container by */usr/share/sonic/templates/snmpd.conf.j2* and */usr/bin/snmpd-config-updater*.  
-2. */etc/sonic/config_db.json* or */etc/sonic/minigraph.xml* for ACL definitions 'SNMP_ACL'
-   this file is consumed by */usr/bin/snmpd-config-updater*, */usr/share/sonic/templates/alias_map.j2*, */usr/share/sonic/templates/sysDescription.j2*.
+* */etc/sonic/config_db.json* or */etc/sonic/minigraph.xml* for ACL definitions 'SNMP_ACL'
+  this file is consumed by */usr/bin/snmpd-config-updater*, */usr/share/sonic/templates/alias_map.j2*, */usr/share/sonic/templates/sysDescription.j2*.
 
 In the end this is used to produce */etc/snmp/snmpd.conf*.
 
 ## Limits and incentives to change ##
-- This goes against the principle of having the config DB be the central repository of configuration data.
-- Imposes the provisioning of multiple static files.
-- the snmpContact is hardcoded in the */usr/share/sonic/templates/snmpd.conf.j2* file.
+* This goes against the principle of having the config DB be the central repository of configuration data.
+* Imposes the provisioning of multiple static files.
+* the snmpContact is hardcoded in the */usr/share/sonic/templates/snmpd.conf.j2* file.
 
 ## Proposal: integrate the SNMP configuration into config DB ##
 ### Proposed Schema ###
@@ -94,9 +94,9 @@ Where:
 
 
 New keys:
-- "TYPE":  Optional, if ommited defaults to 'ro', there are 2 possible values:  
-           "RO": read-only, the only implemented method at this time.  
-           "RW": well you never know - here for completeness but unused in the code.  
+* "TYPE":  Optional, if ommited defaults to 'RO', there are 2 possible values:  
+  * "RO": read-only, the only implemented method at this time.  
+  * "RW": well you never know - here for completeness but unused in the code.  
 
 ### Files needing modification for implementation ###
 
@@ -104,22 +104,20 @@ The changes we propose are only additive to remain compatible with the current i
 
 In repo *sonic-buildimage*:
 
-*dockers/docker-snmp-v2/snmpd.conf.j2*:  
-    verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
+* *dockers/docker-snmp-v2/snmpd.conf.j2*:  
+  * verify the existence of the SNMP table in the datatbase and fork behavior if present, if not continue using old method.
 
-*dockers/docker-snmp-v2/snmpd-config-updater*:  
-    this file will be deprecated soon by caclmgrd so no updates will be done
+* *dockers/docker-snmp-v2/snmpd-config-updater*:  
+  * this file will be deprecated soon by caclmgrd so no updates will be done
 
 
 In repo *sonic-swss-common*: 
 
-*common/schema.h*:  
-```
-#define CFG_SNMP_TABLE_NAME           "SNMP"
-```
+* *common/schema.h*:  
+  * #define CFG_SNMP_TABLE_NAME           "SNMP"
 
 In repo *sonic-swss*:
 
-*doc/swss-schema.md*:
-    add the definition of this schema
+* *doc/swss-schema.md*:
+  * add the definition of this schema
 
