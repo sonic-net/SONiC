@@ -2,7 +2,7 @@
 
 ## Scope of the change ##
 
-Currently SNMP configuration is managed from a mix of yaml files and DB based ACLs, we propose to integrate the SMP configs into an SNMP table in the DB.  
+Currently SNMP configuration is managed from a mix of yaml files and DB based ACLs, we propose to integrate the SNMP configs into an SNMP table in the DB.  
 The following document proposes the database Schema in Json format and the list of required changes to the code.
 
 ## Current configurtions for SNMP ##
@@ -26,29 +26,55 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
 ### Proposed Schema ###
 
 ```
-{"SNMP": [ {"LOCATION": "LOCATION_STRING",
-            "CONTACT": "CONTACT_STRING",
-            "SNMP_COMMUNITIES": [ {"SNMP_COMMUNITY": "SNMP_COMMUNITY_STRING1", "TYPE":"RO|RW"},
-                                  {"SNMP_COMMUNITY": "SNMP_COMMUNITY_STRING2", "TYPE":"RO|RW"},
-                                  {"SNMP_COMMUNITY": "SNMP_COMMUNITY_STRING3", "TYPE":"RO|RW"}],
-            "SNMP_USERS": [ {"SNMP_USER": "SNMP_USER1_STRING", 
-                             "SNMP_USER_TYPE": "noAuthNoPriv|AuthNoPriv|Priv", 
-                             "SNMP_USER_AUTH_TYPE": "MD5|SHA|HMAC-SHA-2", 
-                             "SNMP_USER_ENCRYPTION_TYPE": "DES|AES", 
-                             "SNMP_USER_AUTH_PASSWORD": "AUTH_PASSWORD_STRING",
-                             "SNMP_USER_ENCRYPTION_PASSWORD": "ENCRYPTION_PASSWORD_STRING"},
-                            {"SNMP_USER": "SNMP_USER2_STRING", 
-                             "SNMP_USER_TYPE": "noAuthNoPriv|AuthNoPriv|Priv", 
-                             "SNMP_USER_AUTH_TYPE": "MD5|SHA|HMAC-SHA-2", 
-                             "SNMP_USER_ENCRYPTION_TYPE": "DES|AES", 
-                             "SNMP_USER_AUTH_PASSWORD": "AUTH_PASSWORD_STRING",
-                             "SNMP_USER_ENCRYPTION_PASSWORD": "ENCRYPTION_PASSWORD_STRING"},
-                            {"SNMP_USER": "SNMP_USER3_STRING", 
-                             "SNMP_USER_TYPE": "noAuthNoPriv|AuthNoPriv|Priv", 
-                             "SNMP_USER_AUTH_TYPE": "MD5|SHA|HMAC-SHA-2", 
-                             "SNMP_USER_ENCRYPTION_TYPE": "DES|AES", 
-                             "SNMP_USER_AUTH_PASSWORD": "AUTH_PASSWORD_STRING",
-                             "SNMP_USER_ENCRYPTION_PASSWORD": "ENCRYPTION_PASSWORD_STRING"}]}]}
+{
+   "SNMP":{
+      "LOCATION":{
+         "SNMP_LOCATION":"<SNMP_LOCATION_STRING>"
+      },
+      "CONTACT":{
+         "SNMP_CONTACT":"<SNMP_CONTACT_STRING>"
+      }
+   }
+}{
+   "SNMP_COMMUNITIES":{
+      "<SNMP_COMM>":{
+         "Type":"RO|RW"
+      },
+      "<SNMP_COMM>":{
+         "Type":"RO|RW"
+      },
+      "<SNMP_COMM>":{
+         "Type":"RO|RW"
+      }
+   }
+}{
+   "SNMP_USERS":{
+      "<SNMP_USER>":{
+         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
+         "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
+         "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
+         "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
+         "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+      },
+      "<SNMP_USER>":{
+         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
+         "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
+         "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
+         "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
+         "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+      },
+      "<SNMP_USER>":{
+         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
+         "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
+         "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
+         "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
+         "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+      }
+   }
+}
 ```
 
 Where:
