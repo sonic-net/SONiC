@@ -222,7 +222,7 @@ fwutil
 |         |--- component <component_name>
 |              |--- fw -y|--yes -f|--force -i|--image=<current|next>
 |
-|--- auto_update
+|--- auto-update
      |--- fw -i|--image=<current|next> --b|--boot=<any|none|fast|warm|cold|powercycle>
      |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<any|none|fast|warm|cold|powercycle>
 
@@ -283,18 +283,7 @@ Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH
                    SSD         <image_path>/ssd.bin   4 / 5                                    update is required
 ```
 
-2. Non modular chassis platform when the "boot" key and value are available in `platform_components.json`
-```bash
-root@sonic:~# fwutil show updates --image=next
-Chassis   Module   Component   Firmware               Version (current/available)              Status
---------  -------  ----------  ---------------------  ---------------------------------------  ------------------
-Chassis1  N/A      BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH004_02.02.010  update is required
-                   CPLD        <image_path>/cpld.bin  5 / 10                                   update is required
-                   FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date
-                   SSD         <image_path>/ssd.bin   4 / 5                                    update is required
-```
-
-3. Modular chassis platform
+2. Modular chassis platform
 ```bash
 root@sonic:~# fwutil show updates --image=next
 Chassis   Module   Component   Firmware               Version (current/available)              Status
@@ -307,7 +296,7 @@ Chassis1           BIOS        <image_path>/bios.bin  0ACLH004_02.02.007 / 0ACLH
                    FPGA        <image_path>/fpga.bin  5 / 5                                    up-to-date
 ```
 
-4. Custom FW Package when the "boot" key and value are available in `platform_components.json`
+3. Custom FW Package
 ```bash
 root@sonic:~# fwutil show updates --fw-image=fw_update.tar.gz
 Chassis   Module    Component   Firmware                       Version (current/available)              Status
@@ -316,7 +305,8 @@ Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10           
                     SSD         <fwpackage_path>/ssd.bin       4 / 5                                    update is required
 ```
 
-5. Auto-update status
+**The following command displays the Component FW auto-update satus:**
+1. Auto-update status
 ```bash
 root@sonic:~# fwutil show auto_update_status
 Firmware auto-update performed for cold reboot
@@ -543,12 +533,14 @@ New component api is introduced to support the component firmware auto-update as
         Args:
             image_path: A string, path to firmware image
             boot_action: A string, boot action following the upgrade
+                         - none/fast/warm/cold
 
         Returns:
             Output: A string, status and info
                 status: True or False, firmware auto-update status
                 info: The detail information of the firmware auto-update status.
-                    "updated"/"installed"(which needs a reboot for the firmware to be active)/"scheduled"
+                      - True : "updated"/"installed"(which needs a reboot for the firmware to be active)/"scheduled"
+                      - False : "ns_boot_type/image_error/exec_fail"
 
         Raises:
             RuntimeError: auto-update failure cause
