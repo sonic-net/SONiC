@@ -25,6 +25,7 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
 ## Proposal: integrate the SNMP configuration into config DB ##
 ### Proposed Schema ###
 
+* SNMP Global values
 ```
 {
    "SNMP":{
@@ -36,6 +37,10 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
       }
    }
 }
+```
+
+* SNMP Community values
+```
 {
    "SNMP_COMMUNITY":{
       "<SNMP_COMM>":{
@@ -49,6 +54,10 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
       }
    }
 }
+```
+
+* SNMP User values 
+```
 {
    "SNMP_USER":{
       "<SNMP_USER>":{
