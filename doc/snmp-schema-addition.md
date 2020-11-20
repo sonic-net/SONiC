@@ -29,26 +29,28 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
 {
    "SNMP":{
       "LOCATION":{
-         "SNMP_LOCATION":"<SNMP_LOCATION_STRING>"
+         "LOCATION":"<SNMP_LOCATION_STRING>"
       },
       "CONTACT":{
-         "SNMP_CONTACT":"<SNMP_CONTACT_STRING>"
+         "CONTACT":"<SNMP_CONTACT_STRING>"
       }
    }
-}{
-   "SNMP_COMMUNITIES":{
+}
+{
+   "SNMP_COMMUNITY":{
       "<SNMP_COMM>":{
-         "Type":"RO|RW"
+         "TYPE":"RO|RW"
       },
       "<SNMP_COMM>":{
-         "Type":"RO|RW"
+         "TYPE":"RO|RW"
       },
       "<SNMP_COMM>":{
-         "Type":"RO|RW"
+         "TYPE":"RO|RW"
       }
    }
-}{
-   "SNMP_USERS":{
+}
+{
+   "SNMP_USER":{
       "<SNMP_USER>":{
          "SNMP_USER_STRING":"<SNMP_USER_STRING>",
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
@@ -92,9 +94,9 @@ Where:
 
 
 New keys:
-- "type":  Optional, if ommited defaults to 'ro', there are 2 possible values:  
-           "ro": read-only, the only implemented method at this time.  
-           "rw": well you never know - here for completeness but unused in the code.  
+- "TYPE":  Optional, if ommited defaults to 'ro', there are 2 possible values:  
+           "RO": read-only, the only implemented method at this time.  
+           "RW": well you never know - here for completeness but unused in the code.  
 
 ### Files needing modification for implementation ###
 
