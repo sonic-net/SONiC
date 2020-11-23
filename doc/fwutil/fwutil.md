@@ -536,21 +536,28 @@ New component api is introduced to support the component firmware auto-update as
                          - none/fast/warm/cold
 
         Returns:
-            Output: A string, status and info
-                status: True or False, firmware auto-update status
-                info: The detail information of the firmware auto-update status.
-                      - True : "updated"/"installed"(which needs a reboot for the firmware to be active)/"scheduled"
-                      - False : "ns_boot_type/image_error/exec_fail"
+            Output: A return code
+                return_code: An integer number, status of component firmware auto-update
+                    - return code of a positive number indicates successful auto-update
+                        - status_installed = 1
+                        - status_updated = 2
+                        - status_scheduled = 3
+                    - return_code of a negative number indicates failed auto-update
+                        - status_err_image = -1
+                        - status_err_others = -2
+                    - return_code of zero indicates the boot_type not supported for the component firmware auto-update
 
         Raises:
             RuntimeError: auto-update failure cause
         """
         raise NotImplementedError
 ```
-The installed and updated firmware information and scheduled task should be logged in "<boot_type>_fw_auto_update" under "/tmp/firmwareupdate/" directory. Since each platform plugin will parse the <boot_type>_auto_update file to perform the update during the reboot, the contents can be defined and used by the platform vendors.
+The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/tmp/firmwareupdate/" directory by fwutil and the status file will be used for the `fwutil show auto_update_status` command. 
 
-This allows that fwutil to recognize the firmware auto-update status and handle any further firmware auto-update request along with fw_auto_updated_status which contains the performed auto-updated status information.
-The "fw_auto_updated_status" is located at /tmp/firmwareupdate/ directory same as reboot task file and it will be formatted and contains the component's firmware auto-updated status information as below and parsed for `fwutil show auto_updated_status` command.
+Any scheduled component firmware update needs to be logged in "<boot_type>_fw_au_task".
+Each vendor needs to implement the reboot auto-update task handler plugin which is platform specific plugin and is expected to be named as "platform_fw_au_reboot_handle".
+The plugin will parse the "<boot_type>_fw_au_task" file and perform the update during the reboot if needed. 
+The contents of the task file can be defined by the platform vendors and be utilized by the platform specific reboot plugin.
 
 ```
 {
@@ -573,7 +580,7 @@ And the components available for the update are BIOS, CPLD, and SSD.
 In this example, BIOS firmware got updated, CPLD firmware got installed but powercycle* is needed, and SSD firmware update is scheduled during boot.
 *powercycle can be triggered by cold reboot script in this case.
 ```
-admin@sonic:~/fwutil$ cat /tmp/firmwareupdate/fw_auto_update_status
+admin@sonic:~/fwutil$ cat /tmp/firmwareupdate/fw_au_status
 {
     "cold": [
         {
@@ -747,13 +754,7 @@ Here are the interface requirements to support them.
 3. {utility} -a(--autoupdate) : able to perform the auto-update action :
     - equivalent to the component api's auto_update_firmware(image_path, boot_type) 
     - auto-update interface needs two arguments : image_path and boot_type
-    - response : the result of auto-update as follows
-        ```json
-        "True : updated"
-        "True : scheduled"
-        "True : installed"
-        "False : ${ErrorCode}"
-        ```
+    - response : the return_code that indicates the status of auto-update (please refer to section  2.2.2.4.1)
 
 **Optional) The utility can be supported for other platform api substitues like `compoenent_update` and `compoenent_install` with |-u(--update)|-i(--install)**
 
@@ -777,12 +778,21 @@ From the above `platform_components.json` example, if the platform needs the SSD
 `$PWD/ssd_fw_update -a $PWD/SSD.bin fast` 
 
 ##### 2.2.2.4.3.2 Platform Firmware Update Reboot Handle Plugin
-The reboot scripts will invoke the platform firmware update reboot plugin with boot-type, which will analyze the reboot firmware task file and execute the upgrade commands for the components present in task file.
+If any specific component firmware update needs to be done only during the reboot, auto_update_firmware() api will log the firmware update to the "<boot_type>_fw_au_task as explained in 2.2.2.4.1.
+Platform firmware update reboot plugin will handle the task during the rebooot and will be invoked by the reboot script with its reboot-type.
+The plugin is expected to analyze the task file to understand what component firmware update has been scheduled for which reboot and determine if the component firmware update can be performed for the reboot or not.
+After the determination, firmware update will be done by the plugin if any firmware update is scheduled for the reboot.
+If the passed reboot_type to the plugin is different than the boot_type of task file, the pluin should exit with error code so that the reboot script can fail for the error case.
+
 ```bash
-PLATFORM_FWUTIL_AU_REBOOT_HANDLE="platform_fwutil_au_reboot_handle"
-if [[ -x ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ]]; then
+PLATFORM_FW_AU_REBOOT_HANDLE="platform_fw_au_reboot_handle"
+if [[ -x ${DEVPATH}/${PLATFORM}/${PLATFORM_FW_AU_REBOOT_HANDLE} ]]; then
     debug "Handling task file for boot type ${REBOOT_TYPE}”
-    ${DEVPATH}/${PLATFORM}/${PLATFORM_FWUTIL_AU_REBOOT_HANDLE} ${REBOOT_TYPE}
+    ${DEVPATH}/${PLATFORM}/${PLATFORM_FW_AU_REBOOT_HANDLE} ${REBOOT_TYPE} || PLATFORM_FW_AU_RC=$?
+    if [[ $PLATFORM_FW_AU_RC -ne 0 ]]; then
+        error "Failed to handle the platform firmware auto-update for ${REBOOT_TYPE} Exit code: $PLATFORM_FW_AU_RC"
+        exit "${EXIT_PLATFORM_FW_AU_FAILURE}"
+    fi
 fi
 ```
 
