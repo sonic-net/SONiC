@@ -124,7 +124,7 @@ On new plugins for fan, thermal and PSU the PSU plugin was extended with voltage
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.6.3 Release Notes](https://github.com/opencomputeproject/SAI/blob/815be101ed59346ca83fb40fe8d0c2601b36dfce/doc/SAI_1.6.3_ReleaseNotes.md)
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.6.3 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.6.3_ReleaseNotes.md)
 
 | S.No | Feature                     | 
 | ---- | --------------------------- |
