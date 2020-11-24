@@ -316,21 +316,21 @@ The below is an example for Mellanox switches.
 ***Example***
 
 ```json
-{% if sonic_asic_platform == 'mellanox' %}
-    {% set platform_with_gearbox = ['x86_64-mlnx_msn3800-r0'] %}
-    {% set platform2gearbox = {
+{ % if sonic_asic_platform == 'mellanox' % }
+    { % set platform_with_gearbox = ['x86_64-mlnx_msn3800-r0'] % }
+    { % set platform2gearbox = {
             'x86_64-mlnx_msn3800-r0':'MELLANOX-PERIPHERAL-1'
         }
-    %}
-    {% if platform in platform_with_gearbox %}
-    {% set gearbox_type = platform2gearbox[platform] %}
+    % }
+    { % if platform in platform_with_gearbox % }
+    { % set gearbox_type = platform2gearbox[platform] % }
     "PERIPHERAL_TABLE": {
         "MELLANOX-PERIPHERAL-1": {
             "gearbox_delay": "..."
         }
     }
-    {% endif %}
-{% endif %}
+    { % endif % }
+{ % endif % }
 ```
 
 #### Table PORT_PERIPHERAL_TABLE
