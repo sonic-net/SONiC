@@ -232,8 +232,8 @@ The below is an example for Mellanox switches based on Spectrum-1 switch chip. (
 Example of pre-defined json.j2 file:
 
 ```json
-{% if sonic_asic_platform == 'mellanox' %}
-    {% set platform2asic = {
+{ % if sonic_asic_platform == 'mellanox' % }
+    { % set platform2asic = {
             'x86_64-mlnx_lssn2700-r0':'MELLANOX-SPECTRUM'
             'x86_64-mlnx_msn2010-r0':'MELLANOX-SPECTRUM'
             'x86_64-mlnx_msn2100-r0':'MELLANOX-SPECTRUM'
@@ -248,37 +248,37 @@ Example of pre-defined json.j2 file:
             'x86_64-mlnx_msn4700_simx-r0':'MELLANOX-SPECTRUM-3'
             'x86_64-mlnx_msn4700-r0':'MELLANOX-SPECTRUM-3'
         }
-    %}
-    {% set asic_type = platform2asic[platform] %}
+    % }
+    { % set asic_type = platform2asic[platform] % }
     "ASIC_TABLE": {
-        {% if asic_type == 'MELLANOX-SPECTRUM' %}
+        { % if asic_type == 'MELLANOX-SPECTRUM' % }
         "MELLANOX-SPECTRUM": {
             "cell_size": "...",
             "pipeline_latency": "...",
             "mac_phy_delay": "...",
             "peer_response_time": "..."
         }
-        {% endif %}
+        { % endif % }
 
-        {% if asic_type == 'MELLANOX-SPECTRUM-2' %}
+        { % if asic_type == 'MELLANOX-SPECTRUM-2' % }
         "MELLANOX-SPECTRUM-2": {
             "cell_size": "...",
             "pipeline_latency": "...",
             "mac_phy_delay": "...",
             "peer_response_time": "..."
         }
-        {% endif %}
+        { % endif % }
 
-        {% if asic_type == 'MELLANOX-SPECTRUM-3' %}
+        { % if asic_type == 'MELLANOX-SPECTRUM-3' % }
         "MELLANOX-SPECTRUM-3": {
             "cell_size": "...",
             "pipeline_latency": "...",
             "mac_phy_delay": "...",
             "peer_response_time": "..."
         }
-        {% endif %}
+        { % endif % }
     }
-{% endif %}
+{ % endif % }
 ```
 
 Example of a rendered json snippet (which will be loaded into config database) on a Mellanox Spectrum switch:
