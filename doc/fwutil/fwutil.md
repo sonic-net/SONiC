@@ -543,9 +543,9 @@ New component api is introduced to support the component firmware auto-update as
                         - status_updated = 2
                         - status_scheduled = 3
                     - return_code of a negative number indicates failed auto-update
-                        - status_err_image = -1
-                        - status_err_others = -2
-                    - return_code of zero indicates the boot_type not supported for the component firmware auto-update
+                        - status_err_boot_type = -1
+                        - status_err_image = -2
+                        - status_err_others = -3
 
         Raises:
             RuntimeError: auto-update failure cause
