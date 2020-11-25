@@ -52,6 +52,9 @@
         - [3.4.4.2.1 Counter List](#34421-counter-list)
         - [3.4.4.2.2 Interval](#34422-interval)
     - [3.4.5 virtual MACsec SAI](#345-virtual-macsec-sai)
+      - [Command Flow](#command-flow)
+      - [Ingress Flow](#ingress-flow)
+      - [Egress Flow](#egress-flow)
       - [State Change Actions](#state-change-actions)
       - [MACsec Actions](#macsec-actions)
 - [4 Flow](#4-flow)
@@ -689,7 +692,7 @@ So the flex counter interval is set to **1** second, which can meet the above re
 
 #### 3.4.5 virtual MACsec SAI
 
-This section describes the design of MACsec SAI in virtual SAI that runs in the syncd. The following picture illustrates the architecture of virtual MACsec SAI.
+This section describes the design of MACsec SAI in virtual SAI that runs in the syncd. The following pictures illustrate the architecture of virtual MACsec SAI.
 All boxes with black edge are components of virtual SAI and all boxes with purple edge are network devices of linux.
 
 - **SwitchStateMACsec** convert the state change action from SwitchStateBase to MACsecManager
@@ -697,7 +700,17 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 - **Traffic Filters** includes MACsec filter that can forward EAPOL traffic between `eth` device and `Ethernet` device, and forward plaintext data traffic from `Ethernet` device to linux `macsec` device. This filter will be enabled only if MACsec was enabled at the port.
 - **MACsec Forwarder** can forward decrypted data traffic from linux `macsec` device to `Ethernet`.
 
-![macsec virtual sai](images/vmacsecsai.png)  
+##### Command Flow
+
+![VS Command Flow](images/vs_command_flow.png)  
+
+##### Ingress Flow
+
+![VS Ingress Flow](images/vs_ingress_flow.png)  
+
+##### Egress Flow
+
+![VS Egress Flow](images/vs_egress_flow.png)  
 
 ##### State Change Actions
 
