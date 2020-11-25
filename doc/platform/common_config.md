@@ -55,7 +55,6 @@ Per-switching silicon Common config feature is supported on all of the Broadcom 
 |-- x86_64-broadcom_b96-- broadcom-sonic-th.config.bcm
 |-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
 |-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
-
 ```
 ## 3 Design Detail
 The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder.  The design standardize the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path  /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
