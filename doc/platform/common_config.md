@@ -60,6 +60,13 @@ Per-switching silicon Common config feature is supported on all of the Broadcom 
 
 |-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
 
+## 3 Design Detail
+The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder.  The design standardize the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path  /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
+
+The design change for syncd_init_common.sh is targeted on the config_syncd_bcm() which is only for BRCM switch chip. In the config_syncd_bcm() function, it will load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/broadcom-sonic-{$chip_id}  directory where the  $chip_id  is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. Then, merge common  broadcom-sonic-<chip abbreviation>.config.bcm  file with the existing platform specific config.bcm file in which the duplicate configuration entries in the platform specific file will override entries in the common  broadcom-sonic-<chip abbreviation>.config.bcm  file. 
+
+Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm under/tmp directory. The following switch initialization will reference to the new merged config.bcm pointed by updated sai.profile from the /tmp directory.
+
 
 ## 3 Design Detail
 The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder.  The design standardize the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path  /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
