@@ -12,6 +12,7 @@
  * [Requirements Overview](#requirements-overview)
     * [Functional Requirements](#functional-requirements)
  * [Supported Platforms](#supported-platforms)
+ * [Design Detail](#design-overview)
  * [Serviceability and DEBUG](#serviceability-and-debug)
     * [Syslogs](#syslogs)
     * [Debug](#debug)
@@ -21,7 +22,7 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 11/03/2020  |  Geans PIN         | Initial version                   |
+| 0.1 | 11/03/2020  | Geans Pin          | Initial version                   |
 
 # About this Manual
 We added support for a per-switching silicon common config.bcm file to assist with silicon-wide application configuration settings for all affected Broadcom platforms. The infrastructure saves development time by allowing applications to refactor common settings in a single location, and allows for platform-specific overrides. 
@@ -35,21 +36,37 @@ This document gives the details of Per-switching silicon Common config for Broad
 
 ### 1.1	Functional Requirements
 The functional requirements include :
-- Load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/broadcom-sonic-{$chip_id}  directory where the  $chip_id  is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. 
-and standardize on the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm in this directory. This  file naming convention is not strictly enforced by the infrastructure, however. 
+- Create the common file in the device common directory for different  BRCM switch chip family
+
+- Merge the common config from device common directory to ODM
+platform specific config. Duplicate configuration entries in the platform specific file override entries in the common config.bcm
+
+- The final config.bcm merged with common config is required to be copied to a shared folder for debugging   
   
-- Merge common  broadcom-sonic-<chip abbreviation>.config.bcm  file is with the existing platform specific  config.bcm  file. Duplicate configuration entries in the platform specific file override entries in the common  broadcom-sonic-<chip abbreviation>.config.bcm  file.
 
 ## 2 Supported Platforms
 
-In Buzznik+ release, Per-switching silicon Common config is supported on all of the Broadcom platform if the common 
-config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration :
+Per-switching silicon Common config feature is supported on all of the Broadcom platform if the common config files are created in the device/broadcom/x86_64-broadcom_common. Following is the current supported common configuration :
+
 |-- x86_64-broadcom_b77 -- broadcom-sonic-td3.config.bcm
+
 |-- x86_64-broadcom_b85 -- broadcom-sonic-td2.config.bcm
+
 |-- x86_64-broadcom_b87-- broadcom-sonic-td3.config.bcm
+
 |-- x86_64-broadcom_b96-- broadcom-sonic-th.config.bcm
+
 |-- x86_64-broadcom_b97-- broadcom-sonic-th2.config.bcm
+
 |-- x86_64-broadcom_b98-- broadcom-sonic-th3.config.bcm
+
+
+## 3 Design Detail
+The main change of the design is in the SYNCD docker syncd/scripts/syncd_init_common.sh script along with common config being created in the device/broadcom/x86_64-broadcom_common/ folder.  The design standardize the common file name as  broadcom-sonic-<chip abbreviation>.config.bcm . Also, in the SYNCD docker-syncd-brcm.mk, we extern the common config directory path  /usr/share/sonic/device/x86_64-broadcom_common from host to docker for script reference.
+
+The design change for syncd_init_common.sh is targeted on the config_syncd_bcm() which is only for BRCM switch chip. In the config_syncd_bcm() function, it will load the common silicon config.bcm file by looking for a *.bcm file in the  /usr/share/sonic/device/x86_64-broadcom_common/broadcom-sonic-{$chip_id}  directory where the  $chip_id  is the upper 3 nibbles of the switching silicon's device ID as listed in SDK/include/soc/devids.h. Then, merge common  broadcom-sonic-<chip abbreviation>.config.bcm  file with the existing platform specific config.bcm file in which the duplicate configuration entries in the platform specific file will override entries in the common  broadcom-sonic-<chip abbreviation>.config.bcm  file. 
+
+Since the platform specific config.bcm is read only in docker, the design copies the platform specific config.bcm and sai.profile to /tmp for handling common config merge process. The /tmp/sai.profile will be modified to point to the merged config.bcm under/tmp directory. The following switch initialization will reference to the new merged config.bcm pointed by updated sai.profile from the /tmp directory.
 
 
 ## 4 Serviceability and DEBUG
@@ -91,4 +108,5 @@ NA
 - Check the syslog to make sure the common config merged to
    config.bcm successfully
 - Check the final merged config.bcm dump from show tech dump 
+
 
