@@ -37,6 +37,7 @@
 | 2020/09/22 | Qi Luo, review |
 | 2020/10/10 | Xuhui, debootstrap supports reproduceable build |
 | 2020/11/01 | Xuhui, add Golang, component level build description |
+| 2020/11/25 | Xuhui, add Q&A, and simplify web package process |
 
 
 # Overview
@@ -51,13 +52,7 @@ When the reproduceable build is used, to catch up with the latest version of the
 
 The SONiC reproduceable build framework provides a way to lock the versions of the packages in scopes as above. It will lock the versions for all the docker images including the slave docker images, host images, and docker slave containers which are used to build the SONiC targets, such as deb files, python wheels, etc.
 
-It supports to control the version of the docker slave image, and also supports to control the slave containers to build the targets including docker images, host images, debian packages, etc.
-
-It supports to enable some of the components. For instance, only enable the version control for py2 and py3, while using the latest versions of the debian packages, web packages, etc.
-
-It supports to only enable the features on some of the release branches, while using the latest versions of the packages in master branch. And the default feature flag can be overwritten by the build command line parameter.
-
-It supports to upgrade the versions automatically by Jenkins jobs, and developers can freeze the versions files on the dev box and commit the version changes.
+It supports to control the version of the docker slave image, and also supports to control the slave container to build the targets including docker images, host images, debian packages, etc.
 
 In Scopes:
 
@@ -457,4 +452,28 @@ It will run &quot;git reset <commit id> --hard&quot; after the &quot;git clone&q
 We do not manage the git repositories, if a git commit used by SONiC is removed, then the build will be broken.
 
 
+
+# Q&A
+
+1. Is the reproduceable build feature will be enabled in all branches?
+
+   It will be only enabled on the release branches, master branch will not be enabled in the short term.
+
+2. How a developer adds version configuration for new packages in a docker image?
+
+   The developer should build the docker image or any other targets, the referred packages will be collected into target folder automatically during the build, the developer can run a command "make freeze" to freeze the version configuration without manual effort to manage it, then checks in the version changes by "git add files/build/versions" together with the code change.
+
+3. How a developer upgrades the packages to latest versions?
+
+   The developer can upgrade the packages for one target or multiple targets, and can upgrades only one component or multiple components. There are two steps to do it, the first step is to make the targets with version version control option "make SONIC_VERSION_CONTROL_COMPONENTS=none \<targets>",  the second step is to freeze the version by command "make freeze" the same as mentioned above. See more options in "rule/config".
+
+4. How a developer merges code across branches? How to resolve the version conflict?
+
+   The process to merge version files is similar to merge code, we need to resolve the version conflict. To use the higher version or lower version depended on the usage scenarios, we would like to use to latest version better than the old one, but for some release branches, keep older version may be better.
+
+5. How to migrate from one debian distribution to anther one?
+
+   In the version configuration files, different version files are used in different distributions if the version files are relative the distribution. For example, the version file name versions-deb-buster is used for debian packages in buster distribution. But for python packages, we use version-py2 and version-py3 by default, it is not relative to distribution.
+
+   When migrating from stretch to buster, we may need to add additional version configuration for debian packages, but not require to add version files for python packages. See Q&A #2 for adding additional version configuration and #4 for version conflict.
 
