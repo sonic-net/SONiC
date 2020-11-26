@@ -285,7 +285,7 @@ ssci           = 8HEXDIG                            ; 32-bit value that is uniqu
 "MACSEC_EGRESS_SA":{{port_name}}:{{sci}}:{{an}}
     "sak":{{sak}}
     "auth_key":{{hash_subkey}}
-    "init_pn":{{pn}}
+    "next_pn":{{pn}}
     "salt":{{salt}}
 
 ; Defines schema for MACsec Egress SA table attributes
@@ -296,7 +296,7 @@ sak           = 32HEXDIG / 64HEXDIG                 ; Secure Association Key.
                                                     ; but if XPN enable, 256 bit
 auth_key      = 32HEXDIG                            ; The hash subkey in AES-GCM
                                                     ; It's derived from SAK
-init_pn       = DIGITS                              ; 1 to 2^32-1, the initialized next packet number
+next_pn       = DIGITS                              ; 1 to 2^32-1, the initialized next packet number
 salt          = 24HEXDIG                            ; 96-bit parameter provided to the Current
                                                     ; Cipher Suite for subsequent protection
                                                     ; and validation operations.
@@ -547,7 +547,7 @@ The following list all MACsec control instructions:
 |  get_receive_lowest_pn   | GET COUNTERS_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_MINIMUM_XPN]                                      |                                                                                                                                    |
 |  set_receive_lowest_pn   | SET APP_DB[MACSEC_INGRESS_SA:LOWEST_ACCEPTABLE_PN]=PARAM                                                  |                                                                                                                                    |
 |   get_transmit_next_pn   | GET COUNTERS_DB[sai_macsec_sa_attr_t:SAI_MACSEC_SA_ATTR_XPN]                                              |                                                                                                                                    |
-|   set_transmit_next_pn   | SET APP_DB[MACSEC_EGRESS_SA:INIT_PN]                                                                      |                                                                                                                                    |
+|   set_transmit_next_pn   | SET APP_DB[MACSEC_EGRESS_SA:NEXT_PN]                                                                      |                                                                                                                                    |
 |    create_receive_sc     | SET APP_DB[MACSEC_INGRESS_SC]<br>WAIT SET STATE_DB[MACSEC_INGRESS_SC]                                     |                                                                                                                                    |
 |    delete_receive_sc     | DEL APP_DB[MACSEC_INGRESS_SC]<br>WAIT DEL STATE_DB[MACSEC_INGRESS_SC]                                     |                                                                                                                                    |
 |    create_receive_sa     | SET APP_DB[MACSEC_INGRESS_SA]                                                                             |                                                                                                                                    |
