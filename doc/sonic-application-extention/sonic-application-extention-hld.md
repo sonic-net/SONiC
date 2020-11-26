@@ -1162,6 +1162,8 @@ A services shutdown is an ordered executions of *systemctl stop {{ service }}* c
 pre-shutdown is requested and database backup is prepared for next boot. A service specific actions that are executed on warm-shutdown are hidden
 inside the service stop script action.
 
+NOTE: the assumption here is that syncd pre-shutdown is bound to swss service stop when swss service is doing system level shutdown.
+
 The *\*-shutdown.sh* are imported and executed in corresponding *\*-reboot* scripts.
 
 <!-- omit in toc -->
