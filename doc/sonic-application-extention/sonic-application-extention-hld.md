@@ -294,7 +294,7 @@ identifiers and build id, like *1.0.0-dev+153*, that can be used for master bran
 e.g: *1.0.0 < 1.1.0* and *1.5.1 > 1.4.20*. For more details of comparison rules follow the reference above.
 
 The version number is defined as part of the SONiC package manifest. Package maintainers must follow the above versioning approach and are encouraged
-to follow a commonly used convention in Docker by tagging images with a version number.
+to follow a commonly used convention in Docker by tagging images with a version number [See next section].
 
 The base OS has also have a version number that follows the same rules of semantic versioning so that a package can define a dependency on
 base OS version. A new variable is introduced in */etc/sonic/sonic_version.yml* called "base_os_compatibility_version" that follows semantic
@@ -329,6 +329,25 @@ This version is used to tag a Docker image when installing SONiC package in SONi
 
 The versioning of the package is a responsibility of the package maintainer. The exact rules of how the versioning is done when
 branching, publishing new images is out of the scope of this document.
+
+<!-- omit in toc -->
+#### Docker tag to semantic version string conversion and vice versa
+
+
+Whenever user asks to install a version X the sonic-package-manager is converting X to a tag compliant string.
+If version X does not use the *buildmetadata* there are no issues using version X string as a tag, if it does
+the version string cannot be used as a tag because of tag string limitations, in particular the '+' sign used
+to separate *buildmetadata* from the rest of the version string is not allowed to be present in Docker tag
+string.
+
+The proposed conversion is suggested by this document is to replace a '+' with a '_', which is not allowed to
+be used in semver:
+
+```
+tag_string = semver_string.replace('+', '_')
+```
+
+For the following version '1.0.5-rc0+152' the Docker tag would be '1.0.5-rc0_152'.
 
 ### SONiC Application Extension Security Considerations
 
