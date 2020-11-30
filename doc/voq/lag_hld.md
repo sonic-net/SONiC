@@ -34,6 +34,7 @@
     * [6.3 Remote LAG Member Add](#64-remote-lag-member-add)
   * [7 Example Configurations](#7-example-configurations)
   * [8 Example Show Commands](#8-example-show-commands)
+  * [9 Test Considerations](#9-test-considerations)
 
 
 ###### Revision
@@ -94,8 +95,10 @@ Please note that the only per asic SONiC components that are aware of a remote L
 #### orchagent: portsorch
 **Local LAG**: portsorch obtains a system wide unique system_lag_id from centralized database CHASSIS_APP_DB. portsorch sends this system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. After creating local LAG, the PortChannel with switch_id and system_lag_id is written to the SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. As mentioned before, the PortChannels are only locally unique. To have unique sytem lag name in the CHASSIS_APP_DB, following naming scheme (similar to the nameing scheme used for naming the system ports) is used.
 ```
-<Host name>|<Instance name>|<Local port channel name>
+<Host name>|<Asic name>|<Local port channel name>
 ```
+The _Host name_ and _Asic name_ are available in CONFIG_DB device meta data attributes **hostnmae** and **asic_name** respectively.
+
 Example:
 
    For local PortChannel _PortChannel001_ in Slot1, Asic0, the corresponding system lag name in the CHASSIS_APP_DB:
@@ -547,3 +550,12 @@ Flags: A - active, I - inactive, Up - up, Dw - Down, N/A - not available,
     1  0(L}         PortChannel1  SystemLAG  Slot1|Asic0|Ethernet1(S)  Slot1|Asic0|Ethernet2(S)
     2  6            PortChannel1  SystemLAG  Slot2|Asic0|Ethernet1(S)  Slot2|Asic0|Ethernet2(S)
 ```
+## 9 Test Considerations
+
+### test_virtual_chassis.py
+
+System LAG tests will be added to the existing voq virtual chassis test suite to test in DVS. The system LAG tests will validate that
+* Orchagent programs ASIC_DB for locally configured PortChannel with uniquely allocated system lag id.
+* Orchagent synchronizes the local PortChannel to chassis app db using system lag name with switch_id and system lag id.
+* Orchangent programs ASIC_DB for remote PortChannels (system LAG-s) with given system lag id.
+* Orchagent uses system port ids of the port channel members while adding members to the system LAGs
