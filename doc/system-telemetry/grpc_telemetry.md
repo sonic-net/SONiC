@@ -286,6 +286,20 @@ jipan@sonicvm1:~/work/go/src/github.com/jipanyang/gnxi/gnmi_get$ ./gnmi_get -xpa
 
 ## SubscribeRequest/SubscribeResponse
 ### Stream mode
+
+[The GNMI specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35152-stream-subscriptions) defines 3 different streaming `modes` for each `Subscription` that found in `SubscriptionList`:
+
+- On Change (ON_CHANGE)
+- Sampled (SAMPLE)
+- Target Defined (TARGET_DEFINED) The Sonic Telemetry service **does not** support `TARGET_DEFINED` mode.
+
+#### Sampled (SAMPLE) Subscription
+
+A subscription that is defined to be sampled MUST be specified along with a `sample_interval`.
+
+#### On Change (ON_CHANGE) Subscription
+When a subscription is defined to be "on change", data updates are only sent when the value of the data item changes.
+
 With stream mode of SubscribeRequest, SONiC will first send all data on the requested path to data collector, then stream data to collector upon any change on the path.
 
 [gnmi_cli](https://github.com/jipanyang/gnmi/tree/master/cmd/gnmi_cli) could be used to excersize gRPC SubscribeRequest here.
