@@ -82,7 +82,7 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 ### 3.1 Configuration
 
-* The **LAG configuration** in VOQ chassis is same as is done in non-VOQ chassis system. No changes are required. LAG expected to be configured on local ports only. No requirement to make system port specific LAG configuration. 
+* The **LAG configuration** in a Distributed VOQ system is same as is done in a non-VOQ system. No changes are required. LAG is expected to be configured on local ports only. No requirement to make system port specific LAG configuration. 
 * The name of the LAG in the PORTCHANNEL table is unique within the asic SONiC instance and must start with "PortChannel".
 * Also no changes are required for **LAG Member** configuration and **LAG Interface** configurations. PORTCHANNEL_MEMBER table and PORTCHANNEL_INTERFACE table are used in the same way how they are used in non-chassis system.
 
@@ -90,12 +90,12 @@ Please note that the only per asic SONiC components that are aware of a remote L
 
 #### teamd: teamsyncd
 
-* teamsyncd will act as if its single asic sonic system and on local ports LAG management. So, there is no changes required in teamsyncd. 
+* teamsyncd only deals LAG on the port of its local asic instance. So no changes are required in teamsyncd. 
 
 #### orchagent: portsorch
-**Local LAG**: portsorch obtains a system wide unique system_lag_id from centralized database CHASSIS_APP_DB. portsorch sends this system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. After creating local LAG, the PortChannel with switch_id and system_lag_id is written to the SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. As mentioned before, the PortChannels are only locally unique. To have unique sytem lag name in the CHASSIS_APP_DB, following naming scheme (similar to the nameing scheme used for naming the system ports) is used.
+**Local LAG**: portsorch obtains a system wide unique system_lag_id from centralized database CHASSIS_APP_DB. portsorch sends this system_lag_id in SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute to SAI while creating LAG in SAI. After creating local LAG, the PortChannel with switch_id and system_lag_id is written to the SYSTEM_LAG_TABLE in centralized database CHASSIS_APP_DB. A unique name is assigned automatically to each LAG in the system lag table in the CHASSIS_APP_DB using the following naming scheme (similar to the nameing scheme used for naming the system ports).
 ```
-<Host name>|<Asic name>|<Local port channel name>
+<Host name>|<Asic name>|<port channel name in its local asic instance>
 ```
 The _Host name_ and _Asic name_ are available in CONFIG_DB device meta data attributes **hostnmae** and **asic_name** respectively.
 
@@ -106,13 +106,13 @@ Example:
    Slot1|Asic0|PortChannel001
 ```
 
-The lag members of the local LAG use local port ids. Any member addition/removal members to a local LAG is written to the SYSTEM_LAG_MEMBER_TABLE in centralized database CHASSIS_DB. For lag members of system lags, the system lag name and system port alias of the local port members are used as the key. 
+The lag members of the local LAG use local port ids. Any member addition/removal members to a local LAG is written to the SYSTEM_LAG_MEMBER_TABLE in centralized database CHASSIS_DB. The system port alias of the lag member is used when to represent a lag member in the SYSTEM_LAG_MEMBER_TABLE. 
 
 **Remote LAG**: To create LAG corresponding to a LAG on another asic, the system_lag_id will be from corresponding entry in the SYSTEM_LAG_TABLE from CHASSIS_APP_DB. The Lag members for a remote LAG will be specified using the OID of the corresponding system port objects.
 
 Changes in orchagent/portsorch include: 
  * Port structure enhancement to store the system lag info such as system lag name (alias), system lag id and switch_id.
- * Getting a chassis wide unique system_lag_id from centralized databse using lua script that can do atomic allocation/deallocation of system_lag_id globally
+ * Getting a chassis wide unique system_lag_id from centralized database using lua script that can do atomic allocation/deallocation of system_lag_id globally
  * Subscribing to SYSTEM_LAG_TABLE and SYSTEM_LAG_MEMBER_TABLE from CHASSIS_APP_DB 
  * Enhancements to lag and lag member processing tasks to process the entries from above mentioned tables in addition to processing LAG_TABLE and LAG_MEMBER_TABLE from local APP_DB. Same APIs are used for processing both local and remote LAGs with minor modifications
  * Lag creation enhancements to send SAI_LAG_ATTR_SYSTEM_PORT_AGGREGATE_ID attribute 
@@ -162,11 +162,11 @@ lag_id_get(<key>)
 
 ##### Restart of FSI or single Sonic Instance 
 
-When sonic instance gets restarted and orchagent comes up with warmboot mode, it will try re-add existing system_lag_id using lag_id_add and passing previously allocated id. If this id is free or matches with existing key, same id will be allocated and used. 
+This section describes how LAG could be handled when warmboot for an FSI is supported in a Distributed VOQ system. Initial implementation does not support warmboot of an FSI. When sonic instance gets restarted and orchagent comes up with warmboot mode, it will try re-add existing system_lag_id using lag_id_add and passing previously allocated id. If this id is free or matches with existing key, same id will be allocated and used. 
 
 ##### Restart SSI or global redis server
 
-For initial implementation, restart of SSI or global redis server **without warmboot**, all sonic instances will exit as well. This is inline with current pizza box implementation. When we support database with graceful restart, these unique lag-id can be re-added from Orchagent.
+Restart of SSI or global redis server **without warmboot**, will cause all sonic instances to exit as well. This is inline with current pizza box implementation. If and when database graceful restart is supported in the future, these unique lag-id can be re-added from Orchagent.
 
 ## 4 Databases
 
@@ -249,7 +249,7 @@ key                 = SYSTEM_LAG_TABLE|system lag name   ; System LAG name
 system_lag_id       = 1*10DIGIT                          ; LAG id.
 switch_id           = 1*4DIGIT                           ; Switch id
 ```
-{{system lag name}} is unique name across sonic instances of the chassis. {{system lag name}} is dervied out of local port channel name, slot and asic using the name scheme mentioned above
+{{system lag name}} is unique name across sonic instances of the chassis. {{system lag name}} is derived from local port channel name, slot and asic using the naming scheme discussed earlier in the document.
 
 #### System LAG Member Table
 This is a new table added to sync local PortChannel Members to centralized database so facilitate remote asics to add/remove remote members to/from LAGs. This table contains entries synced by different asics of the chassis system.
@@ -296,7 +296,7 @@ SYSTEM_LAG_ID_END       = 1*10DIGIT                                       ; End 
 ```
 
 #### System LAG ID Table
-This is a new table added for storing system_lag_id that are allocated and currently in use in whole chassis.
+This is a new table added for storing system_lag_id that are allocated and currently in use.
 
 ```
 SYSTEM_LAG_ID_TABLE:{{system lag name}}
@@ -333,7 +333,7 @@ key                 = SYSTEM_LAG_ID_SET   ; System set key
 ""                  = 1*10DIGIT           ; One or ore of system_lag_id values 
 ```
 
-The system_lag_id allocation/deallocation works by accessing centralized database using a lua scipt that uses system lag id start (SYSTEM_LAG_ID_START), system lag id end (SYSTEM_LAG_ID_END), list of port channels with their system_lag_id-s (SYSTEM_LAG_ID_TABLE) and set of used system lag id (SYSTEM_LAG_ID) are used. When ADD is requested while creating LAG, an available system_lag id is allocated form the pool of system_lag_ids bound between SYSTEM_LAG_ID_START and SYSTEM_LAG_ID_END. When DEL is requested, while removing LAG, the given system LAG released into the pool.
+The system_lag_id allocation/deallocation works by accessing centralized database using a lua scipt that uses system lag id start (SYSTEM_LAG_ID_START), system lag id end (SYSTEM_LAG_ID_END), list of port channels with their allocated system_lag_id values (SYSTEM_LAG_ID_TABLE) and set of used system lag id (SYSTEM_LAG_ID_SET). An ADD is requested while creating a LAG and an available system_lag id is allocated form the pool of system_lag_ids bound between SYSTEM_LAG_ID_START and SYSTEM_LAG_ID_END. A DEL is requested, while removing a LAG and the previously allocated system-lag-id is released into the pool.
 
 ## 5 SAI
 Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for LAG in VOQ chassis systems
