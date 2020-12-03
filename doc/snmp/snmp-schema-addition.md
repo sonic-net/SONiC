@@ -66,7 +66,8 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSIONS": "RO|RW"
       },
       "<SNMP_USER>":{
          "SNMP_USER_STRING":"<SNMP_USER_STRING>",
@@ -74,7 +75,8 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSIONS": "RO|RW"
       },
       "<SNMP_USER>":{
          "SNMP_USER_STRING":"<SNMP_USER_STRING>",
@@ -82,7 +84,8 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSIONS": "RO|RW"
       }
    }
 }
@@ -99,7 +102,7 @@ Where:
 - SNMP_USER_ENCRYPTION_TYPE: String, defines which encryption type will be used for that SNMP user DES or AES. 
 - SNMP_USER_AUTH_PASSWORD: String, defines which authentication password will be used for that SNMP user.
 - SNMP_USER_ENCRYPTION_PASSWORD: String, defines which encryption password will be used for that SNMP user. 
-
+- SNMP_USER_PERMISSIONS: String, RO (Read-Only) or RW (Read-Write) defines what will be used for that SNMP user.
 
 
 New keys:
