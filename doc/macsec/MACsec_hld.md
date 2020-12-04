@@ -158,13 +158,13 @@ The following new tables will be added to Config DB. Unless otherwise stated, th
 
 ``` rfc5234
 MACSEC_PROFILE|{{profile}}
-    "priority":{{priority}}
+    "priority":{{priority}} (OPTIONAL)
     "cipher_suite":{{cipher_suite}}
     "primary_cak":{{primary_cak}}
     "primary_ckn":{{primary_ckn}}
     "fallback_cak":{{fallback_cak}} (OPTIONAL)
     "fallback_ckn":{{fallback_ckn}} (OPTIONAL)
-    "policy":{{policy}}
+    "policy":{{policy}} (OPTIONAL)
     "enable_replay_protect":{{true|false}} (OPTIONAL)
     "replay_window":{{replay_window}} (OPTIONAL)
     "send_sci":{{true|false}} (OPTIONAL)
@@ -175,6 +175,7 @@ key                         = MACSEC_PROFILE:name      ; MACsec profile configur
 ; field                     = value
 priority                    = DIGITS                   ; For Key server election.
                                                        ; In 0-255 range with 0 being the highest priority
+                                                       ; Default 255
 cipher_suite                = "GCM-AES-128" / "GCM-AES-256" / "GCM-AES-XPN-128" / "GCM-AES-XPN-256"
                                                        ; The cipher suite for MACsec.
                                                        ; Default GCM-AES-128 if this filed not exist
@@ -188,6 +189,7 @@ policy                      = "integrity_only" / "security"
                                                        ; converted to MACsec packets without encryption.
                                                        ; SECURITY: All traffics, except EAPOL, will be
                                                        ; encrypted by SecY.
+                                                       ; Default security
 enable_replay_protect       = "true" / "false"         ; Whether enable replay protect. Default false
 replay_window               = DIGITS                   ; Replay window size that is the number of
                                                        ; packets that could be out of order. This filed
