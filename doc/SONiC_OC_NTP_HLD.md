@@ -23,6 +23,8 @@ NTP Support in Management Framework
 | 0.3 | 09/21/2020 |   Bing Sun         | Add dhcp behavior                 |
 | 0.4 | 11/02/2020 |   Bing Sun         | Add support for NTP authentication|
 | 0.5 | 11/08/2020 |   Bing Sun         | Allow configuration of multiple NTP source interfaces|
+| 0.6 | 12/07/2020 |   Bing Sun         | Updated section 3.2 configDB changes |
+|     |            |                    | Minor change for Yang models         |
   
   
 # About this Manual
@@ -459,6 +461,66 @@ Enhancing the management framework backend code and transformer methods to add s
 ### 3.2.1 CONFIG DB      
 This feature will allow users to make NTP configuration changes to CONFIG DB, and get NTP configurations.
 
+'''
+NTP server
+        
+  "NTP_SERVER": {
+        "2.2.2.2": {
+            "key_id": "1"
+        },
+        "3.3.3.3": {
+            "key_id": "2"
+        },
+        "4.4.4.4": {
+            "key_id": "3"
+        },
+        "10.14.8.140": {}
+    }
+'''
+       
+'''
+NTP authentication key
+    
+  "NTP_AUTHENTICATION_KEY": {
+        "1": {
+            "encrypted": "true",
+            "type": "MD5",
+            "value": "U2FsdGVkX18LP3kIv47lRKCboUop/+0YyacH2UT2WJ0="
+        },
+        "2": {
+            "encrypted": "true",
+            "type": "SHA1",
+            "value": "U2FsdGVkX1+DU7geMDXVvCOJjZQyP1zTT4vRbHFqsZo="
+        },
+        "3": {
+            "encrypted": "true",
+            "type": "SHA2_256",
+            "value": "U2FsdGVkX19yHcvrGFDKJb80FRY+cnmO1+yv6SGkao8="
+        }
+    }
+'''
+        
+'''
+NTP global configuration
+        
+  "NTP": {
+        "global": {
+            "auth_enabled": "true",
+            "src_intf": [
+                "eth0",
+                "Loopback99"
+            ],
+            "trusted_key": [
+                "1",
+                "2",
+                "3"
+            ],
+            "vrf": "mgmt"
+        }
+    }
+'''
+                
+
 ### 3.2.2 APP DB
 
 ### 3.2.3 STATE DB
@@ -496,14 +558,14 @@ Supported yang objects and attributes:
 +     |  |  +--rw enable-ntp-auth?                   boolean
 +     |  |  +--rw oc-sys-ext:ntp-source-interface*   oc-if:base-interface-ref
 +     |  |  +--rw oc-sys-ext:vrf?                    string
-+     |  |  +--rw oc-sys-ext:trustedkey*             uint16
++     |  |  +--rw oc-sys-ext:trusted-key*            uint16
       |  +--ro state
       |  |  +--ro enabled?                           boolean
 +     |  |  +--ro enable-ntp-auth?                   boolean
       |  |  +--ro auth-mismatch?                     oc-yang:counter64
 +     |  |  +--ro oc-sys-ext:ntp-source-interface?   oc-if:base-interface-ref
 +     |  |  +--ro oc-sys-ext:vrf?                    string
-+     |  |  +--rw oc-sys-ext:trustedkey*             uint16
++     |  |  +--rw oc-sys-ext:trusted-key*            uint16
 +     |  +--rw ntp-keys
 +     |  |  +--rw ntp-key* [key-id]
 +     |  |     +--rw key-id    -> ../config/key-id
@@ -511,12 +573,12 @@ Supported yang objects and attributes:
 +     |  |     |  +--rw key-id?      uint16
 +     |  |     |  +--rw key-type?    identityref
 +     |  |     |  +--rw key-value?   string
-+     |  |     |  +--rw oc-sys-ext:key-encrypted?   boolean
++     |  |     |  +--rw oc-sys-ext:encrypted?       boolean
 +     |  |     +--ro state
 +     |  |        +--ro key-id?      uint16
 +     |  |        +--ro key-type?    identityref
 +     |  |        +--ro key-value?   string
-+     |  |        +--rw oc-sys-ext:key-encrypted?   boolean
++     |  |        +--rw oc-sys-ext:encrypted?       boolean
       |  +--rw servers
       |     +--rw server* [address]
 +     |        +--rw address    -> ../config/address
@@ -559,17 +621,17 @@ module: sonic-system-ntp
 +     |     +--rw src_intf*       union
 +     |     +--rw vrf?            union
 +     |     +--rw auth_enabled?   boolean
-+     |     +--rw trustedkeys*    -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/key_id
++     |     +--rw trusted_keys*    -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/id
 +     +--rw NTP_AUTHENTICATION_KEY
-+     |  +--rw NTP_AUTHENTICATION_KEY_LIST* [key_id]
-+     |     +--rw key_id           uint16
-+     |     +--rw key_type         enumeration
-+     |     +--rw key_value        string
-+     |     +--rw key_encrypted?   boolean
++     |  +--rw NTP_AUTHENTICATION_KEY_LIST* [id]
++     |     +--rw id              uint16
++     |     +--rw type            enumeration
++     |     +--rw value           string
++     |     +--rw encrypted?      boolean
 +     +--rw NTP_SERVER
 +        +--rw NTP_SERVER_LIST* [server_address]
 +           +--rw server_address    inet:host
-+           +--rw key_id?           -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/key_id
++           +--rw key_id?           -> /sonic-system-ntp/NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/id
 ```
 
 ### 3.6.2 CLI
