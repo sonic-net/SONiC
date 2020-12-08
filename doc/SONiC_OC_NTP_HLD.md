@@ -461,24 +461,24 @@ Enhancing the management framework backend code and transformer methods to add s
 ### 3.2.1 CONFIG DB      
 This feature will allow users to make NTP configuration changes to CONFIG DB, and get NTP configurations.
 
-'''
-NTP server
+```
+NTP server        
         
-  "NTP_SERVER": {
-        "2.2.2.2": {
-            "key_id": "1"
-        },
-        "3.3.3.3": {
-            "key_id": "2"
-        },
-        "4.4.4.4": {
-            "key_id": "3"
-        },
-        "10.14.8.140": {}
-    }
-'''
+  "NTP_SERVER": {        
+        "2.2.2.2": {        
+            "key_id": "1"        
+        },        
+        "3.3.3.3": {        
+            "key_id": "2"        
+        },        
+        "4.4.4.4": {        
+            "key_id": "3"        
+        },        
+        "10.14.8.140": {}        
+    }        
+```
        
-'''
+```
 NTP authentication key
     
   "NTP_AUTHENTICATION_KEY": {
@@ -498,9 +498,9 @@ NTP authentication key
             "value": "U2FsdGVkX19yHcvrGFDKJb80FRY+cnmO1+yv6SGkao8="
         }
     }
-'''
+```
         
-'''
+```
 NTP global configuration
         
   "NTP": {
@@ -518,7 +518,7 @@ NTP global configuration
             "vrf": "mgmt"
         }
     }
-'''
+```
                 
 
 ### 3.2.2 APP DB
