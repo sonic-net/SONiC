@@ -41,7 +41,7 @@
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with line-card CPUs.
 
 # Scope
-For first phase of design, this document covers high level design of the platform support and its interactions with PMON in a VOQ chassis environment. Operations like firmware upgrade will be added at later stage of the development. This document assumes all line-cards and supervisor-cards have a CPU complex where SONiC would be running. It only considers fabric-cards without CPU or SONiC isn't running on Fabric CPU even if it's available. Also, this document assumes line-cards cant be powered on without the Supervisor being operationally up and running. 
+In the first phase of design, this document covers high level platform support and its interactions with PMON in a VOQ chassis environment. Design or support of operations like firmware upgrade will be added in the next stage of the development. Items that are out of scope are listed at the end of this document. The document assumes all line-cards and supervisor-cards have a CPU complex where SONiC would be running. It assumes CPU-less fabric-cards or even if CPU is available, that SONiC isn't running on fabric-cards. Also, it assumes that line-cards can't be powered on without the Supervisor being operationally up and running. 
 
 # Acronyms
 Control Card - Supervisor Card of the Chassis
