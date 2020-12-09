@@ -38,10 +38,10 @@
  | 1.0 |             |  Manjunath Prabhu, Sureshkannan Duraisamy, Marty Lok, Marc Snider       | Initial version                   |
 
 # About this Manual
-This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with line-card CPU's.
+This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with line-card CPUs.
 
 # Scope
-For first phase of design, this document covers high level design of the platform support and its interactions with PMON in a VOQ chassis environment. Operations like firmware upgrade will be added at later stage of the development. This document assumes all line-cards and supervisor-cards have a CPU complex where SONiC would be running. It only considers fabric-cards without CPU or SONiC isn't running on Fabric CPU even if its available. Also, this document assumes line-cards cant be powered on without the Supervisor being operationally up and running. 
+For first phase of design, this document covers high level design of the platform support and its interactions with PMON in a VOQ chassis environment. Operations like firmware upgrade will be added at later stage of the development. This document assumes all line-cards and supervisor-cards have a CPU complex where SONiC would be running. It only considers fabric-cards without CPU or SONiC isn't running on Fabric CPU even if it's available. Also, this document assumes line-cards cant be powered on without the Supervisor being operationally up and running. 
 
 # Acronyms
 Control Card - Supervisor Card of the Chassis
@@ -56,7 +56,9 @@ Management Stack - Set of Processes, Daemons, Dockers implementing management in
 
 Control Plane Stack - Set of Processes, Daemons, Dockers implementing control plane protocols suchs as BGP, EVPN and also providing complete APP/ASIC DB Orchestration(OrchAgent).
 
-Datapath Stack - Set of Processes, Daemons, Dockers, API's implementing datapath ASIC hardware programming via SAI interface.
+Datapath Stack - Set of Processes, Daemons, Dockers, APIs implementing datapath ASIC hardware programming via SAI interface.
+
+PMON - Platform Monitor. Used in the context of Platform monitoring docker/processes.
 
 ## 1. Modular VOQ Chassis Reference
 The below picture shows reference of VOQ chassis highlevel hardware architecture. Chassis has 1 or 2 supervisor cards, 1 or more line-cards and 1 or more switch fabric-cards. It also has 1 or more FAN tray, 1 or more PSUs and midplane ethernet. In general, the Supervisor manages the perpherals like fan, psu, midplane ethernet, etc.
@@ -65,13 +67,13 @@ The below picture shows reference of VOQ chassis highlevel hardware architecture
 
 ## 2. SONiC Platform Management and Monitoring
 ### 2.1. Functional Requirements
-At a functional level of a chssis, SONiC will manage supervisor-cards, line cards and all other peripheral devices of the chassis as required by chassis platform vendor specification. Below requirements capture some of the key areas that is required to operate a VOQ chassis. 
+At a functional level of a chassis, SONiC will manage supervisor-cards, line cards and all other peripheral devices of the chassis as required by chassis platform vendor specification. Below requirements capture some of the key areas required to operate a VOQ chassis. 
 
 * Chassis supervisor-cards & line-cards should be able to boot using ONIE or any vendor specific boot method. 
 * Line-cards should be managed via the Supervisor to support operations like power up/down, get operational status.
 * In a typical chassis, the Supervisor manages the fan speed based on various temperature sensors readings from line-cards and a chassis.
 * The Supervisor monitors PSUs of the chassis. 
-* LED's and Transceiver's are present on line-cards and can be managed via line-card's SONiC platform instances. 
+* LEDs and Transceivers are present on line-cards and can be managed via line-card's SONiC platform instances. 
 * Some of these perpherals are plug-able and hot-swap capable.
 * In general, VOQ chassis has midplane ethernet which interconnects line-cards and supervisor together for its internal communication. This should be initalized upon platform booting and can be used as IP connectivity between supervisor, line-cards.
 * Each line-card will have management interface either directly to external management interface or via internal midplane ethernet.
@@ -133,16 +135,16 @@ Line-card boot process is very similar to the Supervisor and main difference is 
 ### 3.2 Chassis Platform Management
 
 #### 3.2.1 Midplane Ethernet
-In a typical modular modern chassis includes a midplane ethernet to interconnect the Supervisor & line cards. This is new component (peripheral?) needs to be added to SONiC. This document proposes midplane ethernet as platform perpherical management and captures the design as follow. 
+In a typical modular modern chassis includes a midplane ethernet to interconnect the Supervisor & line-cards. This is new component (peripheral?) needs to be added to SONiC. This document proposes midplane ethernet as platform perpherical management and captures the design as follows. 
 
-* Upon line-card or the Supervisor booted and part of its initilziation, midplane ethernet gets initialized. 
+* Upon line-card or the Supervisor booted and part of its initialization, midplane ethernet gets initialized. 
 * Slot number is generally used in assigning an IP address to these interfaces.
 
 In order to allow direct access to line-cards from outside of the chassis over external management network, chassis midplane ethernet network and external management networks needs to be connected to each other. There are couple of options to consider. 
 
 1. Supervisor can create virtual switch (linux bridge) and all add midplane ethernet and external management interface on this bridge. This is the L2 mode of operation but internal communication and external L2 stations traffic will be seen inside this midplane ethernet. 
 2. IP Routing: Midplane ethernet could be configured with externally reachable network (announced via any routing protocols), this requires mgmt interface on the Supervisor to run routing protocol which isn't common deployment. 
-3. Statically assigned externally reachable management IP address per lincard via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic wont be seen in a external management network and only direct communication allowed using NAT rules. 
+3. Statically assigned externally reachable management IP address per line-card via chassis-d and use NAT to map external/internal midplane IP address. In this case, internal midplane ethernet traffic wont be seen in a external management network and only direct communication allowed using NAT rules. 
 
 Allowing DHCP relay or DHCP client on these internal midplane ethernet aren't considered for first phase of the design. 
 
@@ -155,8 +157,8 @@ Modular Chassis has supervisors, line-cards and fabric-cards along with other pe
 #### Functional Requirements
 
 * Identify a central entity that has visibility of the entire chassis.
-* Monitor the status of the line-card, fabric-card etc using new PMON 2.0 APIs. The assumption is that each vendor will have platform-drivers or implementation to detect the status of the cards in the chassis.
-* The status will need to be persisted in REDIS-DB.
+* Monitor the status of the line-card, fabric-card etc using new PMON 2.0 APIs. The assumption is that each vendor will have platform drivers or implementation to detect the status of the cards in the chassis.
+* The status will need to be stored in REDIS DB.
 * PMON processes can subscribe to UP/DOWN events of these cards.
 * The UP/DOWN events will be added to syslog. 
 * Vendor-specific API will be provided to take action on any change event.
@@ -174,11 +176,8 @@ device-type                           = "SUPERVISOR"| "LINE-CARD" | "FABRIC-CARD
 ```
 
 #### Prototype Code
-The line-card status update will happen in the main monitoring loop.
+The line-card status update will happen in the main monitoring loop. In src/sonic-platform-daemons/sonic-chassisd/scripts/chassisd:
 ```
-
-In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
-
 class DaemonChassisd(DaemonBase):
 
     # Connect to STATE_DB and create linecard/chassis info tables
@@ -192,23 +191,12 @@ class DaemonChassisd(DaemonBase):
         linecard_db_update(linecard_tbl, num_linecard)
 
     logger.log_info("Stop daemon main loop")
-
 ```
 
-A LineCardBase class is introduced for chassis vendors to implement their representation of line-cards in a chassis.
+The existing ModuleBase class is modified to represent line-cards in a chassis. In src/sonic-platform-common/sonic_platform_base/module_base.py:
 
 ```
-In src/sonic-platform-common/sonic_platform_base/linecard_base.py
-
-class LineCardBase(object):
-    """
-    Abstract base class for implementing a platform specific class to
-    represent a supervisor, line-card or fabric-card of a chassis
-    """
-    _linecard_list = None
-    
-    def __init__(self):
-        self._linecard_list = []
+class ModuleBase(device_base.DeviceBase):
         
     def get_name(self):
     
@@ -221,9 +209,10 @@ class LineCardBase(object):
     def reboot_slot(self):
     
     def set_admin_state(self, state): # enable or disable
+```
 
-In src/sonic-platform-common/sonic_platform_base/chassis_base.py
-
+In src/sonic-platform-common/sonic_platform_base/chassis_base.py:
+```
 class ChassisBase(device_base.DeviceBase):
     def get_num_linecards(self):
     
@@ -232,29 +221,17 @@ class ChassisBase(device_base.DeviceBase):
     def get_linecard_presence(self, lc_index):
     
 ```
-An example vendor implementation would be as follows:
-
-```
-In platform/broadcom/<vendor>/sonic_platform/linecard.py
-
-from sonic_platform_base.linecard_base import LineCardBase
-
-class LineCard(LineCardBase):
-    def __init__(self, linecard_index):
-
-```
-
-Additionally, *get_change_event()* can be implemented to handle asynchronous notification of the line-card UP/DOWN events.
+Additionally, `get_change_event()` can be implemented to handle asynchronous notification of the line-card UP/DOWN events.
 
 #### Configuration
 Configuration will be provided to administratively bring down a line-card or fabric-card. This can be further extended to other components of the chassis like PSUs and FANs.
 
 ```
 Configuration to administratively bring down the module
-#config chassis_modules shutdown <module_name>
+#config chassis-modules shutdown <module_name>
 
 Configuration to remove the adminstrative down state of module
-#config chassis_modules startup <module_name>
+#config chassis-modules startup <module_name>
 ```
 #### Config-DB Schema
 The schema for CHASSIS_MODULE table in Config DB is:
@@ -265,26 +242,24 @@ admin-status                          = "up" | "down"                           
 ```
 
 #### Show command
-The *show platform* command is enhanced to show chassis information
+A new show command is introduced to show the status of the modules in a chassis
 
-**show platform details**
+**show chassis-modules status**
 ```
-PLATFORM INFO TABLE
------------------------------------------------------------
-| Slot   | Name                              | Status     |
------------------------------------------------------------
-| 16     | cpm2-ixr                          | Online     |
-| 1      | imm36-400g-qsfpdd                 | Online     |
-| 2      | imm36-400g-qsfpdd                 | Online     |
-| 3      | imm36-400g-qsfpdd                 | Online     |
-| 4      | Empty                             | Empty      |
-| 17     | SFM1                              | Offline    |
-| 18     | SFM2                              | Offline    |
-| 19     | SFM3                              | Offline    |
-| 20     | SFM4                              | Offline    |
-| 21     | SFM5                              | Online     |
-| 22     | SFM6                              | Offline    |
------------------------------------------------------------
+        Name                      Description    Physical-Slot    Oper-Status    Admin-Status
+------------  -------------------------------  ---------------  -------------  --------------
+FABRIC-CARD0                             SFM1               17          Empty              up
+FABRIC-CARD1                             SFM2               18          Empty              up
+FABRIC-CARD2                             SFM3               19          Empty              up
+FABRIC-CARD3                             SFM4               20          Empty              up
+FABRIC-CARD4                             SFM5               21         Online              up
+FABRIC-CARD5                             SFM6               22          Empty              up
+  LINE-CARD0                imm36-400g-qsfpdd                1         Online              up
+  LINE-CARD1                        line-card                2          Empty              up
+  LINE-CARD2                        line-card                3          Empty              up
+  LINE-CARD3  imm32-100g-qsfp28+4-400g-qsfpdd                4         Online              up
+ SUPERVISOR0                         cpm2-ixr               16         Online              up
+
 ```
 #### 3.2.3 Chassis Local Sonic Image Hosting Service
 
@@ -298,6 +273,8 @@ In a chassis environment, processes monitoring peripherals will need to have a v
 * Global DB - Each card will updated their state to a line-card-table in the Global-DB
 
 ![Chassis Distributed DB Update](pmon-chassis-images/pmon-chassis-distributed-db.png)
+
+`Option 2` using the Global DB is the preferred approach for implementation.
 
 ### 3.3 Peripheral Management
 
@@ -343,16 +320,16 @@ Thermalctld is monitoring temperatures, monitoring fan speed and allowing polici
     * Temperature sensors are on the line-card
     * Temperature sensors are on the SFMs.
 2. All thermal sensor info should be available to the Supervisor.
-3. The FAN control is limited to the Supervisor. The Fan algorithm could be implemented as part of thermal-policy or by the platform.
+3. The fan-control is limited to the Supervisor. The Fan algorithm could be implemented as part of thermal-policy or by the platform.
 
 ![Tempearature and Fan Control](pmon-chassis-images/pmon-chassis-distributed-thermalctld.png)
 
 #### Proposal
-1.  Chassisd notified line-card up/down events are subscribed up Thermalctld.
+1.  Chassisd notifies line-card up/down events to REDIS DB. These events can be subscribed by Thermalctld.
 2.  All local temperatures sensors are recorded on both control and line-cards for monitoring. The Supervisor monitors temperature sensors of SFMs.
-3.  Chassisd on Supervisor will periodically fetch/subscribe the thermal-sensors info from each of the line-cards. Alternately, the thermalctld on line-card can directly update the DB on the Supervisor.
-5.  The local-temperatures of the Supervisor, line-cards and fabric-cards are passed onto the Fan-Control algorithm.
-6.  The fan-control algorithm can be implemented ina PMON or ina the platform-driver. 
+3.  Chassisd on Supervisor will periodically fetch/subscribe the thermal-sensors info from each of the line-cards. Alternatively, the thermalctld on line-card can directly update the DB on the Supervisor.
+5.  The local-temperatures of the Supervisor, line-cards and fabric-cards are passed onto the fan-control algorithm.
+6.  The fan-control algorithm can be implemented in PMON docker or in the platform-driver. 
 
 Changes in thermalctld would follow one of the 2 approaches:
 1. Have a TemperatureUpdater class for each line-card. Each of the updater class will fetch the values for all temperature senosors of the line-card from the REDIS-DB of the line-card and update the DB on the Supervisor.
@@ -455,25 +432,21 @@ Thermal 5        59           68         0             N/A            N/A       
 * Database connections per namespace - Database dockers run per namespace and PMON processes need to connect to each of these database instances. 
 * Update per namespace port status - The pmon processes will need to run per-asic specific functinality ina a separate thread.
 
-
 #### Database Connections
 
-Below is a code snippet to introduce a new API *db_unix_connect* 
-```
-In src/sonic-daemon-base/sonic_daemon_base/daemon_base.py
+Below is a code snippet to introduce a new API *db_unix_connect*. In src/sonic-daemon-base/sonic_daemon_base/daemon_base.py:
 
+```
 def db_unix_connect(db, namespace):
     from swsscommon import swsscommon
     return swsscommon.DBConnector(db,
                                   REDIS_UNIX_SOCKET_PATH+str(namespace)+REDIS_UNIX_SOCKET_INFO,
                                   REDIS_TIMEOUT_MSECS)
-
 ```
 
-Below is a code snippet to connect to State-DB.
-```
-In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
+Below is a code snippet to connect to State-DB. In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd:
 
+```
  use_unix_sockets = False
  
  # Check if environment is multi-asic
@@ -490,11 +463,8 @@ In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
 #### Multi-thread support
 
 
-Below is a code snippet to run namespace specific funtionality per thread.
-
+Below is a code snippet to run namespace specific funtionality per thread. In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd:
 ```
-In src/sonic-platform-daemons/sonic-xcvrd/scripts/xcvrd
-
   # Run daemon
     def run(self):
         logger.log_info("Starting up...")
@@ -574,8 +544,8 @@ Ethernet12  Not present
 #### Functional Requirements
 
 The requirements are similar to Xcvrd
-* Ledd needs to subscriber to REDIS-DB in each namespace to receive updates of PORT UP/DOWN
-* Ledd needs to been modified to be namespace aware. The LED monitoring tasks are run per namespace 
+* LeDd needs to subscribe to REDIS-DB in each namespace to receive updates of PORT UP/DOWN.
+* LeDd needs to been modified to be namespace aware. The LED monitoring tasks are run per namespace.
 
 #### Callflow
 ![Front Panel LED](pmon-chassis-images/pmon-chassis-port-led-status.png)
@@ -584,7 +554,7 @@ The requirements are similar to Xcvrd
 **show led status**
 
 ```
-admin@sonic:~$show led status
+admin@sonic:~$ show led status
 
 FRONT-PANEL INTERFACE STATUS TABLE
 ----------------------------------------------
@@ -644,9 +614,9 @@ To manage and monitor midplace ethernet, the following vendor-specific PMON 2.0 
     *  On the Supervisor to check if line-card on slot is reachable via midplane - is_midplane_linecard_reachable(slot)
 *  APIs to get slot and IP-addresses of supervisor and line cards.
 
-```
 In platform/broadcom/<vendor>/sonic_platform/chassis.py:
 
+```
 def init_midplane_switch():
 
 def is_midplane_supervisor_reachable():
@@ -660,14 +630,10 @@ def get_supervisor_slot():
 def get_supervisor_midplane_ip():
 
 def get_linecard_midplane_ip(slot):
-
 ```
 
-The proposal would be to use Chassisd to implement this functionality.
-
+The proposal would be to use Chassisd to implement this functionality. In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
 ```
-In src/sonic-platform-daemons/sonic-chassisd/scripts/chassid:
-
 class midplane_monitor_task:
     def task_worker(self): 
         # Create midplane network
@@ -701,4 +667,4 @@ Items that are out of scope of this HLD will need to be taken up in the future. 
 * Infra - Add new LED daemon (different from the one used for port LEDs) to monitor and manage all different LEDs like board, master-status for peripherals like FAN, PSUs. Also, add CLI command 'show led status' CLI to display them. Can this be captured as part of system health-monitoring process? 
 * Thermalctld - HLD needs to add section for Voltage, current environmental as TODO section. Required for managing these sensors and their use-cases - impact on board, LC & FC power consumption calculation. 
 * Thermalctld - Certain vendors/platforms have three categories to measure temperature severity - minor, major and critical - and raise alarms and perform actions accordingly. Requirement would be to have low_minor_threshold, high_minor_threshold, low_major_threshold, high_major_threshold, low_critical_threshold, high_critical_threshold. 
-* Infra - API for platform to provide this polling interval. For example, polling interval is set to 60s in thermalctld. This could be too relaxed for some vendor's board(s). Like some operate at 10 s polling for thermal. 
+* Infra - API for platform to provide this polling interval. For example, polling interval is set to 60s in thermalctld. This could be too relaxed for some vendor board(s). Like some operate at 10 s polling for thermal. 
