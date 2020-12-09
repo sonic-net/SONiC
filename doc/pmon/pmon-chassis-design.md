@@ -211,16 +211,6 @@ class ModuleBase(device_base.DeviceBase):
     def set_admin_state(self, state): # enable or disable
 ```
 
-In src/sonic-platform-common/sonic_platform_base/chassis_base.py:
-```
-class ChassisBase(device_base.DeviceBase):
-    def get_num_linecards(self):
-    
-    def get_all_linecards(self):
-    
-    def get_linecard_presence(self, lc_index):
-    
-```
 Additionally, `get_change_event()` can be implemented to handle asynchronous notification of the line-card UP/DOWN events.
 
 #### Configuration
@@ -351,16 +341,16 @@ temperature                           = float;
 
 ```
 #### New APIs
-```
-2 additional APIs are introduced in src/sonic-platform-common/sonic_platform_base/thermal_base.py:
 
+2 additional APIs are introduced in src/sonic-platform-common/sonic_platform_base/thermal_base.py:
+```
 def get_maximum_recorded():
 def get_minimum_recorded():
 ```
 #### Code Modifications
-```
 In src/sonic-platform-daemons/sonic-thermalctld/scripts/thermalctld:
 
+```
 class TemperatureUpdater():
     def updater_per_slot(slot):
         # Connect to State-DB of given slot
@@ -370,7 +360,7 @@ class TemperatureUpdater():
 class ThermalMonitor(ProcessTaskBase):
     def __init__:
         if platform_chassis.get_supervisor_slot() == platform_chassis.get_my_slot():
-            for card ina platform_chassis.get_all_linecards():
+            for card in platform_chassis.get_all_linecards():
                 slot = card.get_slot()
                 self.temperature_updater[slot] = TemperatureUpdater(chassis, slot)
         else
@@ -381,17 +371,15 @@ class ThermalMonitor(ProcessTaskBase):
         while not self.task_stopping_event(wait_time):
             #Only on conntrol card
             if platform_chassis.get_supervisor_slot() == platform_chassis.get_my_slot():
-                for updater ina self.temperature_updater:
+                for updater in self.temperature_updater:
                     updater.update_per_slot(slot)
             else:
                 self.temperature_updater.update()
 ```
 
-The `thermal_infos.py` and `thermal_actions.py` will continue to be vendor specific. In the collect() function, the vendor will have information to all the sensors of the chassis.
+The `thermal_infos.py` and `thermal_actions.py` will continue to be vendor specific. In the collect() function, the vendor will have information to all the sensors of the chassis. In platform/broadcom/<vendor>/sonic_platform/thermal_infos.py:
 
 ```
-In platform/broadcom/<vendor>/sonic_platform/thermal_infos.py
-
 class ThermalInfo(ThermalPolicyInfoBase):
     def collect(self, chassis):
         #Vendor specific calculation from all available sensor values on chassis
