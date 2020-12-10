@@ -1,6 +1,6 @@
 # SONiC PCIe Monitoring services HLD #
 
-### Rev 0.4 ###
+### Rev 0.5 ###
 
 ### Revision
  | Rev |     Date    |            Author            | Change Description                             |
@@ -279,7 +279,7 @@ Usage: pcieutil pcie-aer all [OPTIONS]
 
 Options:
   -d, --device <BUS>:<DEV>.<FN>  Display stats only for the specified device
-  -nz, --no-zero                 Display only devices with non-zero AER stats
+  -nz, --no-zero                 Display non-zero AER stats
   --help                         Show this message and exit.
 root@sonic:/home/admin#
 ```
