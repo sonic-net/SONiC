@@ -129,7 +129,7 @@ FG_NHG_PREFIX|{{IPv4 OR IPv6 prefix}}:
 FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6 address)}}:
     "FG_NHG":{{fg-nhg-group-name}}
     "bank": {{an index which specifies a bank/group in which the redistribution is performed}} 
-    "interface": {{physical interface associated with member}} (Optional)
+    "link": {{physical link associated with member}} (Optional)
 ```
 
 
@@ -155,7 +155,7 @@ key                                   = FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6
 ; field                               = value
 FG_NHG                                = fg-nhg-group-name                                      ; Fine Grained next-hop group name
 BANK                                  = DIGITS                                                 ; An index which specifies a bank/group in which the redistribution is performed
-INTERFACE                             = iface_name                                             ; Link associated with next-hop-ip, if configured, enables next-hop withdrawal/addition per link's operational state changes
+LINK                                  = link_name                                              ; Link associated with next-hop-ip, if configured, enables next-hop withdrawal/addition per link's operational state changes
 ```
 
 Please refer to the [schema](https://github.com/Azure/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
@@ -268,32 +268,32 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 		"1.1.1.1": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 0,
-			"interface": "Ethernet4"
+			"link": "Ethernet4"
 		},
 		"1.1.1.2": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 0,
-			"interface": "Ethernet8"
+			"link": "Ethernet8"
 		},
 		"1.1.1.3": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 0,
-			"interface": "Ethernet12"
+			"link": "Ethernet12"
 		},
 		"1.1.1.4": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 1,
-			"interface": "Ethernet16"
+			"link": "Ethernet16"
 		},
 		"1.1.1.5": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 1,
-			"interface": "Ethernet20"
+			"link": "Ethernet20"
 		},
 		"1.1.1.6": {
 			"FG_NHG": "2-VM-Sets",
 			"bank": 1,
-			"interface": "Ethernet24"
+			"link": "Ethernet24"
 		}
 	}
 }
@@ -348,6 +348,7 @@ Test details:
 - APP_DB route modified to remove all next-hops in bank0: check if ASIC_DB hash bucket members show that members of bank1 take the place bank0 members
 - APP_DB route modified to add 1st next-hop to bank0: check if ASIC_DB hash bucket members show that the added next-hop member takes up all the hash buckets assigened to the bank0
 - Test both IPv4 and IPv6 above
+- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that hash buckets were redistributed in the same bank and occured in a consistent fashion
 - Test dynamic changes to the config_db bank + member defintion
 - Change ARP(NEIGH)/interface reachability and validate that ASIC_DB hash bucket members are as expected(ie: maintaining layered and consistent hashing)
 
@@ -365,7 +366,7 @@ Test details:
 - Change the DUT route entry to add 1 next-hop, validate that flows were redistributed in the same bank and occured in a consistent fashion
 - Change the DUT route entry to have all next-hops in a bank0 as down, make sure that the traffic now flows to links in bank1 only
 - Change the DUT route entry to add 1st next-hop in a previously down bank0, now some of the flows should migrate to the newly added next-hop
-- Disable a link from the port to Ip mapping and validate that flows were redistributed in the same bank and occured in a consistent fashion
+- Disable a link from the link mapping created in FG_NHG_MEMBER and validate that flows were redistributed in the same bank and occured in a consistent fashion
 - Validate that in all cases the flow distribution per next-hop is roughly equal
 - Test both IPv4 and IPv6 above
 - The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested
