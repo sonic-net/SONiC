@@ -39,7 +39,7 @@
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
 | 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
 | 1.1 | 05/26/2020  |    Anish Narsian   | Add test plan                     |
-| 1.1 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
+| 1.2 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
 
 
 # About this Manual
