@@ -205,11 +205,16 @@ admin@str-s6000-acs-11:~$
 
 # Migration Plan
 In order to move from using the snmp.yml file to using the Redis ConfigDB here are the things the need to be done to move this in a way that is backward compatible. 
-1. Create a python conversion script to take input from snmp.yml file and convert it to Redis ConfigDB format from above schema.
+1. Create a python conversion script to parse the data in snmp.yml file and store it in ConfigDB using the above schema.
 2. Update Dockerfile.j2 in docker-snmp container to add a line to copy over new python conversion script to "/usr/bin/"
 3. Update the snmpd.conf.j2 jinja template to pull SNMP information from only the Redis ConfigDB
-4. Update start.sh in docker-snmp container to add a line above sonic-cfggen to run python conversion script (which will run everytime this docker container starts) and then comment out the "-y /etc/sonic/snmp.yml" file as this is not needed since we grabbed the snmp.yml info in the python conversion script and have the information available in the Redis ConfigDB. 
-5. Create new docker-snmp container with all these updates so that we will eventually be able to remove the snmp.yml file and only use the Redis ConfigDB after we socalize the update.
+4. Update start.sh in docker-snmp container as follows:
+    - Add a line above the `sonic-cfggen` call to run the python conversion script from step 1 (which will run every time this docker container starts)
+    - Remove the `-y /etc/sonic/snmp.yml` argument from the existing call to sonic-cfggen as it will no longer needed because the python conversion script above will have already loaded that data into Config DB
+
+
+# Notes:
+A new docker-snmp container with all the above updates will be created so that we will eventually be able to remove the snmp.yml file and only use the Redis ConfigDB after we socalize the update.
 
 If we do the migration in this way then when we rollout a new docker-snmp container to the existing devices we will still support the information in the snmp.yml file but we'll also be able to get the information from the Redis ConfigDB for all the new show and config commands. 
 
