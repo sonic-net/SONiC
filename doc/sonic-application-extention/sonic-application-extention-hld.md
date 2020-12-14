@@ -797,7 +797,9 @@ Path                              | Type                  | Mandatory   | Descri
 /service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
 /service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
 /service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
-/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the
+/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start before on system boot.
+/service/wanted-by                | list of strings       | no          | Services list that "wants" this service. Maps to systemd's WantedBy
+/service/delayed                  | boolean               | no          | Wether to generate a timer to delay the service on boot. Defaults to false.
 
 
 <!-- omit in toc -->
@@ -897,6 +899,11 @@ Path                              | Type                  | Mandatory   | Descri
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
 /container/privileged             | string                | no          | Start the container in privileged mode. Later versions of manifest might extend container properties to include docker capabilities instead of privileged mode. Defaults to False.
 /container/volumes                | list of strings       | no          | List of mounts for a container. The same syntax used for '-v' parameter for "docker run".<p>Example: "\<src\>:\<dest\>:\<options\>". Defaults to [].
+/container/mounts                 | list of objects       | no          | List of mounts for a container. Defaults to [].
+/container/mounts/[id]/source     | string                | yes         | Source for mount
+/container/mounts/[id]/target     | string                | yes         | Target for mount
+/container/mounts/[id]/type       | string                | yes         | Type for mount. See docker mount types.
+/container/environment            | dict                  | no          | Environment variables for Docker container (key=value). Defaults to {}.
 
 
 ### Initial Extension Configuration
@@ -1145,8 +1152,8 @@ corresponding service files are created per each namespace. *systemd-sonic-gener
 
 Path                             | Value               | Mandatory  | Description
 ---------------------------------|---------------------|------------|---------------------------------------------------------------------------------
-/service/host-namespace          | boolean             | no         | Multi-ASIC field. Wether a service should run in host namespace. Default is True.
-/service/asic-namespace          | boolean             | no         | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False.
+/service/host-service            | boolean             | no         | Multi-ASIC field. Wether a service should run in host namespace. Default is True.
+/service/asic-service            | boolean             | no         | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False.
 
 ### Warmboot and Fastboot Design Impact
 
