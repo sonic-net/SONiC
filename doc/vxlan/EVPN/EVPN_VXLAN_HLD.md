@@ -1418,14 +1418,14 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 
 ### 8.3 Fdbsyncd
 
-1. Install local MAC entry in STATE_FDB_TABLE and verify MAC is installed in Linux and present in FRR
-2. Move STATE_FDB_TABLE entry to another port and verify MAC is updated in Linux and present in FRR
-3. Install static MAC entry in STATE_FDB_TABLE and verify MAC is installed as static in Linux and present in FRR.
-4. Install remote IMET route entry in Linux kernel and verify entry is present in VXLAN_REMOTE_VNI_TABLE
-5. Add/remove remote VTEPs for IMET route in Linux and verify VXLAN_REMOTE_VNI_TABLE is updated accordingly.
-6. Install remote MAC entry in Linux kernel and verify MAC is present in VXLAN_FDB_TABLE
-7. Move remote MAC to local by programming same entry in STATE_FDB_TABLE and verify Linux and FRR are updated
-8. Move local MAC entry to remote by replacing fdb entry in Linux and verify VXLAN_FDB_TABLE and STATE_FDB_TABLE are updated.
+1. Add local MAC entry in STATE_FDB_TABLE and verify MAC is installed in Kernel. Delete Local MAC entry and verify MAC is uninstalled from Kernel.
+2. Add local MAC entry in STATE_FDB_TABLE without config Vxlan NVO and verify MAC is not installed in Kernel.
+3. Move STATE_FDB_TABLE entry to another port and verify MAC is updated in Kernel.
+4. Add static MAC entry in STATE_FDB_TABLE and verify MAC is installed as static in Kernel. Delete static MAC entry in STATE_FDB_TABLE and verify MAC is uninstalled in Kernel. 
+5. Add remote IMET route entry in Kernel and verify entry is present in VXLAN_REMOTE_VNI_TABLE. Delete remote IMET and verify entry is deleted from the VXLAN_REMOTE_VNI_TABLE.
+6. Add remote MAC entry in Kernel and verify MAC is present in VXLAN_FDB_TABLE. Delete remote MAC entry in Kernel and verify MAC is removed from VXLAN_FDB_TABLE.
+7. Move remote MAC to local by programming the same entry in STATE_FDB_TABLE and verify Kernel is updated.
+8. Move local MAC entry to remote by replacing fdb entry in Kernel and verify VXLAN_FDB_TABLE is updated.
 
 ## 9 References
 
