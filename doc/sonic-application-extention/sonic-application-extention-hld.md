@@ -675,7 +675,7 @@ or
 ```json
 {
   "package": {
-    "conflicts": "syncd^1.0.0"
+    "breaks": "syncd^1.0.0"
   }
 }
 ```
@@ -1032,12 +1032,12 @@ monit configuration reload by issueing *systemctl reload monit.service*.
 <!-- omit in toc -->
 ###### manifest path
 
-Path                             | Type                  | Mandatory    | Description
--------------------------------- | --------------------- | -------------|--------------------------------------------------------------------------
-/processes/                       | list                  | no          | A list defining processes running inside the container.
-/processes/name                   | string                | yes         | Process name.
-/processes/name/critical          | boolean               | no          | Wether the process is a critical process. Defaults to False.
-/processes/name/command           | string                | yes         | Command to run the process.
+Path                              | Type                  | Mandatory    | Description
+--------------------------------- | --------------------- | -------------|--------------------------------------------------------------------------
+/processes/                       | list                  | no           | A list defining processes running inside the container.
+/processes/[index]/name           | string                | yes          | Process name.
+/processes/[index]/critical       | boolean               | no           | Wether the process is a critical process. Defaults to False.
+/processes/[index]/command        | string                | yes          | Command to run the process.
 
 Given the following processes list:
 
