@@ -1044,7 +1044,8 @@ Given the following processes list:
 ```json
 {
   "processes": {
-    "cpu-reportd": {
+    {
+      "name": "cpu-report",
       "critical": true,
       "command": "/usr/bin/cpu-reportd"
     }
@@ -1197,7 +1198,7 @@ Path                              | Value                 | Mandatory  | Descrip
 /service/fast-shutdown/           | object                | no         | Fast reboot related properties. Used to generate the fast-reboot script.
 /service/fast-shutdown/after      | lits of strings       | no         | Same as for warm-shutdown.
 /service/fast-shutdown/before     | lits of strings       | no         | Same as for warm-shutdown.
-/processes/\<name\>/reconciles    | boolean               | no         | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
+/processes/[index]/reconciles    | boolean               | no         | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
 
 
 ### SONiC-2-SONiC upgrade
