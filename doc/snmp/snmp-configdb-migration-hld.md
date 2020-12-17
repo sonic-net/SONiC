@@ -252,5 +252,3 @@ In order to move from using the snmp.yml file to using the Redis ConfigDB here a
 A new docker-snmp container with all the above updates will be created so that we will eventually be able to remove the snmp.yml file and only use the Redis ConfigDB after we socalize the update.
 
 If we do the migration in this way then when we rollout a new docker-snmp container to the existing devices we will still support the information in the snmp.yml file but we'll also be able to get the information from the Redis ConfigDB for all the new show and config commands.
-
-After this update is rolled out to the fleet we will stablize for some time and work with the NDM and HWProxy teams to migration over to using ConfigDB for their configurations.
