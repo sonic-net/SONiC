@@ -27,20 +27,20 @@
             - [2.2.2.3 Update commands](#2223-update-commands)
                 - [2.2.2.3.1 Overview](#22231-overview)
                 - [2.2.2.3.2 Description](#22232-description)
-            - [2.2.2.4 Auto-Update commands](#2224-auto-update-commands)
+            - [2.2.2.4 Update All commands](#2224-update-all-commands)
                 - [2.2.2.4.1 Overview](#22241-overview)
                 - [2.2.2.4.2 Description](#22242-description)
                 - [2.2.2.4.3 Platform FW Update utility](#22243-plarform-fw-update-utility)
-                - [2.2.2.4.4 Auto-update Use Cases](#22244-auto-update-use-cases)
+                - [2.2.2.4.4 Update All Use Cases](#22244-update-all-use-cases)
 - [3 Flows](#3-flows)
     - [3.1 Show components status](#31-show-components-status)
     - [3.2 Show available updates](#32-show-available-updates)
     - [3.3 Install component FW](#33-install-component-fw)
         - [3.3.1 Non modular chassis platform](#331-non-modular-chassis-platform)
         - [3.3.2 Modular chassis platform](#332-modular-chassis-platform)
-    - [3.4 Auto-update platform component firmwares](#33-Auto-update-platform-component-firmwares)
-        - [3.4.1 Auto-update platform component firmwares](#331-Auto-update-platform-component-firmwares)
-        - [3.4.2 Auto-update using platform utility](#332-Auto-update-using-platform-utility)
+    - [3.4 FW update all platform components](#33-FW-update-all-platform-components)
+        - [3.4.1 FW update all using platform component api](#331-FW-update-all-using-platform-component-api)
+        - [3.4.2 FW update all using platform utility](#332-FW-update-all-using-platform-utility)
 - [4 Tests](#4-tests)
     - [4.1 Unit tests](#41-unit-tests)
 
@@ -309,6 +309,17 @@ Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10           
                     SSD         <fwpackage_path>/ssd.bin       4 / 5                                    update is required
 ```
 
+```
+**Supported options:**
+1. -i|--image - show updates using current/next SONiC image
+2. -z|--fw-image - show updates using custom FW package
+
+**Note:**
+- the default option is _--image=current_
+- --image and --fw-image can not be supported at the same time
+- `fwutil show updates` command only displays for the components which have the firmware image path available in platform_components.json
+```
+
 **The following command displays the Component FW auto-update satus:**
 1. Auto-update status
 ```bash
@@ -319,14 +330,6 @@ Component      Status     Info
 MSN2700/SSD    scheduled  installation scheduled for cold reboot
 MSN2700/CPLD1  installed  need cold reboot to be completed
 ```
-
-**Supported options:**
-1. -i|--image - show updates using current/next SONiC image
-2. -z|--fw-image - show updates using custom FW package
-
-**Note:**
-- the default option is _--image=current_
-- --image and --fw-image can not be supported at the same time
 
 #### 2.2.2.2 Install commands
 
@@ -515,10 +518,10 @@ Aborted!
 
 **Note:** the default option is _--image=current_
 
-#### 2.2.2.4 Auto-update commands
+#### 2.2.2.4 `update all` commands
 
 ##### 2.2.2.4.1 Overview
-The purpose of the auto-update commands group is to provide and interface for automatic fw updates of various platform components based on the boot option and the platform firmware update configuration file - "platform_components.json".
+The purpose of the `update all` commands group is to provide and interface for automatic fw updates of various platform components based on the boot option and the platform firmware update configuration file - "platform_components.json".
 
 The existing FWutil infra supports the upgrade of platform components which can be performed during run time.
 The SSD upgrade for certain platforms requires the unmount of the filesystems and this needs to be incorporated as part of the reboot scripts.
@@ -559,12 +562,13 @@ New component api is introduced to support the component firmware auto-update as
         """
         raise NotImplementedError
 ```
-The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/tmp/firmwareupdate/" directory by fwutil and the status file will be used for the `fwutil show auto_update_status` command. 
+The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show auto_update_status` command. 
 
 In case that a firmware update needs any additional step to complete the firmware update but the installation time is longer than the boot time requirement, auto-update platform api is expected to install the firmware and perform the complete action during the reboot via `platform_fw_au_reboot_handle` or `platform_reboot` plugin.
 For example, some cpld update needs a power cycle to complete the firmware update and some cpld update needs a register triggered power-cycle to give some refresh time for the new firmware to be effective on the system.
 
 Any scheduled component firmware update needs to be logged in "<boot_type>_fw_au_task".
+The reboot script will prevent from performing the reboot if the <boot_type> of the scheduled task is different than the current reboot type.
 Each vendor needs to implement the reboot auto-update task handler plugin which is platform specific plugin and is expected to be named as "platform_fw_au_reboot_handle".
 The plugin will parse the "<boot_type>_fw_au_task" file and perform the update during the reboot if needed. 
 The contents of the task file can be defined by the platform vendors and be utilized by the platform specific reboot plugin.
@@ -584,21 +588,27 @@ In this example, BIOS firmware got updated, CPLD firmware got installed but powe
 *powercycle can be triggered by cold reboot script in this case.
 
 ```bash
-admin@sonic:~/fwutil$ cat /tmp/firmwareupdate/fw_au_status
+admin@sonic:~/fwutil$ cat /var/platform/fw_au_status
 {
     "MSN2700/BIOS":
         {
             "status": "updated",
+            "from": "0ACLH004_02.02.007",
+            "to": "0ACLH004_02.02.010",
             "info": "completed"
         },
     "MSN2700/SSD":
         {
             "status": "scheduled",
+            "from": "4",
+            "to": "5",
             "info": "installation scheduled for cold reboot"
         },
     "MSN2700/CPLD1":
         {
             "status": "installed",
+            "from": "5",
+            "to": "10",
             "info": "need cold reboot to be completed"
         }
     ]
@@ -610,27 +620,32 @@ And the components available for the update are BIOS, and SSD.
 In this example, BIOS firmware got updated, CPLD firmware update was skipped since the update completion can not be done for warm, and SSD firmware update is scheduled during warm boot.
 
 ```bash
-admin@sonic:~/fwutil$ cat /tmp/firmwareupdate/fw_au_status
+admin@sonic:~/fwutil$ cat /var/platform/fw_au_status
 {
     "MSN2700/BIOS":
         {
             "status": "updated",
+            "from": "0ACLH004_02.02.007",
+            "to": "0ACLH004_02.02.010",
             "info": "completed"
         },
     "MSN2700/SSD":
         {
             "status": "scheduled",
+            "from": "4",
+            "to": "5",
             "info": "installation scheduled for warm reboot"
         },
     "MSN2700/CPLD1":
         {
             "status": "skipped",
+            "from": "5",
+            "to": "10",
             "info": "warm reboot not supported for auto-update"
         }
     ]
 }
 ```
-
 
 The FWutil infra section below indicates the necessary changes to add support for auto update during reboot.
 The Platform plugins section describes the plugins that a platform must implement to support auto updates when the platform component APIs are not available.
@@ -639,9 +654,9 @@ Automatic FW installation requires default platform_components.json to be create
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 Recommended image path is "/lib/firmware/<vendor>".
 
-Here is the firmwareupdate directory structure while fwutil handles the `fwutil auto-update fw` and `fwutil show auto_update_status` command.
+Here is the /var/platform directory structure while fwutil handles the `fwutil auto-update fw` and `fwutil show auto_update_status` command.
 ```
-/tmp/firmwareupdate/
+/var/platform/
           |--- fw_au_status
           |--- <boot_type>_fw_au_task*
 ```
@@ -660,16 +675,16 @@ from the platform_componenets.json.
 ##### 2.2.2.4.2 Description
 
 **The following command updates FW Automatically with installing the available component firmware, creating task(s) for update during reboot:**
-1. auto-update command for installation and reboot task creation
+1. `update all` command for installation and reboot task creation
 ```bash
-root@sonic:~# fwutil auto-update fw --yes --image=<current|next> --boot=<boot_type>
+root@sonic:~# fwutil update all fw --yes --image=<current|next> --boot=<boot_type>
 <COMPONENT1_PATH> firmware auto-update starting: <firmware_path> with <boot_type>
 ...
-<COMPONENT1_PATH> firmware auto-update status: <status> with <info>
+<COMPONENT1_PATH> firmware auto-update status from <current_version> to <available_version>: <status> - <info>
 ...
 <COMPONENT2_PATH> firmware auto-update starting: <firmware_path> with <boot_type>
 ...
-<COMPONENT2_PATH> firmware auto-update status: <status> with <info>
+<COMPONENT2_PATH> firmware auto-update status from <current_version> to <available_version>: <status> - <info>
 ...
 All firmware auto-update has been performed.
 ```
@@ -681,16 +696,19 @@ Example 1: BIOS and SSD firmware update is available for fast-reboot upgrade pat
 BIOS firmware update is going to be updated and no further task is needed during reboot.
 SSD firmware update is logged in a platform defined designated file and it will be updated during fast-reboot.
 ```bash
-root@sonic:~# fwutil auto-update fw --yes --image=next --boot=fast
+root@sonic:~# fwutil update all fw --yes --image=next --boot=fast
 Firmware auto-update for boot_type fast is allowed
 MSN2700/BIOS firmware auto-update starting: /lib/firmware/mlnx/bios.bin with fast
 ...
-BIOS firmware auto-update status: True with Updated
+BIOS firmware auto-update status from 0ACLH004_02.02.007 to 0ACLH004_02.02.010: updated - completed
 ...
 MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with fast
 ...
-SSD firmware auto-update status: True with Scheduled
+SSD firmware auto-update status from 4 to 5: scheduled - installation scheduled for fast reboot
 ...
+MSN2700/CPLD firmware auto-update starting: /lib/firware/mlnx/cpld.bin with fast
+...
+CPLD firmware auto-update status from 5 to 10: skipped - warm reboot not supported for auto-update
 All firmware auto-update has been performed.
 ```
 Example 2: BIOS, SSD and CPLD update is available for cold reboot upgrade path.
@@ -699,19 +717,19 @@ SSD firmware update is logged in a platform defined designated file and it will 
 CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot
 once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
 ```bash
-root@sonic:~# fwutil auto-update fw --yes --image=next --boot=cold
+root@sonic:~# fwutil update all fw --yes --image=next --boot=cold
 Firmware auto-update for boot_type cold is allowed
 MSN2700/BIOS firmware auto-update starting: /lib/firmware/mlnx/bios.bin with cold
 ...
-BIOS firmware auto-update status: True with Updated
+BIOS firmware auto-update status from 0ACLH004_02.02.007 to 0ACLH004_02.02.010: updated - completed
 ...
 MSN2700/SSD firmware auto-update starting: /lib/firmware/mlnx/ssd.bin with cold
 ...
-SSD firmware auto-update status: True with Scheduled
+SSD firmware auto-update status from 4 to 5: scheduled - installation scheduled for cold reboot
 ...
 MSN2700/CPLD firmware auto-update starting: /lib/firware/mlnx/cpld.bin with cold
 ...
-CPLD firmware auto-update status: True with Installed
+CPLD firmware auto-update status from 5 to 10: installed - need cold reboot to be completed
 All firmware auto-update has been performed.
 ```
 
@@ -725,7 +743,7 @@ admin@sonic:~# sudo fwutil auto_update fw --fw_image=fwpackage.tar.gz --boot=col
 Firmware auto-update for boot_type cold is allowed
 MSN2700/CPLD1 firmware auto-update starting: /tmp/firmwareupdate/fwpackage/fwpackage/sn2700_cpld.mpfa with boot_type cold
 ...
-CPLD1 firmware auto-update status: True with installed
+CPLD1 firmware auto-update status: installed - need cold reboot to be completed
 All firmware auto-update has been performed.
 ```
 
@@ -735,16 +753,16 @@ All firmware auto-update has been performed.
 3. -z|--fw-image - firmware package downloaded during run time (this is an exclusive option from --image)
 
 **Note:**
-- the default option is _--image=current_ and _--boot=any_
+- the default option is _--image=current_ and _--boot=none_
 - --image and --fw-image can not be supported at the same time
 
 ##### 2.2.2.4.3 Custom Firmware Package option with --fw-image
 
-Auto-update command can support the standalone custom firmware image package with --fw-image option.
+The `update all` command can support the standalone custom firmware image package with --fw-image option.
 The package can be any format between ".tar" or ".tar.gz" and should have the "platform_components.json", the firmware image(s).
 The package can have the auto-update plugin if the platform doesn't support platform api or if plugin needs to be updatedplugin.
 The package can also have the component upgrade utility(script) and the utility will be used for the component firmware upgrade if it's specified in "platform_compnents.json".
-The `fwutil auto-update` commands uncompress the package and parse the "platform_components.json" to retrieve the firmware information.
+The `fwutil update all` commands uncompress the package and parse the "platform_components.json" to retrieve the firmware information.
 
 
 Here is the firmwareupdate directory structure with the extract of firmware image package.
@@ -885,20 +903,20 @@ if [[ -x ${DEVPATH}/${PLATFORM}/${PLATFORM_FW_AU_REBOOT_HANDLE} ]]; then
 fi
 ```
 
-##### 2.2.2.4.4 Auto-update Use Cases
+##### 2.2.2.4.4 Update All Use Cases
 
 ##### 2.2.2.4.4.1 Standalone firmware update during run time
-Since FWutil auto-update can support the firmware update using a custom firmware package, this will allow the firmware update to be available during run time.
+Since `fwutil update all` can support the firmware update using a custom firmware package, this will allow the firmware update to be available during run time.
 
 SONiC device can have a component firmware updated without interrupting the data plan if the component firmware update doesn't need any boot action.
 ```bash
-root@sonic:~# fwutil auto-update fw --fw-image=aboot-fw-update.tar.gz --boot=none
+root@sonic:~# fwutil update all fw --fw-image=aboot-fw-update.tar.gz --boot=none
 ```
 
 SONiC device can also be updated only a specific firmware update with a possible boot option that can be supported on a certain topology.
 But in this case, the firmware update can be completed by following reboot which is indicated in the boot option of fwutil auto-update command.
 ```bash
-root@sonic:~# fwutil auto-update fw --fw-image=ssd-fw-update.tar.gz --boot=fast
+root@sonic:~# fwutil update all fw --fw-image=ssd-fw-update.tar.gz --boot=fast
 ...
 root@sonic:~# sudo fast-reboot
 ```
@@ -921,7 +939,7 @@ sync;sync;sync || exit 14
 
 
 if [[ -x ${PLATFORM_FW_UPDATE} ]]; then
-    ${PLATFORM_FW_UPDATE} auto-update fw --yes --image=next --boot=${REBOOT_TYPE}
+    ${PLATFORM_FW_UPDATE} update all fw --yes --image=next --boot=${REBOOT_TYPE}
 fi
 ```
 
@@ -953,19 +971,19 @@ fi
 
 ###### Figure 5: FW install (modular) flow
 
-## 3.4 Auto-update platform component firmwares
+## 3.4 FW update all platform components
 
-### 3.4.1 Auto-update using platform component apis 
+### 3.4.1 FW update all using platform component api
 
-![FW Auto-update platform compoenent api flow](images/autoupdate_component_api_flow.svg "Figure 6: Platform Component FW Auto-update flow")
+![FW update all with platform compoenent api flow](images/autoupdate_component_api_flow.svg "Figure 6: FW update all with platform component api flow")
 
-###### Figure 6: Platform Component FW Auto-update flow
+###### Figure 6: FW update all with platform component api flow
 
-### 3.4.2 Auto-update using platform utility
+### 3.4.2 FW update all using platform utility
 
-![FW Auto-update platform utility flow](images/autoupdate_platform_utility_flow.svg "Figure 7: Platform Component FW Auto-update with platform utility flow")
+![FW update all with platform utility flow](images/autoupdate_platform_utility_flow.svg "Figure 7: FW update all with platform utility flow")
 
-###### Figure 7: Platform Component FW Auto-update with platform utility flow
+###### Figure 7: FW update all with platform utility flow
 
 # 4 Tests
 
