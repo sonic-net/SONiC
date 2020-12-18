@@ -177,6 +177,27 @@ Usage: config snmp community del [OPTIONS] <snmp_community>
 
 Options:
   -?, -h, --help  Show this message and exit.
+admin@switch1:~$
+
+
+admin@switch1:~$ sudo config snmp community -h
+Usage: config snmp community [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  add      Add snmp community string
+  del      Delete snmp community string
+  replace  Replace snmp community string
+admin@switch1:~$ sudo config snmp community replace -h
+Usage: config snmp community replace [OPTIONS] <current_community_string>
+                                     <new_community_string>
+
+  Replace snmp community string
+
+Options:
+  -?, -h, --help  Show this message and exit.
 admin@switch1:~$ 
 ```
 
@@ -218,7 +239,7 @@ Commands:
   add  Add snmp user
   del  Delete snmp user
 admin@switch1:~$
-admin@str-s6000-acs-11:~$ sudo config snmp user add -h
+admin@switch1:~$ sudo config snmp user add -h
 Usage: config snmp user add [OPTIONS] <snmp_user>
                             <noAuthNoPriv|AuthNoPriv|Priv> <RO|RW> <MD5|SHA
                             |HMAC-SHA-2> <auth_password> <DES|AES>
@@ -228,14 +249,14 @@ Usage: config snmp user add [OPTIONS] <snmp_user>
 
 Options:
   -?, -h, --help  Show this message and exit.
-admin@str-s6000-acs-11:~$ sudo config snmp user del -h
+admin@switch1:~$ sudo config snmp user del -h
 Usage: config snmp user del [OPTIONS] <snmp_user>
 
   Delete snmp user
 
 Options:
   -?, -h, --help  Show this message and exit.
-admin@str-s6000-acs-11:~$ 
+admin@switch1:~$ 
 ```
 
 # Migration Plan
