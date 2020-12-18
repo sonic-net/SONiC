@@ -57,7 +57,7 @@ This document provides general information about FW utility implementation in SO
 | 0.3 | 17/09/2019 | Nazarii Hnydyn | Align flows with the platform API |
 | 0.4 | 18/12/2019 | Nazarii Hnydyn | CLI review feedback               |
 | 0.5 | 05/05/2020 | Nazarii Hnydyn | Automatic FW update per component |
-| 0.6 | 08/03/2020 | Sujin Kang     | Add firmware auto-update command  |
+| 0.6 | 08/03/2020 | Sujin Kang     | Add firmware `update all` command  |
 
 ## Abbreviations
 
@@ -126,7 +126,7 @@ we might need a dedicated FW utility.
 1. show: Display FW versions/updates
 2. install: Manual FW installation
 3. update: Complete FW installation
-3. auto-update: Automatic FW updates
+4. update all: Automatic updates of all available FWs for any specific boot type
 
 ### 1.2.3 Error handling
 
@@ -153,8 +153,8 @@ we might need a dedicated FW utility.
 | FW binary downloading over URL: error     | ERROR    |
 | FW binary installation: start/end         | INFO     |
 | FW binary installation: error             | ERROR    |
-| FW binary auto-update : start/end         | INFO     |
-| FW binary auto-update : error             | ERROR    |
+| FW binary update : start/end              | INFO     |
+| FW binary update : error                  | ERROR    |
 
 **Note:** Some extra information also will be logged:
 1. Component location (e.g., Chassis1/Module1/BIOS)
@@ -203,7 +203,7 @@ fwutil
 |    |--- status
 |    |--- updates -i|--image=<current|next>
 |    |--- updates -z|--fw-image=<fw_package.tar.gz>
-|    |--- auto_update_status
+|    |--- update status
 |
 |--- install
 |    |--- chassis
@@ -215,17 +215,16 @@ fwutil
 |              |--- fw -y|--yes <fw_path>
 |
 |--- update
-|    |--- chassis
-|    |    |--- component <component_name>
-|    |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
-|    |
-|    |--- module <module_name>
-|         |--- component <component_name>
-|              |--- fw -y|--yes -f|--force -i|--image=<current|next>
-|
-|--- auto-update
-     |--- fw -i|--image=<current|next> --b|--boot=<none|fast|warm|cold>
-     |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<none|fast|warm|cold>
+     |--- chassis
+     |    |--- component <component_name>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |
+     |--- module <module_name>
+     |    |--- component <component_name>
+     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |--- all
+          |--- fw -i|--image=<current|next> --b|--boot=<none|fast|warm|cold>
+          |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<none|fast|warm|cold>
 
 ```
 **Note:**
@@ -320,15 +319,15 @@ Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10           
 - `fwutil show updates` command only displays for the components which have the firmware image path available in platform_components.json
 ```
 
-**The following command displays the Component FW auto-update satus:**
-1. Auto-update status
+**The following command displays the Component FW update satus (only available for `fwutil update all` command):**
+1. update status
 ```bash
-root@sonic:~# fwutil show auto-update status
+root@sonic:~# fwutil show update status
 Firmware auto-update performed for cold reboot
-Component      Status     Info
--------------  ---------  --------------------------------------
-MSN2700/SSD    scheduled  installation scheduled for cold reboot
-MSN2700/CPLD1  installed  need cold reboot to be completed
+Component      Version    Status     Info
+-------------  ---------  ---------  --------------------------------------
+MSN2700/SSD    4/5        scheduled  installation scheduled for cold reboot
+MSN2700/CPLD1  5/10       installed  need cold reboot to be completed
 ```
 
 #### 2.2.2.2 Install commands
@@ -562,7 +561,7 @@ New component api is introduced to support the component firmware auto-update as
         """
         raise NotImplementedError
 ```
-The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show auto_update_status` command. 
+The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show update status` command. 
 
 In case that a firmware update needs any additional step to complete the firmware update but the installation time is longer than the boot time requirement, auto-update platform api is expected to install the firmware and perform the complete action during the reboot via `platform_fw_au_reboot_handle` or `platform_reboot` plugin.
 For example, some cpld update needs a power cycle to complete the firmware update and some cpld update needs a register triggered power-cycle to give some refresh time for the new firmware to be effective on the system.
@@ -654,7 +653,7 @@ Automatic FW installation requires default platform_components.json to be create
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 Recommended image path is "/lib/firmware/<vendor>".
 
-Here is the /var/platform directory structure while fwutil handles the `fwutil auto-update fw` and `fwutil show auto_update_status` command.
+Here is the /var/platform directory structure while fwutil handles the `fwutil update all fw` and `fwutil show update status` command.
 ```
 /var/platform/
           |--- fw_au_status
@@ -739,7 +738,7 @@ SSD firmware update is logged in a platform defined designated file and it will 
 CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot
 once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
 ```
-admin@sonic:~# sudo fwutil auto_update fw --fw_image=fwpackage.tar.gz --boot=cold
+admin@sonic:~# sudo fwutil update all fw --fw_image=fwpackage.tar.gz --boot=cold
 Firmware auto-update for boot_type cold is allowed
 MSN2700/CPLD1 firmware auto-update starting: /tmp/firmwareupdate/fwpackage/fwpackage/sn2700_cpld.mpfa with boot_type cold
 ...
