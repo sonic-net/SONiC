@@ -108,7 +108,7 @@ show run snmp contact
 admin@switch1:~$ show run snmp contact
 Contact    Contact Email
 ---------  -----------------
-Joe        joe@microsoft.com
+Joe        joe@contoso.com
 admin@switch1:~$
 ```
 
