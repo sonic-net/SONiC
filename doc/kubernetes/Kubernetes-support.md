@@ -386,9 +386,19 @@ The following are the high level requirements to meet.
 
 ### config feature
 
-#### config feature <name> [owner <local/kube>] [no-fallback <true/false>] [failmode < N seconds >] [-y]
+#### config feature <property name> <feature name>  <value>
    This command can be used to sets all properties of a FEATURE.<br/>
-   The update of owner might require a service restart. If yes, a confirmation prompt would be provided.
+  
+     ```
+     admin@str-s6000-acs-13:~$ show  feature config lldp
+     Feature    State    AutoRestart    Owner
+     ---------  -------  -------------  -------
+     lldp       enabled  enabled        kube
+     admin@str-s6000-acs-13:~$ sudo config feature owner lldp local
+     admin@str-s6000-acs-13:~$ show  feature config lldp
+     Feature    State    AutoRestart    Owner
+     ---------  -------  -------------  -------
+     ```
    
 #### config feature install <name> [<required services>]
    Every feature requires .service & bash scripts to enable systemd to manage it. The features that are part of SONiC image has those files embedded. This command can be used to create the .service & bash scripts.  
@@ -413,14 +423,25 @@ The following are the high level requirements to meet.
    KUBERNETES_MASTER SERVER last_update_ts 1000
    ```
    
-#### show feature <name>
+#### show feature status <name>
    This would list FEATURE table data from both CONFIG-DB & STATE-DB<br/>
    ```
-   admin@str-s6000-acs-13:~$ show features 
-   Feature    Status    set_owner    fallback    current_owner    current_owner_update    docker_id     remote_state
-   ---------  --------  -----------  ----------  ---------------  ----------------------  ------------  --------------
-   snmp       enabled   kube         true        kube             1598323562              4333d9d5004a  ready
+   admin@str-s6000-acs-13:~$ show feature status snmp
+   Feature    State    AutoRestart    SystemState    UpdateTime           ContainerId    Version      SetOwner    CurrentOwner
+   ---------  -------  -------------  -------------  -------------------  -------------  -----------  ----------  --------------
+   snmp       enabled  enabled        up             2020-12-08 22:59:57  snmp           20201230.80  kube        local
    ```
+ State - The configured state as enabled/disabled
+ AutoRestart -- The configured value
+ SystemState -- The current systemctl status of the feature
+ UpdateTime -- The last update time to this entry
+ Container ID -- ID of the container if the feature is running.
+                 Note: SystemState == Up does not really mean the feature is running,
+                        as in case of remote management by Kube, the deployment could be delayed
+ Version -- The version of current running or last run container image
+ SetOwner -- As configured
+ CurrentOwner -- Current owner of the running container.
+ 
 # Reboot support
 
 ## Warm-reboot support
