@@ -431,17 +431,16 @@ The following are the high level requirements to meet.
    ---------  -------  -------------  -------------  -------------------  -------------  -----------  ----------  --------------
    snmp       enabled  enabled        up             2020-12-08 22:59:57  snmp           20201230.80  kube        local
    ```
- State - The configured state as enabled/disabled
- AutoRestart -- The configured value
- SystemState -- The current systemctl status of the feature
- UpdateTime -- The last update time to this entry
- Container ID -- ID of the container if the feature is running.
-                 Note: SystemState == Up does not really mean the feature is running,
-                        as in case of remote management by Kube, the deployment could be delayed
- Version -- The version of current running or last run container image
- SetOwner -- As configured
- CurrentOwner -- Current owner of the running container.
- 
+ State - The configured state as enabled/disabled<br/>
+ AutoRestart -- The configured value<br/>
+ SystemState -- The current systemctl status of the feature<br/>
+ UpdateTime -- The last update time to this entry<br/>
+ Container ID -- ID of the container if the feature is running.<br/>
+ Version -- The version of current running or last run container image<br/>
+ SetOwner -- As configured<br/>
+ CurrentOwner -- Current owner of the running container.<br/>
+ <br/>
+Note: SystemState == Up does not really mean the feature is running, as in case of remote management by Kube, the deployment could be delayed. A non-empty container-id implies that the feature is indeed running.<br/>
 # Reboot support
 
 ## Warm-reboot support
