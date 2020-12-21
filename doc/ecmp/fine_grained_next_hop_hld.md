@@ -199,8 +199,8 @@ CLI commands:
 ### 2.3.1 CLI 'show fgnhg hash-view <fg-nhg-group-name>' Output Format
 ```
  
-NOTE: <fg-nhg-group-name> is an optional parameter containing the user-defined alias of nhg ipv4 or nhg ipv6 
-found in 'FG_NHG_PREFIX' section of config dB. If specified, the output will display either ipv4 next hops and banks
+NOTE: <fg-nhg-group-name> is an optional parameter containing the user-defined alias of the FG_NHG group name
+found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display either ipv4 next hops and banks
 or ipv6 next hops and banks accordingly. If it is not specified, by default both ipv4 and ipv6 next hops and banks 
 are displayed as shown below:
 
