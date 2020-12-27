@@ -196,14 +196,12 @@ CLI commands:
 	show fgnhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
 
-### 2.3.1 CLI 'show fgnhg hash-view <fg-nhg-group-name>' Output Format
+### 2.3.1 CLI 'show fgnhg hash-view {fg-nhg-group-name}' Output Format
 ```
- 
-NOTE: <fg-nhg-group-name> is an optional parameter containing the user-defined alias of the FG_NHG group name
-found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display either ipv4 next hops and banks
-or ipv6 next hops and banks accordingly. If it is not specified, by default both ipv4 and ipv6 next hops and banks 
-are displayed as shown below:
-
+NOTE: {fg-nhg-group-name} is an optional parameter containing the user-defined alias of the FG_NHG group name
+found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display active next hops
+from the specified group. If it is not specified, by default, active next hops from all groups are displayed
+as shown below:
 
 +-----------------+--------------------+----------------+
 | FG_NHG_PREFIX   | Next Hop           | Hash buckets   |
@@ -278,12 +276,12 @@ are displayed as shown below:
 +-----------------+--------------------+----------------+
 ```
 
-### 2.3.2 CLI 'show fgnhg active-hops' Output Format
+### 2.3.2 CLI 'show fgnhg active-hops {fg-nhg-group-name}' Output Format
 ```
-NOTE: 'fg-nhg-group-name' is an optional parameter containing the user-defined alias of nhg ipv4 or nhg ipv6 
-found in 'FG_NHG_PREFIX' section of config dB. If specified, the output will display either ipv4 active next hops
-or ipv6 active next hops accordingly. If it is not specified, by default both ipv4 and ipv6 active next hops 
-are displayed as shown below:
+NOTE: {fg-nhg-group-name} is an optional parameter containing the user-defined alias of the FG_NHG group name
+found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display active next hops
+from the specified group. If it is not specified, by default, active next hops from all groups are displayed
+as shown below:
 
 
 +-----------------+--------------------+
