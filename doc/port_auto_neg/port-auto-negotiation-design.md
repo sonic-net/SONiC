@@ -124,15 +124,15 @@ This command works only if auto negotiation is enabled.
 
 ```
 Format:
-  config interface advertised_speeds <interface_name> <speed_list>
+  config interface advertised-speeds <interface_name> <speed_list>
 
 Arguments:
   interface_name: name of the interface to be configured. e.g: Ethernet0
   speed_list: a list of speeds to be advertised or "all". e.g: 40000,100000.
 
 Example:
-  config interface advertised_speeds Ethernet0 40000,100000
-  config interface advertised_speeds Ethernet0 all
+  config interface advertised-speeds Ethernet0 40000,100000
+  config interface advertised-speeds Ethernet0 all
 
 Return:
   error message if interface_name or speed_list is invalid otherwise empty
@@ -141,20 +141,22 @@ Note:
   speed_list value "all" means all supported speeds 
 ```
 
+This command always replace the advertised speeds instead of append. For example, say the current advertised speeds value are "10000,25000", if user configure it with `config interface advertised-speeds Ethernet0 40000,100000`, the advertised speeds value will be changed to "40000,100000".
+
 ##### Config interface type
 
 This command works only if auto negotiation is disabled.
 
 ```
 Format:
-  config interface interface_type <interface_name> <interface_type>
+  config interface interface-type <interface_name> <interface_type>
 
 Arguments:
   interface_name: name of the interface to be configured. e.g: Ethernet0
   interface_type: interface type, valid value include: KR4, SR4 and so on. A list of valid interface type could be found at saiport.h.
 
 Example:
-  config interface interface_type Ethernet0 KR4
+  config interface interface-type Ethernet0 KR4
 
 Return:
   error message if interface_name or interface_type is invalid otherwise empty
@@ -166,15 +168,15 @@ This command works only if auto negotiation is enabled.
 
 ```
 Format:
-  config interface advertised_interface_types <interface_name> <interface_type_list>
+  config interface advertised-interface-types <interface_name> <interface_type_list>
 
 Arguments:
   interface_name: name of the interface to be configured. e.g: Ethernet0
   media_type_list: a list of interface types to be advertised or "all". e.g: KR4,SR4.
 
 Example:
-  config interface advertised_interface_types Ethernet0 KR4,SR4
-  config interface advertised_interface_types all
+  config interface advertised-interface-types Ethernet0 KR4,SR4
+  config interface advertised-interface-types all
 
 Return:
   error message if interface_name or interface_type_list is invalid otherwise empty
@@ -182,6 +184,8 @@ Return:
 Note:
   media_type_list value "all" means all supported interface type 
 ```
+
+This command always replace the advertised interface types instead of append. For example, say the current advertised interface types value are "KR4,SR4", if user configure it with `config interface advertised-interface-types Ethernet0 CR4`, the advertised interface types value will be changed to "CR4".
 
 #### Config DB Enhancements  
 
@@ -269,6 +273,107 @@ else:
         setInterfaceType(port, interface_type)
 ```
 
+#### Port Breakout Consideration
+
+Currently, when user change port breakout mode, SONiC removes the old ports and create new ports in CONFIG_DB according to platform.json. For example, say Ethernet0 supports breakout mode 1x100G and 2x50G. The platform.json looks like:
+
+```json
+"interfaces": {
+	"Ethernet0": {
+	    "index": "1,1,1,1",
+	    "lanes": "0,1,2,3",
+	    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
+	    "breakout_modes": "1x100G,2x50G"
+	 },
+ 	 ...
+ }
+```
+
+**Without port auto negotiation feature**,  the current configuration of Ethernet0 is:
+
+```json
+"Ethernet0": {
+    "alias": "Eth1/1",
+    "lanes": "0,1,2,3",
+    "speed": "100000",
+    "index": "1"
+}
+```
+
+User change the port breakout mode via command `config interface breakout Ethernet0 2x50G`. According to platform.json, the configuration of Ethernet0 will change to:
+
+```json
+"Ethernet0": {
+    "alias": "Eth1/1",
+    "lanes": "0,1",
+    "speed": "50000",
+    "index": "1"
+},
+"Ethernet2": {
+    "alias": "Eth1/3",
+    "lanes": "2,3",
+    "speed": "50000",
+    "index": "1"
+}
+```
+
+However, **with port auto negotiation feature**, the original configuration of Ethernet0 could be:
+
+```json
+"Ethernet0": {
+    "alias": "Eth1/1",
+    "lanes": "0,1,2,3",
+    "speed": "100000",
+    "index": "1",
+    "autoneg": "true",
+    "adv_speeds": "10000,25000,40000,50000,100000",
+    "adv_interface_types": "CR4,KR4,SR4"
+}
+```
+
+So after user breakout the port to 2x50G mode and we simply copy the old configuration to new ports, there are a few issues:
+
+1. For field adv_speeds, value "10000,25000,40000,100000" are not suitable for 2x50G mode. The same issue also may apply to field adv_interface_types.
+2. Since autoneg is true and port speed could be auto negotiated to value which is not 50G, it would confuse user: we breakout to 2x50G mode but the actual port speed is not 50G.
+
+So I would suggest to not set the value of autoneg, adv_speeds and adv_interface_types in such situation. Then the configuration after port breakout is still:
+
+```json
+"Ethernet0": {
+    "alias": "Eth1/1",
+    "lanes": "0,1",
+    "speed": "50000",
+    "index": "1"
+},
+"Ethernet2": {
+    "alias": "Eth1/3",
+    "lanes": "2,3",
+    "speed": "50000",
+    "index": "1"
+}
+```
+
+I choose this solution because:
+
+1. It's simple. No code changes are required to existing port breakout implementation.
+2. It's clear. User gets two new ports with expected speed.
+3. It's backward compatible.
+4. User can still set auto negotiation parameter after port breakout.
+
+However, there is still one problem. As port breakout mode is saved in CONFIG_DB like:
+
+```json
+"BREAKOUT_CFG":
+{
+    "Ethernet0": {
+        "brkout_mode": "1x100G"
+    },
+    ...
+}
+```
+
+If auto negotiation is enabled on Ethernet0 and its speed is negotiated to a value which is not 100G, what will happen if user change the breakout mode? Since this problem exists even if without port auto negotiation feature, I suppose port breakout implementation should properly handle it (or it has been already handled).
+
 ### Warmboot and Fastboot Design Impact
 
 N/A
@@ -284,9 +389,9 @@ N/A
 For sonic-utilities, we will leverage the existing unit test framework to test. A few new test cases will be added:
 
 1. Test command `config interface autoneg <interface_name> <mode>`. Verify the command return error if given invalid interface_name or mode.
-2. Test command `config interface advertised_speeds <interface_name> <speed_list>`. Verify the command return error if given invalid interface name or speed list.
-3. Test command `config interface interface_type <interface_name> <interface_type>`. Verify the command return error if given invalid interface name or interface type.
-4. Test command `config interface advertised_interface_types <interface_name> <interface_type_list>`. Verify the command return error if given invalid interface name or interface type list.
+2. Test command `config interface advertised-speeds <interface_name> <speed_list>`. Verify the command return error if given invalid interface name or speed list.
+3. Test command `config interface interface-type <interface_name> <interface_type>`. Verify the command return error if given invalid interface name or interface type.
+4. Test command `config interface advertised-interface-types <interface_name> <interface_type_list>`. Verify the command return error if given invalid interface name or interface type list.
 
 For sonic-swss, there is an existing test case [test_port_an](https://github.com/Azure/sonic-swss/blob/master/tests/test_port_an.py). The existing test case covers autoneg and speed attributes on both direct and warm-reboot scenario. So new unit test cases need cover the newly supported attributes:
 
