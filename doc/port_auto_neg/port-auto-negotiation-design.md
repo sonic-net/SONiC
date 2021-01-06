@@ -9,7 +9,7 @@
  | 0.1 |             |      Junchao Chen  | Initial version                   |
 
 ### Scope
-This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, yang model change, CLI change, DB schema change and swss change.
+This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, swss change.
 
 ### Definitions/Abbreviations 
 N/A
@@ -31,29 +31,29 @@ The main goal of this document is to discuss the design of following requirement
 
 ### Architecture Design
 
-This feature does not change the existing SONiC architecture. 
+This feature does not change the existing SONiC architecture.
 
 This feature introduces a few new CLI commands which will fit in sonic-utilities. And this feature also requires to change the configuration flow for port auto negotiation attributes which will be covered in orchagent.
 
 ### High-Level Design
 
+- SAI API requirements is covered in section [SAI API](#sai-api).
 - 4 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type and advertised interface types for a given interface. See detail description in section [CLI Enhancements](#cli-enhancements).
 - Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
-- SAI API requirements is covered in section [SAI API](#sai-api).
 
 ### SAI API
 
-Currently, SAI already defines a few port attributes to support port auto negotiation. SAI API must return error if any of the given attributes is not supported. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document. The related port attributes are listed below:
+Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document. The related port attributes are listed below:
 ```cpp
     /**
-     * @brief Query/Configure Port's Advertised auto-negotiation configuration
+     * @brief Auto Negotiation configuration
      *
      * @type bool
      * @flags CREATE_AND_SET
      * @default false
      */
-    SAI_PORT_ATTR_ADVERTISED_AUTO_NEG_MODE,
+    SAI_PORT_ATTR_AUTO_NEG_MODE,
     /**
      * @brief Speed in Mbps
      *
@@ -94,6 +94,8 @@ Currently, SAI already defines a few port attributes to support port auto negoti
     SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE,
 ```
 
+SAI API must return error if any of the given attributes is not supported.
+
 ### Configuration and management 
 
 #### CLI Enhancements 
@@ -120,7 +122,7 @@ Return:
 
 ##### Config advertised speeds
 
-This command works only if auto negotiation is enabled.
+Configuring advertised speeds takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised speeds value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is enabled.
 
 ```
 Format:
@@ -145,7 +147,7 @@ This command always replace the advertised speeds instead of append. For example
 
 ##### Config interface type
 
-This command works only if auto negotiation is disabled.
+Configuring interface type takes effect only if auto negotiation is disabled. If auto negotiation is enabled, this command still saves interface type value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is disabled.
 
 ```
 Format:
@@ -164,7 +166,7 @@ Return:
 
 ##### Config advertised interface types
 
-This command works only if auto negotiation is enabled.
+Configuring advertised interface types takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised interface types value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is enabled.
 
 ```
 Format:
@@ -273,7 +275,15 @@ else:
         setInterfaceType(port, interface_type)
 ```
 
+#### portsyncd and portmgrd Consideration
+
+No changes for portsyncd and portmgrd.
+
+Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles the rest fields. 
+
 #### Port Breakout Consideration
+
+No changes for port breakout.
 
 Currently, when user change port breakout mode, SONiC removes the old ports and create new ports in CONFIG_DB according to platform.json. For example, say Ethernet0 supports breakout mode 1x100G and 2x50G. The platform.json looks like:
 
@@ -331,7 +341,7 @@ However, **with port auto negotiation feature**, the original configuration of E
 }
 ```
 
-So after user breakout the port to 2x50G mode and we simply copy the old configuration to new ports, there are a few issues:
+So if user breakout the port to 2x50G mode and we simply copy the old configuration to new ports, there are a few issues:
 
 1. For field adv_speeds, value "10000,25000,40000,100000" are not suitable for 2x50G mode. The same issue also may apply to field adv_interface_types.
 2. Since autoneg is true and port speed could be auto negotiated to value which is not 50G, it would confuse user: we breakout to 2x50G mode but the actual port speed is not 50G.
