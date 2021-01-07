@@ -38,10 +38,10 @@ This feature introduces a few new CLI commands which will fit in sonic-utilities
 ### High-Level Design
 
 - SAI API requirements is covered in section [SAI API](#sai-api).
-- 4 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type and advertised interface types for a given interface. See detail description in section [CLI Enhancements](#cli-enhancements).
-- Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
+- 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation configuration. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
-
+- DB migrator need handle the existing autoneg configuration and migrate to the new configuration. See detail description in section [DB Migrator Enhancements](#db-migrator-enhancements)
+- Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 ### SAI API
 
 Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document. The related port attributes are listed below:
@@ -122,7 +122,7 @@ Return:
 
 ##### Config advertised speeds
 
-Configuring advertised speeds takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised speeds value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is enabled.
+Configuring advertised speeds takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised speeds value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
 
 ```
 Format:
@@ -147,7 +147,7 @@ This command always replace the advertised speeds instead of append. For example
 
 ##### Config interface type
 
-Configuring interface type takes effect only if auto negotiation is disabled. If auto negotiation is enabled, this command still saves interface type value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is disabled.
+Configuring interface type takes effect only if auto negotiation is disabled. If auto negotiation is enabled, this command still saves interface type value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
 
 ```
 Format:
@@ -166,7 +166,7 @@ Return:
 
 ##### Config advertised interface types
 
-Configuring advertised interface types takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised interface types value to CONFIG_DB, orchagent will not pass the value to SAI until auto negotiation is enabled.
+Configuring advertised interface types takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised interface types value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
 
 ```
 Format:
@@ -188,6 +188,39 @@ Note:
 ```
 
 This command always replace the advertised interface types instead of append. For example, say the current advertised interface types value are "KR4,SR4", if user configure it with `config interface advertised-interface-types Ethernet0 CR4`, the advertised interface types value will be changed to "CR4".
+
+##### Show interfaces auto negotiation configuration
+
+As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation configuration.
+
+```
+Format:
+  show interfaces auto-neg-config <interface_name>
+
+Arguments:
+  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interafce_name is not given, this command shows auto negotiation configuration for all interfaces.
+
+Example:
+  show interfaces auto-neg-config
+  show interfaces auto-neg-config Ethernet0
+
+Return:
+  error message if interface_name is invalid otherwise:
+
+  Ethernet0:
+      Auto-Neg Mode: Enabled
+      Speed: 100G
+      Advertised Speeds: 10G,25G,40G,100G
+      Interface Type: CR4
+      Advertised Interface Types: CR4,KR4
+  Ethernet4:
+      Auto-Neg Mode: N/A
+      Speed: 100G
+      Advertised Speeds: N/A
+      Interface Type: N/A
+      Advertised Interface Types: N/A
+  ...
+```
 
 #### Config DB Enhancements  
 
@@ -230,6 +263,29 @@ Here is the table to map the fields and SAI attributes:
 | interface_type      | SAI_PORT_ATTR_INTERFACE_TYPE                   |
 | speed               | SAI_PORT_ATTR_SPEED                            |
 
+#### DB Migrator Enhancements
+
+In current SONiC implementation, if auto negotiation is enabled, it uses the `speed` field as the advertised speeds. Since this feature introduced a new field `adv_speeds`, we need do DB migration to keep backward compatible. For example, the configuration: 
+
+```json
+"Ethernet0": {
+    ...
+    "autoneg": "1",
+    "speed": "100000"
+}
+```
+
+Will be migrated to:
+
+```json
+"Ethernet0": {
+    ...
+    "autoneg": "1",
+    "speed": "100000",
+    "adv_speeds": "100000"
+}
+```
+
 #### SWSS Enhancements
 
 The current SONiC speed setting flow in PortsOrch can be described in following pseudo code:
@@ -256,8 +312,6 @@ if autoneg == true:
     speed_list = vector()
     if adv_speeds is set:
         speed_list = adv_speeds
-    else if speed is set: // for backward compatible
-        speed_list.push_back(speed)
     else:
         speed_list = all_supported_speeds
     setPortAdvSpeed(port, speed_list)
@@ -369,20 +423,6 @@ I choose this solution because:
 2. It's clear. User gets two new ports with expected speed.
 3. It's backward compatible.
 4. User can still set auto negotiation parameter after port breakout.
-
-However, there is still one problem. As port breakout mode is saved in CONFIG_DB like:
-
-```json
-"BREAKOUT_CFG":
-{
-    "Ethernet0": {
-        "brkout_mode": "1x100G"
-    },
-    ...
-}
-```
-
-If auto negotiation is enabled on Ethernet0 and its speed is negotiated to a value which is not 100G, what will happen if user change the breakout mode? Since this problem exists even if without port auto negotiation feature, I suppose port breakout implementation should properly handle it (or it has been already handled).
 
 ### Warmboot and Fastboot Design Impact
 
