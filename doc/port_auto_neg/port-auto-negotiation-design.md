@@ -207,19 +207,11 @@ Example:
 Return:
   error message if interface_name is invalid otherwise:
 
-  Ethernet0:
-      Auto-Neg Mode: Enabled
-      Speed: 100G
-      Advertised Speeds: 10G,25G,40G,100G
-      Interface Type: CR4
-      Advertised Interface Types: CR4,KR4
-  Ethernet4:
-      Auto-Neg Mode: N/A
-      Speed: 100G
-      Advertised Speeds: N/A
-      Interface Type: N/A
-      Advertised Interface Types: N/A
-  ...
+  Name         Auto-Neg Mode    Speed    Advertised Speeds    Interface Type    Advertised Interface Types
+  -----------  ---------------  -------  -------------------  ----------------  ----------------------------
+  Ethernet0    disabled         40G      N/A                  N/A               N/A
+  Ethernet4    enabled          40G      40G,100G             CR4               CR4,SR4
+
 ```
 
 #### Config DB Enhancements  
