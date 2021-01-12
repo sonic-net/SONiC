@@ -37,14 +37,19 @@ This feature introduces a few new CLI commands which will fit in sonic-utilities
 
 ### High-Level Design
 
-- SAI API requirements is covered in section [SAI API](#sai-api).
+- SAI API requirements is covered in section [SAI API Requirement](#sai-api-requirement).
 - 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation configuration. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
 - DB migrator need handle the existing autoneg configuration and migrate to the new configuration. See detail description in section [DB Migrator Enhancements](#db-migrator-enhancements)
 - Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
-### SAI API
+### SAI API Requirement
 
-Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document. The related port attributes are listed below:
+Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document, but there are some comment requirements for SAI:
+
+1. SAI implementation must return error code if any of the auto negotiation related attribute is not supported, swss and syncd must not crash.
+2. SAI implementation must keep backward compatible. As long as swss and SAI keep backward compatible, user need not change anything after this feature is enabled in SONiC.
+
+The related port attributes are listed below:
 ```cpp
     /**
      * @brief Auto Negotiation configuration
@@ -93,8 +98,6 @@ Currently, SAI already defines a few port attributes to support port auto negoti
      */
     SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE,
 ```
-
-SAI API must return error if any of the given attributes is not supported.
 
 ### Configuration and management 
 
@@ -151,14 +154,14 @@ Configuring interface type takes effect only if auto negotiation is disabled. If
 
 ```
 Format:
-  config interface interface-type <interface_name> <interface_type>
+  config interface type <interface_name> <interface_type>
 
 Arguments:
   interface_name: name of the interface to be configured. e.g: Ethernet0
   interface_type: interface type, valid value include: KR4, SR4 and so on. A list of valid interface type could be found at saiport.h.
 
 Example:
-  config interface interface-type Ethernet0 KR4
+  config interface type Ethernet0 KR4
 
 Return:
   error message if interface_name or interface_type is invalid otherwise empty
@@ -170,48 +173,47 @@ Configuring advertised interface types takes effect only if auto negotiation is 
 
 ```
 Format:
-  config interface advertised-interface-types <interface_name> <interface_type_list>
+  config interface advertised-types <interface_name> <interface_type_list>
 
 Arguments:
   interface_name: name of the interface to be configured. e.g: Ethernet0
-  media_type_list: a list of interface types to be advertised or "all". e.g: KR4,SR4.
+  interface_type_list: a list of interface types to be advertised or "all". e.g: KR4,SR4.
 
 Example:
-  config interface advertised-interface-types Ethernet0 KR4,SR4
-  config interface advertised-interface-types all
+  config interface advertised-types Ethernet0 KR4,SR4
+  config interface advertised-types all
 
 Return:
   error message if interface_name or interface_type_list is invalid otherwise empty
 
 Note:
-  media_type_list value "all" means all supported interface type 
+  interface_type_list value "all" means all supported interface type 
 ```
 
-This command always replace the advertised interface types instead of append. For example, say the current advertised interface types value are "KR4,SR4", if user configure it with `config interface advertised-interface-types Ethernet0 CR4`, the advertised interface types value will be changed to "CR4".
+This command always replace the advertised interface types instead of append. For example, say the current advertised interface types value are "KR4,SR4", if user configure it with `config interface advertised-types Ethernet0 CR4`, the advertised interface types value will be changed to "CR4".
 
-##### Show interfaces auto negotiation configuration
+##### Show interfaces auto negotiation status
 
-As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation configuration.
+As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation status. All data of this command comes from **APPL_DB**.
 
 ```
 Format:
-  show interfaces auto-neg-config <interface_name>
+  show interfaces auto-neg-status <interface_name>
 
 Arguments:
-  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interafce_name is not given, this command shows auto negotiation configuration for all interfaces.
+  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation configuration for all interfaces.
 
 Example:
-  show interfaces auto-neg-config
-  show interfaces auto-neg-config Ethernet0
+  show interfaces auto-neg-status
+  show interfaces auto-neg-status Ethernet0
 
 Return:
   error message if interface_name is invalid otherwise:
 
-  Name         Auto-Neg Mode    Speed    Advertised Speeds    Interface Type    Advertised Interface Types
-  -----------  ---------------  -------  -------------------  ----------------  ----------------------------
-  Ethernet0    disabled         40G      N/A                  N/A               N/A
-  Ethernet4    enabled          40G      40G,100G             CR4               CR4,SR4
-
+  Interface    Auto-Neg Mode    Speed    Adv Speeds    Type    Adv Types
+-----------  ---------------  -------  ------------  ------  -----------
+  Ethernet0          enabled     100G      40G,100G     N/A      CR4,KR4
+ Ethernet32         disabled      40G           N/A     N/A          N/A
 ```
 
 #### Config DB Enhancements  
@@ -302,17 +304,15 @@ if autoneg changed:
 
 if autoneg == true:
     speed_list = vector()
-    if adv_speeds is set:
+    if adv_speeds is set && adv_speeds != "all":
+        // if adv_speeds == "all", leave speed_list empty which means all supported speeds
         speed_list = adv_speeds
-    else:
-        speed_list = all_supported_speeds
     setPortAdvSpeed(port, speed_list)
 
     interface_type_list = vector()
-    if adv_interface_types is set:
+    if adv_interface_types is set && adv_interface_types != "all":
+        // if adv_speeds == "all", leave interface_type_list empty which means all supported types
         interface_type_list = adv_interface_types
-    else:
-        interface_type_list = all_supported_interface_types
     setPortAdvInterfaceType(port, interface_type_list)
 else:
     if speed is set:
@@ -418,7 +418,7 @@ I choose this solution because:
 
 ### Warmboot and Fastboot Design Impact
 
-N/A
+SAI and lower layer must not flap port during warmboot/fastboot no matter what auto negotiation parameter is given.
 
 ### Restrictions/Limitations
 
@@ -432,8 +432,8 @@ For sonic-utilities, we will leverage the existing unit test framework to test. 
 
 1. Test command `config interface autoneg <interface_name> <mode>`. Verify the command return error if given invalid interface_name or mode.
 2. Test command `config interface advertised-speeds <interface_name> <speed_list>`. Verify the command return error if given invalid interface name or speed list.
-3. Test command `config interface interface-type <interface_name> <interface_type>`. Verify the command return error if given invalid interface name or interface type.
-4. Test command `config interface advertised-interface-types <interface_name> <interface_type_list>`. Verify the command return error if given invalid interface name or interface type list.
+3. Test command `config interface type <interface_name> <interface_type>`. Verify the command return error if given invalid interface name or interface type.
+4. Test command `config interface advertised-types <interface_name> <interface_type_list>`. Verify the command return error if given invalid interface name or interface type list.
 
 For sonic-swss, there is an existing test case [test_port_an](https://github.com/Azure/sonic-swss/blob/master/tests/test_port_an.py). The existing test case covers autoneg and speed attributes on both direct and warm-reboot scenario. So new unit test cases need cover the newly supported attributes:
 
@@ -449,4 +449,7 @@ TBD
 
 ### Open/Action items - if any
 
-- CLI commands cannot validate the supported speeds and supported interface types for now
+1. CLI commands does not validate the supported speeds and supported interface types for now (Existing command `config interface speed` does not validate the speed value too).
+
+    - There is a SAI API to get supported speeds for a given switch port. Maybe we can use this API to get supported speeds data for each port and save it to state DB, which can be used for CLI to do a rough validation.
+    - For interface type, there is no SAI API to get supported interface type for a given port. We only have an enumeration defined in saiport.h which represents all **known** interface types in SAI. In this case, we have two issues: one is that we need transfer string such as "CR4" to an enum value, we might need define a map in swss and once SAI API changes we have to change swss either; the other issue is that we cannot validate the interface type in CLI or swss code before passing the value to SAI.
