@@ -118,7 +118,22 @@ we might need a dedicated FW utility.
 2. Complete FW installation for particular platform component
 3. Querying platform components and FW versions
 4. Querying available FW updates for all platform components
-5. Automatic FW updates for all available platform components
+5. Automatic FW updates for all available platform components listed in platform_components.json
+   for any specific boot type. Automatic FW updates expects to be followed by the reboot
+   that was specified by the fwutil automatic fw update command, unless the boot type was none.
+6. Automatic FW updates can have two phases for the components which firmware update needs
+   the complete action to be performed and the first phase is done by platform api and the
+   second phase can be done by the fwupdate reboot plugin. The heavy time consuming firmware
+   update is expected to be done during the first phase.
+7. Automatic FW updates can have another two phases for any firmware update which needs
+   any system intervention like process stop or disk unmount, the firmware update task should
+   be scheduled by platform api during the first phase and the actual firmware update should
+   be performed by the fwupdate reboot plugin during the second phase with timing restriction*.
+   *In the real network situation, long device reboot timing could interrupt any services
+   running on the servers under the network device. Based on the reboot type, the platform vendor
+   needs to measure the reboot timing including the firmware update and diagonize the firmware update
+   is applicable for the autoupdate and the auto_update_firmware() platform api should return
+   "status_err_boot_type" if the reboot timing doesn't meet for any reboot requirement.
 
 ### 1.2.2 Command interface
 
@@ -187,7 +202,7 @@ non modular chassis platforms. Both modular and non modular chassis platforms sh
 but may have different implementation.
 
 SONiC FW utility uses platform API to interact with the various platform components.
-SONiC FW utility extends to support for the automatic firmware update based on "platform_components.json" under platform directory and next reboot option which is passed as a option for `fwutil autoupdate fw` command.
+SONiC FW utility extends to support for the automatic firmware update based on "platform_components.json" under platform directory and next reboot option which is passed as a option for `fwutil update all fw` command.
 SONiC FW utility also extends to support for the automatic firmware update with a custom firmware package that can include any firmware update tool and the firmware update tool will be used for the firmware update if it's specified in the "platform_components.json".
 
 ## 2.2 FW utility
@@ -737,7 +752,7 @@ BIOS firmware update is going to be updated and no further task is needed during
 SSD firmware update is logged in a platform defined designated file and it will be updated during cold reboot.
 CPLD firmware update is going to be done with this command and the CPLD completion activity will be performed during cold reboot
 once all reboot processes are finished. The CPLD completion activity for this case is a power cycle triggered by the hw register setting.
-```
+```bash
 admin@sonic:~# sudo fwutil update all fw --fw_image=fwpackage.tar.gz --boot=cold
 Firmware auto-update for boot_type cold is allowed
 MSN2700/CPLD1 firmware auto-update starting: /tmp/firmwareupdate/fwpackage/fwpackage/sn2700_cpld.mpfa with boot_type cold
@@ -848,7 +863,7 @@ The task file will be platform-specific.
 
 ##### 2.2.2.4.3.1 Platform Component Firmware Update Utility Interface Requirement
 
-The Utility should support the minimum requirements to perform the fwutil auto-update interface. 
+The Utility should support the minimum requirements to perform the fwutil's automatic update interface.
 The minimum requirement is that the component api's get_frimware_version, get_firmware_update_notification(), and auto_update_firmware() needs to be supported by the utility.
 Here are the interface requirements to support them.
 1. {utility} -s(--status) : able to retrieve the current firmware version:
@@ -913,7 +928,7 @@ root@sonic:~# fwutil update all fw --fw-image=aboot-fw-update.tar.gz --boot=none
 ```
 
 SONiC device can also be updated only a specific firmware update with a possible boot option that can be supported on a certain topology.
-But in this case, the firmware update can be completed by following reboot which is indicated in the boot option of fwutil auto-update command.
+But in this case, the firmware update can be completed by following reboot which is indicated in the boot option of `fwutil update all` command.
 ```bash
 root@sonic:~# fwutil update all fw --fw-image=ssd-fw-update.tar.gz --boot=fast
 ...
