@@ -1,7 +1,7 @@
-# MPLS and Weighted ECMP Routes for SONiC High Level Design Document #
+# MPLS for SONiC High Level Design Document #
 
 ## Table of Content
-- [MPLS and Weighted ECMP Routes for SONiC High Level Design Document](#mpls-and-weighted-ecmp-routes-for-sonic-high-level-design-document)
+- [MPLS for SONiC High Level Design Document](#mpls-for-sonic-high-level-design-document)
   - [Table of Content](#table-of-content)
     - [Revision](#revision)
     - [Scope](#scope)
@@ -17,7 +17,7 @@
     - [High-Level Design](#high-level-design)
       - [Overview](#overview-1)
       - [Database Changes](#database-changes)
-        - [APPL DB](#appl-db)
+        - [APPL_DB](#appl-db)
           - [INTERFACE_TABLE](#interface_table)
           - [ROUTE_TABLE](#route_table)
           - [LABEL_ROUTE_TABLE](#label_route_table)
@@ -33,6 +33,8 @@
           - [Functions](#functions-3)
         - [NeighOrch](#neighorch)
           - [Functions](#functions-4)
+        - [CrmOrch](#crmorch)
+          - [Functions](#functions-4)
         - [Label/LabelStack](#labellabelstack)
         - [NextHopKey](#nexthopkey)
         - [Syncd](#syncd)
@@ -41,6 +43,7 @@
       - [MPLS](#mpls)
       - [Next Hop](#next-hop)
       - [Next Hop Group](#next-hop-group)
+      - [Switch](#switch)
     - [Configuration and management](#configuration-and-management)
       - [CLI Enhancements](#cli-enhancements)
       - [Config DB Enhancements](#config-db-enhancements)
@@ -65,7 +68,6 @@ This document provides general information about the MPLS feature implementation
 | Abbreviation | Description                           |
 | ------------ | ------------------------------------- |
 | cRPD         | Containerized Routing Protocol Daemon |
-| ECMP         | Equal Cost Multi-Path                 |
 | MPLS         | Multi-Label Packet Switching          |
 
 ### Overview
@@ -76,29 +78,24 @@ This document provides general information about the MPLS feature implementation
 
 This section describes the SONiC requirements for:
 - MPLS routes feature.
-- Weighted ECMP routes feature.
 
 #### Functional requirements
 - Support to enable/disable MPLS per Interface.
 - Support for MPLS Push, Pop, and Swap routes.
-- Support for weighted ECMP routes for IPv4/IPv6 and MPLS.
-- Support for bulk MPLS route programming.
-- Integration with Juniper cRPD routing stack.
-- Integration with Juniper SAI support.
+- Support for bulk MPLS in-segment entry programming.
+- Support for CRM monitoring of MPLS in-segment used/available entries.
 
 #### Configuration and Management requirements
 - SONiC CLI support for MPLS enable/disable per Interface.
-- cRPD CLI support for MPLS route configuration.
-- cRPD CLI support for weighted ECMP route configuration.
-- cRPD CLI support for operational commands.
+- Configurable CRM thresholds for monitoring MPLS used/available.
 
 #### Scalability Requirements
 - Up to max ASIC capable MPLS routes are supported.
 - Error is logged in syslog for all attempted MPLS routes after max limit is reached.
+- CRM alarms are triggered when thresholds are reached.
 
 #### Warm Boot Requirements
 - MPLS functionality continues across warm reboot.
-- Weighted ECMP functionality continues across warm reboot.
 - Support for planned system warm restart.
 - Support for SWSS docker warm restart.
 
@@ -111,7 +108,6 @@ This section describes the SONiC requirements for:
 ### Architecture Design
 
 The MPLS feature extends Route and Next Hop support in SONiC to include optional MPLS label stack in addition to the existing IPv4/IPv6 address information.
-The weighted ECMP feature extends Next Hop Group support in SONiC to include optional weight in addition to the existing Next Hop Group Member information.
 
 ### High-Level Design
 
@@ -121,7 +117,7 @@ The weighted ECMP feature extends Next Hop Group support in SONiC to include opt
 **Figure 1: Overview of the data flow and related components of MPLS**
 
 #### Database Changes
-This section describes the modifications to SONiC Databases to support MPLS and weighted ECMP routes.
+This section describes the modifications to SONiC Databases to support MPLS.
 
 ##### APPL_DB
 The existing INTERFACE_TABLE is enhanced to accept a new "mpls" enable/disable attribute.
@@ -191,22 +187,22 @@ New accessors were added to retrieve the MPLS NH destination and TTL values:
   extern uint8_t		rtnl_route_nh_get_encap_mpls_ttl(struct rtnl_nexthop *);
 ```
 ##### IntfMgr
-IntfMgr is an existing daemon in SWSS container that monitors operations in CONFIG DB on INTERFACE and PORTCHANNEL_INTERFACE tables.
-IntfMgr now additionally processes the "mpls" attribute and propagates this attribute to APPL DB.
+IntfMgr is an existing daemon in SWSS container that monitors operations in CONFIG_DB on INTERFACE and PORTCHANNEL_INTERFACE tables.
+IntfMgr now additionally processes the "mpls" attribute and propagates this attribute to APPL_DB.
 
 ##### FPM Syncd
 FPM Syncd is an existing daemon in BGP container that monitors NetLink messages from the SONiC routing stack.
-FPM Syncd now additionally processes MPLS related Route and Next Hop information in the NetLink messages and sets this information in the APPL DB.
+New support has been added to FPM Syncd for MPLS to process MPLS related Route and Next Hop information in the NetLink messages and propagate this information in the APPL_DB.
 ###### Functions
 The following are new functions for fpmsyncd:
 ```
   /* Handler for rtnl messages with MPLS route */
   void RouteSync::onLabelRouteMsg(int nlmsg_type, struct nl_object *obj);
-  /* Handler to process ECMP Weight information rtnl messages */
-  string RouteSync::getNextHopWt(struct rtnl_route *route_obj);
 ```
 ##### IntfsOrch
 IntfsOrch is an existing component of the OrchAgent daemon in the SWSS container.  IntfsOrch monitors operations on Interface related tables in APPL_DB and converts those operations into SAI commands to manage the Router Interface object.
+
+For MPLS, IntfsOrch has been extended to detect the new per-RIF MPLS enable/disable attribute in the APPL_DB and propagate this attribute to the ASIC_DB via SAI_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE.  This MPLS behavior parallels the existing IntfsOrch behavior for IPv4/IPv6 with SAI_ROUTER_INTERFACE_ATTR_ADMIN_IPV4_STATE and SAI_ROUTER_INTERFACE_ATTR_ADMIN_IPV6_STATE.
 ###### Functions
 The following are new functions for IntfsOrch:
 ```
@@ -214,7 +210,8 @@ The following are new functions for IntfsOrch:
   bool IntfsOrch::setRouterIntfMpls(Port& port)
 ```
 ##### RouteOrch
-RouteOrch is an existing component of the OrchAgent daemon in the SWSS container.  RouteOrch monitors operations on Route related tables in APPL DB and converts those operations in SAI commands to manage Route and Inseg entries.  Additionally RouteOrch coordinates Next Hop object operations with NeighOrch and converts operations into SAI commands to manage Next Hop Group objects.
+RouteOrch is an existing component of the OrchAgent daemon in the SWSS container.  RouteOrch monitors operations on Route related tables in APPL_DB and converts those operations in SAI commands to manage Route and Inseg entries.  Additionally RouteOrch coordinates Next Hop object operations with NeighOrch and converts operations into SAI commands to manage Next Hop Group objects.
+
 ###### Functions
 The following are new functions for RouteOrch:
 ```
@@ -227,8 +224,14 @@ The following are new functions for RouteOrch:
 ```
 ##### NeighOrch
 NeighOrch is an existing component of the OrchAgent daemon in the SWSS container.  NeighOrch monitors operations on Neighbor related tables in APPL_DB.  Additionally NeighOrch coordinates Next Hop operations with RouteOrch and converts operations into SAI commands to manage Next Hop objects.
+For MPLS, NeighOrch has been extended to send create/remove SAI requests for MPLS NextHop objects (ie, NextHop objects that include non-empty LabelStack information) when associated Neighbor objects are created/removed. This MPLS NextHop behavior parallels the existing IPv4/IPv6 NextHop behavior in NeighOrch.
 ###### Functions
 The following are new functions for NeighOrch:
+##### CrmOrch
+CrmOrch is an existing component of the OrchAgent daemon in the SWSS container.  CrmOrch monitors resource usage in the SONiC system and triggers alarms when configurable thresholds are reached.  
+For MPLS, CrmOrch has been extended to monitor the number of MPLS in-segment entries against the platform-specific number of entries available.  To facilitate this, a new CRM resource type CRM_MPLS_INSEG has been added to CrmOrch and mapped to the SAI Switch attribute SAI_SWITCH_ATTR_AVAILABLE_MPLS_INSEG_ENTRY for querying.  This MPLS behavior parallels the existing IPv4/IPv6 behavior with CRM_IPV4_ROUTE/SAI_SWITCH_ATTR_AVAILABLE_IPV4_ROUTE_ENTRY and CRM_IPV6_ROUTE/SAI_SWITCH_ATTR_AVAILABLE_IPV6_ROUTE_ENTRY.
+###### Functions
+No new functions were required for CrmOrch MPLS support.
 
 ##### Label/LabelStack
 Label and LabelStack are new type utilities of the OrchAgent daemon in the SWSS container.
@@ -422,9 +425,9 @@ typedef struct _sai_mpls_api_t
 Full details about SAI Next Hop API and attributes are described here:
 https://github.com/opencomputeproject/SAI/blob/master/inc/sainexthop.h
 
-No modifications were mode to the current SAI Next Hop API definition.
+No modifications were made to the current SAI Next Hop API definition.
 
-The following existing attribute is now introduced to SONiC orchagent to facilitate MPLS route functionality:
+The following existing attribute is now introduced to SONiC orchagent to facilitate MPLS NextHop functionality:
 ```
     /**
      * @brief Push label
@@ -435,19 +438,19 @@ The following existing attribute is now introduced to SONiC orchagent to facilit
      */
     SAI_NEXT_HOP_ATTR_LABELSTACK,
 ```
-#### Next Hop Group
-Full details about SAI Next Hop Group API and attributes are described here:
-https://github.com/opencomputeproject/SAI/blob/master/inc/sainexthopgroup.h
-To facilitate weighted ECMP route functionality, the following update was made to the SAI Next Hop Group API:
+#### Switch
+Full details about SAI Switch API and attributes are described here:
+https://github.com/opencomputeproject/SAI/blob/master/inc/saiswitch.h
+
+To facilitate CRM support for MPLS, the following update was made to the SAI Switch API:
 ```
     /**
-     * @brief Member weights
+     * @brief Available MPLS in segment entries
      *
      * @type sai_uint32_t
-     * @flags CREATE_AND_SET
-     * @default 1
+     * @flags READ_ONLY
      */
-    SAI_NEXT_HOP_GROUP_MEMBER_ATTR_WEIGHT,
+    SAI_SWITCH_ATTR_AVAILABLE_MPLS_INSEG_ENTRY,
 ```
 
 ### Configuration and management
@@ -455,7 +458,7 @@ This section should have sub-sections for all types of configuration and managem
 
 #### CLI Enhancements
 
-A new command is introduced to configure interfaces for MPLS.
+A new SONiC CLI command is introduced to configure interfaces for MPLS.
 
     # Enable/disable MPLS per INTERFACE.
     config interface mpls add|remove <intf-name>
@@ -494,15 +497,15 @@ mpls                     = "enable"/"disable"             ; Enable/disable MPLS 
 MPLS design will not affect warmboot or fastboot design.
 
 ### Restrictions/Limitations
-In this document, MPLS support is only for static lsp route support. The scope of routing stack supporting dynamic creation of MPLS tunnel is not in the design.
+In this document, MPLS support is only for static LSP route support. The scope of routing stack supporting dynamic creation of MPLS tunnel is not in the design.
 
 ### Testing Requirements/Design
-Using external routing controller to set up static lsp route for push/pop/swap operation on MPLS traffic and verify traffic is passing.
+Using external routing controller to set up static LSP route for push/pop/swap operation on MPLS traffic and verify traffic is passing.
 
 #### Unit Test cases
-- Using Juniper cRPD set push operation lsp, observe ip traffic goes through router and egress side will have MPLS format with correct label.
-- Using Juniper cRPD set pop operation lsp, observe mpls with single label traffic goes through router and egress side will have IP packets.
-- Using Juniper cRPD set swap operation lsp, observe mpls traffic goes through router and egress side will have MPLS format with different label.
+- Using Juniper cRPD set push operation LSP, observe ip traffic goes through router and egress side will have MPLS format with correct label.
+- Using Juniper cRPD set pop operation LSP, observe mpls with single label traffic goes through router and egress side will have IP packets.
+- Using Juniper cRPD set swap operation LSP, observe mpls traffic goes through router and egress side will have MPLS format with different label.
 #### System Test cases
 Not available
 ### Open/Action items - if any
