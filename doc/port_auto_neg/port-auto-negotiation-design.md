@@ -47,6 +47,9 @@ Currently, SAI already defines a few port attributes to support port auto negoti
 
 1. SAI implementation must return error code if any of the auto negotiation related attribute is not supported, swss and syncd must not crash.
 2. SAI implementation must keep backward compatible. As long as swss and SAI keep backward compatible, user need not change anything after this feature is enabled in SONiC.
+3. If autoneg is enabled and adv_speeds is not configured or empty, SAI must advertise it with all supported speeds.
+4. If autoneg is enabled and adv_interface_types is not configured or empty, SAI must advertise it with all supported interface types.
+5. If autoneg is disabled and interface_type is not configured, SAI must use SAI_PORT_INTERFACE_TYPE_NONE.
 
 The related port attributes are listed below:
 ```cpp
@@ -299,11 +302,25 @@ else:
         setInterfaceType(port, interface_type)
 ```
 
+In order to make sure port auto negotiation works consistent on SONiC, swss is also responsible for handling the default value for auto negotiation related fields when they are not present in the DB. And they are described below:
+
+1. autoneg is default to enabled.
+2. adv_speeds is default to empty vector.
+3. interface_type is default to SAI_PORT_INTERFACE_TYPE_NONE.
+4. adv_interface_types is default to empty vector.
+
+swss will do validation for auto negotiation related fields, although it still CANNOT guarantee that all parameters passed to SAI will be accepted by SAI. swss validation for these field are described below:
+
+1. autoneg value from APPL_DB must be able to cast to 0 or 1. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
+2. adv_speeds value from APPL_DB must be able to transfer to a list of valid speed values. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
+3. interface_type value from APPL_DB must be able to transfer to a valid interface type value. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
+4. adv_interface_types value from APPL_DB must be able to transfer to a list of valid interface type values. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
+
 #### portsyncd and portmgrd Consideration
 
 No changes for portsyncd and portmgrd.
 
-Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles the rest fields. 
+Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles the rest fields.
 
 #### Port Breakout Consideration
 
