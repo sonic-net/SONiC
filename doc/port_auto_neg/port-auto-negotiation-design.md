@@ -40,7 +40,9 @@ This feature introduces a few new CLI commands which will fit in sonic-utilities
 - SAI API requirements is covered in section [SAI API Requirement](#sai-api-requirement).
 - 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation configuration. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
+- DB migrator need handle the existing autoneg configuration and migrate to the new configuration. See detail description in section [DB Migrator Enhancements](#db-migrator-enhancements)
 - Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
+
 ### SAI API Requirement
 
 Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document, but there are some comment requirements for SAI:
@@ -259,6 +261,29 @@ Here is the table to map the fields and SAI attributes:
 | interface_type      | SAI_PORT_ATTR_INTERFACE_TYPE                   |
 | speed               | SAI_PORT_ATTR_SPEED                            |
 
+#### DB Migrator Enhancements
+
+In current SONiC implementation, if auto negotiation is enabled, it uses the `speed` field as the advertised speeds. Since this feature introduced a new field `adv_speeds`, we need do DB migration to keep backward compatible. For example, the configuration:
+
+```json
+"Ethernet0": {
+    ...
+    "autoneg": "1",
+    "speed": "100000"
+}	
+```
+
+Will be migrated to:
+
+```json
+"Ethernet0": {
+
+    "autoneg": "1",	
+    "speed": "100000",
+    "adv_speeds": "100000"
+}
+```
+
 #### SWSS Enhancements
 
 The current SONiC speed setting flow in PortsOrch can be described in following pseudo code:
@@ -286,8 +311,6 @@ if autoneg == true:
     if adv_speeds is set && adv_speeds != "all":
         // if adv_speeds == "all", leave speed_list empty which means all supported speeds
         speed_list = adv_speeds
-    else if speed is set:
-        speed_list.push_back(speed)  // for backward compatible
     setPortAdvSpeed(port, speed_list)
 
     interface_type_list = vector()
