@@ -681,7 +681,7 @@ MACsec SECY Table
 Wpa_supplicant need to monitor the packet number for SAK refreshing. But if a copy of packet number delayed more than the preparation time of SAK, the requirement of SAK refreshing may not be realized by wpa_supplicant, which will cause the packet number to be exhausted.
 
 - MPN = maximum packet number, which indicates the maximum packet number, it should be 4,294,967,295 if packet number is 32bit
-- RT = refresh threshold, which indicates that the SAK should be refreshed if the packet number increases to a threshold. This number is about 75% of MPN.
+- RT = refresh threshold, which indicates that the SAK should be refreshed if the packet number increases to a threshold. This number is about 75 percent of MPN.
 - MPB = maximum port bandwidth, which indicates the maximum bandwidth at the port
 - MMPS = minimum MACsec packet size, which indicates the minimum packet size of MACsec, it should be 44 bytes
 - Preparation time of SAK = (MPN-RT) / (MPB / MMPS)
