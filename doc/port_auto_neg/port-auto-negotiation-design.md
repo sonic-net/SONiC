@@ -1,19 +1,47 @@
 # SONiC Port Auto Negotiation Design #
 
-## Table of Content 
+## Table of Content
 
-### Revision ###
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitions/abbreviations)
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Architecture Design](#architecture-design)
+- [High-Level Design](#high-level-design)
+- [SAI API Requirement](#sai-api-requirement)
+- [Configuration and management ](#configuration-and-management)
+  - [CLI Enhancements](#cli-enhancements)
+    - [Config auto negotiation mode](#config-auto-negotiation-mode)
+    - [Config advertised speeds](#config-advertised-speeds)
+    - [Config interface type](#config-interface-type)
+    - [Config advertised interface types](#config-advertised-interface-types)
+    - [Show interfaces auto negotiation status](#show-interfaces-auto-negotiation-status)
+  - [Config DB Enhancements](#config-db-enhancements)
+  - [Application DB Enhancements](#application-db-enhancements)
+  - [DB Migrator Enhancements](#db-migrator-enhancements)
+  - [SWSS Enhancements](#swss-enhancements)
+  - [portsyncd and portmgrd Consideration](#portsyncd-and-portmgrd-consideration)
+  - [Port Breakout Consideration](#port-breakout-consideration)
+- [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+- [Restrictions/Limitations](#restrictions/limitations)
+- [Testing Requirements/Design](#testing-requirements/design)
+  - [Unit Test cases](#unit-test-cases)
+  - [System Test cases](#system-test-cases)
+- [Open/Action items - if any](#open/action-items---if-any)
+
+### Revision
 
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Junchao Chen  | Initial version                   |
 
 ### Scope
-This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, swss change.
+This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change and swss change.
 
 ### Definitions/Abbreviations 
 N/A
- 
+
 ### Overview
 
 The IEEE 802.3 standard defines a set of Ethernet protocols that are comprised of speed rate and interface type. It allows for configuring multiple values at the same time for port provisioning and advertising to the remote side. However, on SONiC, user can configure the speed of port, and user can configure auto negotiation mode via config DB. Port attributes such as interface type, advertised speeds, advertised interface types are not supported.
@@ -38,14 +66,14 @@ This feature introduces a few new CLI commands which will fit in sonic-utilities
 ### High-Level Design
 
 - SAI API requirements is covered in section [SAI API Requirement](#sai-api-requirement).
-- 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation configuration. See detail description in section [CLI Enhancements](#cli-enhancements).
+- 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation status. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
 - DB migrator need handle the existing autoneg configuration and migrate to the new configuration. See detail description in section [DB Migrator Enhancements](#db-migrator-enhancements)
 - Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 
 ### SAI API Requirement
 
-Currently, SAI already defines a few port attributes to support port auto negotiation. Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. As SAI 1.7.1 is not merged to master branch at this time, vendors need to implement this attribute in their SAI implementation. Vendor specified SAI implementation is not in the scope of this document, but there are some comment requirements for SAI:
+Currently, SAI already defines a few port attributes to support port auto negotiation. Vendor specified SAI implementation is not in the scope of this document, but there are some common requirements for SAI:
 
 1. SAI implementation must return error code if any of the auto negotiation related attribute is not supported, swss and syncd must not crash.
 2. SAI implementation must keep backward compatible. As long as swss and SAI keep backward compatible, user need not change anything after this feature is enabled in SONiC.
@@ -103,9 +131,11 @@ The related port attributes are listed below:
     SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE,
 ```
 
+Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. Vendors need to implement this attribute in their SAI implementation.
+
 ### Configuration and management 
 
-#### CLI Enhancements 
+#### CLI Enhancements
 
 A few new CLI commands are designed to support port auto negotiation.
 
@@ -129,7 +159,7 @@ Return:
 
 ##### Config advertised speeds
 
-Configuring advertised speeds takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised speeds value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
+Configuring advertised speeds takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised speeds value to CONFIG_DB.
 
 ```
 Format:
@@ -154,7 +184,7 @@ This command always replace the advertised speeds instead of append. For example
 
 ##### Config interface type
 
-Configuring interface type takes effect only if auto negotiation is disabled. If auto negotiation is enabled, this command still saves interface type value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
+Configuring interface type takes effect only if auto negotiation is disabled. If auto negotiation is enabled, this command still saves interface type value to CONFIG_DB.
 
 ```
 Format:
@@ -173,7 +203,7 @@ Return:
 
 ##### Config advertised interface types
 
-Configuring advertised interface types takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised interface types value to CONFIG_DB, orchagent will pass the value to SAI. SAI needs handle it according to the auto negotiation mode.
+Configuring advertised interface types takes effect only if auto negotiation is enabled. If auto negotiation is disabled, this command still saves advertised interface types value to CONFIG_DB.
 
 ```
 Format:
@@ -198,14 +228,14 @@ This command always replace the advertised interface types instead of append. Fo
 
 ##### Show interfaces auto negotiation status
 
-As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation status. All data of this command comes from **APPL_DB**.
+As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation status. All data of this command are fetched from **APPL_DB**.
 
 ```
 Format:
   show interfaces auto-neg-status <interface_name>
 
 Arguments:
-  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation configuration for all interfaces.
+  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation status for all interfaces.
 
 Example:
   show interfaces auto-neg-status
@@ -278,7 +308,7 @@ Will be migrated to:
 ```json
 "Ethernet0": {
 
-    "autoneg": "1",	
+    "autoneg": "1",
     "speed": "100000",
     "adv_speeds": "100000"
 }
@@ -308,29 +338,26 @@ if autoneg changed:
 
 if autoneg == true:
     speed_list = vector()
-    if adv_speeds is set && adv_speeds != "all":
+    if adv_speeds changed or autoneg changed:
         // if adv_speeds == "all", leave speed_list empty which means all supported speeds
-        speed_list = adv_speeds
+        if adv_speeds != "all":
+            speed_list = adv_speeds
     setPortAdvSpeed(port, speed_list)
 
     interface_type_list = vector()
-    if adv_interface_types is set && adv_interface_types != "all":
-        // if adv_speeds == "all", leave interface_type_list empty which means all supported types
-        interface_type_list = adv_interface_types
+    if adv_interface_types changed or autoneg changed:
+        // if adv_interface_types == "all", leave interface_type_list empty which means all supported types
+        if adv_interface_types != "all"
+            interface_type_list = adv_interface_types
     setPortAdvInterfaceType(port, interface_type_list)
-else:
-    if speed is set:
+else if autoneg == false:
+    if speed changed or autoneg changed:
         setPortSpeed(port, speed)
-    if interface_type is set:
+    if interface_type changed or autoneg changed:
         setInterfaceType(port, interface_type)
 ```
 
-In order to make sure port auto negotiation works consistent on SONiC, swss is also responsible for handling the default value for auto negotiation related fields when they are not present in the DB. And they are described below:
-
-1. autoneg is default to enabled.
-2. adv_speeds is default to empty vector.
-3. interface_type is default to SAI_PORT_INTERFACE_TYPE_NONE.
-4. adv_interface_types is default to empty vector.
+SONiC usually does not call SAI interface when there is no related configuration in APPL_DB. In order to keep backward compatible, this feature also apply this rule.
 
 swss will do validation for auto negotiation related fields, although it still CANNOT guarantee that all parameters passed to SAI will be accepted by SAI. swss validation for these field are described below:
 
