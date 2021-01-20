@@ -1,6 +1,6 @@
 ﻿# SONiC Fine Grained ECMP 
 # High Level Design Document
-### Rev 1.2
+### Rev 1.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -39,7 +39,8 @@
 | 0.1 | 04/24/2020  |    Anish Narsian   | Initial version                   |
 | 1.0 | 05/22/2020  |    Anish Narsian   | Incorporated review comments      |
 | 1.1 | 05/26/2020  |    Anish Narsian   | Add test plan                     |
-| 1.2 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
+| 1.2 | 10/21/2020  |    Kavin Kamaraj   | Add fgnhg CLI output format       |
+| 1.3 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
 
 
 # About this Manual
@@ -191,11 +192,111 @@ CLI commands:
 	config fg nhg prefix <add/del> <fg-nhg-group-name> <prefix>
 	config fg nhg member <add/del> <fg-nhg-group-name>  <next-hop-ip>
 	show fg nhg group <fg-nhg-group-name/all>
-	show fg nhg hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
-	show fg nhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
+	show fgnhg hash-view <fg-nhg-group-name> (shows the current hash bucket view of fg nhg)
+	show fgnhg active-hops <fg-nhg-group-name> (shows which set of next-hops are active) 
 ```
 
-Show CLI commands of ```show fg nhg hash-view``` and ```show fg nhg active-hops``` are implemented as a view of the state db table described in section 2.2
+### 2.3.1 CLI 'show fgnhg hash-view {fg-nhg-group-name}' Output Format
+```
+NOTE: {fg-nhg-group-name} is an optional parameter containing the user-defined alias of the FG_NHG group name
+found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display active next hops
+from the specified group. If it is not specified, by default, active next hops from all groups are displayed
+as shown below:
+
++-----------------+--------------------+----------------+
+| FG_NHG_PREFIX   | Next Hop           | Hash buckets   |
++=================+====================+================+
+| 100.50.25.12/32 | 200.200.200.4      | 0              |
+|                 |                    | 1              |
+|                 |                    | 2              |
+|                 |                    | 3              |
+|                 |                    | 4              |
+|                 |                    | 5              |
+|                 |                    | 6              |
+|                 |                    | 7              |
+|                 |                    | 8              |
+|                 |                    | 9              |
+|                 |                    | 10             |
+|                 |                    | 11             |
+|                 |                    | 12             |
+|                 |                    | 13             |
+|                 |                    | 14             |
+|                 |                    | 15             |
++-----------------+--------------------+----------------+
+| 100.50.25.12/32 | 200.200.200.5      | 16             |
+|                 |                    | 17             |
+|                 |                    | 18             |
+|                 |                    | 19             |
+|                 |                    | 20             |
+|                 |                    | 21             |
+|                 |                    | 22             |
+|                 |                    | 23             |
+|                 |                    | 24             |
+|                 |                    | 25             |
+|                 |                    | 26             |
+|                 |                    | 27             |
+|                 |                    | 28             |
+|                 |                    | 29             |
+|                 |                    | 30             |
+|                 |                    | 31             |
++-----------------+--------------------+----------------+
+| fc:5::/128      | 200:200:200:200::4 | 0              |
+|                 |                    | 1              |
+|                 |                    | 2              |
+|                 |                    | 3              |
+|                 |                    | 4              |
+|                 |                    | 5              |
+|                 |                    | 6              |
+|                 |                    | 7              |
+|                 |                    | 8              |
+|                 |                    | 9              |
+|                 |                    | 10             |
+|                 |                    | 11             |
+|                 |                    | 12             |
+|                 |                    | 13             |
+|                 |                    | 14             |
+|                 |                    | 15             |
++-----------------+--------------------+----------------+
+| fc:5::/128      | 200:200:200:200::5 | 16             |
+|                 |                    | 17             |
+|                 |                    | 18             |
+|                 |                    | 19             |
+|                 |                    | 20             |
+|                 |                    | 21             |
+|                 |                    | 22             |
+|                 |                    | 23             |
+|                 |                    | 24             |
+|                 |                    | 25             |
+|                 |                    | 26             |
+|                 |                    | 27             |
+|                 |                    | 28             |
+|                 |                    | 29             |
+|                 |                    | 30             |
+|                 |                    | 31             |
++-----------------+--------------------+----------------+
+```
+
+### 2.3.2 CLI 'show fgnhg active-hops {fg-nhg-group-name}' Output Format
+```
+NOTE: {fg-nhg-group-name} is an optional parameter containing the user-defined alias of the FG_NHG group name
+found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will display active next hops
+from the specified group. If it is not specified, by default, active next hops from all groups are displayed
+as shown below:
+
+
++-----------------+--------------------+
+| FG_NHG_PREFIX   | Active Next Hops   |
++=================+====================+
+| 100.50.25.12/32 | 200.200.200.4      |
+|                 | 200.200.200.5      |
++-----------------+--------------------+
+| fc:5::/128      | 200:200:200:200::4 |
+|                 | 200:200:200:200::5 |
++-----------------+--------------------+
+```
+
+
+Show CLI commands of ```show fgnhg hash-view``` and ```show fgnhg active-hops``` are implemented as a view of the state db table described in section 2.2
 
 
 ## 2.4 Orchestration Agent
