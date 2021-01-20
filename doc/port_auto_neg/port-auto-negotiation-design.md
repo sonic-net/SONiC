@@ -17,12 +17,16 @@
     - [Config interface type](#config-interface-type)
     - [Config advertised interface types](#config-advertised-interface-types)
     - [Show interfaces auto negotiation status](#show-interfaces-auto-negotiation-status)
+    - [CLI validation](#cli-validation)
   - [Config DB Enhancements](#config-db-enhancements)
   - [Application DB Enhancements](#application-db-enhancements)
+  - [State DB Enhancements](#state-db-enhancements)
+  - [YANG Model Enhancements](#yang-model-enhancements)
   - [DB Migrator Enhancements](#db-migrator-enhancements)
   - [SWSS Enhancements](#swss-enhancements)
   - [portsyncd and portmgrd Consideration](#portsyncd-and-portmgrd-consideration)
   - [Port Breakout Consideration](#port-breakout-consideration)
+  - [xcvrd Consideration](#xcvrd-consideration)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Restrictions/Limitations](#restrictions/limitations)
 - [Testing Requirements/Design](#testing-requirements/design)
@@ -35,11 +39,12 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Junchao Chen  | Initial version                   |
+ | 0.2 |             |      Junchao Chen  | Fix review comment                |
 
 ### Scope
-This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change and swss change.
+This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change, yang model change and swss change.
 
-### Definitions/Abbreviations 
+### Definitions/Abbreviations
 N/A
 
 ### Overview
@@ -68,6 +73,7 @@ This feature introduces a few new CLI commands which will fit in sonic-utilities
 - SAI API requirements is covered in section [SAI API Requirement](#sai-api-requirement).
 - 5 new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure auto negotiation mode, advertised speeds, interface type， advertised interface types for a given interface as well as show port auto negotiation status. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APP_DB and CONFIG_DB to support auto negotiation attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
+- YANG Model needs update according to the DB schema change. See detail description in section [YANG Model Enhancements](#yang-model-enhancements)
 - DB migrator need handle the existing autoneg configuration and migrate to the new configuration. See detail description in section [DB Migrator Enhancements](#db-migrator-enhancements)
 - Port speed setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 
@@ -215,7 +221,7 @@ Arguments:
 
 Example:
   config interface advertised-types Ethernet0 KR4,SR4
-  config interface advertised-types all
+  config interface advertised-types Ethernet0 all
 
 Return:
   error message if interface_name or interface_type_list is invalid otherwise empty
@@ -232,23 +238,113 @@ As command `show interfaces status` already has 11 columns, a new CLI command wi
 
 ```
 Format:
-  show interfaces auto-neg-status <interface_name>
+  show interfaces status autoneg <interface_name>
 
 Arguments:
   interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation status for all interfaces.
 
 Example:
-  show interfaces auto-neg-status
-  show interfaces auto-neg-status Ethernet0
+  show interfaces status autoneg
+  show interfaces status autoneg Ethernet0
 
 Return:
   error message if interface_name is invalid otherwise:
 
-  Interface    Auto-Neg Mode    Speed    Adv Speeds    Type    Adv Types
------------  ---------------  -------  ------------  ------  -----------
-  Ethernet0          enabled     100G      40G,100G     N/A      CR4,KR4
- Ethernet32         disabled      40G           N/A     N/A          N/A
+  Interface    Auto-Neg Mode    Speed    Adv Speeds    Type    Adv Types    Oper    Admin
+-----------  ---------------  -------  ------------  ------  -----------  ------  -------
+  Ethernet0         disabled      25G           N/A     N/A          N/A    down       up
+ Ethernet32          enabled      40G      40G,100G     KR4      KR4,CR4      up       up
 ```
+
+##### CLI validation
+
+Currently, there are some commands to configure interface attribute, e.g: `configure interface speed <interface_name> <speed>`. The config speed command does not validate the input speed value at all. If user gives a invalid speed value, CLI will save it to CONFIG_DB and finally orchagent will validate it. User only gets an error message from syslog which is not so convenient. In order to help user better understand the configuration result, commands for configuring autoneg, adv_speeds, interface_type and adv_interface_types will do validation at CLI side.
+
+For autoneg, the valid value are "enabled" or "disabled", other values are treated as error and will not be passed to CONFIG_DB.
+
+For interface_type and adv_interface_types, there is no SAI API to get supported interface type list. There is only a enum defined in saiport.h to specify all the supported interface type in SAI API:
+
+```cpp
+typedef enum _sai_port_interface_type_t
+{
+    /** Interface type none */
+    SAI_PORT_INTERFACE_TYPE_NONE,
+
+    /** Interface type CR */
+    SAI_PORT_INTERFACE_TYPE_CR,
+
+    /** Interface type CR2 */
+    SAI_PORT_INTERFACE_TYPE_CR2,
+
+    /** Interface type CR4 */
+    SAI_PORT_INTERFACE_TYPE_CR4,
+
+    /** Interface type SR */
+    SAI_PORT_INTERFACE_TYPE_SR,
+
+    /** Interface type SR2 */
+    SAI_PORT_INTERFACE_TYPE_SR2,
+
+    /** Interface type SR4 */
+    SAI_PORT_INTERFACE_TYPE_SR4,
+
+    /** Interface type LR */
+    SAI_PORT_INTERFACE_TYPE_LR,
+
+    /** Interface type LR4 */
+    SAI_PORT_INTERFACE_TYPE_LR4,
+
+    /** Interface type KR */
+    SAI_PORT_INTERFACE_TYPE_KR,
+
+    /** Interface type KR4 */
+    SAI_PORT_INTERFACE_TYPE_KR4,
+
+    /** Interface type CAUI */
+    SAI_PORT_INTERFACE_TYPE_CAUI,
+
+    /** Interface type GMII */
+    SAI_PORT_INTERFACE_TYPE_GMII,
+
+    /** Interface type SFI */
+    SAI_PORT_INTERFACE_TYPE_SFI,
+
+    /** Interface type XLAUI */
+    SAI_PORT_INTERFACE_TYPE_XLAUI,
+
+    /** Interface type KR2 */
+    SAI_PORT_INTERFACE_TYPE_KR2,
+
+    /** Interface type CAUI */
+    SAI_PORT_INTERFACE_TYPE_CAUI4,
+
+    /** Interface type XAUI */
+    SAI_PORT_INTERFACE_TYPE_XAUI,
+
+    /** Interface type XFI */
+    SAI_PORT_INTERFACE_TYPE_XFI,
+
+    /** Interface type XGMII */
+    SAI_PORT_INTERFACE_TYPE_XGMII,
+
+    /** Interface type MAX */
+    SAI_PORT_INTERFACE_TYPE_MAX,
+
+} sai_port_interface_type_t;
+```
+
+To validate interface type and advertised interface type, this enum will be transferred to a set on CLI side for validation:
+
+```python
+valid_interface_type_set = set(['CR', 'CR2', 'CR4', ...])
+```
+
+The advantage here is that user can get a list of valid interface type from CLI. The disadvantage here is that:
+
+1. Once SAI add new interface type, the CLI part also needs to be updated.
+2. Even if CLI validation pass, the given interface type might still be rejected by SAI.
+
+For speed and adv_speeds, there is a SAI API to get the supported speed list for a given port. The idea here is to query supported speed after orchagent creating port object, and the supported speed list will be save to STATE_DB for CLI to validate. A new field **supported_speeds** will be added to **PORT_TABLE**. If this field is present, CLI will use this field to validate the input speed and adv_speeds argument, otherwise, no validation will be performed on CLI side. The STATE_DB change will be described in [State DB Enhancements](#state-db-enhancements).
 
 #### Config DB Enhancements  
 
@@ -290,6 +386,50 @@ Here is the table to map the fields and SAI attributes:
 | autoneg             | SAI_PORT_ATTR_AUTO_NEG_MODE                    |
 | interface_type      | SAI_PORT_ATTR_INTERFACE_TYPE                   |
 | speed               | SAI_PORT_ATTR_SPEED                            |
+
+#### State DB Enhancements
+
+To support validate interface speed on CLI side, a new field **supported_speeds** will be added to **PORT_TABLE**.
+
+	; Defines information for port state
+	key                     = PORT_TABLE:port_name           ; state of the port
+	; field                 = value
+    ...
+	supported_speeds        = STRING                         ; supported speed list
+
+An example value of supported_speeds could be "10000,25000,40000,100000".
+
+#### YANG Model Enhancements
+
+The port yang model needs to update according to DB schema change. The yang model changes of new fields are described below:
+
+```
+leaf autoneg {
+  type string {
+    pattern "0|1";
+  }
+}
+
+leaf adv_speeds {
+  type string {
+    length 1..128;
+  }
+}
+
+leaf interface_type {
+  type string {
+    length 1..128;
+  }
+}
+
+leaf adv_interface_types {
+  type string {
+    length 1..128;
+  }
+}
+```
+
+These new yang leaf will be added to sonic-port.yang.
 
 #### DB Migrator Enhancements
 
@@ -461,6 +601,21 @@ I choose this solution because:
 3. It's backward compatible.
 4. User can still set auto negotiation parameter after port breakout.
 
+Dynamic port breakout feature also introduces a hwsku.json file to describe the port capability. It defines the default dynamic breakout mode for now. As we won't automatically set auto negotiation attributes for a port after port breakout, it is not necessary to change the hwsku.json in this feature.
+
+#### xcvrd Consideration
+
+It is recommended to use CLI/CONFIG_DB to setting the port auto negotiation attributes. But there is still other way.
+
+There is a media_setting.json which is used for setting the default value for some port attributes. This media_setting.json is handled by xcvrd for setting pre-emphasis value for ports. xcvrd process the file this way:
+
+1. When xcvrd start, it reads the media_setting.json and set pre-emphasis values to APPL_DB for each port
+2. When a new cable is inserted, xcvrd uses the value in media_setting.json to set pre-emphasis value to APPL_DB for this port.
+
+xcvrd just reads the configuration from media_settings.json and set value to APPL_DB. xcvrd does not care what the configuration is. So user could use media_settings.json to specify the default value for autoneg, adv_speeds and other port attributes. **Nothing needs to be changed in xcvrd**.
+
+However, it is worthy mentioning that: if user have port attributes configured both in CONFIG_DB and media_settings.json, the value in media_settings.json will override the value in CONFIG_DB after rebooting, restarting pmon or re-insert cables. Base on that, if user choose to use media_settings.json, they probably should not use CLI or CONFIG_DB to avoid configuration loss after rebooting, restarting pmon or re-insert cables.
+
 ### Warmboot and Fastboot Design Impact
 
 SAI and lower layer must not flap port during warmboot/fastboot no matter what auto negotiation parameter is given.
@@ -494,7 +649,3 @@ TBD
 
 ### Open/Action items - if any
 
-1. CLI commands does not validate the supported speeds and supported interface types for now (Existing command `config interface speed` does not validate the speed value too).
-
-    - There is a SAI API to get supported speeds for a given switch port. Maybe we can use this API to get supported speeds data for each port and save it to state DB, which can be used for CLI to do a rough validation.
-    - For interface type, there is no SAI API to get supported interface type for a given port. We only have an enumeration defined in saiport.h which represents all **known** interface types in SAI. In this case, we have two issues: one is that we need transfer string such as "CR4" to an enum value, we might need define a map in swss and once SAI API changes we have to change swss either; the other issue is that we cannot validate the interface type in CLI or swss code before passing the value to SAI.
