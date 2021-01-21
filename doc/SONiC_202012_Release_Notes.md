@@ -48,6 +48,7 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 # Feature List
 
 #### Consistent ECMP support (fine grain ECMP)
+SAI supports a simple ECMP definition SAI_NEXT_HOP_GROUP_TYPE_ECMP, which can grow or shrink in size, and the members do not assume any order. SAI implementation is responsible for managing the order of the members and the overall group size.
 **Pull Requests** :  [1315](https://github.com/Azure/sonic-swss/pull/1315), [623](https://github.com/Azure/SONiC/pull/623), [1788](https://github.com/Azure/sonic-mgmt/pull/1788), [4985](https://github.com/Azure/sonic-buildimage/pull/4985), [374](https://github.com/Azure/sonic-swss-common/pull/374), [659](https://github.com/Azure/SONiC/pull/659), [1056](https://github.com/Azure/sonic-utilities/pull/1056), [5518](https://github.com/Azure/sonic-buildimage/pull/5518), [5198](https://github.com/Azure/sonic-buildimage/pull/5198), [693](https://github.com/Azure/SONiC/pull/693). 
 
 #### Container warm restart (BGP/TeamD/SWSS/SyncD)
@@ -132,6 +133,7 @@ This feature provides the implementation of SONiC support for distributed packet
 <br> **Pull Requests** : [5283](https://github.com/Azure/sonic-buildimage/pull/5283)
 
 #### Chassis infrastructure, T2 topologies and sample Testcases converted
+In the future, multi DUT or Chassis will be supported by SONiC as well. Some of the customized ansible modules need to be updated to support testing of the upcoming new architectures. This document tries to propose some requirements for designing customized ansible modules that need to deal with multi-ASIC. The target is to have a clean and easy to use interface for calling these ansible modules in scripts testing multi DUT and multi ASIC system. Meanwhile, the ansible modules need to maintain backward compatibility for single DUT and single ASIC testing.
 **Pull Requests** : [2245](https://github.com/Azure/sonic-mgmt/pull/2245), [2417](https://github.com/Azure/sonic-mgmt/pull/2417), [2638](https://github.com/Azure/sonic-mgmt/pull/2638/)
 
 
