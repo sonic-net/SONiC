@@ -238,14 +238,14 @@ As command `show interfaces status` already has 11 columns, a new CLI command wi
 
 ```
 Format:
-  show interfaces status autoneg <interface_name>
+  show interfaces autoneg-status <interface_name>
 
 Arguments:
   interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation status for all interfaces.
 
 Example:
-  show interfaces status autoneg
-  show interfaces status autoneg Ethernet0
+  show interfaces autoneg-status
+  show interfaces autoneg-status Ethernet0
 
 Return:
   error message if interface_name is invalid otherwise:
