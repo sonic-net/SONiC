@@ -17,6 +17,7 @@
 - [Built-In SONiC Packages](#built-in-sonic-packages)
 - [SONiC Package Management](#sonic-package-management)
 - [SONiC Package Database](#sonic-package-database)
+- [SONiC Build System](#sonic-build-system)
 - [SONiC Base Image and Packages Versioning](#sonic-base-image-and-packages-versioning)
 - [SONiC Application Extension Security Considerations](#sonic-application-extension-security-considerations)
 - [Configuration and management](#configuration-and-management)
@@ -24,7 +25,7 @@
 - [Manifest](#manifest)
 - [SONiC Package Installation](#sonic-package-installation)
 - [SONiC Package Changelog](#sonic-package-changelog)
-- [SONiC Docker Container Resource restrictions](#sonic-docker-container-resource-restrictions)
+- [SONiC Docker Container Resource Restrictions](#sonic-docker-container-resource-restrictions)
 - [SONiC Package Docker Container Lifetime](#sonic-package-docker-container-lifetime)
 - [Initial Extension Configuration](#initial-extension-configuration)
 - [CLI extension](#cli-extension)
@@ -41,7 +42,7 @@
 - [3rd party Docker images](#3rd-party-docker-images)
 - [Installing 3rd party image as is.](#installing-3rd-party-image-as-is)
 - [Prepare 3rd party image as to be SONiC compliant](#prepare-3rd-party-image-as-to-be-sonic-compliant)
-- [SONiC Build System](#sonic-build-system)
+- [SONiC Build System](#sonic-build-system-1)
 - [SAI API](#sai-api)
 - [Restrictions/Limitations](#restrictionslimitations)
 - [Testing Requirements/Design](#testing-requirementsdesign)
@@ -163,7 +164,6 @@ SONiC Packages must meet few requirements in order to be a SONiC compatible Dock
 
 - A package must provide a manifest as part of the Docker image.
 - Requirement on the container state recording by [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md)).
-- The DockerHub or a private registry containing SONiC images is always accessible from the SONiC switch.
 
 <!-- omit in toc -->
 ###### Figure 2. High Level Overview of SONiC Package integration
@@ -176,14 +176,14 @@ The idea is to auto-generate most of the components on the host OS based on *man
 
 ### Built-In SONiC Packages
 
-Every SONiC Docker image can be converted to be a SONiC Package, although a subset of SONiC Dockers will be converted to be a SONiC Package at first phase.
-These are Dockers for which it might be comlicated to separate the OS part from the Docker image itself. Those Docker images are considered to be built-in.
-Built-in packages cannot be removed and upgraded as SONiC Packages and the infrastructure will mark with a built-in flag.
+Every SONiC Docker image can be a SONiC Package, although a subset of SONiC Dockers will be made with format of SONiC Package at first phase.
+These are Dockers for which it might be complicated to separate the OS part from the Docker image itself. Those Docker images are considered as built-in Docker images.
+Built-in packages **cannot** be *removed* and *upgraded* as SONiC Packages and the infrastructure will mark them with a special built-in flag.
 
-This will allow for a smooth transition of SONiC Docker images into SONiC packages by marking all of the existing Docker images as
-build-in and then removing this flag for images that become a SONiC packages.
+This will allow for a smooth transition of SONiC Docker images into SONiC Packages by marking all of the existing Docker images as
+build-in and then removing this flag for images that become a SONiC Packages.
 
-The following list enumerates built-in Docker containers, that cannot be converted to SONiC Package as part of phase 1:
+The following list enumerates some built-in Docker containers, that cannot become SONiC Package at current stage:
 - database
 - syncd
 - swss
@@ -193,6 +193,8 @@ For those packages it might be a challenge to support installation, un-installat
 E.g. syncd contains vendor SDK which usually means there is a kernel driver installed on the host OS. Upgrading just the syncd may become
 challenging because of a need to upgrade kernel driver on the host. Same is for the pmon Docker, swss and database - they are tightly integrated
 into base OS.
+
+**NOTE**: For phase 1 dhcp-relay is chosen to be the first feature that will become a SONiC Package.
 
 ### SONiC Package Management
 
@@ -211,7 +213,7 @@ There is a *packages.json* file representing local database of packages.
 ###### Example directory structure of SONiC Package Manager library
 
 A locking mechanism will be used in order to make a package operation (installation, de-installation, upgrades) atomic.
-For this a lock file */var/lib/sonic-packages/lock* will be created on every operation and released once operation is completed
+For this a lock file */var/lib/sonic-packages/.lock* will be created on every operation and released once operation is completed
 to guaranty that the database won't become broken if two write operations are performed at the same time.
 
 ### SONiC Package Database
@@ -220,14 +222,15 @@ The */var/lib/sonic-packages/packages.json* file is used as a persistent databas
 Schema definition for *packages.json* file is following:
 
 Path                     | Type               | Description
------------------------- | ------------------ | -------------------------------------------
+------------------------ | ------------------ | ------------------------------------------------------------------------------------------------------
 /name                    | string             | Name of the package.
-/name/repository         | string             | Repository in Docker registry or a local image reference.
-/name/description        | string             | Application description field.
+/name/repository         | string             | Repository in Docker registry. Default source of image for installation/upgrade.
+/name/description	       | string	            | Application description field.
 /name/default-reference  | string             | A tag or digest of Docker image that will be a default installation candidate.
 /name/built-in           | boolean            | A flag to indicate that a Docker is a built-in package.
 /name/status             | string             | Status indicate the installation status of the package. It is either "installed" or "not-installed".
-/name/installed-version  | string             | Installed version string.
+/name/installed-version  | string             | Installed version string. This version follows semantic versioning described in later section.
+/name/image-id           | string             | Docker image ID of the installed Package, *null* if package is not installed or built-in (was not installed using sonic-package-manager).
 
 
 A sample of the content in JSON format:
@@ -248,20 +251,21 @@ A sample of the content in JSON format:
     "built-in": true,
     "default-reference": "1.0.0",
     "status": "installed",
-    "installed-version": "2.0.1"
+    "installed-version": "1.0.0"
   },
-  "cpu-report": {
+  "dhcp-relay": {
     "repository": "Azure/sonic-dhcp-relay",
     "description": "DHCP relay feature",
     "default-reference": "sha256:5d41c289942008211c2964bca72800f5c9d5ea5aa4057528da617fb36463d4ab",
     "status": "not-installed"
   },
-  "featureXXX": {
+  "snmp": {
     "repository": "Azure/sonic-snmp",
     "description": "Simple Network Monitoring Protocol",
     "default-reference": "1.0.0",
     "status": "installed",
-    "installed-version": "1.0.0"
+    "installed-version": "1.0.0",
+    "image_id": "e269735173d5"
   }
 }
 ```
@@ -275,12 +279,39 @@ which user can install.
 Community can extend *packages.json* with own developed packages. The recommended way of defining a 'default-reference' is by
 specifying a digest rather then a tag, so that a package entry points strictly to a specific image.
 
-Once a Docker becomes a SONiC package, user will have two options:
 
-- SONiC build system will be extended with a build parameter "INCLUDE_$PACKAGE=y|n". If this parameter is set to "y", a package will be
-installed in SONiC image filesystem during build time.
-- If the "INCLUDE_$PACKAGE" is set to "n", the target is not installed, but compiled into Docker Image and published to Docker Hub by CI for
-users to install the package on a running switch. For that, the reference to the package will be added into *packages.json*.
+### SONiC Build System
+
+1. Install packages at built time.
+
+Build-system users will have an ability to specify packages they would like to add to database or add and install.
+
+rules/sonic-packages.mk:
+```makefile
+# rules to define remote packages that need to be installed
+# during SONiC image build
+
+## Example:
+PACKAGE = my-package
+$(PACKAGE)_REPOSITORY = myrepo/mypackage
+$(PACKAGE)_VERSION = 1.0.0
+$(PACKAGE)_INSTALL = y                    # whether to install or not
+
+# Add package to target group
+SONIC_PACKAGES += $(PACKAGE)
+```
+
+2. SONiC Docker compilation option
+
+For SONiC Package within sonic-buildimage an option to include the package will be exposed to the user:
+
+rules/config:
+```makefile
+INCLUDE_$(PACKAGE)=y
+```
+
+If this option is set to **y** the corresponding Docker image will be built and installed from image tarball
+placed under target/ folder.
 
 ### SONiC Base Image and Packages Versioning
 
@@ -383,33 +414,34 @@ The command line interfaces are given bellow:
 admin@sonic:~$ sonic-package-manager
 Usage: sonic-package-manager [OPTIONS] COMMAND [ARGS]...
 
-  CLI to manage SONiC application packages
+  SONiC Package Manager.
 
 Options:
-  --help  Show this message and exit
+  --help  Show this message and exit.
 
 Commands:
-  add         Add a new package to package database.
-  remove      Remove a package from package database.
-  list        List packages available in SONiC.
-  show        Show SONiC package Info.
-  install     Install SONiC package from repository.
-  upgrade     Upgrade SONiC package.
-  uninstall   Uninstall SONiC package.
+  install     Install SONiC package
+  list        List available packages
+  migrate     Migrate SONiC packages from database file
+  repository  Repository management commands
+  show        SONiC Package Manager show commands
+  uninstall   Uninstall SONiC package
+  upgrade     Upgrade SONiC package
 ```
 
 ```
-admin@sonic:~$ sonic-package-manager show
-Usage: sonic-package-manager [OPTIONS] COMMAND [ARGS]...
+admin@sonic:~$ sonic-package-manager show package
+Usage: sonic-package-manager show package [OPTIONS] COMMAND [ARGS]...
 
-  Show SONiC package Info.
+  Package show CLI commands.
 
 Options:
-  --help  Show this message and exit
+  --help  Show this message and exit.
 
 Commands:
-  manifest    Print package manifest.
-  changelog   Print package changelog.
+  changelog  Print the package changelog
+  manifest   Print the manifest content
+  versions   Print available versions
 ```
 
 <!-- omit in toc -->
@@ -429,7 +461,7 @@ dhcp-relay   Azure/dhcp-relay       DHCP relay service       N/A            Not 
 #### Repository management
 
 ```
-admin@sonic:~$ sudo sonic-package-manager add [NAME] [REPOSITORY] --description=[STRING] --default-reference=[STRING]
+admin@sonic:~$ sudo sonic-package-manager add [NAME] [REPOSITORY] --default-reference=[STRING]
 admin@sonic:~$ sudo sonic-package-manager remove [NAME]
 ```
 
@@ -439,14 +471,23 @@ admin@sonic:~$ sudo sonic-package-manager remove [NAME]
 ```
 admin@sonic:~$ sudo sonic-package-manager install --help
 
-Usage: sonic-package-manager install [OPTIONS] [REFERENCE]
+Usage: sonic-package-manager install [OPTIONS] [PACKAGE_EXPR]
 
   Install SONiC package.
 
 Options:
-  -y, --yes     Answer yes for any prompt.
-  -f, --force   Force installation.
-  --help        Show this message and exit
+  -y, --yes                        Answer yes for any prompt
+  -f, --force                      Force installation
+  --enable                         Wether to enable feature after install
+  --default-owner [local|kube]     Default configured owner
+  --from                           Install directly from repository specified
+                                   in this options. Format is the same as for
+                                   "docker pull" command: NAME[:TAG|@DIGEST].
+                                   Mutually exclusive with PACKAGE_EXPR and
+                                   --from-tarball
+  --from-tarball                   Install from tarball. Mutually exclusive with
+                                   PACKAGE_EXPR and --from
+  --help                           Show this message and exit
 ```
 
 <!-- omit in toc -->
@@ -479,20 +520,20 @@ For developer convenience or for unpublished SONiC packages,it is possible to in
 ```
 admin@sonic:~$ ls featureA.gz
 featureA.gz
-admin@sonic:~$ sudo sonic-package-manager install featureA.gz
+admin@sonic:~$ sudo sonic-package-manager install --from-tarball featureA.gz
 ```
 
 This option should mainly be used for debugging, developing purpose, while the preferred way will be to pull the image from repository.
-Package Database is updated with a "repository" field set to local image name. The image is tagged to 1.0.0.
+Package Database is updated with a "repository" field set to local image repository.
 In the above example the following entry is added to *packages.json*:
 
 ```json
 {
   "featureA": {
     "repository": "featureA",
-    "default-reference": "1.0.0",
     "installed-version": "1.0.0",
-    "status": "installed"
+    "status": "installed",
+    "image_id": "9ab631f37d1d"
   }
 }
 ```
@@ -512,14 +553,21 @@ WARN: feature depends on syncd^1.1.1 while installed version is 1.0.5. Ignoring.
 ```
 admin@sonic:~$ sudo sonic-package-manager upgrade --help
 
-Usage: sonic-package-manager upgrade [OPTIONS] [REFERENCE]
+Usage: sonic-package-manager upgrade [OPTIONS] [PACKAGE_EXPR]
 
-  Upgrade SONiC package.
+  Upgrade SONiC package
 
 Options:
-  -y, --yes     Answer yes for any prompt.
-  -f, --force   Force upgrade.
-  --help        Show this message and exit
+  -y, --yes                        Answer yes for any prompt.
+  -f, --force                      Force upgrade.
+  --from                           Install directly from repository specified
+                                   in this options. Format is the same as for
+                                   "docker pull" command: NAME[:TAG|@DIGEST].
+                                   Mutually exclusive with PACKAGE_EXPR and
+                                   --from-tarball
+  --from-tarball                   Install from tarball. Mutually exclusive with
+                                   PACKAGE_EXPR and --from
+  --help                           Show this message and exit
 ```
 
 <!-- omit in toc -->
@@ -600,9 +648,9 @@ Path                              | Type                  | Mandatory   | Descri
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
 /version                          | string                | no          | Version of manifest schema definition. Defaults to 1.0.0.
 /package                          | object                | no          | Package related metadata information.
-/service/                         | object                | yes         | Service management related properties.
-/container/                       | object                | no          | Container related properties.
-/processes/                       | list                  | no          | A list defining processes running inside the container.
+/service                          | object                | yes         | Service management related properties.
+/container                        | object                | no          | Container related properties.
+/processes                        | list                  | no          | A list defining processes running inside the container.
 /cli                              | object                | no          | CLI plugin information. *NOTE*: Later will deprecated and replaced with a YANG module file path.
 
 
@@ -632,8 +680,10 @@ can be installed at any given time.
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
 /package/version                  | string                | yes         | Version of the package.
+/package/name                     | string                | yes         | Name of the package.
+/package/description              | string                | no          | Description of the package.
 /package/depends                  | list of strings       | no          | List of SONiC packages the service depends on. Defaults to [].
-/package/breaks                   | list of strings       | no          | List of SONiC package the service breaks. Defaults to [].
+/package/conflicts                | list of strings       | no          | List of SONiC package the service conflicts with. Defaults to [].
 /package/base-os-constraint       | string                | no          | Base image version dependency constraint. Defaults to  '*': allows any version.
 
 
@@ -654,7 +704,7 @@ Example:
 ```
 
 
-*depends*, *breaks* fields are defined to be in the following format:
+*depends*, *conflicts* fields are defined to be in the following format:
 
 ```
 <package-name>[>|>=|==|<|<=|^|!|!=]<version>,[>|>=|==|<|<=|^|!|!=]<version>,...
@@ -740,7 +790,7 @@ admin@sonic:~$ sonic-package-manager show package changelog <some-package>
 
 ```
 
-### SONiC Docker Container Resource restrictions
+### SONiC Docker Container Resource Restrictions
 
 This feature will allow user to specify resource restrictions for a container via FEATURE table in CONFIG DB.
 This feature is not related to SONiC Application Extension Design, as can be applied to any existing SONiC
@@ -793,11 +843,13 @@ manifest.
 
 Path                              | Type                  | Mandatory   | Description
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "breaks".
+/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "conflicts".
 /service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
 /service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
+/service/wanted-by                | list of strings       | no          | List of SONiC services that wants for this package.<p>The option maps to systemd's unit "WantedBy=".
 /service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
 /service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the
+/service/delayed                  | boolean               | no          | Whether to generate systemd boot timer for this unit. Timer value is set to 3m 30s. Default is False.
 
 
 <!-- omit in toc -->
@@ -862,7 +914,7 @@ Path                              | Type                  | Mandatory   | Descri
 --------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
 /service/dependent-of             | lits of strnigs       | no          | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list.
 /service/post-start-action        | string                | no          | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.
-/service/pre-stop-action          | string                | no          | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.
+/service/pre-shutdown-action          | string                | no          | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.
 
 <!-- omit in toc -->
 ##### /usr/bin/*feature*.sh
