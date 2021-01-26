@@ -20,7 +20,7 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description |      
 |:---:|:-----------:|:------------------:|--------------------|
-| 1 | Dec-24 2021 | Song Yuan, Eswaran Baskaran (Arista Networks) | Initial Version |
+| 1 | Jan-25 2021 | Song Yuan, Eswaran Baskaran (Arista Networks) | Initial Version |
 
 # About this manual
 
