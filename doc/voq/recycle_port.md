@@ -64,16 +64,16 @@ The support of explicit recycle ports requires the minimal changes to SAI as lon
 
 Recycle ports are configured in port_config.ini just like front panel ports. In order to distinguish recycle from front panel ports, the appropriate port role must be set for recycle ports. The port role must indicate the intended use of a recycle port. SONiC can discover all configured recycle ports, based on their port roles, and use them appropriately.
 
-Two recycle ports, Recirc0 and Recirc1, are configured in the example port_config.ini below. The port role is Rec, which means Recirc0 and Recirc1 will recycle packet to be routed.
+Two recycle ports, Ethernet-Recirc0 and Ethernet-Recirc1, are configured in the example port_config.ini below. Ethernet-Recirc0 is used to recycle packet to be routed, which has port role Rec. Ethernet-Recirc1 is used as inband port and thus its port role is set to Inb.
 
 ```
-#name         lanes                     alias        index  role       speed
-Ethernet0     48,49,50,51,52,53,54,55   Ethernet1/1  1      Ext        400000
-Ethernet8     56,57,58,59,60,61,62,63   Ethernet2/1  2      Ext        400000
-Ethernet16    64,65,66,67,68,69,70,71   Ethernet3/1  3      Ext        400000
-Ethernet24    72,73,74,75,76,77,78,79   Ethernet4/1  4      Ext        400000
-Recirc0       221                       Recirc0/0    5      Rec        400000
-Recirc1       222                       Recirc0/1    6      Rec        400000
+#name                  lanes                     alias        index  role       speed
+Ethernet0              48,49,50,51,52,53,54,55   Ethernet1/1  1      Ext        400000
+Ethernet8              56,57,58,59,60,61,62,63   Ethernet2/1  2      Ext        400000
+Ethernet16             64,65,66,67,68,69,70,71   Ethernet3/1  3      Ext        400000
+Ethernet24             72,73,74,75,76,77,78,79   Ethernet4/1  4      Ext        400000
+Ethernet-Recirc0       221                       Recirc0/0    5      Rec        400000
+Ethernet-Recirc1       222                       Recirc0/1    6      Inb        400000
 ```
 
 The lanes of recycle ports must be provided in port_config.ini as well. This allows SONiC to discover the corresponding SAI ports for the configured recycle ports.
