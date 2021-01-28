@@ -145,10 +145,10 @@ The sFlow counter polling interval is set to 20 seconds. The pollBus/HSPEVENT_UP
 
 #### Config commands
 
-* **sflow collector add** *{collector-name {ipv4-address | ipv6-address}} [**port** {number}]*
+* **sflow collector add** *{collector-name} {ipv4-address | ipv6-address}* [**--port** *{number}*]
 
   Where:
-  * name is the unique name of the sFlow collector
+  * collector-name is the unique name of the sFlow collector
   * ipv4-address : IP address of the collector in dotted decimal format for IPv4
   * ipv6-address : x: x: x: x::x format for IPv6 address of the collector (where :: notation specifies successive hexadecimal fields of zeros)
   * port (OPTIONAL): specifies the UDP port of the collector (the range is from 0 to 65535. The default is 6343.)
@@ -183,13 +183,14 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   Configure the sample-rate for a specific interface. 
 
-  The default sample rate for any interface is (ifSpeed / 1e6) where ifSpeed is in bits/sec.  So, the default sample rate based on interface speed is:
+  The default sample rate for any interface is (ifSpeed / 1e7) where ifSpeed is in bits/sec.  So, the default sample rate based on interface speed is:
 
-  * 1-in-1000 for a 1G link
-  * 1-in-10,000  for a 10G link
-  * 1-in-40,000  for a 40G link
-  * 1-in-50,000  for a 50G link
-  * 1-in-100,000  for a 100G link
+  * 1-in-100 for a 1G link
+  * 1-in-1,000  for a 10G link
+  * 1-in-4,000  for a 40G link
+  * 1-in-5,000  for a 50G link
+  * 1-in-10,000  for a 100G link
+  * 1-in-40,000  for a 400G link
 
   This default is chosen to allow the detection of a new flow of 10% link bandwidth in under 1 second. It is recommended not to change the defaults. This CLI is to be used only in case of exceptions (e.g., to set the sample-rate to the nearest power-of-2 if there are hardware restrictions in using the defaults)
 
@@ -200,7 +201,7 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   The counter polling interval for all interfaces.
 
-  * Valid range 0:300 seconds
+  * Valid range 0 or 5-300 seconds
   * Set polling-interval to 0 to disable
 
 * **sflow sample-rate speed <100M|1G|10G|25G|40G|50G|100G>** *{value}*
