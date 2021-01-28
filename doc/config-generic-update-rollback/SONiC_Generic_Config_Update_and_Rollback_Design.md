@@ -96,13 +96,13 @@ Updating SONiC partial configurations **systematically** has been a challenge fo
 
 *DHCP*: Updating DHCP config requires the following steps:
 - Pushing `minigraph.xml` to the device that contains the new ACL interfaces
-- Generating `dhcp_servers` JSON configs from the `minigraph.xml`, and saving it a temporary file
+- Generating `dhcp_servers` JSON configs from the `minigraph.xml`, and saving it as a temporary file
 - Executing `sudo sonic-cfggen -j /tmp/dhcp.json --write-to-db`
 - Restart `dhcp_relay` service
 
-We have explored [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasable as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and ineffecient.
+We have explored [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasible as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and ineffecient.
 
-The other challenge to updating a switch is recoverability via rollback. Rollback needs to be hitless/non-disruptive e.g. if reverting ACL updates DHCP should not be affected. Currently SONiC has a couple of operations that can be candidates for rollback `config load` and `config reload`.
+The other challenge to updating a switch is recoverability via rollback. Rollback needs to be with minimum-disruption e.g. if reverting ACL updates DHCP should not be affected. Currently SONiC has a couple of operations that can be candidates for rollback `config load` and `config reload`.
 
 *config reload <config_db.json>* : This command clears all the contents of the ConfigDB and loads the contents of config_db.json into the ConfigDB. After that all the Docker containers  and Linux services are restarted to establish the user specified configuration state in the config_db.json file.
 
@@ -124,20 +124,20 @@ The other challenge to updating a switch is recoverability via rollback. Rollbac
 - Verdict
   - Cannot be used as a rollback mechanism
 
-Since both `config load` and `config reload` are not suitable for a hitless/non-disruptive rollback, we have to look for other approaches.
+Since both `config load` and `config reload` are not suitable for a minimum-disruption rollback, we have to look for other approaches.
 
 In this design document, we will be exploring how to standardize the way to do partial updates, how to take checkpoints and finally how to rollback the configurations.
 
 In summary, this is the flow of an update:
 
-![basic-target-design](files/basic-target-design.png)
+<img src="files/basic-target-design.png" alt="basic-target-design" width="800"/>
 
 And the steps would be:
 ```
-admin@sonic:~$ checkpoint mycheckpoint
-admin@sonic:~$ echo "config changes to apply to ConfigDb" > some-config-changes.patch
-admin@sonic:~$ apply-patch ./some-config-changes.patch
-admin@sonic:~$ rollback mycheckpoint # in case of failures
+admin@sonic:~$ config checkpoint mycheckpoint
+admin@sonic:~$ echo "config changes to apply to ConfigDb" > some-config-changes.json-patch
+admin@sonic:~$ config apply-patch ./some-config-changes.json-patch
+admin@sonic:~$ config rollback mycheckpoint # in case of failures
 ```
 
 ## 1.1 Requirements
@@ -148,15 +148,15 @@ admin@sonic:~$ rollback mycheckpoint # in case of failures
 - A single, simple command to fully rollback current SONiC configs with to a checkpoint
 - Other commands to list checkpoints, delete checkpoints
 - The patch of updates should follow a standard notation. The [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) notation should be used
-- Config rollback should be with minimum disruption to the device e.g. if reverting ACL updates DHCP should not be affected i.e. hitless rollback
+- Config rollback should be with minimum disruption to the device e.g. if reverting ACL updates DHCP should not be affected i.e. minimum-disruption rollback
 - User should be able to preview the configuration difference before going ahead and committing the configuration changes
 - In case of errors, the system should just report an error and the user should take care of it
-- Only 1 user session can update device config at a time i.e. no concurrent updates to configurations
+- Only one session globally can update device config at a time i.e. no concurrent updates to configurations
 
 ### 1.1.2 Configuration and Management Requirements
-- All commands should support KLISH CLI style
 - All commands argument to generated using Python-click to provide help menus and other out-of-the box features
 - Only root user must be allowed to execute the commands
+- Non-root users can execute commands with dry-run option
 - Each command must provide the following sub options:
   - "dry-run" Perform a dry-run of the command showing exactly what will be executed on the device, without executing it
   - "verbose" Provide additional information on the steps executed
@@ -169,10 +169,12 @@ N/A
 
 ## 1.2 Design Overview
 
+<img src="files/sonic-design.png" alt="sonic-design" width="1200"/>
+
 ### 1.2.1 Basic Approach
 SONiC ConfigDB contents can be retrieved in a JSON file format. Modifying JSON file should follow some rules in order to make it straightforward for the users. Fortunately there is already a formal way of defning JSON config updates. It is called JsonPatch, and is formally defined in [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902).
 
-On top of ConfigDBConnector in `sonic-py-swssdk` we are going to implement [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). This API we will call `apply-patch`. On top of that API, we will implement the `rollback` functionality. It will simply starts by getting the diff (patch) between the checkpoint and the current running config, then it will call the API `apply-config` to update that patch.
+On top of ConfigDBConnector we are going to implement [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). This API we will call `apply-patch`. On top of that API, we will implement the `rollback` functionality. It will simply starts by getting the diff (patch) between the checkpoint and the current running config, then it will call the API `apply-config` to update that patch.
 
 The [JsonPatch](https://pypi.org/project/jsonpatch/) python is an open source library that already implements the [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). We can leverage this library to verify patch config, generate a diff between checkpoint and current running config, verify apply-patch and rollback work as expected by simulating the final output of the update and comparing with the observed output.
 
@@ -207,9 +209,9 @@ The steps would be:
 
 1) Take a checkpoint of the config
 ```
-admin@sonic:~$ checkpoint mycheckpoint
+admin@sonic:~$ config checkpoint mycheckpoint
 ```
-2) Create a file on the device named `dhcp-changes.patch.json`, with the following content
+2) Create a file on the device named `dhcp-changes.json-patch`, with the following content
 ```
 [
   {
@@ -219,18 +221,22 @@ admin@sonic:~$ checkpoint mycheckpoint
   },
   {
     "op": "add",
-    "path": "/DHCP_SERVERS/4.4.4.4,",remove
-    "path": "/DHCP_SERVERS/2.2.2.2"
+    "path": "/DHCP_SERVERS/4.4.4.4",
+    "value": {}
   },
+  {
+    "op": "remove",
+    "path": "/DHCP_SERVERS/2.2.2.2"
+  }
 ]
 ```
 3) Apply patch using `apply-patch` command
 ```
-admin@sonic:~$ apply-patch ./dhcp-changes.patch.json
+admin@sonic:~$ config apply-patch ./dhcp-changes.json-patch
 ```
 4) In case of failure, rollback the config using `rollback` command
 ```
-admin@sonic:~$ rollback mycheckpoint --verbose # verbose to see generated patch
+admin@sonic:~$ config rollback mycheckpoint --verbose # verbose to see generated patch
 ```
 This will internally do a diff, and generate patch of the needed changes and apply using `apply-patch`.
 The patch will be:
@@ -272,20 +278,89 @@ Human operators can also leverage the `checkpoint` and `rollback` functionalitie
 ### 2.2.1 Apply-Patch
 The SONiC `apply-patch` command can broadly classified into the following steps
 
-#### Stage-1 Patch Ordering
-As per the JSON standard, the elements described in JSON format are unordered. However, in SONiC there are some tables which can not be processed before another table is updated. For example changes to the VLAN_MEMBER table needs to be processed before the PORTCHANNEL table is processed. If the ordering is not established, the Port Channel delete operation will fail with an error message complaining that the port-channel is still part of a VLAN. So it is essential that the dependency between the tables is identified and the patch is processed in that order.
+#### Stage-1 JSON Patch Verification
+Using [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models), but the format of the JSON patch is not what YANG SONiC models is built to verify. We will verify using the following steps:
+1. Get current running config from ConfigDB as JSON
+2. Simulate the patch application on the current config JSON object
+3. Verify the the simulated output using YANG SONiC models
 
-The `apply-patch` command uses an ordering table which specifies the list of dependent tables that need to be processed before a table is processed. Below is an example depiction of two ConfigDB tables.
+#### Stage-2 Patch Ordering
+There are many ideas to ordering the patch, I will pick a simple and straight forward idea. Let's assume the main granular elment is `Table`. Each table gets assigned an order index based on its sementic dependencies. Sementic dependencies means other tables referencing it, think of it as the result of doing a topological sorting of table dependencies. For example: `PORT` lots of table depend on it, but it does not depend on other tables so it gets a low index. `VLAN_MEMBER` depends on `PORT` so its gets a higher index, and so on. This helps make sure low order table absorb the changes first before dependent tables are updated.
 
+Let's assume the following order indecies:
 ```
-{
-  "VLAN" : ["VLAN_MEMBER", "VLAN_INTERFACE"],
-  "PORTCHANNEL" : ["VLAN_MEMBERSHIP", "PORTCHANNEL_MEMBER"]
-}
+PORT = 1
+VLAN_MEMBER = 2
+ACL = 3
 ```
-A dependency graph is created for all the tables which are in the JSON patch file. The dependency graph is then resolved to find the order in which the updates to tables in the JSON patch are performed. The JSON patch file is then sorted in the resolved order.
+And the patch to update is the following:
+```
+[
+  { "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+  { "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+]
+```
 
-#### Stage-2 Identifying Services to Restart
+Each operation belongs to a single table, the table name will be the first token in the path after the first `/`. For example the table of the first operation is `ACL_TABLE`. Let's add the table name to each operation.
+```
+[
+  { "table": "ACL_TABLE", "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+  { "table": "VLAN_MEMBER", "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "table": "PORT", "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+]
+```
+
+Using the indicies table above, let's assign an order index to each operation:
+```
+[
+  { "order": 3, "table": "ACL_TABLE", "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+  { "order": 2, "table": "VLAN_MEMBER", "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "order": 1, "table": "PORT", "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+]
+```
+
+Now let's order the operations by "order":
+```
+[
+  { "order": 1, "table": "PORT", "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+  { "order": 2, "table": "VLAN_MEMBER", "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "order": 3, "table": "ACL_TABLE", "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+]
+```
+This will be the final order of applying the changes.
+
+Unfortunately this solution does not always work especially for the case of deletion from PORT, VLAN_MEMBER, ACL_TABLE. Where if following the same logic we will have:
+```
+[
+  { "order": 1, "table": "PORT", "op": "remove", "path": "/PORT/Ethernet2" }
+  { "order": 2, "table": "VLAN_MEMBER", "op": "remove", "path": "/VLAN_MEMBER/Vlan100|Ethernet2" }
+  { "order": 3, "table": "ACL_TABLE", "op": "remove", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0" }
+]
+```
+This will not work, as the PORT table will complain that the port `Ethernet2` is still in use by a `VLAN_MEMBER`.
+
+The solution for that is if an operation fails, we move on to the next operation, and so on. Until we finish all the operation, then we loop over again on the operations that did not succeed in the previous cycle. If in a cycle no operation succeed, we have hit a dead-end and we report failure
+
+For example: the first cycle result would be:
+```
+[
+  { "result": "Failure", "order": 1, "table": "PORT", "op": "remove", "path": "/PORT/Ethernet2" }
+  { "result": "Success", "order": 2, "table": "VLAN_MEMBER", "op": "remove", "path": "/VLAN_MEMBER/Vlan100|Ethernet2" }
+  { "result": "Success", "order": 3, "table": "ACL_TABLE", "op": "remove", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0" }
+]
+```
+So the failure from the first cycle will be retried in the next cycle:
+```
+[
+  { "result": "Success", "order": 1, "table": "PORT", "op": "remove", "path": "/PORT/Ethernet2" }
+]
+```
+By then we have finished all the operations.
+
+With this approach in mind, I think **ordering techniques do not matter much** as thought earlier. The main advantage of an ordering technique would be to reduce the number of cycles we do to update all the operations.
+
+#### Stage-3 Identifying Services to Restart
 There are a few SONiC applications which store its configuration in the ConfigDB. These applications do not subscribe to the ConfigDB change events. So any changes to their corresponding table entries as part of the patch apply process in the ConfigDB are not processed by the application immediately. In order to apply the configuration changes, corresponding service needs to be restarted. A list of such ConfigDB tables and corresponding systemd service is specified in the *apply-patch* command.  See below for an example.
 
 ```
@@ -301,10 +376,24 @@ There are a few SONiC applications which store its configuration in the ConfigDB
 
 This table is used to restart corresponding systemd service when a patch operation has been perform on its corresponding ConfigDB table. 
 
-#### Stage-3 Add delay after table updates for listening services to absorb changes
-Will divide the patch into groupings by table. After updating each table, we will introduce an artificial sleep to give a pause between two table updates as to ensure that all internal daemons have digested the previous update, before the next one arrives.
+#### Stage-4 Add verification that services have absorbed the changes
+There is 2 types of services:
+- Manually absorbing changes through explicit service restart
+- Automatically abosorbing changes
 
-#### Stage-4 Apply patch, service restarts and delays
+**Manually absorbing changes through explicit service restart**
+
+These are the services identified in [Stage-3 Identifying Services to Restart](#stage-3-identifying-services-to-restart). Just restarting the services and waiting for a success return should be enough
+
+**Automatically abosorbing changes**
+
+There are some options:
+1) Do not verify at all, but how to make sure tables are updated in order which is required for [Stage-2 Patch Ordering](#stage-2-patch-ordering)
+2) Introduce a delay post any table update to make sure listening services have absorbed the change, but how to decide a delay for each service.
+3) Verify expected listening services to have abosorbed the change, maybe check if they were resarted after the table is updated?
+4) ... other options?
+
+#### Stage-5 Apply patch, service restarts and delays
 At this stage we have built all the steps needed. The steps include JsonPatch operations, restart operations and delay operations.
 
 The JsonPatch consistes of a list operation, and the operation follows this format:
@@ -312,7 +401,6 @@ The JsonPatch consistes of a list operation, and the operation follows this form
   { "op": "<Operation-Code>", "path": "<Path>", "value": "<Value>", "from": "<From-Path>" }
 ```
 For detailed information about the JSON patch operations refer to the  section 4(Operations) of [RFC 6902](https://tools.ietf.org/html/rfc6902).
-
 
 
 **Operation Code**
@@ -353,7 +441,7 @@ e.g  "/VLAN_MEMBER/Vlan10|Ethernet0/tagging_mode"
 
 - Data that is used to patch the ConfigDB entry specified in path
 
-#### Stage-5 Verify patch update
+#### Stage-6 Post-update validation
 The expectations after applying the JsonPatch is that it will adhere to [RFC 6902](https://tools.ietf.org/html/rfc6902).
 
 The verficiation steps
@@ -374,7 +462,7 @@ All the configuration update operations executed and the output displayed by the
 The SONiC `checkpoint` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
-The  *ConfigDBConnector* class of the *sonic-py-swsssdk* is used to obtain the running configuration in JSON format
+The  *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
 #### Stage-2 Save JSON config
 Save the checkpoint to a dedicted loction on the SONiC box
@@ -383,7 +471,7 @@ Save the checkpoint to a dedicted loction on the SONiC box
 The SONiC `rollback` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
-The  *ConfigDBConnector* class of the *sonic-py-swsssdk* is used to obtain the running configuration in JSON format
+The  *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
 #### Stage-2 Get checkpoint JSON config
 Load the checkpoint from the SONiC box
@@ -498,7 +586,7 @@ The document contain info describing the dependency graph of tables (i.e. the to
 **apply-config**
 *Command Format*
 
-config apply-patch <*patch-filename*> [dry-run] [verbose]
+config apply-patch <*patch-filename*> [--dry-run] [--verbose]
 
 | Command Option                                                | Purpose                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
@@ -511,16 +599,16 @@ config apply-patch <*patch-filename*> [dry-run] [verbose]
 | Command                                                  | Purpose                                                      |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
 | config apply-patch *filename*                  | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. |
-| config apply-patch *filename* dry-run               | Displays the generates commands going to be executed without running them. |
-| config apply-patch *filename* verbose                  | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. The CLI output will include additional details about each step executed as part of the operation. |
-| config apply-patch *filename* dry-run verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| config apply-patch *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
+| config apply-patch *filename* --verbose                  | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. The CLI output will include additional details about each step executed as part of the operation. |
+| config apply-patch *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 
 **checkpoint**
 
 *Command Format*
 
-config checkpoint <*checkpoint-name*> [dry-run] [verbose]
+config checkpoint <*checkpoint-name*> [--dry-run] [--verbose]
 
 | Command Option                                                | Purpose                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
@@ -533,15 +621,15 @@ config checkpoint <*checkpoint-name*> [dry-run] [verbose]
 | Command                                                  | Purpose                                                      |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
 | config checkpoint *checkpoint-name*                  | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. |
-| config checkpoint *filename* dry-run               | Displays the generates commands going to be executed without running them. |
-| config checkpoint *filename* verbose                  | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. The CLI output will include additional details about each step executed as part of the operation. |
-| config checkpoint *filename* dry-run verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| config checkpoint *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
+| config checkpoint *filename* --verbose                  | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. The CLI output will include additional details about each step executed as part of the operation. |
+| config checkpoint *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 **checkpoint**
 
 *Command Format*
 
-config rollback <*checkpoint-name*> [dry-run] [verbose]
+config rollback <*checkpoint-name*> [--dry-run] [--verbose]
 
 | Command Option                                                | Purpose                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
@@ -554,9 +642,9 @@ config rollback <*checkpoint-name*> [dry-run] [verbose]
 | Command                                                  | Purpose                                                      |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
 | config rollback *checkpoint-name*                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. |
-| config rollback *filename* dry-run               | Displays the generates commands going to be executed without running them. |
-| config rollback *filename* verbose                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. The CLI output will include additional details about each step executed as part of the operation. |
-| config rollback *filename* dry-run verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| config rollback *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
+| config rollback *filename* --verbose                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. The CLI output will include additional details about each step executed as part of the operation. |
+| config rollback *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 #### 3.6.2.2 Show Commands
 
