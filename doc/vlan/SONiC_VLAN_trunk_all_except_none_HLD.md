@@ -225,7 +225,7 @@ module: openconfig-interfaces-ext
 ### 3.3.2 CLI
 #### 3.3.2.1 Configuration Commands
 
-**switchport trunk allowed vlan {*vlan-list*|except *vlan-list* | none | all}**
+**switchport trunk allowed vlan {*vlan-list* | {add | except | remove} *vlan-list* | none | all}**
 
 ```
 sonic(conf-if-Ethernet16)# switchport trunk allowed Vlan
@@ -263,7 +263,7 @@ sonic(conf-if-Ethernet16)#
 
 #### 3.3.2.2 Show Commands
 #### 3.3.2.2.1 show running-config
-Show running-config <interface> will be enhanced to display all VLAN IDs("existing and non-existing") allowed on trunk or access port. Currently show output displays only existing VLANs allowed on given interface.
+Show running-config <interface> will be enhanced to display all tagged & untagged VLAN IDs("existing and non-existing") configured on port. 
 
 Here is the sample "show running-config" output for the interface:
 <br>"switchport trunk allowed Vlan all" was executed on Ethernet 4
@@ -444,23 +444,54 @@ NUM        Status      Q Ports
 ```
 
 **Scenario 5:**
-<br> Vlan 20 does not exist.
+<br> No vlan existing.
 <br> Step 1: sonic(conf-if-EthernetX)#switchport trunk allowed vlan all
+<br> Result: port tagged in 1-4094
 <br> Step 2: sonic(conf-if-EthernetX)#switchport access vlan 20
-<br> Step 3: sonic(config)#interface vlan 20
-<br> Result: Port will be untagged in vlan 20
-<br> Verify: 'show run-configuration' output.  
-Sample show run-config output:
+<br> Result: port untagged in vlan 20 with pending tagged vlan 20 membership
+<br> Verify: 'show run-configuration' & 'show vlan' output.  
+<br> `Sample output:` show running-configuration interface Ethernet X
 ```
-sonic# show running-configuration interface Ethernet X
 !
 interface EthernetX
- mtu 9100
- speed 40000
- shutdown
+ mtu 9000
+ speed 100000
+ fec none
+ no shutdown
  switchport access Vlan 20
  switchport trunk allowed Vlan 1-4094
+```
+<br> Step 3 - Create vlan 20: interface vlan 20
+<br> `Sample output:` show Vlan 20
+```
+Q: A - Access (Untagged), T - Tagged
+NUM        Status      Q Ports
+20         Inactive    A  EthernetX
 sonic#
+```
+<br> Step 4: sonic(conf-if-EthernetX)#*no* switchport access vlan
+<br> Result: port added back as tagged in vlan 20
+<br> `Sample output:` show Vlan 20
+```
+Q: A - Access (Untagged), T - Tagged
+NUM        Status      Q Ports
+20         Inactive    T  EthernetX
+sonic#
+```
+<br> Step 5: sonic(conf-if-EthernetX)#*no* switchport trunk allowed vlan 20 
+<br> Result: port tagged in 1-19,21-4094
+<br> Verify: 'show run-configuration' output.  
+<br> `Sample output:` 
+```
+sonic(conf-if-Ethernet4)# do show running-configuration interface Ethernet 4
+!
+interface Ethernet4
+ mtu 9000
+ speed 100000
+ fec none
+ no shutdown
+ switchport trunk allowed Vlan 1-19,21-4094
+sonic(conf-if-Ethernet4)#
 ```
 
 **Scenario 6:**
@@ -525,7 +556,7 @@ sonic#
 <br> Step 1: sonic(conf-if-EthernetX)#switchport trunk allowed vlan add 1-11 (no VLAN existing)
 <br> Step 2: sonic(conf-if-EthernetX)#switchport access vlan 11 (no VLAN existing)
 <br> Step 3: sonic(config)#interface range create vlan 1-11
-<br> Result: Port untagged in vlan 11
+<br> Result: Port untagged in vlan 11 with pending tagged vlan 11 membership
 <br> Step 4: sonic(conf-if-EthernetX)#no switchport access vlan
 <br> Result: Port will be tagged in vlan 1-11
 <br> Verify: 'show run-configuration' output.  
@@ -678,24 +709,19 @@ sonic#
 <br> Result: Port tagged in Vlan12-4094
 <br> Verify: 'show run-configuration' output.  
 
-**Scenario 22:**
-<br> Vlan 20 does not exist.
-<br> Step 1: sonic(conf-if-EthernetX)#switchport trunk allowed vlan all
-<br> Step 2: sonic(conf-if-EthernetX)#switchport access vlan 20
-<br> Step 3: sonic(config)#interface vlan 20     //only Vlan 20 existing
-<br> Result: untagged port in vlan 20
-<br> Step 4: sonic(conf-if-EthernetX)#no switchport access vlan
-<br> Result: tagged port in vlan 20
-<br> Step 5: sonic(conf-if-EthernetX)#no switchport trunk allowed vlan 20 
-<br> Result: port will not have any vlan membership
-<br> Verify: 'show run-configuration' output.  
 
-
-#### 5.3 Test cases after Image Upgrade
-##### 5.3.1 Upgrade to latest image 
-*Expected Result after image upgrade:*
+#### 5.3 SONiC upgrade & downgrade with configuration persistence after installation. 
+##### 5.3.1 Test image upgrade (migrating from 3.1.1 & 3.1.2 to 3.2.0) with configuration persistence after installation
 * All trunk and access VLAN config cmds working fine. 
 * No Warning/Error log must be shown.
+* Verify "access_vlan" and "tagged_vlans@" attributes added in PORT table and PORTCHANNEL table for interfaces with VLAN config.
+* Verify existing options "add" and "remove" to configure tagged VLANs work fine.
+* Verify show version, sonic_installer list, show system status, show vlan, & show run-config output
 
-#### 5.4 Test Config save & restore for all access and trunk VLAN configuration options.  
+##### 5.3.1 Test image downgrade (migrating from 3.2.0 to 3.1.2 & 3.1.1) with configuration persistence after installation
+* All trunk and access VLAN config cmds working fine. 
+* No Warning/Error log must be shown.
+* Verify "access_vlan" and "tagged_vlans@" attributes removed from PORT table and PORTCHANNEL table for interfaces with VLAN config.
+* Verify non-existing tagged/untagged VLANs config in 3.2.0 image has no impact when downgraded to previous versions.
+* Verify show version, sonic_installer list, show system status, show vlan, & show run-config output
 
