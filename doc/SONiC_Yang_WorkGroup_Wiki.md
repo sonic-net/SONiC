@@ -39,22 +39,35 @@ This document will describe cover below in details. These components together wi
 
 # SONiC Yang models:
 SONiC YANG Models are written mainly using below 2 documents:
+
 1.) First document describes guidelines, which are written considering the ABNF format of configDB, RFC7950 and RFC 7951.
+
 https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md
 and
+
 2.) Second document describes the configuration for various networking objects in SONiC which are currently supported:
+
 https://github.com/Azure/SONiC/wiki/Configuration.
 
 ## Summarized Guidelines from SONiC_YANG_Model_Guidelines.md:
 -- It is mandatory to define a top level YANG container named as 'sonic-{feature}' i.e. same as YANG model name.
+
 -- Define namespace as "http://github.com/Azure/{model-name}.
+
 -- Each primary section of ABNF.json (i.e a dictionary in ABNF.json) for example, VLAN, VLAN_MEMBER, INTERFACE in ABNF.json will be mapped to a container in YANG model.
+
 -- Each leaf in YANG module should have same name (including their case) as corresponding key-fields in ABNF.json.
+
 -- Data Node/Object Hierarchy of the objects in YANG models will be same as for all the fields at same hierarchy in Config DB.
+
 -- If an object is part of primary-key in ABNF.json, then it should be a key in YANG model.
+
 -- If any key used in current table refers to other table, use leafref type for the key leaf definition.
+
 -- All must, when, pattern and enumeration constraints can be derived from .h files or from code.
+
 -- If a List object is needed in YANG model to bundle multiple entries from a Table in ABNF.json, but this LIST is not a valid entry in config data, then we must define such list as <TABLE_NAME>_LIST.
+
 
 Kindly go through guideline document in detail to see the example for each constraint.
 
@@ -394,9 +407,11 @@ RFC 7951
 Yang tests are mainly written in below two files:
 
 Json file contains the config to test in sonic_yang format.
+
 https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/tests/yang_model_tests/yangTest.json
 
 And test Code is in:
+
 https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/tests/yang_model_tests/test_yang_model.py
 
 There are 4 kinds to tests:
@@ -550,7 +565,10 @@ Python test file will have an entry as below which specifies that for configurat
 
 PLY library is written mainly in below 2 files, which together contains a single class.
 
-https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py (Wrapper on Libyang: find_data\schema_dependencies, add_node, del_node)
+https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang.py 
+
+(Wrapper on Libyang: find_data\schema_dependencies, add_node, del_node)
+
 This part of the library can work with Any YANG model.
 
 Below is the list of few APIs which are written on top of Libyang library:
@@ -581,7 +599,10 @@ _find_schema_dependencies
 find_data_dependencies
 ```
 Second file contains SONiC yang models specific code which mainly does translation from config_db.json to sonic_yang.jason and vice versa.
-https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang_ext.py (SONiC specific functions: xlate and revXlate).
+
+https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/sonic_yang_ext.py 
+
+(SONiC specific functions: xlate and revXlate).
 
 Below is the list of few APIs which are written on top of Libyang library:
 ```
@@ -618,6 +639,7 @@ deleteNode
 
 # Python Library for Yang Tests:
 Below file contanins test cases for PLY:
+
 https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-mgmt/tests/libyang-python-tests/test_sonic_yang.py
 
 One snapshot of SONiC YANG models is used for Libyang Wrapper testing.
@@ -647,11 +669,29 @@ test_xlate_rev_xlate()
 How to make sure YANG models are written or updated for any new table or new field in existing table of config_db:
 
 As part of SONiC YANG workgroup below measure will be taken while review is done for HLD of new SONiC feature:
+
 a.) Any change to ConfigDB schema MUST include YANG model schema change.
+
 b.) PR covering YANG model update MUST be reviewed and approved by YANG subgroup.
+
 c.) HLD approval can be BLOCKED if YANG model is not reviewed and approved by YANG subgroup.
 
-Build time tests will check for a.) Existence of YANG models and b.) Validation of YANG models as per SONiC YANG Models Guidelines using below steps:
+Build time tests will check for 
 
--- Developer will have to update new config in https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models/sample_config_db.json
--- At build time, Package sonic-yang-mgmt internally will try to load SONiC config from this file a.) by converting the config as per RFC 7951 using YANG Models, b.) by creating data tree using new YANG models and c.) by validating config against YANG models. Successful execution of these steps can be treated as validation of new Yang models.
+a.) Existence of YANG models and 
+
+b.) Validation of YANG models as per SONiC YANG Models Guidelines using below steps:
+
+-- Developer will have to update new config in 
+
+https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models/sample_config_db.json
+
+-- At build time, Package sonic-yang-mgmt internally will try to load SONiC config from this file 
+
+a.) by converting the config as per RFC 7951 using YANG Models, 
+
+b.) by creating data tree using new YANG models and 
+
+c.) by validating config against YANG models. 
+
+Successful execution of these steps can be treated as validation of new Yang models.
