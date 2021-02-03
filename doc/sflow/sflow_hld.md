@@ -183,14 +183,14 @@ When sflow is disabled globally, sampling is stopped on all relevant interfaces 
 
   Configure the sample-rate for a specific interface. 
 
-  The default sample rate for any interface is (ifSpeed / 1e7) where ifSpeed is in bits/sec.  So, the default sample rate based on interface speed is:
+  The default sample rate for any interface is (ifSpeed / 1e6) where ifSpeed is in bits/sec.  So, the default sample rate based on interface speed is:
 
-  * 1-in-100 for a 1G link
-  * 1-in-1,000  for a 10G link
-  * 1-in-4,000  for a 40G link
-  * 1-in-5,000  for a 50G link
-  * 1-in-10,000  for a 100G link
-  * 1-in-40,000  for a 400G link
+  * 1-in-1000 for a 1G link
+  * 1-in-10,000  for a 10G link
+  * 1-in-40,000  for a 40G link
+  * 1-in-50,000  for a 50G link
+  * 1-in-100,000  for a 100G link
+  * 1-in-400,000  for a 400G link
 
   This default is chosen to allow the detection of a new flow of 10% link bandwidth in under 1 second. It is recommended not to change the defaults. This CLI is to be used only in case of exceptions (e.g., to set the sample-rate to the nearest power-of-2 if there are hardware restrictions in using the defaults)
 
