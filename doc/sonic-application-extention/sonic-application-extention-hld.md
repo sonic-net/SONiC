@@ -30,7 +30,6 @@
 - [Initial Extension Configuration](#initial-extension-configuration)
 - [CLI extension](#cli-extension)
 - [SONiC Processes and Docker Statistics Telemetry Support](#sonic-processes-and-docker-statistics-telemetry-support)
-- [Monit Configuration](#monit-configuration)
 - [Feature Concept Integration](#feature-concept-integration)
 - [Multi-DB support](#multi-db-support)
 - [Configuration Reload](#configuration-reload)
@@ -60,9 +59,9 @@
 
 ### Revision
 
-| Rev |     Date    |       Author            | Change Description                   |
-|:---:|:-----------:|:-----------------------:|--------------------------------------|
-| 0.1 | 09/2020     | Stepan Blyshchak        | Phase 1 Design                       |
+|  Rev  |  Date   |      Author      | Change Description |
+| :---: | :-----: | :--------------: | ------------------ |
+|  0.1  | 09/2020 | Stepan Blyshchak | Phase 1 Design     |
 
 ### Scope
 
@@ -70,16 +69,16 @@ This document describes the high level design of SONiC Application Extension Inf
 
 ### Definitions/Abbreviations
 
-| **Abbreviation**         | **Definition**                         |
-|--------------------------|----------------------------------------|
-| SONiC                    | Software for Open Networking in Cloud  |
-| DB                       | Database                               |
-| API                      | Application Programming Interface      |
-| SAI                      | Switch Abstraction Interface           |
-| YANG                     | Yet Another Next Generation            |
-| JSON                     | Java Script Object Notation            |
-| XML                      | eXtensible Markup Language             |
-| gNMI                     | gRPC Network Management Interface      |
+| **Abbreviation** | **Definition**                        |
+| ---------------- | ------------------------------------- |
+| SONiC            | Software for Open Networking in Cloud |
+| DB               | Database                              |
+| API              | Application Programming Interface     |
+| SAI              | Switch Abstraction Interface          |
+| YANG             | Yet Another Next Generation           |
+| JSON             | Java Script Object Notation           |
+| XML              | eXtensible Markup Language            |
+| gNMI             | gRPC Network Management Interface     |
 
 ### Overview
 
@@ -221,16 +220,16 @@ to guaranty that the database won't become broken if two write operations are pe
 The */var/lib/sonic-packages/packages.json* file is used as a persistent database of available SONiC packages.
 Schema definition for *packages.json* file is following:
 
-Path                     | Type               | Description
------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------
-/name                    | string             | Name of the package.
-/name/repository         | string             | Repository in Docker registry. Default source of image for installation/upgrade.
-/name/description	       | string	            | Application description field.
-/name/default-reference  | string             | A tag or digest of Docker image that will be a default installation candidate.
-/name/built-in           | boolean            | A flag to indicate that a Docker is a built-in package.
-/name/status             | string             | Status indicate the installation status of the package. It is either "installed" or "not-installed".
-/name/installed-version  | string             | Installed version string. This version follows semantic versioning described in later section.
-/name/image-id           | string             | Docker image ID of the installed Package, *null* if package is not installed or built-in (was not installed using sonic-package-manager).
+| Path                    | Type    | Description                                                                                                                               |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| /name                   | string  | Name of the package.                                                                                                                      |
+| /name/repository        | string  | Repository in Docker registry. Default source of image for installation/upgrade.                                                          |
+| /name/description       | string  | Application description field.                                                                                                            |
+| /name/default-reference | string  | A tag or digest of Docker image that will be a default installation candidate.                                                            |
+| /name/built-in          | boolean | A flag to indicate that a Docker is a built-in package.                                                                                   |
+| /name/status            | string  | Status indicate the installation status of the package. It is either "installed" or "not-installed".                                      |
+| /name/installed-version | string  | Installed version string. This version follows semantic versioning described in later section.                                            |
+| /name/image-id          | string  | Docker image ID of the installed Package, *null* if package is not installed or built-in (was not installed using sonic-package-manager). |
 
 
 A sample of the content in JSON format:
@@ -644,14 +643,14 @@ The value should contain a JSON serialized as a string.
 
 The following table shows the top-level objects in the manifest. In the next sections it is described all the fields that are relevant.
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/version                          | string                | no          | Version of manifest schema definition. Defaults to 1.0.0.
-/package                          | object                | no          | Package related metadata information.
-/service                          | object                | yes         | Service management related properties.
-/container                        | object                | no          | Container related properties.
-/processes                        | list                  | no          | A list defining processes running inside the container.
-/cli                              | object                | no          | CLI plugin information. *NOTE*: Later will deprecated and replaced with a YANG module file path.
+| Path       | Type   | Mandatory | Description                                                                                      |
+| ---------- | ------ | --------- | ------------------------------------------------------------------------------------------------ |
+| /version   | string | no        | Version of manifest schema definition. Defaults to 1.0.0.                                        |
+| /package   | object | no        | Package related metadata information.                                                            |
+| /service   | object | yes       | Service management related properties.                                                           |
+| /container | object | no        | Container related properties.                                                                    |
+| /processes | list   | no        | A list defining processes running inside the container.                                          |
+| /cli       | object | no        | CLI plugin information. *NOTE*: Later will deprecated and replaced with a YANG module file path. |
 
 
 A required "version" field can be used in case the format of manifest.json is changed in the future.
@@ -677,14 +676,14 @@ can be installed at any given time.
 <!-- omit in toc -->
 ###### manifest path
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/package/version                  | string                | yes         | Version of the package.
-/package/name                     | string                | yes         | Name of the package.
-/package/description              | string                | no          | Description of the package.
-/package/depends                  | list of strings       | no          | List of SONiC packages the service depends on. Defaults to [].
-/package/conflicts                | list of strings       | no          | List of SONiC package the service conflicts with. Defaults to [].
-/package/base-os-constraint       | string                | no          | Base image version dependency constraint. Defaults to  '*': allows any version.
+| Path                        | Type            | Mandatory | Description                                                                     |
+| --------------------------- | --------------- | --------- | ------------------------------------------------------------------------------- |
+| /package/version            | string          | yes       | Version of the package.                                                         |
+| /package/name               | string          | yes       | Name of the package.                                                            |
+| /package/description        | string          | no        | Description of the package.                                                     |
+| /package/depends            | list of strings | no        | List of SONiC packages the service depends on. Defaults to [].                  |
+| /package/conflicts          | list of strings | no        | List of SONiC package the service conflicts with. Defaults to [].               |
+| /package/base-os-constraint | string          | no        | Base image version dependency constraint. Defaults to  '*': allows any version. |
 
 
 *base-os-constraint* should have the following format:
@@ -735,14 +734,14 @@ or
 <!-- omit in toc -->
 ###### Manifest path
 
-Path                                          | Type                  | Mandatory   | Description
---------------------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/package/changelog                            | dict                  | no          | Changelog dictionary.
-/package/changelog/\<version\>                | dict                  | yes         | Package version.
-/package/changelog/\<version\>/changes        | list of strings       | yes         | Changelog messages for a given version.
-/package/changelog/\<version\>/author         | string                | yes         | Author name.
-/package/changelog/\<version\>/email          | string                | yes         | Author's email address.
-/package/changelog/\<version\>/date           | string                | yes         | Date and time in RFC 2822 format.
+| Path                                   | Type            | Mandatory | Description                             |
+| -------------------------------------- | --------------- | --------- | --------------------------------------- |
+| /package/changelog                     | dict            | no        | Changelog dictionary.                   |
+| /package/changelog/\<version\>         | dict            | yes       | Package version.                        |
+| /package/changelog/\<version\>/changes | list of strings | yes       | Changelog messages for a given version. |
+| /package/changelog/\<version\>/author  | string          | yes       | Author name.                            |
+| /package/changelog/\<version\>/email   | string          | yes       | Author's email address.                 |
+| /package/changelog/\<version\>/date    | string          | yes       | Date and time in RFC 2822 format.       |
 
 Example:
 
@@ -841,16 +840,16 @@ manifest.
 <!-- omit in toc -->
 ###### manifest path
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/service/name                     | string                | yes         | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "conflicts".
-/service/requires                 | list of strings       | no          | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".
-/service/requisite                | list of strings       | no          | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".
-/service/wanted-by                | list of strings       | no          | List of SONiC services that wants for this package.<p>The option maps to systemd's unit "WantedBy=".
-/service/after                    | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start after on system boot.
-/service/before                   | list of strings       | no          | Boot order dependency. List of SONiC services the application is set to start before on system boot.
-/service/wanted-by                | list of strings       | no          | Services list that "wants" this service. Maps to systemd's WantedBy
-/service/delayed                  | boolean               | no          | Wether to generate a timer to delay the service on boot. Defaults to false.
+| Path               | Type            | Mandatory | Description                                                                                                                                                                                 |
+| ------------------ | --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /service/name      | string          | yes       | Name of the service. There could be two packages e.g: fpm-quagga, fpm-frr but the service name is the same "bgp". For such cases each one have to declare the other service in "conflicts". |
+| /service/requires  | list of strings | no        | List of SONiC services the application requires.<p>The option maps to systemd's unit "Requires=".                                                                                           |
+| /service/requisite | list of strings | no        | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".                                                                               |
+| /service/wanted-by | list of strings | no        | List of SONiC services that wants for this package.<p>The option maps to systemd's unit "WantedBy=".                                                                                        |
+| /service/after     | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start after on system boot.                                                                                         |
+| /service/before    | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start before on system boot.                                                                                        |
+| /service/wanted-by | list of strings | no        | Services list that "wants" this service. Maps to systemd's WantedBy                                                                                                                         |
+| /service/delayed   | boolean         | no        | Wether to generate a timer to delay the service on boot. Defaults to false.                                                                                                                 |
 
 
 <!-- omit in toc -->
@@ -911,11 +910,11 @@ after installation all the service scripts under */usr/local/bin/* are re-genera
 <!-- omit in toc -->
 ###### manifest path
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/service/dependent-of             | lits of strnigs       | no          | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list.
-/service/post-start-action        | string                | no          | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.
-/service/pre-shutdown-action          | string                | no          | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.
+| Path                         | Type            | Mandatory | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------- | --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /service/dependent-of        | lits of strnigs | no        | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list. |
+| /service/post-start-action   | string          | no        | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.                                                                            |
+| /service/pre-shutdown-action | string          | no        | Path to an executable inside Docker image filesystem to be executed before container stops.<p>A uses case is to execute a warm-shutdown preparation script.<p>A script that sends SIGUSR1 to teamd to initiate warm shutdown is one of such examples.                                                                                                                                                                                                                                                                                 |
 
 <!-- omit in toc -->
 ##### /usr/bin/*feature*.sh
@@ -946,16 +945,16 @@ docker create {{ docker_run_options }}
 <!-- omit in toc -->
 ###### manifest path
 
-Path                              | Type                  | Mandatory   | Description
---------------------------------- | --------------------- | ----------- | -----------------------------------------------------------------------------
-/container/privileged             | string                | no          | Start the container in privileged mode. Later versions of manifest might extend container properties to include docker capabilities instead of privileged mode. Defaults to False.
-/container/volumes                | list of strings       | no          | List of mounts for a container. The same syntax used for '-v' parameter for "docker run".<p>Example: "\<src\>:\<dest\>:\<options\>". Defaults to [].
-/container/mounts                 | list of objects       | no          | List of mounts for a container. Defaults to [].
-/container/mounts/[id]/source     | string                | yes         | Source for mount
-/container/mounts/[id]/target     | string                | yes         | Target for mount
-/container/mounts/[id]/type       | string                | yes         | Type for mount. See docker mount types.
-/container/tmpfs                  | list of strings       | no          | Tmpfs mounts. Defaults to []
-/container/environment            | dict                  | no          | Environment variables for Docker container (key=value). Defaults to {}.
+| Path                          | Type            | Mandatory | Description                                                                                                                                                                        |
+| ----------------------------- | --------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /container/privileged         | string          | no        | Start the container in privileged mode. Later versions of manifest might extend container properties to include docker capabilities instead of privileged mode. Defaults to False. |
+| /container/volumes            | list of strings | no        | List of mounts for a container. The same syntax used for '-v' parameter for "docker run".<p>Example: "\<src\>:\<dest\>:\<options\>". Defaults to [].                               |
+| /container/mounts             | list of objects | no        | List of mounts for a container. Defaults to [].                                                                                                                                    |
+| /container/mounts/[id]/source | string          | yes       | Source for mount                                                                                                                                                                   |
+| /container/mounts/[id]/target | string          | yes       | Target for mount                                                                                                                                                                   |
+| /container/mounts/[id]/type   | string          | yes       | Type for mount. See docker mount types.                                                                                                                                            |
+| /container/tmpfs              | list of strings | no        | Tmpfs mounts. Defaults to []                                                                                                                                                       |
+| /container/environment        | dict            | no        | Environment variables for Docker container (key=value). Defaults to {}.                                                                                                            |
 
 
 ### Initial Extension Configuration
@@ -966,9 +965,9 @@ The JSON file will be loaded into running CONFIG DB and boot CONFIG DB file duri
 <!-- omit in toc -->
 ###### manifest path
 
-Path                        | Type                  | Mandatory | Description
---------------------------- | --------------------- | ----------|-----------------------------------------------------------------------------
-/package/init-cfg           | dict                  | no        | Default package configuration in CONFIG DB format. Defaults to {}
+| Path              | Type | Mandatory | Description                                                       |
+| ----------------- | ---- | --------- | ----------------------------------------------------------------- |
+| /package/init-cfg | dict | no        | Default package configuration in CONFIG DB format. Defaults to {} |
 
 
 Example:
@@ -1064,59 +1063,17 @@ ave to be also auto-generated from YANG in the future.
 <!-- omit in toc -->
 ###### manifest path
 
-Path                             | Type                  | Mandatory | Description
--------------------------------- | --------------------- | ----------|------------------------------------------------------------------------------
-/cli/show-cli-plugin             | string                | no        | A path to a plugin for sonic-utilities show CLI command.
-/cli/config-cli-plugin           | string                | no        | A path to a plugin for sonic-utilities config CLI command.
-/cli/clear-cli-plugin            | string                | no        | A path to a plugin for sonic-utilities sonic-clear CLI command.
+| Path                   | Type   | Mandatory | Description                                                     |
+| ---------------------- | ------ | --------- | --------------------------------------------------------------- |
+| /cli/show-cli-plugin   | string | no        | A path to a plugin for sonic-utilities show CLI command.        |
+| /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
+| /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
 
 ### SONiC Processes and Docker Statistics Telemetry Support
 
 [Processes And Docker Stats Telemetry HLD](https://github.com/Azure/SONiC/blob/master/doc/system-telemetry/process-docker-stats.md)
 
 This feature should be supported by SONiC Application Extension without any changes to existing feature implementation.
-
-### Monit Configuration
-
-Processes information is also used to generate monit configuration file based on the *critical* flag. An installation is triggering
-monit configuration reload by issueing *systemctl reload monit.service*.
-
-<!-- omit in toc -->
-###### manifest path
-
-Path                              | Type                  | Mandatory    | Description
---------------------------------- | --------------------- | -------------|--------------------------------------------------------------------------
-/processes/                       | list                  | no           | A list defining processes running inside the container.
-/processes/[index]/name           | string                | yes          | Process name.
-/processes/[index]/critical       | boolean               | no           | Wether the process is a critical process. Defaults to False.
-/processes/[index]/command        | string                | yes          | Command to run the process.
-
-Given the following processes list:
-
-```json
-{
-  "processes": [
-    {
-      "name": "cpu-report",
-      "critical": true,
-      "command": "/usr/bin/cpu-reportd"
-    }
-  ]
-}
-```
-
-Will generate the following monit configuration:
-
-```
-###############################################################################
-## Monit configuration for cpu-report container
-## process list:
-##  cpu-reportd
-###############################################################################
-check program cpu-report|cpu-reportd with path "/usr/bin/process_checker cpu-report /usr/bin/cpu-reportd"
-    if status != 0 for 5 times within 5 cycles then alert
-```
-
 
 ### Feature Concept Integration
 
@@ -1190,9 +1147,9 @@ during *show techsupport* execution. This file will be included in techsupport u
 <!-- omit in toc -->
 ###### manifest path
 
-Path                           | Value             | Mandatory | Description
--------------------------------|-------------------|-----------|----------------------------------------------------------------------
-/package/debug-dump            | string            | No        | A command to be executed during system dump
+| Path                | Value  | Mandatory | Description                                 |
+| ------------------- | ------ | --------- | ------------------------------------------- |
+| /package/debug-dump | string | No        | A command to be executed during system dump |
 
 ### Multi-ASIC
 
@@ -1203,10 +1160,10 @@ corresponding service files are created per each namespace. *systemd-sonic-gener
 <!-- omit in toc -->
 ###### manifest path
 
-Path                             | Value               | Mandatory  | Description
----------------------------------|---------------------|------------|---------------------------------------------------------------------------------
-/service/host-service            | boolean             | no         | Multi-ASIC field. Wether a service should run in host namespace. Default is True.
-/service/asic-service            | boolean             | no         | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False.
+| Path                  | Value   | Mandatory | Description                                                                         |
+| --------------------- | ------- | --------- | ----------------------------------------------------------------------------------- |
+| /service/host-service | boolean | no        | Multi-ASIC field. Wether a service should run in host namespace. Default is True.   |
+| /service/asic-service | boolean | no        | Multi-ASIC field. Wether a service should run per ASIC namespace. Default is False. |
 
 ### Warmboot and Fastboot Design Impact
 
@@ -1242,15 +1199,17 @@ systemctl stop {{ service }}
 <!-- omit in toc -->
 ###### manifest path
 
-Path                              | Value                 | Mandatory  | Description
-----------------------------------|-----------------------|------------|--------------------------------------------------------------------
-/service/warm-shutdown/           | object                | no         | Warm reboot related properties. Used to generate the warm-reboot script.
-/service/warm-shutdown/after      | lits of strings       | no         | Warm shutdown order dependency. List of SONiC services the application is set to stop after on warm shutdown.<p>Example: a "bgp" may specify "radv" in this field in order to avoid radv to announce departure and cause hosts to lose default gateway.<p>*NOTE*: Putting "radv" here, does not mean the "radv" should be installed as there is no such dependency for the "bgp" package.
-/service/warm-shutdown/before     | lits of strings       | no         | Warm shutdown order dependency. List of SONiC services the application is set to stop before on warm shutdown.<p>Example: a "teamd" service has to stop before "syncd", but after "swss" to be able to send the last LACP PDU though CPU port right before CPU port becomes unavailable.
-/service/fast-shutdown/           | object                | no         | Fast reboot related properties. Used to generate the fast-reboot script.
-/service/fast-shutdown/after      | lits of strings       | no         | Same as for warm-shutdown.
-/service/fast-shutdown/before     | lits of strings       | no         | Same as for warm-shutdown.
-/processes/[index]/reconciles    | boolean               | no         | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.
+| Path                          | Value           | Mandatory | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------- | --------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /service/warm-shutdown/       | object          | no        | Warm reboot related properties. Used to generate the warm-reboot script.                                                                                                                                                                                                                                                                                                                  |
+| /service/warm-shutdown/after  | lits of strings | no        | Warm shutdown order dependency. List of SONiC services the application is set to stop after on warm shutdown.<p>Example: a "bgp" may specify "radv" in this field in order to avoid radv to announce departure and cause hosts to lose default gateway.<p>*NOTE*: Putting "radv" here, does not mean the "radv" should be installed as there is no such dependency for the "bgp" package. |
+| /service/warm-shutdown/before | lits of strings | no        | Warm shutdown order dependency. List of SONiC services the application is set to stop before on warm shutdown.<p>Example: a "teamd" service has to stop before "syncd", but after "swss" to be able to send the last LACP PDU though CPU port right before CPU port becomes unavailable.                                                                                                  |
+| /service/fast-shutdown/       | object          | no        | Fast reboot related properties. Used to generate the fast-reboot script.                                                                                                                                                                                                                                                                                                                  |
+| /service/fast-shutdown/after  | lits of strings | no        | Same as for warm-shutdown.                                                                                                                                                                                                                                                                                                                                                                |
+| /service/fast-shutdown/before | lits of strings | no        | Same as for warm-shutdown.                                                                                                                                                                                                                                                                                                                                                                |
+| /processes                    | object          | no        | Processes infromation                                                                                                                                                                                                                                                                                                                                                                     |
+| /processes/[name]/reconciles  | boolean         | no        | Wether process performs warm-boot reconciliation, the warmboot-finalizer service has to wait for. Defaults to False.                                                                                                                                                                                                                                                                      |
+
 
 
 ### SONiC-2-SONiC upgrade
@@ -1261,10 +1220,10 @@ and do a comparison between currently running and new SONiC image.
 <!-- omit in toc -->
 ###### Package migration scenarios
 
-Package                        | Version                                                                                                                | Action
--------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------
-Non built-in package          | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image           | Perform a package installation/upgrade in new SONiC image
-Non built-in package          | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image              | Perform a package installation/upgrade in new SONiC image of currently running package version.
+| Package              | Version                                                                                                      | Action                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Non built-in package | Default version defined in *packages.json* in new SONiC image is greater then in current running SONiC image | Perform a package installation/upgrade in new SONiC image                                       |
+| Non built-in package | Default version defined in *packages.json* in new SONiC image is less then in current running SONiC image    | Perform a package installation/upgrade in new SONiC image of currently running package version. |
 
 The old *packages.json* and new *packages.json* are merged together and updated in new SONiC image.
 
