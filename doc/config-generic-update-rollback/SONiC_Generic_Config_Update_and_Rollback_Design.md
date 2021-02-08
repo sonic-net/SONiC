@@ -25,11 +25,10 @@
   * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
   * [2.2 Functional Description](#22-functional-description)
     + [2.2.1 Apply-Patch](#221-apply-patch)
-      - [Stage-1 Patch Ordering](#stage-1-patch-ordering)
-      - [Stage-2 Identifying Services to Restart](#stage-2-identifying-services-to-restart)
-      - [Stage-3 Add delay after table updates for listening services to absorb changes](#stage-3-add-delay-after-table-updates-for-listening-services-to-absorb-changes)
-      - [Stage-4 Apply patch, service restarts and delays](#stage-4-apply-patch--service-restarts-and-delays)
-      - [Stage-5 Verify patch update](#stage-5-verify-patch-update)
+      - [Stage-1 JSON Patch Verification](#stage-1-json-patch-verification)
+      - [Stage-2 JSON Patch Ordering](#stage-2-json-patch-ordering)
+      - [Stage-3 Applying list of JsonChanges in order](#stage-3-applying-list-of-jsonchanges-in-order)
+      - [Stage-4 Post-update validation](#stage-4-post-update-validation)
       - [Fail-safe Action](#fail-safe-action)
       - [Logging](#logging)
     + [2.2.2 Checkpoint](#222-checkpoint)
@@ -46,14 +45,33 @@
 - [3 Design](#3-design)
   * [3.1 Overview](#31-overview)
     + [3.1.1 ApplyPatch](#311-applypatch)
-    + [3.6 User Interface](#36-user-interface)
-    + [3.6.1 Data Models](#361-data-models)
-      - [3.6.1.1 JsonPatch](#3611-jsonpatch)
-      - [3.6.1.2 ApplyPatch Metadata](#3612-applypatch-metadata)
-    + [3.6.2 CLI](#362-cli)
-      - [3.6.2.1 Configuration Commands](#3621-configuration-commands)
-      - [3.6.2.2 Show Commands](#3622-show-commands)
-      - [3.6.2.3 Debug Commands](#3623-debug-commands)
+      - [3.1.1.1 User](#3111-user)
+      - [3.1.1.2 SONiC CLI](#3112-sonic-cli)
+      - [3.1.1.3 YANG models](#3113-yang-models)
+      - [3.1.1.4 Patch Orderer](#3114-patch-orderer)
+        * [3.1.1.4.1 JsonChange](#31141-jsonchange)
+        * [3.1.1.4.2 Order-Patch](#31142-order-patch)
+      - [3.1.1.4 Change Applier](#3114-change-applier)
+        * [3.1.1.4.1 apply-change](#31141-apply-change)
+      - [3.1.1.5 ConfigDB](#3115-configdb)
+    + [3.1.2 Checkpoint](#312-checkpoint)
+      - [3.1.2.1 User](#3121-user)
+      - [3.1.2.2 SONiC CLI](#3122-sonic-cli)
+      - [3.1.2.3 YANG models](#3123-yang-models)
+      - [3.1.2.4 ConfigDB](#3124-configdb)
+      - [3.1.2.5 File system](#3125-file-system)
+    + [3.1.3 Rollback](#313-rollback)
+      - [3.1.3.1 User](#3131-user)
+      - [3.1.3.2 SONiC CLI](#3132-sonic-cli)
+      - [3.1.3.4 File system](#3134-file-system)
+      - [3.1.3.4 ConfigDB](#3134-configdb)
+    + [3.2 User Interface](#32-user-interface)
+    + [3.2.1 Data Models](#321-data-models)
+      - [3.2.1.1 JsonPatch](#3211-jsonpatch)
+    + [3.2.2 CLI](#322-cli)
+      - [3.2.2.1 Configuration Commands](#3221-configuration-commands)
+      - [3.2.2.2 Show Commands](#3222-show-commands)
+      - [3.2.2.3 Debug Commands](#3223-debug-commands)
 - [4 Flow Diagrams](#4-flow-diagrams)
 - [5 Error Handling](#5-error-handling)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
@@ -130,7 +148,7 @@ In this design document, we will be exploring how to standardize the way to do p
 
 In summary, this is the flow of an update:
 
-<img src="files/basic-target-design.png" alt="basic-target-design" width="800"/>
+<img src="files/basic-target-design.png" alt="basic-target-design" width="800px"/>
 
 And the steps would be:
 ```
@@ -174,7 +192,7 @@ N/A
 ### 1.2.1 Basic Approach
 SONiC ConfigDB contents can be retrieved in a JSON file format. Modifying JSON file should follow some rules in order to make it straightforward for the users. Fortunately there is already a formal way of defning JSON config updates. It is called JsonPatch, and is formally defined in [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902).
 
-On top of ConfigDBConnector we are going to implement [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). This API we will call `apply-patch`. On top of that API, we will implement the `rollback` functionality. It will simply starts by getting the diff (patch) between the checkpoint and the current running config, then it will call the API `apply-config` to update that patch.
+On top of ConfigDBConnector we are going to implement [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). This API we will call `apply-patch`. On top of that API, we will implement the `rollback` functionality. It will simply starts by getting the diff (patch) between the checkpoint and the current running config, then it will call the API `apply-patch` to update that patch.
 
 The [JsonPatch](https://pypi.org/project/jsonpatch/) python is an open source library that already implements the [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). We can leverage this library to verify patch config, generate a diff between checkpoint and current running config, verify apply-patch and rollback work as expected by simulating the final output of the update and comparing with the observed output.
 
@@ -202,7 +220,7 @@ Assume running-config to be:
 
 and the ask to:
 - replace *port* under *Ethernet8* with *eth1*
-- add 4.4.4.4 tanother DHCP_SERVER with IP 
+- add 4.4.4.4 to DHCP_SERVERS
 - remove 2.2.2.2 from DHCP_SERVERS
 
 The steps would be:
@@ -284,8 +302,8 @@ Using [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/
 2. Simulate the patch application on the current config JSON object
 3. Verify the the simulated output using YANG SONiC models
 
-#### Stage-2 Patch Ordering
-There are many ideas to ordering the patch, I will pick a simple and straight forward idea. Let's assume the main granular elment is `Table`. Each table gets assigned an order index based on its sementic dependencies. Sementic dependencies means other tables referencing it, think of it as the result of doing a topological sorting of table dependencies. For example: `PORT` lots of table depend on it, but it does not depend on other tables so it gets a low index. `VLAN_MEMBER` depends on `PORT` so its gets a higher index, and so on. This helps make sure low order table absorb the changes first before dependent tables are updated.
+#### Stage-2 JSON Patch Ordering
+There are many ideas to ordering the patch, I will pick a simple and straight forward idea to better understand this problem. Let's assume the main granular elment is `Table`. Each table gets assigned an order index based on its sementic dependencies. Sementic dependencies means other tables referencing it, think of it as the result of doing a topological sorting of table dependencies. For example: `PORT` lots of table depend on it, but it does not depend on other tables so it gets a low index. `VLAN_MEMBER` depends on `PORT` so its gets a higher index, and so on. This helps make sure low order table absorb the changes first before dependent tables are updated.
 
 Let's assume the following order indecies:
 ```
@@ -340,28 +358,37 @@ Unfortunately this solution does not always work especially for the case of dele
 ```
 This will not work, as the PORT table will complain that the port `Ethernet2` is still in use by a `VLAN_MEMBER`.
 
-The solution for that is if an operation fails, we move on to the next operation, and so on. Until we finish all the operation, then we loop over again on the operations that did not succeed in the previous cycle. If in a cycle no operation succeed, we have hit a dead-end and we report failure
+Since this problem can be solved by many ways, and it needs to verified throughouly, let's abstract it to a a contract which will be implemented later.
 
-For example: the first cycle result would be:
+The contract would be:
+```python
+list<JsonChange> order-patch(JsonPatch jsonPatch)
 ```
-[
-  { "result": "Failure", "order": 1, "table": "PORT", "op": "remove", "path": "/PORT/Ethernet2" }
-  { "result": "Success", "order": 2, "table": "VLAN_MEMBER", "op": "remove", "path": "/VLAN_MEMBER/Vlan100|Ethernet2" }
-  { "result": "Success", "order": 3, "table": "ACL_TABLE", "op": "remove", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0" }
-]
-```
-So the failure from the first cycle will be retried in the next cycle:
-```
-[
-  { "result": "Success", "order": 1, "table": "PORT", "op": "remove", "path": "/PORT/Ethernet2" }
-]
-```
-By then we have finished all the operations.
 
-With this approach in mind, I think **ordering techniques do not matter much** as thought earlier. The main advantage of an ordering technique would be to reduce the number of cycles we do to update all the operations.
+Here is a summary explaining the `JsonChange` contract. Check [3.1.1.4.1 JsonChange](#31141-jsonchange) for detailed description.
 
-#### Stage-3 Identifying Services to Restart
-There are a few SONiC applications which store its configuration in the ConfigDB. These applications do not subscribe to the ConfigDB change events. So any changes to their corresponding table entries as part of the patch apply process in the ConfigDB are not processed by the application immediately. In order to apply the configuration changes, corresponding service needs to be restarted. A list of such ConfigDB tables and corresponding systemd service is specified in the *apply-patch* command.  See below for an example.
+|aspect      |description
+|------------|-----------
+|definintion | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
+
+
+Here is a summary explaining the `order-patch` contract, Check [3.1.1.4 Patch Orderer](#3114-patch-orderer) for detailed description.
+
+|aspect      |item                 |description
+|------------|---------------------|-----------
+|inputs      |JsonPatch            | It represents the changes that needs to applied to the device running config, described in [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|outputs     |list&lt;JsonChange&gt;| The list will contain the steps to be followed to apply the input JsonPatch correctly. Each item in the list is assumed to be executed after the previous item, in the order given in the list.
+|errors      |argumentNullError    | Will be raised if the input JsonPatch is null.
+|            |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|            |other errors         | Check [3.1.1.4.2 Order-Patch](#31142-order-patch) for exact list of errors to expect.
+|side-effects|None                 |
+|assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+
+#### Stage-3 Applying list of JsonChanges in order
+There are a few SONiC applications which store their configuration in the ConfigDB. These applications do not subscribe to the ConfigDB change events. So any changes to their corresponding table entries as part of the patch apply process in the ConfigDB are not processed by the application immediately. In order to apply the configuration changes, corresponding service needs to be restarted. Listed below are some example tables from SONiC config, and the corresponding services that need to be manually restarted.
+
+
+**NOTE**: In the below table we have "Key": ["list-item1", ...]. Key in below example is the table name, corresponding list is the list of services that needs restarting post table update.
 
 ```
 {
@@ -374,74 +401,33 @@ There are a few SONiC applications which store its configuration in the ConfigDB
 }
 ```
 
-This table is used to restart corresponding systemd service when a patch operation has been perform on its corresponding ConfigDB table. 
+Although some other services do not need manual restarting, and absorb the configs silently, there is no good way to make sure there is no errors encountered while the services absorbed the changes. Some of these services might report an error to syslog, others might crash ...etc.
 
-#### Stage-4 Add verification that services have absorbed the changes
-There is 2 types of services:
-- Manually absorbing changes through explicit service restart
-- Automatically abosorbing changes
+Currently there is no standard approach of updating ConfigDB that takes care of manual service restart and verifying services have absorbed change correctly.
 
-**Manually absorbing changes through explicit service restart**
+So we are going to introduce a new contract overlaying ConfigDB changes, that will take care of making correct changes to ConfigDB as well as verifying that corresponding services have absorbed the changes correctly.
 
-These are the services identified in [Stage-3 Identifying Services to Restart](#stage-3-identifying-services-to-restart). Just restarting the services and waiting for a success return should be enough
-
-**Automatically abosorbing changes**
-
-There are some options:
-1) Do not verify at all, but how to make sure tables are updated in order which is required for [Stage-2 Patch Ordering](#stage-2-patch-ordering)
-2) Introduce a delay post any table update to make sure listening services have absorbed the change, but how to decide a delay for each service.
-3) Verify expected listening services to have abosorbed the change, maybe check if they were resarted after the table is updated?
-4) ... other options?
-
-#### Stage-5 Apply patch, service restarts and delays
-At this stage we have built all the steps needed. The steps include JsonPatch operations, restart operations and delay operations.
-
-The JsonPatch consistes of a list operation, and the operation follows this format:
+The contract would be:
+```python
+void apply-change(JsonChange jsonChange)
 ```
-  { "op": "<Operation-Code>", "path": "<Path>", "value": "<Value>", "from": "<From-Path>" }
-```
-For detailed information about the JSON patch operations refer to the  section 4(Operations) of [RFC 6902](https://tools.ietf.org/html/rfc6902).
 
+Check [3.1.1.4.1 JsonChange](#31141-jsonchange) for detailed description of JsonChange.
 
-**Operation Code**
+Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change Applier](#3114-change-applier) for detailed description.
 
-- replace - Set ConfigDB entry described in Path to be equal to the data specified in Value
+|aspect      |item                   |description
+|------------|-----------------------|-----------
+|inputs      |JsonChange             | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|outputs     |None                   | 
+|errors      |argumentNullError      | Will be raised if the input JsonChange is null.
+|            |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|            |updateFailedError      | Will be raised if the update failed.
+|            |other errors           | Check [3.1.1.4.1 apply-change](#31141-apply-change) for exact list of errors to expect.
+|side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
+|assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
 
-- add - Create a new ConfigDB entry described in Path and set it Value
-
-- remove - Delete the ConfigDB entry described in Path
-
-- copy - Copy the ConfigDB entry  specified in the FromPath to create a ConfigDB entry specified in Path
-- move - Copy the ConfigDB entry specified in the FromPath to create a ConfigDB entry specified in Path and then delete the ConfigDB entry in FromPath
-
-
-
-**Path**
-
-Describes the location of the ConfigDB entry which is being processed. The path string can be dissected into below elements.
-
-- Table Name - The ConfigDB table corresponding to the entry
-- Key - The Key string to identify the row data within the ConfigDB table
-- Field - The column_key to identify the ConfigDB entry within the identified row data
-
-e.g  "/VLAN_MEMBER/Vlan10|Ethernet0/tagging_mode"
-
-- Table: VLAN_MEMBER
-- Key: Vlan10|Ethernet0
-- Field: tagging_mode
-
-
-**FromPath**
-
-- Same as Path used in copy and move operations
-
-
-
-**Value**
-
-- Data that is used to patch the ConfigDB entry specified in path
-
-#### Stage-6 Post-update validation
+#### Stage-4 Post-update validation
 The expectations after applying the JsonPatch is that it will adhere to [RFC 6902](https://tools.ietf.org/html/rfc6902).
 
 The verficiation steps
@@ -498,13 +484,183 @@ All the configuration update operations executed and the output displayed by the
 ## 3.1 Overview
 
 ### 3.1.1 ApplyPatch
-![apply-patch-design](files/apply-patch-design.png)
+<img src="files/apply-patch-design.png" alt="apply-patch-design" width="1200"/>
 
-### 3.6 User Interface
 
-### 3.6.1 Data Models
+#### 3.1.1.1 User
+The user of the system, can simply be a human operator or a service that can talk to SONiC CLI. The user can only apply-patch if they have an admin permission. Users without admin permissions can only execute dry-run of the operations where they will be able to see the exact changes going to affect the device, without executing these changes.
 
-#### 3.6.1.1 JsonPatch
+#### 3.1.1.2 SONiC CLI
+These are the CLI of SONiC switch to which makes it easy for the users to interact with the system. The CLI commands we are interested in are `config ...` and `show ...`, check [SONiC Command Line Interface Guide](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to learn more about SONiC CLI.
+
+For further details on the CLI setup, Check [3.2.2 CLI](#322-cli)
+
+#### 3.1.1.3 YANG models
+YANG is a data modeling language used to model configuration data, state data, Remote Procedure Calls, and notifications for network management protocols.  For further details check [The YANG 1.1 Data Modeling Language](https://tools.ietf.org/html/rfc7950)
+
+SONiC is currently getting onboarded to YANG data models to help verify and generate the configurations. We will leverage these YANG models to help verify the result of simulating the JsonPatch on ConfigDb, to make sure final outcome adhers to all the constrains defined in the YANG models. For further details check [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
+
+#### 3.1.1.4 Patch Orderer
+This component is going to solve the problems discussed in [Stage-2 JSON Patch Ordering](#stage-2-json-patch-ordering). This component is going to help provide an order of execution to the JsonPatch, in such a way when the config is updated in this order, there will be no errors generated on the device. The exact implementation details of this component will not be included in this design document, but we are going to explain in details the contract for any implementation.
+
+The contract would be:
+```python
+list<JsonChange> order-patch(JsonPatch jsonPatch)
+```
+
+##### 3.1.1.4.1 JsonChange
+
+|aspect      |description
+|------------|-----------
+|definintion | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
+|validation  | JsonChange is considered valid if its corresponding JsonPatch is valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902)
+
+Assume we have the following JsonPatch:
+```
+[
+  { "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+  { "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+]
+```
+
+Operations specified in the JsonPatch will be executed in the order specified, but JsonChange can be applied in any arbitrary order as the implementation specify, for example:
+```
+[
+  { "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+  { "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+]
+```
+or
+```
+[
+  { "op": "add", "path": "/PORT/Ethernet2", "value": { "lanes": "65", "speed": "10000"} }
+  { "op": "add", "path": "/VLAN_MEMBER/Vlan100|Ethernet2", "value": { "tagging_mode": "untagged" } }
+  { "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
+]
+```
+
+The only condition of JsonChange is that the final outcome after applying the whole JsonPatch is the same.
+
+##### 3.1.1.4.2 Order-Patch
+
+|aspect      |item                 |description
+|------------|---------------------|-----------
+|inputs      |JsonPatch            | It represents the changes that needs to applied to the device running config, described in [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|outputs     |list&lt;JsonChange&gt;| The list will contain the steps to be followed to apply the input JsonPatch correctly. Each item in the list is assumed to be executed after the previous item, in the order given in the list.
+|errors      |argumentNullError    | Will be raised if the input JsonPatch is null.
+|            |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|            |other errors         | TBA
+|side-effects|None                 |
+|assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+
+If `order-patch` has to force the update to follow very specific steps, it would have to provide multiple JsonChange objects in the return list of `order-patch`.
+
+`order-patch` is returning a list of JsonChanges instead of a simple JsonPatch with multiple operations because a JsonChange can group together multiple JsonPatch operations that share no dependency and can be executed together. This can help the implementor of `apply-change` to optimize the mechanism for applying JsonChange e.g. group changes under same parent together or reduce number of service restarts.
+
+For example:
+Assume JsonPatch contains:
+```
+[
+  { "op": "add", "path": "/DHCP_SERVERS/4.4.4.4", "value": {} },
+  { "op": "replace", "path": "/DEVICE_NEIGHBOR/Ethernet8/port", "value": "eth1" },
+  { "op": "add", "path": "/DHCP_SERVERS/2.2.2.2", "value": {} }
+]
+```
+We have 2 operations updating DHCP servers, and another operation for DEVICE_NEIGHBOR. We can assume DHCP and DEVICE_NEIGHBOR tables to be independent meaning they can updated at the same time. `order-patch` would return:
+```
+[
+  [
+    { "op": "add", "path": "/DHCP_SERVERS/4.4.4.4", "value": {} },
+    { "op": "replace", "path": "/DEVICE_NEIGHBOR/Ethernet8/port", "value": "eth1" },
+    { "op": "add", "path": "/DHCP_SERVERS/2.2.2.2", "value": {} }
+  ],
+]
+```
+Updating DHCP_SERVERS requires restarting `dhcp_relay` service, so if the above patch is to be executed in order, we will restart `dhcp_relay` service twice.
+But since the implementor of `apply-change` can order the operations in any way they see fit since they are OK to update together. They can decide move the DHCP updates together, and DHCP table twice, but restart `dhcp_relay` service only once.
+
+Let's take a visual example, assume we have a JsonPatch with 8 operations, and here is the topological order of the operation. Arrow from op-x to op-y means op-y depends on op-x.
+
+<img src="files/jsonpatch-topology.png" alt="jsonpatch-topology" width="800"/>
+
+If we sort by on the operations we would have:
+
+<img src="files/jsonpatch-operations-order.png" alt="jsonpatch-operations-order" width="800"/>
+
+But if we organize the operations into groups of JsonChange, we will have:
+
+<img src="files/jsonchanges-order.png" alt="jsonchanges-order" width="800"/>
+
+This will allow the the implementor of `apply-change` to have the freedom to optimize the operations in any order they see fit.
+
+
+#### 3.1.1.4 Change Applier
+This component is going to solve the problems discussed in [Stage-3 Applying list of JsonChanges in order](#stage-3-applying-list-of-jsonchanges-in-order). This component is going to help provide a mechanism for updating a JsonChange taking into account manual service restarts, and update verification. The exact implementation details of this component will not be included in this design document, but we are going to explain in details the contract for any implementation.
+
+The contract would be:
+```python
+void apply-change(JsonChange jsonChange)
+```
+
+##### 3.1.1.4.1 Apply-Change
+|aspect      |item                   |description
+|------------|-----------------------|-----------
+|inputs      |JsonChange             | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|outputs     |None                   | 
+|errors      |argumentNullError      | Will be raised if the input JsonChange is null.
+|            |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|            |updateFailedError      | Will be raised if the update failed.
+|            |other errors           | TBA
+|side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
+|assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+
+Since the order of executing the operation does not matter, the implementor of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3114-change-applier).
+
+#### 3.1.1.5 ConfigDB
+SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
+
+For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/Azure/SONiC/wiki/Configuration).
+
+### 3.1.2 Checkpoint
+<img src="files/checkpoint-design.png" alt="checkpoint-design" width="1200"/>
+
+#### 3.1.2.1 User
+The user of the system, can simply be a human operator or a service that can talk to SONiC CLI. The user can only apply-patch if they have an admin permission.
+
+#### 3.1.2.2 SONiC CLI
+Same as [3.1.1.2 SONiC CLI](#3112-sonic-cli)
+
+#### 3.1.2.3 YANG models
+Same as [3.1.1.3 YANG models](#3113-yang-models)
+
+#### 3.1.2.4 ConfigDB
+same as [3.1.1.5 ConfigDB](#3115-configdb)
+
+#### 3.1.2.5 File system
+This will the file system where SONiC os is setup. Some suggestions prefer the path `/var/sonic/checkpoints`, but that is not decided yet. Will leave it to the implementor of this design document to decide.
+
+### 3.1.3 Rollback
+<img src="files/rollback-design.png" alt="rollback-design" width="1200"/>
+
+#### 3.1.3.1 User
+Same as [3.1.2.1 User](#3121-user)
+
+#### 3.1.3.2 SONiC CLI
+Same as [3.1.1.2 SONiC CLI](#3112-sonic-cli)
+
+#### 3.1.3.4 File system
+Same as [3.1.2.5 File system](#3125-file-system)
+
+#### 3.1.3.4 ConfigDB
+same as [3.1.1.5 ConfigDB](#3115-configdb)
+
+### 3.2 User Interface
+
+### 3.2.1 Data Models
+
+#### 3.2.1.1 JsonPatch
 
 The JsonPatch consistes of a list operation, and each operation follows this format:
 ```
@@ -517,15 +673,10 @@ For detailed information about the JSON patch operations refer to the  section 4
 **Operation Code**
 
 - replace - Set ConfigDB entry described in Path to be equal to the data specified in Value
-
 - add - Create a new ConfigDB entry described in Path and set it Value
-
 - remove - Delete the ConfigDB entry described in Path
-
-- copy - Copy the ConfigDB entry  specified in the FromPath to create a ConfigDB entry specified in Path
+- copy - Copy the ConfigDB entry specified in the FromPath to create a ConfigDB entry specified in Path
 - move - Copy the ConfigDB entry specified in the FromPath to create a ConfigDB entry specified in Path and then delete the ConfigDB entry in FromPath
-
-
 
 **Path**
 
@@ -551,39 +702,12 @@ e.g  "/VLAN_MEMBER/Vlan10|Ethernet0/tagging_mode"
 **Value**
 
 - Data that is used to patch the ConfigDB entry specified in path
-#### 3.6.1.2 ApplyPatch Metadata
 
-A new file will be added to the system which will contain the `apply-patch` metadata.
+### 3.2.2 CLI
 
-The format of the file would be:
-```
-{
-  "tables: {
-    "<TABLE-NAME>": {
-      "upstream-tables": ["<TABLE1>, "<TABLE2>" ...],
-      "services-to-restart": ["<SERVICE1>", "<SERVICE2>" ...],
-    },
-    .
-    .
-    .
-  },
-  "default-delay-between-table-updates": <INTEGER>
-}
-```
+#### 3.2.2.1 Configuration Commands
 
-The document contain info describing the dependency graph of tables (i.e. the topology), services associated with table, and also the delay duration between different tables updates. The granuality is based on the table, as using just the table names we can re-order, and generate all the need operations
-
-- tables - contains the all the information need for the tables
-- TABLE-NAME - The table name correspndong to atables from ConfigDB, will contain all the tables metadata. There can be multiple different TABLE-NAME keys/dictionaries.
-- upstream-tables - The list of all tables that need to be updated first before current table. There can be multiple upstream tables.
-- services-to-restart - The list of services to restart after updating the current table. There can be multiple services to restart.
-- default-delay-between-table-updates - Some daemons are listening to ConfigDB changes, so artificial sleep to give a pause between two table updates as to ensure that all internal daemons have digested the previous update, before the next one arrives.
-
-### 3.6.2 CLI
-
-#### 3.6.2.1 Configuration Commands
-
-**apply-config**
+**apply-patch**
 *Command Format*
 
 config apply-patch <*patch-filename*> [--dry-run] [--verbose]
@@ -646,7 +770,7 @@ config rollback <*checkpoint-name*> [--dry-run] [--verbose]
 | config rollback *filename* --verbose                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. The CLI output will include additional details about each step executed as part of the operation. |
 | config rollback *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
-#### 3.6.2.2 Show Commands
+#### 3.2.2.2 Show Commands
 
 **apply-patch**
 *Command Format*
@@ -671,7 +795,7 @@ show rollback log [exec | verify | status]
 | show rollback log status | Displays the status of last successful config rollback<br/>operation since switch reboot. |
 
 
-#### 3.6.2.3 Debug Commands
+#### 3.2.2.3 Debug Commands
 
 Use the *verbose* option to view additional details while executing the different commands.
 
