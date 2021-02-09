@@ -120,7 +120,7 @@ Changes in orchagent/portsorch include:
 
 ### 3.3 System LAG ID management
 
-redis-server running on supervisor module is responsible for providing a unique system_lag_id for each LAG and also keeping track of allocated values. This is done in an  **atomic fashion** for all sonic instances. Supervisor card sets the boundaries of the system lag ids. Boundaries of the system lag id will be loaded from platform specific file **platform.json** and set in CHASSIS_APP_DB.
+redis-server running on supervisor module is responsible for providing a unique system_lag_id for each LAG and also keeping track of allocated values. This is done in an  **atomic fashion** for all sonic instances. Supervisor card sets the boundaries of the system lag ids. Boundaries of the system lag id viz lag_id_start and lag_id_end will be loaded from platform specific file **chassisdb.conf** and set in CHASSIS_APP_DB.
 
 for example
 
@@ -361,6 +361,8 @@ Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for 
 ```
  "DEVICE_METADATA": {
     "localhost": {
+           "hostname": "Slot1",
+	   "asic_name": "Asic0",
 	   "switch_type": "voq",
 	   "switch_id": "0",
 	   "max_cores": "48"
@@ -416,6 +418,8 @@ Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for 
 ```
 "DEVICE_METADATA": {
     "localhost": {
+           "hostname": "Slot2",
+	   "asic_name": "Asic0",
 	   "switch_type": "voq",
 	   "switch_id": "6",
 	   "max_cores": "48"
@@ -526,10 +530,10 @@ Shown below is the new attribute of SAI_OBJECT_TYPE_LAG object that is used for 
 },
 
 "SYSTEM_LAG_MEMBER_TABLE": {
-    "Slot1|Asic0|PortChannel1|Slot1|Asic0|Ethernet1": {},
-    "Slot1|Asic0|PortChannel1|Slot1|Asic0|Ethernet2": {},
-    "Slot2|Asic0|PortChannel1|Slot2|Asic0|Ethernet1": {},
-    "Slot2|Asic0|PortChannel1|Slot2|Asic0|Ethernet2": {}
+    "Slot1|Asic0|PortChannel1:Slot1|Asic0|Ethernet1": {},
+    "Slot1|Asic0|PortChannel1:Slot1|Asic0|Ethernet2": {},
+    "Slot2|Asic0|PortChannel1:Slot2|Asic0|Ethernet1": {},
+    "Slot2|Asic0|PortChannel1:Slot2|Asic0|Ethernet2": {}
 }
 
 "SYSTEM_INTERFACE": {
