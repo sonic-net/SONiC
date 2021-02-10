@@ -381,8 +381,7 @@ Here is a summary explaining the `order-patch` contract, Check [3.1.1.4 Patch Or
 |------------|---------------------|-----------
 |inputs      |JsonPatch            | It represents the changes that needs to applied to the device running config, described in [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
 |outputs     |list&lt;JsonChange&gt;| The list will contain the steps to be followed to apply the input JsonPatch correctly. Each item in the list is assumed to be executed after the previous item, in the order given in the list.
-|errors      |argumentNullError    | Will be raised if the input JsonPatch is null.
-|            |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|errors      |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
 |            |other errors         | Check [3.1.1.4.2 Order-Patch](#31142-order-patch) for exact list of errors to expect.
 |side-effects|None                 |
 |assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
@@ -423,9 +422,7 @@ Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change 
 |------------|-----------------------|-----------
 |inputs      |JsonChange             | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
 |outputs     |None                   | 
-|errors      |argumentNullError      | Will be raised if the input JsonChange is null.
-|            |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
-|            |updateFailedError      | Will be raised if the update failed.
+|errors      |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
 |            |other errors           | Check [3.1.1.4.1 apply-change](#31141-apply-change) for exact list of errors to expect.
 |side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
 |assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
