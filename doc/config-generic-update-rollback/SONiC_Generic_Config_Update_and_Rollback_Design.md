@@ -52,7 +52,7 @@
         * [3.1.1.4.1 JsonChange](#31141-jsonchange)
         * [3.1.1.4.2 Order-Patch](#31142-order-patch)
       - [3.1.1.4 Change Applier](#3114-change-applier)
-        * [3.1.1.4.1 apply-change](#31141-apply-change)
+        * [3.1.1.4.1 Apply-Change](#31141-apply-change)
       - [3.1.1.5 ConfigDB](#3115-configdb)
     + [3.1.2 Checkpoint](#312-checkpoint)
       - [3.1.2.1 User](#3121-user)
@@ -78,6 +78,9 @@
 - [7 Warm Boot Support](#7-warm-boot-support)
 - [8 Scalability](#8-scalability)
 - [9 Unit Tests](#9-unit-tests)
+  * [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch)
+  * [9.2. Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
+  * [9.3 Unit Tests for Rollback](#93-unit-tests-for-rollback)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -85,7 +88,7 @@
 
 # Revision
 
-| Rev |     Date    |       Author       | Change Description  |
+| Rev | Date        | Author             | Change Description  |
 |:---:|:-----------:|:------------------:|---------------------|
 | 0.1  | 01/12/2021 | Mohamed Ghoneim    | Initial version     |
 
@@ -118,7 +121,7 @@ Updating SONiC partial configurations **systematically** has been a challenge fo
 - Executing `sudo sonic-cfggen -j /tmp/dhcp.json --write-to-db`
 - Restart `dhcp_relay` service
 
-We have explored [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasible as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and ineffecient.
+We have explored [SONiC CLI commands](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md) to make configuration changes. These CLI commands result in updates to the ConfigDB which are corresponding to the CLI command executed. For example, the config `vlan add 10` will create a new row in the VLAN table of the ConfigDB. But relying on the CLI commands to do partial update is also not feasible as there is no standard way of showing the config after the update. Setting up a different update mechanism for each part of the config is very time consuming and inefficient.
 
 The other challenge to updating a switch is recoverability via rollback. Rollback needs to be with minimum-disruption e.g. if reverting ACL updates DHCP should not be affected. Currently SONiC has a couple of operations that can be candidates for rollback `config load` and `config reload`.
 
@@ -132,7 +135,7 @@ The other challenge to updating a switch is recoverability via rollback. Rollbac
 - Verdict
   - Cannot be used as a rollback mechanism
 
-*config load  <config_db.json>*: This command loads the contents of config_db.json into the ConfigDB. The updates made to the ConfigDB are additive in nature and thus the new configuration state is a combination of the current running state and the partial configuration state specified by the user in the config_db.json file
+*config load <config_db.json>*: This command loads the contents of config_db.json into the ConfigDB. The updates made to the ConfigDB are additive in nature and thus the new configuration state is a combination of the current running state and the partial configuration state specified by the user in the config_db.json file
 
 - Pro's
   - Quick way to add new configuration changes
@@ -148,7 +151,7 @@ In this design document, we will be exploring how to standardize the way to do p
 
 In summary, this is the flow of an update:
 
-<img src="files/basic-target-design.png" alt="basic-target-design" width="800px"/>
+<img src="files/basic-target-design.png" alt="basic-target-design" width="500px"/>
 
 And the steps would be:
 ```
@@ -190,7 +193,7 @@ N/A
 <img src="files/sonic-design.png" alt="sonic-design" width="1200"/>
 
 ### 1.2.1 Basic Approach
-SONiC ConfigDB contents can be retrieved in a JSON file format. Modifying JSON file should follow some rules in order to make it straightforward for the users. Fortunately there is already a formal way of defning JSON config updates. It is called JsonPatch, and is formally defined in [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902).
+SONiC ConfigDB contents can be retrieved in a JSON file format. Modifying JSON file should follow some rules in order to make it straightforward for the users. Fortunately there is already a formal way of defining JSON config updates. It is called JsonPatch, and is formally defined in [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902).
 
 On top of ConfigDBConnector we are going to implement [RFC 6902 JSON Patch](https://tools.ietf.org/html/rfc6902). This API we will call `apply-patch`. On top of that API, we will implement the `rollback` functionality. It will simply starts by getting the diff (patch) between the checkpoint and the current running config, then it will call the API `apply-patch` to update that patch.
 
@@ -303,9 +306,9 @@ Using [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/
 3. Verify the the simulated output using YANG SONiC models
 
 #### Stage-2 JSON Patch Ordering
-There are many ideas to ordering the patch, I will pick a simple and straight forward idea to better understand this problem. Let's assume the main granular elment is `Table`. Each table gets assigned an order index based on its sementic dependencies. Sementic dependencies means other tables referencing it, think of it as the result of doing a topological sorting of table dependencies. For example: `PORT` lots of table depend on it, but it does not depend on other tables so it gets a low index. `VLAN_MEMBER` depends on `PORT` so its gets a higher index, and so on. This helps make sure low order table absorb the changes first before dependent tables are updated.
+There are many ideas to ordering the patch, I will pick a simple and straight forward idea to better understand this problem. Let's assume the main granular element is `Table`. Each table gets assigned an order index based on its semantic dependencies. Semantic dependencies mean tables referencing other tables, think of it as the result of doing a topological sorting of table dependencies. For example: `PORT` lots of table depend on it, but it does not depend on other tables so it gets a low index. `VLAN_MEMBER` depends on `PORT` so its gets a higher index, and so on. This helps make sure low order table absorb the changes first before dependent tables are updated.
 
-Let's assume the following order indecies:
+Let's assume the following order indices:
 ```
 PORT = 1
 VLAN_MEMBER = 2
@@ -329,7 +332,7 @@ Each operation belongs to a single table, the table name will be the first token
 ]
 ```
 
-Using the indicies table above, let's assign an order index to each operation:
+Using the indices table above, let's assign an order index to each operation:
 ```
 [
   { "order": 3, "table": "ACL_TABLE", "op": "add", "path": "/ACL_TABLE/NO-NSW-PACL-V4/ports/0", "value": "Ethernet2" }
@@ -358,7 +361,7 @@ Unfortunately this solution does not always work especially for the case of dele
 ```
 This will not work, as the PORT table will complain that the port `Ethernet2` is still in use by a `VLAN_MEMBER`.
 
-Since this problem can be solved by many ways, and it needs to verified throughouly, let's abstract it to a a contract which will be implemented later.
+Since this problem can be solved by many ways, and it needs to verified thoroughly, let's abstract it to a a contract which will be implemented later.
 
 The contract would be:
 ```python
@@ -369,7 +372,7 @@ Here is a summary explaining the `JsonChange` contract. Check [3.1.1.4.1 JsonCha
 
 |aspect      |description
 |------------|-----------
-|definintion | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
+|definition | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
 
 
 Here is a summary explaining the `order-patch` contract, Check [3.1.1.4 Patch Orderer](#3114-patch-orderer) for detailed description.
@@ -430,7 +433,7 @@ Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change 
 #### Stage-4 Post-update validation
 The expectations after applying the JsonPatch is that it will adhere to [RFC 6902](https://tools.ietf.org/html/rfc6902).
 
-The verficiation steps
+The verification steps
 1) Get the state of ConfigDB JSON before the update as a JSON object
 2) Simulate the JsonPatch application over this JSON object
 3) Compare that JSON object with current ConfigDB JSON
@@ -438,7 +441,7 @@ The verficiation steps
 
 #### Fail-safe Action
 
-If an error is encountered during the `apply-patch` operation, an error is reported and the system DOES NOT take any automatic action. The user can take a `checkpoint` before running `apply-patch` and if the operation failed, the user can `rollback`. Another idea is to introduce a `config-session` where a user enters a `config-session` mode does all the modifications, once they are happy with it, they `commit` the changes to ConfigDB. `config-sesion` can be built using `checkpoint` and `rollback` functionality, but this `config-session` idea is beyond the scope of this document.
+If an error is encountered during the `apply-patch` operation, an error is reported and the system DOES NOT take any automatic action. The user can take a `checkpoint` before running `apply-patch` and if the operation failed, the user can `rollback`. Another idea is to introduce a `config-session` where a user enters a `config-session` mode does all the modifications, once they are happy with it, they `commit` the changes to ConfigDB. `config-session` can be built using `checkpoint` and `rollback` functionality, but this `config-session` idea is beyond the scope of this document.
 
 #### Logging
 
@@ -448,16 +451,16 @@ All the configuration update operations executed and the output displayed by the
 The SONiC `checkpoint` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
-The  *ConfigDBConnector* class is used to obtain the running configuration in JSON format
+The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
 #### Stage-2 Save JSON config
-Save the checkpoint to a dedicted loction on the SONiC box
+Save the checkpoint to a dedicated location on the SONiC box
 
 ### 2.2.3 rollback
 The SONiC `rollback` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
-The  *ConfigDBConnector* class is used to obtain the running configuration in JSON format
+The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
 #### Stage-2 Get checkpoint JSON config
 Load the checkpoint from the SONiC box
@@ -496,9 +499,9 @@ These are the CLI of SONiC switch to which makes it easy for the users to intera
 For further details on the CLI setup, Check [3.2.2 CLI](#322-cli)
 
 #### 3.1.1.3 YANG models
-YANG is a data modeling language used to model configuration data, state data, Remote Procedure Calls, and notifications for network management protocols.  For further details check [The YANG 1.1 Data Modeling Language](https://tools.ietf.org/html/rfc7950)
+YANG is a data modeling language used to model configuration data, state data, Remote Procedure Calls, and notifications for network management protocols. For further details check [The YANG 1.1 Data Modeling Language](https://tools.ietf.org/html/rfc7950)
 
-SONiC is currently getting onboarded to YANG data models to help verify and generate the configurations. We will leverage these YANG models to help verify the result of simulating the JsonPatch on ConfigDb, to make sure final outcome adhers to all the constrains defined in the YANG models. For further details check [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
+SONiC is currently getting on-boarded to YANG data models to help verify and generate the configurations. We will leverage these YANG models to help verify the result of simulating the JsonPatch on ConfigDb, to make sure final outcome adheres to all the constrains defined in the YANG models. For further details check [YANG SONiC models](https://github.com/Azure/sonic-buildimage/tree/master/src/sonic-yang-models).
 
 #### 3.1.1.4 Patch Orderer
 This component is going to solve the problems discussed in [Stage-2 JSON Patch Ordering](#stage-2-json-patch-ordering). This component is going to help provide an order of execution to the JsonPatch, in such a way when the config is updated in this order, there will be no errors generated on the device. The exact implementation details of this component will not be included in this design document, but we are going to explain in details the contract for any implementation.
@@ -512,7 +515,7 @@ list<JsonChange> order-patch(JsonPatch jsonPatch)
 
 |aspect      |description
 |------------|-----------
-|definintion | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
+|definition | JsonChange is a JsonPatch in terms of the final outcome of the update. Ordering of JsonChange updates will not follow the operations order within a JsonPatch, but will update the JSON file in any arbitrary order.
 |validation  | JsonChange is considered valid if its corresponding JsonPatch is valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902)
 
 Assume we have the following JsonPatch:
@@ -545,15 +548,17 @@ The only condition of JsonChange is that the final outcome after applying the wh
 
 ##### 3.1.1.4.2 Order-Patch
 
-|aspect      |item                 |description
-|------------|---------------------|-----------
-|inputs      |JsonPatch            | It represents the changes that needs to applied to the device running config, described in [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
-|outputs     |list&lt;JsonChange&gt;| The list will contain the steps to be followed to apply the input JsonPatch correctly. Each item in the list is assumed to be executed after the previous item, in the order given in the list.
-|errors      |argumentNullError    | Will be raised if the input JsonPatch is null.
-|            |malformedPatchError  | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
-|            |other errors         | TBA
-|side-effects|None                 |
-|assumptions |running-config locked| The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|aspect      |item                     |description
+|------------|-------------------------|-----------
+|inputs      |JsonPatch                | It represents the changes that needs to applied to the device running config, described in [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|outputs     |list&lt;JsonChange&gt;   | The list will contain the steps to be followed to apply the input JsonPatch correctly. Each item in the list is assumed to be executed after the previous item, in the order given in the list.
+|errors      |malformedPatchError      | Will be raised if the input JsonPatch is not valid according to [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902).
+|            |unprocessableRequestError| Will be raised if the implementation of the `order-patch` is not able to provide a valid ordering according to its own ordering validations.
+|            |resourceNotFoundError    | Will be raised if running config failed to be read or in case any other external resource is not found nor available.
+|            |conflictingStateError   | Will be raised if the patch cannot be applied to the current state of the running config e.g. trying to add an item to a non-existing json dictionary.
+|            |internalError            | Will be raised if any other error is encountered that's different than the ones listed above.
+|side-effects|None                     |
+|assumptions |running-config locked    | The implementor of this contract might interact with ConfigDB to get the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
 
 If `order-patch` has to force the update to follow very specific steps, it would have to provide multiple JsonChange objects in the return list of `order-patch`.
 
@@ -605,16 +610,16 @@ void apply-change(JsonChange jsonChange)
 ```
 
 ##### 3.1.1.4.1 Apply-Change
-|aspect      |item                   |description
-|------------|-----------------------|-----------
-|inputs      |JsonChange             | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
-|outputs     |None                   | 
-|errors      |argumentNullError      | Will be raised if the input JsonChange is null.
-|            |malformedChangeError   | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
-|            |updateFailedError      | Will be raised if the update failed.
-|            |other errors           | TBA
-|side-effects|updating running-config| This operation will cause changes to the running-config according to the input JsonChange.
-|assumptions |running-config locked| The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the running-config is locked for changes for the lifespan of the operation.
+|aspect      |item                     |description
+|------------|-------------------------|-----------
+|inputs      |JsonChange               | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|outputs     |None                     | 
+|errors      |malformedChangeError     | Will be raised if the input JsonChange is not valid according to [3.1.1.4.1 JsonChange](#31141-jsonchange).
+|            |resourceNotFoundError    | Will be raised if running config failed to be read or in case any other external resource is not found nor available.
+|            |unprocessableRequestError| Will be raised if the change is valid, all the resources are found but when applying the change it causes an error in the system.
+|            |internalError            | Will be raised if any other error is encountered that's different than the ones listed above.
+|side-effects|updating running-config  | This operation will cause changes to the running-config according to the input JsonChange.
+|assumptions |running-config locked    | The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
 
 Since the order of executing the operation does not matter, the implementor of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3114-change-applier).
 
@@ -666,7 +671,7 @@ The JsonPatch consistes of a list operation, and each operation follows this for
 ```
   { "op": "<Operation-Code>", "path": "<Path>", "value": "<Value>", "from": "<From-Path>" }
 ```
-For detailed information about the JSON patch operations refer to the  section 4(Operations) of [RFC 6902](https://tools.ietf.org/html/rfc6902).
+For detailed information about the JSON patch operations refer to the section 4(Operations) of [RFC 6902](https://tools.ietf.org/html/rfc6902).
 
 
 
@@ -712,20 +717,20 @@ e.g  "/VLAN_MEMBER/Vlan10|Ethernet0/tagging_mode"
 
 config apply-patch <*patch-filename*> [--dry-run] [--verbose]
 
-| Command Option                                                | Purpose                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
+| Command Option    | Purpose                                                      |
+| ----------------- | ------------------------------------------------------------ |
 |<*patch-filename*> | The file of the JsonPatch file to apply which follows [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications |
-|dry-run | Displays the generates commands going to be executed without running them.  |
-|verbose | Provide additional details about each step executed as part of the operation. |
+|dry-run            | Displays the generates commands going to be executed without running them.  |
+|verbose            | Provide additional details about each step executed as part of the operation. |
 
 *Command Usage*
 
-| Command                                                  | Purpose                                                      |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| config apply-patch *filename*                  | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. |
-| config apply-patch *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
-| config apply-patch *filename* --verbose                  | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. The CLI output will include additional details about each step executed as part of the operation. |
-| config apply-patch *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| Command                                           | Purpose                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| config apply-patch *filename*                     | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. |
+| config apply-patch *filename* --dry-run           | Displays the generates commands going to be executed without running them. |
+| config apply-patch *filename* --verbose           | Applies the given JsonPatch file operations following the [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) specifications. The CLI output will include additional details about each step executed as part of the operation. |
+| config apply-patch *filename* --dry-run --verbose | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 
 **checkpoint**
@@ -734,20 +739,20 @@ config apply-patch <*patch-filename*> [--dry-run] [--verbose]
 
 config checkpoint <*checkpoint-name*> [--dry-run] [--verbose]
 
-| Command Option                                                | Purpose                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-|<*checkpoint-name*> | The name of the checkpoint where ConfigDB JSON config will saved under |
-|dry-run | Displays the generates commands going to be executed without running them.  |
-|verbose | Provide additional details about each step executed as part of the operation. |
+| Command Option      | Purpose                                                                       |
+| ------------------- | ----------------------------------------------------------------------------- |
+|<*checkpoint-name*>  | The name of the checkpoint where ConfigDB JSON config will saved under.       |
+|dry-run              | Displays the generates commands going to be executed without running them.    |
+|verbose              | Provide additional details about each step executed as part of the operation. |
 
 *Command Usage*
 
 | Command                                                  | Purpose                                                      |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
-| config checkpoint *checkpoint-name*                  | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. |
-| config checkpoint *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
-| config checkpoint *filename* --verbose                  | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. The CLI output will include additional details about each step executed as part of the operation. |
-| config checkpoint *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| config checkpoint *checkpoint-name*                      | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. |
+| config checkpoint *filename* --dry-run                   | Displays the generates commands going to be executed without running them. |
+| config checkpoint *filename* --verbose                   | Will save ConfigDB JSON config as a checkpoint with the name *checkpoint-name*. The CLI output will include additional details about each step executed as part of the operation. |
+| config checkpoint *filename* --dry-run --verbose         | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 **checkpoint**
 
@@ -755,20 +760,20 @@ config checkpoint <*checkpoint-name*> [--dry-run] [--verbose]
 
 config rollback <*checkpoint-name*> [--dry-run] [--verbose]
 
-| Command Option                                                | Purpose                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-|<*checkpoint-name*> | The name of the checkpoint where ConfigDB JSON config will saved under |
-|dry-run | Displays the generates commands going to be executed without running them.  |
-|verbose | Provide additional details about each step executed as part of the operation. |
+| Command Option     | Purpose                                                                       |
+| ------------------ | ----------------------------------------------------------------------------- |
+|<*checkpoint-name*> | The name of the checkpoint where ConfigDB JSON config will saved under        |
+|dry-run             | Displays the generates commands going to be executed without running them.    |
+|verbose             | Provide additional details about each step executed as part of the operation. |
 
 *Command Usage*
 
-| Command                                                  | Purpose                                                      |
-| -------------------------------------------------------- | ------------------------------------------------------------ |
-| config rollback *checkpoint-name*                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. |
-| config rollback *filename* --dry-run               | Displays the generates commands going to be executed without running them. |
-| config rollback *filename* --verbose                  | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. The CLI output will include additional details about each step executed as part of the operation. |
-| config rollback *filename* --dry-run --verbose        | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
+| Command                                        | Purpose                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| config rollback *checkpoint-name*              | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. |
+| config rollback *filename* --dry-run           | Displays the generates commands going to be executed without running them. |
+| config rollback *filename* --verbose           | Rolls back the ConfigDB JSON config to the config saved under *checkpoint-name* checkpoint. The CLI output will include additional details about each step executed as part of the operation.
+| config rollback *filename* --dry-run --verbose | Displays the generates commands going to be executed without running them. The CLI output will include additional details about each step executed as part of the operation.  |
 
 #### 3.2.2.2 Show Commands
 
@@ -777,10 +782,10 @@ config rollback <*checkpoint-name*> [--dry-run] [--verbose]
 
 show apply-patch log [exec | verify | status]
 
-| Command                        | Purpose                                                      |
-| ------------------------------ | ------------------------------------------------------------ |
+| Command                     | Purpose                                                      |
+| --------------------------- | ------------------------------------------------------------ |
 | show apply-patch log exec   | Displays a log of all the ConfigDB operations executed including<br/>those that failed. In case of a failed operation, it displays an<br/>error message against the failed operation. |
-| show apply-patch log verify | Displays a log all the ConfigDB operations that failed,  <br>along with an error message. It does not display the <br/>operations that were successful. |
+| show apply-patch log verify | Displays a log all the ConfigDB operations that failed, <br>along with an error message. It does not display the <br/>operations that were successful. |
 | show apply-patch log status | Displays the status of last successful patch application<br/>operation since switch reboot. |
 
 **rollback**
@@ -788,10 +793,10 @@ show apply-patch log [exec | verify | status]
 
 show rollback log [exec | verify | status]
 
-| Command                        | Purpose                                                      |
-| ------------------------------ | ------------------------------------------------------------ |
+| Command                  | Purpose                                                      |
+| ------------------------ | ------------------------------------------------------------ |
 | show rollback log exec   | Displays a log of all the ConfigDB operations executed including<br/>those that failed. In case of a failed operation, it displays an<br/>error message against the failed operation. |
-| show rollback log verify | Displays a log all the ConfigDB operations that failed,  <br>along with an error message. It does not display the <br/>operations that were successful. |
+| show rollback log verify | Displays a log all the ConfigDB operations that failed, <br>along with an error message. It does not display the <br/>operations that were successful. |
 | show rollback log status | Displays the status of last successful config rollback<br/>operation since switch reboot. |
 
 
@@ -817,13 +822,33 @@ N/A
 N/A
 
 # 9 Unit Tests
+## 9.1 Unit Tests for Apply-Patch
 | Test Case | Description |
 | --------- | ----------- |
-|1|Add a new table.|
-|2|Remove an existing table.|
-|3|Modify values of an existing table entry.|
-|4|Modify value of an existing item an array value.|
-|5|Add a new item to an array  value.|
-|6|Remove an item form an array value.|
-|7|Add a new key to an existing table.|
-|8|Remove a key from an existing  table.|
+| 1         | Add a new table. |
+| 2         | Remove an existing table. |
+| 3         | Modify values of an existing table entry. |
+| 4         | Modify value of an existing item an array value. |
+| 5         | Add a new item to an array value. |
+| 6         | Remove an item form an array value. |
+| 7         | Add a new key to an existing table .|
+| 8         | Remove a key from an existing table. |
+| 9         | Remove 2 items that depends on each other but in different tables e.g. /PORT/Ethernet2 and /VLAN_MEMBER/Vlan101|Ethernet2. |
+| 10        | Add 2 items that depends on each other but in different tables e.g. /PORT/Ethernet2 and /VLAN_MEMBER/Vlan101|Ethernet2. |
+| 11        | Remove 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
+| 12        | Add 2 items that depends on each other in the same table e.g. /INTERFACE/INTERFACE_LIST and /INTERFACE/INTERFACE_PREFIX_LIST. |
+| 13        | Replace a mandatory item e.g. type under ACL_TABLE. |
+| 14        | Dynamic port breakout as described [here](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
+| 15        | Remove an item that has a default value. |
+| 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
+
+## 9.2. Unit Tests for Checkpoint
+| Test Case | Description |
+| --------- | ----------- |
+| 1         | Invalid Configs according to YANG models should fail to be saved. |
+| 2         | Saving ConfigDB successfully to a file. |
+
+## 9.3 Unit Tests for Rollback
+| Test Case | Description |
+| --------- | ----------- |
+| 1 ..*     | Rollback all unit-tests specified in [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch). |
