@@ -22,6 +22,7 @@
 |:---:|:-----------:|:------------------:|--------------------|
 | 1 | Sep-10 2020 | Joanne Mikkelson (Arista Networks) | Initial Version |
 | 1.1 | Sep-22 2020 | Joanne Mikkelson (Arista Networks) | Update for review comments |
+| 1.1.1 | Feb-10 2021 | Joanne Mikkelson (Arista Networks) | Link to VOQ HLD mention of host routes used for iBGP-learned nexthop resolution |
 
 # About this Manual
 
@@ -85,7 +86,10 @@ peers, with the nexthop unchanged.  We rely on the global neighbor table to
 provide routes for each neighboring router to all ASIC Instances so that the nexthops are
 recursively resolvable.  For example, a route readvertised from ASIC1 with a
 nexthop of 10.0.1.2 would be recursively resolvable on ASIC2 over the
-10.0.1.2/32 route created from the global neighbor table.
+10.0.1.2/32 route created from the global neighbor table. (For more discussion
+on the creation of these host routes and how the recursively-resolved
+nexthops contribute to forwarding, see the
+[VOQ HLD](https://github.com/Azure/SONiC/blob/master/doc/voq/voq_hld.md#251-inband-recycle-port-option).)
 
 The BGP sessions between ASIC Instances use IPv4.  To get IPv6 routes
 distributed to all ASIC Instances, each iBGP peer will also be activated in
