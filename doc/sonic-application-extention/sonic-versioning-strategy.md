@@ -62,7 +62,7 @@ Types of changes:
 
 In order to help ***package maintainers*** to understand whether a breaking change was introduced
 comparing to previous release or a new functionality was included all SONiC repositories *can*
-follow conventional commits ():
+follow conventional commits (https://www.conventionalcommits.org/en/v1.0.0/):
 
 e.g:
 
