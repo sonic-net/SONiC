@@ -79,7 +79,7 @@
 - [8 Scalability](#8-scalability)
 - [9 Unit Tests](#9-unit-tests)
   * [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch)
-  * [9.2. Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
+  * [9.2 Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
   * [9.3 Unit Tests for Rollback](#93-unit-tests-for-rollback)
 
 # List of Tables
@@ -839,7 +839,7 @@ N/A
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
 
-## 9.2. Unit Tests for Checkpoint
+## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
 | --------- | ----------- |
 | 1         | Invalid Configs according to YANG models should fail to be saved. |
