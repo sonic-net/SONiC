@@ -4,7 +4,7 @@ Network switches and routers typically have one port connected to the CPU (where
 
 The knowledge of various queue statistics help us identify the current health and reason for any packet drops. SONiC already has commands to examine port and queue statistics associated with front panel ports. The same is extended to examine the CPU queue stats. The watermark commands can also be extended to display the buffer utilization associated with these CPU queues (not included in this HLD).
 
-For example the command *show queue counters <port-name>* which displays the below given statistics starts to display CPU queue statistics as well.
+The command *show queue counters <port-name>* displays the below given statistics for a given front panel port.
 
 ```
 root@sonic:/home/admin# show queue counters Ethernet0
@@ -39,7 +39,7 @@ root@sonic:/home/admin# show queue counters CPU
 Port doesn't exist! CPU
 ```
 
-The proposed changes make the command return the actual supported CPU queues and its stats.
+The proposed changes make the command *show queue counters CPU* return the actual supported CPU queues and its stats.
 
 ```
 root@L15:/home/admin# show queue counters CPU
@@ -96,24 +96,93 @@ root@L15:/home/admin# show queue counters CPU
 ```
 
 
-The following COUNTER_DB maps include details for the CPU port and queues.   
+SONiC DB changes:   
+The following COUNTER_DB maps are changed to include details for the CPU port and its queues.   
+```
 COUNTERS_PORT_NAME_MAP   
 COUNTERS_QUEUE_NAME_MAP   
 COUNTERS_QUEUE_PORT_MAP   
 COUNTERS_QUEUE_TYPE_MAP   
 COUNTERS_QUEUE_INDEX_MAP   
+```
 
 Port and queue counters:   
-COUNTERS:oid:<port-oid>   
-COUNTERS:oid:<queue-oid>   
+```
+COUNTERS:oid:<portOid>   
+COUNTERS:oid:<queueOid>   
+```
 
-
-
-Minor code changes are made on *sonic-swss* repo to fetch the supported queues on CPU port and update the flex counters-db maps to include CPU port and its queues. Single line changes were made to *sonic-py-swsssdk*, *sonic-snmpagent* and *sonic-utilities* repos to ignore the newly added CPU port while iterating over the front panel ports. *sonic-sairedis* repo changes are made to enable cpu queues on vslib.
-Syncd periodically fetches the CPU port stats, CPU queues stats along with other flex counter stats and updates the counters-DB.
+Code changes:   
+Minor code changes are made on *sonic-swss* repo to fetch the supported queues on CPU port and update the flex counters-db maps to include CPU port and its queues.   
+Single line changes are made to *sonic-py-swsssdk*, *sonic-snmpagent* and *sonic-utilities* repos to ignore the newly added CPU port while iterating over the front panel ports(*COUNTERS_PORT_NAME_MAP*).   
+*sonic-sairedis* repo changes are made to enable cpu queues on vslib.    
 
 SAI calls:   
-get_port_attribute() API with attribute *SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES* to fetch the number of CPU queues supported by switch and *SAI_PORT_ATTR_QOS_QUEUE_LIST* to fetch the list of CPU queues.
+SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES* is called to fetch the number of CPU queues supported by switch.
+SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_QUEUE_LIST* to fetch the CPU queue list.
+
+Flex counters:   
+Along with other flex counter stats, Syncd periodically fetches the CPU port and queue stats to update the counters-DB.   
+
+Flex Counter attributes:
+```
+const vector<sai_port_stat_t> port_stat_ids =
+{
+    SAI_PORT_STAT_IF_IN_OCTETS,
+    SAI_PORT_STAT_IF_IN_UCAST_PKTS,
+    SAI_PORT_STAT_IF_IN_NON_UCAST_PKTS,
+    SAI_PORT_STAT_IF_IN_DISCARDS,
+    SAI_PORT_STAT_IF_IN_ERRORS,
+    SAI_PORT_STAT_IF_IN_UNKNOWN_PROTOS,
+    SAI_PORT_STAT_IF_OUT_OCTETS,
+    SAI_PORT_STAT_IF_OUT_UCAST_PKTS,
+    SAI_PORT_STAT_IF_OUT_NON_UCAST_PKTS,
+    SAI_PORT_STAT_IF_OUT_DISCARDS,
+    SAI_PORT_STAT_IF_OUT_ERRORS,
+    SAI_PORT_STAT_IF_OUT_QLEN,
+    SAI_PORT_STAT_IF_IN_MULTICAST_PKTS,
+    SAI_PORT_STAT_IF_IN_BROADCAST_PKTS,
+    SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS,
+    SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS,
+    SAI_PORT_STAT_ETHER_RX_OVERSIZE_PKTS,
+    SAI_PORT_STAT_ETHER_TX_OVERSIZE_PKTS,
+    SAI_PORT_STAT_PFC_0_TX_PKTS,
+    SAI_PORT_STAT_PFC_1_TX_PKTS,
+    SAI_PORT_STAT_PFC_2_TX_PKTS,
+    SAI_PORT_STAT_PFC_3_TX_PKTS,
+    SAI_PORT_STAT_PFC_4_TX_PKTS,
+    SAI_PORT_STAT_PFC_5_TX_PKTS,
+    SAI_PORT_STAT_PFC_6_TX_PKTS,
+    SAI_PORT_STAT_PFC_7_TX_PKTS,
+    SAI_PORT_STAT_PFC_0_RX_PKTS,
+    SAI_PORT_STAT_PFC_1_RX_PKTS,
+    SAI_PORT_STAT_PFC_2_RX_PKTS,
+    SAI_PORT_STAT_PFC_3_RX_PKTS,
+    SAI_PORT_STAT_PFC_4_RX_PKTS,
+    SAI_PORT_STAT_PFC_5_RX_PKTS,
+    SAI_PORT_STAT_PFC_6_RX_PKTS,
+    SAI_PORT_STAT_PFC_7_RX_PKTS,
+    SAI_PORT_STAT_PAUSE_RX_PKTS,
+    SAI_PORT_STAT_PAUSE_TX_PKTS,
+    SAI_PORT_STAT_ETHER_STATS_TX_NO_ERRORS,
+    SAI_PORT_STAT_IP_IN_UCAST_PKTS,
+    SAI_PORT_STAT_ETHER_IN_PKTS_128_TO_255_OCTETS,
+};
+
+
+static const vector<sai_queue_stat_t> queue_stat_ids =
+{
+    SAI_QUEUE_STAT_PACKETS,
+    SAI_QUEUE_STAT_BYTES,
+    SAI_QUEUE_STAT_DROPPED_PACKETS,
+    SAI_QUEUE_STAT_DROPPED_BYTES,
+};
+
+static const vector<sai_queue_stat_t> queueWatermarkStatIds =
+{
+    SAI_QUEUE_STAT_SHARED_WATERMARK_BYTES,
+};
+```
 
 List of PRs associated with this change:   
 https://github.com/Azure/sonic-swss/pull/1544   
