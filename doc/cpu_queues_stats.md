@@ -118,8 +118,13 @@ Single line changes are made to *sonic-py-swsssdk*, *sonic-snmpagent* and *so
 *sonic-sairedis* repo changes are made to enable cpu queues on vslib.    
 
 SAI calls:   
-SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES* is called to fetch the number of CPU queues supported by switch.
-SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_QUEUE_LIST* to fetch the CPU queue list.
+SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_NUMBER_OF_QUEUES* is called to fetch the number of CPU queues supported by switch.   
+SAI API *get_port_attribute()* with attribute *SAI_PORT_ATTR_QOS_QUEUE_LIST* to fetch the CPU queue list.   
+
+Synd calls SAI API *getStats()* with attributes *SAI_OBJECT_TYPE_PORT* and *SAI_OBJECT_TYPE_QUEUE* to fetch the stats.   
+
+Handling SAI implementations without CPU queue support:   
+Existing PortsOrch::initializeQueues() API throws *runtime_error("PortsOrch initialization failure.")* when above mentioned attributes are not supported. The code can be made to handle/ignore this exception for CPU queues.
 
 Flex counters:   
 Along with other flex counter stats, Syncd periodically fetches the CPU port and queue stats to update the counters-DB.   
@@ -191,3 +196,59 @@ https://github.com/Azure/sonic-utilities/pull/1314
 https://github.com/Azure/sonic-snmpagent/pull/182   
 https://github.com/Azure/sonic-sairedis/pull/732     
 
+
+Possible future additions (not included in above PR list):      
+```
+root@sonic:/home/admin# show queue watermark CPU
+Egress shared pool occupancy per CPU queue
+  Queue    Bytes
+-------  -------
+  CPU:0        0
+  CPU:1        0
+  CPU:2        0
+  CPU:3        0
+  CPU:4        0
+  CPU:5        0
+  CPU:6        0
+  CPU:7        0
+  CPU:8        0
+  CPU:9        0
+ CPU:10        0
+ CPU:11        0
+ CPU:12        0
+ CPU:13        0
+ CPU:14        0
+ CPU:15        0
+ CPU:16        0
+ CPU:17        0
+ CPU:18      512
+ CPU:19        0
+ CPU:20        0
+ CPU:21        0
+ CPU:22        0
+ CPU:23     1792
+ CPU:24        0
+ CPU:25        0
+ CPU:26        0
+ CPU:27        0
+ CPU:28        0
+ CPU:29        0
+ CPU:30        0
+ CPU:31        0
+ CPU:32        0
+ CPU:33        0
+ CPU:34        0
+ CPU:35        0
+ CPU:36        0
+ CPU:37        0
+ CPU:38        0
+ CPU:39        0
+ CPU:40        0
+ CPU:41        0
+ CPU:42        0
+ CPU:43        0
+ CPU:44        0
+ CPU:45        0
+ CPU:46        0
+ CPU:47        0
+ ```
