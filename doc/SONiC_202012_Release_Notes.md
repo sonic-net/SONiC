@@ -128,22 +128,6 @@ This feature enables sonic streaming telemetry agent to send Reboot-cause inform
 System health monitor is intended to monitor both critical services and peripheral device status and leverage system log, system status LED to and CLI command output to indicate the system status.In current SONiC implementation, we already have Monit which is monitoring the critical services status and also have a set of daemons.System health monitoring service will not monitor the critical services or devices directly, it will reuse the result of Monit and PMON daemons to summary the current status and decide the color of the system health LED.
 <br> **Pull Requests** : [4835](https://github.com/Azure/sonic-buildimage/pull/4835) & [4829](https://github.com/Azure/sonic-buildimage/pull/4829)
 
-#### Distributed forwarding in a VOQ architecture HLD
-This feature provides the implementation of SONiC support for distributed packet forwarding across a set of devices that have a VOQ (Virtual Output Queue) architecture interconnected by an internal fabric. Support for distributed forwarding encompasses the following aspects such as Physical interfaces and VOQs, Logical interfaces such as link aggregation groups (LAGs), The internal interconnection fabric, The packet forwarding data plane, The control plane, both internal (within the devices in the system) and with external devices.
-<br> **Pull Requests** : [5283](https://github.com/Azure/sonic-buildimage/pull/5283)
-
-#### Chassis infrastructure, T2 topologies and sample Testcases converted
-In the future, multi DUT or Chassis will be supported by SONiC as well. Some of the customized ansible modules need to be updated to support testing of the upcoming new architectures. This document tries to propose some requirements for designing customized ansible modules that need to deal with multi-ASIC. The target is to have a clean and easy to use interface for calling these ansible modules in scripts testing multi DUT and multi ASIC system. Meanwhile, the ansible modules need to maintain backward compatibility for single DUT and single ASIC testing.
-**Pull Requests** : [2245](https://github.com/Azure/sonic-mgmt/pull/2245), [2417](https://github.com/Azure/sonic-mgmt/pull/2417), [2638](https://github.com/Azure/sonic-mgmt/pull/2638/)
-
-
-
-
-
-
-
-<br>
-
 
 # SAI APIs
 
