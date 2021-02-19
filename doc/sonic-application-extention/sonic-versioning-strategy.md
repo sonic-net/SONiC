@@ -98,7 +98,7 @@ BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
 
 ## Base OS API that a package uses
 
-- SONiC utilities; Until CLI autogeneration, sonic utilities plugin system API incompatibility must be recorded by base OS major version increment
+- SONiC utilities
     - This is a ***sonic-utilities contributor responsibility***
 - Dependence on a new kernel functionality must be recorded in minor version
     - This is a ***package maintainer responsibility***
