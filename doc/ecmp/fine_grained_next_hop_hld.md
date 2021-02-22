@@ -119,7 +119,7 @@ Following new tables will be added to Config DB. Unless otherwise stated, the at
 ```
 FG_NHG|{{fg-nhg-group-name}}:
     "bucket_size": {{hash_bucket_size}}
-    "match_mode" : {{route-based/next-hop-based}}
+    "match_mode" : {{route-based/nexthop-based}}
 
 FG_NHG_PREFIX|{{IPv4 OR IPv6 prefix}}:
     "FG_NHG":{{fg-nhg-group-name}}
@@ -137,7 +137,7 @@ FG_NHG_MEMBER|{{next-hop-ip(IPv4 or IPv6 address)}}:
 key                                   = FG_NHG|fg-nhg-group-name      ; FG_NHG group name
 ; field                               = value
 BUCKET_SIZE                           = hash_bucket_size              ; total hash bucket size desired, recommended value of Lowest Common Multiple of 1..{max # of next-hops}
-MATCH_MODE                            = mode                          ; The filtering method used to identify when to use Fine Grained vs regular route handling. next-hop-based looks to next-hop IP to filter routes and route-based looks to prefix to filter routes. 
+MATCH_MODE                            = mode                          ; The filtering method used to identify when to use Fine Grained vs regular route handling. nexthop-based looks to next-hop IP to filter routes and uses fine grained ecmp when nexthop IPs matches FG_NHG_MEMBER IPs. route-based looks to prefix to filter routes, and uses fine grained ecmp when the route prefix matches the FG_NHG_PREFIX prefix. 
 ```
 
 ```
@@ -341,7 +341,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 - Given that fgnhgorch can ignore next-hops in route addition in order to maintain consistency with FG_NHG, special syslog error messages will be displayed whenever fgnhgorch skips propagation of a next-hop to the ASIC.
 - A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3x2x1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3x2x1 + 3x2x1 = 12 hash buckets.
 - fgnhgorch is an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE events, these events are used in conjunction with the IP to interface mapping(INTERFACE attribute of the FG NHG member table), to trigger next-hop withdrawal/addition depending on which interface's operational state transitioned to down/up. The next-hop withdrawal/addition is performed per consistent and layered hashing rules. The INTERFACE attribute is optional, so this functionality is activated based on user configuration.
-- There are 2 match_modes supported for Fine Grained ECMP. A next-hop-based match mode implies that all prefixes that have next-hop IPs as a subset of the FG_NHG_MEMBER nh IPs defined by the user, will get Fine Grained ECMP behavior. If a route has next-hops which don't have an equivalent FG_NHG_MEMBER, then the route will get regular ECMP/next-hop behavior. A route-based match mode implies that only those prefixes which have FG_NHG_PREFIX defined will get Fine Grained ECMP behavior. The example configuration section has examples of both config types.
+- There are 2 match_modes supported for Fine Grained ECMP. A nexthop-based match mode implies that all prefixes that have next-hop IPs as a subset of the FG_NHG_MEMBER nh IPs defined by the user, will get Fine Grained ECMP behavior. If a route has next-hops which don't have an equivalent FG_NHG_MEMBER, then the route will get regular ECMP/next-hop behavior. A route-based match mode implies that only those prefixes which have FG_NHG_PREFIX defined will get Fine Grained ECMP behavior. The example configuration section has examples of both config types.
 
 # 5 Example configuration
 
@@ -399,13 +399,13 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 	}
 }
 ```
-#### Match mode next-hop-based
+#### Match mode nexthop-based
 ```
 {
 	"FG_NHG": {
 		"2-VM-Sets": {
 			"bucket_size": 12,
-			"match_mode": "next-hop-based"
+			"match_mode": "nexthop-based"
 		}
 	},
 	"FG_NHG_MEMBER": {
@@ -495,12 +495,14 @@ Test details:
 - Disable a link from the link mapping created in FG_NHG_MEMBER and validate that hash buckets were redistributed in the same bank and occured in a consistent fashion
 - Test dynamic changes to the config_db bank + member defintion
 - Change ARP(NEIGH)/interface reachability and validate that ASIC_DB hash bucket members are as expected(ie: maintaining layered and consistent hashing)
+- Test warm reboot and ensure that Fine Grained ECMP entries in the ASIC are identical post warm reboot. Ensure that nexthop modifications post warm reboot yeild expected changes in hash buckets.
+- Run the above set of tests for both nexthop-based and route-based match_modes. Additionally, for nexthop-based matchmode, validate changes in asic objects for route transitions from fine grained ecmp to regular ecmp and vice-versa. The route transition can occur because a route points to one set of nexthops which are fine grained, and the route may change later to point to nexthops which are non-fine grained and vice-versa. We validate these cases and the resulting ASIC DB objects.
 
 ## Data Plane community tests via pytest + PTF
 A new Pytest and PTF test will be created for Fine Grained ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
 
 Test details:
-- Create FG_NHG config_db entry with 2 banks, 4 members per bank and deploy to DUT
+- Create FG_NHG config_db entry with nexthop-based matchmode, 2 banks, 4 members per bank and deploy to DUT
 - Create 8 IP endpoints on PTF host and set up ARP entries for the 6 endpoints on the DUT
 - Create an interface on the DUT which can interact with the above IP endpoints, each endpoint created above should be on a different physical interface
 - Create a route entry with 8 IPs as the next-hop, and an IP prefix as defined in FG_NHG, deploy it to the DUT
