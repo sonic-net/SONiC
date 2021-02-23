@@ -128,6 +128,10 @@ This feature enables sonic streaming telemetry agent to send Reboot-cause inform
 System health monitor is intended to monitor both critical services and peripheral device status and leverage system log, system status LED to and CLI command output to indicate the system status.In current SONiC implementation, we already have Monit which is monitoring the critical services status and also have a set of daemons.System health monitoring service will not monitor the critical services or devices directly, it will reuse the result of Monit and PMON daemons to summary the current status and decide the color of the system health LED.
 <br> **Pull Requests** : [4835](https://github.com/Azure/sonic-buildimage/pull/4835) & [4829](https://github.com/Azure/sonic-buildimage/pull/4829)
 
+#### Distributed forwarding in a VOQ architecture 
+This feature is the implementation of SONiC support for distributed packet forwarding across a set of devices that have a VOQ (Virtual Output Queue) architecture interconnected by an internal fabric.
+<br> **Pull Requests** : [622](https://github.com/Azure/SONiC/pull/622), [5283](https://github.com/Azure/sonic-buildimage/pull/5283)
+
 
 # SAI APIs
 
