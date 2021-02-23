@@ -177,7 +177,7 @@ This document captures the feature enhancements of SONiC ICCP MCLAG. This includ
 - In the current implementation, MAC addresses learned in the control plane from the MCLAG peer are installed as dynamic entries. Therefore, if no local traffic from these MAC addresses is seen for the ageing period then they will age out, causing a notification back to ICCPd. However if the mac is learned from peer then it will immediately re-program MAC . The result is transient flooding for the MAC and some unnecessary control plane overhead.
 - When the local MCLAG node learns the MAC addresses from peer MCLAG node the type of the MAC set as dynamic. For the remote MAC addresses learned via ICCP if no traffic received on local MCLAG interface MAC addresses get age out from HW. ICCPd process the age notifications as the MAC address is peer learned re-installs MAC address back to HW.  Transient traffic flooding can occur during remote MAC re-installation. 
 - The process of remote MAC aging and re-installation is repetitive causing un-necessary messaging between modules and processing. 
-- To suppress the unwanted MAC age events, the new implementation programs remote MAC addresses with aging disabled. For the MAC address learned from ICCPd, FdbOrch to set new SAI attribute SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE while programming, which causes SAI to not age out the MAC, but allows it to move.
+- To suppress the unwanted MAC age events, the new implementation programs remote MAC addresses with aging disabled. For the MAC address learned from ICCPd, FdbOrch to set new SAI attribute SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE while programming, which causes SAI to not age out the MAC, but allows it to move.
 
 ### 2.1.7 Performance improvements
 
@@ -222,7 +222,7 @@ Below is the summary of the changes for each flow number mentioned in the above 
 8. MclagSyncd updates MAC addresses learned from peer MCLAG node to new  MCLAG FDB table .
 9. FdbOrch registers for new MCLAG FDB table updates to process MAC updates from peer MCLAG node, ISOGRP Orch process new updates from MclagSyncd.
 10. FdbOrch updates remote MAC addresses with new SAI attribute not to age them out. 
-11. Syncd gets the ICCP learned remote MAC addresses with new SAI attribute SAI_FDB_ENTRY_TYPE_STATIC_MACMOVE set .
+11. Syncd gets the ICCP learned remote MAC addresses with new SAI attribute SAI_FDB_ENTRY_ATTR_ALLOW_MAC_MOVE set .
 12. Syncd programs the remote MAC to HW
 14. FdbOrch update the MAC address to STATE_DB MCLAG REMOTE FDB Table.
 15. FdbSycd gets the MAC updates from STATE_DB MCLAG REMOTE FDB Table.
@@ -287,7 +287,7 @@ Description: New table to store L3 VLAN interfaces that will have unique IP conf
 
 ```
 ;New MCLAG UniqueIP Table
-key              = MCLAG_UNIQUEIP_TABLE|ifname ; Only VLAN interface supported currently
+key              = MCLAG_UNIQUE_IP_TABLE|ifname ; Only VLAN interface supported currently
 
 ```
 
