@@ -34,8 +34,8 @@
         - [NeighOrch](#neighorch)
           - [Functions](#functions-4)
         - [CrmOrch](#crmorch)
-          - [Functions](#functions-4)
-        - [Label/LabelStack](#labellabelstack)
+          - [Functions](#functions-5)
+        - [Label/LabelStack](#label-labelstack)
         - [NextHopKey](#nexthopkey)
         - [Syncd](#syncd)
     - [SAI API](#sai-api)
@@ -47,6 +47,8 @@
       - [Config DB Enhancements](#config-db-enhancements)
         - [INTERFACE](#interface)
         - [PORTCHANNEL_INTERFACE](#portchannel_interface)
+        - [VLAN_INTERFACE](#vlan_interface)
+      - [YANG Model Enhancements](#yang-model-enhancements)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Restrictions/Limitations](#restrictionslimitations)
     - [Testing Requirements/Design](#testing-requirementsdesign)
@@ -67,7 +69,8 @@ This document provides general information about the MPLS feature implementation
 | Abbreviation | Description                           |
 | ------------ | ------------------------------------- |
 | cRPD         | Containerized Routing Protocol Daemon |
-| MPLS         | Multi-Label Packet Switching          |
+| LSP          | Label-Switched Path                   |
+| MPLS         | Multi-Protocol Label Switching        |
 
 ### Overview
 
@@ -79,7 +82,7 @@ This section describes the SONiC requirements for the MPLS feature.
 
 #### Functional requirements
 - Support to enable/disable MPLS per Interface.
-- Support for MPLS Push, Pop, and Swap routes.
+- Support for MPLS Push, Pop, and Swap label operations.
 - Support for bulk MPLS in-segment entry SAI programming.
 - Support for CRM monitoring of MPLS in-segment used/available entries.
 
@@ -142,16 +145,15 @@ The existing ROUTE_TABLE for IPv4/IPv6 prefix routes is enhanced to accept an op
 ; Defines schema for IPv4/IPv6 route table attributes
 key                         = ROUTE_TABLE:prefix       ; IPv4/IPv6 prefix
 ; field                     = value
-nexthop                     = nexthop_list             ; List of nexthops.
-ifname                      = ifname_list              ; List of interfaces.
-;value annotations
-ifname                      = 1*64VCHAR                ; name of the Interface (Port Channel)
+nexthop                     = STRING                   ; Comma-separated list of nexthops.
+ifname                      = STRING                   ; Comma-separated list of interfaces.
 ```
 
 ###### LABEL_ROUTE_TABLE
 A new LABEL_ROUTE_TABLE is introduced for MPLS in-segment entries to accept the same attributes as ROUTE_TABLE:
 - A "nexthop" formatted-string attribute with optional MPLS label stack component.
 - A "ifname" attribute.
+The LABEL_ROUTE_TABLE uses the incoming MPLS label as its lookup key, instead of the IP prefix used by the ROUTE_TABLE.
 
 ``` rfc5234
 "LABEL_ROUTE_TABLE":{{mpls_label}}
@@ -228,7 +230,7 @@ NeighOrch is an existing component of the OrchAgent daemon in the SWSS container
 
 For MPLS, NeighOrch has been extended to send create/remove SAI requests for MPLS NextHop objects (ie, NextHop objects that include non-empty LabelStack information) when associated Neighbor objects are created/removed. This MPLS NextHop behavior parallels the existing IPv4/IPv6 NextHop behavior in NeighOrch.
 ###### Functions
-Existing functions from NeighOrch are updated to include NextHopKey parameter instead of IpAddress and visibility was raised to public for RouteOrch accessbility.
+Existing functions from NeighOrch are updated to include NextHopKey parameter instead of IpAddress and visibility is raised to public for RouteOrch accessibility.
 ```
     bool hasNextHop(const NextHopKey&);
     bool addNextHop(const NextHopKey&);
@@ -489,6 +491,38 @@ key                      = PORTCHANNEL_INTERFACE:ifname   ; Port Channel Interfa
 ifname                   = 1*64VCHAR                      ; name of the Interface (Port Channel)
 ; field                  = value
 mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default disable
+```
+
+##### VLAN_INTERFACE
+The existing VLAN_INTERFACE table is enhanced to accept a new "mpls" enable/disable attribute.
+
+``` rfc5234
+VLAN_INTERFACE|{{ifname}}
+    "mpls":{{enable|disable}} (OPTIONAL)
+
+; Defines schema for MPLS configuration attributes
+key                      = VLAN_INTERFACE:ifname          ; VLAN Interface name
+;value annotations
+ifname                   = 1*64VCHAR                      ; name of the Interface (VLAN)
+; field                  = value
+mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default disable
+```
+
+#### YANG Model Enhancements
+The existing sonic-interface.yang model is enhanced to support a new "mpls" enable/disable attribute.
+
+``` rfc5234
+  container sonic-interface {
+	  container INTERFACE {
+		  list INTERFACE_LIST {
++       leaf mpls {
++         type string {
++           pattern "enable|disable";
++         }
++       }
+      }
+    }
+  }
 ```
 
 ### Warmboot and Fastboot Design Impact
