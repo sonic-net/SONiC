@@ -9,6 +9,7 @@
 - [SONiC Package API](#sonic-package-api)
 - [SONiC Package Releases](#sonic-package-releases)
 - [Conventional Commits](#conventional-commits)
+- [SONiC Package Versioning Rules](#sonic-package-versioning-rules)
 - [SONiC Packages Versioning](#sonic-packages-versioning)
 - [Base OS versioning](#base-os-versioning)
 - [Base OS API that a package uses](#base-os-api-that-a-package-uses)
@@ -34,7 +35,7 @@ With new SONiC Application Extension Infrastructure SONiC Dockers and SONiC Base
 SONiC Dockers (aka SONiC Packages) can be installed, upgraded invididually from other. This creates a new problem which needs to be
 solved - compatibility between dependend Dockers and host OS. SONiC Application Extension Infrastructure provides a way to specify
 the package version dependency using semantic versioning (https://semver.org). This document provides a guideline on how to increment
-version numbers correctly on releases.  
+version numbers correctly on releases.
 
 ## SONiC Package API
 
@@ -42,7 +43,6 @@ First of all, a clear definition of what is package API needs to be provided:
 
 SONiC package API is Redis DB interface including:
   - CONFIG DB, APPL DB, STATE DB tables schema provided by this package
-  - Redis-based IPC Communication API: libswsscommon, libsairedis
 
 If any other kind of API is exposed by the SONiC Package it should be accounted as package API.
 
@@ -72,24 +72,29 @@ feat: Introduce new methods in ConsumerTable
 BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
 ```
 
-## SONiC Packages Versioning
+## SONiC Package Versioning Rules
 
-- Package release ***happens on SONiC release/branch-out*** or on demand for single Docker image: ***sub-release***
+- A package is published with a bug fix or enhancement whenever ***package maintainer decides*** to do so.
 - Manual version update ***is required*** when SONiC Package releases
-- Within a release major and minor version ***must*** not change
-  - Package API backward compatibility is promised
-  - No new functionality is included
-- On package release ***package maintainer must*** check package API compatibility with previous release
-- In case API changed comparing to previous release ***package maintainer must*** must increment major version in master prior to branch-out
-- In case API didn't change comparing to previous release ***package maintainer must*** must increment minor version in master prior branch-out
-- Minor version in master after branch-out ***must*** be incremented by ***package maintainer*** in order to avoid version overlap between branches
-- *Patch* version is updated on bug fixes and minor enhancements. Since this is a tedious work to do mannually on every change
-  this can be done only when the package is published to users via container registry (package release).
-  A package is published with a bug fix or enhancement whenever ***package maintainer decides*** to do so.
-- On package release ***package maintainer must*** update package dependencies
+- On package release ***package maintainer must*** check package API compatibility comparing to previously released package
+- In case API changed comparing to previous release ***package maintainer must*** must increment major version
+- In case new backwards compatible changes were made comparing to previous release ***package maintainer must*** must increment minor version
+- *Patch* version is updated on changes which do not introduce any changes to the API
+- On package release ***package maintainer can*** update package dependencies
+
+**NOTE**: SONiC package version has no correlation to a SONiC release. While keeping API of dependencies compatible a package can work across different SONiC releases.
+
+## SONiC buildimage packages versioning
+
+Normally packages should be separated from sonic-buildimage repository. If a package is part of sonic-buildimage there are following restrictions:
+
+- Within a release major and minor version must not change
+    - Package API backward compatibility is promised
+    - No new functionality is included
+- Minor version in master after branch-out must be incremented by package maintainer in order to avoid version overlap between branches
 
 <p align=center>
-<img src="img/versioning-strategy.svg" alt="Figure 1. SONiC Docker Images Versioning Strategy">
+<img src="img/versioning-strategy.svg" alt="Figure 1. SONiC Docker Images Versioning for sonic-buildimage dockers">
 </p>
 
 ***package maintainer can*** update *default-reference* in package.json in SONiC buildimage to point to a default version which will be used when user installs a package.
@@ -111,7 +116,108 @@ BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
         }
     }
     ```
-- SONiC host service (D-Bus based communitcation)
+- SONiC host service (D-Bus based communication)
 
+
+# Examples
+
+1. Changed the API and optionally introduced new API or other changes not related to API:
+
+```
+major.minor.patch => (major + 1).minor.patch
+```
+
+2. Introduced new API and optionally other changes:
+
+```
+major.minor.patch => major.(minor + 1).patch
+```
+
+3. Enhancements and bug fixes, SONiC SDK update, manifest update, etc.:
+
+```
+major.minor.patch => major.minor.(patch + 1)
+```
+
+4. Dependency changes
+
+Considering the following package foo:
+
+```json
+{
+  "package": {
+    "name": "foo",
+    "version": "1.2.3",
+    "depends": [
+      {
+        "name": "swss",
+        "version": "^1.0.0"
+      }
+    ]
+  }
+}
+```
+
+4.1 Package foo depends on swss API ^1.0.0. Now if swss upgrades to 2.0.0, but foo uses only few tables from swss APPL DB that didn't change a new package of foo has to be released, updating package dependencies:
+
+foo's manifest:
+
+```json
+{
+  "package": {
+    "name": "foo",
+    "version": "1.2.4",
+    "depends": [
+      {
+        "name": "swss",
+        "version": "^1.0.0,^2.0.0"
+      }
+    ]
+  }
+}
+```
+
+4.2 In case swss tables used by foo have changed, foo has to change by releasing a new package with updated dependency:
+
+```json
+{
+  "package": {
+    "name": "foo",
+    "version": "1.2.4",
+    "depends": [
+      {
+        "name": "swss",
+        "version": "^2.0.0"
+      }
+    ]
+  }
+}
+```
+
+4.3 In case swss tables used by foo have changed, foo's developer might still want to support swss 1.0.0. In that case infrastructure can pass dependencies versions in environment variables when starting the container, foo's application can read the environment "SWSS_VERSION" knowing which exactly API to choose. This case is similar to 4.1 as new foo package will support both ^1.0.0 & ^2.0.0
+
+5. Dependencies SDK changes
+
+An infrastructure can detect wether package foo is using SDK major version same as foo's dependencies. This automatic check does not require package maintainer additional manifest configuration.
+
+For more control foo developer can specify more exact rules.
+
+For example, foo is only using swss::Table, while a breaking change appeared in swss::ProducerStateTable/swss::ConsumerStateTable. foo's developer can update package to work with new SDK in swss as well:
+
+```json
+{
+  "package": {
+    "name": "foo",
+    "version": "1.2.4",
+    "depends": [
+      {
+        "name": "swss",
+        "version": "^1.0.0",
+        "sdk-version": "^1.0.0,^2.0.0",
+      }
+    ]
+  }
+}
+```
 
 ## Open Questions

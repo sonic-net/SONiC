@@ -42,6 +42,7 @@
 - [Installing 3rd party image as is.](#installing-3rd-party-image-as-is)
 - [Prepare 3rd party image as to be SONiC compliant](#prepare-3rd-party-image-as-to-be-sonic-compliant)
 - [SONiC Build System](#sonic-build-system-1)
+  - [SONiC SDK Docker Images](#sonic-sdk-docker-images)
 - [SAI API](#sai-api)
 - [Restrictions/Limitations](#restrictionslimitations)
 - [Testing Requirements/Design](#testing-requirementsdesign)
@@ -676,15 +677,23 @@ can be installed at any given time.
 <!-- omit in toc -->
 ###### manifest path
 
-| Path                        | Type            | Mandatory | Description                                                                     |
-| --------------------------- | --------------- | --------- | ------------------------------------------------------------------------------- |
-| /package/version            | string          | yes       | Version of the package.                                                         |
-| /package/name               | string          | yes       | Name of the package.                                                            |
-| /package/description        | string          | no        | Description of the package.                                                     |
-| /package/depends            | list of strings | no        | List of SONiC packages the service depends on. Defaults to [].                  |
-| /package/conflicts          | list of strings | no        | List of SONiC package the service conflicts with. Defaults to [].               |
-| /package/base-os-constraint | string          | no        | Base image version dependency constraint. Defaults to  '*': allows any version. |
+| Path                                 | Type   | Mandatory | Description                                                                     |
+| ------------------------------------ | ------ | --------- | ------------------------------------------------------------------------------- |
+| /package/version                     | string | yes       | Version of the package.                                                         |
+| /package/name                        | string | yes       | Name of the package.                                                            |
+| /package/description                 | string | no        | Description of the package.                                                     |
+| /package/depends                     | list   | no        | List of SONiC packages the service depends on. Defaults to [].                  |
+| /package/depends[index]/name         | string | yes       | Name of SONiC Package                                                           |
+| /package/depends[index]/version      | string | no        | Version constraint expression string                                            |
+| /package/depends/[index]/sdk-version | string | no        | SDK version constraint expression string                                        |
+| /package/breaks                      | list   | no        | List of SONiC package the service breaks with. Defaults to [].                  |
+| /package/breaks[index]/name          | string | yes       | Name of SONiC Package                                                           |
+| /package/breaks[index]/version       | string | no        | Version constraint expression string                                            |
+| /package/breaks/[index]/sdk-version  | string | no        | SDK version constraint expression string                                        |
+| /package/base-os-constraint          | string | no        | Base image version dependency constraint. Defaults to  '*': allows any version. |
 
+
+SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
 *base-os-constraint* should have the following format:
 
@@ -703,10 +712,10 @@ Example:
 ```
 
 
-*depends*, *conflicts* fields are defined to be in the following format:
+*depends*, *conflicts* version constraint fields are defined to be in the following format:
 
 ```
-<package-name>[>|>=|==|<|<=|^|!|!=]<version>,[>|>=|==|<|<=|^|!|!=]<version>,...
+[>|>=|==|<|<=|^|!|!=]<version>,[>|>=|==|<|<=|^|!|!=]<version>,...
 ```
 
 Examples:
@@ -714,7 +723,13 @@ Examples:
 ```json
 {
   "package": {
-    "depends": "swss>=1.0.0,!=1.2.2,<=3.0.0"
+    "depends": [
+      {
+        "name": "swss",
+        "version": ">=1.0.0,!=1.2.2,<=3.0.0",
+        "sdk-version": "^1.0.0,^2.0.0"
+      }
+    ]
   }
 }
 ```
@@ -724,10 +739,31 @@ or
 ```json
 {
   "package": {
-    "breaks": "syncd^1.0.0"
+    "breaks": [
+      {
+        "name": "syncd",
+        "version": "^1.0.0"
+      }
+    ]
   }
 }
 ```
+
+<!-- omit in toc -->
+#### Automatic SDK compatibility check
+
+SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
+
+SDK Docker image records an SDK version in a label that gets inherited by the package image. This allows to perform an
+automatic compatibility check as follows:
+
+```
+for dependency in package.manifest["package"]["depends"]:
+  if is_built_based_on_sdk(dependency["name"]):
+    check(get_sdk_version(dependency["name"]).major == package.sdk_version.major)
+```
+
+This gives more guaranties to the user that if package installs it is compatible.
 
 ### SONiC Package Changelog
 
@@ -1323,7 +1359,6 @@ This will require to build a new image based on existing 3rd party Docker image 
 
 ### SONiC Build System
 
-<!-- omit in toc -->
 #### SONiC SDK Docker Images
 
 SONiC build system will provide three docker images to be used as a base to build SONiC application
@@ -1369,14 +1404,20 @@ have a relation to database, swss, syncd containers they were built togather wit
 However, the packages dependencies contraints do not derive from these labels, instead a package maintainer
 must test and verify the package on a set of version range.
 
-The following list of labels are going to be used:
+The SDK version is saved into a label:
 
 ```
-LABEL com.azure.sonic.sdk.versions.base-os
-LABEL com.azure.sonic.sdk.versions.config-engine
-LABEL com.azure.sonic.sdk.versions.database
-LABEL com.azure.sonic.sdk.versions.swss
-LABEL com.azure.sonic.sdk.versions.syncd
+LABEL com.azure.sonic.sdk.version
+```
+
+The following list of additional labels are going to be used:
+
+```
+LABEL com.azure.sonic.versions.base-os
+LABEL com.azure.sonic.versions.config-engine
+LABEL com.azure.sonic.versions.database
+LABEL com.azure.sonic.versions.swss
+LABEL com.azure.sonic.versions.syncd
 ```
 
 <!-- omit in toc -->
