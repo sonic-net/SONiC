@@ -48,6 +48,7 @@
         - [INTERFACE](#interface)
         - [PORTCHANNEL_INTERFACE](#portchannel_interface)
         - [VLAN_INTERFACE](#vlan_interface)
+        - [CRM Config](#crm-config)
       - [YANG Model Enhancements](#yang-model-enhancements)
     - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
     - [Restrictions/Limitations](#restrictionslimitations)
@@ -59,29 +60,30 @@
 |  Rev  |  Date       |  Author  | Change Description |
 | :---: | :---------: | :------: | ------------------ |
 |  0.1  | Jan-10-2021 | A Pokora | Initial version    |
-|  0.2  | Jan-19-2021 | A Pokora | Updates from MPLS community review |
+|  0.2  | Jan-19-2021 | A Pokora | Updates from MPLS sub-community review |
 
 ### Scope
 
-This document provides general information about the MPLS feature implementation in SONiC.
+This document provides general information about the initial support for MPLS in SONiC infrastructure.  The focus of this support is to provide MPLS routing functionality in SONiC infrastructure equivalent to the current support for IPv4/IPv6 routing.
 
 ### Definitions/Abbreviations
 | Abbreviation | Description                           |
 | ------------ | ------------------------------------- |
+| CRM          | Critical Resource Monitoring          |
 | cRPD         | Containerized Routing Protocol Daemon |
 | LSP          | Label-Switched Path                   |
 | MPLS         | Multi-Protocol Label Switching        |
 
 ### Overview
 
-This document provides general information about the MPLS feature implementation in SONiC.
+This document provides general information about the initial support for MPLS in SONiC infrastructure.
 
 ### Requirements
 
 This section describes the SONiC requirements for the MPLS feature.
 
 #### Functional requirements
-- Support to enable/disable MPLS per Interface.
+- Support for MPLS enable/disable per Router Interface.
 - Support for MPLS Push, Pop, and Swap label operations.
 - Support for bulk MPLS in-segment entry SAI programming.
 - Support for CRM monitoring of MPLS in-segment used/available entries.
@@ -107,7 +109,7 @@ This section describes the SONiC requirements for the MPLS feature.
 - Integration with VS SAI.
 
 ### Architecture Design
-The MPLS feature extends Route and Next Hop support in SONiC to include optional MPLS label stack in addition to the existing IPv4/IPv6 address information.
+For MPLS, SONiC infrastructure Route and Next Hop support is extended to include optional MPLS label stack in addition to the existing IPv4/IPv6 address information.
 
 ### High-Level Design
 
@@ -505,7 +507,23 @@ key                      = VLAN_INTERFACE:ifname          ; VLAN Interface name
 ;value annotations
 ifname                   = 1*64VCHAR                      ; name of the Interface (VLAN)
 ; field                  = value
-mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default disable
+mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default "disable"
+```
+##### CRM Config
+The existing CRM Config stanza is enhanced to include new MPLS CRM attributes.  These attributes parallel existing CRM configuration for other resource types (eg, IPv4/IPv6 routes).
+
+``` rfc5234
+CRM
+  Config
+    "mpls_inseg_threshold_type":{{percentage|used|free}} (OPTIONAL)
+    "mpls_inseg_high_threshold":{{UINT32}} (OPTIONAL)
+    "mpls_inseg_low_threshold":{{UINT32}} (OPTIONAL)
+
+; Defines schema for CRM MPLS configuration attributes
+; field                    = value
+mpls_inseg_threshold_type  = "percentage"/"used"/"free" ; Threshold type. Default "percentage"
+mpls_inseg_high_threshold  = UINT32             ; High threshold. Default value = 85
+mpls_inseg_low_threshold   = UINT32             ; Low threshold. Default value = 70
 ```
 
 #### YANG Model Enhancements
@@ -513,8 +531,8 @@ The existing sonic-interface.yang model is enhanced to support a new "mpls" enab
 
 ``` rfc5234
   container sonic-interface {
-	  container INTERFACE {
-		  list INTERFACE_LIST {
+    container INTERFACE {
+      list INTERFACE_LIST {
 +       leaf mpls {
 +         type string {
 +           pattern "enable|disable";
