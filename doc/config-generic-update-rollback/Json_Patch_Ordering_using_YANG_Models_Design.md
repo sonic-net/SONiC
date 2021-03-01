@@ -58,7 +58,7 @@
 
 | Rev | Date        | Author             | Change Description  |
 |:---:|:-----------:|:------------------:|---------------------|
-| 0.1  | 02/16/2021 | Mohamed Ghoneim    | Initial version     |
+| 0.1  | 03/01/2021 | Mohamed Ghoneim    | Initial version     |
 
 # About this Manual
 This document provides a detailed description on the algorithm to implement patch ordering described in [SONiC Generic Configuration Update and Rollback - HLD](SONiC_Generic_Config_Update_and_Rollback_Design.md#3114-patch-orderer)

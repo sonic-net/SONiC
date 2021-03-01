@@ -51,9 +51,9 @@
       - [3.1.1.4 Patch Orderer](#3114-patch-orderer)
         * [3.1.1.4.1 JsonChange](#31141-jsonchange)
         * [3.1.1.4.2 Order-Patch](#31142-order-patch)
-      - [3.1.1.4 Change Applier](#3114-change-applier)
-        * [3.1.1.4.1 Apply-Change](#31141-apply-change)
-      - [3.1.1.5 ConfigDB](#3115-configdb)
+      - [3.1.1.5 Change Applier](#3115-change-applier)
+        * [3.1.1.5.1 Apply-Change](#31151-apply-change)
+      - [3.1.1.6 ConfigDB](#3116-configdb)
     + [3.1.2 Checkpoint](#312-checkpoint)
       - [3.1.2.1 User](#3121-user)
       - [3.1.2.2 SONiC CLI](#3122-sonic-cli)
@@ -85,12 +85,11 @@
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
 
-
 # Revision
 
 | Rev | Date        | Author             | Change Description  |
 |:---:|:-----------:|:------------------:|---------------------|
-| 0.1  | 01/12/2021 | Mohamed Ghoneim    | Initial version     |
+| 0.1  | 03/01/2021 | Mohamed Ghoneim    | Initial version     |
 
 # About this Manual
 This document provides a detailed description on the strategy to implement the SONiC configuration generic update and rollback feature.
@@ -416,7 +415,7 @@ void apply-change(JsonChange jsonChange)
 
 Check [3.1.1.4.1 JsonChange](#31141-jsonchange) for detailed description of JsonChange.
 
-Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change Applier](#3114-change-applier) for detailed description.
+Here is a summary explaining the `apply-change` contract, Check [3.1.1.4 Change Applier](#3115-change-applier) for detailed description.
 
 |aspect      |item                   |description
 |------------|-----------------------|-----------
@@ -597,8 +596,9 @@ But if we organize the operations into groups of JsonChange, we will have:
 
 This will allow the the implementor of `apply-change` to have the freedom to optimize the operations in any order they see fit.
 
+**NOTE:** Check Patch Orderer implementation design design details in [Json_Patch_Ordering_using_YANG_Models_Design](Json_Patch_Ordering_using_YANG_Models_Design.md) document.
 
-#### 3.1.1.4 Change Applier
+#### 3.1.1.5 Change Applier
 This component is going to solve the problems discussed in [Stage-3 Applying list of JsonChanges in order](#stage-3-applying-list-of-jsonchanges-in-order). This component is going to help provide a mechanism for updating a JsonChange taking into account manual service restarts, and update verification. The exact implementation details of this component will not be included in this design document, but we are going to explain in details the contract for any implementation.
 
 The contract would be:
@@ -606,7 +606,7 @@ The contract would be:
 void apply-change(JsonChange jsonChange)
 ```
 
-##### 3.1.1.4.1 Apply-Change
+##### 3.1.1.5.1 Apply-Change
 |aspect      |item                     |description
 |------------|-------------------------|-----------
 |inputs      |JsonChange               | It represents the changes that needs to applied to the device running config, described in [3.1.1.4.1 JsonChange](#31141-jsonchange).
@@ -618,9 +618,11 @@ void apply-change(JsonChange jsonChange)
 |side-effects|updating running-config  | This operation will cause changes to the running-config according to the input JsonChange.
 |assumptions |running-config locked    | The implementor of this contract will interact with ConfigDB to updating the running-config, it is assumed the ConfigDB is locked for changes for the lifespan of the operation.
 
-Since the order of executing the operation does not matter, the implementor of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3114-change-applier).
+Since the order of executing the operation does not matter, the implementor of this component can work on optimizing the time to run the operation. For details check [3.1.1.4 Change Applier](#3115-change-applier).
 
-#### 3.1.1.5 ConfigDB
+**NOTE:** Check Change Applier implementation design design details in [Json_Change_Application_Design](Json_Change_Application_Design.md) document.
+
+#### 3.1.1.6 ConfigDB
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
 For further details on the ConfigDB, check [SONiC Configuration Database Manual](https://github.com/Azure/SONiC/wiki/Configuration).
@@ -838,6 +840,20 @@ N/A
 | 14        | Dynamic port breakout as described [here](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
+| 17        | Updating Syslog configs. |
+| 18        | Updating AAA configs. |
+| 19        | Updating DHCP configs. |
+| 20        | Updating IPv6 configs. |
+| 21        | Updating monitor configs (EverflowAlaysOn). |
+| 22        | Updating BGP speaker configs. |
+| 23        | Updating BGP listener configs. |
+| 24        | Updating Bounce Back Routing configs. |
+| 25        | Updating control-plane ACLs (NTP, SNMP, SSH) configs. |
+| 26        | Updating Ethernet interfaces configs. |
+| 27        | Updating VLAN interfaces configs. |
+| 28        | Updating port-channel interfaces configs. |
+| 29        | Updating loopback interfaces configs. |
+| 30        | Updating BGP prefix hijack configs. |
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |
