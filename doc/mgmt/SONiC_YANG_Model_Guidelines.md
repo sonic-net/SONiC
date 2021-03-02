@@ -8,7 +8,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 1.0 | 22 Aug 2019 | Praveen Chaudhary  | Initial version                   |
  | 1.0 | 11 Sep 2019 | Partha Dutta       | Adding additional steps for SONiC YANG  |
- | 1.0 |  2 Mar 2021 | Mayank Maheshwari  | Adding details of each extension used in SONiC YANG  |
+ | 1.1 |  2 Mar 2021 | Mayank Maheshwari  | Adding details of each extension used in SONiC YANG  |
 
 ## References
 | References 		    |     Date/Version    |   		    Link     	 	|
