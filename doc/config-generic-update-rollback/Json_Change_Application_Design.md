@@ -245,24 +245,8 @@ SONiC current ConfigDB contents can be retrieved in a JSON file format. The Json
 Table entries will be update using ConfigDBConnector. Service corresponding to each table will restarted if they are not listening to ConfigDB changes. Services corresponding to each table will be verified that they have absorbed the changes correctly.
 
 Continuation to the example in [1.2.1 Basic Approach](#1.2.1-Basic-Approach), the update will do the following:
-1. Process tables in order which is `DHCP_SERVER` and then `DEVICE_NEIGHBOR`
-2. Update table `DHCP_SERVER`
-
-    a. Update table entries as such
-    ```diff
-     {
-         "DHCP_SERVER": {
-             "192.0.0.1": {},
-    -        "192.0.0.2": {}
-    +        "192.0.0.3": {}
-         }
-     }
-    ```
-    b. Restart services associated with `DHCP_SERVER` if not listening to ConfigDB changes
-
-    c. Verify services associated with `DHCP_SERVER` have absorbed the changes correctly
-
-3. Update table `DEVICE_NEIGHBOR`
+1. Process tables in alphabetical order which is `DEVICE_NEIGHBOR` and then `DHCP_SERVER`
+2. Update table `DEVICE_NEIGHBOR`
 
     a. Update table entries as such
     ```diff
@@ -281,6 +265,22 @@ Continuation to the example in [1.2.1 Basic Approach](#1.2.1-Basic-Approach), th
     b. Restart services associated with `DEVICE_NEIGHBOR` if not listening to ConfigDB changes
 
     c. Verify services associated with `DEVICE_NEIGHBOR` have absorbed the changes correctly
+3. Update table `DHCP_SERVER`
+
+    a. Update table entries as such
+    ```diff
+     {
+         "DHCP_SERVER": {
+             "192.0.0.1": {},
+    -        "192.0.0.2": {}
+    +        "192.0.0.3": {}
+         }
+     }
+    ```
+    b. Restart services associated with `DHCP_SERVER` if not listening to ConfigDB changes
+
+    c. Verify services associated with `DHCP_SERVER` have absorbed the changes correctly
+
 ### Stage-3 Post-update Validation
 The expectations after applying the JsonChange is that there will be no diff.
 
@@ -335,7 +335,7 @@ The format of the file would be:
   "tables: {
     "<TABLE-NAME>": {
       "services-to-restart": ["<SERVICE1>", "<SERVICE2>" ...],
-      "other-services": ["<SERVICE1>", "<SERVICE2>" ...]
+      "services-to-validate": ["<SERVICE1>", "<SERVICE2>" ...]
     },
     .
     .
@@ -358,9 +358,9 @@ The document contain info describing for each table the services that needs rest
 - tables - contains all the information need for the tables.
 - TABLE-NAME - The table name corresponding to tables from ConfigDB, will contain all the tables metadata. There can be multiple different TABLE-NAME keys/dictionaries.
 - services-to-restart - The list of services to restart after updating the current table. There can be multiple services to restart.
-- other-services - The list of services to that do not need manual restart and absorb the changes automatically.
-- services - contains all the information need for the services.
-- TABLE-NAME - The service name corresponding to services running on SONiC box, will contain all the services metadata. There can be multiple different SERVICE-NAME keys/dictionaries.
+- services-to-validate - The list of services to that needs validation after an update, it will be mainly the services that absorb changes automatically. There can be multiple services to validate.
+- services - contains all the information needed for the services.
+- SERVICE-NAME - The service name corresponding to services running on SONiC box, will contain all the services metadata. There can be multiple different SERVICE-NAME keys/dictionaries.
 - restart-command - The CLI command used to restart the corresponding service.
 - validate-command - The CLI command used to validate the service has absorbed the change successfully.
 
