@@ -1,6 +1,6 @@
 # SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.8
+### Rev 0.9
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -63,7 +63,7 @@
 | 0.6 | 07/17/2020  | Eddy Lem | Update to new show bgp command syntax |  
 | 0.7 | 08/10/2020  | Venkatesan Mahalingam | Added a requirement to indicate that this document intends to cover non-template based FRR configurations i.e solely based on configurations from config DB |
 | 0.8 | 01/28/2021  | Zhenhong Zhao & Venkatesan Mahalingam | Changed daemon name from bgpcfgd to frrcfgd and added some missed table and field descriptions |
-
+| 0.9 | 03/05/2021 | Venkatesan Mahalingam | Added a field 'frr_mgmt_framework_config' field in DEVICE_METADATA config-DB schema to start frrcfgd daemon and table name change for PREFIX table |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -183,7 +183,7 @@ Added new tables to configure following information:
   * Route policy sets (prefix/community/ext-community/as-path/neighbor/tag/nexthop) configurations
 
 Enhanced following table to configure additional attributes:
-
+  * DEVICE_METADATA
   * BGP Neighbor table
 
 #### 3.2.1.1 BGP_GLOBALS
@@ -548,23 +548,23 @@ route_map                = 1*64VCHAR ; route map filter to apply for redistribut
 metric                   = 1*10DIGIT ; Metric value
 ```
 
-### 3.2.1.12 IP_PREFIX_SET
+### 3.2.1.12 PREFIX_SET
 ```JSON
 ;Defines prefix set table
 ;
 ;Status: stable
 
-key           = IP_PREFIX_SET|name          ; prefix_set_name must be unique
+key           = PREFIX_SET|name          ; prefix_set_name must be unique
 name          = 1*255VCHAR ; community set name  
 mode          = "IPv4"/"IPv6" ; mode of prefix set.
 
 ```
-#### 3.2.1.12.1 IP_PREFIX
+#### 3.2.1.12.1 PREFIX
 ```JSON
 ;Defines prefix table
 ;
 ;Status: stable
-key              = IP_PREFIX|set_name|ip_prefix|masklength_range; an instance of this key will be repeated for each prefix
+key              = PREFIX|set_name|ip_prefix|masklength_range; an instance of this key will be repeated for each prefix
                                                              ;  an instance of this key/value pair will be repeated for each prefix
 set_name         = 1*255VCHAR ; community set name                                                             
 ip_prefix        = IPv4prefix / IPv6prefix   ; prefix, example 1.1.1.1/32              
@@ -583,12 +583,12 @@ community_member = string list ; community member list
                                ; Acceptable List of communities as ("AA:NN","local-AS", "no-advertise", "no-export" | regex)
 
 ```
-### 3.2.1.14 EXT_COMMUNITY_SET
+### 3.2.1.14 EXTENDED_COMMUNITY_SET
 ```JSON
 ;Defines extended community table
 ;
 ;Status: stable
-key               = EXT_COMMUNITY_SET|name          ; name must be unique
+key               = EXTENDED_COMMUNITY_SET|name          ; name must be unique
 set_type          = "STANDARD"/"EXPANDED"
 match_action      = "ANY/ALL"
 community_member  = string list ; community member list
@@ -603,6 +603,15 @@ key                = AS_PATH_SET|name          ; name must be unique
 as_path_set_member = string list ; AS path list
                                  ; Acceptable List of as paths "string, string"
 ```
+
+### 3.2.1.16 DEVICE_METADATA
+```JSON
+; Ability to start frrcfgd (new FRR config deamon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on 'frr_mgmt_framework_config' field with "true"/"false"
+;
+;Status: stable
+key                         = localhost          ; name must be unique
+frr_mgmt_framework_config   = "true" / "false" ;
+```  
 
 ### 3.2.2 APP DB
 N/A
