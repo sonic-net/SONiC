@@ -139,6 +139,11 @@ major.minor.patch => major.(minor + 1).patch
 major.minor.patch => major.minor.(patch + 1)
 ```
 
+*NOTE*: It is possible to maintain same version in two repositories, e.g. for two different SONiC releases:
+
+azure/sonic-foo-202106:1.2.3
+azure/sonic-foo-202112:1.2.3
+
 4. Dependency changes
 
 Considering the following package foo:
@@ -198,7 +203,7 @@ foo's manifest:
 
 5. Dependencies SDK changes
 
-An infrastructure can detect wether package foo is using SDK major version same as foo's dependencies. This automatic check does not require package maintainer additional manifest configuration.
+An infrastructure can detect wether package foo is using SDK componenet major version same as foo's dependencies. This automatic check does not require package maintainer additional manifest configuration.
 
 For more control foo developer can specify more exact rules.
 
@@ -213,7 +218,9 @@ For example, foo is only using swss::Table, while a breaking change appeared in 
       {
         "name": "swss",
         "version": "^1.0.0",
-        "sdk-version": "^1.0.0,^2.0.0",
+        "components": {
+          "libswsscommon": "^1.0.0,^2.0.0"
+        }
       }
     ]
   }

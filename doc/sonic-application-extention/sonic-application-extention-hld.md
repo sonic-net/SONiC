@@ -677,23 +677,29 @@ can be installed at any given time.
 <!-- omit in toc -->
 ###### manifest path
 
-| Path                                 | Type   | Mandatory | Description                                                                     |
-| ------------------------------------ | ------ | --------- | ------------------------------------------------------------------------------- |
-| /package/version                     | string | yes       | Version of the package.                                                         |
-| /package/name                        | string | yes       | Name of the package.                                                            |
-| /package/description                 | string | no        | Description of the package.                                                     |
-| /package/depends                     | list   | no        | List of SONiC packages the service depends on. Defaults to [].                  |
-| /package/depends[index]/name         | string | yes       | Name of SONiC Package                                                           |
-| /package/depends[index]/version      | string | no        | Version constraint expression string                                            |
-| /package/depends/[index]/sdk-version | string | no        | SDK version constraint expression string                                        |
-| /package/breaks                      | list   | no        | List of SONiC package the service breaks with. Defaults to [].                  |
-| /package/breaks[index]/name          | string | yes       | Name of SONiC Package                                                           |
-| /package/breaks[index]/version       | string | no        | Version constraint expression string                                            |
-| /package/breaks/[index]/sdk-version  | string | no        | SDK version constraint expression string                                        |
-| /package/base-os-constraint          | string | no        | Base image version dependency constraint. Defaults to  '*': allows any version. |
+| Path                                | Type   | Mandatory | Description                                                                    |
+| ----------------------------------- | ------ | --------- | ------------------------------------------------------------------------------ |
+| /package/version                    | string | yes       | Version of the package.                                                        |
+| /package/name                       | string | yes       | Name of the package.                                                           |
+| /package/description                | string | no        | Description of the package.                                                    |
+| /package/depends                    | list   | no        | List of SONiC packages the service depends on. Defaults to []                  |
+| /package/depends[index]/name        | string | yes       | Name of SONiC Package                                                          |
+| /package/depends[index]/version     | string | no        | Version constraint expression string                                           |
+| /package/depends/[index]/components | object | no        | Per component version                                                          |
+| /package/breaks                     | list   | no        | List of SONiC package the service breaks with. Defaults to []                  |
+| /package/breaks[index]/name         | string | yes       | Name of SONiC Package                                                          |
+| /package/breaks[index]/version      | string | no        | Version constraint expression string                                           |
+| /package/breaks/[index]/components  | object | no        | Per component version                                                          |
+| /package/base-os-constraint         | string | no        | Base image version dependency constraint. Defaults to  '*': allows any version |
 
+Each SONiC Package can have a list of labels representing components versions:
 
-SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
+```
+LABEL com.azure.sonic.versions.libswsscommon = 1.0.0
+LABEL com.azure.sonic.versions.libsairedis = 1.0.0
+```
+
+Labels are inherited from the base image, so versions of common libraries are recorded in SONiC Package that uses SONiC SDK docker. SONiC SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
 *base-os-constraint* should have the following format:
 
@@ -727,7 +733,9 @@ Examples:
       {
         "name": "swss",
         "version": ">=1.0.0,!=1.2.2,<=3.0.0",
-        "sdk-version": "^1.0.0,^2.0.0"
+        "components": {
+          "libswsscommon": "^1.0.0,^2.0.0"
+        }
       }
     ]
   }
@@ -749,21 +757,43 @@ or
 }
 ```
 
+For the list of supported expressions check the python library that is going to be used by package manager - https://github.com/python-poetry/semver.
+
 <!-- omit in toc -->
-#### Automatic SDK compatibility check
+#### Automatic compatibility check
 
 SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
-SDK Docker image records an SDK version in a label that gets inherited by the package image. This allows to perform an
-automatic compatibility check as follows:
+SDK Docker image records an set of library versions in labels that gets inherited by the package image. This allows to perform an
+automatic compatibility check. If some library constarint is not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.0.0". E.g:
+
+Package Foo is build with following labels:
 
 ```
-for dependency in package.manifest["package"]["depends"]:
-  if is_built_based_on_sdk(dependency["name"]):
-    check(get_sdk_version(dependency["name"]).major == package.sdk_version.major)
+LABEL com.azure.sonic.versions.libswsscommon = 1.2.0
+LABEL com.azure.sonic.versions.libsairedis = 1.3.0
 ```
 
+```json
+{
+  "package": {
+    "depends": [
+      {
+        "name": "Bar",
+        "version": ">=1.0.0,!=1.2.2,<=3.0.0",
+        "components": {
+          "libswsscommon": "^1.0.0,^2.0.0"
+        }
+      }
+    ]
+  }
+}
+```
+
+libswsscommon is validated against "^1.0.0,^2.0.0", libsairedis is validated using "^1.3.0".
 This gives more guaranties to the user that if package installs it is compatible.
+If pacakge does not use sairedis interface, user can put "*" to match any version in Bar.
+
 
 ### SONiC Package Changelog
 
@@ -1369,6 +1399,7 @@ extensions - *sonic-sdk-buildenv*, *sonic-sdk* and *sonic-sdk-dbg*.
 - libhiredis
 - libnl*
 - libswsscommon
+- python3-swsscommon
 - libsairedis
 - libsairedis
 - libsaimeta
@@ -1401,23 +1432,22 @@ The list of packages added to *sonic-sdk-buildenv* in addition to *sonic-sdk*:
 The SDK images built should be labeled with metadata about the build to give the user an idea about base OS version
 compatibility as well as some core packages version compatibility. Packages like *libswsscommon* and *libsairedis*
 have a relation to database, swss, syncd containers they were built togather with.
-However, the packages dependencies contraints do not derive from these labels, instead a package maintainer
-must test and verify the package on a set of version range.
 
-The SDK version is saved into a label:
+The SDK components versions are saved into labels:
 
 ```
-LABEL com.azure.sonic.sdk.version
+LABEL com.azure.sonic.versions.libswsscommon
+LABEL com.azure.sonic.versions.libsairedis
 ```
 
 The following list of additional labels are going to be used:
 
 ```
-LABEL com.azure.sonic.versions.base-os
-LABEL com.azure.sonic.versions.config-engine
-LABEL com.azure.sonic.versions.database
-LABEL com.azure.sonic.versions.swss
-LABEL com.azure.sonic.versions.syncd
+LABEL com.azure.sonic.sdk.base-os
+LABEL com.azure.sonic.sdk.config-engine
+LABEL com.azure.sonic.sdk.database
+LABEL com.azure.sonic.sdk.swss
+LABEL com.azure.sonic.sdk.syncd
 ```
 
 <!-- omit in toc -->
