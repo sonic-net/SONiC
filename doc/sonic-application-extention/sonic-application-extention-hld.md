@@ -718,7 +718,7 @@ Example:
 ```
 
 
-*depends*, *conflicts* version constraint fields are defined to be in the following format:
+*depends*, *breaks* version constraint fields are defined to be in the following format:
 
 ```
 [>|>=|==|<|<=|^|!|!=]<version>,[>|>=|==|<|<=|^|!|!=]<version>,...
@@ -765,7 +765,7 @@ For the list of supported expressions check the python library that is going to 
 SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
 SDK Docker image records an set of library versions in labels that gets inherited by the package image. This allows to perform an
-automatic compatibility check. If some library constarint is not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.0.0". E.g:
+automatic compatibility check. If some library constarint is not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.$minor.0". E.g:
 
 Package Foo is build with following labels:
 

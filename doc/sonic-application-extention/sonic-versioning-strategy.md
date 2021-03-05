@@ -86,7 +86,7 @@ BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
 
 ## SONiC buildimage packages versioning
 
-Normally packages should be separated from sonic-buildimage repository. If a package is part of sonic-buildimage there are following restrictions:
+Normally packages should be separated from sonic-buildimage repository. If a package is part of sonic-buildimage and uses a single repository for every SONiC release there are following restrictions:
 
 - Within a release major and minor version must not change
     - Package API backward compatibility is promised
