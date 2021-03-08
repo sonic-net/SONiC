@@ -64,7 +64,7 @@
 
 ### Scope
 
-This document provides general information about the initial support for MPLS in SONiC infrastructure.  The focus of this support is to provide MPLS routing functionality in SONiC infrastructure equivalent to the current support for IPv4/IPv6 routing.
+This document provides general information about the initial support for MPLS in SONiC infrastructure.  The focus of this initial MPLS support is to expand existing SONiC infrastructure for IPv4/IPv6 routing to include equivalent MPLS functionality.  The expected use case for this initial MPLS support is static LSP routing.
 
 ### Definitions/Abbreviations
 | Abbreviation | Description                           |
@@ -80,17 +80,17 @@ This document provides general information about the initial support for MPLS in
 
 ### Requirements
 
-This section describes the SONiC requirements for the MPLS feature.
+This section describes the requirements for the initial support for MPLS in SONiC infrastructure.
 
 #### Functional requirements
 - Support for MPLS enable/disable per Router Interface.
 - Support for MPLS Push, Pop, and Swap label operations.
 - Support for bulk MPLS in-segment entry SAI programming.
-- Support for CRM monitoring of MPLS in-segment used/available entries.
+- Support in CRM for MPLS in-segment used/available entries.
 
 #### Configuration and Management requirements
 - SONiC CLI support for MPLS enable/disable per Router Interface.
-- Configurable CRM thresholds for monitoring MPLS in-segment entries used/available.
+- Configurable CRM thresholds for MPLS in-segment entries used/available.
 
 #### Scalability Requirements
 - Up to max ASIC capable MPLS routes are supported.
@@ -104,8 +104,8 @@ This section describes the SONiC requirements for the MPLS feature.
 
 #### Future Requirements
 - Support for VRFs
-- SONiC CLI support for operational commands.
-- Integration with FRR routing stack.
+- SONiC CLI support for MPLS operational commands.
+- Integration with FRR routing stack MPLS support.
 - Integration with VS SAI.
 
 ### Architecture Design
@@ -131,9 +131,9 @@ INTERFACE_TABLE|{{interface_name}}
     "mpls":{{enable|disable}} (OPTIONAL)
 
 ; Defines schema for MPLS configuration attribute
-key                         = INTERFACE:ifname             ; Interface name
-; field                     = value
-mpls                        = "enable" / "disable"         ; Enable/disable MPLS function. Default disable
+key          = INTERFACE:ifname      ; Interface name
+; field      = value
+mpls         = "enable" / "disable"  ; Enable/disable MPLS function. Default "disable"
 ```
 
 ###### ROUTE_TABLE
@@ -145,10 +145,10 @@ The existing ROUTE_TABLE for IPv4/IPv6 prefix routes is enhanced to accept an op
     "ifname":{{ifname_list}}
 
 ; Defines schema for IPv4/IPv6 route table attributes
-key                         = ROUTE_TABLE:prefix       ; IPv4/IPv6 prefix
-; field                     = value
-nexthop                     = STRING                   ; Comma-separated list of nexthops.
-ifname                      = STRING                   ; Comma-separated list of interfaces.
+key          = ROUTE_TABLE:prefix    ; IPv4/IPv6 prefix
+; field      = value
+nexthop      = STRING                ; Comma-separated list of nexthops.
+ifname       = STRING                ; Comma-separated list of interfaces.
 ```
 
 ###### LABEL_ROUTE_TABLE
@@ -163,10 +163,10 @@ The LABEL_ROUTE_TABLE uses the incoming MPLS label as its lookup key, instead of
     "ifname":{{ifname_list}}
 
 ; Defines schema for MPLS label route table attributes
-key                         = LABEL_ROUTE_TABLE:mpls_label ; MPLS label
-; field                     = value
-nexthop                     = STRING                   ; Comma-separated list of nexthops.
-ifname                      = STRING                   ; Comma-separated list of interfaces.
+key           = LABEL_ROUTE_TABLE:mpls_label ; MPLS label
+; field       = value
+nexthop       = STRING           ; Comma-separated list of nexthops.
+ifname        = STRING           ; Comma-separated list of interfaces.
 ```
 
 #### Software Modules
@@ -473,11 +473,11 @@ INTERFACE|{{ifname}}
     "mpls":{{enable|disable}} (OPTIONAL)
 
 ; Defines schema for MPLS configuration attribute
-key                      = INTERFACE:ifname    ; Interface name
+key          = INTERFACE:ifname    ; Interface name
 ; value annotations
-ifname                   = 1*64VCHAR           ; name of the Interface
-; field                  = value
-mpls                     = "enable"/"disable"  ; Enable/disable MPLS function. Default is disable
+ifname       = 1*64VCHAR           ; name of the Interface
+; field      = value
+mpls         = "enable"/"disable"  ; Enable/disable MPLS function. Default "disable"
 ```
 
 ##### PORTCHANNEL_INTERFACE
@@ -488,11 +488,11 @@ PORTCHANNEL_INTERFACE|{{ifname}}
     "mpls":{{enable|disable}} (OPTIONAL)
 
 ; Defines schema for MPLS configuration attributes
-key                      = PORTCHANNEL_INTERFACE:ifname   ; Port Channel Interface name
+key         = PORTCHANNEL_INTERFACE:ifname  ; Port Channel Interface name
 ;value annotations
-ifname                   = 1*64VCHAR                      ; name of the Interface (Port Channel)
-; field                  = value
-mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default disable
+ifname      = 1*64VCHAR                     ; name of the Interface (Port Channel)
+; field     = value
+mpls        = "enable"/"disable"            ; Enable/disable MPLS function. Default "disable"
 ```
 
 ##### VLAN_INTERFACE
@@ -503,11 +503,11 @@ VLAN_INTERFACE|{{ifname}}
     "mpls":{{enable|disable}} (OPTIONAL)
 
 ; Defines schema for MPLS configuration attributes
-key                      = VLAN_INTERFACE:ifname          ; VLAN Interface name
+key         = VLAN_INTERFACE:ifname          ; VLAN Interface name
 ;value annotations
-ifname                   = 1*64VCHAR                      ; name of the Interface (VLAN)
-; field                  = value
-mpls                     = "enable"/"disable"             ; Enable/disable MPLS function. Default "disable"
+ifname      = 1*64VCHAR                      ; name of the Interface (VLAN)
+; field     = value
+mpls        = "enable"/"disable"             ; Enable/disable MPLS function. Default "disable"
 ```
 ##### CRM Config
 The existing CRM Config stanza is enhanced to include new MPLS CRM attributes.  These attributes parallel existing CRM configuration for other resource types (eg, IPv4/IPv6 routes).
@@ -547,7 +547,8 @@ The existing sonic-interface.yang model is enhanced to support a new "mpls" enab
 MPLS design will not affect warmboot or fastboot design.
 
 ### Restrictions/Limitations
-In this document, MPLS support is only for static LSP route support. The scope of routing stack supporting dynamic creation of MPLS tunnel is not in the design.
+- No support for programming default MPLS routes for IPv4/IPv6 Explicit NULL from SONiC infrastructure. These default MPLS routes must be programmed/handled by vendor SAI implementation.
+- Outermost ingress MPLS label will always be popped.
 
 ### Testing Requirements/Design
 Using external routing controller to set up static LSP route for push/pop/swap operation on MPLS traffic and verify traffic is passing.
