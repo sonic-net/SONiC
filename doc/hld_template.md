@@ -55,9 +55,9 @@ This section should list the SAI APIs/objects used by the design so that silicon
 ### Configuration and management 
 This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
 
-#### CLI Enhancements 
+#### CLI/YANG model Enhancements 
 
-This sub-section covers the addition/deletion/modification of CLI changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
+This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
 This should also explain the CLICK and/or KLISH related configuration/show in detail.
 
 #### Config DB Enhancements  
