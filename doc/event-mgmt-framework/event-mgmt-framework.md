@@ -274,7 +274,7 @@ Usage:
 
 Here is a typical developement process to add/raise new event:
 
-a. Update buildimage/rules/<app>.mk
+a. Update buildimage/rules/*app*.mk
 
    Add $(LIBEVENTNOTIFY_DEV) to compile dependency.
    
@@ -529,7 +529,7 @@ Current Alarm Table will not have any limits as it only contains the snapshot of
 
 Contents of an alarm record. In this case, the alarm was raised temperature crossed a threshold.
 ```
-Current Alarm Table:
+Alarm Table:
 ==============================
 
 Key                       : id
