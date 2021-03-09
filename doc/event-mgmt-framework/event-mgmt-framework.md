@@ -189,7 +189,7 @@ Redis informs event consumer in eventd whenever there is new record.
 Event consumer removes the record and processes it.
 It then saves the processed entry in event history table; if the event is an alarm, record gets added to alarm table and system LED is updated. 
 Both EVENT and ALARM tables are stored under state-db.
-Event consumer then informs log handler(s) to format the log message and send the message to syslog.
+Event consumer then informs log handler to format the log message and send the message to syslog.
 
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
@@ -219,7 +219,7 @@ a set of event receivers for each NBI type.
 Applications act as producers of events. Event consumer in eventd container is
 informed by redis whenever a new event is produced. Event consumer manages received events,
 updates event history table and current alarm table and invokes log handler.
-Log handlers constructs messages and sends it over to syslog. 
+Log handler constructs messages and sends it over to syslog. 
 
 Operator can chose to change properties of events with the help of event severity profile. Default
 event profile is stored at /etc/sonic/default_profile.json. User can download the default severity profile,
