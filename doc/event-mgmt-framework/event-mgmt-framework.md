@@ -494,6 +494,28 @@ resource                  : Object which generated the event {string}
 12) "3"
 127.0.0.1:6379[6]>
 ```
+
+Schema for EVENT_STATS table is as follows:
+```
+Key                       : id
+
+id                        : key {state}
+events                    : Total events (both stateful and stateless) in database {uint64}
+alarms                    : Total stateful events (alarms) in database {uint64}
+cleared                   : Total stateful events (alarms) cleared in database {uint64}
+acked                     : Total stateful events (alarms) acknowledged in database {uint64}
+
+127.0.0.1:6379[6]> hgetall "EVENT_STATS|state"
+1) "events"
+2) "2"
+3) "alarms"
+4) "2"
+5) "cleared"
+6) "2"
+7) "acked"
+8) "0"
+```
+
 Current Alarm Table will not have any limits as it only contains the snapshot of the alarms during the current run.
 
 Contents of an alarm record. In this case, the alarm was raised temperature crossed a threshold.
@@ -524,6 +546,33 @@ resource                  : Object which generated the event {string}
 11) "is-acknowledged"
 12) "false"
 127.0.0.1:6379[6]>
+```
+
+Schema for ALARM_STATS table is as below:
+```
+Key                       : id
+
+id                        : key {state}
+alarms                    : Total active stateful events (alarms) in database {uint64}
+critical                  : Total stateful events (alarms) of severity 'critical' in database {uint64}
+major                     : Total stateful events (alarms) of severity 'major' in database {uint64}
+minor                     : Total stateful events (alarms) of severity 'minor' in database {uint64}
+warning                   : Total stateful events (alarms) of severity 'warning' in database {uint64}
+informational             : Total stateful events (alarms) of severity 'informational' in database {uint64}
+
+127.0.0.1:6379[6]> hgetall "ALARM_STATS|state"
+ 1) "alarms"
+ 2) "1"
+ 3) "critical"
+ 4) "0"
+ 5) "major"
+ 6) "0"
+ 7) "minor"
+ 8) "0"
+ 9) "warning"
+10) "0"
+11) "informational"
+12) "1"
 ```
 
 ### 3.1.8 Pull Model
@@ -579,11 +628,11 @@ module: sonic-event
      +--rw EVENT_STATS
         +--rw EVENT_STATS_LIST* [id]
            +--rw id            enumeration
-           +--rw events?       uint32
-           +--rw alarms?       uint32
-           +--rw acked?        uint32
-           +--rw cleared?      uint32
-           +--rw non-alarms?   uint32
+           +--rw events?       uint64
+           +--rw alarms?       uint64
+           +--rw acked?        uint64
+           +--rw cleared?      uint64
+           +--rw non-alarms?   uint64
 
   rpcs:
     +---x show-events
@@ -629,11 +678,11 @@ module: openconfig-events
     |        +--ro is-alarm?                boolean
     +--rw event-stats
        +--ro state
-          +--ro events?       uint32
-          +--ro alarms?       uint32
-          +--ro acked?        uint32
-          +--ro cleared?      uint32
-          +--ro non-alarms?   uint32
+          +--ro events?       uint64
+          +--ro alarms?       uint64
+          +--ro acked?        uint64
+          +--ro cleared?      uint64
+          +--ro non-alarms?   uint64
 ```
 
 The following is sonic yang for alarms.
@@ -652,13 +701,13 @@ module: sonic-alarm
      +--rw ALARM_STATS
         +--rw ALARM_STATS_LIST* [id]
            +--rw id               enumeration
-           +--rw alarms?          uint32
-           +--rw critical?        uint32
-           +--rw major?           uint32
-           +--rw minor?           uint32
-           +--rw warning?         uint32
-           +--rw informational?   uint32
-           +--rw acknowledged?    uint32
+           +--rw alarms?          uint64
+           +--rw critical?        uint64
+           +--rw major?           uint64
+           +--rw minor?           uint64
+           +--rw warning?         uint64
+           +--rw informational?   uint64
+           +--rw acknowledged?    uint64
 
   rpcs:
     +---x ack-alarms
