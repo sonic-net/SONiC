@@ -115,7 +115,7 @@ In addition to storing in DB, framework forwards log messages corresponding to r
 
 gNMI clients can subscribe to receive events as they are raised. Subscribing through REST will be supported after phase-1.
 
-REST/gNMI clients can query either table with filters - based on severity, delta based on timestamp, sequence-id etc.,
+CLI and REST/gNMI clients can query either table with filters - based on severity, delta based on timestamp, sequence-id etc.,
 
 ## 1.1 Requirements
 
@@ -175,7 +175,7 @@ REST/gNMI clients can query either table with filters - based on severity, delta
 
 ### 1.1.3 Scalability Requirements
 
-EVENT table should support 80k/30-day records. Considering the average size of an event to be 400 bytes, the total memory footprint of event history is ~4MB. Current active alarms are limited to total instances of unique alarms (which makes Current Alarm Table is a finite quantity)
+EVENT table should support 86k/30-day records. Considering the average size of an event to be 400 bytes, the total memory footprint of event history is ~4MB. Current active alarms are limited to total instances of unique alarms (which makes Current Alarm Table is a finite quantity)
 
 ## 1.2 Design Overview
 
@@ -205,7 +205,7 @@ The framework provides the following key management services:
 - Push model: Event/Alarm information to remote syslog hosts and subscribed gNMI clients
 - Pull model: Event/Alarm information from CLI, REST/gNMI interfaces
 - Ability to change severity of events, ability to turn off a particular event
-- Ability to send only events or only general log messages to specific syslog host
+- Ability to send only log messages of events or all log messages to specific syslog host
 
 ## 2.2 Functional Description
 Event Management Framework allows applications to store "state" of the system for user to query through various north bound interfaces.
@@ -236,10 +236,20 @@ Application that need to raise an event, need to use event notifiy API ( LOG_EVE
 This API is part of libeventnotify library that applications need to include.
 API for python/go applications will be introduced in phase-2.
 
-For stateless event, applications need to provide dynamic message along with event-id ( name of the event ). 
+For stateless event, applications need to provide dynamic message and source along with event-id ( name of the event ). 
 For stateful events, applications need to provide event state ( raise/clear ) and source along with dynamic message and event-id.
+
 The eventd maintains a static map of event-ids. Developers of events need to declare event-id
 of new events and other characteristics - like severity and static message that gets appended with dynamic message.
+The static map is located at onic-eventd/lib/src/eventstaticmap.h
+
+```
+std::unordered_map<std::string, EventInfo_t> static_event_table = {
+    {"PORT_ADMIN_STATUS_CHANGE",  {EventSeverity::INFORMATIONAL, "Adming status changed: "}},
+    {"TEMPERATURE_EXCEEDED",      {EventSeverity::CRITICAL,      "Temperature raised above threshold of 75 degrees: "}},
+    {"PORT_LEARNING_MODE_UPDATE", {EventSeverity::INFORMATIONAL, "Learning mode updated: "}}
+}
+```
 
 The format of event notify API is:
 
@@ -438,8 +448,7 @@ Upgrade hooks will be used to persist custom severity profiles.
 
 ### 3.1.6 CLI
 The show CLI require many filters with range specifiers.
-This is supported with the help of new operation using RPC.
-That is, the event list can be a target resource for normal Get, while CLI can use the customized/RPC Get with a range option.
+Various filters are supported using RPC.
 
 e.g.
 ```
@@ -455,19 +464,36 @@ output {
 
 The rpc callback needs to access DB with the given set of sequence ids.
 
-The gNMI server need to be extended to support the RPC to support similar operations for gNMI.
+The gNMI server (gnoi_client.go, gnoi.go, sonic_proto, transl_utils.go) need to be extended to support the RPC to support similar operations for gNMI.
 
 ### 3.1.7 Event History Table and Current Alarm Table
 The Event History Table (EVENT) and Current Alarm List Table (ALARM) stored in state db. 
 The size of Event History Table is 86k records or 30 days worth of events which ever hits earlier.
 A manifest file will be created with parameters to specify the number and number of days limits for
 eventd to read and enforce them.
+```
+root@sonic:/etc# cat eventd.conf 
+# ==============================================================================
+# Event Manager (eventd) configuration file
+
+# ==============================================================================
+# no-of-records:
+# type:  uint32
+# range: [1, 86000]
+no-of-records=86000
+
+# ==============================================================================
+# no-of-days:
+# type:  uint32
+# range: [1, 30]
+no-of-days=30
+```
 
 When either of the limit is reached, the framework wraps around the table records by discarding the older records.
 
 An example of an event in EVENT table raised by tam.
 ```
-Event Table:
+EVENT Table:
 ==============================
 
 Key                       : id
@@ -497,6 +523,9 @@ resource                  : Object which generated the event {string}
 
 Schema for EVENT_STATS table is as follows:
 ```
+EVENT_STATS Table:
+==============================
+
 Key                       : id
 
 id                        : key {state}
@@ -520,7 +549,7 @@ Current Alarm Table will not have any limits as it only contains the snapshot of
 
 Contents of an alarm record. In this case, the alarm was raised temperature crossed a threshold.
 ```
-Alarm Table:
+ALARM Table:
 ==============================
 
 Key                       : id
@@ -550,6 +579,9 @@ resource                  : Object which generated the event {string}
 
 Schema for ALARM_STATS table is as below:
 ```
+ALARM_STATS Table:
+==============================
+
 Key                       : id
 
 id                        : key {state}
@@ -576,7 +608,7 @@ informational             : Total stateful events (alarms) of severity 'informat
 ```
 
 ### 3.1.8 Pull Model
-All NBIs - CLI, REST and gNMI - can pull contents of alarm history table and event history table based on openconfig yang model.
+All NBIs - CLI, REST and gNMI - can pull contents of current alarm table and event history table.
 The following filters are supported:
 - ALL ( pulls all alarms)
 - Severity.
@@ -892,10 +924,17 @@ Sq No  Severity         Name                             Timestamp              
 
 ### 3.3.3 REST API Support
 
+sonic REST links:
 *  /restconf/data/sonic-event:sonic-event/EVENT/EVENT_LIST
 *  /restconf/data/sonic-event:sonic-event/EVENT_STATS/EVENT_STATS_LIST
 *  /restconf/data/sonic-alarm:sonic-alarm/ALARM/ALARM_LIST
 *  /restconf/data/sonic-alarm:sonic-alarm/ALARM_STATS/ALARM_STATS_LIST
+
+openconfig REST links:
+*  /restconf/data/openconfig-system:system/openconfig-events:events
+*  /restconf/data/openconfig-system:system/openconfig-events:event-stats
+*  /restconf/data/openconfig-system:system/alarms
+*  /restconf/data/openconfig-system:system/openconfig-alarms-ext:alarm-stats
 
 # 4 Flow Diagrams
 ![Sequence Diagram](event-mgmt-framework-sequence-diagram.png)
