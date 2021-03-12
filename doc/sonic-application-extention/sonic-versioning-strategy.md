@@ -84,18 +84,7 @@ BREAKING CHANGE: this feature breaks the Consumer/Producer based IPC
 
 **NOTE**: SONiC package version has no correlation to a SONiC release. While keeping API of dependencies compatible a package can work across different SONiC releases.
 
-## SONiC buildimage packages versioning
-
-Normally packages should be separated from sonic-buildimage repository. If a package is part of sonic-buildimage and uses a single repository for every SONiC release there are following restrictions:
-
-- Within a release major and minor version must not change
-    - Package API backward compatibility is promised
-    - No new functionality is included
-- Minor version in master after branch-out must be incremented by package maintainer in order to avoid version overlap between branches
-
-<p align=center>
-<img src="img/versioning-strategy.svg" alt="Figure 1. SONiC Docker Images Versioning for sonic-buildimage dockers">
-</p>
+Package maintainer may choose to maintain a single repository and have there packages that can work accross different releases or maintain a repository per SONiC release.
 
 ***package maintainer can*** update *default-reference* in package.json in SONiC buildimage to point to a default version which will be used when user installs a package.
 
