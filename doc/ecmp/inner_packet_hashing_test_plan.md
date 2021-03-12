@@ -17,13 +17,13 @@ Beyond hash configuration, base DUT route table configurations are sufficient to
 ### Supported topology
 The test will be supported on the T0 toplogy, it may be enhanced in the future for other topologies.
 
-### High level test methodology
-1. Send a lot of packets(1000 packets per nh, so a standard t0 topology would involve sending 4000 packets) to a dest prefix which has ecmp nhs.
-2. Vary some tuple of the packet so that the packets hash to different nexthops
-3. Identify set of ports on which the packet would have ecmp'd
-4. Check which port received the packet and record received packet count per port
-5. Calculate the expected number of packets per port
-6. Validate if received packet count per port is within a 25% margin of calculated number of packets on the port
+### High level test details
+1. Send packets to a destination prefix which is pointing to multiple ecmp nexthops. For the T0 topology test we will send it to a dest prefix which is pointing to the T1s.
+3. Vary some tuple of the packet so that the packets hash to different nexthops. The total packets sent in a test is calcualted as follows: 1000 packets sent per ECMP next hop. This translates to 4000 packets in a T0 topology with 4 T1s(ECMP nexthops). All 4000 packets will have varied tuples to get a good distribution of packets to ports.
+4. Identify set of ports on which the packet would have ecmp'd
+5. Check which port received the packet and record received packet count per port
+6. Calculate the expected number of packets per port
+7. Validate if received packet count per port is within a 25% deviation of expected number of packets on the port
 
 ### Vxlan inner packet hashing
 The test will send vxlan inner packets and validate that varying any single 5-tuple of the inner packet results in hash variation.
