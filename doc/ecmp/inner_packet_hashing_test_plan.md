@@ -1,4 +1,8 @@
 # Test Plan for inner packet hashing in ECMP
+###### Revision
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 | 03/12/2021  |    Anish Narsian   | Initial version                   |
 
 ## Overview
 The purpose of this test plan is to describe inner packet hashing tests for ECMP nexthops. The test methodology will be similar to the current hash_test in SONiC. The test sends vxlan encapsulated packets and validates hashing is performed per the inner packet's 5 tuple(src ip, dst ip, src port, dst port, ip proto).
