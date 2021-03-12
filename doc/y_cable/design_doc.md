@@ -3,7 +3,8 @@
 ### Overview
 
 This document summarizes the approach taken to accommodate multiple
-Y cable vendors in Gemini Project. All the design choices are presented
+Y cable vendors for supporting dual-ToR configurations in SONiC.
+All the design choices are presented
 such that vendors can implement the Y cable interface with ease and effeciency
 and all the feature requirements are met.
 
