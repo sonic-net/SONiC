@@ -30,6 +30,8 @@ With the type of SAI API and SAI status as an input, the function could handle t
 
 In the scenario where a specific logic is required in one of the Orchs, this design allows the Orch to inherit the function and include the specific login in the inherited function.
 
+The function also allows an optional input `context`, which allow to pass context (e.g., object entry, attribute, etc.) into the function so that it could escalate the information to the ERROR_DB and upper layers.
+
 #### 2.3.2 Possible execution results
 1. Return True --  No crash, no retry
 
@@ -63,6 +65,15 @@ ERROR_{{SAI_API}}_TABLE|entry
     {{attr2}}: {{value2}}
     ...
 ```
+
+The tables in ERROR_DB correspond to the SAI API type (e.g., ERROR_ROUTE_TABLE, ERROR_NEIGH_TABLE, etc.), and the key of each entry corresponds to the entry of SAI failure.
+
+The field `opcode` indicates the method that failed. 
+Possible values include `CREATE/SET/DELETE`.
+
+The field `status` saves the status of the SAI operation (e.g., SAI_STATUS_NOT_SUPPORTED, SAI_STATUS_FAILURE).
+
+The ERROR_DB also include a list of attributes and the corresponding values that the failed operation tries to set.
   
 An example ERROR_DB entry for route table and neighbor table in BGP error handling is available at https://github.com/Azure/SONiC/blob/master/doc/error-handling/error_handling_design_spec.md#3431-Error-Tables
 ```
