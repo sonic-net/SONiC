@@ -1,7 +1,7 @@
 # Feature Name
-Event Management Framework
+Event and Alarm Framework
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.3
 
 # Table of Contents
   * [Revision](#revision)
@@ -15,51 +15,61 @@ Event Management Framework
 |:---:|:-----------:|:------------------:|-----------------------------------                       |
 | 0.1 | 01/04/2021  | Srinadh Penugonda  | Initial Version                                          |
 | 0.2 | 02/09/2021  | Srinadh Penugonda  | Updated with comments from HLD review                    |
+| 0.3 | 03/10/2021  | Srinadh Penugonda  | Updated with comments from HLD review                    |
 
 # About this Manual
-This document provides general information about the implementation of Event Management Framework and functionality supported in phase-1 in SONiC
+This document provides general information on the implementation and functionality of Event and Alarm Framework in SONiC.
+Wherever CLI is specified, it is the CLISH cli that is referred.
+
 # Scope
-This document describes the high-level design of Event Management Framework feature. 
+This document describes the high-level design of Event and Alarm Framework feature. 
 
 # 1 Feature Overview
 
-The Event Management Framework feature provides a centralized framework for applications in SONiC network operating system to raise “events” and store them for NBIs to consume. Events are means to indicate a change in the state of the system that operator may be interested in.
-Another widely used term for events is "alert" which can be used interchangeably.
+The Event and Alarm Framework feature provides a centralized framework for applications in SONiC to raise notifications and store them for NBIs to listen and fetch to monitor the device. 
 
-There are two types of events: stateful and stateless. Stateful events are also called as alarms. 
+Events and Alarms are means to indicate a change in the state of the system that operator may be interested in. 
+Such a change has an important metric called *severity* to indicate how critical it is to the health of the system. 
+This makes severity as an important chracteristic of an event.
 
-*  Stateful Events (Alarms)
+*  Events
 
-   Stateful events, as the name indicates, have a state: RAISED, CLEARED or ACKNOWLEDGED.
-   Out of memory, temperature crossing a threshold, and so on, are examples of conditions when the stateful events are triggered.
-   Such conditions are dynamic: a faulty software/hardware component encounters the above such condition and **may** come out of that situation when the condition is resolved.
+   Events are "one shot" notifications to indicate an abnormal/important situation. 
    
-   An application *raises* an alarm when it encounters such a faulty condition.
-   After the application recovers from the condition, that alarm is *cleared*.
+   User logging in, authentication failure, configuration changed notification are all examples of events.
+
+*  Alarms
+
+   Alarms are notifications raised for fatal conditions and could be cleared by correcting or removal of such conditions.
+   
+   Out of memory, temperature crossing a threshold, and so on, are examples of conditions when the alarms are raised.
+   Such conditions are dynamic: a faulty software/hardware component encounters the above such condition and **may** come out of that situation when the condition is resolved.
+   So, these conditions have a state: RAISED, CLEARED or ACKNOWLEDGED. 
+   
+   Events are sent as the condition progresses through each of these states. 
+   Each of these events is characterized by "state" in addition to "severity".
+   Each alarm hence comprises of a RAISED event and potentially a CLEARED event or an ACKNOWLEDGED event.
+   
+   An application *raises* an alarm when it encounters a faulty condition by sending an event with a state: RAISED.
+   After the application recovers from the condition, that alarm is *cleared* by sending an event with a state: CLEARED. 
    An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition. 
    
    Overall system health and system LED state is deduced from the severities of alarms.
    An acknowledged alarm is taken out of consideration from deciding system health and system LED is updated accordingly.
 
-   Some alarms go directly from active to cleared state and require little-to-no administrative effort.
    Operator must acknowledge or investigate alarms with a high severity.
 
-*  Stateless Events
-
-   Stateless events, as the name indicates, doesnt have a state. Stateless events are "one shot" notifications to indicate an abnormal/important situation. 
-   
-   User logging in, authentication failure, configuration changed notification are all examples of stateless events.
-
-Both stateful and stateless events get recorded in the DB. 
+Both events and alarms get recorded in the DB. 
 
 1.  Event History Table
 
-    Both stateful and stateless events get recorded in the table, by name, "EVENT". EVENT table contains history of all events generated by the system.
-    THis table is persisted across system restarts of any kind, including restore to factory defaults and SW upgrades and downgrades.
+    All events get recorded in the event history table, by name, "EVENT". EVENT table contains history of all events generated by the system.
+    This table is persisted across system restarts of any kind, including restore to factory defaults and SW upgrades and downgrades.
 
 2. Current Alarm Table
 
-   All raised stateful events - alarms - get recorded in a table, by name, "ALARM". When a component that raised the alarm clears it, the alarm record is removed from ALARM table.
+   All events with a RASIED state get recorded in a table, by name, "ALARM" in addition to getting recorded in Event History Table ( only events corresponding to an alarm has state ).
+   When a component that raised the alarm clears it ( by sending an event with CLEARED state ), the alarm record is removed from ALARM table.
    An user acknowledging a particular alarm will NOT remove that alarm record from this table.
    
    In effect, ALARM table contains outstanding alarms that need to be cleared by those components who raised them.
@@ -67,12 +77,18 @@ Both stateful and stateless events get recorded in the DB.
    
 In summary, the framework provides both current and historical event status of software and physical entities of the system through ALARM and EVENT tables. 
 
-Each event has an important characteristic: severity. It indicates how important the condition that raised the event is.
-Enterprise SONiC defines following severities for events.
+As mentioned above, each event has an important characteristic: severity. SONiC defines following severities for events.
 
 - CRITICAL : A critical condition exists and requires immediate action. A critical event may trigger if one or more hardware components fail, or one or more hardware components exceed temperature thresholds.
+  ( maps to log-alert )
+- MAJOR : A major error had occurred and requires escalation or notification. For example, a major alarm may trigger if an interface failure occurs, such as a port channel being down.
+  ( maps to log-critical )
+- MINOR : A minor error or noncritical condition occurred that, if left unchecked, might cause system service interruption or performance degradation. A minor alarm requires monitoring or maintenance.
+  ( maps to log-error )
 - WARNING : A warning condition was observed, but it may or may not result in an error condition.
-- INFORMATIONAL : An informational event had occurred, but it does not impact performance.
+  ( maps to log-warning )
+- INFORMATIONAL : An informational event had occurred, but it does not impact performance. NOT applicable to alarms.
+  ( maps to log-notice )
 
 By default every event will have a severity assigned by the component. The framework provides Event Severity Profiles to customize severity of an event and also can disable an event.
 Operator can decide to lower or increase severity of an event or can decide to turn off an event.
@@ -92,28 +108,25 @@ An example of event severity profile is as below:
         	enable: "true"
         },
         {
-        	name: "PORT_OPSTATUS_ERROR",
+        	name: "PORT_OPSTATUS_UPDATE",
         	severity: "INFORMATIONAL",
         	enable: "true"
         }
     ]
 }
 ```
-In addition to the above severities, operator can also chose MAJOR or MINOR severities in a severity profile for compatibility with legacy applications.
-
-- MAJOR : A major error had occurred and requires escalation or notification. For example, a major alarm may trigger if an interface failure occurs, such as a port channel being down.
-- MINOR : A minor error or noncritical condition occurred that, if left unchecked, might cause system service interruption or performance degradation. A minor alarm requires monitoring or maintenance.
 
 Operator can download default severity profile to a remote host. 
-This downloaded file can be modified by changing the severity of a particular event or change the enable/disable flag.
+This downloaded file can be modified by changing the severity or enable/disable flag of event(s).
 This modified file can then be uploaded to the device.
 Operator can select any of these custom severity profiles to change default properties of events.
 The selected severity profile will be taken into effect after restarting eventd container.
 The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom severity profile and restarts eventd container.
 
-In addition to storing in DB, framework forwards log messages corresponding to raised events to syslog. 
+In addition to storing events in DB, framework forwards log messages corresponding to all the events to syslog. 
+Syslog message displays the type (alarm or event), state (RAISED, CLEARED or ACKNOWLEDGED) - when the message corresponds to an event of an alarm, name of the event and detailed message. 
 
-gNMI clients can subscribe to receive events as they are raised. Subscribing through REST will be supported after phase-1.
+gNMI clients can subscribe to receive events as they are raised. Subscribing through REST is being evaluated.
 
 CLI and REST/gNMI clients can query either table with filters - based on severity, delta based on timestamp, sequence-id etc.,
 
@@ -124,8 +137,8 @@ CLI and REST/gNMI clients can query either table with filters - based on severit
 
 | ID    | Requirement                                            		                  | Comment             |
 | :---  | :----                                                 		                  | :---                |
-| 1     | Provide API via library for apps to publish events (statless events)            |                     |
-| 2     | Provide API via library for apps to publish alarms (stateful events) |                | 
+| 1     | Provide API via library for apps to publish events                              |                     |
+| 2     | Provide API via library for apps to publish alarms                   |                | 
 | 3     | Event Infra to write formatted syslog messages corresponding to all events to Syslog. |                    |
 | 4     | Event Infra to persist all events and alarms in StateDB.                        |                     |
 | 5     | Event Infra to read Event profile ( severity and enable/disable flag ) from a json file. |                    |
@@ -145,16 +158,9 @@ CLI and REST/gNMI clients can query either table with filters - based on severit
 | 7.2   | Alarms                                                        	              |                     |
 | 7.2.1 | Openconfig interface to pull alarm information.                                 |                     |
 | 7.2.2 | Openconfig interface to pull alarm summary information.                         |                     |
-|       | Alarms summary information                                                      |                     |
-|       | - Total-count (active alarms)                                                   |                     |
-|       | - Critical-count                                                                |                     |
-|       | - Major-count                                                                   |                     |
-|       | - Minor-count                                                                   |                     |
-|       | - Warning-count                                                                 |                     |
-|       | - Acknowledged-count                                                            |                     |
-|       | - Informational-count                                                           |                     |
+|       | Counters for Total, Critical, Major, Minor, Warning, Acknowledged               |                     |
 | 7.2.3 | Openconfig interface to pull alarms using following filters                     |                     |
-|       | - ALL ( pull all alarms)                                                        |                     |
+|       | - All (pull all events)                                                         |                     |
 |       | - Severity.                                                                     |                     |
 |       | - Recent alarms (eg., last 5 minutes, one hour, one day).                       |                     |
 |       | - Records between two timestamps, one timestamp and end, and beginning and a timestamp. |                     |
@@ -167,15 +173,13 @@ CLI and REST/gNMI clients can query either table with filters - based on severit
 | 8.4   | alarm acknowledge <sequence id>                                                 |                     |
 | 8.5   | logging server <ip> [ log \| event ]                                             | default is 'log'   |
 | 8.6   | severity-profile   [ default \| name-of-file ]	                                  |                     |
-| 9     | SYSLOG                                                                          |                     |
-| 9.1   | Configure message type to be forwarded to server. Message type is log, event or both. Default is both.|                       |
-| 10    | gNMI subscription                                                               |                     |
-| 10.1  | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
-| 11    | Clear all events (Best effort)                                                  |                     |
+| 9     | gNMI subscription                                                               |                     |
+| 9.1   | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
+| 10    | Clear all events (Best effort)                                                  |                     |
 
 ### 1.1.3 Scalability Requirements
 
-EVENT table should support 86k/30-day records. Considering the average size of an event to be 400 bytes, the total memory footprint of event history is ~4MB. Current active alarms are limited to total instances of unique alarms (which makes Current Alarm Table is a finite quantity)
+EVENT table should support 40k/30-day records. Current active alarms are limited to total instances of unique alarms (which makes ALARM Table is a finite quantity)
 
 ## 1.2 Design Overview
 
@@ -183,13 +187,13 @@ EVENT table should support 86k/30-day records. Considering the average size of a
 
 ### 1.2.1 Basic Approach
 The feature involves new development. 
-Openconfig yang for event table will be one of the deliveries of this feature.
 Applications act as producers by writing to a table in redis state-db. 
 Redis informs event consumer in eventd whenever there is new record.
 Event consumer removes the record and processes it.
-It then saves the processed entry in event history table; if the event is an alarm, record gets added to alarm table and system LED is updated. 
-Both EVENT and ALARM tables are stored under state-db.
-Event consumer then informs log handler to format the log message and send the message to syslog.
+It then saves the processed entry in event history table; if the event has a state and if it is RAISED, record gets added to alarm table and system LED is updated. 
+If the state is CLEARED, record is removed from ALARM table and system LED is updated.
+Both EVENT and ALARM tables are stored under state-db. For stats, EVENT_STATS and ALARM_STATS are maintained in state DB.
+Event consumer then informs logging API to format the log message and send the message to syslog.
 
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
@@ -205,7 +209,6 @@ The framework provides the following key management services:
 - Push model: Event/Alarm information to remote syslog hosts and subscribed gNMI clients
 - Pull model: Event/Alarm information from CLI, REST/gNMI interfaces
 - Ability to change severity of events, ability to turn off a particular event
-- Ability to send only log messages of events or all log messages to specific syslog host
 
 ## 2.2 Functional Description
 Event Management Framework allows applications to store "state" of the system for user to query through various north bound interfaces.
@@ -218,42 +221,40 @@ a set of event receivers for each NBI type.
 
 Applications act as producers of events. Event consumer in eventd container is
 informed by redis whenever a new event is produced. Event consumer manages received events,
-updates event history table and current alarm table and invokes log handler.
-Log handler constructs messages and sends it over to syslog. 
+updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
 
 Operator can chose to change properties of events with the help of event severity profile. Default
-event profile is stored at /etc/sonic/default_profile.json. User can download the default severity profile,
+event profile is stored at /etc/sonic/severityprofile/default.json. User can download the default severity profile,
 modify and upload it back to the switch to apply it. 
 
 Through severity profile, user can change severity of any event and also can enable/disable a 
 event.
 
-Through CLI, REST or gNMI, event history table and current alarm table can be parsed and displayed with various
-filters.
+Through CLI, REST or gNMI, event history table and current alarm table can be retrieved using various filters.
 
 ### 3.1.1 Event Producers ( Applications )
 Application that need to raise an event, need to use event notifiy API ( LOG_EVENT / LOG_ALARM ). 
-This API is part of libeventnotify library that applications need to include.
-API for python/go applications will be introduced in phase-2.
+This API is part of libeventnotify library that applications need to link.
 
-For stateless event, applications need to provide dynamic message and source along with event-id ( name of the event ). 
-For stateful events, applications need to provide event state ( raise/clear ) and source along with dynamic message and event-id.
+For events, applications need to provide dynamic message and source along with event-id ( name of the event ). 
+For alarms, applications need to provide event state ( raise/clear ) and source along with dynamic message and event-id.
 
 The eventd maintains a static map of event-ids. Developers of events need to declare event-id
-of new events and other characteristics - like severity and static message that gets appended with dynamic message.
-The static map is located at onic-eventd/lib/src/eventstaticmap.h
+of new events and other characteristics - severity and static message - that gets appended with dynamic message.
+The static map is located at eventd/lib/src/eventstaticmap.h
 
 ```
-std::unordered_map<std::string, EventInfo_t> static_event_table = {
-    {"PORT_ADMIN_STATUS_CHANGE",  {EventSeverity::INFORMATIONAL, "Adming status changed: "}},
-    {"TEMPERATURE_EXCEEDED",      {EventSeverity::CRITICAL,      "Temperature raised above threshold of 75 degrees: "}},
-    {"PORT_LEARNING_MODE_UPDATE", {EventSeverity::INFORMATIONAL, "Learning mode updated: "}}
+std::unordered_map<std::string, EventInfo_t> static_event_map = {
+    {"PORT_MTU_UPDATE",           {EventSeverity::INFORMATIONAL, "Port MTU is updated. "}},
+    {"TEMPERATURE_EXCEEDED",      {EventSeverity::CRITICAL,      "Temperature threshold is 75 degrees. "}},
+    {"PORT_LEARNING_MODE_UPDATE", {EventSeverity::INFORMATIONAL, "Learning mode updated. "}}
 }
 ```
 
 The format of event notify API is:
 
-For stateless events: 
+For events:
+
 definition: 
 ```
     LOG_EVENT(name, source, MSG, ...)
@@ -263,12 +264,13 @@ Usage:
     LOG_EVENT(PORT_MTU_UPDATE, alias.c_str(), "Configure  ethernet %s MTU to %s", alias.c_str(), mtu.c_str());
 ```
 
-For stateful events:
+For alarms:
+
 definition:
 ```
-    LOG_ALARM(name, source, action, MSG, ...)
+    LOG_ALARM(name, source, state, MSG, ...)
 ```
-Here, action is either RAISE_ALARM or CLEAR_ALARM
+Here, state is either RAISE_ALARM or CLEAR_ALARM
 
 Usage:
 ```
@@ -301,13 +303,13 @@ b. Update Makefile.am of the app to link to event notify library.
 
        tammgrd_LDADD += -leventnotify
 ```
-c. Declare the new event-id in static_event_table map defined in src/sonic-eventd/lib/src/eventstaticmap.h 
+c. Declare the new event-id in static_event_map defined in src/sonic-eventd/lib/src/eventstaticmap.h 
 
 d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT or LOG_ALARM.
 
 The event notifier takes the event properties, packs a field value tuple and writes to a ProducerTable, by name, EVENTPUBSUB.
 
-The producer table uses a event-id and a sequence-id generated locally by event notifier as the key so that there wont be 
+The EVENTPUBSUB table uses event-id and a sequence-id generated locally by event notifier as the key so that there wont be 
 any conflicts across multiple applications trying to write to this table.
 
 ### 3.1.2 Event Consumer
@@ -318,31 +320,32 @@ On bootup, event consumer reads from this table.
 Event consumer reads a record from this table and deletes records. 
 So this table contains records that are published by application and waiting to be received by event consumer.
 
-On reading the field value tuple, using the event-id in the record, event consumer fetches static information from static_event_table.
+On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
 As mentioned above, static information contains severity, static message part and event enable/disable flag. 
 If the flag is set to disabled, event consumer ignores the event by logging a debug message.
 If the flag is set to enabled, it continues to process the event as follows:
 - Determine if enable flag is enabled/disabled from static information table
 - Generate new sequence-id for the event if enable flag is set to enabled
 - Write the event to Event History Table
-- It verifies if the event is stateful. If so, it forwards the event to alarm consumer for further processing.
-    - If state is raised, add to ALARM table
+- It verifies if the event corresponds to an alarm - by checking the state field. If so, it forwards the event to alarm consumer for further processing.
+    - If state is raised, add the record to ALARM table
     - If state is clear, remove the entry from ALARM table
     - Update LED 
-- Forward the event to log handler
+- Invoke logging API to send the formatted message to syslog
 
 #### 3.1.2.1 Severity
-Supported event severities: Critical, Warning, Informational
-The corresponding syslog severties that will be used in log messages are: LOG_ALERT, LOG_WARNING, LOG_NOTICE respectively.
-Through severity profiles, operator is allowed to use Major and Minor as well for backward compatibility with corresponding syslog severities LOG_CRIT and LOG_ERR respectively.
+Supported event severities: Critical, Major, Minor, Warning and Informational
+Informational severity is not applicable to alarms.
+The corresponding syslog severities are: log-alert, log-crit, log-error, log-warning and log-notice respectively.
 
 #### 3.1.2.2 Sequence-ID
-Every new alert should have a sequential ID. The sequence-id is persistent and continues to grow until 2 exp 64 
+Every new event should have a sequential ID. The sequence-id is persistent and continues to grow until 2 exp 64 
 before wrapping around to start from 1.
 
 ### 3.1.3 Alarm Consumer
 The alarm consumer on receiving the event record, verifies the event state. If it is RAISE_ALARM, it adds the record to Current Alarm Table.
-If the state is CLEAR_ALARM, it removes the previous record using the key ( source and event-id ). 
+Alarm consumer also maintains a map of sequence-id and pair of event-id and source fields.
+If the state is CLEAR_ALARM, it removes the previous record using the key it fetches from the above internal map. 
 It then updates the system LED. 
 The system LED update follows the following rule:
 ```
@@ -358,30 +361,34 @@ alarm into consideration.
 Supported NBIs are: syslog, REST and gNMI.
 
 #### 3.1.4.1 syslog
-Log handler should contain logic to take the event record, augment it with any static information, format the message and 
+Logging API contains logic to take the event record, augment it with any static information, format the message and 
 send it to syslog.
 ```
-string node_info = "Node.1-Unit.1:PRI";
-const char LOG_FORMAT[] = "%s [%s], %%%s: %s: %s"; // Node info
-                                                   // Log Type
-                                                   // Event Name
-                                                   // Dynamic message
-                                                   // Static message
+const char LOG_FORMAT[] = "[%s] (%s), %%%s: %s: %s";
+                                                // Log Type
+                                                // Event Name
+                                                // Dynamic message
+                                                // Static message
    // raise a syslog message                                                
    syslog(LOG_MAKEPRI(ev_sev, SYSLOG_FACILITY), LOG_FORMAT,
-        node_info.c_str(), ev_type.c_str(),
+        ev_type.c_str(), ev_state.c_str(),
         ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
         
 ``` 
 
-An example of syslog message generated by log handler for an event raised by tam when changing switch-id
+An example of syslog message generated for an event raised by tam when changing switch-id
 ```
-Feb 09 21:44:07.487906 2021 sonic NOTICE eventd#eventd[21]: Node.1-Unit.1:PRI [EVENT], %TAM_SWITCH_ID_CHANGE: :- processSwitchTblEvent: Received new switch-id as 2: switch-id changed.
+Feb 09 21:44:07.487906 2021 sonic NOTICE eventd#eventd[21]: [EVENT], %TAM_SWITCH_ID_CHANGE :- processSwitchTblEvent: Received new switch-id as 2. switch-id changed.
 ```
 
 Syslog message for an alarm raised by a sensor:
 ```
-Feb 10 16:24:42.148610 2021 sonic NOTICE eventd#eventd[125]: Node.1-Unit.1:PRI [ALARM], %TEMPERATURE_EXCEEDED: :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees: Temperature threshold is 75 degrees.
+Feb 10 16:24:42.148610 2021 sonic NOTICE eventd#eventd[125]: [ALARM] (raised), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees.
+```
+
+Syslog message when alarm is clared is as follows:
+```
+Feb 10 16:24:42.148610 2021 sonic NOTICE eventd#eventd[125]: [ALARM] (cleared), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees. Temperature threshold is 75 degrees.
 ```
 
 Operator can configure specifc syslog host to receive either syslog messages corresponding to events or general log messages.
@@ -390,11 +397,10 @@ When operator configures a host with 'event' type, it receives *only* log messag
 Support for VRF/source-interface/UDP port are all are applicable for 'event' type.
 
 #### 3.1.4.2 REST
-Traslib does not support streamed RPC responses for framework to send messages over REST.
-This is being planned for Phase-2 when infra is ready to support it.
+This is currently being evaluated.
 
 #### 3.1.4.3 gNMI
-gNMI clients can subscribe to receive event notifications. Subscribed gNMI clients receive native event fields and 
+gNMI clients can subscribe to receive event notifications. Subscribed gNMI clients receive event fields as in the DB and 
 there is no customization of these fileds similar to syslog messages.
 
 TODO: add definitions of protobuf spec
@@ -420,28 +426,27 @@ The Severity profile contains mapping between event-id and severity of the event
 Through severity profile, operator can change severity of a particular event. And can also enable/disable
 a particular event.
 
-On bootup, event framework would create default event profile based on static_event_table. 
+On bootup, event framework would create default event profile file based on the contents of static_event_map. 
 By default, every event is enabled.
 The severity of event is decided by designer while adding the event.
-
-The default severity profile is stored at /etc/sonic/severity-profile/default.json
+The default severity profile is stored at /etc/sonic/severityprofile/default.json
 
 User can upload the default severity profile to a remote host. User can modify characteristics of
 certain events in the profile and can download it back to the switch.
 
 The updated profile will become custom severity profile.
 
-User can select any of the custom severity profiles under /etc/sonic/severity-profile/ using 'severity-profile' command.
+User can select any of the custom severity profiles under /etc/sonic/severityprofile/ using 'severity-profile' command.
 
-The framework will sanity check the user selected severity profile and merges it with static_event_table.
+The framework will sanity check the user selected severity profile and merges it with static_event_map.
 
 The selected severity profile will be "active" after a reboot.
 
 To "remember" the selected custom profile across reboots, an internal symlink points to the selected custom
 profile.
 
-The event consumer will use the static_event_table map to decide whether to raise an event or not. If event
-is to be raised, static_event_table is again looked into for severity.
+The event consumer will use the static_event_map map to decide whether to raise an event or not. If event
+is to be raised, static_event_map is again looked into for severity.
 
 Upgrade hooks will be used to persist custom severity profiles.
 
@@ -468,22 +473,22 @@ The gNMI server (gnoi_client.go, gnoi.go, sonic_proto, transl_utils.go) need to 
 
 ### 3.1.7 Event History Table and Current Alarm Table
 The Event History Table (EVENT) and Current Alarm List Table (ALARM) stored in state db. 
-The size of Event History Table is 86k records or 30 days worth of events which ever hits earlier.
+The size of Event History Table is 40k records or 30 days worth of events which ever hits earlier.
 A manifest file will be created with parameters to specify the number and number of days limits for
 eventd to read and enforce them.
 ```
 root@sonic:/etc# cat eventd.conf 
 # ==============================================================================
-# Event Manager (eventd) configuration file
+# Event and Alarm Manager (eventd) configuration file
 
 # ==============================================================================
-# no-of-records:
+# no-of-records in EVENT table:
 # type:  uint32
-# range: [1, 86000]
-no-of-records=86000
+# range: [1, 40000]
+no-of-records=40000
 
 # ==============================================================================
-# no-of-days:
+# no-of-days for EVENT table:
 # type:  uint32
 # range: [1, 30]
 no-of-days=30
@@ -502,7 +507,7 @@ id                        : Unique sequential ID generated by the system for eve
 type-id                   : Name of the event generated {string}
 text                      : Dynamic message describing the cause for the event {string}
 time-created              : Time stamp at which the event is generated {uint64}
-is-alarm                  : Indicates if the record is stateful event {boolean}
+state                     : Indicates state of the event; for one-shot events, it is empty. For alarms it could be raise, cleared or ack {enum}
 resource                  : Object which generated the event {string}
 
 127.0.0.1:6379[6]> hgetall "EVENT|1"
@@ -514,8 +519,8 @@ resource                  : Object which generated the event {string}
  6) "processSwitchTblEvent: Received new switch-id as 3"
  7) "time-created"
  8) "2021-02-09.21:42:59.553603"
- 9) "is-alarm"
-10) "false"
+ 9) "state"
+10) ""
 11) "resource"
 12) "3"
 127.0.0.1:6379[6]>
@@ -529,14 +534,14 @@ EVENT_STATS Table:
 Key                       : id
 
 id                        : key {state}
-events                    : Total events (both stateful and stateless) in database {uint64}
-alarms                    : Total stateful events (alarms) in database {uint64}
-cleared                   : Total stateful events (alarms) cleared in database {uint64}
-acked                     : Total stateful events (alarms) acknowledged in database {uint64}
+events                    : Total events in database {uint64}
+alarms                    : Total alarms in database {uint64}
+cleared                   : Total alarms cleared in database {uint64}
+acked                     : Total alarms acknowledged in database {uint64}
 
 127.0.0.1:6379[6]> hgetall "EVENT_STATS|state"
 1) "events"
-2) "2"
+2) "7"
 3) "alarms"
 4) "2"
 5) "cleared"
@@ -585,12 +590,11 @@ ALARM_STATS Table:
 Key                       : id
 
 id                        : key {state}
-alarms                    : Total active stateful events (alarms) in database {uint64}
-critical                  : Total stateful events (alarms) of severity 'critical' in database {uint64}
-major                     : Total stateful events (alarms) of severity 'major' in database {uint64}
-minor                     : Total stateful events (alarms) of severity 'minor' in database {uint64}
-warning                   : Total stateful events (alarms) of severity 'warning' in database {uint64}
-informational             : Total stateful events (alarms) of severity 'informational' in database {uint64}
+alarms                    : Total active salarms in database {uint64}
+critical                  : Total alarms of severity 'critical' in database {uint64}
+major                     : Total alarms of severity 'major' in database {uint64}
+minor                     : Total alarms of severity 'minor' in database {uint64}
+warning                   : Total alarms of severity 'warning' in database {uint64}
 
 127.0.0.1:6379[6]> hgetall "ALARM_STATS|state"
  1) "alarms"
@@ -603,8 +607,7 @@ informational             : Total stateful events (alarms) of severity 'informat
  8) "0"
  9) "warning"
 10) "0"
-11) "informational"
-12) "1"
+
 ```
 
 ### 3.1.8 Pull Model
@@ -653,18 +656,17 @@ module: sonic-event
      |     +--rw id              uint64
      |     +--rw resource?       string
      |     +--rw text?           string
-     |     +--rw time-created?   uint64
+     |     +--rw time-created?   yang:date-and-time
      |     +--rw type-id?        string
-     |     +--rw severity?       enumeration
-     |     +--rw is-alarm?       boolean
+     |     +--rw severity?       severity-type
+     |     +--rw state?          state-type
      +--rw EVENT_STATS
         +--rw EVENT_STATS_LIST* [id]
-           +--rw id            enumeration
-           +--rw events?       uint64
-           +--rw alarms?       uint64
-           +--rw acked?        uint64
-           +--rw cleared?      uint64
-           +--rw non-alarms?   uint64
+           +--rw id         enumeration
+           +--rw events?    uint64
+           +--rw alarms?    uint64
+           +--rw acked?     uint64
+           +--rw cleared?   uint64
 
   rpcs:
     +---x show-events
@@ -674,21 +676,26 @@ module: sonic-event
        |     |  +---w time
        |     |     +---w begin?   yang:date-and-time
        |     |     +---w end?     yang:date-and-time
-       |     +--:(last-interval)
-       |     |  +---w period?   uint32
+       |     +--:(recent-interval)
+       |     |  +---w interval?   enumeration
+       |     +--:(severity)
+       |     |  +---w severity?   event:severity-type
        |     +--:(identifier)
        |        +---w id
-       |           +---w begin?   uint64
-       |           +---w end?     uint64
+       |           +---w begin?   string
+       |           +---w end?     string
        +--ro output
-          +--ro EVENT_LIST* [id]
-             +--ro id              uint64
-             +--ro resource?       string
-             +--ro text?           string
-             +--ro time-created?   uint64
-             +--ro type-id?        string
-             +--ro severity?       enumeration
-             +--ro is-alarm?       boolean
+          +--ro status?          int32
+          +--ro status-detail?   string
+          +--ro EVENT
+             +--ro EVENT_LIST* [id]
+                +--ro id              uint64
+                +--ro resource?       string
+                +--ro text?           string
+                +--ro time-created?   yang:date-and-time
+                +--ro type-id?        string
+                +--ro severity?       severity-type
+                +--ro is-alarm?       boolean
 ```
 
 The following openconfig yang for events
@@ -723,13 +730,13 @@ module: sonic-alarm
   +--rw sonic-alarm
      +--rw ALARM
      |  +--rw ALARM_LIST* [id]
-     |     +--rw id                 uint64
-     |     +--rw resource?          string
-     |     +--rw text?              string
-     |     +--rw time-created?      uint64
-     |     +--rw type-id?           string
-     |     +--rw severity?          enumeration
-     |     +--rw is-acknowledged?   boolean
+     |     +--rw id              uint64
+     |     +--rw resource?       string
+     |     +--rw text?           string
+     |     +--rw time-created?   yang:date-and-time
+     |     +--rw type-id?        string
+     |     +--rw severity?       event:severity-type
+     |     +--rw acknowledged?   boolean
      +--rw ALARM_STATS
         +--rw ALARM_STATS_LIST* [id]
            +--rw id               enumeration
@@ -742,11 +749,18 @@ module: sonic-alarm
            +--rw acknowledged?    uint64
 
   rpcs:
-    +---x ack-alarms
+    +---x acknowledge-alarms
     |  +---w input
-    |  |  +---w id*   uint64
+    |  |  +---w id*   string
     |  +--ro output
-    |     +--ro status?   string
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    +---x unacknowledge-alarms
+    |  +---w input
+    |  |  +---w id*   string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
     +---x show-alarms
        +---w input
        |  +---w (option)?
@@ -755,20 +769,25 @@ module: sonic-alarm
        |     |     +---w begin?   yang:date-and-time
        |     |     +---w end?     yang:date-and-time
        |     +--:(last-interval)
-       |     |  +---w period?   uint32
+       |     |  +---w period?     enumeration
+       |     +--:(severity)
+       |     |  +---w severity?   event:severity-type
        |     +--:(identifier)
        |        +---w id
-       |           +---w begin?   uint64
-       |           +---w end?     uint64
+       |           +---w begin?   string
+       |           +---w end?     string
        +--ro output
-          +--ro ALARM_LIST* [id]
-             +--ro id                 uint64
-             +--ro resource?          string
-             +--ro text?              string
-             +--ro time-created?      uint64
-             +--ro type-id?           string
-             +--ro severity?          enumeration
-             +--ro is-acknowledged?   boolean
+          +--ro status?          int32
+          +--ro status-detail?   string
+          +--ro ALARM
+             +--ro ALARM_LIST* [id]
+                +--ro id              uint64
+                +--ro resource?       string
+                +--ro text?           string
+                +--ro time-created?   yang:date-and-time
+                +--ro type-id?        string
+                +--ro severity?       event:severity-type
+                +--ro acknowledged?   boolean
 ```
 
 openconfig alarms yang is defined at [here](https://github.com/openconfig/public/blob/master/release/models/system/openconfig-alarms.yang)
@@ -794,6 +813,9 @@ Support with VRF/source-interface and configuring remote-port are all backward c
 
 #### 3.3.2.3 Show Commands
 ```
+sonic# show system health
+System Health: Normal, Warning or Error
+
 sonic# show event severity-profile
 
 Severity Profile Details
@@ -808,8 +830,8 @@ sonic# show event [ detail | summary | severity <sev> | timestamp from <from-ts>
 sonic# show event 
 Sq No   State        Name                             Timestamp                   Description
 -----   --------     ------------------------------   --------------------------- --------------
-2292    stateless    TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
-2291    stateful     TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
+2292    -            TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
+2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
         
       
 sonic# show event details 
@@ -821,7 +843,7 @@ Name:              TAM_SWITCH_ID_CHANGE
 Description:       processSwitchTblEvent: Received new switch-id as 3
 Timestamp:         Wed Feb 10 18:08:27 2021
 Source:            -
-State:             stateless
+State:             -
 -------------------------------------------
 Event History Details - 2291
 -------------------------------------------
@@ -831,35 +853,40 @@ Name:              TEMPERATURE_EXCEEDED
 Description:       temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 Timestamp:         Wed Feb 10 18:08:24 2021
 Source:            -
-State:             stateful
+State:             raised
 
 sonic# show event summary
 
 Event Summary
 -------------------------------------------
-Raised:                 1
+Raised:                 4
 Ack:                    0
 Cleared:                4
-Events:                 1
+Events:                 20
 -------------------------------------------
 
 sonic# show event severity critical
 Sq No   State        Name                             Timestamp                   Description
 -----   --------     ------------------------------   --------------------------- --------------
-2291    stateful     TEMPERATURE_EXCEEDED             Wed Feb 10 17:58:19 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. 
+2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 17:58:19 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. 
 
 sonic# show event recent 5min 
-Sq No   State        Name                             Timestamp                   Source
+Sq No   State        Name                             Timestamp                   Description
 -----   --------     ------------------------------   --------------------------- --------------
-2292    stateless    TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
-2291    stateful     TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
+2292    -            TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
+2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 
 sonic# show event sequence-id from 2290 to 2300
-Sq No   State        Name                             Timestamp                   Source
+Sq No   State        Name                             Timestamp                   Description
 -----   --------     ------------------------------   --------------------------- --------------
-2292    stateless    TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
-2291    stateful     TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
+2292    -            TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
+2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 
+sonic# show event TEMPERATURE_EXCEEDED
+Sq No   State        Name                             Timestamp                   Description
+-----   --------     ------------------------------   --------------------------- --------------
+2311    cleared      TEMPERATURE_EXCEEDED             Wed Feb 11 01:03:32 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees
+2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 17:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 
 sonic# show alarm [ detail | summary | severity <sev> | timestamp from <from-ts> to <to-ts> | recent <5min|1hr|1day> | sequence-id from <from-seq> to <to-seq> | all ]
 
@@ -888,7 +915,7 @@ Acknowledged:      false
 sonic# show alarm summary
 Active-alarm Summary
 -------------------------------------------
-Total:            2
+Total:            6
 Critical:         2
 Major:            1
 Minor:            1
@@ -904,12 +931,12 @@ Sq No  Name                             Timestamp                   Description
 2291   TEMPERATURE_EXCEEDED             Wed Feb 10 17:58:19 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. 
 
 sonic# show alarm recent 5min 
-Sq No  Name                             Timestamp                   Source
+Sq No  Name                             Timestamp                   Description
 -----  ------------------------------   --------------------------- --------------
 2291   TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 
 sonic# show alarm sequence-id from 2290 to 2300
-Sq No  Name                             Timestamp                   Source
+Sq No  Name                             Timestamp                   Description
 -----  ------------------------------   --------------------------- --------------
 2291   TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 
@@ -948,12 +975,12 @@ They would
 *  clear those alarms once current state of a particular condition is recovered (by comparing against the stored state). 
 
 ## 5.2 eventd warm boot
-Records from applications are stored in a table of type ProducerTable.
-By using ProducerTable, records that are being written will be queued when the subscriber (eventd) is down.
+Records from applications are stored in a table of type ProducerTable, called EVENTPUBSUB.
+By using table of type ProducerTable, records that are being written will be queued when the subscriber (eventd) is down.
 
 This is in contrast to notification producer/consumer tables which causes incoming records getting lost.
 
-The eventnotify from each application would write events to ProducerTable that eventd subscribes to. 
+The eventnotify from each application would write events to EVENTPUBSUB table that eventd subscribes to. 
 eventnotify uses event-id and a local sequence-id as the key while writing records to this table.
 
 During normal operation, eventd receives subscription notifications whenever a new record is added to the table.
@@ -963,7 +990,9 @@ When eventd is restarted, events and alarms raised by applications will be waiti
 When eventd eventually comes back up, it reads those records in the queue.
 
 # 6 Scalability
-The size of Event History Table is 86k records or 30 days worth of events which ever hits earlier with a frequency of one event per second.
+In this feature, scalability applies to Event History Table (EVENT). As it is persistent and it records every event generated on the system, to protect
+against it growing indefinitely, user can limit its size through a manifest file.
+By default, the size of Event History Table is set to 40k events or events for 30 days - after which, older records are discarded to make way for new records.
 
 # 7 Unit Test
 - Raise an event and verify the fields in EVENT table and EVENT_STATS table
