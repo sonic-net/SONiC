@@ -11,10 +11,10 @@ This document describes the high-level design for orchagent in handling SAI fail
 
 ### 2.2 An overview of the failure handling framework
 An illustrative figure of the failure handling framework is shown below.
-The orchagent generates SAI calls according to the information in APPL_DB given by upper layer.
+The orchagent generates SAI calls according to the information in APPL_DB given by upper layers.
 In the case of SAI failures, the orchagent gets the failure status via the feedback mechanism in synchronous mode.
 Based on the failure information, the failure handling functions in orchagent make the first attempt to address the failure.
-An ERROR_DB is also introduced to suppport escalation to upper layers.
+An ERROR_DB is also introduced to support escalation to upper layers.
 In the scenario where orchagent is unable to resolve the problem, the failure handling functions would escalate the failure to upper layers by pushing the failure into the ERROR_DB.
 <img src="Framework.png">
 
@@ -26,21 +26,21 @@ To support a failure handling logic in general while also allow each orch to hav
 3. `virtual bool handleSaiRemoveStatus(sai_api_t api, sai_status_t status, void *context = nullptr)`
 
 The three functions handle SAI failures in create, set, and remove operations, respectively.
-With the type of SAI API and SAI status as an input, the function could handle the failure according to the two information.
+With the type of SAI API and SAI status as an input, the function could handle the failure according to the two pieces ofinformation.
 
 In the scenario where a specific logic is required in one of the Orchs, this design allows the Orch to inherit the function and include the specific login in the inherited function.
 
-The function also allows an optional input `context`, which allow to pass context (e.g., object entry, attribute, etc.) into the function so that it could escalate the information to the ERROR_DB and upper layers.
+The function also allows an optional input `context`, which allows passing context (e.g., object entry, attribute, etc.) into the function so that it could escalate the information to the ERROR_DB and upper layers.
 
 #### 2.3.2 Possible execution results
 1. Return True --  No crash, no retry
 
-The failure handling function should return true when the failed SAI call does not require a retry after executing the funciton.
-This behavior should happen in two scenraios:
+The failure handling function should return true when the failed SAI call does not require a retry after executing the function.
+This behavior should happen in two scenarios:
     
-* The failure is properly handled without need for another attempt (e.g., the SAI status is `SAI_STATUS_ITEM_NOT_FOUND` in remove operation).
+* The failure is properly handled without the need for another attempt (e.g., the SAI status is `SAI_STATUS_ITEM_NOT_FOUND` in remove operation).
 
-* The failure is unable to be handled in orchagent and another attempt is not likely to resolve the failure. In such scenario, the funciton should prevent orchagent from retrying and escalate the failure to upper layers.
+* The failure is unable to be handled in orchagent and another attempt is not likely to resolve the failure. In such a scenario, the function should prevent orchagent from retrying and escalate the failure to upper layers.
 
 2. Return False --  No crash, retry
 
@@ -49,7 +49,7 @@ The failure handling function should return true when the failed SAI call may be
 3. exit(EXIT_FAILURE) -- Crash and trigger SwSS auto-restart
 
 Some of the failures can be resolved by restarting SwSS.
-In the scenario where such failures happens, the failure handling function in orchagent should exit with `EXIT_FAILURE` and trigger SwSS auto restart.
+In the scenario where such failures happen, the failure handling function in orchagent should exit with `EXIT_FAILURE` and trigger SwSS auto restart.
 
 
 
@@ -73,7 +73,7 @@ Possible values include `CREATE/SET/DELETE`.
 
 The field `status` saves the status of the SAI operation (e.g., SAI_STATUS_NOT_SUPPORTED, SAI_STATUS_FAILURE).
 
-The ERROR_DB also include a list of attributes and the corresponding values that the failed operation tries to set.
+The ERROR_DB also includes a list of attributes and the corresponding values that the failed operation tries to set.
   
 An example ERROR_DB entry for route table and neighbor table in BGP error handling is available at https://github.com/Azure/SONiC/blob/master/doc/error-handling/error_handling_design_spec.md#3431-Error-Tables
 ```
