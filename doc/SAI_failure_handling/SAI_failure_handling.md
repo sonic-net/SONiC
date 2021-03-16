@@ -100,29 +100,6 @@ ERROR_NEIGH_TABLE|INTF_TABLE.name/ VLAN_INTF_TABLE.name / LAG_INTF_TABLE.name|pr
 | ITEM NOT FOUND                | Should not happen. No retry. | `Create the item and set attribute?` | No retry. 
 | OBJECT IN USE                 | Should not happen. No retry. | Retry for a few times | Retry for a few times |
 
-<!-- | SAI status | Create | Set | Remove |
-|-----|-----|-----|-----|
-| FAILURE                       | | | |
-| NOT SUPPORTED                 | | | |
-| NO MEMORY                     | Escalate, no retry. | Escalate, no retry. | Escalate, no retry. |
-| INSUFFICIENT RESOURCES        | Escalate, no retry. | Escalate, no retry. | Escalate, no retry. |
-| INVALID PARAMETER             | Escalate, no retry. | Escalate, no retry. | Should not happen. Escalate, no retry. |
-| ITEM ALREADY EXISTS           | `Set the attribute instead?` | Should not happen. Escalate, no retry. | Should not happen. Escalate, no retry. |
-| ITEM NOT FOUND                | Should not happen. Escalate, no retry. | `Create the item instead?` | No retry. |
-| BUFFER OVERFLOW               | | | |
-| INVALID PORT NUMBER           | | | |
-| INVALID PORT MEMBER           | | | |
-| INVALID VLAN ID               | | | |
-| UNINITIALIZED                 | | | |
-| TABLE FULL                    | | | |
-| MANDATORY ATTRIBUTE MISSING   | | | |
-| NOT IMPLEMENTED               | | | |
-| ADDR NOT FOUND                | | | |
-| OBJECT IN USE                 | Should not happen. Escalate, no retry. | Retry for a few times | Retry for a few times |
-| INVALID OBJECT ID             | | | |
-| Others                        | Escalate, no retry. |  Escalate, no retry. | Escalate, no retry. | -->
-
-
 
 ### 3.2 SAI API specific handling logic
 TODO: Add SAI API specific handling logic
@@ -130,3 +107,7 @@ TODO: Add SAI API specific handling logic
 
 ### 3.3 Orch specific handling logic
 TODO: Add Orch specific handling logic
+
+# Warm boot support
+A warm reboot should not be issued in the scenario with unhandled SAI failures.
+A check or ERROR_DB should be added to pre-warm-reboot check functions to prevent doing warm reboots with unhandled SAI failures.
