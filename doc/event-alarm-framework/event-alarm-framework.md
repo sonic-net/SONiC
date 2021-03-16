@@ -183,7 +183,7 @@ EVENT table should support 40k/30-day records. Current active alarms are limited
 
 ## 1.2 Design Overview
 
-![Block Diagram](event-alarm-framework-blockdiag.JPG)
+![Block Diagram](event-alarm-framework-blockdiag.png)
 
 ### 1.2.1 Basic Approach
 The feature involves new development. 
