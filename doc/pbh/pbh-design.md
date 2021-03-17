@@ -4,7 +4,43 @@
 
 ## Table of contents
 
-TBD
+- [About this manual](#about-this-manual)
+- [Revision](#revision)
+- [Abbreviations](#abbreviations)
+- [1 Introduction](#1-introduction)
+    - [1.1 Feature overview](#11-feature-overview)
+    - [1.2 Requirements](#12-requirements)
+        - [1.2.1 Functionality](#121-functionality)
+        - [1.2.2 Command interface](#122-command-interface)
+        - [1.2.3 Error handling](#123-error-handling)
+        - [1.2.4 Event logging](#124-event-logging)
+- [2 Design](#2-design)
+    - [2.1 Overview](#21-overview)
+    - [2.2 SAI API](#22-sai-api)
+    - [2.3 Orchestration agent](#23-orchestration-agent)
+        - [2.3.1 Overview](#231-overview)
+        - [2.3.2 PBH orch](#232-pbh-orch)
+        - [2.3.3 ACL orch](#233-acl-orch)
+    - [2.4 DB schema](#24-db-schema)
+        - [2.4.1 Config DB](#241-config-db)
+            - [2.4.1.1 PBH table](#2411-pbh-table)
+            - [2.4.1.2 PBH rule](#2412-pbh-rule)
+            - [2.4.1.3 PBH hash](#2413-pbh-hash)
+        - [2.4.2 Configuration sample](#242-configuration-sample)
+    - [2.5 Flows](#25-flows)
+        - [2.5.1 PBH add](#251-pbh-add)
+        - [2.5.2 PBH remove](#252-pbh-remove)
+    - [2.6 CLI](#26-cli)
+        - [2.6.1 Command structure](#261-command-structure)
+        - [2.6.2 Usage examples](#262-usage-examples)
+            - [2.6.2.1 Config command group](#2621-config-command-group)
+            - [2.6.2.2 Show command group](#2622-show-command-group)
+    - [2.7 DPB YANG model](#27-dpb-yang-model)
+    - [2.8 Warm/Fast boot](#28-warm_fast-boot)
+- [3 Test plan](#3-test-plan)
+    - [3.1 Unit tests](#31-unit-tests)
+    - [3.2 Data plane tests](#32-data-plane-tests)
+- [4 Open questions](#4-open-questions)
 
 ## About this manual
 
@@ -12,29 +48,45 @@ This document provides general information about PBH implementation in SONiC
 
 ## Revision
 
-| Rev | Date       | Author         | Description                       |
-|:---:|:----------:|:--------------:|:----------------------------------|
-| 0.1 | 15/03/2021 | Nazarii Hnydyn | Initial version                   |
+| Rev | Date       | Author         | Description     |
+|:---:|:----------:|:--------------:|:----------------|
+| 0.1 | 15/03/2021 | Nazarii Hnydyn | Initial version |
 
 ## Abbreviations
 
-| Term   | Meaning                                             |
-|:-------|:----------------------------------------------------|
-| PBH    | Policy Based Hashing                                |
-| ECMP   | Equal-Cost Multi-Path                               |
-| FG     | Fine-Grained                                        |
-| CLI    | Сommand-line Interface                              |
-| DB     | Database                                            |
-| CRC    | Cyclic Redundancy Check                             |
-| ID     | Identifier                                          |
+| Term   | Meaning                                                    |
+|:-------|:-----------------------------------------------------------|
+| SONiC  | Software for Open Networking in the Cloud                  |
+| PBH    | Policy Based Hashing                                       |
+| ACL    | Access Control List                                        |
+| SAI    | Switch Abstraction Interface                               |
+| FG     | Fine-Grained                                               |
+| API    | Application Programming Interface                          |
+| CRC    | Cyclic Redundancy Check                                    |
+| ID     | Identifier                                                 |
+| ECMP   | Equal-Cost Multi-Path                                      |
+| LAG    | Link Aggregation Group                                     |
+| NVGRE  | Network Virtualization Using Generic Routing Encapsulation |
+| VxLAN  | Virtual eXtensible Local Area Network                      |
+| GRE    | Generic Routing Encapsulation                              |
+| OA     | Orchestration agent                                        |
+| DB     | Database                                                   |
+| CLI    | Сommand-line Interface                                     |
+| DPB    | Dynamic Port Breakout                                      |
+| YANG   | Yet Another Next Generation                                |
 
 ## List of figures
 
-TBD
+[Figure 1: PBH diagram](#figure-1-pbh-design)  
+[Figure 2: PBH OA design](#figure-2-PBH-OA-design)  
 
-# Introduction
+## List of tables
 
-## Feature overview
+[Table 1: Event logging](#table-1-event-logging)
+
+# 1 Introduction
+
+## 1.1 Feature overview
 
 PBH is a feature which allows user to configure a custom hashing for different packet types.  
 Under the hood is uses ACL rules to match the specific types of frames and calculates hash  
@@ -49,9 +101,9 @@ and which of them should be associative for CRC with the same sequence ID.
 PBH supports hash configuration for ECMP and LAG.  
 Both Dynamic ECMP and FG ECMP are eligible.
 
-## Requirements
+## 1.2 Requirements
 
-### Functionality
+### 1.2.1 Functionality
 
 **This feature will support the following functionality:**
 1. Configure hashing based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src
@@ -59,37 +111,237 @@ Both Dynamic ECMP and FG ECMP are eligible.
 3. Support hash configuration for Dynamic/FG ECMP and LAG
 4. Support Warm/Fast reboot
 
-### Command interface
+### 1.2.2 Command interface
 
 **This feature will support the following commands:**
 1. config: add/remove PBH table/rule/hash configuration
 2. show: display PBH table/rule/hash configuration
 
+### 1.2.3 Error handling
+
+**This feature will provide error handling for the next situations:**
+1. Invalid object reference
+2. Incompatible options/parameters
+
+### 1.2.4 Event logging
+
+**This feature will provide event logging for the next situations:**
+1. PBH table/rule/hash add/remove
+
+###### Table 1: Event logging
+
+| Event                                   | Severity |
+|:----------------------------------------|:---------|
+| PBH table/rule/hash add/remove: success | NOTICE   |
+| PBH table/rule/hash add/remove: error   | ERROR    |
+
 # 2 Design
 
-## Overview
+## 2.1 Overview
 
-TBD
+![PBH design](images/pbh_design.svg "Figure 1: PBH design")
 
-## Flows
+###### Figure 1: PBH design
 
-### PBH add
+PBH uses ACL rules to match NVGRE or VxLAN packets and calcuates hash based on user-defined ruls.  
+Hashing is configured based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src.  
 
-![PBH add flow](images/pbh_add_flow.svg "Figure 2: PBH add flow")
+A custom hasing can be configured for Dynamic/FG ECMP and LAG.
 
-###### Figure 2: PBH add flow
 
-### PBH remove
+A 5-tuple 
 
-![PBH remove flow](images/pbh_remove_flow.svg "Figure 3: PBH remove flow")
 
-###### Figure 3: PBH remove flow
+PBH balh....
 
-## DB Schema
+## 2.2 SAI API
 
-### Config DB
+**SAI attributes which shall be used for PBH:**
 
-#### PBH table
+| API  | Function                       | Attribute                                          | Comment                    |
+|:-----|:-------------------------------|:---------------------------------------------------|:---------------------------|
+| ACL  | create_acl_table               | SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY                   |                            |
+|      |                                | SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL               |                            |
+|      |                                | SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT               |                            |
+|      |                                | SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE          |                            |
+|      | create_acl_entry               | SAI_ACL_ENTRY_ATTR_PRIORITY                        | PBH_RULE\|priority         |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_GRE_KEY                   | PBH_RULE\|gre_key          |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL               | PBH_RULE\|ip_protocol      |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT               | PBH_RULE\|l4_dst_port      |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_INNER_ETHER_TYPE          | PBH_RULE\|inner_ether_type |
+|      |                                | SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID          | PBH_RULE\|packet_action    |
+|      |                                | SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID         | PBH_RULE\|packet_action    |
+| HASH | create_hash                    | SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST         |                            |
+|      | create_fine_grained_hash_field | SAI_FINE_GRAINED_HASH_FIELD_ATTR_NATIVE_HASH_FIELD | PBH_HASH\|hash_field       |
+|      |                                | SAI_FINE_GRAINED_HASH_FIELD_ATTR_IPV4_MASK         | PBH_HASH\|ipv4_mask        |
+|      |                                | SAI_FINE_GRAINED_HASH_FIELD_ATTR_IPV6_MASK         | PBH_HASH\|ipv6_mask        |
+|      |                                | SAI_FINE_GRAINED_HASH_FIELD_ATTR_SEQUENCE_ID       | PBH_HASH\|sequence_id      |
+
+## 2.3 Orchestration agent
+
+### 2.3.1 Overview
+
+![PBH OA design](images/pbh_swss_design.svg "Figure 2: PBH OA design")
+
+###### Figure 2: PBH OA design
+
+OA needs to be updated to support PBH in Config DB and SAI FG Hash API.  
+There will be class `PbhOrch` and a set of data structures implemented to handle PBH feature.  
+OA will process table/rule/hash updates based on Config DB changes.  
+Some object updates will be handled and some will be considered as invalid.
+
+### 2.3.2 PBH orch
+
+Class `PbhOrch` will hold a set of methods matching generic `Orch` class pattern to handle Config DB updates.  
+For that purpose a producer-consumer mechanism (implemented in `sonic-swss-common`) will be used.  
+Method `PbhOrch::doTask()` will be called on PBH table/rule/hash update. It will distribute handling of DB updates  
+between other handlers based on the table key which was updated (Redis Keyspace Notifications).
+
+This class will be responsible for:
+1. Processing updates of the PBH table/rule/hash (add/remove)
+2. Partial input PBH data validation (including cross-table validation)
+3. Replicating PBH data from the Config DB to the SAI DB via SAI Redis
+4. Caching of the PBH objects in order to detect objects update and perform state dump
+
+PBH table objects are stored under `PBH_TABLE:*` keys in Config DB. On `PBH_TABLE` update,  
+method `PbhOrch::doPbhTableTask()` will be called to process the change.  
+On table create, `PbhOrch` will verify if the table already exists. Creating the table which is already  
+exists will be treated as an error. Regular table add/remove will update the internal class structures  
+and appropriate SAI objects will be created/deleted.
+
+PBH rule objects are stored under `PBH_RULE:*` keys in Config DB. On `PBH_RULE` update,  
+method `PbhOrch::doPbhRuleTask()` will be called to process the change.  
+On rule create, `PbhOrch` will verify if the rule already exists. Creating the rule which is already  
+exists will be treated as an error. Regular rule add/remove will update the internal class structures  
+and appropriate SAI objects will be created/deleted.
+
+PBH hash objects are stored under `PBH_HASH:*` keys in Config DB. On `PBH_HASH` update,  
+method `PbhOrch::doPbhHashTask()` will be called to process the change.  
+On hash create, `PbhOrch` will verify if the hash already exists. Creating the hash which is already  
+exists will be treated as an error. Regular hash add/remove will update the internal class structures  
+and appropriate SAI objects will be created or deleted.
+
+**Skeleton code:**
+```cpp
+class PbhOrch : public Orch
+{
+public:
+    PbhOrch(
+        vector<TableConnector> &connectorList,
+        SwitchOrch *switchOrch,
+        PortsOrch *portOrch
+    );
+    ~PbhOrch();
+
+    using Orch::doTask;  // Allow access to the basic doTask
+
+private:
+    void doPbhTableTask(Consumer &consumer);
+    void doPbhRuleTask(Consumer &consumer);
+    void doPbhHashTask(Consumer &consumer);
+    void doTask(Consumer &consumer);
+
+    SwitchOrch *m_switchOrch;
+    PortsOrch *m_portOrch;
+};
+```
+
+### 2.3.3 ACL orch
+
+This orchestrator provides API for ACL table/rule configuration.
+It is already exists in SONiC.
+
+ACL orchestrator will be extended to support PBH table/rule concept.  
+PBH table will use a dedicated set of keys to allow match of NVGRE and VxLAN packets.
+
+**Skeleton code:**
+```cpp
+bool AclTable::create()
+{
+    ...
+
+    if (type == ACL_TABLE_PBH)
+    {
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
+        attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+        attr.value.s32 = SAI_ACL_STAGE_INGRESS;
+        table_attrs.push_back(attr);
+
+        sai_status_t status = sai_acl_api->create_acl_table(&m_oid, gSwitchId, (uint32_t)table_attrs.size(), table_attrs.data());
+
+        if (status == SAI_STATUS_SUCCESS)
+        {
+            gCrmOrch->incCrmAclUsedCounter(CrmResourceType::CRM_ACL_TABLE, acl_stage, SAI_ACL_BIND_POINT_TYPE_PORT);
+            gCrmOrch->incCrmAclUsedCounter(CrmResourceType::CRM_ACL_TABLE, acl_stage, SAI_ACL_BIND_POINT_TYPE_LAG);
+        }
+
+        return status == SAI_STATUS_SUCCESS;
+    }
+
+    ...
+}
+
+class AclRulePbh: public AclRule
+{
+public:
+    AclRulePbh(AclOrch *m_pAclOrch, string rule, string table, acl_table_type_t type, bool createCounter = false);
+
+    bool validateAddAction(string attr_name, string attr_value);
+    bool validateAddMatch(string attr_name, string attr_value);
+    bool validate();
+    void update(SubjectType, void *);
+};
+```
+
+
+
+
+
+ and will be used by PBH orchestrator
+for PBH 
+
+
+ACL orch will be extend
+
+The next changes are required for `aclorch`:
+1. Add support for new PBH table
+2. Add support for new PBH rule
+
+
+**aclorch.cpp:**
+```cpp
+bool AclTable::create()
+{
+    ...
+
+    if (type == ACL_TABLE_PBH)
+    {
+        ...
+    }
+```
+
+
+
+## 2.4 DB schema
+
+### 2.4.1 Config DB
+
+#### 2.4.1.1 PBH table
 ```abnf
 ; defines schema for PBH table configuration attributes
 key = PBH_TABLE|table_name ; table name. Must be unique
@@ -106,7 +358,7 @@ max_ports = 1*5DIGIT  ; number of ports supported on the chip
 
 **Note:** at least one member of _port_list_ or _lag_list_ is required
 
-#### PBH rule
+#### 2.4.1.2 PBH rule
 ```abnf
 ; defines schema for PBH rule configuration attributes
 key = PBH_RULE|table_name|rule_name ; rule name. Must be unique across the table
@@ -129,7 +381,7 @@ hash-list     = "[" hash-name [ 1*( "," hash-name ) ] "]"
 packet-action = "SET_ECMP_HASH" / "SET_LAG_HASH"
 ```
 
-#### PBH hash
+#### 2.4.1.3 PBH hash
 ```abnf
 ; defines schema for PBH hash configuration attributes
 key = PBH_HASH|hash_name ; hash name. Must be unique
@@ -175,7 +427,7 @@ ipv6-prefix = 6( h16 ":" ) ls32
               / [ *6( h16 ":" ) h16 ] "::"
 ```
 
-### Configuration sample
+### 2.4.2 Configuration sample
 
 **Inner 5-tuple hashing:**
 ```json
@@ -259,9 +511,23 @@ ipv6-prefix = 6( h16 ":" ) ls32
 }
 ```
 
-## CLI
+## 2.5 Flows
 
-### Command structure
+### 2.5.1 PBH add
+
+![PBH add flow](images/pbh_add_flow.svg "Figure 3: PBH add flow")
+
+###### Figure 2: PBH add flow
+
+### 2.5.2 PBH remove
+
+![PBH remove flow](images/pbh_remove_flow.svg "Figure 4: PBH remove flow")
+
+###### Figure 3: PBH remove flow
+
+## 2.6 CLI
+
+### 2.6.1 Command structure
 
 **User interface**:
 ```
@@ -285,27 +551,27 @@ pbhutil
      |--- hash
 ```
 
-**Options:**  
+**Options:**
 
-_pbhutil table add_  
+_pbhutil table add_
 1. -p|--port_list - port list
 2. -l|--lag_list - portchannel list
 3. -d|--description - table description
 
-_pbhutil rule add_  
+_pbhutil rule add_
 1. -p|--priority - rule priority
 2. -m|--match - match field
 3. -h|--hash_list - hash field list
 4. -a|--action=<set_ecmp_hash|set_lag_hash> - packet action
 
-_pbhutil hash add_  
+_pbhutil hash add_
 1. -f|--field - hash field
 3. -m|--mask - ip mask
 2. -s|--sequence - sequence id
 
-### Usage examples
+### 2.6.2 Usage examples
 
-#### Config command group
+#### 2.6.2.1 Config command group
 
 **The following command adds/removes table:**
 ```bash
@@ -329,7 +595,7 @@ pbhutil config hash add 'inner_dst_ipv6' --field 'INNER_DST_IPV6' --mask 'FFFF::
 pbhutil config hash remove 'inner_dst_ipv6'
 ```
 
-#### Show command group
+#### 2.6.2.2 Show command group
 
 **The following command shows table configuration:**
 ```bash
@@ -371,16 +637,24 @@ inner_dst_ipv6     INNER_DST_IPV6     FFFF::     4
 inner_src_ipv6     INNER_SRC_IPV6     ::FFFF     4
 ```
 
-## Warm/Fast boot support
+## 2.7 DPB YANG model
+
+TBD
+
+## 2.8 Warm/Fast boot
 
 No special handling is required
 
-# Test Plan
+# 3 Test plan
 
-The following testing is planned for this feature:
-1. SWSS unit tests via virtual switch
-2. Data plane tests via pytest
+## 3.1 Unit tests
 
-# Open questions
+TBD
+
+## 3.2 Data plane tests
+
+TBD
+
+# 4 Open questions
 
 1. PBH rule hit statistics: do we need it?
