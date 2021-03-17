@@ -82,8 +82,8 @@ The ERROR_DB entry also includes a list of attributes and the corresponding valu
 ### 3.1 Failure status that could be handled in orchagent
 | SAI status | Create | Set | Remove |
 |-----|-----|-----|-----|
-| ITEM ALREADY EXISTS           | Set the  corresponding attribute instead? | Should not happen. No retry. | Should not happen. No retry. |
-| ITEM NOT FOUND                | Should not happen. No retry. | Create the item and set attribute? | Return success. No retry. 
+| ITEM ALREADY EXISTS           | Set the corresponding attribute instead. | Should not happen. No retry. | Should not happen. No retry. |
+| ITEM NOT FOUND                | Should not happen. No retry. | Create the item and set attribute. | Return success. No retry. 
 | OBJECT IN USE                 | Should not happen. No retry. | Should not happen. Retry after a while. | Retry after a while. |
 
 TODO: Add handling logic for other SAI statuses. 
@@ -95,6 +95,6 @@ TODO: Add SAI API specific handling logic
 ### 3.3 Orch specific handling logic
 TODO: Add Orch specific handling logic
 
-# Warm boot support
+# 4. Warm boot support
 A warm reboot should not be issued in the scenario with unhandled SAI failures.
 A check or ERROR_DB should be added to pre-warm-reboot check functions to prevent doing warm reboots with unhandled SAI failures.
