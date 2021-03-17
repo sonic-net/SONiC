@@ -245,9 +245,9 @@ The static map is located at eventd/lib/src/eventstaticmap.h
 
 ```
 std::unordered_map<std::string, EventInfo_t> static_event_map = {
-    {"PORT_MTU_UPDATE",           {EventSeverity::INFORMATIONAL, "Port MTU is updated. "}},
-    {"TEMPERATURE_EXCEEDED",      {EventSeverity::CRITICAL,      "Temperature threshold is 75 degrees. "}},
-    {"PORT_LEARNING_MODE_UPDATE", {EventSeverity::INFORMATIONAL, "Learning mode updated. "}}
+    {"PORT_MTU_UPDATE",           {EventSeverity::INFORMATIONAL, true, "Port MTU is updated. "}},
+    {"TEMPERATURE_EXCEEDED",      {EventSeverity::CRITICAL,      true, "Temperature threshold is 75 degrees. "}},
+    {"PORT_LEARNING_MODE_UPDATE", {EventSeverity::INFORMATIONAL, true, "Learning mode updated. "}}
 }
 ```
 
@@ -440,7 +440,7 @@ User can select any of the custom severity profiles under /etc/sonic/severitypro
 
 The framework will sanity check the user selected severity profile and merges it with static_event_map.
 
-The selected severity profile will be "active" after a reboot.
+The selected severity profile will be "active" after a reboot and merged with the static_event_map.
 
 To "remember" the selected custom profile across reboots, an internal symlink points to the selected custom
 profile.
