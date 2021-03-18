@@ -77,8 +77,10 @@ This document provides general information about PBH implementation in SONiC
 
 ## List of figures
 
-[Figure 1: PBH diagram](#figure-1-pbh-design)  
-[Figure 2: PBH OA design](#figure-2-PBH-OA-design)  
+[Figure 1: PBH design](#figure-1-pbh-design)  
+[Figure 2: PBH OA design](#figure-2-pbh-oa-design)  
+[Figure 3: PBH design](#figure-3-pbh-add-flow)  
+[Figure 4: PBH OA design](#figure-4-pbh-remove-flow)
 
 ## List of tables
 
@@ -106,10 +108,10 @@ Both Dynamic ECMP and FG ECMP are eligible.
 ### 1.2.1 Functionality
 
 **This feature will support the following functionality:**
-1. Configure hashing based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src
-2. Match NVGRE and VxLAN with inner/outer IPv4/IPv6 frames
-3. Support hash configuration for Dynamic/FG ECMP and LAG
-4. Support Warm/Fast reboot
+1. NVGRE and VxLAN packets match with inner/outer IPv4/IPv6 frames
+2. Custom hashing based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src
+3. Hash configuration for Dynamic/FG ECMP and LAG
+4. Warm/Fast reboot
 
 ### 1.2.2 Command interface
 
@@ -143,16 +145,9 @@ Both Dynamic ECMP and FG ECMP are eligible.
 
 ###### Figure 1: PBH design
 
-PBH uses ACL rules to match NVGRE or VxLAN packets and calcuates hash based on user-defined ruls.  
+PBH uses ACL engine to match NVGRE/VxLAN packets and calculates hash based on user-defined rules.  
 Hashing is configured based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src.  
-
-A custom hasing can be configured for Dynamic/FG ECMP and LAG.
-
-
-A 5-tuple 
-
-
-PBH balh....
+A custom hashing can be configured for Dynamic/FG ECMP and LAG.
 
 ## 2.2 SAI API
 
@@ -308,35 +303,6 @@ public:
 };
 ```
 
-
-
-
-
- and will be used by PBH orchestrator
-for PBH 
-
-
-ACL orch will be extend
-
-The next changes are required for `aclorch`:
-1. Add support for new PBH table
-2. Add support for new PBH rule
-
-
-**aclorch.cpp:**
-```cpp
-bool AclTable::create()
-{
-    ...
-
-    if (type == ACL_TABLE_PBH)
-    {
-        ...
-    }
-```
-
-
-
 ## 2.4 DB schema
 
 ### 2.4.1 Config DB
@@ -347,13 +313,15 @@ bool AclTable::create()
 key = PBH_TABLE|table_name ; table name. Must be unique
 
 ; field     = value
-port_list   = [0-max_ports]*port_name ; ports to which this table is applied. Can be empty
-lag_list    = [0-max_ports]*port_name ; portchannels to which this table is applied. Can be empty
-description = *255VCHAR               ; table description. Can be empty
+port_list   = port-list ; ports to which this table is applied. Can be empty
+lag_list    = lag-list  ; portchannels to which this table is applied. Can be empty
+description = *255VCHAR ; table description. Can be empty
 
 ; value annotations
-port_name = 1*64VCHAR ; name of the port, must be unique
-max_ports = 1*5DIGIT  ; number of ports supported on the chip
+port-name = 1*64VCHAR                         ; name of the port
+port-list = port-name [ 1*( "," port-name ) ] ; list of the ports. Valid values range is platform dependent
+lag-name  = "PortChannel" 1*4DIGIT            ; name of the portchannel
+lag-list  = lag-name [ 1*( "," lag-name ) ]   ; list of the portchannels. Valid values range is platform dependent
 ```
 
 **Note:** at least one member of _port_list_ or _lag_list_ is required
@@ -381,6 +349,8 @@ hash-list     = "[" hash-name [ 1*( "," hash-name ) ] "]"
 packet-action = "SET_ECMP_HASH" / "SET_LAG_HASH"
 ```
 
+**Note:** at least one match filed (_gre_key_/_ip_protocol_/_l4_dst_port_/_inner_ether_type_) is required
+
 #### 2.4.1.3 PBH hash
 ```abnf
 ; defines schema for PBH hash configuration attributes
@@ -399,7 +369,7 @@ sequence_id = 1*5DIGIT    ; Specifies in which order the fields are hashed,
                           ; for CRC with the same sequence ID
 
 ; value annotations
-hash-field  = "INNER_IP_PROTOCOL" 
+hash-field  = "INNER_IP_PROTOCOL"
               / "INNER_L4_DST_PORT"
               / "INNER_L4_SRC_PORT"
               / "INNER_DST_IPV4"
@@ -517,13 +487,13 @@ ipv6-prefix = 6( h16 ":" ) ls32
 
 ![PBH add flow](images/pbh_add_flow.svg "Figure 3: PBH add flow")
 
-###### Figure 2: PBH add flow
+###### Figure 3: PBH add flow
 
 ### 2.5.2 PBH remove
 
 ![PBH remove flow](images/pbh_remove_flow.svg "Figure 4: PBH remove flow")
 
-###### Figure 3: PBH remove flow
+###### Figure 4: PBH remove flow
 
 ## 2.6 CLI
 
@@ -600,10 +570,12 @@ pbhutil config hash remove 'inner_dst_ipv6'
 **The following command shows table configuration:**
 ```bash
 root@sonic:/home/admin# pbhutil show table
-Name       Port        Lag              Description
----------  ----------  ---------------  ---------------
-pbh_table  Ethernet0   PortChannel0001  NVGRE and VxLAN
-           Ethernet4   PortChannel0002
+Name       Interface        Description
+---------  ---------------  ---------------
+pbh_table  Ethernet0        NVGRE and VxLAN
+           Ethernet4
+           PortChannel0001
+           PortChannel0002
 ```
 
 **The following command shows rule configuration:**
@@ -658,3 +630,5 @@ TBD
 # 4 Open questions
 
 1. PBH rule hit statistics: do we need it?
+2. PBH CLI: do we need a separate utility for it?
+3. ACL capabilities: do we need additional check to avoid programing PBH on platforms which doesn't support it?
