@@ -79,8 +79,8 @@ This document provides general information about PBH implementation in SONiC
 
 [Figure 1: PBH design](#figure-1-pbh-design)  
 [Figure 2: PBH OA design](#figure-2-pbh-oa-design)  
-[Figure 3: PBH design](#figure-3-pbh-add-flow)  
-[Figure 4: PBH OA design](#figure-4-pbh-remove-flow)
+[Figure 3: PBH add flow](#figure-3-pbh-add-flow)  
+[Figure 4: PBH remove flow](#figure-4-pbh-remove-flow)
 
 ## List of tables
 
@@ -243,7 +243,7 @@ private:
 
 ### 2.3.3 ACL orch
 
-This orchestrator provides API for ACL table/rule configuration.
+This orchestrator provides API for ACL table/rule configuration.  
 It is already exists in SONiC.
 
 ACL orchestrator will be extended to support PBH table/rule concept.  
@@ -345,11 +345,11 @@ h8            = 1*2HEXDIG
 h16           = 1*4HEXDIG
 h32           = 1*8HEXDIG
 hash-name     = 1*64VCHAR
-hash-list     = "[" hash-name [ 1*( "," hash-name ) ] "]"
+hash-list     = hash-name [ 1*( "," hash-name ) ]
 packet-action = "SET_ECMP_HASH" / "SET_LAG_HASH"
 ```
 
-**Note:** at least one match filed (_gre_key_/_ip_protocol_/_l4_dst_port_/_inner_ether_type_) is required
+**Note:** at least one match field (_gre_key_/_ip_protocol_/_l4_dst_port_/_inner_ether_type_) is required
 
 #### 2.4.1.3 PBH hash
 ```abnf
@@ -376,10 +376,8 @@ hash-field  = "INNER_IP_PROTOCOL"
               / "INNER_SRC_IPV4"
               / "INNER_DST_IPV6"
               / "INNER_SRC_IPV6"
-
 h16         = 1*4HEXDIG
-ls32        = ( h16 ":" h16 )
-
+ls32        = h16 ":" h16
 dec-octet   = DIGIT                  ; 0-9
               / %x31-39 DIGIT        ; 10-99
               / %x31 2DIGIT          ; 100-199
@@ -396,6 +394,8 @@ ipv6-prefix = 6( h16 ":" ) ls32
               / [ *5( h16 ":" ) h16 ] "::"              h16
               / [ *6( h16 ":" ) h16 ] "::"
 ```
+
+**Note:** field _ipv4_mask_/_ipv6_mask_ is only valid when _hash_field_ equals _INNER_DST/SRC_IPV4/IPV6_
 
 ### 2.4.2 Configuration sample
 
@@ -611,7 +611,123 @@ inner_src_ipv6     INNER_SRC_IPV6     ::FFFF     4
 
 ## 2.7 DPB YANG model
 
-TBD
+A new YANG model `sonic-pbh.yang` will be added to `sonic-buildimage/src/sonic-yang-models/yang-models`  
+in order to provide support for DPB and management framework.
+
+**Skeleton code:**
+```yang
+module sonic-pbh {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/Azure/sonic-pbh";
+    prefix pbh;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import sonic-types {
+        prefix stypes;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-extension {
+        prefix ext;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-port {
+        prefix port;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-portchannel {
+        prefix lag;
+        revision-date 2019-07-01;
+    }
+
+    description "PBH YANG Module for SONiC OS";
+
+    revision 2021-03-15 {
+        description "First Revision";
+    }
+
+    container sonic-pbh {
+
+        container PBH_HASH {
+
+            description "PBH_HASH part of config_db.json";
+
+            key "PBH_HASH_NAME";
+
+            ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)$";
+
+            ext:key-regex-yang-to-configdb "<PBH_HASH_NAME>";
+
+            ...
+
+        }
+        /* end of container PBH_HASH */
+
+        container PBH_RULE {
+
+            description "PBH_RULE part of config_db.json";
+
+            list PBH_RULE_LIST {
+
+                key "PBH_TABLE_NAME PBH_RULE_NAME";
+
+                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)$";
+
+                ext:key-regex-yang-to-configdb "<PBH_TABLE_NAME>|<PBH_RULE_NAME>";
+
+                leaf PBH_TABLE_NAME {
+                    type leafref {
+                        path "/pbh:sonic-pbh/pbh:PBH_TABLE/pbh:PBH_TABLE_LIST/pbh:PBH_TABLE_NAME";
+                    }
+                }
+
+                leaf PBH_RULE_NAME {
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                ...
+
+            }
+            /* end of PBH_RULE_LIST */
+        }
+        /* end of container PBH_RULE */
+
+        container PBH_TABLE {
+
+            description "PBH_TABLE part of config_db.json";
+
+            list PBH_TABLE_LIST {
+
+                key "PBH_TABLE_NAME";
+
+                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9-_]+)$";
+
+                ext:key-regex-yang-to-configdb "<PBH_TABLE_NAME>";
+
+                leaf PBH_TABLE_NAME {
+                    type string;
+                }
+
+                ...
+
+            }
+            /* end of PBH_TABLE_LIST */
+        }
+        /* end of container PBH_TABLE */
+    }
+    /* end of container sonic-pbh */
+}
+/* end of module sonic-pbh */
+```
 
 ## 2.8 Warm/Fast boot
 
