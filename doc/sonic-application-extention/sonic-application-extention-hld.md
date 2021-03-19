@@ -695,6 +695,18 @@ can be installed at any given time.
 | /package/breaks/[index]/components  | object | no        | Per component version                                                          |
 | /package/base-os-constraint         | string | no        | Base image version dependency constraint. Defaults to  '*': allows any version |
 
+Another proposal for base OS version checking:
+
+<!-- omit in toc -->
+###### manifest path
+
+| Path                              | Type      | Mandatory | Description                   |
+| --------------------------------- | --------- | --------- | ----------------------------- |
+| /package/base-os/                 | object    | no        | Base OS versions constraints  |
+| /package/base-os/[index]/name     | strnig    | yes       | Base OS component name        |
+| /package/base-os/[index]/version  | string    | yes       | Base OS component version     |
+
+
 Each SONiC Package can have a list of labels representing components versions:
 
 ```
