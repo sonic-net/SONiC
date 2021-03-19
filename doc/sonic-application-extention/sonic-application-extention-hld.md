@@ -487,6 +487,9 @@ Options:
                                    --from-tarball
   --from-tarball                   Install from tarball. Mutually exclusive with
                                    PACKAGE_EXPR and --from-repository
+  --skip-cli-plugin-installation   Do not install CLI plugins provided by the
+                                   package on the host OS if the CLI plugin is
+                                   not mandatory.
   --help                           Show this message and exit
 ```
 
@@ -1131,6 +1134,7 @@ ave to be also auto-generated from YANG in the future.
 
 | Path                   | Type   | Mandatory | Description                                                     |
 | ---------------------- | ------ | --------- | --------------------------------------------------------------- |
+| /cli/mandatory         | boolean| no        | Wether CLI is a mandatory functionality for the package. Default: False. |
 | /cli/show-cli-plugin   | string | no        | A path to a plugin for sonic-utilities show CLI command.        |
 | /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
 | /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
