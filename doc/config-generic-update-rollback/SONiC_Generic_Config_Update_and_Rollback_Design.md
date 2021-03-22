@@ -166,6 +166,7 @@ admin@sonic:~$ config rollback mycheckpoint # in case of failures
 - A single, simple command to partially update SONiC configuration according to a patch of updates
 - A single, simple command to take a checkpoint of the full current SONiC config
 - A single, simple command to fully rollback current SONiC configs with to a checkpoint
+- [Add-on] A single simple command to fully replace current SONiC configs with a full config provided by an external user/system.
 - Other commands to list checkpoints, delete checkpoints
 - The patch of updates should follow a standard notation. The [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) notation should be used
 - Config rollback should be with minimum disruption to the device e.g. if reverting ACL updates DHCP should not be affected i.e. minimum-disruption rollback
@@ -452,7 +453,7 @@ The *ConfigDBConnector* class is used to obtain the running configuration in JSO
 #### Stage-2 Save JSON config
 Save the checkpoint to a dedicated location on the SONiC box
 
-### 2.2.3 rollback
+### 2.2.3 Rollback
 The SONiC `rollback` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
@@ -477,6 +478,35 @@ If an error is encountered during the `rollback` operation, an error is reported
 #### Logging
 
 All the configuration update operations executed and the output displayed by the `rollback` command are stored in the systemd journal. They are also forwarded to the syslog. By storing the commands in the systemd-journal, the user will be able to search and display them easily at a later point in time. The `show rollback log` command reads the systemd-journal to display information about the `rollback` command that was previously executed or currently in progress.
+
+### 2.2.3 Replace
+The SONiC `replace` command can broadly classified into the following steps
+
+#### Stage-1 Get current ConfigDB JSON config
+The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
+
+#### Stage-2 Get target config from the external user/system
+The external user/system to provide the full target ConfigDB config in JSON format.
+
+#### Stage-3 Validating the target config using YANG models
+The target config are unknown configs and need to be validating using YANG models
+
+#### Stage-4 Generate the diff as JsonPatch between current config and target config
+The current ConfigDB JSON config is compared with the target JSON config. The comparison result should be in JsonPatch format.
+
+#### Stage-5 Apply-Patch
+Pass the generated JsonPatch to the apply-patch API
+
+#### Stage-6 Verify config replace
+Compare the ConfigDB JSON after the update with the target JSON, there should be no differences.
+
+#### Fail-safe Action
+
+If an error is encountered during the `replace` operation, an error is reported and the system DOES NOT take any automatic action. The user can take a `checkpoint` before running `replace` and if the operation failed, the user can `rollback`.
+
+#### Logging
+
+All the configuration update operations executed and the output displayed by the `replace` command are stored in the systemd journal. They are also forwarded to the syslog. By storing the commands in the systemd-journal, the user will be able to search and display them easily at a later point in time. The `show replace log` command reads the systemd-journal to display information about the `replace` command that was previously executed or currently in progress.
 
 # 3 Design
 
@@ -658,6 +688,24 @@ Same as [3.1.1.2 SONiC CLI](#3112-sonic-cli)
 Same as [3.1.2.5 File system](#3125-file-system)
 
 #### 3.1.3.4 ConfigDB
+same as [3.1.1.5 ConfigDB](#3115-configdb)
+
+### 3.1.3 Replace
+<img src="files/replace-design.png" alt="replace-design" width="1200"/>
+
+#### 3.1.3.1 User
+Same as [3.1.2.1 User](#3121-user)
+
+#### 3.1.3.2 SONiC CLI
+Same as [3.1.1.2 SONiC CLI](#3112-sonic-cli)
+
+#### 3.1.3.3 YANG models
+Same as [3.1.1.3 YANG models](#3113-yang-models)
+
+#### 3.1.3.4 File system
+Same as [3.1.2.5 File system](#3125-file-system)
+
+#### 3.1.3.5 ConfigDB
 same as [3.1.1.5 ConfigDB](#3115-configdb)
 
 ### 3.2 User Interface
