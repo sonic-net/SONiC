@@ -362,7 +362,7 @@ The document contain info describing for each table the services that needs rest
 - services - contains all the information needed for the services.
 - SERVICE-NAME - The service name corresponding to services running on SONiC box, will contain all the services metadata. There can be multiple different SERVICE-NAME keys/dictionaries.
 - restart-command - The CLI command used to restart the corresponding service.
-- validate-command - The CLI command used to validate the service has absorbed the change successfully.
+- validate-command - The CLI command used to validate the service has absorbed the change successfully. The validate command can expect the config before and after the update to passed to the CLI command for detailed validation if needed.
 
 ### 3.2.2 CLI
 N/A
