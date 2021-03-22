@@ -228,7 +228,7 @@ and the ask to:
 
 The steps would be:
 
-1) Take a checkpoint of the config
+1) Take the content of config DB here and store it as a checkpoint
 ```
 admin@sonic:~$ config checkpoint mycheckpoint
 ```
