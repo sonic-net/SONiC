@@ -34,7 +34,7 @@
     + [2.2.2 Checkpoint](#222-checkpoint)
       - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config)
       - [Stage-2 Save JSON config](#stage-2-save-json-config)
-    + [2.2.3 rollback](#223-rollback)
+    + [2.2.3 Rollback](#223-rollback)
       - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config-1)
       - [Stage-2 Get checkpoint JSON config](#stage-2-get-checkpoint-json-config)
       - [Stage-3 Generate the diff as JsonPatch between current config and checkpoint](#stage-3-generate-the-diff-as-jsonpatch-between-current-config-and-checkpoint)
@@ -42,6 +42,15 @@
       - [Stage-5 Verify config rollback](#stage-5-verify-config-rollback)
       - [Fail-safe Action](#fail-safe-action-1)
       - [Logging](#logging-1)
+    + [2.2.4 Replace](#224-replace)
+      - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config-2)
+      - [Stage-2 Get target config from the external user/system](#stage-2-get-target-config-from-the-external-user-system)
+      - [Stage-3 Validating the target config using YANG models](#stage-3-validating-the-target-config-using-yang-models)
+      - [Stage-4 Generate the diff as JsonPatch between current config and target config](#stage-4-generate-the-diff-as-jsonpatch-between-current-config-and-target-config)
+      - [Stage-5 Apply-Patch](#stage-5-apply-patch)
+      - [Stage-6 Verify config replace](#stage-6-verify-config-replace)
+      - [Fail-safe Action](#fail-safe-action-2)
+      - [Logging](#logging-2)
 - [3 Design](#3-design)
   * [3.1 Overview](#31-overview)
     + [3.1.1 ApplyPatch](#311-applypatch)
@@ -65,6 +74,12 @@
       - [3.1.3.2 SONiC CLI](#3132-sonic-cli)
       - [3.1.3.4 File system](#3134-file-system)
       - [3.1.3.4 ConfigDB](#3134-configdb)
+    + [3.1.4 Replace](#314-replace)
+      - [3.1.4.1 User](#3141-user)
+      - [3.1.4.2 SONiC CLI](#3142-sonic-cli)
+      - [3.1.4.3 YANG models](#3143-yang-models)
+      - [3.1.4.4 File system](#3144-file-system)
+      - [3.1.4.5 ConfigDB](#3145-configdb)
     + [3.2 User Interface](#32-user-interface)
     + [3.2.1 Data Models](#321-data-models)
       - [3.2.1.1 JsonPatch](#3211-jsonpatch)
@@ -81,6 +96,7 @@
   * [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch)
   * [9.2 Unit Tests for Checkpoint](#92-unit-tests-for-checkpoint)
   * [9.3 Unit Tests for Rollback](#93-unit-tests-for-rollback)
+  * [9.4 Unit Tests for Replace](#94-unit-tests-for-replace)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -166,7 +182,7 @@ admin@sonic:~$ config rollback mycheckpoint # in case of failures
 - A single, simple command to partially update SONiC configuration according to a patch of updates
 - A single, simple command to take a checkpoint of the full current SONiC config
 - A single, simple command to fully rollback current SONiC configs with to a checkpoint
-- [Add-on] A single simple command to fully replace current SONiC configs with a full config provided by an external user/system.
+- [low-priority] A single simple command to fully replace current SONiC configs with a full config provided by an external user/system.
 - Other commands to list checkpoints, delete checkpoints
 - The patch of updates should follow a standard notation. The [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) notation should be used
 - Config rollback should be with minimum disruption to the device e.g. if reverting ACL updates DHCP should not be affected i.e. minimum-disruption rollback
@@ -479,7 +495,7 @@ If an error is encountered during the `rollback` operation, an error is reported
 
 All the configuration update operations executed and the output displayed by the `rollback` command are stored in the systemd journal. They are also forwarded to the syslog. By storing the commands in the systemd-journal, the user will be able to search and display them easily at a later point in time. The `show rollback log` command reads the systemd-journal to display information about the `rollback` command that was previously executed or currently in progress.
 
-### 2.2.3 Replace
+### 2.2.4 Replace
 The SONiC `replace` command can broadly classified into the following steps
 
 #### Stage-1 Get current ConfigDB JSON config
@@ -690,22 +706,22 @@ Same as [3.1.2.5 File system](#3125-file-system)
 #### 3.1.3.4 ConfigDB
 same as [3.1.1.5 ConfigDB](#3115-configdb)
 
-### 3.1.3 Replace
+### 3.1.4 Replace
 <img src="files/replace-design.png" alt="replace-design" width="1200"/>
 
-#### 3.1.3.1 User
+#### 3.1.4.1 User
 Same as [3.1.2.1 User](#3121-user)
 
-#### 3.1.3.2 SONiC CLI
+#### 3.1.4.2 SONiC CLI
 Same as [3.1.1.2 SONiC CLI](#3112-sonic-cli)
 
-#### 3.1.3.3 YANG models
+#### 3.1.4.3 YANG models
 Same as [3.1.1.3 YANG models](#3113-yang-models)
 
-#### 3.1.3.4 File system
+#### 3.1.4.4 File system
 Same as [3.1.2.5 File system](#3125-file-system)
 
-#### 3.1.3.5 ConfigDB
+#### 3.1.4.5 ConfigDB
 same as [3.1.1.5 ConfigDB](#3115-configdb)
 
 ### 3.2 User Interface
@@ -913,3 +929,8 @@ N/A
 | Test Case | Description |
 | --------- | ----------- |
 | 1 ..*     | Rollback all unit-tests specified in [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch). |
+
+## 9.4 Unit Tests for Replace
+| Test Case | Description |
+| --------- | ----------- |
+| 1 ..*     | Use replace instead of apply-patch for unit-tests specified in [9.1 Unit Tests for Apply-Patch](#91-unit-tests-for-apply-patch). |
