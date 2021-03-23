@@ -314,6 +314,8 @@ Metadata component contains info about which services correspond to which table.
 ### 3.1.4 Services
 These are the SONiC services such as rsyslog, dhcp_relay, ntp-config.service, ntp.service, bgp, swss, restapi..etc.
 
+The 3 dots (`...`) in `ValidateService(services, validationCommand, ...)` indicate other parameters can be passed to help with detailed validation such as ConfigDB as JSON before and after the update.
+
 ### 3.1.5 ConfigDB
 SONiC is managing configuration in a single source of truth - a redisDB instance that we refer as ConfigDB. Applications subscribe to ConfigDB and generate their running configuration correspondingly.
 
