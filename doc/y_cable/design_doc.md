@@ -1,4 +1,4 @@
-## Multiple y cable vendor API design
+## Multiple Y-cable vendor API design
 
 ## Revision
 
@@ -31,6 +31,7 @@ Challenge: to provide an interface for Y cable to interact with PMON docker and 
   - Also lets suppose once the type/vendor of the cable is known from where does PMon container or cli import the module ?
   - Since there can be many specs which vendors follow (8636, 8624 etc.) for transceivers it is important to have a solution which meets all requirements so that the API access is available to whoever wants to invoke it.
   - another issue is how do we support the multiple vendors modules/packages which could be used by both SONiC PMon container docker as well as the sonic cli (sonic-utilities). Basically the package should be available both in host and container.
+
 #### Proposed Solution
 
 - We define a file which would contain vendor to module mapping and put it in a place which is accessible to both PMon container and host
@@ -48,6 +49,9 @@ Vendors can have several implementations/ways to use this concept
 - A combination of the above
 
 - Mapping could be such that its a dictionary in 2D
+
+For example
+
 ```
 	<vendor_name>,<module>
 	<vendor_name>,<model_name>,<module>
@@ -100,7 +104,7 @@ Vendors can have several implementations/ways to use this concept
 #### Background
 
   - Basically, the key idea is once we have a port identified as being of a certain vendor and it has been identified to load a certain module which we can gather from the mapping described above we still need to call the correct module on each port each time we call the API on the port
-  - want to maintain this mapping in memory since xcvrd does not want to read/parse this y_cable_vendor_mapping.csv file again and again each time we call the y cable API
+  - want to maintain this mapping in memory since xcvrd does not want to read/parse this y_cable_vendor_mapping.csv file again and again each time we call the Y-cable API
   - Also note that the module loaded might change during xcvrd running lifetime since cable can be changed from one vendor to another. So we need to take this into consideration as well
 
 #### Proposed Solution
@@ -108,7 +112,7 @@ Vendors can have several implementations/ways to use this concept
   - Each module of the Y cable vendor can be a class (of each transceiver type) and all we need to do is instantiate the objects of these classes as class instances and these objects will provide the interface of calling the API's for the appropriate vendor Y cable.
   - This instantiation will be done inside xcvrd, when xcvrd starts
   - These objects basically emulate Y cable instances and whatever action/interaction needs to be done with the Ycable the methods of these objects would provide that
-  - each vendor in their implementation can inherit from a base class where there will be definitions for all the supported capabilities of the y cable.
+  - each vendor in their implementation can inherit from a base class where there will be definitions for all the supported capabilities of the Y-cable.
   - If the vendor does not support or implement the utility, it will just raise a not implemented error from the base class itself
 
 For example a typical module of the vendor can be like this
@@ -206,7 +210,7 @@ the base class would be like this
 #### Proposed Solution(s)
 
   - One way is since CLI lives in the host, we can choose to do everything on xcvrd lines. Meaning once there is port number, convert to a physical port and look into vendor to module mapping file and then load the module and execute the API
-  - Another way is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the y cable.
+  - Another way is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-cable.
 
 ```
 	HW_MUX_OPERATION_TABLE|Ethernet0
