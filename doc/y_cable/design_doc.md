@@ -18,19 +18,21 @@ and all the feature requirements are met.
 
 
 Challenge: to provide an interface for Y cable to interact with PMON docker and HOST
-           which can be uniform across all vendors.
+           which can be uniform across all vendors. As part of this refactor, we will
+           be moving towards a model where only xcvrd interacts with the cables/transceivers, 
+           and host-side processes will communicate with xcvrd rather than with the devices directly
 
 
 ### Vendor to Module mapping
 
 #### Background
 
-- We need to have a vendor to Y cable module mappings defined and accessible somewhere for PMon container/cli to import
+- We need to have a vendor to corresponding Y cable module mappings defined and accessible somewhere for PMon container to import
 
   - Before calling any Y cable API, how do we know which type/vendor does the Y cable belong to ?
   - Also lets suppose once the type/vendor of the cable is known from where does PMon container or cli import the module ?
   - Since there can be many specs which vendors follow (8636, 8624 etc.) for transceivers it is important to have a solution which meets all requirements so that the API access is available to whoever wants to invoke it.
-  - another issue is how do we support the multiple vendors modules/packages which could be used by both SONiC PMon container docker as well as the sonic cli (sonic-utilities). Basically the package should be available both in host and container.
+  - another issue is how do we support the multiple vendors modules/packages which could be used by both SONiC PMon container docker as well as the sonic cli (sonic-utilities). Basically the package should be available both in host and container. Although we are moving towards a model where cli should not need to import Y cable modules but it is still preferred have it accessible
 
 #### Proposed Solution
 
@@ -50,24 +52,24 @@ Vendors can have several implementations/ways to use this concept
 
 - Mapping could be such that its a dictionary in 2D
 
-For example
 
 ```
-	<vendor_name>,<module>
-	<vendor_name>,<model_name>,<module>
+	{<vendor_name_1>: {<model_name: <module>},
+	<vendor_name_2> : {<model_name>:<module>}}
 ```
 - For example
 ```
-	Credo,credo_model1,y_cable.py
-	Credo,y_cable.py
+	{"Credo" : {"model1": "y_cable.py"},
+ 	 "Amphenol" : {"model_a": "y_cable_a.py", "model_b":"y_cable_b.py"}}
 ```
 
 #### Rationale
 
   - This is because both the container and host can easily access this path. And it would be easy to mount this on container (PMon container) as applicable.
+  - The sonic_y_cable package is installed in both host and pmon
 
 #### Implementation details
-- Once the xcvrd will start (daemon launched) it will know the Vendor name from the register specification and then it can appropriately read and parse the vendor name from the spec. Once it has this information it can then using this file Load/import the appropriate module.
+- Once the xcvrd will start (daemon launched) it will know the Vendor name from the register specification and then it can appropriately read and parse the vendor name from the spec. Once it has this information it can then using this file to Load/import the appropriate module.
 
 ### Directory Structure
 
@@ -210,8 +212,9 @@ the base class would be like this
 #### Proposed Solution(s)
 
   - One way is since CLI lives in the host, we can choose to do everything on xcvrd lines. Meaning once there is port number, convert to a physical port and look into vendor to module mapping file and then load the module and execute the API
-  - Another way is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-cable.
+  - The more preferred approach here is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-cable. 
 
+Exanple table and operations
 ```
 	HW_MUX_OPERATION_TABLE|Ethernet0
 	state active/standby
