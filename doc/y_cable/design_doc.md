@@ -69,7 +69,7 @@ Vendors can have several implementations/ways to use this concept
   - The sonic_y_cable package is installed in both host and pmon
 
 #### Implementation details
-- Once the xcvrd will start (daemon launched) it will know the Vendor name from the register specification and then it can appropriately read and parse the vendor name from the spec. Once it has this information it can then using this file to Load/import the appropriate module.
+- Once the xcvrd will start (daemon launched) or tranceiver is connected (plugged in), in both cases xcvrd can determine the Vendor name and part number from the register specification and then it can appropriately read and parse the vendor name and part number from the spec using eeprom. Once it has this information it can then use this file to Load/import the appropriate module.
 
 ### Directory Structure
 
