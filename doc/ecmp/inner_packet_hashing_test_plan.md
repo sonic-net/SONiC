@@ -25,15 +25,20 @@ The test will be supported on the T0 toplogy, it may be enhanced in the future f
 6. Calculate the expected number of packets per port
 7. Validate if received packet count per port is within a 25% deviation of expected number of packets on the port
 
-### Vxlan inner packet hashing
-The test will send vxlan inner packets and validate that varying any single 5-tuple of the inner packet results in hash variation.
-Vxlan packets will be sent with both outer IPv4 and outer IPv6.
+### Different outer encapsulation formats tested with various inner packets
+1. The test will send inner packets and validate that varying any single 5-tuple of the inner packet results in hash variation, it will be sent with various outer encapsulation formats listed below
+2. IPv4 Vxlan
+3. IPv6 Vxlan
+4. IPv4 NVGRE
+5. IPv6 NVGRE
 
-### Inner packet types for tuple variation
-Validate hashing with different inner packet types:
-1. IPv4 TCP
-2. IPv4 UDP
-3. IPv4 ICMP
+### Inner packet tuples varied for hash valdiation:
+Validate hashing with different inner packet tuples:
+1. Src IP
+2. Dst IP
+3. Src Port
+4. Dst Port
+5. IP Protocol
 
 ### Direction agnostic hashing
 As an optional mode, the test will also validate direction agnostic packet hashing: 2 directions of a flow land on the same ecmp nexthop. 
