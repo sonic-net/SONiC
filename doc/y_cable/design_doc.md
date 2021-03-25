@@ -40,8 +40,9 @@ Challenge: to provide an interface for Y cable to interact with PMON docker and 
 - It makes sense to keep the mapping file in the sonic_y_cable package so that it can be updated in the same pull request when a vendor adds a new cable implementation. However, we cannot install data files outside of the Python directory via a wheel. Considering this we propose to make this a Python file which simply contains a 2D dictionary which can be used to look up the module path. If the file is part of the sonic_y_cable package, it will be installed in both the PMon container and the host
 
 For example
-```
-	/sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
+```python
+
+    /sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
 ```
 
 Vendors can have several implementations/ways to use this concept
@@ -52,7 +53,8 @@ Vendors can have several implementations/ways to use this concept
 - Mapping could be such that its a dictionary in 2D
 
 
- ```python
+```python
+
     {
          <vendor_name_1>: {
              <model_name: <module>
@@ -61,9 +63,10 @@ Vendors can have several implementations/ways to use this concept
              <model_name>: <module>
          }
     }
- ```
+```
 
-- For example
+For example
+
 ```python
 
    {
@@ -210,33 +213,33 @@ For example a typical module of the vendor can be like this
         part_name = get_part_name(port)
 
         module = y_cable_vendor_mapping.mapping[vendor_name][part_name]
-        
-	from sonic_y_cable import vendor_name.part_name.module.YCable as YCable
 
-	y_cable_port_Ethernet0 = YCable(port)
+        from sonic_y_cable import vendor_name.part_name.module.YCable as YCable
 
-	# and to use the Y cable APIS
-	try:
-	    y_cable_port_Etherne0.toggle_mux_to_torA()
-	except:
-	    helper_logger.log(not able to toggle_mux_to_torA)
+        y_cable_port_Ethernet0 = YCable(port)
+
+        # and to use the Y cable APIS
+        try:
+            y_cable_port_Etherne0.toggle_mux_to_torA()
+        except:
+            helper_logger.log(not able to toggle_mux_to_torA)
+
 ```
 #### Rationale
 
   - xcvrd can maintain a dict of these objects an whenever it needs to call the API for the correct port (in this case physical port) it can easily achieve so by indexing into the instance of the physical port and calling the class object.
 
 ```python
+        Y_cable_ports_instances = {}
 
-	Y_cable_ports_instances = {}
+        # appending instances in the dictionary
+        Y_cable_ports_instances[physical_port] = YCable(port)
 
-	# appending instances in the dictionary
-	Y_cable_ports_instances[physical_port] = YCable(port)
-
-	# and to use the Y cable APIS
-	try:
-	    Y_cable_ports_instances[physical_port].toggle_mux_to_torA()
-	except:
-	    helper_logger.log(not able to toggle_mux_to_torA)
+        # and to use the Y cable APIS
+        try:
+            Y_cable_ports_instances[physical_port].toggle_mux_to_torA()
+        except:
+            helper_logger.log(not able to toggle_mux_to_torA)
 ```
 
 
