@@ -468,8 +468,10 @@ Options:
   --from-tarball                   Install from tarball. Mutually exclusive with
                                    PACKAGE_EXPR and --from-repository
   --skip-cli-plugin-installation   Do not install CLI plugins provided by the
-                                   package on the host OS if the CLI plugin is
-                                   not mandatory.
+                                   package on the host OS
+                                   Note: In case package CLI is defined as mandatory
+                                   and this option is beeing used the installation
+                                   will fail.
   --help                           Show this message and exit
 ```
 
@@ -674,7 +676,7 @@ can be installed at any given time.
 | /package/breaks[index]/version      | string | no        | Version constraint expression string                                           |
 | /package/breaks/[index]/components  | object | no        | Per component version                                                          |
 
-Another proposal for base OS version checking:
+Base OS component version checking:
 
 <!-- omit in toc -->
 ###### manifest path
