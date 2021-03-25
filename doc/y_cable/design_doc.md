@@ -40,7 +40,7 @@ Challenge: to provide an interface for Y cable to interact with PMON docker and 
 - It makes sense to keep the mapping file in the sonic_y_cable package so that it can be updated in the same pull request when a vendor adds a new cable implementation. However, we cannot install data files outside of the Python directory via a wheel. Considering this we propose to make this a Python file which simply contains a 2D dictionary which can be used to look up the module path. If the file is part of the sonic_y_cable package, it will be installed in both the PMon container and the host
 
 For example
-```python
+```
 
     /sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
 ```
@@ -54,7 +54,6 @@ Vendors can have several implementations/ways to use this concept
 
 
 ```python
-
     {
          <vendor_name_1>: {
              <model_name: <module>
@@ -68,15 +67,14 @@ Vendors can have several implementations/ways to use this concept
 For example
 
 ```python
-
    {
-        "Credo": {
-             "model1": "y_cable.py"
+        "Vendor1": {
+             "model1": "vendor1/y_cable.py"
         },
 
- 	"Amphenol" : {
-             "model_a": "y_cable_a.py",
-             "model_b": "y_cable_b.py"
+ 	"Vendor2" : {
+             "model_a": "vendor2/y_cable_a.py",
+             "model_b": "vendor2/y_cable_b.py"
         }
    }
 ```
@@ -104,24 +102,24 @@ For example
 
 - Vendors can place their implementations in this format
 
-```python
+```
 	sonic_platform_common/sonic_y_cable/<vendor>/<module>
 ```
 
-```python
-	sonic_platform_common/sonic_y_cable/<vendor>/<part_number>/<module>
-	sonic_platform_common/sonic_y_cable/<vendor>/<part_number>/<module>
+```
+	sonic_platform_common/sonic_y_cable/<vendor>/<module_1>
+	sonic_platform_common/sonic_y_cable/<vendor>/<module_2>
 ```
 - Few examples
 
-```python
-	sonic_platform_common/sonic_y_cable/credo/y_cable.py
+```
+	sonic_platform_common/sonic_y_cable/vendor1/y_cable.py
 ```
 
-```python
-	sonic_platform_common/sonic_y_cable/credo/PART_XYZ/y_cable_xyz.py
-	sonic_platform_common/sonic_y_cable/credo/PART_ABC/y_cable_abc.py
-	sonic_platform_common/sonic_y_cable/credo/PART_ABC/abc_helper.py
+```
+	sonic_platform_common/sonic_y_cable/vendor2/y_cable_xyz.py
+	sonic_platform_common/sonic_y_cable/vendor2/y_cable_abc.py
+	sonic_platform_common/sonic_y_cable/vendor2/abc_helper.py
 ```
 #### Rationale
 - The requirement here would be that the vendors must create their modules such that It can easily be accessed/imported and the modules also adhere to a uniform convention
@@ -143,9 +141,9 @@ For example
 
   - Each module of the Y cable vendor can be a class (of each transceiver type) and all we need to do is instantiate the objects of these classes as class instances and these objects will provide the interface of calling the API's for the appropriate vendor Y cable.
   - This instantiation will be done inside xcvrd, when xcvrd starts
-  - These objects basically emulate Y cable instances and whatever action/interaction needs to be done with the YCable the methods of these objects would provide that
+  - These objects basically emulate Y cable instances and whatever action/interaction needs to be done with the Y-Cable the methods of these objects would provide that
   - each vendor in their implementation can inherit from a base class where there will be definitions for all the supported capabilities of the Y-cable.
-  - for vendors the recommneded approach in case their subclass implementation does not support a method, it should set the method equal to None. This differentiates it from a method they forgot to implement. Then, the calling code should first check if the method is None before attempting to call it.
+  - for vendors the recommended approach in case their subclass implementation does not support a method, is to set the method equal to None. This differentiates it from a method they forgot to implement. Then, the calling code should first check if the method is None before attempting to call it.
 
 For example the base class would be like this
 
@@ -175,9 +173,7 @@ For example the base class would be like this
 
 For example a typical module of the vendor can be like this
 ```python
-
 	class YCable(YCableBase):
-            #All vendor modules inherit from YCableBase
 
 	    def __init__(self):
                 <function body here>
@@ -202,6 +198,7 @@ For example a typical module of the vendor can be like this
 - Now for xcvrd to use this solution, all it has to do is instantiate the class objects defined by importing the appropriate module. This should happen when xcvrd starts or if there is a change event  (xcvrd inserted/removed)
 
 ```python
+        import importlib
         # import the vendor to module mapping
         from sonic_y_cable import y_cable_vendor_mapping
  
@@ -214,7 +211,11 @@ For example a typical module of the vendor can be like this
 
         module = y_cable_vendor_mapping.mapping[vendor_name][part_name]
 
-        from sonic_y_cable import vendor_name.part_name.module.YCable as YCable
+        from sonic_y_cable import module
+
+        importlib.reload(module)
+
+        from module import YCable
 
         y_cable_port_Ethernet0 = YCable(port)
 
@@ -248,7 +249,7 @@ For example a typical module of the vendor can be like this
 
 #### Background
 
-  - Another requirement we have is Cli also requires to interact with the YCable directly. This basically implies that all  Ycable vendor packages needs to be imported inside SONiC-utilities/host as well
+  - Another requirement we have is Cli also requires to interact with the Y-Cable directly. This basically implies that all  Ycable vendor packages needs to be imported inside SONiC-utilities/host as well
   - This would come in the form of commands like setting PRBS, enabling disabling loopback and also get the BER info and EYE info etc
   - Also commands such as config/show hwmode is important which gives the cli ability to toggle the mux without going into SONiC modules like mux-mgr or orchagent.
   - All these require access to Y cable APIs to be directly called by the cli. But then again same problems arrive, how do we know which type/vendor does the cable/port belong to, how to load the appropriate module etc
