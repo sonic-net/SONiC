@@ -327,27 +327,7 @@ e.g: *1.0.0 < 1.1.0* and *1.5.1 > 1.4.20*. For more details of comparison rules 
 The version number is defined as part of the SONiC package manifest. Package maintainers must follow the above versioning approach and are encouraged
 to follow a commonly used convention in Docker by tagging images with a version number [See next section].
 
-The base OS has also have a version number that follows the same rules of semantic versioning so that a package can define a dependency on
-base OS version. A new variable is introduced in */etc/sonic/sonic_version.yml* called "base_os_compatibility_version" that follows semantic
-versioning schema. This version is in addition to SONiC version we have today.
-
-This version number does not replace the current SONiC version string that is generated during the build so both SONiC version string and
-base OS compatibility version coexist. Base OS compatibility version can be updated independently from SONiC version.
-
-The updated output of "show version" command is given below:
-
-```
-admin@sonic:~$ show version
-
-SONiC Software Version: SONiC.master.0-7580c846
-Base OS Compatibility Version: 1.0.0
-Distribution: Debian 9.13
-Kernel: 4.9.0-11-2-amd64
-Build commit: 7580c846
-Build date: Sat Sep 26 04:17:56 UTC 2020
-Built by: johnar@jenkins-worker-8
-...
-```
+The base OS components (libswsscommon, sonic-utilities, etc.) has also a version number that follows the same rules of semantic versioning so that a package can define a dependency on base OS component version. These versions are recorder in */etc/sonic/sonic_version.yml*. This versions are in addition to SONiC version we have today.
 
 For SONiC containers available in *sonic-buildimage* repository the corresponding makefile is modified to include a version string:
 
@@ -690,7 +670,6 @@ can be installed at any given time.
 | /package/breaks[index]/name         | string | yes       | Name of SONiC Package                                                          |
 | /package/breaks[index]/version      | string | no        | Version constraint expression string                                           |
 | /package/breaks/[index]/components  | object | no        | Per component version                                                          |
-| /package/base-os-constraint         | string | no        | Base image version dependency constraint. Defaults to  '*': allows any version |
 
 Each SONiC Package can have a list of labels representing components versions:
 
@@ -701,7 +680,7 @@ LABEL com.azure.sonic.versions.libsairedis = 1.0.0
 
 Labels are inherited from the base image, so versions of common libraries are recorded in SONiC Package that uses SONiC SDK docker. SONiC SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
-*base-os-constraint* should have the following format:
+Version constraints should have the following format:
 
 ```
 [>|>=|==|<|<=|^|!|!=]<version>
@@ -712,7 +691,9 @@ Example:
 ```json
 {
   "package": {
-    "base-os-constraint": ">1.0.0"
+    "base-os": {
+      "libswsscommon": ">1.0.0"
+    }
   }
 }
 ```
@@ -765,7 +746,7 @@ For the list of supported expressions check the python library that is going to 
 SDK refers to [SONiC SDK Docker Images](#sonic-sdk-docker-images).
 
 SDK Docker image records an set of library versions in labels that gets inherited by the package image. This allows to perform an
-automatic compatibility check. If some library constarint is not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.$minor.0". E.g:
+automatic compatibility check. If libraries constarints are not defined in the manifest but a library version exists in labels of a package the constraint will initialize for that component as "^$major.$minor.0". E.g:
 
 Package Foo is build with following labels:
 
@@ -1443,7 +1424,6 @@ LABEL com.azure.sonic.versions.libsairedis
 The following list of additional labels are going to be used:
 
 ```
-LABEL com.azure.sonic.sdk.base-os
 LABEL com.azure.sonic.sdk.config-engine
 LABEL com.azure.sonic.sdk.database
 LABEL com.azure.sonic.sdk.swss

@@ -96,16 +96,9 @@ Package maintainer may choose to maintain a single repository and have there pac
     - This is a ***sonic-utilities contributor responsibility***
 - Dependence on a new kernel functionality must be recorded in minor version
     - This is a ***package maintainer responsibility***
-    E.g.: a patch in kernel to support 3-tuple conntrack entries that NAT docker depends on. (e.g. sonic-linux-kernel update in sonic-buildimage should result in increment: 1.4.5(current) to 1.5.0)
-    A dependency should be defined in manifest.json:
-    ```json
-    {
-        "package": {
-            "base-os-constraint": "^1.5.0"
-        }
-    }
-    ```
+    E.g.: a patch in kernel to support 3-tuple conntrack entries that NAT docker depends on.
 - SONiC host service (D-Bus based communication)
+- etc.
 
 
 # Examples
