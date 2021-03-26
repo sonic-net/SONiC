@@ -39,11 +39,11 @@ Challenge: to provide an interface for Y cable to interact with PMON docker and 
 - We define a file which would contain a mapping from vendor/part number to the appropriate Y-cable module to load and put it in a place which is accessible to both PMon container and host which can be present in sonic_platform_common
 - It makes sense to keep the mapping file in the sonic_y_cable package so that it can be updated in the same pull request when a vendor adds a new cable implementation. However, we cannot install data files outside of the Python directory via a wheel. Considering this we propose to make this a Python file which simply contains a 2D dictionary which can be used to look up the module path. If the file is part of the sonic_y_cable package, it will be installed in both the PMon container and the host
 
-For example
-```
+###For example
 
-    /sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
-```
+    ```
+        /sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
+    ```
 
 Vendors can have several implementations/ways to use this concept
 - Vendor has a 1:1 mapping between model and Python file
@@ -52,32 +52,31 @@ Vendors can have several implementations/ways to use this concept
 
 - Mapping could be such that its a dictionary in 2D
 
-
-```python
+    ```python
     {
-         <vendor_name_1>: {
-             <model_name: <module>
+         "<vendor_name_1>": {
+             "<model_name>": "<module>"
          },
-         <vendor_name_2> : {
-             <model_name>: <module>
+         "<vendor_name_2>" : {
+             "<model_name>": "<module>"
          }
     }
-```
+    ```
 
-For example
+###For example
 
-```python
-   {
-        "Vendor1": {
+    ```python
+    {
+         "Vendor1": {
              "model1": "vendor1/y_cable.py"
-        },
+         },
 
- 	"Vendor2" : {
+         "Vendor2" : {
              "model_a": "vendor2/y_cable_a.py",
              "model_b": "vendor2/y_cable_b.py"
-        }
-   }
-```
+         }
+    }
+    ```
 
 #### Rationale
 
@@ -96,31 +95,32 @@ For example
   - Currently the assumption is Y-cable API will be written in the Python language
   - If a vendor has an existing library in a different language, they will need to either find a way to wrap/bind it in Python to align with the description below or (preferrably) provide a pure Python implementation
   - Since sonic_y_cable (sonic-platform-common/sonic_y_cable) is already built as a package today (only for a single Y cable vendor with sonic-buildimage) vendors can also place their implementation in this directory itself.
-  - Also, a vendor can provide multiple files to support multiple cables/groups of cables. Importing the module from the mappng should import all the necessary implementation for the cable
+  - Also, a vendor can provide multiple files to support multiple cables/groups of cables. Importing the module from the mapping should import all the necessary implementation for the cable
+  - Vendors can put their common implementation across multiple modules in helper files which can be present in the vendor directory or inside another subdirectory. The second example below shows this approach.
 
 #### Proposed Solution
 
 - Vendors can place their implementations in this format
 
-```
-	sonic_platform_common/sonic_y_cable/<vendor>/<module>
-```
+    ```
+    sonic_platform_common/sonic_y_cable/<vendor>/<module>
+    ```
 
-```
-	sonic_platform_common/sonic_y_cable/<vendor>/<module_1>
-	sonic_platform_common/sonic_y_cable/<vendor>/<module_2>
-```
+    ```
+    sonic_platform_common/sonic_y_cable/<vendor>/<module_1>
+    sonic_platform_common/sonic_y_cable/<vendor>/<module_2>
+    ```
 - Few examples
 
-```
-	sonic_platform_common/sonic_y_cable/vendor1/y_cable.py
-```
+    ```
+    sonic_platform_common/sonic_y_cable/vendor1/y_cable.py
+    ```
 
-```
-	sonic_platform_common/sonic_y_cable/vendor2/y_cable_xyz.py
-	sonic_platform_common/sonic_y_cable/vendor2/y_cable_abc.py
-	sonic_platform_common/sonic_y_cable/vendor2/abc_helper.py
-```
+    ```
+    sonic_platform_common/sonic_y_cable/vendor2/y_cable_xyz.py
+    sonic_platform_common/sonic_y_cable/vendor2/y_cable_abc.py
+    sonic_platform_common/sonic_y_cable/vendor2/abc_helper.py
+    ```
 #### Rationale
 - The requirement here would be that the vendors must create their modules such that It can easily be accessed/imported and the modules also adhere to a uniform convention
 
@@ -145,63 +145,63 @@ For example
   - each vendor in their implementation can inherit from a base class where there will be definitions for all the supported capabilities of the Y-cable.
   - for vendors the recommended approach in case their subclass implementation does not support a method, is to set the method equal to None. This differentiates it from a method they forgot to implement. Then, the calling code should first check if the method is None before attempting to call it.
 
-For example the base class would be like this
+###For example the base class would be like this
 
-```python
-	class YCableBase(object):
-	    def __init__(self, port):
-		self.port = port
+    ```python
+        class YCableBase(object):
+            def __init__(self, port):
+                self.port = port
                 <function body here>
 
-	    def toggle_mux_to_torA(self, port):
+            def toggle_mux_to_torA(self, port):
                 <function body here>
 
-	    def toggle_mux_to_torB(self, port):
+            def toggle_mux_to_torB(self, port):
                 <function body here>
 
-	    def check_prbs(self, port):
+            def check_prbs(self, port):
                 <function body here>
 
-	    def only_credo(self, port):
+            def only_credo(self, port):
                 <function body here>
 
-	    def only_amphenol(self, port):
+            def only_amphenol(self, port):
                 <function body here>
 
+    ```
 
-```
+###For example a typical module of the vendor can be like this
 
-For example a typical module of the vendor can be like this
-```python
-	class YCable(YCableBase):
+    ```python
+        class YCable(YCableBase):
 
-	    def __init__(self):
+            def __init__(self):
                 <function body here>
 
-	    def toggle_mux_to_torA(self, port):
+            def toggle_mux_to_torA(self, port):
                 <function body here>
 
-	    def toggle_mux_to_torB(self, port):
+            def toggle_mux_to_torB(self, port):
                 <function body here>
 
-	    def check_prbs(self, port):
+            def check_prbs(self, port):
                 <function body here>
 
-	    def only_credo(self, port):
+            def only_credo(self, port):
                 <function body here>
 
-	    def only_amphenol(self, port):
+            def only_amphenol(self, port):
                 <function body here>
 
-```
+    ```
 #### Implementation details
 - Now for xcvrd to use this solution, all it has to do is instantiate the class objects defined by importing the appropriate module. This should happen when xcvrd starts or if there is a change event  (xcvrd inserted/removed)
 
-```python
-        import importlib
+    ```python
         # import the vendor to module mapping
         from sonic_y_cable import y_cable_vendor_mapping
- 
+        from sonic_py_common.general import load_module_from_source
+
         # This vendor/part_name determination subroutines will either read through eeprom
         # or else read from the TRANSCEIVER_INFO_TABLE inside state db
 
@@ -209,11 +209,9 @@ For example a typical module of the vendor can be like this
 
         part_name = get_part_name(port)
 
-        module = y_cable_vendor_mapping.mapping[vendor_name][part_name]
+        path_to_module_obtained_from_mapping = y_cable_vendor_mapping.mapping[vendor_name][part_name]
 
-        from sonic_y_cable import module
-
-        importlib.reload(module)
+        module = load_module_from_source("y_cable",  "path_to_module_obtained_from_mapping")
 
         from module import YCable
 
@@ -225,12 +223,12 @@ For example a typical module of the vendor can be like this
         except:
             helper_logger.log(not able to toggle_mux_to_torA)
 
-```
+    ```
 #### Rationale
 
   - xcvrd can maintain a dict of these objects an whenever it needs to call the API for the correct port (in this case physical port) it can easily achieve so by indexing into the instance of the physical port and calling the class object.
 
-```python
+    ```python
         Y_cable_ports_instances = {}
 
         # appending instances in the dictionary
@@ -241,7 +239,7 @@ For example a typical module of the vendor can be like this
             Y_cable_ports_instances[physical_port].toggle_mux_to_torA()
         except:
             helper_logger.log(not able to toggle_mux_to_torA)
-```
+    ```
 
 
 ### How does cli interact with Y cable api's
@@ -249,7 +247,7 @@ For example a typical module of the vendor can be like this
 
 #### Background
 
-  - Another requirement we have is Cli also requires to interact with the Y-Cable directly. This basically implies that all  Ycable vendor packages needs to be imported inside SONiC-utilities/host as well
+  - Another requirement we have is Cli also requires to interact with the Y-Cable directly. This basically implies that all  Y-Cable vendor packages needs to be imported inside SONiC-utilities/host as well
   - This would come in the form of commands like setting PRBS, enabling disabling loopback and also get the BER info and EYE info etc
   - Also commands such as config/show hwmode is important which gives the cli ability to toggle the mux without going into SONiC modules like mux-mgr or orchagent.
   - All these require access to Y cable APIs to be directly called by the cli. But then again same problems arrive, how do we know which type/vendor does the cable/port belong to, how to load the appropriate module etc
@@ -260,12 +258,12 @@ For example a typical module of the vendor can be like this
   - The more preferred approach here is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-cable. 
 
 Exanple table and operations
-```
-	HW_MUX_OPERATION_TABLE|Ethernet0
-	state active/standby
-	enable_prbs true/false
-	check_mux_direction true/false
-```
+    ```
+        HW_MUX_OPERATION_TABLE|Ethernet0
+        state active/standby
+        enable_prbs true/false
+        check_mux_direction true/false
+    ```
   - In xcvrd we can have a thread running and listening to these events and execute the APIs since all the ports already have the correct mapping of the module (maintained in the form of a dictionary). The response of the API can be again written back to the redis table and absorbed by the CLI
 
 ### Concurrency for Y cables API
