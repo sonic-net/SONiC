@@ -39,8 +39,7 @@ Challenge: to provide an interface for Y cable to interact with PMON docker and 
 - We define a file which would contain a mapping from vendor/part number to the appropriate Y-cable module to load and put it in a place which is accessible to both PMon container and host which can be present in sonic_platform_common
 - It makes sense to keep the mapping file in the sonic_y_cable package so that it can be updated in the same pull request when a vendor adds a new cable implementation. However, we cannot install data files outside of the Python directory via a wheel. Considering this we propose to make this a Python file which simply contains a 2D dictionary which can be used to look up the module path. If the file is part of the sonic_y_cable package, it will be installed in both the PMon container and the host
 
-###For example
-
+- For example
     ```
         /sonic_platform_common/sonic_y_cable/y_cable_vendor_mapping.py
     ```
@@ -63,7 +62,7 @@ Vendors can have several implementations/ways to use this concept
     }
     ```
 
-###For example
+- For example
 
     ```python
     {
@@ -145,7 +144,7 @@ Vendors can have several implementations/ways to use this concept
   - each vendor in their implementation can inherit from a base class where there will be definitions for all the supported capabilities of the Y-cable.
   - for vendors the recommended approach in case their subclass implementation does not support a method, is to set the method equal to None. This differentiates it from a method they forgot to implement. Then, the calling code should first check if the method is None before attempting to call it.
 
-###For example the base class would be like this
+  - For example the base class would be like this
 
     ```python
         class YCableBase(object):
@@ -170,7 +169,7 @@ Vendors can have several implementations/ways to use this concept
 
     ```
 
-###For example a typical module of the vendor can be like this
+  - For example a typical module of the vendor can be like this
 
     ```python
         class YCable(YCableBase):
@@ -257,7 +256,7 @@ Vendors can have several implementations/ways to use this concept
   - One way is since CLI lives in the host, we can choose to do everything on xcvrd lines. Meaning once there is port number, convert to a physical port and look into a mapping from vendor/part number to the appropriate Y-cable module to load file and then load the module and execute the API
   - The more preferred approach here is cli can interact with PMon container thorugh redis-db. Basically we can define a schema table for different operations which need to be performed on the Y-cable. 
 
-Exanple table and operations
+  - Exanple table and operations
     ```
         HW_MUX_OPERATION_TABLE|Ethernet0
         state active/standby
