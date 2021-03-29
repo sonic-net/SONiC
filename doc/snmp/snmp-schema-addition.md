@@ -33,7 +33,7 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "LOCATION":"<SNMP_LOCATION_STRING>"
       },
       "CONTACT":{
-         "CONTACT":"<SNMP_CONTACT_STRING>"
+         "<CONTACT_NAME>":"<SNMP_CONTACT_STRING>"
       }
    }
 }
@@ -61,28 +61,28 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
 {
    "SNMP_USER":{
       "<SNMP_USER>":{
-         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSION": "RO|RW"
       },
       "<SNMP_USER>":{
-         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSION": "RO|RW"
       },
       "<SNMP_USER>":{
-         "SNMP_USER_STRING":"<SNMP_USER_STRING>",
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
          "SNMP_USER_AUTH_TYPE":"MD5|SHA|HMAC-SHA-2",
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
-         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>"
+         "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
+         "SNMP_USER_PERMISSION": "RO|RW"
       }
    }
 }
@@ -99,7 +99,7 @@ Where:
 - SNMP_USER_ENCRYPTION_TYPE: String, defines which encryption type will be used for that SNMP user DES or AES. 
 - SNMP_USER_AUTH_PASSWORD: String, defines which authentication password will be used for that SNMP user.
 - SNMP_USER_ENCRYPTION_PASSWORD: String, defines which encryption password will be used for that SNMP user. 
-
+- SNMP_USER_PERMISSION: String, RO (Read-Only) or RW (Read-Write) defines what will be used for that SNMP user.
 
 
 New keys:

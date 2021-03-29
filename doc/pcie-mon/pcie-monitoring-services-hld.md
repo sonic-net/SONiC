@@ -1,6 +1,6 @@
 # SONiC PCIe Monitoring services HLD #
 
-### Rev 0.4 ###
+### Rev 0.5 ###
 
 ### Revision
  | Rev |     Date    |            Author            | Change Description                             |
@@ -11,6 +11,7 @@
  | 0.3 |             | Arun Saravanan Balachandran  | Add AER stats update support in pcied          |
  |     |             |                              | Add command to display AER stats               |
  | 0.4 |             | Arun Saravanan Balachandran  | Add platform API to collect AER stats          |
+ | 0.5 |             | Arun Saravanan Balachandran  | Add options for pcie-aer sub-commands          |
 
 ## About This Manual ##
 
@@ -163,64 +164,65 @@ For PCIe devices that pass PcieUtil `get_pcie_check`, AER stats will be retrieve
 
 ### 2.3 STATE_DB keys and value ###
 
-The key used to represent a PCIE device for storing its AER stats in STATE_DB is of the format `PCIE_DEVICE|<Id>|<Bus>:<Dev>.<Fn>`.
-For every device, AER stats will be stored as key, value pairs where key is of the format `<severity>|<AER Error type>`
+The key used to represent a PCIE device for storing its attributes in STATE_DB is of the format `PCIE_DEVICE|<Bus>:<Dev>.<Fn>`.
+For every device, AER stats will be stored as key, value pairs where key is of the format `<severity>|<AER Error type>` and the device ID will be stored with key `id`.
 
 Example) For a PCIe device with Bus: 1, Dev: 0, Fn: 1, Id: b960 the STATE_DB entry will be as below:
 
 ```
-"PCIE_DEVICE|0xb960|01:00.1": {
-    "expireat": 1600170923.518816,
-    "ttl": -0.001,
-    "type": "hash",
-    "value": {
-      "correctable|BadDLLP": "0",
-      "correctable|BadTLP": "2",
-      "correctable|CorrIntErr": "0",
-      "correctable|HeaderOF": "0",
-      "correctable|NonFatalErr": "0",
-      "correctable|Rollover": "0",
-      "correctable|RxErr": "0",
-      "correctable|TOTAL_ERR_COR": "2",
-      "correctable|Timeout": "0",
-      "fatal|ACSViol": "0",
-      "fatal|AtomicOpBlocked": "0",
-      "fatal|BlockedTLP": "0",
-      "fatal|CmpltAbrt": "0",
-      "fatal|CmpltTO": "0",
-      "fatal|DLP": "0",
-      "fatal|ECRC": "0",
-      "fatal|FCP": "0",
-      "fatal|MalfTLP": "0",
-      "fatal|RxOF": "0",
-      "fatal|SDES": "0",
-      "fatal|TLP": "0",
-      "fatal|TLPBlockedErr": "0",
-      "fatal|TOTAL_ERR_FATAL": "0",
-      "fatal|UncorrIntErr": "0",
-      "fatal|Undefined": "0",
-      "fatal|UnsupReq": "0",
-      "fatal|UnxCmplt": "0",
-      "non_fatal|ACSViol": "0",
-      "non_fatal|AtomicOpBlocked": "0",
-      "non_fatal|BlockedTLP": "0",
-      "non_fatal|CmpltAbrt": "0",
-      "non_fatal|CmpltTO": "0",
-      "non_fatal|DLP": "0",
-      "non_fatal|ECRC": "0",
-      "non_fatal|FCP": "0",
-      "non_fatal|MalfTLP": "0",
-      "non_fatal|RxOF": "0",
-      "non_fatal|SDES": "0",
-      "non_fatal|TLP": "0",
-      "non_fatal|TLPBlockedErr": "0",
-      "non_fatal|TOTAL_ERR_NONFATAL": "3",
-      "non_fatal|UncorrIntErr": "0",
-      "non_fatal|Undefined": "0",
-      "non_fatal|UnsupReq": "3",
-      "non_fatal|UnxCmplt": "0"
-    }
+"PCIE_DEVICE|01:00.0": {
+  "expireat": 1607061625.1506171,
+  "ttl": -0.001,
+  "type": "hash",
+  "value": {
+    "correctable|BadDLLP": "0",
+    "correctable|BadTLP": "2",
+    "correctable|CorrIntErr": "0",
+    "correctable|HeaderOF": "0",
+    "correctable|NonFatalErr": "0",
+    "correctable|Rollover": "0",
+    "correctable|RxErr": "0",
+    "correctable|TOTAL_ERR_COR": "2",
+    "correctable|Timeout": "0",
+    "fatal|ACSViol": "0",
+    "fatal|AtomicOpBlocked": "0",
+    "fatal|BlockedTLP": "0",
+    "fatal|CmpltAbrt": "0",
+    "fatal|CmpltTO": "0",
+    "fatal|DLP": "0",
+    "fatal|ECRC": "0",
+    "fatal|FCP": "0",
+    "fatal|MalfTLP": "0",
+    "fatal|RxOF": "0",
+    "fatal|SDES": "0",
+    "fatal|TLP": "0",
+    "fatal|TLPBlockedErr": "0",
+    "fatal|TOTAL_ERR_FATAL": "0",
+    "fatal|UncorrIntErr": "0",
+    "fatal|Undefined": "0",
+    "fatal|UnsupReq": "0",
+    "fatal|UnxCmplt": "0",
+    "id": "0xb960",
+    "non_fatal|ACSViol": "0",
+    "non_fatal|AtomicOpBlocked": "0",
+    "non_fatal|BlockedTLP": "0",
+    "non_fatal|CmpltAbrt": "0",
+    "non_fatal|CmpltTO": "0",
+    "non_fatal|DLP": "0",
+    "non_fatal|ECRC": "0",
+    "non_fatal|FCP": "0",
+    "non_fatal|MalfTLP": "0",
+    "non_fatal|RxOF": "0",
+    "non_fatal|SDES": "0",
+    "non_fatal|TLP": "0",
+    "non_fatal|TLPBlockedErr": "0",
+    "non_fatal|TOTAL_ERR_NONFATAL": "3",
+    "non_fatal|UncorrIntErr": "0",
+    "non_fatal|Undefined": "0",
+    "non_fatal|UnsupReq": "3",
+    "non_fatal|UnxCmplt": "0"
   }
+}
 ```
 
 ### 2.4 PCIe AER stats CLI ###
@@ -262,6 +264,23 @@ Commands:
   correctable  Show PCIe AER correctable attributes
   fatal        Show PCIe AER fatal attributes
   non-fatal    Show PCIe AER non-fatal attributes
+root@sonic:/home/admin#
+```
+
+Each "pcie-aer" sub command has below options:
+- `-d/--device <Bus>:<Dev>.<Fn>` - Display stats only for the specified device
+- `-nz/--no-zero` -  Display only devices with non-zero AER stats
+
+```
+root@sonic:/home/admin# pcieutil pcie-aer all --help
+Usage: pcieutil pcie-aer all [OPTIONS]
+
+  Show all PCIe AER attributes
+
+Options:
+  -d, --device <BUS>:<DEV>.<FN>  Display stats only for the specified device
+  -nz, --no-zero                 Display non-zero AER stats
+  --help                         Show this message and exit.
 root@sonic:/home/admin#
 ```
 
@@ -374,6 +393,30 @@ root@sonic:/home/admin# pcieutil pcie-aer all
 | TOTAL_ERR_NONFATAL |         0 |         0 |         0 |         0 |         0 |         0 |         0 |         0 |         0 |         0 |         3 |
 +--------------------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
 
+root@sonic:/home/admin#
+root@sonic:/home/admin# pcieutil pcie-aer correctable -d 00:01.0
++---------------------+-----------+
+| AER - CORRECTABLE   |   00:01.0 |
+|                     |    0x1f10 |
++=====================+===========+
+| RxErr               |         0 |
++---------------------+-----------+
+| BadTLP              |         0 |
++---------------------+-----------+
+| BadDLLP             |         0 |
++---------------------+-----------+
+| Rollover            |         0 |
++---------------------+-----------+
+| Timeout             |         0 |
++---------------------+-----------+
+| NonFatalErr         |         0 |
++---------------------+-----------+
+| CorrIntErr          |         0 |
++---------------------+-----------+
+| HeaderOF            |         0 |
++---------------------+-----------+
+| TOTAL_ERR_COR       |         0 |
++---------------------+-----------+
 root@sonic:/home/admin#
 ```
 

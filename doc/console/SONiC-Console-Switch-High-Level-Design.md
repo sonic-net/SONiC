@@ -94,6 +94,7 @@
 | 0.1 | 08/28/2020  |  Jing Kan | Initial version                   |
 | 0.2 | 09/10/2020  |  Jing Kan | Addressed first version's comments                   |
 | 1.0 | 11/04/2020  |  Jing Kan | Add more commands description and fill more details                   |
+| 1.1 | 12/09/2020  |  Jing Kan | Update console feature table key schema                   |
 
 # About this Manual
 
@@ -337,11 +338,11 @@ The CONSOLE_SWITCH_TABLE holds the configuration database for the purpose of con
 
 ```
 ; Console switch feature table
-key = CONSOLE_SWITCH
+key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
-console_mgmt = "0"/"1"      ; "0" means disable console management feature
-                            ; "1" means enable console management feature
+enabled = "yes"/"no"      ; "yes" means disable console management feature
+                          ; "no" means enable console management feature
 ```
 
 #### CONSOLE_PORT_TABLE
@@ -651,7 +652,9 @@ Console port 1 connect to a remote device `switch1` with baud_rate 9600 and enab
 ```json
 {
     "CONSOLE_SWITCH": {
-        "console_mgmt" : "1"
+        "console_mgmt" : {
+            "enabled": "yes"
+        }
     },
     "CONSOLE_PORT": {
         "1": {

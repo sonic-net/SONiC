@@ -61,6 +61,8 @@
 | 0.3 | 08/16/2019  | Zhenggen Xu           | Review feedback and other changes                   |
 | 0.4 | 12/20/2019  | Zhenggen Xu           | platform.json changes, dependency check changes etc       |
 | 0.5 | 3/5/2019    | Zhenggen Xu           | Clarification of port naming and breakout modes       |
+| 0.6 | 2/3/2021    | Zhenggen Xu           | Support more flexible port aliases       |
+
 # Scope
 This document is the design document for dynamic port-breakout feature on SONiC. This includes the requirements, the scope of the design, HW capability considerations, software architecture and scope of changes for different modules.
 
@@ -147,15 +149,25 @@ The capability file is named `platform.json` and should be provided to each plat
 	"Ethernet0": {
 	    "index": "1,1,1,1",
 	    "lanes": "0,1,2,3",
-	    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	    "breakout_modes": {
+	        "1x100G[40G]": ["Eth1"],
+	        "2x50G": ["Eth1/1", "Eth1/2"],
+	        "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	        "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	        "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	    }
 	 },
 
 	 "Ethernet4": {
 	    "index": "2,2,2,2",
 	    "lanes": "4,5,6,7",
-	    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-	    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	    "breakout_modes": {
+	        "1x100G[40G]": ["Eth1"],
+	        "2x50G": ["Eth1/1", "Eth1/2"],
+	        "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	        "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	        "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	    }
 	 }
  	 ...
  }
@@ -163,13 +175,12 @@ The capability file is named `platform.json` and should be provided to each plat
 In this file, only the parent ports (e,g, Ethernet0/4) are defined, the child ports would be generated from them. For each parent port, it defines fields as below:
 - "index": the indexes for individual lanes. This usually matches the front panel port #, and is used by platform plugins for optical module queries.
 - "lanes": This defines the physical HW lanes included in this parent port. The lanes will be used for breakout ports.
-- "alias_at_lanes": This defines the alias for individual breakout ports.
-- "breakout_modes": This defines the breakout modes available on the platform for this parent port.
+- "breakout_modes": This defines the breakout modes available on the platform for this parent port, and it maps to the alias list. The alias list presents the alias names for individual ports in order under this breakout mode.
 
     The modes in the example file is neither necessarily the full list nor a must list, the design will not tied to the example. For instance, we should be able to define 50G serdes based platforms for 400G/200G/100G/50G ports. We can also define a subset of the port modes on some platform.
 - "default_brkout_mode": This defines the default breakout mode if no mode changes were applied on the system.
 
-Syntax for breakout_modes:
+Syntax for breakout_modes key:
 - `number x speed1 [speed2, speed3]`
 
     means the parent port lanes are split equally to number of ports denoted by the `number`. And the speed for each breakout port is default to `speed1`, but is changeable to `speed2`, `speed3` etc.
@@ -199,7 +210,7 @@ The speeds usually used today are:
 `10G, 20G, 25G, 50G, 100G, 200G, 400G` etc.
 However, the design is not limited to this list.
 
-Note: In some case, the `brkout_mode` only have one mode, this means it will not allow changing to different modes, e,g `1x100G[40G]` means it only support 100G[40G[ on this port, could mean no breakout to child ports.
+Note: In some case, the `brkout_mode` only have one mode, this means it will not allow changing to different modes, e,g `1x100G[40G]` means it only support 100G[40G] on this port, could mean no breakout to child ports.
 
 We will have a new table `BREAKOUT_CFG` in configDB to present the current running breakout mode, it will be saved to configDB after the initial breakout at boot time, and also updated whenever the port breakout is changed.
 
@@ -246,8 +257,14 @@ On some platforms, there are some limitations about the number of port/mac avail
 "Ethernet0": {
     "index": "1,1,1,1,2,2,2,2",
     "lanes": "0,1,2,3,4,5,6,7",
-    "alias_at_lanes":"Eth1/1, Eth1/2, Eth1/3, Eth1/4, Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "2x100G[40G],4x50G,1x100G[40G](4)+2x50G(4),2x50G(4)+1x100G[40G](4),4x25G[10G](4), None(4)+4x25G[10G](4)"
+    "breakout_modes": {
+        "2x100G[40G]": ["Eth1", "Eth2"],
+        "4x50G": ["Eth1/1", "Eth1/2", "Eth2/1", "Eth2/2"],
+        "1x100G[40G](4)+2x50G(4)": ["Eth1", "Eth2/1", "Eth2/2"],
+        "2x50G(4)+1x100G[40G](4)": ["Eth1/1", "Eth1/2", "Eth2"],
+        "4x25G[10G](4)": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+        "None(4)+4x25G[10G](4)": ["Eth2/1", "Eth2/2", "Eth2/3", "Eth2/4"]
+    }
  }
  ...
 ```
@@ -257,15 +274,21 @@ On some platforms, the serdes connection to front panel port might not be the as
 "Ethernet0": {
     "index": "1, 1",
     "lanes": "0,1",
-    "alias_at_lanes": "Eth1/1, Eth1/2",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
+    "breakout_modes": {
+        "1x50G": ["Eth1"]
+        "1x25G[10G]": ["Eth1"],
+        "2x25G[10G]": ["Eth1/1", "Eth1/2"]
+    }
  },
 
  "Ethernet2": {
     "index": "2, 2",
     "lanes": "2,3",
-    "alias_at_lanes": "Eth2/1, Eth2/1",
-    "breakout_modes": "1x50G, 1x25G[10G], 2x25G[10G]"
+    "breakout_modes": {
+        "1x50G": ["Eth1"]
+        "1x25G[10G]": ["Eth1"],
+        "2x25G[10G]": ["Eth1/1", "Eth1/2"]
+    }
  }
  ...
 ```
@@ -279,8 +302,13 @@ Given example of `platform.json` to have 4 lanes on parent port Ethernet0 with E
 "Ethernet0": {
     "index": "1,1,1,1",
     "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G,2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)"
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3]"
+	 }
  }
 ```
 CLI will look like below:
@@ -372,8 +400,13 @@ Show interface command should be able to show the ports capability and the curre
 "Ethernet0": {
     "index": "1,1,1,1",
     "lanes": "0,1,2,3",
-    "alias_at_lanes": "Eth1/1, Eth1/2, Eth1/3, Eth1/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	 }
     "default_brkout_mode": "1x100G[40G]",
     "brkout_mode": "4x25G[10G]"
  },
@@ -381,8 +414,13 @@ Show interface command should be able to show the ports capability and the curre
  "Ethernet4": {
     "index": "2,2,2,2",
     "lanes": "4,5,6,7",
-    "alias_at_lanes": "Eth2/1, Eth2/2, Eth2/3, Eth2/4",
-    "breakout_modes": "1x100G[40G],2x50G,4x25G[10G],2x25G(2)+1x50G(2),1x50G(2)+2x25G(2)",
+	 "breakout_modes": {
+	     "1x100G[40G]": ["Eth1"],
+	     "2x50G": ["Eth1/1", "Eth1/2"],
+	     "4x25G[10G]": ["Eth1/1", "Eth1/2", "Eth1/3", "Eth1/4"],
+	     "2x25G(2)+1x50G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"],
+	     "1x50G(2)+2x25G(2)": ["Eth1/1", "Eth1/2", "Eth1/3"]
+	 }
     "default_brkout_mode": "1x100G[40G]",
     "brkout_mode": "2x50G"
  }

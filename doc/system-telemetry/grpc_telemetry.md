@@ -286,36 +286,231 @@ jipan@sonicvm1:~/work/go/src/github.com/jipanyang/gnxi/gnmi_get$ ./gnmi_get -xpa
 
 ## SubscribeRequest/SubscribeResponse
 ### Stream mode
-With stream mode of SubscribeRequest, SONiC will first send all data on the requested path to data collector, then stream data to collector upon any change on the path.
 
-[gnmi_cli](https://github.com/jipanyang/gnmi/tree/master/cmd/gnmi_cli) could be used to excersize gRPC SubscribeRequest here.
+[The GNMI specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35152-stream-subscriptions) defines 3 different streaming `modes` for each `Subscription` that found in `SubscriptionList`:
 
-Any time the PFC counter on queue 7 of Ethernet9 "COUNTERS/Ethernet9/SAI_PORT_STAT_PFC_7_RX_PKTS" has change, the update is streamed to gnmi_cli collector.
+- On Change (ON_CHANGE)
+- Sampled (SAMPLE)
+- Target Defined (TARGET_DEFINED) The Sonic Telemetry service **does NOT** support `TARGET_DEFINED` mode at this time.
 
+#### On Change (**ON_CHANGE**) Subscription:
+When a subscription is defined to be "on change", data updates are only sent when the value of the data item changes. With `ON_CHANGE` stream mode of `Subscription`, 
+- SONiC will first send all data on the requested path to data collector,
+- Will send the `sync_response` message to indicate the end of all data.
+- Then stream data to collector upon any change on the path.
 
+[gnmi_cli_py](https://github.com/lguohan/gnxi/tree/master/gnmi_cli_py) could be used to exercise gRPC SubscribeRequest. Here is an example usage anytime the PFC counter on queue 7 of Ethernet0 "COUNTERS/Ethernet0/SAI_PORT_STAT_PFC_7_RX_PKTS" has change, the update is streamed to gnmi_cli_py collector.
+
+In the CLI command, the `"--submode 1"` means `ON_CHANGE` mode for the `Subscription`.
+
+Notice the 4 sections in the output:
+
+- The payload that being sent to telemetry service. It has the path information plus the `ON_CHANGE` mode for the `Subscription`. The `sample_interval` is ignored for this kind of streaming (`ON_CHANGE`).
+- The first response where the server sends all data for the requested path.
+- The `sync_response` message which indicates that the initial sync is complete.
+- Another response upon a change. It is sent after the path data changed from `"0"` to `"1"`.
+
+```bash
+./gnmi_cli_py/py_gnmicli.py -g -t 192.168.43.183 -p 8080 -m subscribe --submode 1 -x "COUNTERS/Ethernet0/SAI_PORT_STAT_PFC_7_RX_PKTS"  -xt COUNTERS_DB -o "ndastreamingservertest"
+
+Sending SubscribeRequest
+subscribe {
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  subscription {
+    path {
+      elem {
+        name: "COUNTERS"
+      }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    mode: ON_CHANGE
+    sample_interval: 10000000000
+  }
+}
+
+2020-12-01 15:08:32.616647 response received: 
+update {
+  timestamp: 1606864112615683213
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  update {
+    path {
+      elem {
+        name: "COUNTERS"
+      }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    val {
+      string_val: "0"
+    }
+  }
+}
+
+2020-12-01 15:08:32.617109 response received: 
+sync_response: true
+
+2020-12-01 15:09:34.184855 response received: 
+update {
+  timestamp: 1606864174183672637
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  update {
+    path {
+      elem {
+        name: "COUNTERS"
+      }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    val {
+      string_val: "1"
+    }
+  }
+}
 ```
-jipan@sonicvm1:~/work/go/src/github.com/jipanyang/gnmi/cmd/gnmi_cli$ ./gnmi_cli --client_types=gnmi -a 30.57.185.38:8080 -q "COUNTERS/Ethernet9/SAI_PORT_STAT_PFC_7_RX_PKTS" -logtostderr -insecure -timestamp on -t COUNTERS_DB -v 0 -qt s
-sendQueryAndDisplay: GROUP 3 query.Queries: [[COUNTERS Ethernet9 SAI_PORT_STAT_PFC_7_RX_PKTS]]
-{
-  "COUNTERS": {
-    "Ethernet9": {
-      "SAI_PORT_STAT_PFC_7_RX_PKTS": {
-        "timestamp": "2018-01-23T01:15:40.117234683Z",
-        "value": "0"
+
+#### Sampled (**SAMPLE**) Subscription:
+
+A subscription that is defined to be sampled. It MUST be specified along with a `sample_interval`.
+
+For a `Subscription` with `SAMPLE` mode; 
+- SONiC will first send all data on the requested path to data collector (Same as `ON_CHANGE`).
+- Will send the `sync_response` message to indicate the end of all data (Same as `ON_CHANGE`).
+- Then the value of the data item(s) are sent once per `sample_interval` to the client. `sample_interval` is an unsigned 64-bit integer representing nanoseconds between samples. Currently this interval cannot be less than 1 second else it is considered as an invalid argument. However, `0` is a special case where it is not error but translates to the minimum interval (`1s`).
+
+Below is an example query and response for `SAMPLE` streaming using [gnmi_cli_py](https://github.com/lguohan/gnxi/tree/master/gnmi_cli_py). The important arguments in the CLI command are:
+
+- The `"--submode 2"` argument is to tell that the `Subscription` is `SAMPLE` mode.
+- The `"--interval 2000"` argument is to set `sample_interval` to 2000ms (2s).
+- The `"--update_count 3"` argument tells the client tool to stop after receiving 3 updates. This is only for testing purposes. In real life the streaming is meant to be continuos.
+
+Notice the 4 sections in the command output:
+
+- The payload that being sent to telemetry service. It has the path information plus the **SAMPLE** mode for the Subscription.
+- The first response where the server sends all data for the requested path.
+- The sync_response message which indicates that the initial sync is complete.
+- Another 2 responses after the sample interval elapsed 2 times.
+
+
+```bash
+./gnmi_cli_py/py_gnmicli.py -g -t 192.168.43.183 -p 8080 -m subscribe --submode 2 -x "COUNTERS/Ethernet0/SAI_PORT_STAT_PFC_7_RX_PKTS"  -xt COUNTERS_DB -o "ndastreamingservertest" --interval 2000 --update_count 3
+
+Sending SubscribeRequest
+subscribe {
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  subscription {
+    path {
+      elem {
+        name: "COUNTERS"
       }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    mode: SAMPLE
+    sample_interval: 2000000000
+  }
+}
+
+2020-12-01 16:41:09.432473 response received: 
+update {
+  timestamp: 1606869669431526704
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  update {
+    path {
+      elem {
+        name: "COUNTERS"
+      }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    val {
+      string_val: "1"
     }
   }
 }
-{
-  "COUNTERS": {
-    "Ethernet9": {
-      "SAI_PORT_STAT_PFC_7_RX_PKTS": {
-        "timestamp": "2018-01-23T01:15:50.124350782Z",
-        "value": "1"
+
+2020-12-01 16:41:09.432956 response received: 
+sync_response: true
+
+2020-12-01 16:41:11.432688 response received: 
+update {
+  timestamp: 1606869671432005971
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  update {
+    path {
+      elem {
+        name: "COUNTERS"
       }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    val {
+      string_val: "1"
     }
   }
 }
+
+2020-12-01 16:41:13.433170 response received: 
+update {
+  timestamp: 1606869673432508038
+  prefix {
+    target: "COUNTERS_DB"
+  }
+  update {
+    path {
+      elem {
+        name: "COUNTERS"
+      }
+      elem {
+        name: "Ethernet0"
+      }
+      elem {
+        name: "SAI_PORT_STAT_PFC_7_RX_PKTS"
+      }
+    }
+    val {
+      string_val: "1"
+    }
+  }
+}
+
+Max update count reached 3
 ```
 
 ### Poll mode
