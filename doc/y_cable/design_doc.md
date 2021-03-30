@@ -161,10 +161,10 @@ Vendors can have several implementations/ways to use this concept
             def check_prbs(self, port):
                 <function body here>
 
-            def only_credo(self, port):
+            def enable_loopback(self, port):
                 <function body here>
 
-            def only_amphenol(self, port):
+            def get_eye_info(self, port):
                 <function body here>
 
     ```
@@ -186,10 +186,10 @@ Vendors can have several implementations/ways to use this concept
             def check_prbs(self, port):
                 <function body here>
 
-            def only_credo(self, port):
+            def enable_loopback(self, port):
                 <function body here>
 
-            def only_amphenol(self, port):
+            def get_eye_info(self, port):
                 <function body here>
 
     ```
