@@ -315,10 +315,9 @@ any conflicts across multiple applications trying to write to this table.
 ### 3.1.2 Event Consumer
 The event consumer runs from sonic-eventd container. 
 
-Event consumer subscribes to the EVENTPUBSUB table and gets notified whenever there is a new record.
-On bootup, event consumer reads from this table.
-Event consumer reads a record from this table and deletes records. 
-So this table contains records that are published by application and waiting to be received by event consumer.
+On bootup, event consumer reads from EVENTPUBSUB table.
+This table contains records that are published by application and waiting to be received by event consumer.
+Whenever there is a new record, Event consumer reads the record, processess and deletes it. 
 
 On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
 As mentioned above, static information contains severity, static message part and event enable/disable flag. 
@@ -330,8 +329,8 @@ If the flag is set to enabled, it continues to process the event as follows:
 - It verifies if the event corresponds to an alarm - by checking the state field. If so, it forwards the event to alarm consumer for further processing.
     - If state is raised, add the record to ALARM table
     - If state is clear, remove the entry from ALARM table
-    - Update LED 
-- Invoke logging API to send the formatted message to syslog
+    - Update system health status 
+- Invoke logging API to send a formatted message to syslog
 
 #### 3.1.2.1 Severity
 Supported event severities: Critical, Major, Minor, Warning and Informational
@@ -346,10 +345,16 @@ before wrapping around to start from 1.
 The alarm consumer on receiving the event record, verifies the event state. If it is RAISE_ALARM, it adds the record to Current Alarm Table.
 Alarm consumer also maintains a map of sequence-id and pair of event-id and source fields.
 If the state is CLEAR_ALARM, it removes the previous record using the key it fetches from the above internal map. 
-It then updates the system LED. 
-The system LED update follows the following rule:
+It then updates the system LED by updating system health status.
+
+system health status field is updated based on alarm severity as follows:
 ```
-    Red if any outstanding Major or Critical alarms, else Yellow if any Minor or Warning alarms, else Green.
+    *Error* if any outstanding Major or Critical alarms, else *Warning* if any Minor or Warning alarms, else *Normal*.
+```
+
+The system LED update follows the system health status field and is as follows:
+```
+    Red if system health status is *Error*, else Yellow if it is *Warning*, else Green.
 ```
 
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
@@ -413,7 +418,14 @@ So, on certain platforms, system LED could not represent events on the system.
 
 Another issue is: Currently pmon controls LED, and as eventd now tries to change the very same LED, this leads to conflicts. 
 A mechanism must exist for one of these to be master.
+
 The proposed solution could be to have a system health paramter in the DB. 
+
+```
+127.0.0.1:6379[6]> hgetall "SYSTEM_HEALTH|SYSTEM_STATE"
+1) "state"
+2) "Normal"
+```
 This is updated by eventd and pmon could use it to update LED accordingly. 
 
 #### 3.1.4.6 Event/Alarm flooding
@@ -582,7 +594,8 @@ resource                  : Object which generated the event {string}
 127.0.0.1:6379[6]>
 ```
 
-Schema for ALARM_STATS table is as below:
+Schema for ALARM_STATS table is as below. When an alarm of particular severity is cleared,
+the corresponding severity counter is decremented. 
 ```
 ALARM_STATS Table:
 ==============================
@@ -590,7 +603,7 @@ ALARM_STATS Table:
 Key                       : id
 
 id                        : key {state}
-alarms                    : Total active salarms in database {uint64}
+alarms                    : Total active alarms in database {uint64}
 critical                  : Total alarms of severity 'critical' in database {uint64}
 major                     : Total alarms of severity 'major' in database {uint64}
 minor                     : Total alarms of severity 'minor' in database {uint64}
@@ -610,6 +623,14 @@ warning                   : Total alarms of severity 'warning' in database {uint
 
 ```
 
+System Health Table
+```
+SYSTEM_HEALTH Table:
+==============================
+key           : “SYSTEM_STATE”
+state         : enum to indicate the health state of the system (NORMAL, WARNING, ERROR) 
+
+```
 ### 3.1.8 Pull Model
 All NBIs - CLI, REST and gNMI - can pull contents of current alarm table and event history table.
 The following filters are supported:
