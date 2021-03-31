@@ -382,12 +382,12 @@ New test cases will be added to cover the new MIB entries:
 ### 2.1 Entity Sensor MIB Extension Scope
 
 Currently SONiC already have a RFC3433 Entity sensor MIB implementation,  Transceiver embeded sensors like temperature, voltage, rx_power, tx_power and tx_bias are alreay included. After Entity MIB was extended as desribed in Section 1, Entity MIB will also be extened to cover more sensors. 
-Thermal sensors besides the Transceiver embeded thermal sensors which avalaible in the STATE_DB will all be added to the Entity Sensor MIB support.
+Thermal sensors besides the Transceiver embedded thermal sensors which avalaible in the STATE_DB will all be added to the Entity Sensor MIB support.
 PSU temperature, voltage, power and current will added, FAN tachometer will be added as well.
 
 ### 2.1 Entity Sensor MIB Data Source
 
-All new added MIB will be initilized and updated based on the data stored in the STATE_DB, to be more specific:
+All new added MIB will be initialized and updated based on the data stored in the STATE_DB, to be more specific:
 Thermal sensors data source will be the "TEMPERATURE_INFO" table,  PSU MIB entries will be fetched from "PSU_INFO" table and "FAN_INFO" is the source of FAN tachometers.
 
 ### 2.2 New added sensors detail description
