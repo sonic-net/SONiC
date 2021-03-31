@@ -349,18 +349,18 @@ It then updates the system LED by updating system health status.
 
 system health status field is updated based on alarm severity as follows:
 ```
-    *Error* if any outstanding Major or Critical alarms, else *Warning* if any Minor or Warning alarms, else *Normal*.
+    ERROR if any outstanding Major or Critical alarms, else WARNING if any Minor or Warning alarms, else NORMAL.
 ```
 
 The system LED update follows the system health status field and is as follows:
 ```
-    Red if system health status is *Error*, else Yellow if it is *Warning*, else Green.
+    Red if system health status is ERROR, else Yellow if it is WARNING, else Green.
 ```
 
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
 
-There will be a provision to acknowledge an alarm through CLI/REST/gNMI. On acknowledging, the system LED updates takes out acknowledged 
-alarm into consideration.
+There will be a provision to acknowledge an alarm through CLI/REST/gNMI. 
+On acknowledging, the system health state ( and hence LED ) is updated by taking out acknowledged alarm into consideration.
 
 ### 3.1.4 Event Receivers
 Supported NBIs are: syslog, REST and gNMI.
@@ -369,15 +369,28 @@ Supported NBIs are: syslog, REST and gNMI.
 Logging API contains logic to take the event record, augment it with any static information, format the message and 
 send it to syslog.
 ```
-const char LOG_FORMAT[] = "[%s] (%s), %%%s: %s: %s";
+if (ev_state.empty()) {
+    const char LOG_FORMAT[] = "[%s], %%%s: %s: %s";
                                                 // Log Type
                                                 // Event Name
                                                 // Dynamic message
                                                 // Static message
-   // raise a syslog message                                                
-   syslog(LOG_MAKEPRI(ev_sev, SYSLOG_FACILITY), LOG_FORMAT,
+    // raise a syslog message                                                
+    syslog(LOG_MAKEPRI(ev_sev, SYSLOG_FACILITY), LOG_FORMAT,
+        ev_type.c_str(),
+        ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
+} else {
+    const char LOG_FORMAT[] = "[%s] (%s), %%%s: %s: %s";
+                                                // Log Type
+                                                // Event state 
+                                                // Event Name
+                                                // Dynamic message
+                                                // Static message
+    // raise a syslog message                                                
+    syslog(LOG_MAKEPRI(ev_sev, SYSLOG_FACILITY), LOG_FORMAT,
         ev_type.c_str(), ev_state.c_str(),
         ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
+}
         
 ``` 
 
@@ -424,7 +437,7 @@ The proposed solution could be to have a system health paramter in the DB.
 ```
 127.0.0.1:6379[6]> hgetall "SYSTEM_HEALTH|SYSTEM_STATE"
 1) "state"
-2) "Normal"
+2) "NORMAL"
 ```
 This is updated by eventd and pmon could use it to update LED accordingly. 
 
@@ -603,11 +616,11 @@ ALARM_STATS Table:
 Key                       : id
 
 id                        : key {state}
-alarms                    : Total active alarms in database {uint64}
-critical                  : Total alarms of severity 'critical' in database {uint64}
-major                     : Total alarms of severity 'major' in database {uint64}
-minor                     : Total alarms of severity 'minor' in database {uint64}
-warning                   : Total alarms of severity 'warning' in database {uint64}
+alarms                    : Number of active alarms in database {uint64}
+critical                  : Number of alarms of severity 'critical' currently in database {uint64}
+major                     : Number of alarms of severity 'major' currently in database {uint64}
+minor                     : Number of alarms of severity 'minor' currently in database {uint64}
+warning                   : Number of alarms of severity 'warning' currently in database {uint64}
 
 127.0.0.1:6379[6]> hgetall "ALARM_STATS|state"
  1) "alarms"
