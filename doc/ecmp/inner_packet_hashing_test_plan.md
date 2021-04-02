@@ -3,9 +3,10 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 03/12/2021  |    Anish Narsian   | Initial version                   |
+| 1.0 | 04/01/2021  |    Anish Narsian   | Incorporate review comments       |
 
 ## Overview
-The purpose of this test plan is to describe inner packet hashing tests for ECMP nexthops. The test methodology will be similar to the current hash_test in SONiC. The test sends vxlan encapsulated packets and validates hashing is performed per the inner packet's 5 tuple(src ip, dst ip, src port, dst port, ip proto).
+The purpose of this test plan is to describe inner packet hashing tests for ECMP nexthops. The test methodology will be similar to the current hash_test in SONiC. The test sends encapsulated packets and validates hashing is performed per the inner packet's 5 tuple(src ip, dst ip, src port, dst port, ip proto).
 
 ## Test information
 
@@ -33,13 +34,19 @@ The test will be supported on the T0 toplogy, it may be enhanced in the future f
 5. IPv6 NVGRE
 
 ### Inner packet tuples varied for hash valdiation:
-Validate hashing with different inner packet tuples:
-1. Src IP
-2. Dst IP
+#### Validate hashing with different inner packet tuples:
+1. Src IPv4
+2. Dst IPv4
 3. Src Port
 4. Dst Port
 5. IP Protocol
 
-### Direction agnostic hashing
-As an optional mode, the test will also validate direction agnostic packet hashing: 2 directions of a flow land on the same ecmp nexthop. 
-This will be tested by sending one direction of the packet, recording the received port, sending the reverse direction of the packet and validate that it is received on the same port.
+#### Ensure that outer packets are not contributing to the hashing:
+Send the inner packets with identical inner tuples, then vary each of the outer packet tuples as 1000s of packets are sent. All packets should be received on a single next-hop ONLY, because of a lack in variation of the inner packet tuples. This way we ensure that only the inner packet tuples are contributing to the hash and that the outer packet tuples are not.
+
+### Symmetric hashing
+As an optional mode, the test will also validate symmetric packet hashing: 2 directions of a flow land on the same ecmp nexthop. 
+This will be tested by sending one direction of the packet, recording the received port, sending the reverse direction of the packet and validate that it is received on the very same port.
+
+### Warm boot testing
+Run inner packet hashing traffic while warm boot is ongoing and ensure that it works just as in the standard non-warm boot case.
