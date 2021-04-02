@@ -1,7 +1,7 @@
 ## CMIS and C-CMIS support for ZR on SONiC
 
 ### Overview
-Common Management Interface Specification (CMIS) is defined for pluggables or on-board modules to communicate with the registers. With a clear difinition of these registers, modules can set the configurations or get the status, to achieve the basic level of monitor and control. 
+Common Management Interface Specification (CMIS) is defined for pluggables or on-board modules to communicate with the registers [CMIS v4.0](http://www.qsfp-dd.com/wp-content/uploads/2019/05/QSFP-DD-CMIS-rev4p0.pdf). With a clear difinition of these registers, modules can set the configurations or get the status, to achieve the basic level of monitor and control. 
 
 CMIS is widely used on modules based on a Two-Wire-Interface (TWI), including QSFP-DD, OSFP, COBO and QSFP modules. However, new requirements emerge with the introduction of coherent optical modules, such as 400G ZR. 400G ZR is the first type of modules to require definitions on coherent optical specifications, a field CMIS does not touch on. The development of C(coherent)-CMIS aims to solve this issue. It is based on CMIS but incroporates more definitions on registers in the extended space, regarding the emerging demands on coherent optics specifications.
 
@@ -42,7 +42,7 @@ The host addressable memory starts with a lower memory of 128 bytes that occupy 
 Then it starts from Page 0. Each page has 128 bytes and the first byte of each page starts with an offset of 128.
 Therefore, the address of a byte with *page* and *offset* is *page* * 128 + *offset*.
 
--  Module general information pages
+-  Module general information pages (Page 0h - 1Fh, CMIS)
 
 Sample code to define registers with module general information:
 
@@ -53,9 +53,8 @@ SFF8024_IDENTIFIER = {
           'SIZE': 1,
           'TYPE': 'B'
 }
-
 ```
--  Versatile Diagnostics Monitor (VDM) pages
+-  Versatile Diagnostics Monitor (VDM) pages (Page 20h - 2Fh, CMIS and C-CMIS)
 
 Note that VDM ID 1-24 are defined in CMIS. VDM ID starting from 128 are defined in C-CMIS. Below is sample code to define registers with VDM information. 
 We use ```get_VDM``` function to get VDM items and their thresholds, which will be introduced later in this document [here](#get-vdm-related-information).
@@ -108,9 +107,8 @@ VDM_TYPE = {
           146: ['SOP ROC [krad/s]', 'U16', 1],
           147: ['MER [dB]', 'U16', 0.1]
 }
-
 ```
--  C-CMIS related pages (Page 30h - 3fh)
+-  C-CMIS related pages (Page 30h - 4Fh, C-CMIS)
 
 
 
@@ -133,7 +131,6 @@ def read_reg(port, page, offset, size):
 
 def write_reg(port, page, offset, size, write_raw):
     platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
-    
 ```
 #### Encoding and decoding raw data
 - read_reg_from_dict
@@ -153,7 +150,6 @@ def read_reg_from_dict(port, Dict):
 def write_reg_from_dict(port, Dict, write_buffer):
     write_raw = struct.pack(Dict['TYPE'], write_buffer)
     write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
-  
 ```
 
 ### High level functions
@@ -178,10 +174,21 @@ def write_reg_from_dict(port, Dict, write_buffer):
 ```get_VDM``` function uses dictionary defined [here](#versatile-diagnostics-monitor-vdm-pages). It parses all the VDM items defined in the dictionary and returns both VDM monitor values and four threshold values related to this VDM item. 
 
 ```
+PAGE_SIZE = 128
+PAGE_OFFSET = 128
+THRSH_SPACING = 8
+VDM_SIZE = 2
+
+def get_F16(value):
+    scale_exponent = (value >> 11) & 0x1f
+    mantissa = value & 0x7ff
+    result = mantissa*10**(scale_exponent-24)
+    return result
+
 def get_VDM_page(port, page):
     if page not in [0x20, 0x21, 0x22, 0x23]:
         raise ValueError('Page not in VDM Descriptor range!')
-    VDM_descriptor = struct.unpack('128B', read_reg(port, page, 128, 128))
+    VDM_descriptor = struct.unpack(f'{PAGE_SIZE}B', read_reg(port, page, PAGE_OFFSET, PAGE_SIZE))
     # Odd Adress VDM observable type ID, real-time monitored value in Page + 4
     VDM_typeID = VDM_descriptor[1::2]
     # Even Address
@@ -199,26 +206,26 @@ def get_VDM_page(port, page):
             vdm_info_dict = Data_Type_Dict.VDM_TYPE[typeID]
             scale = vdm_info_dict[2]
             thrshID = VDM_thresholdID[index]
-            vdm_value_raw = read_reg(port, VDM_valuePage, 128+2*index, 2)
+            vdm_value_raw = read_reg(port, VDM_valuePage, PAGE_OFFSET+VDM_SIZE*index, VDM_SIZE)
             if vdm_info_dict[1] == 'S16':
                 vdm_value = struct.unpack('>h',vdm_value_raw)[0] * scale
-                vdm_thrsh_high_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, 128+8*thrshID, 2))[0] * scale
-                vdm_thrsh_low_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, 128+8*thrshID+2, 2))[0] * scale
-                vdm_thrsh_high_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, 128+8*thrshID+4, 2))[0] * scale
-                vdm_thrsh_low_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, 128+8*thrshID+6, 2))[0] * scale
+                vdm_thrsh_high_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0] * scale
+                vdm_thrsh_low_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0] * scale
+                vdm_thrsh_high_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0] * scale
+                vdm_thrsh_low_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0] * scale
             elif vdm_info_dict[1] == 'U16':
                 vdm_value = struct.unpack('>H',vdm_value_raw)[0] * scale
-                vdm_thrsh_high_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID, 2))[0] * scale
-                vdm_thrsh_low_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+2, 2))[0] * scale
-                vdm_thrsh_high_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+4, 2))[0] * scale
-                vdm_thrsh_low_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+6, 2))[0] * scale
+                vdm_thrsh_high_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0] * scale
+                vdm_thrsh_low_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0] * scale
+                vdm_thrsh_high_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0] * scale
+                vdm_thrsh_low_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0] * scale
             elif vdm_info_dict[1] == 'F16':
                 vdm_value_int = struct.unpack('>H',vdm_value_raw)[0]
                 vdm_value = get_F16(vdm_value_int)
-                vdm_thrsh_high_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID, 2))[0]
-                vdm_thrsh_low_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+2, 2))[0]
-                vdm_thrsh_high_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+4, 2))[0]
-                vdm_thrsh_low_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, 128+8*thrshID+6, 2))[0]
+                vdm_thrsh_high_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0]
+                vdm_thrsh_low_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0]
+                vdm_thrsh_high_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0]
+                vdm_thrsh_low_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0]
                 vdm_thrsh_high_alarm = get_F16(vdm_thrsh_high_alarm_int)
                 vdm_thrsh_low_alarm = get_F16(vdm_thrsh_low_alarm_int)
                 vdm_thrsh_high_warn = get_F16(vdm_thrsh_high_warn_int)
@@ -352,7 +359,6 @@ def get_PM(port):
 def set_low_power(port, AssertLowPower):
     module_control = AssertLowPower << 6    
     write_reg_from_dict(port, Page00h_Lower.MODULE_LEVEL_CONTROL, module_control)
-
 ```
 - set_TX_power
 
