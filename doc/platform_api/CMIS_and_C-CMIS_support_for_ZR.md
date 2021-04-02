@@ -40,7 +40,7 @@ The rest of the article will discuss the following items:
 
 The host addressable memory starts with a lower memory of 128 bytes that occupy address byte 0-127. 
 Then it starts from Page 0. Each page has 128 bytes and the first byte of each page starts with an offset of 128.
-Therefore, the address of a byte with page and offset is page*128 + offset.
+Therefore, the address of a byte with *page* and *offset* is *page* * 128 + *offset*.
 
 -  Module general information pages
 
@@ -55,9 +55,10 @@ SFF8024_IDENTIFIER = {
 }
 
 ```
--  VDM pages
+-  Versatile Diagnostics Monitor (VDM) pages
 
-Sample code to define registers with VDM information below. Note that VDM ID starting from 128 are defined in C-CMIS.
+Note that VDM ID 1-24 are defined in CMIS. VDM ID starting from 128 are defined in C-CMIS. Below is sample code to define registers with VDM information. 
+We use ```get_VDM``` function to get VDM items and their thresholds, which will be introduced later in this document [here](#get-vdm-related-information).
 
 ```
 VDM_TYPE = {
@@ -108,7 +109,75 @@ VDM_TYPE = {
           147: ['MER [dB]', 'U16', 0.1]
 }
 
+```
+-  C-CMIS related pages (Page 30h - 3fh)
 
+
+
+### Method to read from and write to registers
+
+#### Read and write registers
+- read_reg
+- write_reg
+
+Read and write registers use vendor provided functions to access the bottom layer registers with dictionaries defined Sample code to read and write registers with vendor provided functoins. As mentioned above, the address of a byte with *page* and *offset* is *page* * 128 + *offset*. Below is sample code to read and write registers.
+
+```
+import sonic_platform.platform
+import sonic_platform_base.sonic_sfp.sfputilhelper
+platform_chassis = sonic_platform.platform.Platform().get_chassis()
+PAGE_SIZE = 128
+
+def read_reg(port, page, offset, size):
+    return platform_chassis.get_sfp(port).read_eeprom(page*PAGE_SIZE + offset,size)
+
+def write_reg(port, page, offset, size, write_raw):
+    platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
+    
+```
+#### Encoding and decoding raw data
+- read_reg_from_dict
+- write_reg_from_dict
+
+Read and write registers from dictionary use dictionaries defined [here](#definition-on-cmis-and-c-cmis-registers) and calls read and write register function [here](#read-and-write-registers). We use Python built-in library ```struct``` to encode and decode the raw data in bytearray form to meaningful values. Sample code to decode and encode from/to rawdata in registers:
+
+```
+def read_reg_from_dict(port, Dict): 
+    read_raw = read_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'])
+    read_buffer = struct.unpack(Dict['TYPE'], read_raw)
+    if len(read_buffer) == 1:
+        return read_buffer[0]
+    else:
+        return read_buffer
+
+def write_reg_from_dict(port, Dict, write_buffer):
+    write_raw = struct.pack(Dict['TYPE'], write_buffer)
+    write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
+  
+```
+
+### High level functions
+
+#### Get module basic information
+- get_module_type
+- get_module_status
+- get_module_vendor
+- get_module_part_number
+- get_module_serial_number
+- get_datapath_lane_status
+- get_module_case_temp
+- get_supply_3v3
+- get_laser_temp
+- get_tuning_status
+- get_laser_freq
+- get_TX_configured_power
+
+#### Get VDM related information
+- get_VDM
+
+```get_VDM``` function uses dictionary defined [here](#versatile-diagnostics-monitor-vdm-pages). It parses all the VDM items defined in the dictionary and returns both VDM monitor values and four threshold values related to this VDM item. 
+
+```
 def get_VDM_page(port, page):
     if page not in [0x20, 0x21, 0x22, 0x23]:
         raise ValueError('Page not in VDM Descriptor range!')
@@ -171,8 +240,22 @@ def get_VDM_page(port, page):
                                                                   vdm_thrsh_low_warn]
     return VDM_Page_data
 
+def get_VDM(port):
+    vdm_page_supported_raw = read_reg_from_dict(port, Page2Fh.VDM_SUPPORT) & 0x3
+    vdm_page_supported = Data_Type_Dict.VDM_SUPPORTED_PAGE[vdm_page_supported_raw]
+    VDM = {}
+    # Bit 7, freeze all PMs for reporting
+    write_reg_from_dict(port, Page2Fh.FREEZE_REQUEST, 128)
+    time.sleep(1)
+    for page in vdm_page_supported:
+        VDM_current_page = get_VDM_page(port, page)
+        VDM.update(VDM_current_page)
+    write_reg_from_dict(port, Page2Fh.FREEZE_REQUEST, 0)
+    return VDM
 ```
--  C-CMIS related pages (Page 30h - 3fh)
+
+#### Get C-CMIS PM
+- get_PM
 
 Sample code to read C-CMIS defined PMs:
 
@@ -261,87 +344,6 @@ def get_PM(port):
     write_reg_from_dict(port, Page2Fh.FREEZE_REQUEST, 0)
     return PM_dict
 ```
-
-### Method to read from and write to registers
-
-#### Read and write registers
-- read_reg
-- write_reg
-
-Sample code to read and write registers with vendor provided functoins:
-
-```
-import sonic_platform.platform
-import sonic_platform_base.sonic_sfp.sfputilhelper
-platform_chassis = sonic_platform.platform.Platform().get_chassis()
-PAGE_SIZE = 128
-
-def read_reg(port, page, offset, size):
-    # platform_chassis.get_sfp(port).write_eeprom(127,1,bytearray([page]))
-    return platform_chassis.get_sfp(port).read_eeprom(page*PAGE_SIZE + offset,size)
-
-def write_reg(port, page, offset, size, write_raw):
-    # platform_chassis.get_sfp(port).write_eeprom(127,1,bytearray([page]))
-    platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
-    
-```
-#### Encoding and decoding raw data
-- read_reg_from_dict
-- write_reg_from_dict
-
-Sample code to decode and encode from/to rawdata in registers:
-
-```
-def read_reg_from_dict(port, Dict): 
-    read_raw = read_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'])
-    read_buffer = struct.unpack(Dict['TYPE'], read_raw)
-    if len(read_buffer) == 1:
-        return read_buffer[0]
-    else:
-        return read_buffer
-
-def write_reg_from_dict(port, Dict, write_buffer):
-    write_raw = struct.pack(Dict['TYPE'], write_buffer)
-    write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
-  
-```
-
-### High level functions
-
-#### Get module basic information
-- get_module_type
-- get_module_status
-- get_module_vendor
-- get_module_part_number
-- get_module_serial_number
-- get_datapath_lane_status
-- get_module_case_temp
-- get_supply_3v3
-- get_laser_temp
-- get_tuning_status
-- get_laser_freq
-- get_TX_configured_power
-
-#### Get VDM related information
-- get_VDM
-
-```
-def get_VDM(port):
-    vdm_page_supported_raw = read_reg_from_dict(port, Page2Fh.VDM_SUPPORT) & 0x3
-    vdm_page_supported = Data_Type_Dict.VDM_SUPPORTED_PAGE[vdm_page_supported_raw]
-    VDM = {}
-    # Bit 7, freeze all PMs for reporting
-    write_reg_from_dict(port, Page2Fh.FREEZE_REQUEST, 128)
-    time.sleep(1)
-    for page in vdm_page_supported:
-        VDM_current_page = get_VDM_page(port, page)
-        VDM.update(VDM_current_page)
-    write_reg_from_dict(port, Page2Fh.FREEZE_REQUEST, 0)
-    return VDM
-```
-
-#### Get C-CMIS PM
-- get_PM
 
 #### Set module configuration, turn up
 - set_low_power
