@@ -156,17 +156,168 @@ def write_reg_from_dict(port, Dict, write_buffer):
 
 #### Get module basic information
 - get_module_type
+
+```
+def get_module_type(port):
+    module_type = read_reg_from_dict(port, Page00h_Lower.SFF8024_IDENTIFIER)
+    # 400ZR specific: 18h, QSFP-DD
+    return Data_Type_Dict.MODULE_TYPE_DICT[module_type]
+```
+
 - get_module_status
+
+```
+def get_module_status(port):
+    # Bit 3-1:      Module state. 
+    # 000b          -
+    # 001b          ModuleLowPwr
+    # 010b          ModulePwrUp
+    # 011b          ModuleReady This is the only state reported by flat memory modules
+    # 100b          ModulePwrDn
+    # 101b          Fault
+    # 110b          -
+    # 111b          -
+
+    # Bit 0: Interrupt status. Status of Interrupt output (inverted logic hardware signal)
+    # 0b: Interrupt asserted
+    # 1b: Interrupt not asserted (default)
+    module_status_raw = read_reg_from_dict(port, Page00h_Lower.MODULE_STATE)
+    module_status = (module_status_raw>>1) & 0x7
+    return Data_Type_Dict.MODULE_STATUS_DICT[module_status]
+```
+
 - get_module_vendor
+
+```
+def get_module_vendor(port):
+    module_vendor = read_reg_from_dict(port, Page00h_Upper.VENDOR_NAME)
+    return module_vendor
+```
 - get_module_part_number
+
+```
+def get_module_part_number(port):
+    module_part_number = read_reg_from_dict(port, Page00h_Upper.VENDOR_PN)
+    return module_part_number
+```
 - get_module_serial_number
+
+```
+def get_module_serial_nubmer(port):
+    module_serial_number = read_reg_from_dict(port, Page00h_Upper.VENDOR_SN)
+    return module_serial_number
+```
 - get_datapath_lane_status
+
+```
+def get_datapath_lane_status(port):
+    LANE_NUMBER = 8
+    datapath_lane_status = [0] * LANE_NUMBER
+
+    # Bit 7-4: DataPathStateHostLane2 Data Path State Indicator, as observed on host lane 2
+    # Bit 3-0: DataPathStateHostLane1 Data Path State Indicator, as observed on host lane 1
+    # Bit 7-4: DataPathStateHostLane4 Data Path State Indicator, as observed on host lane 4
+    # Bit 3-0: DataPathStateHostLane3 Data Path State Indicator, as observed on host lane 3
+    # Bit 7-4: DataPathStateHostLane6 Data Path State Indicator, as observed on host lane 6
+    # Bit 3-0: DataPathStateHostLane5 Data Path State Indicator, as observed on host lane 5
+    # Bit 7-4: DataPathStateHostLane8 Data Path State Indicator, as observed on host lane 8
+    # Bit 3-0: DataPathStateHostLane7 Data Path State Indicator, as observed on host lane 7
+    datapath_state_1 = read_reg_from_dict(port, Page11h.DATA_PATH_STATE_HOST_1)
+    datapath_state_2 = read_reg_from_dict(port, Page11h.DATA_PATH_STATE_HOST_2)
+    datapath_state_3 = read_reg_from_dict(port, Page11h.DATA_PATH_STATE_HOST_3)
+    datapath_state_4 = read_reg_from_dict(port, Page11h.DATA_PATH_STATE_HOST_4)
+
+    # Data path state
+    # Encoding      State
+    # 0h            Reserved
+    # 1h            DataPathDeactivated
+    # 2h            DataPathInit
+    # 3h            DataPathDeinit
+    # 4h            DataPathActivated
+    # 5h            DataPathTxTurnOn
+    # 6h            DataPathTxTurnOff
+    # 7h            DataPathInitialized
+    # 8h-Fh         Reserved
+
+    datapath_lane_status[0] = datapath_state_1 & 0xF
+    datapath_lane_status[1] = (datapath_state_1>>4) & 0xF
+    datapath_lane_status[2] = datapath_state_2 & 0xF
+    datapath_lane_status[3] = (datapath_state_2>>4) & 0xF
+    datapath_lane_status[4] = datapath_state_3 & 0xF
+    datapath_lane_status[5] = (datapath_state_3>>4) & 0xF
+    datapath_lane_status[6] = datapath_state_4 & 0xF
+    datapath_lane_status[7] = (datapath_state_4>>4) & 0xF
+    return Data_Type_Dict.DATA_PATH_STATUS_DICT[datapath_lane_status[0]]
+```
 - get_module_case_temp
+
+```
+def get_module_case_temp(port):
+    # Scaled with 1/256 degree Celsius increments. Unit in deg C
+    MODULE_CASE_TEMP_SCALE = 1.0/256
+    module_case_temp = read_reg_from_dict(port, Page00h_Lower.MODULE_CASE_TEMP) * MODULE_CASE_TEMP_SCALE
+    return module_case_temp
+```
 - get_supply_3v3
+
+```
+def get_supply_3v3(port):
+    # Scaled with 100 uV increments. Unit converted to Volt
+    SUPPLY_3V3_SCALE = 0.0001
+    supply_3v3 = read_reg_from_dict(port, Page00h_Lower.SUPPLY_3V3) * SUPPLY_3V3_SCALE
+    return supply_3v3
+```
 - get_laser_temp
+
+```
+def get_laser_temp(port):
+    aux_monitor_ad = read_reg_from_dict(port, Page01h.MODULE_CHARACTERISTICS_MISC_1)
+    # Bit 1: Aux2MonitorType
+    # 0b: Aux 2 monitor monitors Laser Temperature
+    # 1b: Aux 2 monitor monitors TEC current    
+    Aux2MonitorType = (aux_monitor_ad>>1) & 0x1
+    # Bit 2: Aux3MonitorType
+    # 0b: Aux 3 monitor monitors Laser Temperature
+    # 1b: Aux 3 monitor monitors Vcc2
+    Aux3MonitorType = (aux_monitor_ad>>2) & 0x1
+
+    # laser temp scaled with 1/256 degree Celsius increments. Unit in deg C
+    # laser temp from Aux3
+    LASER_TEMP_SCALE = 1.0/256
+    if Aux2MonitorType and not Aux3MonitorType: 
+        laser_temp = read_reg_from_dict(port, Page00h_Lower.AUX3MONITOR) * LASER_TEMP_SCALE
+    # laser temp from Aux2
+    elif not Aux2MonitorType and Aux3MonitorType: 
+        laser_temp = read_reg_from_dict(port, Page00h_Lower.AUX2MONITOR) * LASER_TEMP_SCALE
+    # laser temp monitor not supported
+    else:
+        laser_temp = None
+    return laser_temp
+```
 - get_tuning_status
+
+```
+def get_tuning_status(port):
+    tuning_status = read_reg_from_dict(port, Page12h.TX_TUNING_STATUS_LANE_1) & 0x3
+    return Data_Type_Dict.LASER_TUNING_STATUS_DICT[tuning_status]
+```
 - get_laser_freq
+
+```
+def get_laser_freq(port):
+    # Unit in MHz
+    laser_freq = read_reg_from_dict(port, Page12h.TX_CURRENT_LASER_FREQUENCY_LANE_1)
+    return laser_freq
+```
 - get_TX_configured_power
+
+```
+def get_TX_configured_power(port):
+    # configured TX power value
+    # Scaled with 0.01 dBm. Unit in dBm
+    TX_POWER_SCALE = 0.01
+    tx_configured_power = read_reg_from_dict(port, Page12h.TX_TARGET_OUTPUT_POWER_LANE_1) * TX_POWER_SCALE
+```
 
 #### Get VDM related information
 - get_VDM
