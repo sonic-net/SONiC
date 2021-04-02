@@ -207,25 +207,29 @@ def get_VDM_page(port, page):
             scale = vdm_info_dict[2]
             thrshID = VDM_thresholdID[index]
             vdm_value_raw = read_reg(port, VDM_valuePage, PAGE_OFFSET+VDM_SIZE*index, VDM_SIZE)
+            vdm_thrsh_high_alarm_raw = read_reg(port, VDM_thrshPage, PAGE_OFFSET + THRSH_SPACING * thrshID, VDM_SIZE)
+            vdm_thrsh_low_alarm_raw = read_reg(port, VDM_thrshPage, PAGE_OFFSET + THRSH_SPACING * thrshID + 2, VDM_SIZE)
+            vdm_thrsh_high_warn_raw = read_reg(port, VDM_thrshPage, PAGE_OFFSET + THRSH_SPACING * thrshID + 4, VDM_SIZE)
+            vdm_thrsh_low_warn_raw = read_reg(port, VDM_thrshPage, PAGE_OFFSET + THRSH_SPACING * thrshID + 6, VDM_SIZE)
             if vdm_info_dict[1] == 'S16':
                 vdm_value = struct.unpack('>h',vdm_value_raw)[0] * scale
-                vdm_thrsh_high_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0] * scale
-                vdm_thrsh_low_alarm = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0] * scale
-                vdm_thrsh_high_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0] * scale
-                vdm_thrsh_low_warn = struct.unpack('>h', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0] * scale
+                vdm_thrsh_high_alarm = struct.unpack('>h', vdm_thrsh_high_alarm_raw)[0] * scale
+                vdm_thrsh_low_alarm = struct.unpack('>h', vdm_thrsh_low_alarm_raw)[0] * scale
+                vdm_thrsh_high_warn = struct.unpack('>h', vdm_thrsh_high_warn_raw)[0] * scale
+                vdm_thrsh_low_warn = struct.unpack('>h', vdm_thrsh_low_warn_raw)[0] * scale
             elif vdm_info_dict[1] == 'U16':
                 vdm_value = struct.unpack('>H',vdm_value_raw)[0] * scale
-                vdm_thrsh_high_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0] * scale
-                vdm_thrsh_low_alarm = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0] * scale
-                vdm_thrsh_high_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0] * scale
-                vdm_thrsh_low_warn = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0] * scale
+                vdm_thrsh_high_alarm = struct.unpack('>H', vdm_thrsh_high_alarm_raw)[0] * scale
+                vdm_thrsh_low_alarm = struct.unpack('>H', vdm_thrsh_low_alarm_raw)[0] * scale
+                vdm_thrsh_high_warn = struct.unpack('>H', vdm_thrsh_high_warn_raw)[0] * scale
+                vdm_thrsh_low_warn = struct.unpack('>H', vdm_thrsh_low_warn_raw)[0] * scale
             elif vdm_info_dict[1] == 'F16':
                 vdm_value_int = struct.unpack('>H',vdm_value_raw)[0]
                 vdm_value = get_F16(vdm_value_int)
-                vdm_thrsh_high_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID, VDM_SIZE))[0]
-                vdm_thrsh_low_alarm_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+2, VDM_SIZE))[0]
-                vdm_thrsh_high_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+4, VDM_SIZE))[0]
-                vdm_thrsh_low_warn_int = struct.unpack('>H', read_reg(port, VDM_thrshPage, PAGE_OFFSET+THRSH_SPACING*thrshID+6, VDM_SIZE))[0]
+                vdm_thrsh_high_alarm_int = struct.unpack('>H', vdm_thrsh_high_alarm_raw)[0]
+                vdm_thrsh_low_alarm_int = struct.unpack('>H', vdm_thrsh_low_alarm_raw)[0]
+                vdm_thrsh_high_warn_int = struct.unpack('>H', vdm_thrsh_high_warn_raw)[0]
+                vdm_thrsh_low_warn_int = struct.unpack('>H', vdm_thrsh_low_warn_raw)[0]
                 vdm_thrsh_high_alarm = get_F16(vdm_thrsh_high_alarm_int)
                 vdm_thrsh_low_alarm = get_F16(vdm_thrsh_low_alarm_int)
                 vdm_thrsh_high_warn = get_F16(vdm_thrsh_high_warn_int)
