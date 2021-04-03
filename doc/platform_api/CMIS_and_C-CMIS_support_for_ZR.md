@@ -42,7 +42,20 @@ The host addressable memory starts with a lower memory of 128 bytes that occupy 
 Then it starts from Page 0. Each page has 128 bytes and the first byte of each page starts with an offset of 128.
 Therefore, the address of a byte with *page* and *offset* is *page* * 128 + *offset*.
 
--  Module general information pages (Page 0h - 1Fh, CMIS)
+-  Module general information pages (Page 0h - 1Fh, CMIS). See Figure 8-1 and Figure 8-2 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2019/05/QSFP-DD-CMIS-rev4p0.pdf)
+
+Important pages containing module general information:
+
+|Address|Page Description|Type|
+|-------|----------------|----|
+|00h|Administrative Information|RO|
+|01h|Advertising|RO|
+|02h|Threshold Information|RO|
+|04h|Laser Capabilities Advertising|RO|
+|10h|Lane and Datapath Configuration|RW|
+|11h|Lane and Datapath Status|RO|
+|12h|Tunable Laser Control and Status|mixed|
+
 
 Sample code to define registers with module general information:
 
@@ -55,6 +68,26 @@ SFF8024_IDENTIFIER = {
 }
 ```
 -  Versatile Diagnostics Monitor (VDM) pages (Page 20h - 2Fh, CMIS and C-CMIS)
+
+VDM Pages. See Table 8-95 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2019/05/QSFP-DD-CMIS-rev4p0.pdf)
+
+|Address|Page Description|Type|
+|-------|----------------|----|
+|20h|VDM Observable Descriptors 1| RO|
+|21h|VDM Observable Descriptors 2| RO|
+|22h|VDM Observable Descriptors 3| RO|
+|23h|VDM Observable Descriptors 4| RO|
+|24h|VDM Samples 1| RO|
+|25h|VDM Samples 2| RO|
+|26h|VDM Samples 3| RO|
+|27h|VDM Samples 4| RO|
+|28h|VDM Thresholds 1| RO|
+|29h|VDM Thresholds 2| RO|
+|2Ah|VDM Thresholds 3| RO|
+|2Bh|VDM Thresholds 4| RO|
+|2Ch|VDM Flags|RO/COR|
+|2Dh|VDM Masks|RW|
+
 
 Note that VDM ID 1-24 are defined in CMIS. VDM ID starting from 128 are defined in C-CMIS. Below is sample code to define registers with VDM information. 
 We use ```get_VDM``` function to get VDM items and their thresholds, which will be introduced later in this document [here](#get-vdm-related-information).
@@ -110,7 +143,22 @@ VDM_TYPE = {
 ```
 -  C-CMIS related pages (Page 30h - 4Fh, C-CMIS)
 
+See [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf)
 
+|Address|Page Description|Type|
+|-------|----------------|----|
+|30h|Media Lane Configurable Thresholds|RW|
+|31h|Media Lane Provisioning|RW|
+|32h|Media Lane Masks|RW|
+|33h|Media Lane Flags|RO/COR|
+|34h|Media Lane FEC PM|RO|
+|35h|Media Lane Link PM|RO|
+|38h|Host Interface Configuration|RW|
+|3Ah|Host Interface PM|RO|
+|3Bh|Host Interface Flags and Masks|mixed|
+|41h|RX Power Advertisement and Configurable Thresholds|RO|
+|42h|PM Advertisement|RO|
+|43h|Media Lane Provisioning Advertisement|RO|
 
 ### Method to read from and write to registers
 
