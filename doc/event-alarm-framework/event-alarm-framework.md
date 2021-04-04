@@ -669,12 +669,13 @@ and are being evaluated.
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 ### 3.2.2 APP DB
+Table EVENTPUBSUB is used for applications to write events and for eventconsumer to access and process them.
+
 ### 3.2.3 STATE DB
 Four new tables are introduced. 
 Event History Table (EVENT) and Current Alarm Table (ALARM).
 To maintain various statistics of events, these two are introduced : EVENT_STATS and ALARM_STATS.
 
-A pubsub table is used: EVENTPUBSUB between applications and eventconsumer.
 ### 3.2.4 ASIC DB
 ### 3.2.5 COUNTER DB
 
