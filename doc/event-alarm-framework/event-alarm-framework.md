@@ -415,7 +415,7 @@ When operator configures a host with 'event' type, it receives *only* log messag
 Support for VRF/source-interface/UDP port are all are applicable for 'event' type.
 
 #### 3.1.4.2 REST
-This is currently being evaluated.
+Subcribing through REST to receive event notifications is currently being evaluated.
 
 #### 3.1.4.3 gNMI
 gNMI clients can subscribe to receive event notifications. Subscribed gNMI clients receive event fields as in the DB and 
@@ -559,10 +559,10 @@ EVENT_STATS Table:
 Key                       : id
 
 id                        : key {state}
-events                    : Total events in database {uint64}
-alarms                    : Total alarms in database {uint64}
-cleared                   : Total alarms cleared in database {uint64}
-acked                     : Total alarms acknowledged in database {uint64}
+events                    : Total events raised {uint64}
+alarms                    : Total alarms raised {uint64}
+cleared                   : Total alarms cleared {uint64}
+acked                     : Total alarms acknowledged {uint64}
 
 127.0.0.1:6379[6]> hgetall "EVENT_STATS|state"
 1) "events"
@@ -616,11 +616,11 @@ ALARM_STATS Table:
 Key                       : id
 
 id                        : key {state}
-alarms                    : Number of active alarms in database {uint64}
-critical                  : Number of alarms of severity 'critical' currently in database {uint64}
-major                     : Number of alarms of severity 'major' currently in database {uint64}
-minor                     : Number of alarms of severity 'minor' currently in database {uint64}
-warning                   : Number of alarms of severity 'warning' currently in database {uint64}
+alarms                    : Number of active alarms {uint64}
+critical                  : Number of alarms of severity 'critical' {uint64}
+major                     : Number of alarms of severity 'major' {uint64}
+minor                     : Number of alarms of severity 'minor' {uint64}
+warning                   : Number of alarms of severity 'warning' {uint64}
 
 127.0.0.1:6379[6]> hgetall "ALARM_STATS|state"
  1) "alarms"
@@ -628,7 +628,7 @@ warning                   : Number of alarms of severity 'warning' currently in 
  3) "critical"
  4) "0"
  5) "major"
- 6) "0"
+ 6) "1"
  7) "minor"
  8) "0"
  9) "warning"
@@ -954,7 +954,7 @@ Total:            6
 Critical:         2
 Major:            1
 Minor:            1
-Warning:          0
+Warning:          2
 Acknowledged:     1
 Informational:    0
 -------------------------------------------
