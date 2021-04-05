@@ -64,6 +64,8 @@ Diagnostic information aggregated presentation
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/06/2019  |   Kerry Meyer      | Initial version                   |
+| 0.2 | 04/02/2021  |   Kerry Meyer      | Revised for submission in SONiC community PR https://github.com/Azure/SONiC/pull/756                                      |
+
 
 # About this Manual
 This manual describes the user interface for obtaining aggregated diagnostic information for the SONiC subsystem via the Management Framework infrastructure.
@@ -75,6 +77,7 @@ The scope of the information contained in this document is the high level design
 # 1 Feature Overview
 
 Provide Management Framework functionality to process the "show techsupport" command:
+
     - Create an aggregated file containing the information items needed for analysis and diagnosis of problems occurring during switch operations.
     - Support reduction of aggregated log file information via an optional "--since" parameter specifying the desired logging start time.
 
@@ -137,6 +140,7 @@ To view the contents of the file, the user must copy it to a local file in the c
 `
 tar xvzf filename.tar.gz
 `
+
 The files are extracted to a directory tree, organized based on the type of information contained in the files. Example file categories for which sub-directories are provided in the output file tree include:
 
 - log files ("log" directory )
@@ -150,6 +154,7 @@ To extract the file contents to an alternate location, the following form of the
 `
  tar xvzf filename.tar.gz -C /path/to/destination/directory
 `
+
 Some of the larger "extracted" files are compressed in gzip format. This includes log files and core files and also includes other files containing a large amount of output (e.g. a dump of all BGP tables). These files have a ".gz" file type. They can be extracted using:
 
 `
@@ -201,8 +206,7 @@ rpcs:
      +---w input
      |  +---w date?   yang:date-and-time
      +--ro output
-        +--ro output-status?     enumeration
-        +--ro output-errmsg?     string
+        +--ro output-status?     string
         +--ro output-filename?   string
 
 ```
@@ -217,7 +221,7 @@ N/A
 Command syntax summary:
 
 `
-show techsupport [since <DateTime\>]
+show techsupport [since <DateTime>]
 `
 
 Command Description:
@@ -229,7 +233,7 @@ Syntax Description:
 
 |    Keyword    | Description |
 |:--------------|:----------- |
-| since <DateTime\> | This option uses a text string containing the desired starting Date/Time for collected log files and core files. The format of the Date/Time in the string is defined by the Yang/IETF date-and-time specification (REF http://www.netconfcentral.org/modules/ietf-yang-types, based on http://www.ietf.org/rfc/rfc6020.txt). If "since <DateTime> is specified, this value  is passed to the host process for use during invocation of the applicable log/core file gathering sub-functions.|
+| since \<DateTime\> | This option uses a text string containing the desired starting Date/Time for collected log files and core files. The format of the Date/Time in the string is defined by the Yang/IETF date-and-time specification (REF http://www.netconfcentral.org/modules/ietf-yang-types, based on http://www.ietf.org/rfc/rfc6020.txt). If "since \<DateTime\>" is specified, this value  is passed to the host process for use during invocation of the applicable log/core file gathering sub-functions.|
 
 Command Mode: User EXEC
 
@@ -247,9 +251,9 @@ Output file name sub-fields are defined a follows:
 - YYYY = Year
 - MM = Month (numeric)
 - DD = Day of the Month
-- HH = hour of the current time (based on execution of the Linux "**date**" command) at the start of command execution
-- MM = minute of the current time (based on execution of the Linux "**date**" command) at the start of command execution
-- SS = second of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+- HH = hour of the current time (based on execution of the Linux "date" command) at the start of command execution
+- MM = minute of the current time (based on execution of the Linux "date" command) at the start of command execution
+- SS = second of the current time (based on execution of the Linux "date" command) at the start of command execution
 ```
 
 Command execution example (basic command):
@@ -300,7 +304,8 @@ Response Body:
 
 {
   "sonic-show-techsupport:output": {
-    "output-filename": "/var/dump/sonic_dump_sonic_20191128_013141.tar.gz"
+    "output-status": "Success",
+    "output-filename": "/var/dump/sonic_dump_sonic_20191128_013141.tar.gz",
   }
 }
 ```
@@ -310,7 +315,7 @@ Command execution example invocation via gNOI API:
 ```
 root@sonic:/usr/sbin# ./gnoi_client -module Sonic -rpc showtechsupport -jsonin "{\"input\":{\"date\":\"2019-11-27T22:02:00Z\"}}" -insecure
 Sonic ShowTechsupport
-{"sonic-show-techsupport:output":{"output-filename":"/var/dump/sonic_dump_sonic_20191202_194856.tar.gz"}}
+{"sonic-show-techsupport:output":{"output-status": "Success","output-filename":"/var/dump/sonic_dump_sonic_20191202_194856.tar.gz"}}
 ```
 
 NOTE: See section 3.6.1 for a description of the limitations of the current implementation. A supplementary capability to transfer the tech support file and other diagnostic information files to the client via the Management Framework interface is highly desirable for a future release.
