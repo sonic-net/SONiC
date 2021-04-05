@@ -40,7 +40,6 @@
 - [3 Test plan](#3-test-plan)
     - [3.1 Unit tests](#31-unit-tests)
     - [3.2 Data plane tests](#32-data-plane-tests)
-- [4 Open questions](#4-open-questions)
 
 ## About this manual
 
@@ -101,7 +100,7 @@ The last one defines in which order the fields are hashed,
 and which of them should be associative for CRC with the same sequence ID.
 
 PBH supports hash configuration for ECMP and LAG.  
-Both Dynamic ECMP and FG ECMP are eligible.
+Both Regular ECMP and FG ECMP are eligible.
 
 ## 1.2 Requirements
 
@@ -110,7 +109,7 @@ Both Dynamic ECMP and FG ECMP are eligible.
 **This feature will support the following functionality:**
 1. NVGRE and VxLAN packets match with inner/outer IPv4/IPv6 frames
 2. Custom hashing based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src
-3. Hash configuration for Dynamic/FG ECMP and LAG
+3. Hash configuration for Regular/FG ECMP and LAG
 4. Warm/Fast reboot
 
 ### 1.2.2 Command interface
@@ -147,7 +146,7 @@ Both Dynamic ECMP and FG ECMP are eligible.
 
 PBH uses ACL engine to match NVGRE/VxLAN packets and calculates hash based on user-defined rules.  
 Hashing is configured based on inner 5-tuple: IP proto, L4 dst/src port, IPv4/IPv6 dst/src.  
-A custom hashing can be configured for Dynamic/FG ECMP and LAG.
+A custom hashing can be configured for Regular/FG ECMP and LAG.
 
 ## 2.2 SAI API
 
@@ -157,11 +156,13 @@ A custom hashing can be configured for Dynamic/FG ECMP and LAG.
 |:-----|:-------------------------------|:---------------------------------------------------|:---------------------------|
 | ACL  | create_acl_table               | SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY                   |                            |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL               |                            |
+|      |                                | SAI_ACL_TABLE_ATTR_FIELD_IPV6_NEXT_HEADER          |                            |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT               |                            |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE          |                            |
 |      | create_acl_entry               | SAI_ACL_ENTRY_ATTR_PRIORITY                        | PBH_RULE\|priority         |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_GRE_KEY                   | PBH_RULE\|gre_key          |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL               | PBH_RULE\|ip_protocol      |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_IPV6_NEXT_HEADER          | PBH_RULE\|ipv6_next_header |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT               | PBH_RULE\|l4_dst_port      |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_INNER_ETHER_TYPE          | PBH_RULE\|inner_ether_type |
 |      |                                | SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID          | PBH_RULE\|packet_action    |
@@ -335,10 +336,12 @@ key = PBH_RULE|table_name|rule_name ; rule name. Must be unique across the table
 priority         = 1*5DIGIT      ; rule priority. Valid values range is platform dependent
 gre_key          = h32 "/" h32   ; GRE key (32 bits)
 ip_protocol      = h8 "/" h8     ; IP protocol (8 bits)
+ipv6_next_header = h8 "/" h8     ; IPv6 Next Header (8 bits)
 l4_dst_port      = h16 "/" h16   ; L4 destination port (16 bits)
 inner_ether_type = h16 "/" h16   ; Inner EtherType (16 bits)
 hash_list        = hash-list     ; Hash list (PBH_HASH|hash_name)
 packet_action    = packet-action ; Packet action
+counter          = flow-counter  ; Packet/Byte counter
 
 ; value annotations
 h8            = 1*2HEXDIG
@@ -347,6 +350,7 @@ h32           = 1*8HEXDIG
 hash-name     = 1*64VCHAR
 hash-list     = hash-name [ 1*( "," hash-name ) ]
 packet-action = "SET_ECMP_HASH" / "SET_LAG_HASH"
+flow-counter  = "enabled" / "disabled"
 ```
 
 **Note:** at least one match field (_gre_key_/_ip_protocol_/_l4_dst_port_/_inner_ether_type_) is required
@@ -501,40 +505,47 @@ ipv6-prefix = 6( h16 ":" ) ls32
 
 **User interface**:
 ```
-pbhutil
-|--- config
-|    |--- table
-|    |    |--- add <table_name> OPTIONS
-|    |    |--- remove <table_name>
-|    |
-|    |--- rule
-|    |    |--- add <rule_name> <table_name> OPTIONS
-|    |    |--- remove <rule_name>
-|    |
-|    |--- hash
-|         |--- add <hash_name> OPTIONS
-|         |--- remove <hash_name>
-|
-|--- show
+config
+|--- pbh
+     |--- table
+     |    |--- add <table_name> OPTIONS
+     |    |--- remove <table_name>
+     |
+     |--- rule
+     |    |--- add <rule_name> <table_name> OPTIONS
+     |    |--- update <rule_name> <table_name> OPTIONS
+     |    |--- remove <rule_name> <table_name>
+     |
+     |--- hash
+          |--- add <hash_name> OPTIONS
+          |--- remove <hash_name>
+
+show
+|--- pbh
      |--- table
      |--- rule
      |--- hash
+     |--- statistics
 ```
 
 **Options:**
 
-_pbhutil table add_
+_config pbh table add_
 1. -p|--port_list - port list
 2. -l|--lag_list - portchannel list
 3. -d|--description - table description
 
-_pbhutil rule add_
+_config pbh rule add_
 1. -p|--priority - rule priority
 2. -m|--match - match field
 3. -h|--hash_list - hash field list
 4. -a|--action=<set_ecmp_hash|set_lag_hash> - packet action
+5. -c|--counter=<true|false> - packet/byte counter
 
-_pbhutil hash add_
+_config pbh rule update_
+1. -c|--counter=<enabled|disabled> - packet/byte counter
+
+_config pbh hash add_
 1. -f|--field - hash field
 3. -m|--mask - ip mask
 2. -s|--sequence - sequence id
@@ -545,31 +556,32 @@ _pbhutil hash add_
 
 **The following command adds/removes table:**
 ```bash
-pbhutil config table add 'pbh_table' --port_list 'Ethernet0,Ethernet4' --lag_list 'PortChannel0001,PortChannel0002' \
+config pbh table add 'pbh_table' --port_list 'Ethernet0,Ethernet4' --lag_list 'PortChannel0001,PortChannel0002' \
 --description 'NVGRE and VxLAN'
-pbhutil config table remove 'pbh_table'
+config pbh table remove 'pbh_table'
 ```
 
-**The following command adds/removes rule:**
+**The following command adds/updates/removes rule:**
 ```bash
-pbhutil config rule add 'vxlan' --priority 1 \
+config pbh rule add 'vxlan' 'pbh_table' --priority 1 \
 --match gre_key 0x2500/0xffffff00 --match inner_ether_type 0x86dd/0xffff \
 --hash_list 'inner_ip_proto,inner_l4_dst_port,inner_l4_src_port,inner_dst_ipv6,inner_src_ipv6' \
---action set_ecmp_hash
-pbhutil config rule remove 'vxlan'
+--action set_ecmp_hash --counter
+config pbh rule update 'vxlan' 'pbh_table' --counter disabled
+config pbh rule remove 'vxlan' 'pbh_table'
 ```
 
 **The following command adds/removes hash:**
 ```bash
-pbhutil config hash add 'inner_dst_ipv6' --field 'INNER_DST_IPV6' --mask 'FFFF::' --sequence 4
-pbhutil config hash remove 'inner_dst_ipv6'
+config pbh hash add 'inner_dst_ipv6' --field 'INNER_DST_IPV6' --mask 'FFFF::' --sequence 4
+config pbh hash remove 'inner_dst_ipv6'
 ```
 
 #### 2.6.2.2 Show command group
 
 **The following command shows table configuration:**
 ```bash
-root@sonic:/home/admin# pbhutil show table
+root@sonic:/home/admin# show pbh table
 Name       Interface        Description
 ---------  ---------------  ---------------
 pbh_table  Ethernet0        NVGRE and VxLAN
@@ -580,7 +592,7 @@ pbh_table  Ethernet0        NVGRE and VxLAN
 
 **The following command shows rule configuration:**
 ```bash
-root@sonic:/home/admin# pbhutil show rule
+root@sonic:/home/admin# show pbh rule
 Table      Rule    Priority    Match                            Hash               Action
 ---------  ------  ----------  -------------------------------  -----------------  -------------
 pbh_table  nvgre   1           GRE_KEY: 0x11/0xff               inner_ip_proto     SET_ECMP_HASH
@@ -597,16 +609,25 @@ pbh_table  nvgre   1           GRE_KEY: 0x11/0xff               inner_ip_proto  
 
 **The following command shows hash configuration:**
 ```bash
-root@sonic:/home/admin# pbhutil show hash
-Name               Field              Mask       Sequence
------------------  -----------------  ---------  ----------
-inner_ip_proto     INNER_IP_PROTOCOL             1
-inner_l4_dst_port  INNER_L4_DST_PORT             2
-inner_l4_src_port  INNER_L4_SRC_PORT             2
-inner_dst_ipv4     INNER_DST_IPV4     255.0.0.0  3
-inner_src_ipv4     INNER_SRC_IPV4     0.0.0.255  3
-inner_dst_ipv6     INNER_DST_IPV6     FFFF::     4
-inner_src_ipv6     INNER_SRC_IPV6     ::FFFF     4
+root@sonic:/home/admin# show pbh hash
+Name               Field              Mask       Sequence    Symmetric
+-----------------  -----------------  ---------  ----------  -----------
+inner_ip_proto     INNER_IP_PROTOCOL             1           No
+inner_l4_dst_port  INNER_L4_DST_PORT             2           Yes
+inner_l4_src_port  INNER_L4_SRC_PORT             2           Yes
+inner_dst_ipv4     INNER_DST_IPV4     255.0.0.0  3           Yes
+inner_src_ipv4     INNER_SRC_IPV4     0.0.0.255  3           Yes
+inner_dst_ipv6     INNER_DST_IPV6     FFFF::     4           Yes
+inner_src_ipv6     INNER_SRC_IPV6     ::FFFF     4           Yes
+```
+
+**The following command shows statistics:**
+```bash
+root@sonic:/home/admin# show pbh statistics
+Table      Rule    Packets Count    Bytes Count
+---------  ------  ---------------  -------------
+pbh_table  nvgre   0                0
+           vxlan   0                0
 ```
 
 ## 2.7 DPB YANG model
@@ -661,10 +682,6 @@ module sonic-pbh {
 
             key "PBH_HASH_NAME";
 
-            ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)$";
-
-            ext:key-regex-yang-to-configdb "<PBH_HASH_NAME>";
-
             ...
 
         }
@@ -678,20 +695,18 @@ module sonic-pbh {
 
                 key "PBH_TABLE_NAME PBH_RULE_NAME";
 
-                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)$";
-
-                ext:key-regex-yang-to-configdb "<PBH_TABLE_NAME>|<PBH_RULE_NAME>";
-
                 leaf PBH_TABLE_NAME {
                     type leafref {
                         path "/pbh:sonic-pbh/pbh:PBH_TABLE/pbh:PBH_TABLE_LIST/pbh:PBH_TABLE_NAME";
                     }
+                    description "PBH table reference"
                 }
 
                 leaf PBH_RULE_NAME {
                     type string {
                         length 1..255;
                     }
+                    description "PBH rule"
                 }
 
                 ...
@@ -709,12 +724,9 @@ module sonic-pbh {
 
                 key "PBH_TABLE_NAME";
 
-                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9-_]+)$";
-
-                ext:key-regex-yang-to-configdb "<PBH_TABLE_NAME>";
-
                 leaf PBH_TABLE_NAME {
                     type string;
+                    description "PBH table"
                 }
 
                 ...
@@ -741,10 +753,5 @@ TBD
 
 ## 3.2 Data plane tests
 
-TBD
-
-# 4 Open questions
-
-1. PBH rule hit statistics: do we need it?
-2. PBH CLI: do we need a separate utility for it?
-3. ACL capabilities: do we need additional check to avoid programing PBH on platforms which doesn't support it?
+PBH will reuse and extend the existing test plan:  
+[Inner packet hashing test plan #759](https://github.com/Azure/SONiC/pull/759)
