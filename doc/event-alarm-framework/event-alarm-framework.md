@@ -1,21 +1,66 @@
 # Feature Name
 Event and Alarm Framework
 # High Level Design Document
-#### Rev 0.3
+#### Rev 0.1
 
 # Table of Contents
   * [Revision](#revision)
   * [About This Manual](#about-this-manual)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#definitionabbreviation)
+  * [1 Feature Overview](#1-feature-overview)
+  * [1.1 Requirements](#11-requirements)
+  * [1.1.1 Functional Requirements](#111-functional-requirements)
+  * [1.1.2 Scalability Requirements](#112-scalabilty-requirements)
+  * [1.2 Design Overview](#12-design-overview)
+  * [1.2.1 Basic Approach](#121-basic-approach)
+  * [1.2.2 Container](#122-container)
+  * [2 Functionality](#2-functionality)
+  * [2.1 Target Deployment Use Cases](#21-target-deployment-user-cases)
+  * [2.2 Functional Description](#22-functional-description)
+  * [3 Design](#3-description)
+  * [3.1 Overview](#31-overview)
+  * [3.1.1 Event Producers](#311-event-producers)
+  * [3.1.1.2 Development Process](#3112-development-process)
+  * [3.1.2 Event Consumer](#312-event-consumer)
+  * [3.1.2.1 Severity](#3121-severity)
+  * [3.1.2.2 Sequence-ID](#3122-sequence-id)
+  * [3.1.3 Alarm Consumer](#313-alarm-consumer)
+  * [3.1.4 Event Receivers](#314-event-receivers)
+  * [3.1.4.1 syslog](#3141-syslog)
+  * [3.1.4.2 REST](#3142-rest)
+  * [3.1.4.3 gNMI](#3143-gnmi)
+  * [3.1.4.4 System LED](#3144-system-led)
+  * [3.1.4.5 Event/Alarm flooding](#3145-event/alarm-flooding)
+  * [3.1.5 Severity Profile](#315-severity-profile)
+  * [3.1.6 CLI](#316-cli)
+  * [3.1.7 Event History Table and Current Alarm Table](#317-event-history-table-and-current-alarm-table)
+  * [3.1.8 Pull Model](#318-pull-model)
+  * [3.1.9 Supporting third party containers](#319-supporting-third-party-containers)
+  * [3.2 DB Changes](#32-db-changes)
+  * [3.2.1 CONFIG DB](#321-config-db)
+  * [3.2.2 APP DB](#322-app-db)
+  * [3.2.3 STATE DB](#323-state-db)
+  * [3.2.4 ASIC DB](#324-asic-db)
+  * [3.2.5 COUNTER DB](#325-counter-db)
+  * [3.3 User Interface](#33-user-interface)
+  * [3.3.1 Data Models](#331-data-models)
+  * [3.3.2 CLI](#332-cli)
+  * [3.3.2.1 Exec Commands](#3321-exec-commands)
+  * [3.3.2.2 Configuration Commands](#3322-configuration-commands)
+  * [3.3.2.3 Show Commands](#3323-show-commands)
+  * [3.3.3 REST API Support](#333-rest-api-support)
+  * [4 Flow Diagrams](#4-flow-diagrams)
+  * [5 Warm Boot Support](#5-warm-boot-support)
+  * [5.1 Application warm boot](#51-application-warm-boot)
+  * [5.2 eventd warm boot](#52-eventd-warm-boot)
+  * [6 Scalability](#6-scalability)
+  * [7 Unit Test](#7-unit-test)
 
 
 # Revision
 | Rev |     Date    |       Author       | Change Description                                       |
 |:---:|:-----------:|:------------------:|-----------------------------------                       |
-| 0.1 | 01/04/2021  | Srinadh Penugonda  | Initial Version                                          |
-| 0.2 | 02/09/2021  | Srinadh Penugonda  | Updated with comments from HLD review                    |
-| 0.3 | 03/10/2021  | Srinadh Penugonda  | Updated with comments from HLD review                    |
+| 0.1 | 03/20/2021  | Srinadh Penugonda  | Initial Version                                          |
 
 # About this Manual
 This document provides general information on the implementation and functionality of Event and Alarm Framework in SONiC.
@@ -48,7 +93,7 @@ This makes severity as an important chracteristic of an event.
    
    Events are sent as the condition progresses through each of these states. 
    Each of these events is characterized by "state" in addition to "severity".
-   Each alarm hence comprises of a RAISED event and potentially a CLEARED event or an ACKNOWLEDGED event.
+   Each alarm hence comprises of a RAISED event and potentially a CLEARED event and/or an ACKNOWLEDGED event.
    
    An application *raises* an alarm when it encounters a faulty condition by sending an event with a state: RAISED.
    After the application recovers from the condition, that alarm is *cleared* by sending an event with a state: CLEARED. 
@@ -90,7 +135,7 @@ As mentioned above, each event has an important characteristic: severity. SONiC 
 - INFORMATIONAL : An informational event had occurred, but it does not impact performance. NOT applicable to alarms.
   ( maps to log-notice )
 
-By default every event will have a severity assigned by the component. The framework provides Event Severity Profiles to customize severity of an event and also can disable an event.
+By default every event will have a severity assigned by the component. The framework provides Event Severity Profiles to customize severity of an event and also disable an event.
 Operator can decide to lower or increase severity of an event or can decide to turn off an event.
 
 An example of event severity profile is as below:
@@ -177,7 +222,7 @@ CLI and REST/gNMI clients can query either table with filters - based on severit
 | 9.1   | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
 | 10    | Clear all events (Best effort)                                                  |                     |
 
-### 1.1.3 Scalability Requirements
+### 1.1.2 Scalability Requirements
 
 EVENT table should support 40k/30-day records. Current active alarms are limited to total instances of unique alarms (which makes ALARM Table is a finite quantity)
 
@@ -198,9 +243,6 @@ Event consumer then informs logging API to format the log message and send the m
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
 
-### 1.2.3 SAI Overview
-N/A
-
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
 
@@ -219,9 +261,10 @@ There are three players in the event framework. Applications, which raises event
 an Event consumer to receive updates whenever an application raises an event and 
 a set of event receivers for each NBI type.
 
-Applications act as producers of events. Event consumer in eventd container is
-informed by redis whenever a new event is produced. Event consumer manages received events,
-updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
+Applications act as producers of events. 
+
+Event consumer in eventd container is informed by redis whenever a new event is produced. 
+Event consumer manages received events, updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
 
 Operator can chose to change properties of events with the help of event severity profile. Default
 event profile is stored at /etc/sonic/severityprofile/default.json. User can download the default severity profile,
@@ -232,7 +275,7 @@ event.
 
 Through CLI, REST or gNMI, event history table and current alarm table can be retrieved using various filters.
 
-### 3.1.1 Event Producers ( Applications )
+### 3.1.1 Event Producers
 Application that need to raise an event, need to use event notifiy API ( LOG_EVENT / LOG_ALARM ). 
 This API is part of libeventnotify library that applications need to link.
 
@@ -313,11 +356,11 @@ The EVENTPUBSUB table uses event-id and a sequence-id generated locally by event
 any conflicts across multiple applications trying to write to this table.
 
 ### 3.1.2 Event Consumer
-The event consumer runs from sonic-eventd container. 
+The event consumer is a class in sonic-eventd container that processes the incoming record.
 
 On bootup, event consumer reads from EVENTPUBSUB table.
 This table contains records that are published by application and waiting to be received by event consumer.
-Whenever there is a new record, Event consumer reads the record, processess and deletes it. 
+Whenever there is a new record, event consumer reads the record, processess and deletes it. 
 
 On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
 As mentioned above, static information contains severity, static message part and event enable/disable flag. 
@@ -423,7 +466,7 @@ there is no customization of these fileds similar to syslog messages.
 
 TODO: add definitions of protobuf spec
 
-#### 3.1.4.5 System LED
+#### 3.1.4.4 System LED
 The original requirement was to change LED based on severities of the events. But on most of the platforms the system/power/fan LEDs are managed by the BMC. 
 BMC (baseboard management controller) is an embedded system that manages various platform elements like fan, PSU, temperature sensors. 
 There is an API that can be invoked to control LED, but not all platforms will support that API if they are fully controlled by the BMC.
@@ -441,7 +484,7 @@ The proposed solution could be to have a system health paramter in the DB.
 ```
 This is updated by eventd and pmon could use it to update LED accordingly. 
 
-#### 3.1.4.6 Event/Alarm flooding
+#### 3.1.4.5 Event/Alarm flooding
 There are scenarios when system enters a loop of a fault condition that makes application trigger events continuously. To avoid such
 instances flood the EVENT or ALARM tables, eventd maintains a cache of last event/alarm. Every new event/alarm is compared against this cache entry
 to make sure it is not a flood. If it is found to be same event/alarm, the newly raised entry will be silently discarded.
@@ -832,7 +875,7 @@ openconfig alarms yang is defined at [here](https://github.com/openconfig/public
 sonic# alarm acknowledge <seq-id-of-raised-alarm>
 ```
 An operator can acknolwedge a raised alarm. This indicates that the operator is aware of the fault condition and considers the condition not catastrophic. 
-Acknowledging an alarm updates system LED by removing the alarm from status considration.
+Acknowledging an alarm updates system health parameter and thereby system LED by removing the particular alarm from status consideration.
 
 The alarm record in the ALARM table is marked with is_acknowledged field set to true.
 
