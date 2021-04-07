@@ -420,6 +420,10 @@ Thermal 5        59           68         0             N/A            N/A       
 * Database connections per namespace - Database dockers run per namespace and PMON processes need to connect to each of these database instances. 
 * Update per namespace port status - The pmon processes will need to run per-asic specific functinality ina a separate thread.
 
+Two approaches were discussed as part of design:
+* Approach 1 - Existing process and threads will connect/suscribe to all databases across per-asic namespace. This is the preferred approach and has been documented in https://github.com/Azure/SONiC/blob/master/doc/pmon/pmon_multiasic_design.md.
+* Approach 2 - Create separate threads per-asic and that thread will connect/subscribe to databases in per-asic namespace. Approach 2 is outlined below for the sake of completeness. However, it is not the preferred approach.
+
 #### Database Connections
 
 Below is a code snippet to introduce a new API *db_unix_connect*. In src/sonic-daemon-base/sonic_daemon_base/daemon_base.py:
