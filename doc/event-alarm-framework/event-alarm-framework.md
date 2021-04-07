@@ -93,11 +93,12 @@ This makes severity as an important chracteristic of an event.
    
    Events are sent as the condition progresses through each of these states. 
    Each of these events is characterized by "state" in addition to "severity".
-   Each alarm hence comprises of a RAISED event and potentially a CLEARED event and/or an ACKNOWLEDGED event.
    
    An application *raises* an alarm when it encounters a faulty condition by sending an event with a state: RAISED.
    After the application recovers from the condition, that alarm is *cleared* by sending an event with a state: CLEARED. 
    An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition. 
+
+   In other words, alarms are stateful events.
    
    Overall system health and system LED state is deduced from the severities of alarms.
    An acknowledged alarm is taken out of consideration from deciding system health and system LED is updated accordingly.
