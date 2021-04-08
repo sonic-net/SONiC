@@ -233,13 +233,12 @@ EVENT table should support 40k/30-day records. Current active alarms are limited
 
 ### 1.2.1 Basic Approach
 The feature involves new development. 
-Applications act as producers by writing to a table in redis state-db. 
-Redis informs event consumer in eventd whenever there is new record.
-Event consumer removes the record and processes it.
-It then saves the processed entry in event history table; if the event has a state and if it is RAISED, record gets added to alarm table and system LED is updated. 
-If the state is CLEARED, record is removed from ALARM table and system LED is updated.
+Applications act as producers by writing to a table in redis app-db. 
+Eventd receives a new record in the table and processess it. 
+It then saves the processed entry in event history table; if the event has a state and if it is RAISED, record gets added to alarm table and system health/LED is updated. 
+If the state is CLEARED, record is removed from ALARM table and system health/LED is updated.
 Both EVENT and ALARM tables are stored under state-db. For stats, EVENT_STATS and ALARM_STATS are maintained in state DB.
-Event consumer then informs logging API to format the log message and send the message to syslog.
+Eventd then informs logging API to format the log message and send the message to syslog.
 
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
@@ -264,7 +263,7 @@ a set of event receivers for each NBI type.
 
 Applications act as producers of events. 
 
-Event consumer in eventd container is informed by redis whenever a new event is produced. 
+Event consumer class in eventd container receives and processess the event whenever a new one is produced. 
 Event consumer manages received events, updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
 
 Operator can chose to change properties of events with the help of event severity profile. Default
@@ -360,7 +359,7 @@ any conflicts across multiple applications trying to write to this table.
 The event consumer is a class in sonic-eventd container that processes the incoming record.
 
 On bootup, event consumer reads from EVENTPUBSUB table.
-This table contains records that are published by application and waiting to be received by event consumer.
+This table contains records that are published by applications and waiting to be received by event consumer.
 Whenever there is a new record, event consumer reads the record, processess and deletes it. 
 
 On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
