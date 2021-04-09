@@ -90,7 +90,8 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 	; Defines Transceiver Status info for a port
 	key                          = TRANSCEIVER_STATUS|ifname     ; Error information for SFP on port
 	; field                      = value
-	status                       = 1*255VCHAR                    ; code of the SFP status (plug in, plug out or error)
+	status                       = 1*255VCHAR                    ; code of the SFP status (plug in, plug out)
+    error                        = 1*255VCHAR                    ; SFP error (N/A or a string like error1 | error2 )
 
 
 ### 1.2 Accessing EEPROM from platform container ###
@@ -104,7 +105,7 @@ Transceiver EEPROM accessing can be achieved by legacy sfputil.py plugin or new 
 
 #### 1.3.1 Transceiver change event ####
 
-Currently 7 transceiver events are defined as below. The first two are for plug in and plug out, others to reflect various error status, vendors can add new error event if they support more. 
+Currently 7 transceiver events are defined as below.
 
     status='0' SFP removed,
     status='1' SFP inserted,
@@ -113,6 +114,18 @@ Currently 7 transceiver events are defined as below. The first two are for plug 
     status='4' Unsupported cable,
     status='5' High Temperature,
     status='6' Bad cable.
+
+However, multiple errors could exists at the same time. For example, a module can be unsupported cable and high temperature. The new transceiver event will be described in a bitmap. New transceiver definition below.
+
+    bit 32  : 0=SFP removed, 1=SFP inserted,
+    bit 31  : 0=OK, 1=I2C bus stuck,
+    bit 30  : 0=OK, 1=Bad eeprom,
+    bit 29  : 0=OK, 1=Unsupported cable,
+    bit 28  : 0=OK, 1=High Temperature,
+    bit 27  : 0=OK, 1=Bad cable.
+    bit 1~26: reserved. Must be 0.
+
+Vendor can extend this bitmap with more errors. Xcvrd need parse the bitmap and set transceiver status table in DB accordingly. For example, if the transceiver event bit map is 0x7, the status field value should be "1" and the error field value should be "I2C bus stuck | Bad eeprom".
 
 #### 1.3.2 API to get Transceiver change event from platform ####
 
