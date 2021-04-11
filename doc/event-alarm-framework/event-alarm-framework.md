@@ -350,7 +350,7 @@ c. Declare the new event-id in static_event_map defined in src/sonic-eventd/lib/
 
 d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT or LOG_ALARM.
 
-The event notifier takes the event properties, packs a field value tuple and writes to a ProducerTable, by name, EVENTPUBSUB.
+The event notifier takes the event properties, packs a field value tuple and writes to a table, by name, EVENTPUBSUB.
 
 The EVENTPUBSUB table uses event-id and a sequence-id generated locally by event notifier as the key so that there wont be 
 any conflicts across multiple applications trying to write to this table.
@@ -878,10 +878,13 @@ An operator can acknolwedge a raised alarm. This indicates that the operator is 
 Acknowledging an alarm updates system health parameter and thereby system LED by removing the particular alarm from status consideration.
 
 The alarm record in the ALARM table is marked with is_acknowledged field set to true.
+```
+sonic# event severity-profile <profile-name>
+```
+The command takes specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*. The command creates a persistent symlink to the selected file so that eventd "remembers" it after a reboot. 
 
 #### 3.3.2.2 Configuration Commands
 ```
-sonic(config)# event severity-profile <profile-name>
 sonic(config)# logging server <ip> [log|event] 
 ```
 Note: The 'logging server' command is an existing, already supported command. 
@@ -929,7 +932,7 @@ Severity:          critical
 Name:              TEMPERATURE_EXCEEDED
 Description:       temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 Timestamp:         Wed Feb 10 18:08:24 2021
-Source:            -
+Source:            sensor/2
 State:             raised
 
 sonic# show event summary
@@ -1054,7 +1057,7 @@ They would
 *  clear those alarms once current state of a particular condition is recovered (by comparing against the stored state). 
 
 ## 5.2 eventd warm boot
-Records from applications are stored in a table of type ProducerTable, called EVENTPUBSUB.
+Records from applications are stored in a table, called EVENTPUBSUB.
 By using table of type ProducerTable, records that are being written will be queued when the subscriber (eventd) is down.
 
 This is in contrast to notification producer/consumer tables which causes incoming records getting lost.
