@@ -202,19 +202,19 @@ This class will be responsible for:
 PBH table objects are stored under `PBH_TABLE:*` keys in Config DB. On `PBH_TABLE` update,  
 method `PbhOrch::doPbhTableTask()` will be called to process the change.  
 On table create, `PbhOrch` will verify if the table already exists. Creating the table which is already  
-exists will be treated as an error. Regular table add/remove will update the internal class structures  
+exists will be treated as an update. Regular table add/remove will update the internal class structures  
 and appropriate SAI objects will be created/deleted.
 
 PBH rule objects are stored under `PBH_RULE:*` keys in Config DB. On `PBH_RULE` update,  
 method `PbhOrch::doPbhRuleTask()` will be called to process the change.  
 On rule create, `PbhOrch` will verify if the rule already exists. Creating the rule which is already  
-exists will be treated as an error. Regular rule add/remove will update the internal class structures  
+exists will be treated as an update. Regular rule add/remove will update the internal class structures  
 and appropriate SAI objects will be created/deleted.
 
 PBH hash objects are stored under `PBH_HASH:*` keys in Config DB. On `PBH_HASH` update,  
 method `PbhOrch::doPbhHashTask()` will be called to process the change.  
 On hash create, `PbhOrch` will verify if the hash already exists. Creating the hash which is already  
-exists will be treated as an error. Regular hash add/remove will update the internal class structures  
+exists will be treated as an update. Regular hash add/remove will update the internal class structures  
 and appropriate SAI objects will be created or deleted.
 
 **Skeleton code:**
@@ -509,6 +509,7 @@ config
 |--- pbh
      |--- table
      |    |--- add <table_name> OPTIONS
+     |    |--- update <table_name> OPTIONS
      |    |--- remove <table_name>
      |
      |--- rule
@@ -518,6 +519,7 @@ config
      |
      |--- hash
           |--- add <hash_name> OPTIONS
+          |--- update <hash_name> OPTIONS
           |--- remove <hash_name>
 
 show
@@ -540,10 +542,7 @@ _config pbh rule add_
 2. -m|--match - match field
 3. -h|--hash_list - hash field list
 4. -a|--action=<set_ecmp_hash|set_lag_hash> - packet action
-5. -c|--counter=<true|false> - packet/byte counter
-
-_config pbh rule update_
-1. -c|--counter=<enabled|disabled> - packet/byte counter
+5. -c|--counter=<enabled|disabled> - packet/byte counter
 
 _config pbh hash add_
 1. -f|--field - hash field
@@ -554,10 +553,11 @@ _config pbh hash add_
 
 #### 2.6.2.1 Config command group
 
-**The following command adds/removes table:**
+**The following command adds/updates/removes table:**
 ```bash
 config pbh table add 'pbh_table' --port_list 'Ethernet0,Ethernet4' --lag_list 'PortChannel0001,PortChannel0002' \
 --description 'NVGRE and VxLAN'
+config pbh table update 'pbh_table' --port_list 'Ethernet0'
 config pbh table remove 'pbh_table'
 ```
 
@@ -566,14 +566,15 @@ config pbh table remove 'pbh_table'
 config pbh rule add 'vxlan' 'pbh_table' --priority 1 \
 --match gre_key 0x2500/0xffffff00 --match inner_ether_type 0x86dd/0xffff \
 --hash_list 'inner_ip_proto,inner_l4_dst_port,inner_l4_src_port,inner_dst_ipv6,inner_src_ipv6' \
---action set_ecmp_hash --counter
+--action set_ecmp_hash --counter enabled
 config pbh rule update 'vxlan' 'pbh_table' --counter disabled
 config pbh rule remove 'vxlan' 'pbh_table'
 ```
 
-**The following command adds/removes hash:**
+**The following command adds/updates/removes hash:**
 ```bash
 config pbh hash add 'inner_dst_ipv6' --field 'INNER_DST_IPV6' --mask 'FFFF::' --sequence 4
+config pbh hash update 'inner_dst_ipv6' --mask 'FFFF:FFFF::'
 config pbh hash remove 'inner_dst_ipv6'
 ```
 
@@ -595,8 +596,8 @@ pbh_table  Ethernet0        NVGRE and VxLAN
 root@sonic:/home/admin# show pbh rule
 Table      Rule    Priority    Match                            Hash               Action
 ---------  ------  ----------  -------------------------------  -----------------  -------------
-pbh_table  nvgre   1           GRE_KEY: 0x11/0xff               inner_ip_proto     SET_ECMP_HASH
-                               INNER_ETHER_TYPE: 0x0800/0xffff  inner_l4_dst_port
+pbh_table  nvgre   1           GRE_KEY: 0x2500/0xffffff00       inner_ip_proto     SET_ECMP_HASH
+                               INNER_ETHER_TYPE: 0x86dd/0xffff  inner_l4_dst_port
                                                                 inner_l4_src_port
                                                                 inner_dst_ipv6
                                                                 inner_src_ipv6
