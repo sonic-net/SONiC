@@ -3,7 +3,7 @@
 Implement Static IP route Configuration via  CLI/REST/gNMI  in SONiC management framework for non-management routes.
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.4
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -19,8 +19,9 @@ Implement Static IP route Configuration via  CLI/REST/gNMI  in SONiC management 
 | Rev |     Date    |       Author                | Change Description                |
 |:---:|:-----------:|:---------------------------:|-----------------------------------|
 | 0.1 | 03/18/2020  |  Sucheta Mahara             | initial draft                     |
-|  0.2| 03/20/20202 |  Venkatesan Mahalinga       | draft                             |
+|  0.2| 03/20/20202 |  Venkatesan Mahalingam       | draft                             |
 | 0.3 | 03/23/2020  |  Zhenhong Zhao              | FRR Config Support             |
+| 0.4 | 04/13/2021  |  Sucheta Mahara &  Venkatesan Mahalingam             | Addressed community review comments             |
 
 # About this Manual
 This document provides general information about configuring static routes via Management CLI/REST/gNMI in Sonic.
@@ -52,17 +53,17 @@ Provide ability to configure IPv4 and IPv6 static routes using SONiC management 
  - gNMI set/get support for Static IPv4 and IPv6 routes.
 
 ### 1.1.3 Warm Boot Requirements
-With static routes configured system will be able to do warmboot.
+With static routes configured, system will be able to do warmboot.
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
 Use of sonic management framework to configure routes.
 ## 2.2 Functional Description
-1.Provide CLI, gNMI and REST support for static route configuration.
+Provide CLI, gNMI and REST support for static route configuration.
 
 # 3 Design
 ## 3.1 Overview
-An existing table STATIC_ROUTE (which is not used currently) will be used to write static route from the transformer for any CLI, rest or gNMI request. This table will be monitored by bgpcfgd daemon and the config will be sent to vtysh shell for configuring in FRR.
+An existing table STATIC_ROUTE (which is not used currently) will be used to write static route from the transformer for any CLI, rest or gNMI request. This table will be monitored by frrcfgd daemon and the config will be sent to vtysh shell for configuring in FRR.
 
 ![Static route flow](static_rt_flow.jpg)
 ## 3.2 DB Changes
@@ -82,16 +83,17 @@ nexthop             = string; List of gateway addresses;
 ifname              = string; List of interfaces
 distance            = string; {0..255};List of distances.
                       Its a Metric used to specify preference of next-hop
-                      if this distance is not set, 0 will be set to maintain the set;
+                      if this distance is not set, default value 0 will be set when this field is not configured for nexthop(s)
 nexthop-vrf         = string; list of next-hop VRFs. It should be set only if ifname or nexthop IP  is not
-                       in the current VRF . The value is set to VRF name
-                       to which the interface or nexthop IP  belongs for route leaks.
-blackhole           =  string; List of boolean; true if the next-hop route is blackholed.                     
+                      in the current VRF . The value is set to VRF name
+                      to which the interface or nexthop IP  belongs for route leaks.
+blackhole           = string; List of boolean; true if the next-hop route is blackholed.
+                      Default value false will be set when this field is not configured for nexthop(s)
 ```
 The nexthop-vrf if set, will allow to create a leaked route in the current VRF(vrf-name). The vrf-name, nexthop-vrf, prefix, ifname, distance and blackhole are all parameters required to configure static routes and route leaks in vtysh.
 If an interface is moved from one VRF to another and it exist in the STATIC_ROUTE table, the configured routes with that interface will become inactive. These routes are stored in vtysh "running config" and STATIC_ROUTE table. It is up to the user to remove stale/inactive routes. They will become active if/when the interface is bound again to the orignal VRF.
 
-In this table each entry based on the index in the lists of  nexthop, ifname, distance, nexthop-vrf and blackhole  is a set. Together based on the index they specify one next-hop entry as there can be multiple next-hops for a prefix. Empty string will be used to complete the set if required. Prefix and nexthop in a set is expected to have same address family.
+In this table each entry based on the index in the lists of  nexthop, ifname, distance, nexthop-vrf and blackhole  is a set. Together based on the index they specify one next-hop entry as there can be multiple next-hops for a prefix. Empty string and default values will be used to complete the set if required. Prefix and nexthop in a set is expected to have same address family.
 
 In the example -1 table below (0.0.0.0, Ethernet0, 10, default, false) , (2.2.2.1, "", 0,"", false), (0.0.0.0, Ethernet12, 30, Vrf-GREEN, false) are the 3 sets defined for 3 configured next-hops for prefix 10.11.1.0/24 in Vrf-RED.
 In example -2  the blackhole is true for second index and  only distance is relevant in blackholed route. Due to blackhole entry (with metric 40) all packets matching 10.12.11.0/24 will be discarded if other specified  nexthop is inactive.
@@ -100,22 +102,19 @@ In example -2  the blackhole is true for second index and  only distance is rele
 Example -1 :--
 
 key                 = STATIC_ROUTE|Vrf-RED|10.11.1.0/24;
-vrf-name            = Vrf-RED
-prefix              = 10.11.1.0/24
 nexthop             = 0.0.0.0, 2.2.2.1, 0.0.0.0
-ifname              = Ethernet0,"", Ethernet12
+ifname              = Ethernet0,"" , Ethernet12
 distance            = 10,0,30
 nexthop-vrf         = default,"",Vrf-GREEN
-blackhole           = false, false, false
+
+Note:
+ Field "blackhole or distance" need not be specified if it has all default values for the sets. False for blackhole and 0 for distance.
+ Field "nexthop or ifname or nexthop-vrf need not be specified if they have empty value in all the sets"
 
 EXAMPLE 2:-
 key                 = STATIC_ROUTE|default|10.12.11.0/24;
-vrf-name            = default
-prefix              = 10.12.11.0/24
 nexthop             = 2.2.2.3,""
-ifname              = "",""
 distance            = 10,40
-nexthop-vrf         = "",""
 blackhole           = false, true
 
 
@@ -126,7 +125,7 @@ Note: This model is proposed in line with ROUTE_TABLE model in application DB us
 
 
 ### 3.2.2 APP DB
-A new table "UNRESOLVE_NEIGH_TABLE" in aplication DB will be used to write unresolved next-hop for staic routes. This table will be written by router/neighbor module of orchagent and consumed by nbrmgrd process. Once the next-hop resolution is done by sending netlink message or static route is removed, entry is removed from the "UNRESOLVE_NEIGH_TABLE". These changes are coming from Broadcom.
+A table "NEIGH_RESOLVE_TABLE" in application DB will be used to write unresolved next-hop for static routes. This table will be written by router/neighbor module of orchagent and consumed by nbrmgrd process.
 
 ## 3.3 Switch State Service Design
 ### 3.3.1 Orchestration Agent
@@ -215,20 +214,19 @@ module: sonic-static-route
 
 ### 3.6.2 CLI
 #### 3.6.2.1 Configuration Commands
-#### 3.6.2.2 ip/ipv6 route config command
+#### 3.6.2.2 ipv4/ipv6 route config commands
 ip route command is used to configure IPv4  static routes in SONiC.
 ipv6 route command is used to configure IPv6 static routes in SONiC.
-##### 3.6.2.2.1
-Syntax
+##### 3.6.2.2.1 Syntax
 
 Vrf (for default instance) and distance metric are optional in the CLI.
 
 ```
-ip route [vrf <vrf-name>] <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>] | [blackhole]} [nexthop-vrf <vrf-name>] <distance Metric>
+ip route [vrf <vrf-name>] <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>] | [blackhole]} [nexthop-vrf <vrf-name>] [<distance Metric>]
 ```
 
 ```
-ipv6 route [vrf <vrf-name>] <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>] | [blackhole]} [nexthop-vrf <vrf-name>] <distance Metric>
+ipv6 route [vrf <vrf-name>] <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>] | [blackhole]} [nexthop-vrf <vrf-name>] [<distance Metric>]
 
 ```
 
@@ -253,52 +251,57 @@ Example:
 sonic(config)# ip route 10.1.1.1/24 10.1.1.3
 
 In configDB new STATIC_ROUTE table will be filled with following entries for default VRF and prefix:-
-key                 = STATIC_ROUTE|default|10.1.1.1/24;
-vrf-name            = default
-prefix              = 10.1.1.1/24
-nexthop             = 10.1.1.3
-ifname              = ""
-distance            = 0
-nexthop-vrf         = ""
-blackhole           = false
 
+key                 = STATIC_ROUTE|default|10.1.1.1/24;
+nexthop             = 10.1.1.3
 
 sonic(config)# ip route 10.1.1.1/24 Ethernet 12 nexthop-vrf Vrf-RED  20
+
 Assumption is Ethernet12 is bound to Vrf-RED.
 STATIC_ROUTE table entries are updated for newly added route:-
+
 key                 = STATIC_ROUTE|default|10.1.1.1/24;
-vrf-name            = default
-prefix              = 10.1.1.1/24
 nexthop             = 10.1.1.3, 0.0.0.0
 ifname              = "", Ethernet12
 distance            = 0, 20
 nexthop-vrf         = "", Vrf-RED
-blackhole           = false, false
 
-Note: "show ip route" will also show installed static routes along with other routes.
-
-sonic(config)# do show ip route vrf <vrf-name>
-````
-
-````
 
 sonic(config)# ip route vrf Vrf-RED 10.5.6.6/24 10.5.6.1 nexthop-vrf default 10
 
 Assumption is 10.5.6.1 is in default VRF.
 A new STATIC_ROUTE table will be filled with following entries for Vrf-RED and prefix:-
+
 key                 = STATIC_ROUTE|Vrf-RED|10.5.6.6/24;
 vrf-name            = Vrf-RED
 prefix              = 10.5.6.6/24
 nexthop             = 10.5.6.1
-ifname              = ""
 distance            = 10
 nexthop-vrf         = default
-blackhole           = false
-
-
-
 
 ````
+
+```
+Note: "show ip route" will show installed static routes along with other routes. "show ip route static" can be used to display only static routes. All show information is fetched from FRR.
+
+Syntax to show static routes
+
+show ip route [vrf <vrf-name>] [static]
+
+sonic# show ip route static
+Codes:  K - kernel route, C - connected, S - static, B - BGP, O - OSPF
+     > - selected route, * - FIB route, q - queued route, r - rejected route,
+     # - not installed in hardware
+
+      Destination    Gateway                Dist/Metric   Uptime
+
+  S#  3.3.3.0/24   Direct       Ethernet4   150/0        00:33:31
+  S#  6.6.6.0/24   via 6.6.6.1  Ethernet0   1/0          00:00:03
+  S#  7.7.7.0/24   via 7.7.7.1  Ethernet12  36/0         00:01:56
+
+```
+
+
 #### IPv6 examples
 ````
 sonic(config)# ipv6 route 2::/64 Ethernet 16
@@ -307,38 +310,33 @@ sonic(config)# ipv6 route 2001:FF21:1:1::/64 18:2:1::1 100
 
 sonic(config)# ipv6 route 2111:dddd:0eee::22/128 blackhole 200
 
-Note: "show ipv6 route"  will show static routes along with other routes.
+Note: "show ipv6 route " will show static routes along with other routes. This information will be fetched from FRR.
+      To see only static routes use "show ipv6 route [vrf <vrf-name>] [static]"
 
 sonic(config)# do show ipv6 route vrf <vrf-name>
 
 ````
-##### 3.6.2.2.2 ipv4 /ipv6 Command to delete a next-hop.
+##### 3.6.2.2.2 ipv4 /ipv6 Command to delete a static route.
 
 The vrf is an optional parameter for default instance.
 
 ```
-no ip route vrf <vrf-name> <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>]|[blackhole]}
+no ip route vrf <vrf-name> <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>] | [blackhole]} [nexthop-vrf <vrf-name>]
+
 
 ```
 
 ```
-no ipv6 route vrf <vrf-name> <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>  ][blackhole]}
+no ipv6 route vrf <vrf-name> <prefix: A.B.C.D/mask> {[interface <interface-name>] | [<next-hop-ip>] | [<next-hop-ip> interface <interface-name>  ] | [blackhole]} [nexthop-vrf <vrf-name>]
+
 ```
-#### 3.6.2.3 Debug Commands
-#### 3.6.2.4 IS-CLI Compliance
-The following table maps SONiC CLI commands to corresponding IS-CLI commands. The compliance column identifies how the command comply to the IS-CLI syntax:
 
-- **IS-CLI drop-in replace**  \u2013 meaning that it follows exactly the format of a pre-existing IS-CLI command.
-- **IS-CLI-like**  \u2013 meaning that the exact format of the IS-CLI command could not be followed, but the command is similar to other commands for IS-CLI (e.g. IS-CLI may not offer the exact option, but the command can be positioned is a similar manner as others for the related feature).
-- **SONiC** - meaning that no IS-CLI-like command could be found, so the command is derived specifically for SONiC.
-
-|CLI Command|Compliance|IS-CLI Command (if applicable)| Link to the web site identifying the IS-CLI command (if applicable)|
-|:---:|:-----------:|:------------------:|-----------------------------------|
-|ip route |IS-CLI-like || |
-|ipv6 route| IS-CLI-like| | |
-|no ip route |IS-CLI-like || |
-|no ipv6 route |IS-CLI-like| | |
-
+##### CLI examples to delete static routes
+````
+sonic(config)# no ip route 10.1.1.1/24 Ethernet 12 nexthop-vrf Vrf-RED
+sonic(config)# no ipv6 route 2::/64 Ethernet 16
+sonic(config)# no ipv6 route 2001:FF21:1:1::/64 18:2:1::1
+````
 
 ### 3.6.3 REST API Support
 #### 3.6.3.1
@@ -348,9 +346,49 @@ The following table maps SONiC CLI commands to corresponding IS-CLI commands. Th
 2. GET , POST, PATCH and DELETE supported at /restconf/data/openconfig-network-instance:network-instances/network-instance={name}/protocols/protocol={identifier},{name1}/static-routes/static={prefix}
 3. GET, POST and DELETE supported at /restconf/data/openconfig-network-instance:network-instances/network-instance={name}/protocols/protocol={identifier},{name1}/static-routes/static={prefix}/next-hops/next-hop={index}
 
+Example of URI:-
+```
+# curl -X PATCH "https://192.168.1.1/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=STATIC,static/static-routes" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-network-instance:static-routes\": {\"static\": [{\"next-hops\": {\"next-hop\": [{\"index\": \"DROP\", \"config\": {\"index\": \"DROP\", \"blackhole\": true}}]}, \"prefix\": \"21.0.0.0/8\"}]}}" -u admin:xxxxx -k
+
+# curl -kX GET "https://192.168.1.1/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=STATIC,static/static-routes" -H "accept: application/yang-data+json" -u admin:xxxxx -k | python3 -m json.tool
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   334  100   334    0     0   1397      0 --:--:-- --:--:-- --:--:--  1409
+{
+    "openconfig-network-instance:static-routes": {
+        "static": [
+            {
+                "config": {
+                    "prefix": "21.0.0.0/8"
+                },
+                "next-hops": {
+                    "next-hop": [
+                        {
+                            "config": {
+                                "index": "DROP",
+                                "openconfig-local-routing-ext:blackhole": true
+                            },
+                            "index": "DROP",
+                            "state": {
+                                "index": "DROP",
+                                "openconfig-local-routing-ext:blackhole": true
+                            }
+                        }
+                    ]
+                },
+                "prefix": "21.0.0.0/8",
+                "state": {
+                    "prefix": "21.0.0.0/8"
+                }
+            }
+        ]
+    }
+}
+```
+
 ## 3.7 FRR Configuration Support
 ### 3.7.1 Configuration Mapping to FRR
-Bgpcfgd daemon will be used to forward configurations stored in STATIC_ROUTE table to FRR staticd daemon. It will subscribe to listen to STATIC_ROUTE table and if there is data update, it will convert associated data to FRR vtysh command request and send to FRR daemon to configure static route on Linux kernel.
+frrcfgd daemon will be used to forward configurations stored in STATIC_ROUTE table to FRR staticd daemon. It will subscribe to listen to STATIC_ROUTE table and if there is data update, it will convert associated data to FRR vtysh command request and send to FRR daemon to configure static route on Linux kernel.
 #### 3.7.1.1 Table entry to command mapping
 FRR vtysh command is composed with VRF/IP_prefix and nexthop data fields in STATIC_ROUTE table entry
 #### FRR command syntax
