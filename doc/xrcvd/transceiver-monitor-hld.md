@@ -85,7 +85,7 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
     txbiashighwarning       = FLOAT                              ; tx bias high warning threshold
     txbiaslowwarning        = FLOAT                              ; tx bias low warning threshold
 
-#### 1.1.# Transceiver Status Table ####
+#### 1.1.3 Transceiver Status Table ####
 
         ; Defines Transceiver Status info for a port
         key                          = TRANSCEIVER_STATUS|ifname     ; Error information for SFP on port
