@@ -87,11 +87,11 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 
 #### 1.1.# Transceiver Status Table ####
 
-	; Defines Transceiver Status info for a port
-	key                          = TRANSCEIVER_STATUS|ifname     ; Error information for SFP on port
-	; field                      = value
-	status                       = 1*255VCHAR                    ; code of the SFP status (plug in, plug out)
-    error                        = 1*255VCHAR                    ; SFP error (N/A or a string like error1 | error2 )
+        ; Defines Transceiver Status info for a port
+        key                          = TRANSCEIVER_STATUS|ifname     ; Error information for SFP on port
+        ; field                      = value
+        status                       = 1*255VCHAR                    ; code of the SFP status (plug in, plug out)
+        error                        = 1*255VCHAR                    ; SFP error (N/A or a string like error1 | error2 )
 
 
 ### 1.2 Accessing EEPROM from platform container ###
