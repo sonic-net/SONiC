@@ -4,8 +4,9 @@
 
 ## Table of contents
 
-- [About this manual](#about-this-manual)
 - [Revision](#revision)
+- [About this manual](#about-this-manual)
+- [Scope](#scope)
 - [Abbreviations](#abbreviations)
 - [1 Introduction](#1-introduction)
     - [1.1 Feature overview](#11-feature-overview)
@@ -35,15 +36,11 @@
         - [2.6.2 Usage examples](#262-usage-examples)
             - [2.6.2.1 Config command group](#2621-config-command-group)
             - [2.6.2.2 Show command group](#2622-show-command-group)
-    - [2.7 DPB YANG model](#27-dpb-yang-model)
+    - [2.7 YANG model](#27-yang-model)
     - [2.8 Warm/Fast boot](#28-warm_fast-boot)
 - [3 Test plan](#3-test-plan)
     - [3.1 Unit tests](#31-unit-tests)
     - [3.2 Data plane tests](#32-data-plane-tests)
-
-## About this manual
-
-This document provides general information about PBH implementation in SONiC
 
 ## Revision
 
@@ -51,12 +48,27 @@ This document provides general information about PBH implementation in SONiC
 |:---:|:----------:|:--------------:|:----------------|
 | 0.1 | 15/03/2021 | Nazarii Hnydyn | Initial version |
 
+## About this manual
+
+This document provides general information about PBH implementation in SONiC
+
+## Scope
+
+This document describes the high level design of PBH feature in SONiC
+
+**In scope:**  
+1. PBH for NVGRE/VxLAN packets based on inner 5-tuple (IP proto, L4 dst/src port, IPv4/IPv6 dst/src)
+
+**Out of scope:**  
+1. CRM support for PBH FG hash resources
+
 ## Abbreviations
 
 | Term   | Meaning                                                    |
 |:-------|:-----------------------------------------------------------|
 | SONiC  | Software for Open Networking in the Cloud                  |
 | PBH    | Policy Based Hashing                                       |
+| CRM    | Critical Resource Monitoring                               |
 | ACL    | Access Control List                                        |
 | SAI    | Switch Abstraction Interface                               |
 | FG     | Fine-Grained                                               |
@@ -631,7 +643,7 @@ pbh_table  nvgre   0                0
            vxlan   0                0
 ```
 
-## 2.7 DPB YANG model
+## 2.7 YANG model
 
 A new YANG model `sonic-pbh.yang` will be added to `sonic-buildimage/src/sonic-yang-models/yang-models`  
 in order to provide support for DPB and management framework.
