@@ -31,7 +31,8 @@ Event and Alarm Framework
         * [3.1.4.3 gNMI](#3143-gnmi)
         * [3.1.4.4 System LED](#3144-system-led)
         * [3.1.4.5 Event/Alarm flooding](#3145-event/alarm-flooding)
-      * [3.1.5 Severity Profile](#315-severity-profile)
+        * [3.1.4.6 Eventd continuous restart](#3146-event-continuous-restart)
+      * [3.1.5 Event Profile](#315-event-profile)
       * [3.1.6 CLI](#316-cli)
       * [3.1.7 Event History Table and Current Alarm Table](#317-event-history-table-and-current-alarm-table)
       * [3.1.8 Pull Model](#318-pull-model)
@@ -85,21 +86,19 @@ This makes severity as an important chracteristic of an event.
 
 *  Alarms
 
-   Alarms are notifications raised for fatal conditions and could be cleared by correcting or removal of such conditions.
+   Alarms are notifications raised for conditions that could be cleared by correcting or removal of such conditions.
    
    Out of memory, temperature crossing a threshold, and so on, are examples of conditions when the alarms are raised.
    Such conditions are dynamic: a faulty software/hardware component encounters the above such condition and **may** come out of that situation when the condition is resolved.
-   So, these conditions have a state: RAISED, CLEARED or ACKNOWLEDGED. 
+   So, these conditions have a state: RAISED, CLEARED or ACKNOWLEDGED.
    
-   Events are sent as the condition progresses through each of these states. 
+   Events are sent as the condition progresses through each of these states.
    Each of these events is characterized by "state" in addition to "severity".
    
    An application *raises* an alarm when it encounters a faulty condition by sending an event with a state: RAISED.
    After the application recovers from the condition, that alarm is *cleared* by sending an event with a state: CLEARED. 
    An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition. 
 
-   In other words, alarms are stateful events.
-   
    Overall system health and system LED state is deduced from the severities of alarms.
    An acknowledged alarm is taken out of consideration from deciding system health and system LED is updated accordingly.
 
@@ -136,10 +135,10 @@ As mentioned above, each event has an important characteristic: severity. SONiC 
 - INFORMATIONAL : An informational event had occurred, but it does not impact performance. NOT applicable to alarms.
   ( maps to log-notice )
 
-By default every event will have a severity assigned by the component. The framework provides Event Severity Profiles to customize severity of an event and also disable an event.
+By default every event will have a severity assigned by the component. The framework provides Event Profiles to customize severity of an event and also disable an event.
 Operator can decide to lower or increase severity of an event or can decide to turn off an event.
 
-An example of event severity profile is as below:
+An example of event profile is as below:
 ```
 {
     "events": [
@@ -162,12 +161,12 @@ An example of event severity profile is as below:
 }
 ```
 
-Operator can download default severity profile to a remote host. 
+Operator can download default event profile to a remote host. 
 This downloaded file can be modified by changing the severity or enable/disable flag of event(s).
 This modified file can then be uploaded to the device.
-Operator can select any of these custom severity profiles to change default properties of events.
-The selected severity profile will be taken into effect after restarting eventd container.
-The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom severity profile and restarts eventd container.
+Operator can select any of these custom event profiles to change default properties of events.
+The selected profile will be taken into effect after restarting eventd container.
+The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile and restarts eventd container.
 
 In addition to storing events in DB, framework forwards log messages corresponding to all the events to syslog. 
 Syslog message displays the type (alarm or event), state (RAISED, CLEARED or ACKNOWLEDGED) - when the message corresponds to an event of an alarm, name of the event and detailed message. 
@@ -215,10 +214,10 @@ CLI and REST/gNMI clients can query either table with filters - based on severit
 | 8     | CLI commands                                                                    |                     |
 | 8.1   | show alarm [ detail \| summary \| severity \| timestamp <from> <to> \| recent <5min\|1hr\|1day> \| sequence-number <from> <to> \| all]          |                    |
 | 8.2   | show event [ detail \| summary \| severity \| timestamp <from> <to> \| recent <5min\|1hr\|1day> \| sequence-number <from> <to>]                 |                     |
-| 8.3   | show event severity-profile                                                     |                     |
+| 8.3   | show event profile                                                              |                     |
 | 8.4   | alarm acknowledge <sequence id>                                                 |                     |
 | 8.5   | logging server <ip> [ log \| event ]                                             | default is 'log'   |
-| 8.6   | severity-profile   [ default \| name-of-file ]	                                  |                     |
+| 8.6   | event profile   [ default \| name-of-file ]	                                  |                     |
 | 9     | gNMI subscription                                                               |                     |
 | 9.1   | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
 | 10    | Clear all events (Best effort)                                                  |                     |
@@ -266,21 +265,21 @@ Applications act as producers of events.
 Event consumer class in eventd container receives and processess the event whenever a new one is produced. 
 Event consumer manages received events, updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
 
-Operator can chose to change properties of events with the help of event severity profile. Default
-event profile is stored at /etc/sonic/severityprofile/default.json. User can download the default severity profile,
+Operator can chose to change properties of events with the help of event profile. Default
+event profile is stored at /etc/sonic/evprofile/default.json. User can download the default event profile,
 modify and upload it back to the switch to apply it. 
 
-Through severity profile, user can change severity of any event and also can enable/disable a 
+Through event profile, user can change severity of any event and also can enable/disable a 
 event.
 
 Through CLI, REST or gNMI, event history table and current alarm table can be retrieved using various filters.
 
 ### 3.1.1 Event Producers
-Application that need to raise an event, need to use event notifiy API ( LOG_EVENT / LOG_ALARM ). 
+Application that need to raise an event, need to use event notifiy API ( LOG_EVENT ). 
 This API is part of libeventnotify library that applications need to link.
 
-For events, applications need to provide dynamic message and source along with event-id ( name of the event ). 
-For alarms, applications need to provide event state ( raise/clear ) and source along with dynamic message and event-id.
+For events, applications need to provide event-id (name of the event), source, dynamic message, and event state set to NOTIFY. 
+For alarms, applications need to provide event-id (name of the event), source, dynamic message, and event state (RAISE_ALARM / CLEAR_ALARM).
 
 The eventd maintains a static map of event-ids. Developers of events need to declare event-id
 of new events and other characteristics - severity and static message - that gets appended with dynamic message.
@@ -296,31 +295,25 @@ std::unordered_map<std::string, EventInfo_t> static_event_map = {
 
 The format of event notify API is:
 
-For events:
+definition:
+```
+    LOG_EVENT(name, source, state, MSG, ...)
+```
+- name is name of the event
+- source is the object that is generating this event
+- state is either NOTIFY, RAISE_ALARM, CLEAR_ALARM or ACKNOWLEDGE_ALARM
 
-definition: 
-```
-    LOG_EVENT(name, source, MSG, ...)
-```
 Usage:
 ```
-    LOG_EVENT(PORT_MTU_UPDATE, alias.c_str(), "Configure  ethernet %s MTU to %s", alias.c_str(), mtu.c_str());
+    LOG_EVENT(PORT_MTU_UPDATE, alias.c_str(), NOTIFY, "Configure  ethernet %s MTU to %s", alias.c_str(), mtu.c_str());
 ```
 
 For alarms:
-
-definition:
-```
-    LOG_ALARM(name, source, state, MSG, ...)
-```
-Here, state is either RAISE_ALARM or CLEAR_ALARM
-
-Usage:
 ```
     if (temperature >= THRESHOLD) {
-        LOG_ALARM(TEMPERATURE_EXCEEDED, sensor_name_p, RAISE_ALARM, "Temperature for sensor %s is %d degrees", sensor_name_p, current_temp);
+        LOG_EVENT(TEMPERATURE_EXCEEDED, sensor_name_p, RAISE_ALARM, "Temperature for sensor %s is %d degrees", sensor_name_p, current_temp);
     } else {
-        LOG_ALARM(TEMPERATURE_EXCEEDED, sensor_name_p, CLEAR_ALARM, "Temperature for the sensor %s is %d degrees ", sensor_name_p, current_temp);
+        LOG_EVENT(TEMPERATURE_EXCEEDED, sensor_name_p, CLEAR_ALARM, "Temperature for the sensor %s is %d degrees ", sensor_name_p, current_temp);
     }
 ```
 #### 3.1.1.2 Development Process
@@ -348,7 +341,7 @@ b. Update Makefile.am of the app to link to event notify library.
 ```
 c. Declare the new event-id in static_event_map defined in src/sonic-eventd/lib/src/eventstaticmap.h 
 
-d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT or LOG_ALARM.
+d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT with state as NOTIFY/RAISE_ALARM/CLEAR_ALARM.
 
 The event notifier takes the event properties, packs a field value tuple and writes to a table, by name, EVENTPUBSUB.
 
@@ -489,35 +482,39 @@ There are scenarios when system enters a loop of a fault condition that makes ap
 instances flood the EVENT or ALARM tables, eventd maintains a cache of last event/alarm. Every new event/alarm is compared against this cache entry
 to make sure it is not a flood. If it is found to be same event/alarm, the newly raised entry will be silently discarded.
 
-### 3.1.5 Severity Profile
-The Severity profile contains mapping between event-id and severity of the event, enable/disable flag.
-Through severity profile, operator can change severity of a particular event. And can also enable/disable
+#### 3.1.4.6 Eventd continuous restart
+Under the scenarios when eventd runs into an issue and restarts continuously, applications can keep writing to the eventpubsub table. As consumer - eventd - is restarting continuously, eventpusbub table could grow forever as applications keep rising events/alarms. 
+One way to fix is to have the system monitor daemon to periodically (very high polling interval) to check the number of keys in the table and if it exceeds a number, delete all the entries. When system monitor daemon does this, it logs a syslog message. 
+
+### 3.1.5 Event Profile
+The Event profile contains mapping between event-id and severity of the event, enable/disable flag.
+Through event profile, operator can change severity of a particular event. And can also enable/disable
 a particular event.
 
 On bootup, event framework would create default event profile file based on the contents of static_event_map. 
 By default, every event is enabled.
 The severity of event is decided by designer while adding the event.
-The default severity profile is stored at /etc/sonic/severityprofile/default.json
+The default event profile is stored at /etc/sonic/evprofile/default.json
 
-User can upload the default severity profile to a remote host. User can modify characteristics of
+User can upload the default event profile to a remote host. User can modify characteristics of
 certain events in the profile and can download it back to the switch.
 
-The updated profile will become custom severity profile.
+The updated profile will become custom profile.
 
-User can select any of the custom severity profiles under /etc/sonic/severityprofile/ using 'severity-profile' command.
+User can select any of the custom profiles under /etc/sonic/evprofile/ using 'event profile' command.
 
-The framework will sanity check the user selected severity profile and merges it with static_event_map.
+The framework will sanity check the user selected profile and merges it with static_event_map.
+The profile is upgrade and downgrade compatible by taking only those attributes that are *known* to eventd.
 
-The selected severity profile will be "active" after a reboot and merged with the static_event_map.
+The selected profile will be "active" after a reboot and merged with the static_event_map.
 
 To "remember" the selected custom profile across reboots, an internal symlink points to the selected custom
-profile.
+profile. Config Migration hooks will be used to persist profile across an upgrade.
+
+The profile can also be applied through ztp.
 
 The event consumer will use the static_event_map map to decide whether to raise an event or not. If event
 is to be raised, static_event_map is again looked into for severity.
-
-Upgrade hooks will be used to persist custom severity profiles.
-
 
 ### 3.1.6 CLI
 The show CLI require many filters with range specifiers.
@@ -879,7 +876,7 @@ Acknowledging an alarm updates system health parameter and thereby system LED by
 
 The alarm record in the ALARM table is marked with is_acknowledged field set to true.
 ```
-sonic# event severity-profile <profile-name>
+sonic# event profile <profile-name>
 ```
 The command takes specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*. The command creates a persistent symlink to the selected file so that eventd "remembers" it after a reboot. 
 
@@ -896,12 +893,12 @@ Support with VRF/source-interface and configuring remote-port are all backward c
 sonic# show system health
 System Health: Normal, Warning or Error
 
-sonic# show event severity-profile
+sonic# show event profile
 
-Severity Profile Details
+Event Profile Details
 ----------------------------------------
 Currently active     :  default
-Active after restart :  mysev_prof
+Active after restart :  myev_prof
 
 sonic# show event [ detail | summary | severity <sev> | timestamp from <from-ts> to <to-ts> | recent <5min|1hr|1day> | sequence-id from <from-seq> to <to-seq> ] 
 
@@ -1084,12 +1081,12 @@ By default, the size of Event History Table is set to 40k events or events for 3
 - Verify wrap around for EVENT table ( change manifest file to a lower range and trigger that many events )
 - Verify sequence-id for events is persistent by restarting
 - Verify counters by raising various alarms with different severities 
-- Change severity of an event through custom severity profile and verify it is logged at specified severity
-- Change enable/disable of an event through custom severity profile and verify it is suppressed
-- Verify custom severity profile with an invalid event-id is rejected 
-- Verify custom severity profile with an invalid severity is rejected 
-- Verify custom severity profile with an invalid enable/disable flag is rejected 
-- Verify custom severity profile with an invalid json syntax is rejected 
-- Verify custom severity profile is persisted after a reboot
+- Change severity of an event through custom event profile and verify it is logged at specified severity
+- Change enable/disable of an event through custom event profile and verify it is suppressed
+- Verify custom event profile with an invalid event-id is rejected 
+- Verify custom event profile with an invalid severity is rejected 
+- Verify custom event profile with an invalid enable/disable flag is rejected 
+- Verify custom event profile with an invalid json syntax is rejected 
+- Verify custom event profile is persisted after a reboot
 - Verify various show commands
 - Verify 'logging-server <ip> event' command forwards only event log messages to the host
