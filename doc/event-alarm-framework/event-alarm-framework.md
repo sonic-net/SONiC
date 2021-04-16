@@ -897,8 +897,7 @@ sonic# show event profile
 
 Event Profile Details
 ----------------------------------------
-Currently active     :  default
-Active after restart :  myev_prof
+Event Profile :  myev_prof
 
 sonic# show event [ detail | summary | severity <sev> | timestamp from <from-ts> to <to-ts> | recent <5min|1hr|1day> | sequence-id from <from-seq> to <to-seq> ] 
 
