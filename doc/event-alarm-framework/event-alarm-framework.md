@@ -233,9 +233,9 @@ EVENT table should support 40k/30-day records. Current active alarms are limited
 ### 1.2.1 Basic Approach
 The feature involves new development. 
 Applications act as producers by writing to a table in redis app-db. 
-Eventd receives a new record in the table and process it:
-It saves the processed entry in event history table; if the event has a state and if it is RAISED, record gets added to alarm table and system health is updated. 
-If the state is CLEARED, record is removed from ALARM table and system health is updated.
+Eventd receives a new record in the table and processes it:
+It saves the entry in event history table; if the event has a state and if it is RAISED, record gets added to alarm table and system health is updated. 
+If the received event state is CLEARED, record in the ALARM table is removed and system health is updated.
 Both EVENT and ALARM tables are stored under state-db. For stats, EVENT_STATS and ALARM_STATS are maintained in state DB.
 Eventd then informs logging API to format the log message and send the message to syslog.
 
@@ -260,7 +260,7 @@ There are three players in the event framework. Producers, which raises events; 
 
 Applications act as producers of events. 
 
-Event consumer class in eventd container receives and processess the event whenever a new one is produced. 
+Event consumer class in eventd container receives and processes the event whenever a new one is produced. 
 Event consumer manages received events, updates event history table and current alarm table and invokes logging API, which constructs message and sends it over to syslog. 
 
 Operator can chose to change properties of events with the help of event profile. Default
@@ -277,6 +277,7 @@ Application that need to raise an event, need to use event notifiy API ( LOG_EVE
 This API is part of *libeventnotify* library that applications need to link.
 
 For one-shot events, applications need to provide event-id (name of the event), source, dynamic message, and event state set to NOTIFY. 
+
 For alarms, applications need to provide event-id (name of the event), source, dynamic message, and event state (RAISE_ALARM / CLEAR_ALARM / ACK_ALARM).
 
 The eventd maintains a static map of event-ids. Developers of events need to declare event-id
@@ -471,15 +472,13 @@ So, on certain platforms, system LED could not represent events on the system.
 Another issue is: Currently pmon controls LED, and as eventd now tries to change the very same LED, this leads to conflicts. 
 A mechanism must exist for one of these to be master.
 
-The proposed solution is to have a system health parameter in the DB and have pmon use this parameter in conjunction with existing logic to update system LED. 
+The proposed solution is to have a system health parameter in the DB populated by eventd and have pmon use this parameter in conjunction with existing logic to update system LED. 
 
 ```
 127.0.0.1:6379[6]> hgetall "SYSTEM_HEALTH|SYSTEM_STATE"
 1) "state"
 2) "NORMAL"
 ```
-This is updated by eventd and pmon could use it to update LED accordingly. 
-
 #### 3.1.4.5 Event/Alarm flooding
 There are scenarios when system enters a loop of a fault condition that makes application trigger events continuously. To avoid such
 instances flood the EVENT or ALARM tables, eventd maintains a cache of last event/alarm. Every new event/alarm is compared against this cache entry
@@ -510,7 +509,7 @@ The framework will sanity check the user selected profile and merges it with def
 
 The framework generates an event indicating that a new profile is in effect. 
 
-If there are any outstanding alarms in the current alarm table, the framework removes those records for which enable is set to false in the new profile. System health status updated accordingly.
+If there are any outstanding alarms in the current alarm table, the framework removes those records for which enable is set to false in the new profile. System health status is updated accordingly.
 
 Eventd starts using the merged map of characteristics for the all the newly generated events.
 
