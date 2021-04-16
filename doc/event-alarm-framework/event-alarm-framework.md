@@ -165,8 +165,7 @@ Operator can download default event profile to a remote host.
 This downloaded file can be modified by changing the severity or enable/disable flag of event(s).
 This modified file can then be uploaded to the device.
 Operator can select any of these custom event profiles to change default properties of events.
-The selected profile will be taken into effect after restarting eventd container.
-The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile and restarts eventd container.
+The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile.
 
 In addition to storing events in DB, framework forwards log messages corresponding to all the events to syslog. 
 Syslog message displays the type (alarm or event), state (RAISED, CLEARED or ACKNOWLEDGED) - when the message corresponds to an event of an alarm, name of the event and detailed message. 
@@ -496,25 +495,26 @@ By default, every event is enabled.
 The severity of event is decided by designer while adding the event.
 The default event profile is stored at /etc/sonic/evprofile/default.json
 
-User can upload the default event profile to a remote host. User can modify characteristics of
-certain events in the profile and can download it back to the switch.
+User can download the default event profile to a remote host. User can modify characteristics of
+certain events in the profile and can upload it back to the switch.
 
 The updated profile will become custom profile.
 
 User can select any of the custom profiles under /etc/sonic/evprofile/ using 'event profile' command.
 
-The framework will sanity check the user selected profile and merges it with static_event_map.
-The profile is upgrade and downgrade compatible by taking only those attributes that are *known* to eventd.
+The framework will sanity check the user selected profile and merges it with default characteristics of static_event_map.
 
-The selected profile will be "active" after a reboot and merged with the static_event_map.
+The framework genrates an event indicating that a new profile is in effect. 
+If there are any outstanding alarms in the current alarm table, the framework removes those records for which enable is set to false in the new profile. System health status updated accordingly.
 
-To "remember" the selected custom profile across reboots, an internal symlink points to the selected custom
+The event profile is upgrade and downgrade compatible by taking only those attributes that are *known* to eventd.
+All the other attributes will remain to their default values.
+Sanity check rejects the profile if attributes contains values that are not known to eventd.
+
+To "remember" the selected custom profile across reboots, a persisting hidden symlink points to the selected custom
 profile. Config Migration hooks will be used to persist profile across an upgrade.
 
 The profile can also be applied through ztp.
-
-The event consumer will use the static_event_map map to decide whether to raise an event or not. If event
-is to be raised, static_event_map is again looked into for severity.
 
 ### 3.1.6 CLI
 The show CLI require many filters with range specifiers.
