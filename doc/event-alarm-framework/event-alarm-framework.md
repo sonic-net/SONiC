@@ -561,7 +561,7 @@ root@sonic:/etc# cat eventd.json
 'no-of-records' indicates maximum number of records EVENT table can hold. The range is 1-40000.
 'no-of-days' indicates maximum number of days an event can exist in the EVENT table. The range is 1-30.
 
-When either of the limit is reached, the framework wraps around the table records by discarding older records.
+When either of the limit is reached, the framework wraps around the table by discarding older records.
 
 An example of an event in EVENT table raised by tam.
 ```
@@ -576,6 +576,7 @@ text                      : Dynamic message describing the cause for the event {
 time-created              : Time stamp at which the event is generated {uint64}
 state                     : Indicates state of the event; for one-shot events, it is empty. For alarms it could be raise, cleared or ack {enum}
 resource                  : Object which generated the event {string}
+severity                  : Severity of the event {string}
 
 127.0.0.1:6379[6]> hgetall "EVENT|1"
  1) "id"
@@ -590,6 +591,8 @@ resource                  : Object which generated the event {string}
 10) ""
 11) "resource"
 12) "3"
+13) "severity"
+13) "informational"
 127.0.0.1:6379[6]>
 ```
 
@@ -602,14 +605,14 @@ Key                       : id
 
 id                        : key {state}
 events                    : Total events raised {uint64}
-alarms                    : Total alarms raised {uint64}
+raised                    : Total alarms raised {uint64}
 cleared                   : Total alarms cleared {uint64}
 acked                     : Total alarms acknowledged {uint64}
 
 127.0.0.1:6379[6]> hgetall "EVENT_STATS|state"
 1) "events"
 2) "7"
-3) "alarms"
+3) "raised"
 4) "2"
 5) "cleared"
 6) "2"
@@ -632,6 +635,7 @@ text                      : Dynamic message describing the cause for the event {
 time-created              : Time stamp at which the event is generated {uint64}
 is-acknowledged           : Indicates if alarm has been acknowledged {boolean}
 resource                  : Object which generated the event {string}
+severity                  : Severity of the event {string}
 
 127.0.0.1:6379[6]> hgetall "ALARM|29"
  1) "id"
@@ -646,6 +650,8 @@ resource                  : Object which generated the event {string}
 10) "2021-02-10.04:51:53.454450"
 11) "is-acknowledged"
 12) "false"
+13) "severity"
+13) "critical"
 127.0.0.1:6379[6]>
 ```
 
@@ -909,8 +915,9 @@ Sq No   State        Name                             Timestamp                 
 -----   --------     ------------------------------   --------------------------- --------------
 2292    -            TAM_SWITCH_ID_CHANGE             Wed Feb 10 18:08:27 2021    processSwitchTblEvent: Received new switch-id as 3        
 2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
+182     cleared      TEMPERATURE_EXCEEDED             Wed Feb 10 09:52:12 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
+134     raised       TEMPERATURE_EXCEEDED             Wed Feb 10 09:32:01 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
         
-      
 sonic# show event details 
 Event History Details - 2292
 -------------------------------------------
@@ -937,7 +944,7 @@ sonic# show event summary
 Event Summary
 -------------------------------------------
 Raised:                 5
-Ack:                    0
+Ack:                    1
 Cleared:                4
 Events:                 20
 -------------------------------------------
@@ -962,7 +969,7 @@ Sq No   State        Name                             Timestamp                 
 sonic# show event TEMPERATURE_EXCEEDED
 Sq No   State        Name                             Timestamp                   Description
 -----   --------     ------------------------------   --------------------------- --------------
-2311    cleared      TEMPERATURE_EXCEEDED             Wed Feb 11 01:03:32 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees
+2311    ack          TEMPERATURE_EXCEEDED             Wed Feb 11 01:03:32 2021    Alarm is acknolwedged by user. 
 2291    raised       TEMPERATURE_EXCEEDED             Wed Feb 10 17:08:24 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees
 182     cleared      TEMPERATURE_EXCEEDED             Wed Feb 10 09:52:12 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees
 134     raised       TEMPERATURE_EXCEEDED             Wed Feb 10 09:32:01 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 77 degrees
@@ -982,7 +989,7 @@ sonic# show alarm all
 Sq No  Severity         Name                             Timestamp                   Source          Acknowledged
 ------ -------------    ------------------------------   --------------------------- --------------  ---------------
 2291   critical         TEMPERATURE_EXCEEDED             Wed Feb 10 18:08:24 2021    /sensor/2       false
-178    critical         PSU_FAULT                        Wed Dec 30 21:59:07 2020    /psu/2          true
+178    critical         PSU_FAULT                        Wed Feb 10 08:08:24 2021    /psu/2          true
 
 sonic# show alarm detail 
   
@@ -997,6 +1004,18 @@ Raise-time:        Wed Feb 10 18:08:24 2021
 Ack-time:          
 New:               true
 Acknowledged:      false
+-------------------------------------------
+Active-alarm details - 178
+-------------------------------------------
+Sequence Number:   178
+Severity:          critical
+Source:            /psu/2
+Name:              PSU_FAULT
+Description:       /psu/2 has experienced a fault 
+Raise-time:        Wed Feb 10 08:08:24 2021
+Ack-time:          Wed Feb 10 08:10:14 2021 
+New:               true
+Acknowledged:      true
 
 sonic# show alarm summary
 Active-alarm Summary
@@ -1014,6 +1033,7 @@ sonic# show alarm severity critical
 Sq No  Name                             Timestamp                   Description
 -----  ------------------------------   --------------------------- --------------
 2291   TEMPERATURE_EXCEEDED             Wed Feb 10 17:58:19 2021    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. 
+178    PSU_FAULT                        Wed Feb 10 08:08:24 2021    /psu/2 experienced a fault. 
 
 sonic# show alarm recent 5min 
 Sq No  Name                             Timestamp                   Description
