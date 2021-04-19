@@ -98,7 +98,7 @@ Unknown-multicast traffic consists of all multicast traffic which donot match an
  2. Support threshold rate configuration in kilo bits per second (kbps) in the range of 0 kbps to 100,000,000 kbps (100Gbps). 
 
 ### 1.1.2 Configuration and Management Requirements
-This feature will support Click CLI.
+This feature supports Click, Klish, REST, gNMI interfaces.
  1. Support a CLI to add or delete broadcast, unknown-unicast and unknown-multicast storm-control on a physical interface as described in "Configuration Commands" section below. 
  2. Support show commands to display the storm-control configuration as described in "Show Commands" section below. 
  3. Support debug commands as described in "Debug Commands" section below.
@@ -145,7 +145,7 @@ Refer to section 1.1
 BUM storm control 
 - Configuration is not supported on VLAN and port-channel interfaces. User can configure on physical port which is part of a VLAN / port-channel.
 - Statistics is not supported. 
-- REST, gNMI and Klish CLI are not supported. 
+- User is expected to remove all storm-control configurations from interface before doing a breakout from Click CLI. 
  
 
 
@@ -230,10 +230,11 @@ The **set_port_attribute** SAI API is used to set the policer on an interface.
 
 ## 3.5 CLI
 ### 3.5.1 Data Models
-Configuration is supported using Click CLI commands.
+Configuration is supported using Click and Klish CLI commands.
 
 
 ### 3.5.2 Configuration Commands
+This section lists down the Click commands.
 BUM storm-control can be configured only on physical interfaces.  
 **switch# config interface storm-control {broadcast | unknown-unicast | unknown-multicast} {add|del} \<interface_name\> {\<kilo_bits_per_second\>}**
 
