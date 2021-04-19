@@ -10,7 +10,6 @@ Event and Alarm Framework
   * [1 Feature Overview](#1-feature-overview)
     * [1.1 Requirements](#11-requirements)
       * [1.1.1 Functional Requirements](#111-functional-requirements)
-      * [1.1.2 Scalability Requirements](#112-scalabilty-requirements)
     * [1.2 Design Overview](#12-design-overview)
       * [1.2.1 Basic Approach](#121-basic-approach)
       * [1.2.2 Container](#122-container)
@@ -221,10 +220,6 @@ Application owners need to identify various conditions that would be of interest
 | 9     | gNMI subscription                                                               |                     |
 | 9.1   | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
 | 10    | Clear all events (Best effort)                                                  |                     |
-
-### 1.1.2 Scalability Requirements
-
-EVENT table should support 40k/30-day records. Current active alarms are limited to total instances of unique alarms (which makes ALARM Table is a finite quantity)
 
 ## 1.2 Design Overview
 
@@ -591,7 +586,7 @@ severity                  : Severity of the event {string}
 11) "resource"
 12) "3"
 13) "severity"
-13) "informational"
+14) "informational"
 127.0.0.1:6379[6]>
 ```
 
@@ -650,7 +645,7 @@ severity                  : Severity of the event {string}
 11) "is-acknowledged"
 12) "false"
 13) "severity"
-13) "critical"
+14) "critical"
 127.0.0.1:6379[6]>
 ```
 
