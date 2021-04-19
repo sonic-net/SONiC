@@ -499,15 +499,15 @@ The severity of event is decided by designer while adding the event.
 The default event profile is stored at /etc/sonic/evprofile/default.json
 
 User can download the default event profile to a remote host. User can modify characteristics of
-certain/all events in the profile and can upload it back to the switch.
+some/all events in the profile and can upload it back to the switch.
 
-The updated profile will become custom profile.
+The uploaded profile will be called custom event profile.
 
 User can have multiple custom profiles and can select any of the profiles under /etc/sonic/evprofile/ using 'event profile' command.
 
-The framework will sanity check the user selected profile and merges it with default characteristics of static_event_map.
+The framework will sanity check the user selected profile and merges it with default characteristics of events of static_event_map.
 
-The framework generates an event indicating that a new profile is in effect. 
+After a successful sanity check, the framework generates an event indicating that a new profile is in effect. 
 
 If there are any outstanding alarms in the current alarm table, the framework removes those records for which enable is set to false in the new profile. System health status is updated accordingly.
 
@@ -518,8 +518,7 @@ All the other attributes will remain to their default values.
 
 Sanity check rejects the profile if attributes contains values that are not known to eventd.
 
-To "remember" the selected custom profile across reboots, a persisting hidden symlink points to the selected custom
-profile. Config Migration hooks will be used to persist custom profiles across an upgrade.
+Config Migration hooks will be used to persist custom profiles across an upgrade.
 
 The profile can also be applied through ztp.
 
@@ -885,10 +884,6 @@ An operator can acknolwedge a raised alarm. This indicates that the operator is 
 Acknowledging an alarm updates system health parameter and thereby system LED by removing the particular alarm from status consideration.
 
 The alarm record in the ALARM table is marked with is_acknowledged field set to true.
-```
-sonic# event profile <profile-name>
-```
-The command takes specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*. The command creates a persistent symlink to the selected file so that eventd "remembers" it after a reboot. 
 
 #### 3.3.2.2 Configuration Commands
 ```
@@ -897,6 +892,11 @@ sonic(config)# logging server <ip> [log|event]
 Note: The 'logging server' command is an existing, already supported command. 
 It is only enhanced to take either 'log' or 'event' to indicate either native syslog messages or syslog messages corresponding to events alone are sent to the remote host.
 Support with VRF/source-interface and configuring remote-port are all backward comaptible and will be applicable to either 'log' or 'event' options.
+
+```
+sonic(config)# event profile <profile-name>
+```
+The command takes name of specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*. 
 
 #### 3.3.2.3 Show Commands
 ```
