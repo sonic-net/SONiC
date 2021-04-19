@@ -44,8 +44,8 @@ For each component's attribute, the defined `capabilities` fields are as follows
 - Attribute specific fields:
     - status led - "color" - A list of the supported colors.
     - speed
-        - "maximum" - Maximum recommended fan speed that can be set.
         - "minimum" - Minimum recommended fan speed that can be set.
+        - "maximum" - Maximum recommended fan speed that can be set.
 
 Sample `capabilities` fields:
 
@@ -69,8 +69,8 @@ Sample `capabilities` fields:
                         "name": "FanTray1-Fan",
                         "speed": {
                             "control": true,
-                            "maximum": 100,
-                            "minimum": 40
+                            "minimum": 40,
+                            "maximum": 100
                         }
                     }
                 ]
@@ -86,8 +86,8 @@ Sample `capabilities` fields:
                         "name": "FanTray2-Fan",
                         "speed": {
                             "control": true,
-                            "maximum": 100,
-                            "minimum": 40
+                            "minimum": 40,
+                            "maximum": 100
                         }
                     }
                 ]
