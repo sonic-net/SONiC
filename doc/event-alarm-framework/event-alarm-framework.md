@@ -885,6 +885,10 @@ Acknowledging an alarm updates system health parameter and thereby system LED by
 
 The alarm record in the ALARM table is marked with is_acknowledged field set to true.
 
+sonic# event profile <profile-name>
+```
+The command takes name of specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*.
+
 #### 3.3.2.2 Configuration Commands
 ```
 sonic(config)# logging server <ip> [log|event] 
@@ -894,10 +898,6 @@ It is only enhanced to take either 'log' or 'event' to indicate either native sy
 Support with VRF/source-interface and configuring remote-port are all backward comaptible and will be applicable to either 'log' or 'event' options.
 
 ```
-sonic(config)# event profile <profile-name>
-```
-The command takes name of specified file, validates it for its syntax and values; merges it with its internal static map of events *static_event_map*. 
-
 #### 3.3.2.3 Show Commands
 ```
 sonic# show system health
