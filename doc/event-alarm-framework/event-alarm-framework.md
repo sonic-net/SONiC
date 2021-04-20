@@ -1071,9 +1071,6 @@ They would
 Records from applications are stored in a table, called EVENTPUBSUB.
 By using table of type ProducerTable, records that are being written will be queued when the consumer (eventd) is down.
 
-The eventnotify from each application would write events to EVENTPUBSUB table that eventd subscribes to. 
-eventnotify uses event-id and a local sequence-id as the key while writing records to this table.
-
 During normal operation, eventd reads, processes whenever a new record is added to the table.
 
 When eventd is restarted, events and alarms raised by applications will be waiting in a queue while eventd is coming up.
