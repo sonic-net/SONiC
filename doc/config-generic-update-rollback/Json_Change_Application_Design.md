@@ -391,10 +391,10 @@ N/A
 | 1         | Add a new table. |
 | 2         | Remove an existing table. |
 | 3         | Modify values of an existing table entry. |
-| 4         | Modify value of an existing item an array value. |
+| 4         | Modify value of an existing item of an array value. |
 | 5         | Add a new item to an array value. |
 | 6         | Remove an item form an array value. |
 | 7         | Add a new key to an existing table .|
 | 8         | Remove a key from an existing table. |
 | 9         | Replace a mandatory item e.g. type under ACL_TABLE. |
-| 10        | Remove an item that has a default value. |
+| 10        | Remove an item that has a default value e.g. stage under ACL_TABLE. |
