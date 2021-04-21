@@ -43,9 +43,9 @@
       - [Fail-safe Action](#fail-safe-action-1)
       - [Logging](#logging-1)
     + [2.2.4 Replace](#224-replace)
-      - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config-2)
-      - [Stage-2 Get target config from the external user/system](#stage-2-get-target-config-from-the-external-user-system)
-      - [Stage-3 Validating the target config using YANG models](#stage-3-validating-the-target-config-using-yang-models)
+      - [Stage-1 Get target config from the external user](#stage-1-get-target-config-from-the-external-user)
+      - [Stage-2 Validating the target config using YANG models](#stage-2-validating-the-target-config-using-yang-models)
+      - [Stage-3 Get current ConfigDB JSON config](#stage-3-get-current-configdb-json-config)
       - [Stage-4 Generate the diff as JsonPatch between current config and target config](#stage-4-generate-the-diff-as-jsonpatch-between-current-config-and-target-config)
       - [Stage-5 Apply-Patch](#stage-5-apply-patch)
       - [Stage-6 Verify config replace](#stage-6-verify-config-replace)
@@ -182,7 +182,7 @@ admin@sonic:~$ config rollback mycheckpoint # in case of failures
 - A single, simple command to partially update SONiC configuration according to a patch of updates
 - A single, simple command to take a checkpoint of the full current SONiC config
 - A single, simple command to fully rollback current SONiC configs with to a checkpoint
-- [low-priority] A single simple command to fully replace current SONiC configs with a full config provided by an external user/system.
+- [low-priority] A single simple command to fully replace current SONiC configs with a full config provided by an external user.
 - Other commands to list checkpoints, delete checkpoints
 - The patch of updates should follow a standard notation. The [JSON Patch (RFC6902)](https://tools.ietf.org/html/rfc6902) notation should be used
 - Config rollback should be with minimum disruption to the device e.g. if reverting ACL updates DHCP should not be affected i.e. minimum-disruption rollback
@@ -498,14 +498,14 @@ All the configuration update operations executed and the output displayed by the
 ### 2.2.4 Replace
 The SONiC `replace` command can broadly classified into the following steps
 
-#### Stage-1 Get current ConfigDB JSON config
-The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
+#### Stage-1 Get target config from the external user
+The external user to provide the full target ConfigDB config in JSON format.
 
-#### Stage-2 Get target config from the external user/system
-The external user/system to provide the full target ConfigDB config in JSON format.
-
-#### Stage-3 Validating the target config using YANG models
+#### Stage-2 Validating the target config using YANG models
 The target config are unknown configs and need to be validating using YANG models
+
+#### Stage-3 Get current ConfigDB JSON config
+The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
 #### Stage-4 Generate the diff as JsonPatch between current config and target config
 The current ConfigDB JSON config is compared with the target JSON config. The comparison result should be in JsonPatch format.
