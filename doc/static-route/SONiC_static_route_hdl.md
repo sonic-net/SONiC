@@ -19,7 +19,7 @@ Implement Static IP route Configuration via  CLI/REST/gNMI  in SONiC management 
 | Rev |     Date    |       Author                | Change Description                |
 |:---:|:-----------:|:---------------------------:|-----------------------------------|
 | 0.1 | 03/18/2020  |  Sucheta Mahara             | initial draft                     |
-|  0.2| 03/20/20202 |  Venkatesan Mahalingam       | draft                             |
+|  0.2| 03/20/2020 |  Venkatesan Mahalingam       | draft                             |
 | 0.3 | 03/23/2020  |  Zhenhong Zhao              | FRR Config Support             |
 | 0.4 | 04/13/2021  |  Sucheta Mahara &  Venkatesan Mahalingam             | Addressed community review comments             |
 
