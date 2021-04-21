@@ -33,7 +33,8 @@
       - [Logging](#logging)
     + [2.2.2 Checkpoint](#222-checkpoint)
       - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config)
-      - [Stage-2 Save JSON config](#stage-2-save-json-config)
+      - [Stage-2 Validating current ConfigDB JSON config using YANG models](#stage-2-validating-current-configdb-json-config-using-yang-models)
+      - [Stage-3 Save JSON config](#stage-3-save-json-config)
     + [2.2.3 Rollback](#223-rollback)
       - [Stage-1 Get current ConfigDB JSON config](#stage-1-get-current-configdb-json-config-1)
       - [Stage-2 Get checkpoint JSON config](#stage-2-get-checkpoint-json-config)
@@ -466,7 +467,10 @@ The SONiC `checkpoint` command can broadly classified into the following steps
 #### Stage-1 Get current ConfigDB JSON config
 The *ConfigDBConnector* class is used to obtain the running configuration in JSON format
 
-#### Stage-2 Save JSON config
+#### Stage-2 Validating current ConfigDB JSON config using YANG models
+ConfigDB might be in invalid to begin with and later if used for rollback it will not work.
+
+#### Stage-3 Save JSON config
 Save the checkpoint to a dedicated location on the SONiC box
 
 ### 2.2.3 Rollback
