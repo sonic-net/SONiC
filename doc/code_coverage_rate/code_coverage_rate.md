@@ -136,12 +136,21 @@ override_dh_auto_install:
 After the "collect" operation, a compressed gcno.tar.gz is sent to /tmp/swss\_gcov inside the debian package.
 
 ## 2.4 Collect gcda files
-gcov_support.sh is also sent to /tmp/swss\_gcov inside the debian package. After the regular tests to the swss module inside a device, the keyword "collect\_gcda" can be used to collect the generating gcda files, produce gcda.tar.gz and move it into /tmp/swss_gcov together with gcno.tar.gz
+gcov_support.sh is also sent to /tmp/swss\_gcov inside the debian package. After the regular tests to the swss module inside a device, a new-added pytest test case named "test_zzgcov.py" will be executed to ensure gcda collection and report generation. The keyword "collect\_gcda" in the script gcov_support.sh can be used to collect the generating gcda files, produce gcda.tar.gz and move it into /tmp/swss_gcov together with gcno.tar.gz
+```
+def test_gcda_collection():
+  os.system(" docker exec -it vs /bin/bash -c './gcov_support.sh collect_gcda'")
+```
 
 ## 2.5 Generation of gcov report
 gcno.tar.gz and gcda.tar.gz are the two basic files required to generate an accessible coverage report. The user can enter the /tmp/swss\_gcov inside the swss docker and run:
 ```
 ./gcov_support.sh generate all
+```
+or the test_zzgcov.py will automatically generate the report by the function below:
+```
+def test_report_generation():
+  os.system("docker exec -it vs /bin/bash -c './gcov_support.sh generate all'")
 ```
 to generate the overall gcov report for swss module
 
