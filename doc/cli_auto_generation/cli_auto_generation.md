@@ -58,7 +58,7 @@ If someone wants to extend the SONiC NOS functionality - the SAE infrastructure 
 
 ### Functional requirenments
 * Should support:
-  * CONFIG DB tables with abbility to add/delete/update entries
+  * CONFIG DB tables with ability to add/delete/update entries
 
 ## Architecture design
 
@@ -143,71 +143,199 @@ If the Application Extension will be installed and the CLI will be generated - t
 
 ### Auto-generation rules
 
-For instanse let's take a fature called __FEATURE-A__, so a basic rules are: 
+```diff
+- Please make sure that you read all of the rules.
+- Because you will often have a question that is covered in the next rule.
+```
 
 __1. For auto-generated CLI (sub-commands, arguments) will be used - hyphen separated style:__
 
-###### config command
-```
-admin@sonic:~$ config feature-a sub-command-1 add <KEY>
-```
-
-__2. To provide not-positional arguments the next style MUST be used:__
+For instanse let's take a feature called __FEATURE-A__: 
 
 ###### config command
 ```
-admin@sonic:~$ config feature-a sub-command-1 add <KEY> --mtu 4096 --ip-address 10.10.10.10
+admin@sonic:~$ config feature-a sub-command-1 add <KEY> ...
 ```
 
-__3. The *show* command produce a named columns. Each column name is a uppercase of *leaf* name from YANG model:__
+__2. For every *container*, that goes after *top-level container*, (top-level container goes after *module*) will be generated dedicated sub-command for "show" and "config" command groups AND in case if *container* is without *list*, for every *leaf* will be generated dedicated sub-command:__
 
-###### YANG model
+For instanse let's take a PART of existing [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
+
+###### sonic-device_metadata YANG model
+```yang
+module sonic-device_metadata {
+		//..
+    container sonic-device_metadata {
+        container DEVICE_METADATA {
+            container localhost{
+                leaf hwsku {
+                    type stypes:hwsku;
+                }
+                leaf default_bgp_status {
+                    type enumeration {
+                        enum up;
+                        enum down;
+                    }
+                    default up;
+                }
+                leaf hostname {
+                    type string {
+                        length 1..255;
+                    }
+                }
+                leaf platform {
+                    type string {
+                        length 1..255;
+                    }
+                }
+            }
+        }
+    }
+}
 ```
-//...
-	list INTF_LIST {
-		key "interface_name";
 
-		leaf interface_name{
-			type string;
-		}
+###### config command
+```
+admin@sonic:~$ config device-metadata localhost hwsku "ACS-MSN2100"
+admin@sonic:~$ config device-metadata localhost default-bgp-status up
+admin@sonic:~$ config device-metadata localhost hostname "r-sonic-switch"
+admin@sonic:~$ config device-metadata localhost platform "x86_64-mlnx_msn2100-r0"
+```
 
-		leaf port {
-			type uint16;
-		}
+The *show* command produces named columns. Each column name is an uppercase of *leaf* name from the YANG model:
 
-		leaf mtu {
-			type uint32;
+###### show command
+```
+admin@sonic:~$ show device-metadata localhost
+
+HWSKU        DEFAULT-BGP-STATUS  HOSTNAME        PLATFORM
+-----        ------------------  --------        --------
+ACS-MSN2100  UP                  r-sonic-switch  x86_64-mlnx_msn2100-r0
+```
+
+###### Config DB schema
+```
+{
+	"DEVICE_METADATA": {
+		"locahost": {
+			"hwsku": "ACS-MSN2100",
+			"default_bgp_status": "up",
+			"hostname": "r-sonic-switch",
+			"platform": "x86_64-mlnx_msn2100-r0"
 		}
 	}
-//...
+}
 ```
-###### show command output
-```
-INTERFACE_NAME  PORT  MTU
---------------  ----  ---
-Ethernet0       1     1024
-Ethernet4       2     2048
-```
+__3. For every *list* element will be generated *add/del* commands:__
 
-__4. For every container, that goes after *top-level container*, (top-level container goes after *module*) will be generated dedicated sub-command for "show" and "config" command groups AND in case of *container* without *list*, for every *leaf* will be generated dedicated sub-command:__
+For instanse let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
-###### YANG model
+###### sonic-vlan YANG model
 ```yang
-module sonic-feature-a {
+module sonic-vlan {
 	// ...
-	container sonic-feature-a {
+	container sonic-vlan {
 		// ...
-		container FEATURE_A_TABLE {
-			container container_1 {
-				leaf mtu {
-					type uint16;
+		container VLAN {
+			list VLAN_LIST {
+				key "name";
+				leaf name {
+					type string {
+						pattern 'Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4])';
+					}
 				}
-				leaf action {
-					type string;
+				leaf vlanid {
+					type uint16 {
+						range 1..4094;
+					}
+				}
+				leaf mtu {
+					type uint16 {
+						range 1..9216;
+					}
+				}
+				leaf admin_status {
+					type stypes:admin_status;
 				}
 			}
-			container container_2 {
-				leaf ip_address {
+		}
+	}
+}
+```
+
+In the case of bellow, "Vlan11" - is a positional argument and *key* for the *list*.
+"vlanid", "mtu", "admin-status" - are not-positional arguments, and to provide them the next style MUST be used(check *config command*)
+__This style "--arg" is NOT RELATED to the Linux CLI optional parameter style__
+
+###### config command
+```
+admin@sonic:~$ config vlan add Vlan11 --vlanid 11 --mtu 128 --admin-status up
+admin@sonic:~$ config vlan del Vlan11
+```
+
+YANG models support [The leaf's "mandatory" Statement](https://tools.ietf.org/html/rfc7950#section-7.6.5).
+If the user wants to distinguish whether a CLI argument is mandatory or not, he can use the --help command (covered in the next rules)
+
+If the user wants to add to the list a new element with KEY that already existed in the list, he will get a warning message
+
+###### config command
+```
+admin@sonic:~$ config vlan add Vlan11 --vlanid 11 --mtu 128 --admin-status up
+Vlan11 already exist! Do you want to replace it? yes/no
+```
+
+###### show command
+```
+admin@sonic:~$ show vlan
+
+NAME    VLANID  MTU  ADMIN-STATUS
+----    ------  ---  ------------
+Vlan11  11      128  up
+```
+###### Config DB schema
+```
+{
+	"VLAN": {
+		"Vlan11": {
+			"vlanid": 11,
+			"mtu": 128,
+			"admin_status": up
+	  }
+	}
+}
+```
+__4. For every *leaf-list* element will be generated dedicated *add/del/clear* commands, also the user can use a comma-separated list when creating a new list element to fill *leaf-list*. Also will be added dedicated command *clear* to delete all the elements from *leaf-list*:__
+
+For instanse let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+
+###### sonic-vlan YANG model
+```yang
+module sonic-vlan {
+	// ...
+	container sonic-vlan {
+		// ...
+		container VLAN {
+			list VLAN_LIST {
+				key "name";
+				leaf name {
+					type string {
+						pattern 'Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4])';
+					}
+				}
+				leaf vlanid {
+					type uint16 {
+						range 1..4094;
+					}
+				}
+				leaf mtu {
+					type uint16 {
+						range 1..9216;
+					}
+				}
+				leaf admin_status {
+					type stypes:admin_status;
+				}
+			  leaf-list dhcp_servers {
 					type inet:ip-address;
 				}
 			}
@@ -216,162 +344,50 @@ module sonic-feature-a {
 }
 ```
 
+The user can create new list object, and provide values to *leaf-list* *dhcp_servers* by using a comma-separated list (example bellow)
+
 ###### config command
 ```
-admin@sonic:~$ config feature-a-table container-1 mtu 35
-admin@sonic:~$ config feature-a-table container-1 action trap
+admin@sonic:~$ config vlan add Vlan11 --vlanid 11 --mtu 128 --admin-status up --dhcp-servers "192.168.0.10,11.12.13.14"
+```
 
-admin@sonic:~$ config feature-a-table container-2 ip-address 10.10.10.10
+The user can use dedicated sub-commands *add/del*, a *clear* sub-command will delete all the elements from *leaf-list*.
+The *add* subcommand will append new element to the end of the list.
+
+###### config command
+```
+admin@sonic:~$ config vlan dhcp-servers add Vlan11 10.10.10.10
+admin@sonic:~$ config vlan dhcp-servers del Vlan11 10.10.10.10
+admin@sonic:~$ config vlan dhcp-servers clear Vlan11
 ```
 
 ###### show command
 ```
-admin@sonic:~$ show feature-a-table container-1
+admin@sonic:~$ show vlan
 
-MTU  ACTION
----  ------
-25   drop
-
-=========================================
-
-admin@sonic:~$ show feature-a-table container-2
-
-IP_ADDRESS
-----------
-10.10.10.10
-```
-
-###### Config DB schema
-```
-{
-	"FEATURE_A_TABLE": {
-		"container_1": {
-			"mtu": 35,
-			"action": trap
-		},
-		"container_2": {
-			"ip_address": "10.10.10.10"
-		}
-	}
-}
-```
-
-__5. For every *list* element will be generated *add/del* commands. Also it is possible to generate *update* command, if the *list* NOT marked as *create-only*:__
-###### YANG model
-```yang
-module sonic-feature-a {
-	// ...
-	container sonic-feature-a {
-		// ...
-		container FEATURE_A {
-			list FEATURE_A_LIST {
-				key "interface_name";
-				leaf interface_name {
-					type string;
-				}
-				leaf port {
-					type uint16 {
-						range 1..4094;
-					}
-				}
-				leaf mtu {
-					type uint16 {
-						range 1..4094;
-					}
-				}
-			}
-		}
-	}
-}
-```
-###### config command
-```
-admin@sonic:~$ config feature-a add Ethernet0 --mtu 22 --port 33
-admin@sonic:~$ config feature-a add Ethernet4 --mtu 4096 --port 16
-admin@sonic:~$ config feature-a del Ethernet0
-admin@sonic:~$ config feature-a update Ethernet0 --mtu 222 --port 32
-```
-###### show command
-```
-admin@sonic:~$ show feature-a
-
-INTERFACE_NAME  PORT  MTU
---------------  ----  ---
-Ethernet0       32    222
-Ethetnet4       16    4096
-```
-###### Config DB schema
-```json
-{
-	"FEATURE_A": {
-		"Ethernet0": {
-			"port": 32,
-			"mtu": 222
-		},
-		"Ethernet4": {
-			"port": 16,
-			"mtu": 4096
-		}
-	}
-}
-```
-
-__6. For every *leaf-list* element will be generated dedicated add/del commands, also the user can use comma-separed list when creating new list element to fill *leaf-list*. Also will be added dedicated command *clear* to delete all the elements from *leaf-list*:__
-###### YANG model
-```yang
-module sonic-feature-a {
-	// ...
-	container sonic-feature-a {
-		// ...
-		container FEATURE_A {
-			list FEATURE_A_LIST {
-				key "interface_name";
-				leaf interface_name {
-					type string;
-				}
-				leaf-list dhcp_servers {
-					type inet:ip-address;
-				}
-				leaf mtu {
-					type uint16;
-				}
-			}
-		}
-	}
-}
-```
-###### config command
-```
-admin@sonic:~$ config feature-a add Ethernet0 --dhcp-servers "192.168.0.20,10.10.10.10" --mtu 256
-admin@sonic:~$ config feature-a dhcp-servers add Ethernet0 192.168.0.20
-admin@sonic:~$ config feature-a dhcp-servers del Ethernet0 192.168.0.20
-admin@sonic:~$ config feature-a dhcp-servers clear Ethernet0
-```
-###### show command
-```
-admin@sonic:~$ show feature-a
-
-INTERFACE_NAME  DHCP_SERVERS  MTU
---------------  ------------  ---
-Ethernet0       192.168.0.20  256
-                10.10.10.10
+NAME    VLANID  MTU  ADMIN-STATUS  DHCP-SERVERS
+----    ------  ---  ------------  ------------
+Vlan11  11      128  up            192.168.0.10
+                                   11.12.13.14
 ```
 ###### Config DB schema
 ```
 {
-	"FEATURE_A": {
-		"Ethernet0": {
-			"dhcp_servers: [
-				"192.168.0.20",
-				"10.10.10.10"
-			],
-			"mtu": "256"
-		}
+	"VLAN": {
+		"Vlan11": {
+			"vlanid": 11,
+			"mtu": 128,
+			"admin_status": up,
+			"dhcp_servers": [
+				"192.168.0.10",
+				"11.12.13.14"
+			]
+	  }
 	}
 }
 ```
 
-__7. In case if YANG model contains "grouping" syntax:__
+__5. In case if YANG model contains "grouping" syntax:__
 
 ###### YANG model
 ```yang
@@ -426,7 +442,7 @@ Linux      address: "192.168.0.20"
 }
 ```
 
-__8. In case if YANG model contains "description", it will be used for CLI --help:__
+__6. In case if YANG model contains "description", it will be used for CLI --help:__
 ###### YANG model
 ```yang
 module sonic-feature-a {
@@ -442,6 +458,7 @@ module sonic-feature-a {
 				}
 				grouping target {
 					leaf address {
+						mandatory true;
 						type inet:ip-address;
 						description "IP address";
 					}
@@ -455,6 +472,7 @@ module sonic-feature-a {
 	}
 }
 ```
+
 ###### config command
 ```
 admin@sonic:~$ config feature-a --help
@@ -468,10 +486,12 @@ Options:
 Commands:
   add     Add configuration.
   del     Del configuration.
-  update  Update configuration.
+```
 
-===============================================================
+In case if *leaf* contain ["mandatory" statement](https://tools.ietf.org/html/rfc7950#section-7.6.5)
 
+###### config command
+```
 admin@sonic:~$ config feature-a add --help
 Usage: config feature-a add [OPTIONS] <key> 
 
@@ -479,7 +499,7 @@ Usage: config feature-a add [OPTIONS] <key>
 
 Options:
   --help     Show this message and exit.
-  --adrress  IP address.
+  --adrress  [mandatory] IP address.
   --port     Port number. 
 ```
 
@@ -592,6 +612,10 @@ The *augment* statement means that *sonic-dhcp-relay.yang* will extend a current
 So, the main questions are:
 - how does it affect existing *config* CLI for *DHCP relay*?
 - how does it affect existing *show* CLI for *DHCP relay*?
+
+__3.For the YANG model *list* in addition to *add/del* commands, it is possible to generate *update* command:__
+
+In case if YANG model contains a *list* element, besides *add/del* commands it is possible to generate the *update* command, but in the YANG model there is no ability to mark some *list* with the *create only* marker, it means that user can NOT modify the list, he only can 'add' or 'delete' list elements.
 
 ## Development plan
 
