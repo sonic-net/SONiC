@@ -120,15 +120,17 @@ In summary, the framework provides both current and historical event status of s
 In addition to the above tables, the framework maintains various statisitcs.
 
 1. Event Statistics Table
+
    Statistics on number of events and alarms are maintained in EVENT_STATS table.
 
 2. Alarm Statistics Table
+
    Statistics on number of alarms based on severity are maintained in ALARM_STATS table.
    When application raises an alarm, the counter corresponding to the alarm's severity is increased by 1.
    When the alarm is cleared or acknowledged, the corresponding counter will be reduced by 1.
    This table categorizes "active" alarms per severity.
 
-As mentioned above, each event has an important characteristic: severity. SONiC uses following severities for events and alarms.
+As mentioned above, each event has an important characteristic: severity. SONiC uses following severities for events and alarms as defined in opeconfig alarm yang.
 
 - critical : Requires immediate action. An critical event may trigger if one or more hardware components fail, or one or more hardware components exceed temperature thresholds.
   ( maps to log-alert )
@@ -141,6 +143,7 @@ As mentioned above, each event has an important characteristic: severity. SONiC 
 - informational : Does not impact performance. NOT applicable to alarms.
   ( maps to log-notice )
 
+The following describes how an alarm transforms and how various tables are updated.  
 ![Alarm Life Cycle](event-alarm-framework-alarm-lifecycle.png)
 
 By default every event will have a severity assigned by the component. The framework provides Event Profiles to customize severity of an event and also disable an event.
@@ -236,14 +239,14 @@ Application owners need to identify various conditions that would be of interest
 
 ### 1.2.1 Basic Approach
 The feature involves new development.
-A new DB by name - EVENT_DB - is created using redis2 instance.
-Applications act as producers by writing to a table in EVENT_DB.
-Eventd receives reads new record in the table and processes it:
+A new DB by name - EVENT_DB - is created using redis2 instance to "house" various tables used by the framework.
+Applications act as producers by writing to a table in EVENT_DB with the help of event notify library.
+Eventd reads new record in the table and processes it:
 It saves the entry in event history table; if the event has an action and if it is *raise*, record gets added to alarm table, severity counter in ALARM_STATS is increased.
 If the received event action is *clear*, record in the ALARM table is removed and severity counter in ALARM_STATS of that alarm is reduced by 1.
 If eventd receives an event with action *acknowledge*, severity counter in ALARM_STATS is reduced by 1.
-EVENT and ALARM tables EVENT_STATS and ALARM_STATS are all kept in EVENT_DB.
 Eventd then informs logging API to format the log message and send the message to syslog.
+Any applications like pmon can subscribe to tables like ALARM_STATS to update its state.
 
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
@@ -413,10 +416,11 @@ The counter in ALARM_STATS corresponding to the severity of the incoming alarm i
 Eventd maintains a lookup map of sequence-id and pair of event-id and source fields.
 An entry for the newly received event with action raise is added to this look up map.
 
-. If the action is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
 . If the action is CLEAR_ALARM, it removes the previous raised record of the alarm using above lookup map.
   The counter in ALARM_STATS corresponding to the severity of the updated alarm is reduced by 1.
-. On acknowledging an alarm through CLI/REST/gNMI, ALARM_STATS is updated by reducing the corresponding severity counter by 1.
+
+. If the action is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
+  ALARM_STATS is updated by reducing the corresponding severity counter by 1.
 
 pmon can use ALARM_STATS to update system LED based on severities of outstanding alarms:
 ```
