@@ -428,7 +428,7 @@ pmon can use ALARM_STATS to update system LED based on severities of outstanding
 ```
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
 
-The following illustrates how pmon can use ALARM_STATS table to control system LED.
+The following illustrates how ALARM table is updated as alarms are raised and how pmon can use ALARM_STATS table to control system LED.
 
 | ALARM |  SEVERITY  | IS_ACK  |
 |:-----:|:----------:|:-------:|
@@ -448,7 +448,7 @@ Alarm table now has two alarms. One with *critical* and other with *minor*. ALAR
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      |         |
 
-The *critical* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated and it reads: Critical as 0 and Minor as 1. As there is at least one* minor/warning* alarms in the table, system LED is Amber.
+The *critical* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated and it reads: Critical as 0 and Minor as 1. As there is at least one *minor/warning* alarms in the table, system LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
@@ -462,7 +462,7 @@ Now there is an alarm with *critical/major* severity. ALARM_STATS now reads as: 
 | ALM-2 | minor      |         |
 | ALM-9 | major      | true    |
 
-The *major* alarm is acknowledged by user, alarm consumer sets *is_acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This particular alarm is taken out of consideration for system LED. There are no other *critica/major* alarms. There however, exists an alarm with *minor/warning* severity. System LED is Amber.
+The *major* alarm is acknowledged by user, alarm consumer sets *is_acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. The acknowledged major alarm is taken out of consideration for system LED. There are no other *critical/major* alarms. There however, exists an alarm with *minor/warning* severity. System LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
@@ -1074,11 +1074,11 @@ Acknowledged:      true
 sonic# show alarm summary
 alarm Summary
 -------------------------------------------
-Alert:         2
-Critical:      1
-Error:         1
-Warning:       2
-Total:         6
+Critical:   2
+Major:      1
+Minor:      1
+Warning:    2
+Total:      6
 -------------------------------------------
 
 sonic# show alarm severity critical
