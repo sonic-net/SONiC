@@ -96,10 +96,8 @@ Such a change has an important metric called *severity* to indicate how critical
    After the application recovers from the condition, that alarm is *cleared* by sending an event with a action: clear.
    An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition.
 
-![Alarm Life Cycle](event-alarm-framework-alarm-lifecycle.png)
-
-   Overall system LED state is deduced from the severities of alarms.
-   An acknowledged alarm is taken out of consideration from deciding system LED state.
+   Overall system LED state can be deduced from the severities of alarms.
+   An acknowledged alarm should be taken out of consideration from deciding system LED state.
 
 Both events and alarms get recorded in the EVENT_DB.
 
@@ -116,10 +114,19 @@ Both events and alarms get recorded in the EVENT_DB.
    
    In effect, ALARM table contains outstanding alarms that need to be cleared by those components who raised them.
    This table is NOT persisted and its contents are cleared with a reload.
-   
+
 In summary, the framework provides both current and historical event status of software and physical entities of the system through ALARM and EVENT tables. 
 
-Statistics on number of alarms based on severity are maintained in ALARM_STATS table. An alarm that is cleared or acknowledged reduces the corresponding counter to be reduced by 1.
+In addition to the above tables, the framework maintains various statisitcs.
+
+1. Event Statistics Table
+   Statistics on number of events and alarms are maintained in EVENT_STATS table.
+
+2. Alarm Statistics Table
+   Statistics on number of alarms based on severity are maintained in ALARM_STATS table.
+   When application raises an alarm, the counter corresponding to the alarm's severity is increased by 1.
+   When the alarm is cleared or acknowledged, the corresponding counter will be reduced by 1.
+   This table categorizes "active" alarms per severity.
 
 As mentioned above, each event has an important characteristic: severity. SONiC uses following severities for events and alarms.
 
@@ -133,6 +140,8 @@ As mentioned above, each event has an important characteristic: severity. SONiC 
   ( maps to log-warning )
 - informational : Does not impact performance. NOT applicable to alarms.
   ( maps to log-notice )
+
+![Alarm Life Cycle](event-alarm-framework-alarm-lifecycle.png)
 
 By default every event will have a severity assigned by the component. The framework provides Event Profiles to customize severity of an event and also disable an event.
 
@@ -165,7 +174,7 @@ This modified file can then be uploaded to the device.
 Operator can select any of these custom event profiles to change default properties of events.
 The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile.
 
-In addition to storing events in DB, framework forwards log messages corresponding to all the events to syslog.
+In addition to storing events in EVENT_DB, framework forwards log messages corresponding to all the events to syslog.
 Syslog message displays the type (alarm or event), action (raise, clear or acknowledge) - when the message corresponds to an event of an alarm, name of the event and detailed message. 
 
 gNMI clients can subscribe to receive events as they are raised. Subscribing through REST is being evaluated.
@@ -386,7 +395,7 @@ If the flag is set to true, it continues to process the event as follows:
     - If action is RAISE_ALARM, add the record to ALARM table
     - If action is CLEAR_ALARM, remove the entry from ALARM table
     - If action is ACK_ALARM, update is_acknowledged flag of the corresponding raised entry in ALARM table
-    - Update system health status
+    - Alarm Statistics Table is updated
 - Invoke logging API to send a formatted message to syslog
 
 #### 3.1.2.1 Severity
@@ -402,11 +411,12 @@ The alarm consume method on receiving the event record, verifies the event actio
 The counter in ALARM_STATS corresponding to the severity of the incoming alarm is increased by 1.
 
 Eventd maintains a lookup map of sequence-id and pair of event-id and source fields.
-An entry for the newly received event with state raised is added to this look up map.
+An entry for the newly received event with action raise is added to this look up map.
 
-If the state is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
-If the state is CLEAR_ALARM, it removes the previous raised record of the alarm using above lookup map.
-The counter in ALARM_STATS corresponding to the severity of the updated alarm is reduced by 1.
+. If the action is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
+. If the action is CLEAR_ALARM, it removes the previous raised record of the alarm using above lookup map.
+  The counter in ALARM_STATS corresponding to the severity of the updated alarm is reduced by 1.
+. On acknowledging an alarm through CLI/REST/gNMI, ALARM_STATS is updated by reducing the corresponding severity counter by 1.
 
 pmon can use ALARM_STATS to update system LED based on severities of outstanding alarms:
 ```
@@ -414,44 +424,47 @@ pmon can use ALARM_STATS to update system LED based on severities of outstanding
 ```
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
 
-On acknowledging an alarm through CLI/REST/gNMI, ALARM_STATS is updated by reducing the corresponding severity counter by 1.
-This makes acknowledged alarm is taken out of consideration.
-
-The following illustrates how severity of alarms in the table controls system LED.
+The following illustrates how pmon can use ALARM_STATS table to control system LED.
 
 | ALARM |  SEVERITY  | IS_ACK  |
 |:-----:|:----------:|:-------:|
 |       |            |         |
 |       |            |         |
+
 Alarm table is empty. All counters in ALARM_STATS is 0. System LED is Green.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
 | ALM-1 | critical   |         |
 | ALM-2 | minor      |         |
+
 Alarm table now has two alarms. One with *critical* and other with *minor*. ALARM_STATS is updated as: Critical as 1 and Minor as 1. As There is atleast one alarm with *critical/major* severity, system LED is Red.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      |         |
+
 The *critical* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated and it reads: Critical as 0 and Minor as 1. As there is at least one* minor/warning* alarms in the table, system LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      |         |
 | ALM-9 | major      |         |
+
 Now there is an alarm with *critical/major* severity. ALARM_STATS now reads as: Major as 1 and Minor as 1. So, system LED is Red.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      |         |
 | ALM-9 | major      | true    |
+
 The *major* alarm is acknowledged by user, alarm consumer sets *is_acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This particular alarm is taken out of consideration for system LED. There are no other *critica/major* alarms. There however, exists an alarm with *minor/warning* severity. System LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      | true    |
 | ALM-9 | major      | true    |
+
 The *minor* alarm is also acknowledged by user. ALARM_STATS reads: Major as 0, Minor as 0. So it is also taken out of consideration for system LED. System LED is Green.
 
 ### 3.1.4 Event Receivers
@@ -481,7 +494,7 @@ if (ev_state.empty()) {
     // raise a syslog message                                                
     syslog(LOG_MAKEPRI(ev_sev, SYSLOG_FACILITY), 
            LOG_FORMAT,
-           ev_type.c_str(), ev_state.c_str(), ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
+           ev_type.c_str(), ev_action.c_str(), ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
 }
         
 ``` 
@@ -491,15 +504,15 @@ Feb 09 21:44:07.487906 2021 sonic NOTICE eventd#eventd[21]: [EVENT], %TAM_SWITCH
 ```
 Syslog message for an alarm raised by a sensor:
 ```
-Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (raised), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees.
+Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (raise), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees.
 ```
 Syslog message when alarm is clared is as follows:
 ```
-Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (cleared), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees. Temperature threshold is 75 degrees.
+Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (clear), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees. Temperature threshold is 75 degrees.
 ```
 Syslog message when alarm is acknowledged is as follows:
 ```
-Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (acknowledged), %TEMPERATURE_EXCEEDED :- acknowledgeAlarm: Alarm 'TEMPERATURE_EXCEEDED' is acknowledged by user 'admin'.
+Feb 10 16:24:42.148610 2021 sonic ALERT eventd#eventd[125]: [ALARM] (acknowledge), %TEMPERATURE_EXCEEDED :- acknowledgeAlarm: Alarm 'TEMPERATURE_EXCEEDED' is acknowledged by user 'admin'.
 ```
 Operator can configure specifc syslog host to receive either syslog messages corresponding to events or general log messages.
 Through CLI, operator can chose 'logging server <ip> [log|event]' command.
