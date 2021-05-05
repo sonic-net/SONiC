@@ -109,7 +109,7 @@ Both events and alarms get recorded in the EVENT_DB.
 
 2. Current Alarm Table
 
-   All events with an action field of *raise* get recorded in a table, by name, "ALARM" in addition to getting recorded in Event History Table ( only events corresponding to an alarm has state ).
+   All events with an action field of *raise* get recorded in a table, by name, "ALARM" in addition to getting recorded in Event History Table ( only events corresponding to an alarm has action field ).
    When an application that raised the alarm clears it ( by sending an event with action *clear* ), the alarm record is removed from ALARM table.
    An user acknowledging a particular alarm will NOT remove that alarm record from this table.
    
@@ -233,6 +233,7 @@ Application owners need to identify various conditions that would be of interest
 | 9     | gNMI subscription                                                               |                     |
 | 9.1   | Subscribe to openconfig Event container and Alarm container. All events and alarms published to gNMI subscribed clients. |                    |
 | 10    | Clear all events                                                                |                     |
+| 11    | Any change in open source should be aligned and upstream.                       |                     |
 
 ## 1.2 Design Overview
 
@@ -297,7 +298,7 @@ Developers of new events or alarms need to update this file by declaring name an
 
 ```
 {
-    "__README__": "This is default map of events that eventd reads on bootup and uses while events are raised.                                                                                                Developer can modify this file and send SIGINT to eventd during run-time to read and use the updated file.                                                                                 Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command.                                                          This apples that profile without a eventd restart. Developer need to commit default.json file with the new event after testing it out.                                                     Supported severities are: 'critical', 'major', 'minor', 'warning' and 'informational'.                                                                                                     Supported enable flag values are: 'true' and 'false'.",
+    "__README__": "This is default map of events that eventd reads on bootup and uses while events are raised. Developer can modify this file and send SIGINT to eventd during run-time to read and use the updated file. Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command. This apples that profile without a eventd restart. Developer need to commit default.json file with the new event after testing it out. Supported severities are: 'critical', 'major', 'minor', 'warning' and 'informational'. Supported enable flag values are: 'true' and 'false'.",
   
     "events": [
         {
@@ -418,10 +419,10 @@ The counter in ALARM_STATS corresponding to the severity of the incoming alarm i
 Eventd maintains a lookup map of sequence-id and pair of event-id and source fields.
 An entry for the newly received event with action raise is added to this look up map.
 
-. If the action is CLEAR_ALARM, it removes the previous raised record of the alarm using above lookup map.
+- If the action is CLEAR_ALARM, it removes the previous raised record of the alarm using above lookup map.
   The counter in ALARM_STATS corresponding to the severity of the updated alarm is reduced by 1.
 
-. If the action is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
+- If the action is ACK_ALARM, alarm consumer finds the raised record of the alarm in the ALARM table using the above lookup map and updates *is_acknowledged* flag to true.
   ALARM_STATS is updated by reducing the corresponding severity counter by 1.
 
 pmon can use ALARM_STATS to update system LED based on severities of outstanding alarms:
@@ -430,7 +431,8 @@ pmon can use ALARM_STATS to update system LED based on severities of outstanding
 ```
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
 
-The following illustrates how ALARM table is updated as alarms goes through their life cycle and how pmon can use ALARM_STATS table to control system LED.
+The following illustrates how ALARM table is updated as alarms goes through their life cycle and how can an application use it.
+Example here is pmon using ALARM_STATS table to control system LED.
 
 | ALARM |  SEVERITY  | IS_ACK  |
 |:-----:|:----------:|:-------:|
