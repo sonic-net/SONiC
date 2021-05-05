@@ -67,7 +67,6 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
          "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
-         "SNMP_USER_PERMISSION": "RO|RW"
       },
       "<SNMP_USER>":{
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
@@ -76,7 +75,6 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
          "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
-         "SNMP_USER_PERMISSION": "RO|RW"
       },
       "<SNMP_USER>":{
          "SNMP_USER_TYPE":"noAuthNoPriv|AuthNoPriv|Priv",
@@ -85,7 +83,6 @@ In the end this is used to produce */etc/snmp/snmpd.conf*.
          "SNMP_USER_ENCRYPTION_TYPE":"DES|AES",
          "SNMP_USER_AUTH_PASSWORD":"<AUTH_PASSWORD_STRING>",
          "SNMP_USER_ENCRYPTION_PASSWORD":"<ENCRYPTION_PASSWORD_STRING>",
-         "SNMP_USER_PERMISSION": "RO|RW"
       }
    }
 }
