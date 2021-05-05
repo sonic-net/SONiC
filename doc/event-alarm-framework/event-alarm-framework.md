@@ -50,7 +50,8 @@ Event and Alarm Framework
     * [5.1 Application warm boot](#51-application-warm-boot)
     * [5.2 eventd warm boot](#52-eventd-warm-boot)
   * [6 Scalability](#6-scalability)
-  * [7 Unit Test](#7-unit-test)
+  * [7 Showtech Support](#7-showtech-support)
+  * [8 Unit Test](#8-unit-test)
 
 
 # Revision
@@ -1139,7 +1140,12 @@ In this feature, scalability applies to Event History Table (EVENT). As it is pe
 against it growing indefinitely, user can limit its size through a manifest file.
 By default, the size of Event History Table is set to 40k events or events for 30 days - after which, older records are discarded to make way for new records.
 
-# 7 Unit Test
+# 7 Showtech support
+The techsupport bundle is upgraded to include output of "show event recent 1hr” and “show alarm all”.
+The first command displays all the events that were sent by applications for the last one hour.
+The second command displays all the alarms that are waiting to be cleared by applications (this includes alarms that were acknowledged by operator as well).
+
+# 8 Unit Test
 - Raise an event and verify the fields in EVENT table and EVENT_STATS table
 - Raise an alarm and verify the fields in ALARM table and ALARM_STATS table
 - Clear an alarm and verify that record is removed from ALARM and ALARM_STATS tables are udpated
