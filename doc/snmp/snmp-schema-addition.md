@@ -94,8 +94,8 @@ Where:
 - COMMUNITY_STRING: String, defines the community string.
 - TYPE: String, defines the community string permissions of either read-only RO or read-write RW.
 - SNMP_USER: String, defines the SNMP user.
-- SNMP_USER_PERMISSION: String, RO (Read-Only) or RW (Read-Write) defines what will be used for that SNMP user.
 - SNMP_USER_TYPE: String, defines which authentication and encryption methods will be used for that SNMP user.  The options are noAuthNoPriv or AuthNoPriv or Priv.
+- SNMP_USER_PERMISSION: String, RO (Read-Only) or RW (Read-Write) defines what will be used for that SNMP user.
 - SNMP_USER_AUTH_TYPE: String, defines which authentication type will be used for that SNMP user MD5 or SHA or MHAC-SHA-2.
 - SNMP_USER_AUTH_PASSWORD: String, defines which authentication password will be used for that SNMP user.
 - SNMP_USER_ENCRYPTION_TYPE: String, defines which encryption type will be used for that SNMP user DES or AES. 
