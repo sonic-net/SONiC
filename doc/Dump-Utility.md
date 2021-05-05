@@ -205,7 +205,9 @@ This is an example return object from the module class for the trap_id "bgp" for
 }
 
 Note: When properly configured by the orchagent, the ASIC_DB is supposed to have a TRAP obj and a corresponding TRAP_GROUP object. 
-Assuming this config did not happen properly, the "tables_not_found" list should have the names of these tables.
+Assuming there is an issue in copporch, the corresponding entries for "bgp" trap_id will not be written to the ASIC_DB.
+Subsequently, "tables_not_found" will reflect the names of these tables. 
+Note: This Utility doesn't determine the root cause on why did it happen, it merely reflects the current redis-state.
 ```
 
 ###### Requirements on the Module Class for handling 'all' keyword
