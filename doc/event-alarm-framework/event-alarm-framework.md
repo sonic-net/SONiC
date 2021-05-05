@@ -61,11 +61,11 @@ Event and Alarm Framework
 
 # About this Manual
 This document provides general information on the implementation and functionality of Event and Alarm Framework in SONiC.
-Wherever CLI is specified, it is the CLISH cli that is referred; SONiC native (CLICK) CLI is not updated.
+Wherever CLI is specified, it is the CLISH cli that is referred - SONiC native (CLICK) CLI is not updated for this feature.
 
 # Scope
-This document describes the high-level design of Event and Alarm Framework feature.
-It is not in the scope of this feature to update ANY of the applications to raise events and alarms.
+This document describes the high-level design of Event and Alarm Framework.
+It is not in the scope of the framework to update ANY of the applications to raise events and alarms.
 
 # 1 Feature Overview
 
@@ -94,10 +94,10 @@ Such a change has an important metric called *severity* to indicate how critical
    
    An application *raises* an alarm when it encounters a faulty condition by sending an event with action: *raise*.
    After the application recovers from the condition, that alarm is *cleared* by sending an event with action: *clear*.
-   An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition.
+   An operator could *acknowledge* an alarm. This indicates that the operator is aware of the faulty condition.
 
-   System LED can be deduced from the severities of alarms.
-   An acknowledged alarm should be taken out of consideration from deciding system LED state.
+   The set of alarms and their severities informs overall health of various applications of the system and System LED can be deduced from alarms.
+   An acknowledged alarm means that operator is aware of the condition so, acknowledged alarm should be taken out of consideration from deciding system LED state.
 
 Both events and alarms get recorded in the EVENT_DB.
 
