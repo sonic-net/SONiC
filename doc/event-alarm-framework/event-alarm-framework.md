@@ -87,16 +87,16 @@ Such a change has an important metric called *severity* to indicate how critical
    Out of memory, temperature crossing a threshold, and so on, are examples of conditions when the alarms are raised.
    Such conditions are dynamic: a faulty software/hardware component encounters the above such condition and **may** come out of that situation when the condition is resolved.
    
-   Events are sent as the condition progresses through being raised and cleared in addition to operator acknowledging the condition.
+   Events are sent as the condition progresses through being raised and cleared in addition to operator acknowledging it.
    So, these events have a field called *action*: raise, clear OR acknowledge.
 
    Each of such events for an alarm is characterized by "action" in addition to "severity".
    
-   An application *raises* an alarm when it encounters a faulty condition by sending an event with a action: raise.
-   After the application recovers from the condition, that alarm is *cleared* by sending an event with a action: clear.
+   An application *raises* an alarm when it encounters a faulty condition by sending an event with action: *raise*.
+   After the application recovers from the condition, that alarm is *cleared* by sending an event with action: *clear*.
    An operator could *acknowledge* an alarm. This indicates that the user is aware of the faulty condition.
 
-   Overall system LED state can be deduced from the severities of alarms.
+   System LED can be deduced from the severities of alarms.
    An acknowledged alarm should be taken out of consideration from deciding system LED state.
 
 Both events and alarms get recorded in the EVENT_DB.
@@ -109,10 +109,10 @@ Both events and alarms get recorded in the EVENT_DB.
 2. Current Alarm Table
 
    All events with an action field of *raise* get recorded in a table, by name, "ALARM" in addition to getting recorded in Event History Table ( only events corresponding to an alarm has state ).
-   When a component that raised the alarm clears it ( by sending an event with action *clear* ), the alarm record is removed from ALARM table.
+   When an application that raised the alarm clears it ( by sending an event with action *clear* ), the alarm record is removed from ALARM table.
    An user acknowledging a particular alarm will NOT remove that alarm record from this table.
    
-   In effect, ALARM table contains outstanding alarms that need to be cleared by those components who raised them.
+   In effect, ALARM table contains outstanding alarms that need to be cleared by those applications who raised them.
    This table is NOT persisted and its contents are cleared with a reload.
 
 In summary, the framework provides both current and historical event status of software and physical entities of the system through ALARM and EVENT tables. 
@@ -125,7 +125,7 @@ In addition to the above tables, the framework maintains various statisitcs.
 
 2. Alarm Statistics Table
 
-   Statistics on number of alarms based on severity are maintained in ALARM_STATS table.
+   Statistics on number of alarms per severity are maintained in ALARM_STATS table.
    When application raises an alarm, the counter corresponding to the alarm's severity is increased by 1.
    When the alarm is cleared or acknowledged, the corresponding counter will be reduced by 1.
    This table categorizes "active" alarms per severity.
@@ -173,7 +173,7 @@ An example of event profile is as below:
 The framework maintains default event profile at /etc/sonic/evprofile/default.json.
 Operator can download default event profile to a remote host.
 This downloaded file can be modified by changing the severity or enable flag of event(s).
-This modified file can then be uploaded to the device.
+This modified file can then be uploaded to the device to /etc/sonic/evprofile/.
 Operator can select any of these custom event profiles to change default properties of events.
 The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile.
 
@@ -239,14 +239,15 @@ Application owners need to identify various conditions that would be of interest
 
 ### 1.2.1 Basic Approach
 The feature involves new development.
-A new DB by name - EVENT_DB - is created using redis2 instance to "house" various tables used by the framework.
+A new DB by name - EVENT_DB - is created using redis2 instance to host various tables of the framework.
 Applications act as producers by writing to a table in EVENT_DB with the help of event notify library.
 Eventd reads new record in the table and processes it:
 It saves the entry in event history table; if the event has an action and if it is *raise*, record gets added to alarm table, severity counter in ALARM_STATS is increased.
 If the received event action is *clear*, record in the ALARM table is removed and severity counter in ALARM_STATS of that alarm is reduced by 1.
 If eventd receives an event with action *acknowledge*, severity counter in ALARM_STATS is reduced by 1.
 Eventd then informs logging API to format the log message and send the message to syslog.
-Any applications like pmon can subscribe to tables like ALARM_STATS to update its state.
+
+Any applications like pmon can subscribe to tables like ALARM_STATS to act accordingly.
 
 ### 1.2.2 Container
 A new container by name, eventd, is created to hold event consumer logic.
@@ -295,7 +296,7 @@ Developers of new events or alarms need to update this file by declaring name an
 
 ```
 {
-    "__README__": "This is default map of events that eventd uses. Developer can modify this file and send SIGINT to eventd to make it read and use the updated file. Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command to apply that profile without a eventd restart. Developer need to commit default.json file with the new event after testing it out. Supported severities are: 'critical', 'major', 'minor', 'warning' and 'informational'. Supported enable flag values are: 'true' and 'false'.",
+    "__README__": "This is default map of events that eventd reads on bootup and uses while events are raised.                                                                                                Developer can modify this file and send SIGINT to eventd during run-time to read and use the updated file.                                                                                 Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command.                                                          This apples that profile without a eventd restart. Developer need to commit default.json file with the new event after testing it out.                                                     Supported severities are: 'critical', 'major', 'minor', 'warning' and 'informational'.                                                                                                     Supported enable flag values are: 'true' and 'false'.",
   
     "events": [
         {
@@ -384,8 +385,8 @@ any conflicts across multiple applications trying to write to this table.
 ### 3.1.2 Event Consumer
 The event consumer is a class in sonic-eventd container that processes the incoming record.
 
-On bootup, event consumer reads */etc/sonic/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
-It then reads from EVENTPUBSUB table. This table contains records that are published by applications and waiting to be received by event consumer.
+On intitialization, event consumer reads */etc/sonic/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
+It then reads from EVENTPUBSUB table. This table contains records that are published by applications and waiting to be received by eventd.
 Whenever there is a new record, event consumer reads the record, processes and deletes it.
 
 On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
@@ -428,7 +429,7 @@ pmon can use ALARM_STATS to update system LED based on severities of outstanding
 ```
 An outstanding alarm is an alarm that is either not cleared or not acknowledged by the user yet.
 
-The following illustrates how ALARM table is updated as alarms are raised and how pmon can use ALARM_STATS table to control system LED.
+The following illustrates how ALARM table is updated as alarms goes through their life cycle and how pmon can use ALARM_STATS table to control system LED.
 
 | ALARM |  SEVERITY  | IS_ACK  |
 |:-----:|:----------:|:-------:|
@@ -448,7 +449,7 @@ Alarm table now has two alarms. One with *critical* and other with *minor*. ALAR
 |:-----:|:----------:|:-------:|
 | ALM-2 | minor      |         |
 
-The *critical* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated and it reads: Critical as 0 and Minor as 1. As there is at least one *minor/warning* alarms in the table, system LED is Amber.
+The *critical* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated as: Critical as 0 and Minor as 1. As there is at least one *minor/warning* alarms in the table, system LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
@@ -462,7 +463,7 @@ Now there is an alarm with *critical/major* severity. ALARM_STATS now reads as: 
 | ALM-2 | minor      |         |
 | ALM-9 | major      | true    |
 
-The *major* alarm is acknowledged by user, alarm consumer sets *is_acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. The acknowledged major alarm is taken out of consideration for system LED. There are no other *critical/major* alarms. There however, exists an alarm with *minor/warning* severity. System LED is Amber.
+The *major* alarm is acknowledged by user, alarm consumer sets *is_acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This way, acknowledged major alarm has no effect on system LED. There are no other *critical/major* alarms. There however, exists an alarm with *minor/warning* severity. System LED is Amber.
 
 | ALARM |  SEVERITY  | IS_ACK  | 
 |:-----:|:----------:|:-------:|
