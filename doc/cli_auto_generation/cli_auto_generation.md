@@ -393,14 +393,6 @@ __5. In case if YANG model contains "grouping" syntax:__
 ```yang
 module sonic-feature-a {
 	// ...
-	container sonic-feature-a {
-		// ...
-		container FEATURE_A {
-			list FEATURE_A_LIST {
-				key "host_name";
-				leaf host_name {
-					type string;
-				}
 				grouping target {
 					leaf address {
 						type inet:ip-address;
@@ -409,6 +401,15 @@ module sonic-feature-a {
 						type inet:port-number;
 					}
 				}
+	container sonic-feature-a {
+		// ...
+		container FEATURE_A {
+			list FEATURE_A_LIST {
+				key "host_name";
+				leaf host_name {
+					type string;
+				}
+				uses target;
 			}
 		}
 	}
@@ -582,38 +583,7 @@ If there is only 1 __list__ construct inside __container__ then NOT generate ded
 
 Is it a general SONiC rule that the table can have different keys inside?
 
-__2. In case if need to extend existing YANG model - [RFC7950 - augment](https://tools.ietf.org/html/rfc7950#section-4.2.8):__
-
-Let's take as an example - *DHCP relay* feature. For now in SONiC *DHCP relay* feature is part of SONiC *VLAN* ([sonic-vlan.yang](https://github.com/vadymhlushko-mlnx/sonic-buildimage/blob/9580b0407f333fd9fcf32bedf47b741c797f4d86/src/sonic-yang-models/yang-models/sonic-vlan.yang#L145)), the user can configure *DHCP relay* feature by using the next CLI:
-
-###### config command
-```
-admin@sonic:~$ config vlan dhcp_relay add [OPTIONS] <vid> <dhcp_relay_destination_ip>
-```
-
-In case if the *DHCP relay* will be application extension, we need a specific YANG models for it, then the auto-generated CLI will be created.
-
-###### sonic-dhcp-relay.yang
-``` yang
-module sonic-dhcp-relay {
-	// ...
-	container sonic-dhcp-relay {
-		// ...
-		augment /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlan_name {
-			leaf-list dhcp-servers {
-				type inet:ip-address;
-			}
-		}
-	}
-}
-```
-The *augment* statement means that *sonic-dhcp-relay.yang* will extend a current [sonic-vlan.yang](https://github.com/vadymhlushko-mlnx/sonic-buildimage/blob/9580b0407f333fd9fcf32bedf47b741c797f4d86/src/sonic-yang-models/yang-models/sonic-vlan.yang#L145).
-
-So, the main questions are:
-- how does it affect existing *config* CLI for *DHCP relay*?
-- how does it affect existing *show* CLI for *DHCP relay*?
-
-__3.For the YANG model *list* in addition to *add/del* commands, it is possible to generate *update* command:__
+__2.For the YANG model *list* in addition to *add/del* commands, it is possible to generate *update* command:__
 
 In case if YANG model contains a *list* element, besides *add/del* commands it is possible to generate the *update* command, but in the YANG model there is no ability to mark some *list* with the *create only* marker, it means that user can NOT modify the list, he only can 'add' or 'delete' list elements.
 
