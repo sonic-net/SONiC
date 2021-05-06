@@ -10,7 +10,7 @@
 ## About This Manual ##
 
 This document is intend to provide general information about the Transceiver and Sensor Monitoring implementation.
-The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD)
+The requirement is described in [Sensor and Transceiver Info Monitoring Requirement.](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD)
 
 
 ## 1. Xcvrd design ##
