@@ -285,7 +285,7 @@ Another entPhySensorTable which is defined in [Entity Sensor MIB(RFC3433)](https
 | 1.3.6.1.2.1.47.1.1.1.1.2.index | entPhysicalDescr | Show interfaces alias | DOM RX Power Sensor for DOM RX Power Sensor for Ethernet29/1 |
 
 
-More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/gh-pages/doc/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
+More detailed information about new table and new OIDs are described in [Sensor and Transceiver Info Monitoring Requirement](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/OIDsforSensorandTransciver.MD#transceiver-requirements-entity-mib).
 
 
 
