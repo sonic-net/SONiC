@@ -79,6 +79,7 @@ Ethernet-IB0        222                       Recirc0/1    6      Inb        400
 ```
 The following is the example output of the above ports from "show interfaces status" CLI command:
 
+```
   Interface                    Lanes    Speed    MTU    FEC         Alias    Vlan    Oper    Admin                           Type    Asym PFC
 -----------    -----------------------  -------  -----  -----  ------------  ------  ------  -------  -----------------------------  ----------
   Ethernet0    48,49,50,51,52,53,54,55     400G   9100   none   Ethernet1/1  routed      up       up  OSFP 8X Pluggable Transceiver         off
@@ -87,5 +88,9 @@ The following is the example output of the above ports from "show interfaces sta
  Ethernet24    72,73,74,75,76,77,78,79     400G   9100   none   Ethernet4/1  routed      up       up  OSFP 8X Pluggable Transceiver         off
  Ethernet-Rec0                     221     400G   9100    N/A     Recirc0/0  routed      up       up                            N/A         off
  Ethernet-IB0                      222     400G   9100    N/A     Recirc0/1  routed      up       up                            N/A         off
-
+```
 The process of recirculation ports in SWSS container is similar to front panel ports: portsyncd populates recirculation ports into APPL_DB PORT_TABLE; portsorch discovers, initializes recirculation ports, and adds host interfaces for them; and intfsorch adds router interfaces for recirculation ports.
+
+## 1.4 SAI
+
+ASIC vendoers may implement recirculation ports in different ways. If recirculation ports are implemented just like front panel ports, then no SAI change is required because recirculation ports can be initialized and configured by using existing SAI port API.
