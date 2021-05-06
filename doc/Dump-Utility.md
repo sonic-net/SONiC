@@ -43,7 +43,7 @@ This document describes the details of a dump cli utility which collects and dum
 In this document, the term '**redis state**' refers to the intermediate state of a given feature present across all the Redis DB's 
 
 ## Overview 
-In SONiC, there usually exists a set of tables related/relevant to a particular module. All of these have to be looked at to confirm whether the any configuration update is properly applied.
+In SONiC, there usually exists a set of tables related/relevant to a particular module. All of these have to be looked at to confirm whether  any configuration update is properly applied and propagated.
 
 The task of debugging quickly becomes tedious because currently, there is no utility which does print a unified view of the redis-state.
 This is the problem which is addressed by this dump utility.
@@ -207,7 +207,7 @@ This is an example return object from the module class for the interface name "E
 * When the "all" argument is given by the user, get_all_args() method will be invoked and it's the responsibility of the module class to implement this.
 * get_all_args() should return a tuple of list and the list contains all the arguments for which the redis-state has to be returned. 
    * Eg: For copp, get_all_args() should return a list of trap_ids i.e. (['arp_req', 'bgpv6', 'sample_packet',..........])
-   * EgL For port, this method will return a list of Interface names i.e (['Ethernet4', 'Ethernet8', 'Ethernet16',........])
+   * Eg: For port, this method will return a list of Interface names i.e (['Ethernet4', 'Ethernet8', 'Ethernet16',........])
 * An example implementation is given in the section 2.3
 * Using this information, The execute method will then be invoked for every value provided in the list.
 
@@ -370,12 +370,12 @@ Return Dict:
 |  2   | Verify MatchEngine Match functionality is as expected                                                                                   |
 |  3   | Verify VidToRid Mappings are extracted as expected                                                                                      |
 |  4   | Verify dump cli options are working as expected                                                                                         |
-|  5  | Add unit tests for every module added                                                                                                   |
+|  5  | Unit tests should be added for every new module added                                                                                    |
 
 
 ## 4 **TechSupport**
 Output for every <feature/module> which extends from Executor class will be added to the techsupport dump. 
-Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. 
+Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. Output will be printed in JSON format for TechSupport Dumps.
 Only the related keys information will be present in the unified_dump_folder as entire DB dumps are already present in the dump/folder.
 
 ```
