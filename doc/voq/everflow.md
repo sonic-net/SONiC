@@ -1,4 +1,4 @@
-# Fabric port support on Sonic
+# Everflow support on VOQ Chassis
 
 # High Level Design Document
 #### Rev 1
@@ -23,167 +23,64 @@
 # Revision
 | Rev |     Date    |       Author       | Change Description |      
 |:---:|:-----------:|:------------------:|--------------------|
-| 1 | Aug-28 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Initial Version |
-| 1.1 | Sep-1 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Add hotswap handling |
-| 2 | Oct-20 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Update counter information |
-| 2.1 | Nov-17 2020 | Ngoc Do, Eswaran Baskaran (Arista Networks) | Minor update on container starts |
+| 1 | Dec-1 2020 | Song Yuan, Eswaran Baskaran (Arista Networks) | Initial Version |
 
 # About this Manual
 
-This document provides an overview of the SONiC support for fabric ports that are present in a VOQ-based chassis. These fabric ports are used to interconnect the forwarding Network Processing Units within the VOQ chassis.
+This document provides an overview of the SONiC support for everflow configuration in a VOQ-based chassis. In a VOQ-based chassis, the everflow configuration is applied on a linecard and the mirror destination could be in a different linecard. We propose a solution where the packet is rewritten with the GRE header in the ingress linecard before it’s sent over to the mirror destination. 
 
 # Scope
 
-This document covers:
- 
-- Bring up of fabric ports in a VOQ chassis.
-- Monitoring the fabric ports in forwarding and fabric chips. 
-
-This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md) and the multi-ASIC architecture discussed [here](https://github.com/Azure/SONiC/blob/2f320430c8199132c686c06b5431ab93a86fb98f/doc/multi_asic/SONiC_multi_asic_hld.md). 
+This document builds on top of the VOQ chassis architecture discussed [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md) and the Everflow design discussed [here](https://github.com/Azure/SONiC/wiki/Everflow-High-Level-Design#3138-mirror-api). The goal of this document is to describe the configuration and design for everflow mirroring sessions for a VOQ-based chassis.
 
 # Definitions/Abbreviations
 
 |      |                    |                                |
 |------|--------------------|--------------------------------|
-| SSI | Supervisor SONiC Instance | SONiC OS instance on a central supervisor module that controls a cluster of forwarding instances and the interconnection fabric. |
-| NPU | Network Processing Unit | Refers to the forwarding engine on a device that is responsible for packet forwarding. |
-| ASIC | Application Specific Integrated Circuit | In addition to NPUs, also includes fabric chips that could forward packets or cells. | 
-| cell | Fabric Data Units | The data units that traverse a cell-based chassis fabric. |
+| FSI | Forwarding SONiC Instance | SONiC OS instance on a linecard module that controls one or more forwarding ASICs. |
+| ASIC | Application Specific Integrated Circuit | Refers to the forwarding engine on a device that is responsible for packet forwarding. |
+| ERSPAN | Encapsulated Remote Switched Port ANalyzer | Another name for Everflow mirroring sessions |
 
 # 1 Requirements
 
-Fabric ports are used in systems in which there are multiple forwarding ASICs are required to be connected. Traffic passes from one front panel port in a forwarding ASIC over a fabric network to one or multiple front panel ports on one or other ASICs. The fabric network is formed using fabric ASICs. Fabric links on the fabric network connect fabric ports on forwarding ASICs to fabric ports on fabric ASICs. 
-
-High level requirements:
-
-- SONiC needs to form a fabric network among forwarding ASICs, monitor and manage it. Monitoring could include link statistics, error monitoring and reporting, etc.  
-- SONiC should be able to initialize fabric asics and manage them similar to how forwarding ASICs are managed - using syncd and sairedis calls. 
+In a VOQ based chassis, the mirror source and destination ports could be on different linecards. This configuration must be accepted and the packet that goes out of the destination port must have the correct encapsulation header based on the configuration.
 
 # 2 Design
 
-## 2.1 Fabric ASICs
+## 2.1 Problem
 
-Fabric asics are used to form a fabric network for connecting forwarding ASICs. For each fabric port on a forwarding ASIC, there is a fabric link in the fabric network connecting to a fabric port on a fabric ASIC. There are typically multiple fabric links between a pair of (NPU, fabric ASIC) to balance traffic. We use the same approach to initializing and managing fabric ASICs as we are doing today for forwarding ASICs. A typical chassis implementation will be to manage all the fabric ASICs in a chassis from the control card or the Supervior Sonic Instance (SSI). We will leverage the work done in the multi-ASIC HLD and instantiate groups of containers for the fabric ASICs.
+In a regular non-VOQ switch, given the destination IP of the mirror session, mirrororch is responsible for determining the outgoing interface and the destination MAC address by querying routeorch and neighorch. Once these details are determined, mirrororch makes the SAI create_mirror_session API call to create the mirror session. For example, the destination port is set in `SAI_MIRROR_SESSION_ATTR_MONITOR_PORT`, the destination mac for the packet is set in `SAI_MIRROR_SESSION_ATTR_DST_MAC_ADDRESS` and so on.
 
-For each fabric ASIC, there will be:
+In addition, mirrororch is also responsible for reacting to changes in the route or nexthop and update the session by making appropriate SAI update calls.
 
-- Database container
-- Swss container
-- Syncd container
+In a VOQ chassis, the monitor port could be on another linecard and packet rewrite is done in the egress pipeline of that linecard. As the ports of other linecards are only represented as SYSTEM_PORTs in each FSI, we need either changes in SAI or changes in SONiC to support everflow.
 
-Unlike forwarding ASICs, fabric ASICs do not have any front panel ports, but only fabric ports. So all the front panel port related containers like lldp, teamd and bgpd can be disabled for fabric ASICs. 
+### 2.1.1 Proposal
 
-## 2.2 Database Schemas
+The idea is to fully rewrite the packet in the ingress chip and send it out of a recycle port in the ingress ASIC. After the recycle, the packet goes to the egress ASIC where the packet gets switched out of the mirror destination port.
 
-```
-DEVICE_METADATA|localhost: {
-  "switch_type": “fabric”
-  "switch_id": {{switch_id}}
-}
-```
+![](../../images/voq/Everflow_voq.png)
 
-Each fabric ASIC must be assigned a unique switch_id. The SAI VOQ specification recommends that this number be assigned to be different than the switch_id assigned to the forwarding ASICs in the chassis.
+The mechanism to enable the recycle port is outside the scope of this document.
 
-Fabric port status will be polled periodically and stored in table STATE_DB|FABRIC_PORT_TABLE. Typically, fabric port status about a fabric port includes:
+## 2.2 Option 1 - Implicit Recycle
 
-- Status: Up or down
-- If port is down, we may have some more information indicating reason e.g. CRC or misaligned
-- If port is up, we should know remote peer information including peer switch_id and peer fabric port.
+This option can be implemented with minimal changes to SONiC because the bulk of the handling is done inside SAI. The SAI implementation can be enhanced to accept SYSTEM_PORTs as arguments for the `SAI_MIRROR_SESSION_ATTR_MONITOR_PORT` attribute. When a mirror session is created with a destination IP, mirrororch resolves the IP using routeorch and neighorch as before. The following changes are proposed for the VOQ chassis.
+Upon receiving mirrororch’s request for a remote neighbor’s information, neighorch must be able to return neighbor information like interface alias.
+If the neighbor information returned from neighorch turns out to be a remote neighbor, mirrororch needs to use the SYSTEM_PORT of the remote interface as the mirror destination port.
 
-```
-STATE_DB:FABRIC_PORT_TABLE:{{fabric_port_name}}
-    "lane": {{number}}
-    "status": “up|down”
-    "crc": “yes”                           # if status: down
-    "misaligned": “yes”                    # if status: down
-    "remote_switch_id": {{number}}         # if status: up
-    "remote_lane": {{number}}              # if status: up
-```
+SAI implementation will program the hardware to send the mirrored packets in this session out of the recycle port. When the packet re-enters the pipeline, the destination MAC of this packet will be the neighbor’s destination MAC address and it will be bridged in the ingress ASIC to the correct egress destination port. SAI will also be responsible for programming the FDB entry in the ingress ASIC appropriately.
 
-Fabric port statistics include the following port counters:
+## 2.3 Option 2 - Explicit Recycle
 
-```
-    SAI_PORT_STAT_IF_IN_OCTETS,
-    SAI_PORT_STAT_IF_IN_ERRORS,
-    SAI_PORT_STAT_IF_IN_FABRIC_DATA_UNITS,
-    SAI_PORT_STAT_IF_IN_FEC_CORRECTABLE_FRAMES,
-    SAI_PORT_STAT_IF_IN_FEC_NOT_CORRECTABLE_FRAMES,
-    SAI_PORT_STAT_IF_IN_FEC_SYMBOL_ERRORS,
-    SAI_PORT_STAT_IF_OUT_OCTETS,
-    SAI_PORT_STAT_IF_OUT_FABRIC_DATA_UNITS
-```
+This option can be implemented with minimal changes to SAI as long as a recycle port can be created. The recycle port needs to be enabled as an L3 port for this mechanism to work because it requires the packet to be routed after recycle. The following changes are proposed.
+Upon receiving mirrororch’s request for a remote neighbor’s information, neighorch must be able to return neighbor information like interface alias.
+If the neighbor information returned from neighorch turns out to be a remote neighbor, mirrororch needs to use the recycle port as the mirror destination port and the router mac as the destination MAC address.
 
-FabricPortsOrch defines the port counters in FLEX_COUNTER_DB and syncd's existing FlexCounters thread periodically collects and saves these counters in COUNTER_DB. “show” cli commands read COUNTER_DB and display statistics information.
-
-Fabric port also has a couple of queue counters. Similar to the port counters, the queue counters are also polled with FLEX_COUNTER_DB.
-```
-    SAI_QUEUE_STAT_WATERMARK_LEVEL,
-    SAI_QUEUE_STAT_CURR_OCCUPANCY_BYTES,
-    SAI_QUEUE_STAT_CURR_OCCUPANCY_LEVEL
-```
-
-Note that Linecard Sonic instances will also have STATE_DB|FABRIC_PORT_TABLE as well as port/queue counters because there are fabric ports in forwarding ASICs as well.
-
-## 2.3 System Initialization
-
-As part of multi-ASIC support, /etc/sonic/generated_services.conf contains the list of services which will be created for each asic when the system boots up. This is read by systemd-sonic-generator to generate the service files for each container that needs to run. 
-
-Since the fabric ASIC doesn’t need lldp, bgpd and teamd containers to run, systemd-sonic-generator will be modified to not start these services for the fabric ASICs. A per-platform file called `asic_disabled_services` can list the services that are not needed for a given ASIC and systemd-sonic-generator will not generate the service files for these containers. For example,
-```
-0,lldp,teamd,bgp
-1,lldp,teamd,bgp
-2,lldp,teamd,bgp
-```
-will not start lldp, teamd and bgp containers for ASICs 0, 1 and 2.
-
-NOTE: Longer term, we would like to use the FEATURE table to control which containers need to be started for fabric chips. However, that requires multi-ASIC support for the FEATURE table. This will be pursued as a separate project.
-
-## 2.4 Fabric Card Hotswap
-
-PMON will be responsible for detecting card presence and hotswap events using the get_change_event API. A new systemd service will be responsbile for turning on/off the service files for the syncd, database and swss containers that manage each fabric ASIC. When the fabric card is removed, the containers that manage the fabric ASICs that are part of that fabric card will be stopped. These will be re-started when the fabric card is inserted later.
-
-## 2.5 Orchagent
-
-Orchagent creates the switch using the SAI API similar to creating the switch for a forwarding ASIC, except that the switch type will be fabric. When the ASIC is initialized, all the fabric ports are initialized by default. The fabric ports are a subtype of SAI Port object and it can be obtained by getting all the fabric port objects from SAI. Since there are no front panel ports on a fabric ASIC, port_config.ini will be empty and portsyncd will not run. 
-
-On fabric ASICs, OrchDaemon will only monitor and manage fabric ports. It will not maintain cpu port and front panel port related ochres, such as PortsOrch, IntfsOrch, NeighborOrch, VnetOrch, QosOrch, TunnelOrch, and etc. To simplify the change, we will just create FabricOrchDaemon inheriting OrchDaemon for fabric ASICs and this will only run FabricPortsOrch, the module responsible for managing fabric ports.
-
-## 2.6 Fabric Ports in Forwarding ASICs
-
-When a forwarding ASIC is initialized, the fabric ports are initialized by default by SAI. Orchagent will run FabricPortsOrch in addition to all the other orchs that needs to be run to manage the forwarding ASIC. Fabric port monitoring and handling is identical to what happens on a Fabric ASIC.
-
-## 2.7 Cli commands
-
-```
-> show fabric counters -n <asic_namespace> [port_id]
-
-asic2 fabric port counter (number of fabric ports: 192)
-
-PORT            RxCells     TxCells      Crc       Fec  Corrected
--------------------------------------------------------------------------
- 0           : 71660578         2         0         0         0
- 1           : 71659798         1         0         0       213
- 2           :        0         1         0         0       167
- 3           :        0         2         0         0       193
-```
-
-### 2.7.1 Fabric Status
-
-In a later phase, a `show fabric status` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will show the status as `down`. The status will also be `down` for fabric links that are down due to some other physical error. To identify links that are down due to error vs links that are not expected to be up because of the chassis connectivity, we need to build up a list of expected fabric connectivity for each ASIC. This can be computed ahead of time based on the vendor configuration and populated in the minigraph. This will be implemented in a later phase.
+SAI implementation is the same as a single-chip system. The mirrored packets are rewritten in the ingress ASIC and sent out of the recycle port. When the packet re-enters the pipeline, it gets routed because the destination MAC is the router MAC. The destination IP of this packet is the destination IP configured on the mirror session, so it will be routed by the ingress ASIC. If the destination IP is reachable via multiple nexthops, the ingress ASIC will loadbalance the traffic as needed.
 
 # 3 Testing
-
-Fabric port testing will rely on sonic-mgmt tests that can run on chassis hardware. 
-
-- Test fabric port mapping: To verify the fabric mapping, we can inspect the remote switch ID that are saved in the STATE_DB and match that with the known chassis architecture. 
-
-- Test traffic and counters: Send traffic through the chassis and verify traffic going through fabric ports via counters. 
+TBD
 
 # 4 Future Work
-
-- In this proposal, all fabric ports on fabric ASICs or forwarding ASICs that join to form the fabric network will be enabled even when there are no peer ports available. We could provide a config model for the platforms to express the expected fabric connectivity and turn off unnecessary fabric ports. 
-
-- Fabric ports that do not have a peer port will show up as a ‘down’ port. Fabric ports that do have a peer port could also go ‘down’ and there is no current way to differentiate this from a fabric port that does not have a peer port. This can be detected if the config model can express the expected fabric connectivity.
-
-- Monitor, detect and disable fabric ports that consistently show errors.
-
+TBD
