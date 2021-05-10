@@ -325,7 +325,7 @@ Options:
 
 Commands:
   add  Add snmp user
-  del  Del snmp user
+  del  Delete snmp user
 admin@switch1:~$
 admin@switch1:~$ sudo config snmp user add -h
 Usage: config snmp user add [OPTIONS] <snmp_user>
@@ -341,7 +341,7 @@ admin@switch1:~$
 admin@switch1:~$ sudo config snmp user del -h
 Usage: config snmp user del [OPTIONS] <snmp_user>
 
-  Del snmp user
+  Delete snmp user
 
 Options:
   -h, -?, --help  Show this message and exit.
