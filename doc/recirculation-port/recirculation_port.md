@@ -62,7 +62,7 @@ The support of explicit recycle ports requires the minimal changes to SAI as lon
 
 ## 1.3 Configuration of recirculation ports
 
-Recirculation ports are configured in port_config.ini just like front panel ports. In order to distinguish recirculation from front panel ports, the appropriate port role must be set for recirculation ports. The port role must indicate the intended use of a recirculation port. SONiC can discover all configured recirculation ports, based on their port roles, and use them appropriately.
+Recirculation ports are configured in port_config.ini or platform.json just like front panel ports. In order to distinguish recirculation from front panel ports, the appropriate port role must be set for recirculation ports. The port role must indicate the intended use of a recirculation port. SONiC can discover all configured recirculation ports, based on their port roles, and use them appropriately.
 
 As of now, there are two use cases of recirculation ports: inband port [here](https://github.com/Azure/SONiC/blob/master/doc/voq/architecture.md), or features like Everflow that needs to recycle encapsulated packets to be routed to the egress ASIC [here](https://github.com/Azure/SONiC/pull/716/files). In order to ensure the right recirculation ports are used, we introduce two port roles, Inb and Rec, for the two use cases respectively.
 
@@ -77,6 +77,26 @@ Ethernet24          72,73,74,75,76,77,78,79   Ethernet4/1  4      Ext        400
 Ethernet-Rec0       221                       Recirc0/0    5      Rec        400000
 Ethernet-IB0        222                       Recirc0/1    6      Inb        400000
 ```
+Similarly, if recirculation ports are configued in platform.json, their port role must be provided too. For example, the above recirculation ports are defined in platform.json as shown below:
+```
+    "Ethernet-Rec0": {
+        "index": "5",
+        "lanes": "221",
+        "breakout_modes": {
+            "1x400G": ["Recirc0/0"]
+        },
+        "role":  "Rec"
+    },
+    "Ethernet-IB0": {
+        "index": "6",
+        "lanes": "222",
+        "breakout_modes": {
+            "1x400G": ["Recirc0/1"]
+        },
+        "role":  "Inb"
+    }
+```
+
 The following is the example output of the above ports from "show interfaces status" CLI command:
 
 ```
