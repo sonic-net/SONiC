@@ -287,7 +287,30 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
   "keys": [],                   # Match found for the request
   "return_values": {}           # Return Values for the corresponding return_fields passed
 }
+
+When the error string is not empty, the other two fields will be empty. Most of the errors thrown by the MatchEngine are usually due to ill-formed MatchRequest.
+
+Possible Error strings returned by the MatchEngine.
+ Errors thrown because of ill-formed MatchRequest:
+ 1) "Argument should be of type MatchRequest"
+ 2) "Either one of db or file in the request should be non-empty"
+ 3) "Only one of db or file should be provided"
+ 4) "DB provided is not valid"
+ 5) "JSON File not found"
+ 6) "Not a properly formatted JSON file"
+ 7) "'key_pattern' cannot be empty"
+ 8) "No 'table' name provided"
+ 9) "Field is provided, but no value is provided to compare with"
+ 10) "When Just_keys is set to False, return_fields should be empty"
+ 11) "Return Fields should be of list type"
+ 
+ Other Errors:
+ 12) "No Entries found for Table|key_pattern provided.
+ 13) "Connection Error"
+
+ Note: Run the "dump state <feature/module> arg" command with -v option to print these errors any other exceptions thrown to the stdout. 
 ```
+
 
 ### 2.5 MatchRequest Examples:
 
