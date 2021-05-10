@@ -16,11 +16,11 @@
       * [2.1 Adding new Modules](#21-adding-new-modules)
       * [2.2 Module Internals](#22-module-internals)
       * [2.3 Helper Methods Available](#23-helper-methods-available)
-      * [2.4 Redis Match Infra](#24-Redis-Match-Infra)
-      * [2.5 RMRequest Examples](#25-rmrequest-examples)
+      * [2.4 Match Infrastructure](#24-Match-Infrastructure)
+      * [2.5 MatchRequest Examples](#25-matchrequest-examples)
   * [3. Unit Tests](#3-unit-tests)
   * [4. TechSupport](#4-techsupport)
-   
+
 ### Revision  
 
 | Rev |     Date    |       Author       | Change Description          |
@@ -28,32 +28,22 @@
 | 0.1 | 05/01/2021  | Vivek Reddy Karri        | Initial version       |
 
 ## About this Manual
-This document describes the details of a dump cli utility which collects and dumps the redis state for a given feature/module. 
+This document describes the details of a dump cli utility which collects and dumps the redis state for a given feature/module.
 
-## Definitions/Abbreviations 
+## Definitions/Abbreviations
 ###### Table 1: Abbreviations
 | Abbreviation | Description                                                  |
 | ------------ | ------------------------------------------------------------ |
 | APP DB       | Application Database                                         |
 | ASIC DB      | ASIC Database                                                |
 | CONF DB      | Configuration Database                                       |
-| RMEngine     | RedisMatchEngine                                             |
-| RMRequest    | RedisMatchRequest                                            |
 
-                     
-In this document, the term '**redis state**' refers to the intermediate state of a given feature present across all the Redis DB's 
 
-## Overview 
-In SONiC, there usually exists a one-to-many, many-to-many logical mappings between the CONF DB <-> APPL DB <-> ASIC DB.
-(This applies to other DB's as well, but focussing on these 3 as an example). 
 
-###### Table 2: COPP trap id logical mappings
-| CONF DB      |  APP DB             |      ASIC DB                          |
-| ------------ | ------------------- |  -----------------------------------  |
-| Trap Group   | Trap Group          |  SAI_OBJECT_TYPE_HOSTIF_TRAP          |
-| Trap Id      |                     |  SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP    |
-|              |                     |  SAI_OBJECT_TYPE_QUEUE                |
-|              |                     |  SAI_OBJECT_TYPE_POLICER              |
+In this document, the term '**redis state**' refers to the intermediate state of a given feature present across all the Redis DB's
+
+## Overview
+In SONiC, there usually exists a set of tables related/relevant to a particular module. All of these have to be looked at to confirm whether  any configuration update is properly applied and propagated.
 
 The task of debugging quickly becomes tedious because currently, there is no utility which does print a unified view of the redis-state.
 This is the problem which is addressed by this dump utility.
@@ -77,10 +67,10 @@ dump state port all
 ```
 
 #### 1.1 Intended Usage
-1) The `dump state` subcommand will take a feature/module or any logical top-level name as the first argument. 
-2) A Second Argument should also be defined for a feature. 
+1) The `dump state` subcommand will take a feature/module or any logical top-level name as the first argument.
+2) A Second Argument should also be defined for a feature.
 3) This argument could either be a table-key or a unique-field-value present in either Conf DB or Appl DB.
-   * Eg: For PORT, the second argument will be an interface name i.e 'Ethernet128' which is a table-key. On the other hand, the secondary argument for COPP will be a trap_id such as  'arp_req', which is a field-value present in one of the tables of CONF DB.
+   * Eg: For PORT, the second argument will be an interface name i.e 'Ethernet128' which is a table-key. On the other hand, the secondary argument for COPP will be a trap_id such as  'arp_req', which is a field-value and not a key of any table.
 4) The decision of what to pass as a secondary argument lies with the discretion of the one who is writing the module.
 6) The Command should also take a list of comma seperated inputs for the secondary argument
 7) The Command should also accept an "all" value and which means it should print the unified view for every entry related to that feature.
@@ -92,14 +82,14 @@ Usage: dump state [OPTIONS] MODULE ARG
   Dump the redis state of the module specified
 
 Options:
-  -s, --show     Display all the Modules and the name of their correponding secondary argument 
+  -s, --show     Display all the Modules and the name of their correponding secondary argument
   -d, --db TEXT  Only dump from these Databases
   -t, --table    Print in tabular format  [default: False]
   -r, --rid      Dont Extract VidToRid Mappings for ASIC DB Dumps  [default: False]
   -k, --key-map  Only Return Key mappings, Dont return Field-Value Dumps [default: False]
   -v, --verbose  Prints any intermediate output to stdout useful for dev & troubleshooting  [default: False]
   --help         Show this message and exit.
-  
+
 root@sonic# dump state --show
 Module            Args
 --------------    ------
@@ -119,7 +109,7 @@ random_feature    key
 
 ### 1.3 Extensibility
 
-Utility should be open to extension i.e. any new modules can be added easily without the need to change the common logic. 
+Utility should be open to extension i.e. any new modules can be added easily without the need to change the common logic.
 The common logic should be closed to modification unless there is a very specific use case which demands so.
 
 ### 1.4 Directory Structure
@@ -134,9 +124,9 @@ sonic-utilities/
                  ├── __init__.py
                  ├── executor.py
                  ├── copp.py
-                 ├── port.py 
+                 ├── port.py
                  ├── sflow.py
-                 ├── ........ 
+                 ├── ........
                  ├── <Add new modules here>
 ```
 
@@ -154,7 +144,7 @@ class Executor(ABC):
     @abstractmethod
     def execute(self, arg):
         pass
-    
+
     @abstractmethod
     def get_all_args(self):
         pass
@@ -173,45 +163,51 @@ To add a new module, these guidelines have to be followed.
 ###### Requirements on the Module Class for execute(arg) method
 * The execute method will receive a dictionary. The value passed from the user can be fetched by using ARG_NAME i.e.  `args[ARG_NAME]`
 * The execute method should return a dictionary of the format JSON Template 1.
-* Implementation of the execute method is upto the module implementer, all that is expected from the class here is to return the dictionary with the proper information populated. 
+* Implementation of the execute method is upto the module implementer, all that is expected from the class here is to return the dictionary with the proper information populated.
 
 ###### JSON Template 1: Return dict by Executor
 ```
 {
   "<DB_NAME>": {
-        "keys": [],                # Relevant keys i.e. "Table<sep>key" info in the corresponding DB which are of interest
-        "tables_not_found" : []    # Populate this list with those table names, which were suppose to have to info the module was looking for and yet it did not find one.
-                                     Again, the decision of which tables to look for and which of those are definitely supposed to have the information, is left to the discretion of the module implementer
+        "keys": [],              # Relevant keys i.e. "Table<sep>key" info in the corresponding DB which are of interest
+        "tables_not_found": []   # Populate this list with those table names, which are supposed to have the info which the module was looking for and yet it did not find one.
+                                 # Again, the decision of which tables to look for and which of those are definitely supposed to have the information,
+                                   is left to the discretion of the module implementer.
    }
 }
+Note: DB_NAME could be either of ["CONFIG_DB", "APPL_DB", "ASIC_DB", "STATE_DB", ....] or "CONFIG_FILE".
+COPP is a example which will have a entry "CONFIG_FILE". This entry is required for COPP because, the default COPP entries are read from copp_cfg.json by coppmgr and are not present in the CONFIG_DB.  
+Any extra entries which are added by the user are present in the CONFIG_DB. Hence it is required to have an extra "CONFIG_FILE" option.
+```
 
-Example Return Object:
-
-This is an example return object from the module class for the trap_id "bgp" for the module "copp". i.e. dump state copp bgp
-
+###### Example JSON Template 1 Object:
+```
+This is an example return object from the module class for the interface name "Ethernet104" for the module "port". i.e. dump state port Ethernet104
 {
     "CONFIG_DB": {
-        "keys": ["COPP_TRAP|bgp", "COPP_GROUP|queue4_group1"],
+        "keys": ["PORT|Ethernet104"],
         "tables_not_found" : []
     },
     "APPL_DB": {
-        "keys": ["COPP_TABLE:queue4_group1"],
+        "keys": ["PORT_TABLE:Ethernet104"],
         "tables_not_found" : []
     },
     "ASIC_DB": {
-        "keys": [],
-        "tables_not_found": ["ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP", "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP"]
+        "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_PORT:oid:0x10000000003bd", "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF:oid:0xd00000000076e"],
+        "tables_not_found": []
+    }
+    "STATE_DB": {
+        "keys": ["PORT_TABLE|Ethernet104"],
+        "tables_not_found": []
     }
 }
-
-Note: When properly configured by the orchagent, the ASIC_DB is supposed to have a TRAP obj and a corresponding TRAP_GROUP object. 
-Assuming this config did not happen properly, the "tables_not_found" list should have the names of these tables.
 ```
 
 ###### Requirements on the Module Class for handling 'all' keyword
 * When the "all" argument is given by the user, get_all_args() method will be invoked and it's the responsibility of the module class to implement this.
-* get_all_args() should return a tuple of list and the list contains all the arguments for which the redis-state has to be returned. 
-   * Eg: For Copp, get_all_args() should return a list of trap_ids i.e. (['arp_req', 'bgpv6', 'sample_packet',..........])
+* get_all_args() should return a tuple of list and the list contains all the arguments for which the redis-state has to be returned.
+   * Eg: For copp, get_all_args() should return a list of trap_ids i.e. (['arp_req', 'bgpv6', 'sample_packet',..........])
+   * Eg: For port, this method will return a list of Interface names i.e (['Ethernet4', 'Ethernet8', 'Ethernet16',........])
 * An example implementation is given in the section 2.3
 * Using this information, The execute method will then be invoked for every value provided in the list.
 
@@ -224,15 +220,15 @@ Note: VidToRid Mapping, field-value data, db filtering, printing/formatting of o
 class Port(Executor):
 
     ARGS = "port_name"
-    
+
     def get_all_args(self):
         all_port_names = []
         .......  # Find and fill this list of all_port_names,
         return (all_ports) #Eg: (['Ethernet0', 'Ethernet4', 'Ethernet8', 'Ethernet12', ....])
-    
+
     def execute(self, args):
         self.template = display_template(dbs=["CONFIG_DB", "APPL_DB", "ASIC_DB"])
-        port = args[ARG_NAME] 
+        port = args[ARG_NAME]
         get_config_info(port) # Populate the return template with the info taken from Config DB
         get_appl_info(port) # Populate the return template with the info taken from Appl DB
         get_asic_info(port) # Populate the return template with the info taken from Asic DB
@@ -245,57 +241,60 @@ class Port(Executor):
 ###### List of available helper methods useful when drafting new Executor Modules
 
 ```
-1) display_template(dbs=['CONFIG_DB', 'APPL_DB', 'ASIC_DB']): Returns a dictionary of format JSON Template 1
-2) RedisMatchEngine / RedisMatchRequest: Part of Redis Match Infra to get the required data from redis db. More info in the next section.
+1) display_template(dbs=['CONFIG_DB', 'APPL_DB', 'ASIC_DB', 'STATE_DB']): Returns a dictionary of format JSON Template 1
+2) MatchEngine / MatchRequest: Provided to abstract the heavy lifting in fetching the required data from redis-db/config-files. More info in the next section.
 3) verbose_print(str_): prints to the stdout based on verbosity provided by the user.  
 ```
 
-### 2.4 Redis Match Infra
+### 2.4 Match Infrastructure
 
-Most of the heavy lifting in filling the return dictionary is in getting data out of redis and parse it based on user requirements. 
-To Abstract this functionality out, a RMEngine class is created. A RMRequest object has to be passed to the fetch() method of the RMEngine class 
+Essentially consists of MatchEngine & MatchRequest.
 
-###### JSON Template 2: RMRequest Object:
+Most of the heavy lifting in filling the return dictionary is in getting data out of redis and parse it based on user requirements.
+To Abstract this functionality out, a MatchEngine class is created. A MatchRequest object has to be passed to the fetch() method of the MatchEngine class
+
+###### JSON Template 2: MatchRequest object:
 
 ```
 {
   "Table": "<STR>",             # Mandatory, A Valid Table Name
-  "key_pattern": "<STR>",       # Mandatory, Defaults to "*". 
-				table<table_sep>key_pattern is directly applied for filtering entries  
+  "key_pattern": "<STR>",       # Mandatory, Defaults to "*".
+				                        # table<table_sep>key_pattern is directly applied for filtering entries  
   "field": "<STR>",             # Mandatory, Defaults to None
   "value": "<STR>",             # Mandatory, Value to match, Defaults to None
   "return_fields": [
     "<STR>"                     # An optional List of fields for which the corresponding values are returned
   ],
-  "db": "<STR>",                # Mandatory, A Valid DB name
+  "db": "<STR>",                # Optional, A Valid DB name, Defaults to "".
+  "file": "*.json",             # Optional, A Valid Config JSON file, Eg: copp_cfg.json, Defaults to "".
+                                # Only one of the db/file fields should have a non-empty string.
   "just_keys": "true|false"     # Mandatory, if true, Only Returns the keys matched. Does not return field-value pairs. Defaults to True
 }
 ```
 
-###### RMEngine Usage Details
+###### MatchEngine Usage Details
 
 * Case 1: field and value in the RMRequest are None. Result: RMEngine returns all the keys which are regex matched by "Table|key_pattern".
-* Case 2: field and value in the RMRequest are not None and a set of keys are matched by the "Table|key_pattern". Result: The RMEngine looks into each of these keys and returns those keys who has their field-value pairs equated to what is provided. 
+* Case 2: field and value in the RMRequest are not None and a set of keys are matched by the "Table|key_pattern". Result: The RMEngine looks into each of these keys and returns those keys who has their field-value pairs equated to what is provided.
 * Case 3: For a valid combination of db, Table, key_pattern, field and value, if all the field-value pairs are required, set just_keys to true.
 * Case 4: For a valid combination of db, Table, key_pattern, field and value, if only a few specific fields are required, set just_keys to false and use return_fields option.
 
-###### JSON Template 3: Return Dictionary by the RMEngine:
+###### JSON Template 3: Return Dictionary by the MatchEngine:
 
 ```
-{
-  "status": <INT>,              # 0 for sucess       
-  "error": "<STR>",             # Error String, if any
+{  
+  "error": "<STR>",             # Error String, if any. Empty Otherwise
   "keys": [],                   # Match found for the request
   "return_values": {}           # Return Values for the corresponding return_fields passed
 }
 ```
 
-### 2.5 RMRequest Examples:
+### 2.5 MatchRequest Examples:
 
 ```
-1) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x150000000002cf (Only Keys)
+1) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x150000000002cf from ASIC_DB (Only Keys)
 
-req = RedisMatchRequest()
+req = MatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_QUEUE"
 req.key_pattern = "oid:0x150000000002cf"
 req.db = "ASIC_DB"
@@ -303,16 +302,15 @@ req.just_keys = True
 req.return_fields = []
 
 Return Dict:
-{
-  "status": 0,                 
+{               
   "error": "",             
   "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x1500000000052f"],                  
   "return_values": {}       
 }
 
-2) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x150000000002cf (Keys + Field-Value Pairs)
+2) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x150000000002cf from ASIC_DB (Keys + Field-Value Pairs)
 
-req = RedisMatchRequest()
+req = MatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_QUEUE"
 req.key_pattern = "oid:0x150000000002cf"
 req.db = "ASIC_DB"
@@ -320,8 +318,7 @@ req.just_keys = False
 req.return_fields = []
 
 Return Dict:
-{
-  "status": 0,                 
+{              
   "error": "",             
   "keys": [{"ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x1500000000052f": {
                     "NULL": "NULL",
@@ -331,9 +328,9 @@ Return Dict:
 }
 
 
-3) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP table which has trap type SAI_HOSTIF_TRAP_TYPE_BGPV6
+3) Fetch the entry for ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP table which has trap type SAI_HOSTIF_TRAP_TYPE_BGPV6 from ASIC_DB
 
-req = RedisMatchRequest()
+req = MatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP"
 req.key_pattern = "*"
 req.field = "SAI_HOSTIF_TRAP_ATTR_TRAP_TYPE"
@@ -342,11 +339,27 @@ req.db = "ASIC_DB"
 req.return_fields = ["SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP"]
 
 Return Dict:
-{
-  "status": 0,                 
+{                
   "error": "",             
   "keys": ["ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592"],                  
   "return_values": {"ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000592" : {"SAI_HOSTIF_TRAP_ATTR_TRAP_GROUP" : "oid:0x11000000000591"}}       
+}
+
+4) Fetch the entry for COPP_TRAP table which has trap_id sample_packet from the copp_cfg.json file
+
+req = MatchRequest()
+req.table = "COPP_TRAP"
+req.key_pattern = "*"
+req.field = "trap_ids"
+req.value = "sample_packet"
+req.file = "/etc/sonic/copp_cfg.json"
+req.return_fields = ["trap_group"]
+
+Return Dict:
+{                
+  "error": "",             
+  "keys": ["COPP_TRAP|sflow"],                  
+  "return_values": {"COPP_TRAP|sflow" : {"trap_group" : "queue2_group1"}}       
 }
 ```
 
@@ -354,16 +367,16 @@ Return Dict:
 
 | S.No | Test case synopsis                                                                                                                      |
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
-|  1   | Verify RMEngine funtionality in cases of invalid Request Objects                                                                        |
-|  2   | Verify RMEngine Match functionality is as expected                                                                                      |
+|  1   | Verify MatchEngine funtionality in cases of invalid Request Objects                                                                     |
+|  2   | Verify MatchEngine Match functionality is as expected                                                                                   |
 |  3   | Verify VidToRid Mappings are extracted as expected                                                                                      |
 |  4   | Verify dump cli options are working as expected                                                                                         |
-|  5  | Add unit tests for every module added                                                                                                   |
+|  5  | Unit tests should be added for every new module added                                                                                    |
 
 
 ## 4 **TechSupport**
-Output for every <feature/module> which extends from Executor class will be added to the techsupport dump. 
-Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. 
+Output for every <feature/module> which extends from Executor class will be added to the techsupport dump.
+Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. Output will be printed in JSON format for TechSupport Dumps.
 Only the related keys information will be present in the unified_dump_folder as entire DB dumps are already present in the dump/folder.
 
 ```
@@ -381,11 +394,3 @@ $BASE
    ├──── ......
    ├──── ......
 ```
-
-
-
-
-
-
-
-
