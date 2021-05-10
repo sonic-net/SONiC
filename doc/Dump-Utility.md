@@ -260,7 +260,8 @@ To Abstract this functionality out, a RMEngine class is created. A RMRequest obj
 ```
 {
   "Table": "<STR>",             # Mandatory, A Valid Table Name
-  "key_regex": "<STR>",         # Mandatory, Defaults to "*" 
+  "key_pattern": "<STR>",       # Mandatory, Defaults to "*". 
+				table<table_sep>key_pattern is directly applied for filtering entries  
   "field": "<STR>",             # Mandatory, Defaults to None
   "value": "<STR>",             # Mandatory, Value to match, Defaults to None
   "return_fields": [
@@ -273,10 +274,10 @@ To Abstract this functionality out, a RMEngine class is created. A RMRequest obj
 
 ###### RMEngine Usage Details
 
-* Case 1: field and value in the RMRequest are None. Result: RMEngine returns all the keys which are regex matched by "Table|key_regex".
-* Case 2: field and value in the RMRequest are not None and a set of keys are matched by the "Table|key_regex". Result: The RMEngine looks into each of these keys and returns those keys who has their field-value pairs equated to what is provided. 
-* Case 3: For a valid combination of db, Table, key_regex, field and value, if all the field-value pairs are required, set just_keys to true.
-* Case 4: For a valid combination of db, Table, key_regex, field and value, if only a few specific fields are required, set just_keys to false and use return_fields option.
+* Case 1: field and value in the RMRequest are None. Result: RMEngine returns all the keys which are regex matched by "Table|key_pattern".
+* Case 2: field and value in the RMRequest are not None and a set of keys are matched by the "Table|key_pattern". Result: The RMEngine looks into each of these keys and returns those keys who has their field-value pairs equated to what is provided. 
+* Case 3: For a valid combination of db, Table, key_pattern, field and value, if all the field-value pairs are required, set just_keys to true.
+* Case 4: For a valid combination of db, Table, key_pattern, field and value, if only a few specific fields are required, set just_keys to false and use return_fields option.
 
 ###### JSON Template 3: Return Dictionary by the RMEngine:
 
@@ -296,7 +297,7 @@ To Abstract this functionality out, a RMEngine class is created. A RMRequest obj
 
 req = RedisMatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_QUEUE"
-req.key_regex = "oid:0x150000000002cf"
+req.key_pattern = "oid:0x150000000002cf"
 req.db = "ASIC_DB"
 req.just_keys = True
 req.return_fields = []
@@ -313,7 +314,7 @@ Return Dict:
 
 req = RedisMatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_QUEUE"
-req.key_regex = "oid:0x150000000002cf"
+req.key_pattern = "oid:0x150000000002cf"
 req.db = "ASIC_DB"
 req.just_keys = False
 req.return_fields = []
@@ -334,7 +335,7 @@ Return Dict:
 
 req = RedisMatchRequest()
 req.table = "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP"
-req.key_regex = "*"
+req.key_pattern = "*"
 req.field = "SAI_HOSTIF_TRAP_ATTR_TRAP_TYPE"
 req.value = "SAI_HOSTIF_TRAP_TYPE_BGPV6"
 req.db = "ASIC_DB"
