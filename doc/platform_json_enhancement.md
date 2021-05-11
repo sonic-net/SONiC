@@ -40,7 +40,7 @@ A new set of `capabilities` fields are introduced in platform.json, for providin
 
 For each component's attribute, the defined `capabilities` fields are as follows:
 
-- "control" : A boolean, 'true' if the given attribute can be controlled from the NOS, 'false' otherwise.
+- "controllable" : A boolean, 'true' if the given attribute can be controlled from the NOS, 'false' otherwise.
 - Attribute specific fields:
     - status led - "color" - A list of the supported colors.
     - speed
@@ -54,21 +54,21 @@ Sample `capabilities` fields:
     "chassis": {
         "name": "PLATFORM",
         "status_led": {
-            "control": true,
+            "controllable": true,
             "colors": ["off", "amber", "green"]
         },
         "fan_drawers":[
             {
                 "name": "FanTray1",
                 "status_led": {
-                    "control": true,
+                    "controllable": true,
                     "colors": ["red", "green"]
                 }
                 "fans": [
                     {
                         "name": "FanTray1-Fan",
                         "speed": {
-                            "control": true,
+                            "controllable": true,
                             "minimum": 40,
                             "maximum": 100
                         }
@@ -78,14 +78,14 @@ Sample `capabilities` fields:
             {
                 "name": "FanTray2",
                 "status_led": {
-                    "control": true,
+                    "controllable": true,
                     "colors": ["red", "green"]
                 }
                 "fans": [
                     {
                         "name": "FanTray2-Fan",
                         "speed": {
-                            "control": true,
+                            "controllable": true,
                             "minimum": 40,
                             "maximum": 100
                         }
@@ -97,13 +97,13 @@ Sample `capabilities` fields:
             {
                 "name": "PSU1",
                 "status_led": {
-                    "control": false
+                    "controllable": false
                 }
                 "fans": [
                     {
                         "name": "PSU1 Fan",
                         "speed": {
-                            "control": false
+                            "controllable": false
                         }
                     }
                 ],
@@ -112,11 +112,11 @@ Sample `capabilities` fields:
         "thermals": [
             {
                 "name": "Thermal 1",
-                "control": false
+                "controllable": false
             },
             {
                 "name": "Thermal 2",
-                "control": false
+                "controllable": false
             },
         ],
 
