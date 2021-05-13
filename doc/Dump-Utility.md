@@ -57,7 +57,7 @@ This utility provides the base infrastructure and guidelines to make is easy for
 Note: Currently, `state` is the only subcommand under `dump`.
 
 ```
-dump state <feature/module> <arg>
+dump state <feature/module> <arg | all>
 
 Example usage for Port feature which accepts an argument port_name
 dump state port <port_name>
