@@ -99,6 +99,12 @@ Options:
 5) Use -v option to specify the intermediate output
 
 ```
+root@sonic# dump state --show
+Module    Identifier
+--------  ------------
+port      port_name
+
+
 root@sonic# dump state port Ethernet0
 {
     "Ethernet0": {
