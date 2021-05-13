@@ -250,7 +250,38 @@ root@sonic# dump state port Ethernet0 --key-map --db STATE_DB
     }
 }
 
+root@sonic# dump state port all --key-map --db ASIC_DB
+{
+    "Ethernet52": {
+        "ASIC_DB": {
+            "keys": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF:oid:0xd0000000004b7",
+                "ASIC_STATE:SAI_OBJECT_TYPE_PORT:oid:0x100000000048e"
+            ],
+            "tables_not_found": []
+        },
+        "vidtorid": {
+            "oid:0xd0000000004b7": "oid:0xe0000000d",
+            "oid:0x100000000048e": "oid:0x1040000000001"
+        }
+    },
+    "Ethernet24": {
+        "ASIC_DB": {
+            "keys": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF:oid:0xd0000000004b7",
+                "ASIC_STATE:SAI_OBJECT_TYPE_PORT:oid:0x100000000048e"
+            ],
+            "tables_not_found": []
+        },
+        "vidtorid": {
+            "oid:0xd0000000004b7": "oid:0xe0000000d",
+            "oid:0x100000000048e": "oid:0x1040000000001"
+        }
+    },
+    <Truncated>
+}
 
+       
 ```
 
 ### 1.3 Extensibility
@@ -284,13 +315,14 @@ This is the base class which all the module classes should inherit from.
 
 ```
 class Executor(ABC):
-
-    ARG_NAME = "arg" # Override this to change the name of the argument
-
+    
+    ARG_NAME = "id" # Arg Identifier
+    CONFIG_FILE = "" # Path to config file, if any
+    
     @abstractmethod
-    def execute(self, arg):
+    def execute(self):
         pass
-
+    
     @abstractmethod
     def get_all_args(self):
         pass
@@ -305,6 +337,7 @@ To add a new module, these guidelines have to be followed.
 * Name of the argument is set to "arg". If this has to be changed,  override ARG_NAME class variable.
 * This name specified in the "ARG_NAME" is reflected when the command `dump state --show` is run.
 * The Module Class should implement `execute(arg)` and `get_all_args()` method
+* If a CONFIG_FILE is used, update the class variable "CONFIG_FILE". More on this "CONFIG_FILE" in JSON Template 1
 
 ###### Requirements on the Module Class for execute(arg) method
 * The execute method will receive a dictionary. The value passed from the user can be fetched by using ARG_NAME i.e.  `args[ARG_NAME]`
