@@ -71,6 +71,8 @@ If the neighbor information returned from neighorch turns out to be a remote nei
 
 SAI implementation will program the hardware to send the mirrored packets in this session out of the recycle port. When the packet re-enters the pipeline, the destination MAC of this packet will be the neighbor’s destination MAC address and it will be bridged in the ingress ASIC to the correct egress destination port. SAI will also be responsible for programming the FDB entry in the ingress ASIC appropriately.
 
+We don't recommend to recycle mirrored packets when the mirror destination port is a local port because we gain nothing from bridging the mirrored package again that would be forwarded locally.
+
 ## 2.3 Option 2 - Explicit Recycle
 
 This option can be implemented with minimal changes to SAI as long as a recycle port can be created. The recycle port needs to be enabled as an L3 port for this mechanism to work because it requires the packet to be routed after recycle. The following changes are proposed.
@@ -78,6 +80,11 @@ Upon receiving mirrororch’s request for a remote neighbor’s information, nei
 If the neighbor information returned from neighorch turns out to be a remote neighbor, mirrororch needs to use the recycle port as the mirror destination port and the router mac as the destination MAC address.
 
 SAI implementation is the same as a single-chip system. The mirrored packets are rewritten in the ingress ASIC and sent out of the recycle port. When the packet re-enters the pipeline, it gets routed because the destination MAC is the router MAC. The destination IP of this packet is the destination IP configured on the mirror session, so it will be routed by the ingress ASIC. If the destination IP is reachable via multiple nexthops, the ingress ASIC will loadbalance the traffic as needed.
+
+When the mirror destination port is a local port, it's recommended to recycle mirror packets too for the following reasons:
+
+- The implementation of mirrororch is simplified because both remote and local mirror destination ports are handled in the same way.
+- The mirrored packets can be load-balanced if the mirror destination IP is reachable via multiple nexthops.
 
 # 3 Testing
 TBD
