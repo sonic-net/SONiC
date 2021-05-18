@@ -386,7 +386,7 @@ class Executor(ABC):
     CONFIG_FILE = "" # Path to config file, if any
     
     @abstractmethod
-    def execute(self):
+    def execute(self, param):
         pass
     
     @abstractmethod
@@ -471,9 +471,9 @@ class Port(Executor):
         .......  # Find and fill this list of all_port_names,
         return (all_ports) #Eg: (['Ethernet0', 'Ethernet4', 'Ethernet8', 'Ethernet12', ....])
 
-    def execute(self, args):
+    def execute(self, param):
         self.template = display_template(dbs=["CONFIG_DB", "APPL_DB", "ASIC_DB"])
-        port = args[ARG_NAME]
+        port = param[ARG_NAME]
         get_config_info(port) # Populate the return template with the info taken from Config DB
         get_appl_info(port) # Populate the return template with the info taken from Appl DB
         get_asic_info(port) # Populate the return template with the info taken from Asic DB
