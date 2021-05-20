@@ -365,7 +365,7 @@ b. Update Makefile.am of the app to link to event notify library.
 
        tammgrd_LDADD += -leventnotify
 ```
-c. Declare the name of new event/alarm along with severity, enable flag and static message in sonic-eventd/etc/sonic/evprofile/default.json 
+c. Declare the name of new event/alarm along with severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json 
 
 d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT with action as NOTIFY/RAISE_ALARM/CLEAR_ALARM (ACK_ALARM/UNACK_ALARM are used by mgmt-framework to allow users to acknowledge/unacknowledge alarms).
 
