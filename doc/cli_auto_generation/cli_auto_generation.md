@@ -418,7 +418,7 @@ admin@sonic:~$ config vlan dhcp-servers clear Vlan11
 ```
 admin@sonic:~$ show vlan
 
-NAME    VLANID  MTU  ADMIN-STATUS  DHCP SERVERS
+NAME    VLANID  MTU  ADMIN STATUS  DHCP SERVERS
 ----    ------  ---  ------------  ------------
 Vlan11  11      128  up            192.168.0.10
                                    11.12.13.14
@@ -482,7 +482,7 @@ admin@sonic:~$ config feature-a add Linux --address "10.10.10.10" --port 1024
 ```
 admin@sonic:~$ show feature-a
 
-HOST_NAME  TARGET
+HOST NAME  TARGET
 ---------  ------
 Linux      address: "192.168.0.20"
            port:    "1024"
