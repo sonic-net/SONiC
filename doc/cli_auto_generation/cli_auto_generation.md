@@ -56,13 +56,13 @@ If someone wants to extend the SONiC NOS functionality - the SAE infrastructure 
 
 ## Requirements
 
-### Functional requirenments
+### Functional requirements
 * Should support:
   * CONFIG DB tables with ability to add/delete/update entries
 
 ## Architecture design
 
-A current SONiC NOS architecture does not require changes, because the SONiC CLI Auto-generation feature comes as a component for the SONiC Application extension infrastructure. So, only the [sonic-package-manager](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#cli-enhancements) utility require changes.
+A current SONiC NOS architecture does not require changes, because the SONiC CLI Auto-generation feature comes as a component for the SONiC Application extension infrastructure. So, only the [sonic-package-manager](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#cli-enhancements) utility requires changes.
 
 ## High-level design
 
@@ -70,11 +70,11 @@ A current SONiC NOS architecture does not require changes, because the SONiC CLI
 
 There are three main entities:
 
-*YANG model* - YANG model file which contain description of CONFIG DB schema. Should be writen strictly according to [SONiC Yang Model Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
+`YANG model` - YANG model file which contain a description of CONFIG DB schema. Should be written strictly according to [SONiC Yang Model Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
 
-*SONiC CLI Auto-generation tool* - a unitility that read the YANG model and produce the Auto-generated CLI plugin.
+`SONiC CLI Auto-generation tool` - a utility that reads the YANG model and produces the Auto-generated CLI plugin.
 
-*Auto-generated CLI plugin* - python script, that will be used as a plugin for existing CLI, will be placed in the specific location and provide user with a CLI for a new feature.
+`Auto-generated CLI plugin` - python script, that will be used as a plugin for existing CLI, will be placed in the specific place and provide to user a CLI for a new feature.
 
 ###### Auto-generated CLI plugins locations for `config` and `show` command groups:
 ```
@@ -87,9 +87,9 @@ admin@sonic: /usr/local/lib/python3.7/dist-packages/config/plugins/auto
 <img src="images/auto_generation_flow.svg" alt="Figure 2.1 CLI Auto-generation flow">
 </p>
 
-A current SONiC utilities support *show*, *config*, *sonic-clear* operations. A plugin approach is taken when extending those utilities. A common way to introduce a plugin support for a python application is to structure a plugin as a python module that can be discovered by the application in a well known location in the system.
+A current SONiC utilities support *show*, *config*, *sonic-clear* operations. A plugin approach is taken when extending those utilities. A common way to introduce plugin support for a python application is to structure a plugin as a python module that can be discovered by the application in a well known location in the system.
 
-An Auto-generated CLI plugins will be placed to a package directory named *plugins/auto* under each *show*, *config* python package, so that by iterating modules inside those packages utilities can load them. This is implemented in a way defined in [Python Packaging Guide. Creating and discovering plugins.](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages)
+Auto-generated CLI plugins will be placed to a package directory named *plugins/auto* under each *show*, *config* python package so that by iterating modules inside those packages utilities can load them. This is implemented in a way defined in [Python Packaging Guide. Creating and discovering plugins.](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages)
 
 A code snipped describing the approach is given:
 
@@ -108,23 +108,23 @@ discovered_plugins = {
 
 ### Modules/sub-modules changes
 
-The SONiC CLI Auto-generation tool is a part of [sonic-package-manager](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#cli-enhancements) utility. A package [installation](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#package-installation) and [upgrade flow](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#package-upgrade) can trigger CLI auto-generation script, if the YANG model was provided.
+The SONiC CLI Auto-generation tool is a part of [sonic-package-manager](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#cli-enhancements) utility. A package [installation](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#package-installation) and [upgrade flow](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#package-upgrade) can trigger CLI auto-generation script if the YANG model was provided.
 
-The YANG models should be a part of the Appication extension Docker image and placed alongside with [manifest.json](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest) file. The user should be able to access the YANG model by using the docker labels.
+The YANG models should be a part of the Application extension Docker image and placed along with [manifest.json](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest) file. The user should be able to reach the YANG model by using the docker labels.
 ```
 com.azure.sonic.yang_model
 ```
-If the Application Extension will be installed or updated bu `sonic-package-manager` and the CLI will be generated - the YANG model for current Application Extension will be placed in a well-known system location on the switch alongside with existing YANG models. This step is done in order to provide data validation - when the user executing generated CLI.
+If the Application Extension will be installed or updated by `sonic-package-manager` and the CLI will be generated - the YANG model for the current Application Extension will be placed in a well-known system location on the switch along with existing YANG models. This step is done in order to provide data validation - when the user executing generated CLI.
 ```
 /usr/local/yang-models
-```
+``` 
 
 ###### Figure 2: YANG model location
 <p align=center>
 <img src="images/yang_model_location.svg" alt="Figure 2.1 Yang model location">
 </p>
 
-Also the SONiC CLI Auto-generation tool will be accessible from the switch CLI as independed CLI utility called - `sonic-cli-gen`. The user could provide a YANG model and place on the switch to:
+Also, the SONiC CLI Auto-generation tool will be accessible from the switch CLI as an independent CLI utility called - `sonic-cli-gen`. The user could provide a YANG model and place on the switch to:
 ```
 admin@sonic: /usr/local/yang-models/
 ```
@@ -134,14 +134,14 @@ admin@sonic: sonic-cli-gen generate-config <yang_model_name>
 admin@sonic: sonic-cli-gen generate-show <yang_model_name>
 ```
 
-The [manifest.json](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest) file should have a specific ON/OFF trigers for CLI auto-generation:
+The [manifest.json](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest) file should have a specific ON/OFF triggers for CLI auto-generation:
 
 | Path                                 | Type   | Mandatory | Description                                                               |
 | ---------------------------------    | ------ | --------- | ------------------------------------------------------------------------- |
 | /cli/click-cli-auto-generate-config  | boolean| yes       | ON/OFF triger for auto-generation of CLI command *config*. Default: false | 
 | /cli/click-cli-auto-generate-show    | boolean| yes       | ON/OFF triger for auto-generation of CLI command *show*. Default: false   |
 
-Inside the manifest.json there are [others keys](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest-path-7), that describing a path to a *NOT auto-generated CLI plugins*. For example there are:
+Inside the manifest.json there are [other keys](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md#manifest-path-7), that describing a path to a `NOT auto-generated CLI plugins`. For example, there are:
 
 | Path                   | Type   | Mandatory | Description                                                     |
 | ---------------------- | ------ | --------- | --------------------------------------------------------------- |
@@ -149,8 +149,7 @@ Inside the manifest.json there are [others keys](https://github.com/stepanblysch
 | /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
 | /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
 
-For example the user can have a *config* CLI auto-generated and the *show* CLI NOT auto-generated.
-
+For example, the user can have a `config` CLI auto-generated and the `show` CLI NOT auto-generated.
 
 
 ## Configuration and management
@@ -158,13 +157,13 @@ For example the user can have a *config* CLI auto-generated and the *show* CLI N
 ### Auto-generation rules
 
 ```diff
-- Please make sure that you read all of the rules.
+- Please make sure that you read all the rules.
 - Because you will often have a question that is covered in the next rule.
 ```
 
 __1. For auto-generated CLI (sub-commands, arguments) will be used - hyphen separated style:__
 
-For instanse let's take a feature called __FEATURE-A__: 
+For instance let's take a feature called __FEATURE-A__: 
 
 ###### config command
 ```
@@ -173,7 +172,7 @@ admin@sonic:~$ config feature-a sub-command-1 add <KEY> ...
 
 __2. For every `container`, that goes after `top-level container`, (top-level container goes after `module`) will be generated dedicated sub-command for `show` and `config` command groups AND in case if `container` is without `list`, for every `leaf` will be generated dedicated sub-command:__
 
-For instanse let's take a PART of existing [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
+For instance let's take a PART of existing [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang)
 
 ###### sonic-device_metadata YANG model
 ```yang
@@ -242,7 +241,7 @@ ACS-MSN2100  UP                  r-sonic-switch  x86_64-mlnx_msn2100-r0
 ```
 __3. For every `list` element will be generated `add/del/update` commands:__
 
-For instanse let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### sonic-vlan YANG model
 ```yang
@@ -277,8 +276,8 @@ module sonic-vlan {
 }
 ```
 
-In the case of bellow, `Vlan11` - is a positional argument and `key` for the `list`.
-`vlanid`, `mtu`, `admin-status` - are not-positional arguments, and to provide them the next style MUST be used (check `config command`)
+In the case of below, `Vlan11` - is a positional argument and `key` for the `list`.
+`vlanid`, `mtu`, `admin-status` - are not-positional arguments, and to give them the next style MUST be used (check `config command`)
 __This style "--arg" is NOT RELATED to the Linux CLI optional parameter style__
 
 ###### `config` command
@@ -321,7 +320,7 @@ Vlan11  11      128  up
 
 __In case if the YANG models have more than 1 `list` entity inside `container`:__
 
-For instanse let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### YANG model with 2 lists
 ```yang
@@ -358,9 +357,9 @@ If there is only 1 `list` entity inside `container` then there will be NO dedica
 admin@sonic:~$ config vlan-interface add <KEY> ...
 ```
 
-__4. For every `leaf-list` element will be generated dedicated `add/del/update` commands, also the user can use a comma-separated list when creating a new list element in order to fill `leaf-list`. Also will be added dedicated command `clear` to delete all the elements from `leaf-list`:__
+__4. For every `leaf-list` element will be generated dedicated `add/del/update` commands, also the user can use a comma-separated list when creating a new list element to fill `leaf-list`. Also will be added dedicated command `clear` to delete all the elements from `leaf-list`:__
 
-For instanse let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
+For instance let's take a PART of existing [sonic-vlan.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-vlan.yang)
 
 ###### sonic-vlan YANG model
 ```yang
@@ -398,7 +397,7 @@ module sonic-vlan {
 }
 ```
 
-The user can create new list object, and provide values to `leaf-list` `dhcp_servers` by using a comma-separated list (example bellow)
+The user can create a new list object, and provide values to `leaf-list` `dhcp_servers` by using a comma-separated list (example below)
 
 ###### `config` command
 ```
@@ -406,7 +405,7 @@ admin@sonic:~$ config vlan add Vlan11 --vlanid 11 --mtu 128 --admin-status up --
 ```
 
 The user can use dedicated sub-commands `add/del`, a `clear` sub-command will delete all the elements from `leaf-list`.
-The `add` subcommand will append new element to the end of the list.
+The `add` subcommand will append a new element to the end of the list.
 
 ###### `config` command
 ```
@@ -445,7 +444,7 @@ __5. In case if YANG model contains `grouping` and `uses` syntax:__
 
 Please note that `grouping` MUST be located:
 - in the same YANG model and placed under `module` entity (i.e. NOT nested in `container` entities)
-- in other YANG model under `module` entity (i.e. NOT nested in `container` entities), `import` statement shoud be used to import `grouping` from another YANG model.
+- in other YANG model under `module` entity (i.e. NOT nested in `container` entities), the `import` statement should be used to import `grouping` from another YANG model.
 
 ###### YANG model
 ```yang
@@ -558,12 +557,12 @@ Options:
 <img src="images/config_cmd_flow.svg" alt="Figure 2.1 Yang model location">
 </p>
 
-The auto-generated CLI will use the next scenarion:
+The auto-generated CLI will use the next scenario:
 
-1. The user execute an auto-generated CLI command.
-2. The auto-generated command produce a file, which describe configuration to apply.
-3. The YANG library validate data provided by user in 1 step, according to the YANG model.
-4. After successful validation it write data to Config DB.
+1. The user executes an auto-generated CLI command.
+2. The auto-generated command produces a file, which describes the configuration to apply.
+3. The YANG library validates data provided by the user in 1 step, according to the YANG model.
+4. After successful validation, it writes data to Config DB.
 
 ## SAI API
 
@@ -587,7 +586,7 @@ module sonic-vlan {
 	}
 }
 ```
-If there will be some conflicts, CLI auto-generation process will fail with error message.
+If there will be some conflicts, CLI auto-generation process will fail with an error message.
 
 ## Testing Requirements Design  
 
@@ -601,9 +600,9 @@ The unit tests will be provided during implementation.
 
 #### Phase 1 requirements
 * Should support:
-  * CONFIG DB tables with abbility to add/delete/update entries
+  * CONFIG DB tables with the ability to add/delete/update entries
 
 #### Phase 2 requirements
 * Should support:
-  * All SONiC DB tables with abbility to add/delete/update entries
+  * All SONiC DB tables with the ability to add/delete/update entries
   * Auto-generation of *sonic-clear* CLI
