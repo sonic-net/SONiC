@@ -25,7 +25,7 @@
 
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
-| 0.1 | 05/01/2021  | Vivek Reddy Karri        | Initial version       |
+| 0.1 | 05/20/2021  | Vivek Reddy Karri        | Initial version       |
 
 ## About this Manual
 This document describes the details of a dump cli utility which collects and dumps the redis state for a given feature/module.
@@ -77,17 +77,19 @@ dump state port all
 
 ```
 root@sonic# dump state --help
-Usage: dump state [OPTIONS] MODULE ARG
+admin@r-lionfish-16:~$ python3 dump/main.py state --help
+Usage: main.py state [OPTIONS] MODULE IDENTIFIER
 
   Dump the redis-state of the identifier for the module specified
 
 Options:
-  -s, --show     Display Modules Available
-  -d, --db TEXT  Only dump from these Databases
-  -t, --table    Print in tabular format  [default: False]
-  -k, --key-map  Only fetch the keys matched, don't extract field-value dumps [default: False]
-  -v, --verbose  Prints any intermediate output to stdout useful for dev & troubleshooting  [default: False]
-  --help         Show this message and exit.
+  -s, --show            Display Modules Available
+  -d, --db TEXT         Only dump from these Databases
+  -t, --table           Print in tabular format  [default: False]
+  -k, --key-map         Only fetch the keys matched, don't extract field-value dumps  [default: False]
+  -v, --verbose         Prints any intermediate output to stdout useful for dev & troubleshooting  [default: False]
+  -n, --namespace TEXT  Dump the redis-state for this namespace.  [default: DEFAULT_NAMESPACE]
+  --help                Show this message and exit.
 ```
 
 ### 1.2 Customization Options
@@ -97,6 +99,7 @@ Options:
 3) All the available modules should be displayed using a -s option
 4) If Field-Value Tuples are not required, use -k option to specify that
 5) Use -v option to specify the intermediate output
+6) Namsepace can be changed using -n option
 
 ```
 root@sonic# dump state --show
@@ -347,7 +350,35 @@ root@sonic# dump state port all --key-map --db ASIC_DB
         }
     },
     <Truncated>
-}       
+}
+
+root@sonic# dump state port Ethernet0 --db APPL_DB --namespace asic0
+{
+    "Ethernet0": {
+        "APPL_DB": {
+            "keys": [
+                {
+                    "PORT_TABLE:Ethernet0": {
+                        "lanes": "33,34,35,36",
+                        "description": "ARISTA01T2:Ethernet3/1/1",
+                        "pfc_asym": "off",
+                        "mtu": "9100",
+                        "alias": "Ethernet1/1",
+                        "oper_status": "up",
+                        "admin_status": "up",
+                        "role": "Ext",
+                        "speed": "40000",
+                        "asic_port_name": "Eth0-ASIC0"
+                    }
+                }
+            ],
+            "tables_not_found": []
+        }
+    }
+}
+
+admin@single-asic-sonic-device:~$ dump state port Ethernet0 --namespace asic0
+Namespace option is not valid for a single-ASIC device
 ```
 
 ### 1.3 Extensibility
@@ -381,16 +412,16 @@ This is the base class which all the module classes should inherit from.
 
 ```
 class Executor(ABC):
-    
+
     ARG_NAME = "id" # Arg Identifier
     CONFIG_FILE = "" # Path to config file, if any
-    
+
     @abstractmethod
-    def execute(self, param):
+    def execute(self, params):
         pass
-    
+
     @abstractmethod
-    def get_all_args(self):
+    def get_all_args(self, namespace):
         pass
 ```
 
@@ -466,7 +497,7 @@ class Port(Executor):
 
     ARGS = "port_name"
 
-    def get_all_args(self):
+    def get_all_args(self, namespace):
         all_port_names = []
         .......  # Find and fill this list of all_port_names,
         return (all_ports) #Eg: (['Ethernet0', 'Ethernet4', 'Ethernet8', 'Ethernet12', ....])
@@ -474,9 +505,10 @@ class Port(Executor):
     def execute(self, param):
         self.template = display_template(dbs=["CONFIG_DB", "APPL_DB", "ASIC_DB"])
         port = param[ARG_NAME]
-        get_config_info(port) # Populate the return template with the info taken from Config DB
-        get_appl_info(port) # Populate the return template with the info taken from Appl DB
-        get_asic_info(port) # Populate the return template with the info taken from Asic DB
+	ns = param["namespace"]  # namespace info, if any provided by the user
+        get_config_info(port, ns) # Populate the return template with the info taken from Config DB
+        get_appl_info(port, ns) # Populate the return template with the info taken from Appl DB
+        get_asic_info(port, ns) # Populate the return template with the info taken from Asic DB
         ......... # Add the details for any other db's of interest
         return self.template
 ```
@@ -514,6 +546,7 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
   "file": "*.json",             # Optional, A Valid Config JSON file, Eg: copp_cfg.json, Defaults to "".
                                 # Only one of the db/file fields should have a non-empty string.
   "just_keys": "true|false"     # Mandatory, if true, Only Returns the keys matched. Does not return field-value pairs. Defaults to True
+  "ns" : DEFAULT_NAMESPACE      # namespace argument, if nothing is provided, default namespace is used
 }
 ```
 
