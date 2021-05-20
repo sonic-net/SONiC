@@ -8,7 +8,7 @@ This document describes the high-level design for orchagent in handling SAI fail
 
 ### 2.1 Requirements for failure handling functions in orchagent
 
-1. Allow different handling for Create/Set/Remove operations.
+1. Allow different handling for Create/Set/Remove/Get operations.
 1. Allow each Orch to have its specific handling logic.
 1. Adapt handling logic based on SAI API type and SAI status.
 1. Escalate the failure to upper layers when the failure cannot be handled in orchagent.
@@ -18,9 +18,9 @@ This document describes the high-level design for orchagent in handling SAI fail
 An illustrative figure of the failure handling framework is shown below.
 The orchagent generates SAI calls according to the information in APPL_DB given by upper layers.
 In the case of SAI failures, the orchagent gets the failure status via the feedback mechanism in synchronous mode.
-Based on the failure information, the failure handling functions in orchagent make the first attempt to address the failure.
+Based on the failure information, the failure handling functions in the orchagent make the first attempt to address the failure.
 An ERROR_DB is also introduced to support escalation to upper layers.
-In the scenario where orchagent is unable to resolve the problem, the failure handling functions would escalate the failure to upper layers by pushing the failure into the ERROR_DB.
+In the scenario where the orchagent is unable to resolve the problem, the failure handling functions would escalate the failure to the upper layers by pushing the failure into the ERROR_DB.
 
 <img src="Framework.png">
 
@@ -33,9 +33,10 @@ To support a failure handling logic in general while also allow each orch to hav
 1. `virtual task_process_status handleSaiCreateStatus(sai_api_t api, sai_status_t status, void *context = nullptr)`
 2. `virtual task_process_status handleSaiSetStatus(sai_api_t api, sai_status_t status, void *context = nullptr)`
 3. `virtual task_process_status handleSaiRemoveStatus(sai_api_t api, sai_status_t status, void *context = nullptr)`
+4. `virtual task_process_status handleSaiGetStatus(sai_api_t api, sai_status_t status, void *context = nullptr)`
 
-The three functions handle SAI failures in create, set, and remove operations, respectively.
-With the type of SAI API and SAI status as an input, the function could handle the failure according to the two pieces ofinformation.
+The four functions handle SAI failures in create, set, remove, and get operations, respectively.
+With the type of SAI API and SAI status as an input, the function could handle the failure according to the two pieces of information.
 
 In the scenario where a specific logic is required in one of the Orchs, this design allows the Orch to inherit the function and include the specific login in the inherited function.
 
@@ -47,9 +48,9 @@ The function also allows an optional input `context`, which allows passing conte
 
 The failure handling function should return `task_success` when the failure is properly handled without the need for another attempt (e.g., the SAI status is `SAI_STATUS_ITEM_NOT_FOUND` in remove operation).
 
-2. Return `task_failed` -- No crash, no retry, not handled successfully. 
+2. Return `task_failed` -- No crash, no retry, although the failure is not handled successfully, orchagent will keep running without exit.
 
-The failure handling function should return `task_failed` when the failure is unable to be handled in orchagent and another attempt is not likely to resolve the failure. In such a scenario, the function should prevent orchagent from retrying and escalate the failure to upper layers.
+The failure handling function should return `task_failed` when the failure is unable to be handled in orchagent and another attempt is not likely to resolve the failure. In such a scenario, the function should prevent orchagent from retrying and escalate the failure to upper layers. Example scenarios where the functions should return this status include invalid user input (e.g., a wrong ACL, conflicting IP addresses), hardware permanent error, non-critical internal logic error, etc.
 
 3. Return `task_need_retry` --  No crash, retry
 
@@ -58,7 +59,7 @@ The failure handling function should return `task_need_retry` when the failed SA
 4. exit(EXIT_FAILURE) -- Crash and trigger SwSS auto-restart
 
 Some of the failures can be resolved by restarting SwSS.
-In the scenario where such failures happen, the failure handling function in orchagent should exit with `EXIT_FAILURE` and trigger SwSS auto restart.
+In the scenario where such failures happen, the failure handling function in the orchagent should exit with `EXIT_FAILURE` and trigger SwSS auto restart.
 
 ### 2.4 DB changes
 
@@ -92,15 +93,21 @@ The ERROR_DB entry also includes a list of attributes (comma separated) and the 
 
 The field `counter` stores the number of failures for the same entry. It could be used as a reference for handling the failure.
 
+To avoid accumulating failures in ERROR_DB and consuming memory, it is necessary to ensure that the upper layer properly consumes the entries in ERROR_DB.
+To make sure all ERROR_DB entries are consumed, the failure handling should only escalate failures when the corresponding handling mechanism is available in the upper layers.
+One possible implementation could be escalating failures to ERROR_DB when the input `context` is valid.
+And during development, we only give the `context` to the failure handling functions when the corresponding failure handling in the upper layer is available.
+
 ## 3. Failure handling logic in orchagent
 
 ### 3.1 Failure status that could be handled in orchagent
 
-| SAI status | Create | Set | Remove |
-|-----|-----|-----|-----|
-| ITEM ALREADY EXISTS           | Set the corresponding attribute instead. | Should not happen. No retry. | Should not happen. No retry. |
-| ITEM NOT FOUND                | Should not happen. No retry. | Create the item and set attribute. | Return success. No retry.
-| OBJECT IN USE                 | Should not happen. No retry. | Should not happen. Retry after a while. | Retry after a while. |
+| SAI status | Create | Set | Remove | Get
+|-----|-----|-----|-----|-----|
+| ITEM ALREADY EXISTS           | Set the corresponding attribute instead. | Should not happen. No retry. | Should not happen. No retry. |Should not happen. No retry. |
+| ITEM NOT FOUND                | Should not happen. No retry. | Create the item and set attribute. | Return success. No retry. | No retry. |
+| OBJECT IN USE                 | Should not happen. No retry. | Should not happen. Retry after a while. | Retry after a while. | Should not happen. No retry. |Should not happen. No retry. |
+| NOT_SUPPORTED | Should not happen. Crash orchagent. | Should not happen. Crash orchagent. | Should not happen. Crash orchagent. | Should not happen. Crash orchagent. |
 
 TODO: Add handling logic for other SAI statuses.
 
