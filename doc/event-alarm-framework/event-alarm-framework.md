@@ -428,48 +428,48 @@ An outstanding alarm is an alarm that is either not cleared or not acknowledged 
 The following illustrates how ALARM table is updated as alarms goes through their life cycle and how can an application use it.
 Example here is pmon using ALARM_STATS table to control system LED.
 
-| ALARM |  SEVERITY  | IS_ACK  |
-|:-----:|:----------:|:-------:|
-|       |            |         |
-|       |            |         |
+| alarm |  severity  | acknowledged  |
+|:-----:|:----------:|:-------------:|
+|       |            |               |
+|       |            |               | 
 
 Alarm table is empty. All counters in ALARM_STATS is 0. System LED is Green.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-1 | CRITICAL   |              |
 | ALM-2 | MINOR      |              |
 
 Alarm table now has two alarms. One with *CRITICAL* and other with *MINOR*. ALARM_STATS is updated as: Critical as 1 and Minor as 1. As There is atleast one alarm with *critical/major* severity, system LED is Red.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 
 The *CRITICAL* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated as: Critical as 0 and Minor as 1. As there is at least one *minor/warning* alarms in the table, system LED is Amber.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 | ALM-9 | MAJOR      |              |
 
 Now there is an alarm with *MAJOR* severity. ALARM_STATS now reads as: Major as 1 and Minor as 1. So, system LED is Red.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 | ALM-9 | MAJOR      | true         |
 
 The *MAJOR* alarm is acknowledged by user, alarm consumer sets *acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This way, acknowledged major alarm has no effect on system LED. There are no other *CRITICAL/MAJOR* alarms. There however, exists an alarm with *MINOR/WARNING* severity. System LED is Amber.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      | true         |
 | ALM-9 | MAJOR      | true         |
 
 The *MINOR* alarm is also acknowledged by user. ALARM_STATS reads: Major as 0, Minor as 0. So it is also taken out of consideration for system LED. System LED is Green.
 
-| ALARM |  SEVERITY  | ACKNOWLEDGED | 
+| alarm |  severity  | acknowledged | 
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      | true         |
 | ALM-9 | MAJOR      | false        |
