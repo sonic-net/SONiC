@@ -151,34 +151,15 @@ The following describes how an alarm transforms and how various tables are updat
 
 By default every event will have a severity assigned by the component. The framework provides Event Profiles to customize severity of an event and also disable an event.
 
-An example of default event profile is as below:
+Template for event profile is as below:
 ```
 {
-    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send SIGINT to eventd to make it read and use the updated file. Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file with the new event after testing it out. Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. Supported enable flag values are: true and false.",
     "events":[
         {
-            "name" : "CUSTOM_EVPROFILE_CHANGE",
-            "severity" : "WARNING",
-            "enable" : "true",
-            "message" : "Custom Event Profile is applied."
-        }
-    ]
-}
-```
-
-An example of custom event profile is as below. With this particular custom event profile, user is trying to change severity of CUSTOM_EVPROFILE_CHANGE event and also declaring a new event by name TEMPERATURE_EXCEEDED.
-```
-{
-    "events": [
-        {
-            "name" : "CUSTOM_EVPROFILE_CHANGE",
-            "severity" : "MAJOR",
-            "enable" : "true",
-        },
-        {
-            "name": "TEMPERATURE_EXCEEDED",
-            "severity": "CRITICAL",
-            "enable": "true"
+            "name"     : <name of the event/alarm>,
+            "severity" : <severity of the event/alarm>,
+            "enable"   : <flag to indicate whether the framework should ignore event/alarm sent by application>,
+            "message"  : <message that describes the condition, possible recovery action>
         }
     ]
 }
@@ -314,7 +295,13 @@ Developers of new events or alarms need to update this file by declaring name an
 
 ```
 {
-    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send SIGINT to eventd to make it read and use the updated file. Alternatively developer can test the new event by adding it to a custom event profile and use 'event profile <filename>' command to apply that profile without having to send SIGINT to eventd. Developer need to commit default.json file with the new event after testing it out. Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. Supported enable flag values are: true and false.",
+    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send 
+                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test 
+                    the new event by adding it to a custom event profile and use 'event profile <filename>' command 
+                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file 
+                    with the new event after testing it out. 
+                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. 
+                    Supported enable flag values are: true and false.",
     "events":[
         {
             "name" : "CUSTOM_EVPROFILE_CHANGE",
@@ -583,11 +570,62 @@ a particular event.
 The default profile exists at */etc/evprofile/default.json*
 By default, every event is enabled.
 The severity of event is decided by developer while adding the event.
-
+```
+{
+    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send 
+                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test 
+                    the new event by adding it to a custom event profile and use 'event profile <filename>' command 
+                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file 
+                    with the new event after testing it out. 
+                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. 
+                    Supported enable flag values are: true and false.",
+    "events":[
+        {
+            "name" : "CUSTOM_EVPROFILE_CHANGE",
+            "severity" : "INFORMATIONAL",
+            "enable" : "true",
+            "message" : "Custom Event Profile is applied."
+        },
+        {
+            "name": "TEMPERATURE_EXCEEDED",
+            "severity": "CRITICAL",
+            "enable": "true"
+            "message" : "Temperature threshold is 75 degrees."
+        }
+    ]
+}
+```
 User can download the default event profile to a remote host. User can modify characteristics of
 some/all events in the profile and can upload it back to the switch and place the file at /etc/evprofile/.
 
 The uploaded profile will be called custom event profile.
+
+An example of custom event profile is as below. 
+With this particular custom event profile, user wants to
+- change severity of CUSTOM_EVPROFILE_CHANGE event (severity changed from INFORMATIONAL to MAJOR)
+- suppress the TEMPERATURE_EXCEEDED alarm (enable flag is changed from true to false) 
+- introduce new alarm by name DUMMY_ALARM (there should be an application to raise/clear this new alarm).
+```
+{
+    "events": [
+        {
+            "name" : "CUSTOM_EVPROFILE_CHANGE",
+            "severity" : "MAJOR",
+            "enable" : "true",
+        },
+        {
+            "name": "TEMPERATURE_EXCEEDED",
+            "severity": "CRITICAL",
+            "enable": "false"
+        },
+        {
+            "name" : "DUMMY_ALARM",
+            "severity" : "WARNING",
+            "enable" : "true",
+        }
+    ]
+}
+```
 
 User can have multiple custom profiles and can select any of the profiles under /etc/evprofile/ using 'event profile' command.
 
