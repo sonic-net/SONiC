@@ -27,7 +27,7 @@
 
 ### Scope  
 
-This document describes the high-level design details of SONiC CLI Auto-generation tool for SONiC Application extensions infrastructure.
+This document describes the high-level design details of the SONiC CLI Auto-generation tool for SONiC Application extensions infrastructure.
 
 ### Definitions/Abbreviations 
 
@@ -52,7 +52,7 @@ The SONiC CLI Auto-generation - is a utility for generating the command-line int
 
 To make SONiC NOS more flexible for developers [SONiC Application Extension infrastructure](https://github.com/stepanblyschak/SONiC/blob/sonic-app-ext-3/doc/sonic-application-extention/sonic-application-extention-hld.md) was introduced. 
 
-If someone wants to extend the SONiC NOS functionality - the SAE infrastructure should be used. Some of third-party feature that will be integrated into the SONiC - may require the command line interface. To avoid spending time on the investigation of how to develop and add a new CLI to [sonic-utilities](https://github.com/Azure/sonic-utilities/tree/master) - the CLI Auto-generation utility was introduced. The command line interface that would be generated will be intuitive for people familiar with the SONiC NOS and CONFIG DB schema.
+If someone wants to extend the SONiC NOS functionality - the SAE infrastructure should be used. Some of the third-party features that will be integrated into the SONiC - may require the command-line interface. To avoid spending time on the investigation of how to develop and add a new CLI to [sonic-utilities](https://github.com/Azure/sonic-utilities/tree/master) - the CLI Auto-generation utility was introduced. The command line interface that would be generated will be intuitive for people familiar with the SONiC NOS and CONFIG DB schema.
 
 ## Requirements
 
@@ -70,11 +70,11 @@ A current SONiC NOS architecture does not require changes, because the SONiC CLI
 
 There are three main entities:
 
-`YANG model` - YANG model file which contain a description of CONFIG DB schema. Should be written strictly according to [SONiC Yang Model Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
+`YANG model` - YANG model file which contains a description of CONFIG DB schema. Should be written strictly according to [SONiC Yang Model Guidelines](https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md) 
 
 `SONiC CLI Auto-generation tool` - a utility that reads the YANG model and produces the Auto-generated CLI plugin.
 
-`Auto-generated CLI plugin` - python script, that will be used as a plugin for existing CLI, will be placed in the specific place and provide to user a CLI for a new feature.
+`Auto-generated CLI plugin` - python script, which will be used as a plugin for existing CLI, will be placed in the specific place and provide to the user a CLI for a new feature.
 
 ###### Auto-generated CLI plugins locations for `config` and `show` command groups:
 ```
@@ -87,9 +87,9 @@ admin@sonic: /usr/local/lib/python3.7/dist-packages/config/plugins/auto
 <img src="images/auto_generation_flow.svg" alt="Figure 2.1 CLI Auto-generation flow">
 </p>
 
-A current SONiC utilities support *show*, *config*, *sonic-clear* operations. A plugin approach is taken when extending those utilities. A common way to introduce plugin support for a python application is to structure a plugin as a python module that can be discovered by the application in a well known location in the system.
+A current SONiC utilities support `show`, `config`, `sonic-clear` operations. A plugin approach is taken when extending those utilities. A common way to introduce plugin support for a python application is to structure a plugin as a python module that can be discovered by the application in a well known location in the system.
 
-Auto-generated CLI plugins will be placed to a package directory named *plugins/auto* under each *show*, *config* python package so that by iterating modules inside those packages utilities can load them. This is implemented in a way defined in [Python Packaging Guide. Creating and discovering plugins.](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages)
+Auto-generated CLI plugins will be placed to a package directory named `plugins/auto` under each `show`, `config` python package so that by iterating modules inside those packages utilities can load them. This is implemented in a way defined in [Python Packaging Guide. Creating and discovering plugins.](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-namespace-packages)
 
 A code snipped describing the approach is given:
 
@@ -215,7 +215,7 @@ admin@sonic:~$ config device-metadata localhost hostname "r-sonic-switch"
 admin@sonic:~$ config device-metadata localhost platform "x86_64-mlnx_msn2100-r0"
 ```
 
-The `show` command produces named columns. Each column name is an uppercase of `leaf` name from the YANG model:
+__The `show` command produces named columns. Each column name is an uppercase of `leaf` name from the YANG model, if `leaf` contain `-` or `_` those will be trimmed:__
 
 ###### show command
 ```
@@ -313,7 +313,7 @@ Vlan11  11      128  up
 			"vlanid": 11,
 			"mtu": 128,
 			"admin_status": up
-	  }
+		}
 	}
 }
 ```
@@ -388,7 +388,7 @@ module sonic-vlan {
 				leaf admin_status {
 					type stypes:admin_status;
 				}
-			  leaf-list dhcp_servers {
+				leaf-list dhcp_servers {
 					type inet:ip-address;
 				}
 			}
@@ -418,7 +418,7 @@ admin@sonic:~$ config vlan dhcp-servers clear Vlan11
 ```
 admin@sonic:~$ show vlan
 
-NAME    VLANID  MTU  ADMIN-STATUS  DHCP-SERVERS
+NAME    VLANID  MTU  ADMIN-STATUS  DHCP SERVERS
 ----    ------  ---  ------------  ------------
 Vlan11  11      128  up            192.168.0.10
                                    11.12.13.14
@@ -435,7 +435,7 @@ Vlan11  11      128  up            192.168.0.10
 				"192.168.0.10",
 				"11.12.13.14"
 			]
-	  }
+		}
 	}
 }
 ```
