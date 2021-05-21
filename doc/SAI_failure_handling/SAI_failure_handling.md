@@ -44,7 +44,7 @@ The function also allows an optional input `context`, which allows passing conte
 
 #### 2.3.2 Possible execution results
 
-1. Return `task_success` --  No crash, no retry, handled successfully. 
+1. Return `task_success` --  No crash, no retry, handled successfully.
 
 The failure handling function should return `task_success` when the failure is properly handled without the need for another attempt (e.g., the SAI status is `SAI_STATUS_ITEM_NOT_FOUND` in remove operation).
 
