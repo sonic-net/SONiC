@@ -115,7 +115,7 @@ Currently 7 transceiver events are defined as below.
     status='5' High Temperature,
     status='6' Bad cable.
 
-However, multiple errors could exists at the same time. For example, a module can be unsupported cable and high temperature. The new transceiver event will be described in a bitmap. New transceiver definition below.
+However, multiple errors could exist at the same time. For example, a module can be unsupported cable and high temperature. The new transceiver event will be described in a bitmap. New transceiver definition below.
 
     bit 32  : 0=SFP removed, 1=SFP inserted,
     bit 31  : 0=OK, 1=I2C bus stuck,
