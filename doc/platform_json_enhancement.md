@@ -40,9 +40,7 @@ A new set of `capabilities` fields are introduced in platform.json, for providin
 
 For each component's attribute, the defined `capabilities` fields are as follows:
 
-- "controllable" : A boolean, 'true' if the given attribute can be controlled from the NOS, 'false' otherwise.
- 
-**Note:** If 'controllable' field is not specified, the default value is assumed to be 'true'.                   
+- "controllable" : A boolean, 'true' if the given attribute can be controlled from the NOS, 'false' otherwise. Defaults to 'true'.
 - Attribute specific fields:
     - status led - "color" - A list of the supported colors.
     - speed
