@@ -93,10 +93,8 @@ The ERROR_DB entry also includes a list of attributes (comma separated) and the 
 
 The field `counter` stores the number of failures for the same entry. It could be used as a reference for handling the failure.
 
-To avoid accumulating failures in ERROR_DB and consuming memory, it is necessary to ensure that the upper layer properly consumes the entries in ERROR_DB.
-To make sure all ERROR_DB entries are consumed, the failure handling should only escalate failures when the corresponding handling mechanism is available in the upper layers.
-One possible implementation could be escalating failures to ERROR_DB when the input `context` is valid.
-And during development, we only give the `context` to the failure handling functions when the corresponding failure handling in the upper layer is available.
+The upstream processes are expected to consume the ERROR_DB entries and remove the handled failures from the ERROR_DB.
+Assuming the upstream processes have the proper consumption of ERROR_DB entries and failure handling logic (these are not currently available for upstreams processes and need to be added), the ERROR_DB should not keep accumulating failures in ERROR_DB and consuming memory.
 
 ## 3. Failure handling logic in orchagent
 
