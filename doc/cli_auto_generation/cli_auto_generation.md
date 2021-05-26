@@ -120,7 +120,7 @@ com.azure.sonic.yang_model
 ```
 ###### Figure 2: YANG model location as part of Application extension docker image
 <p align=center>
-<img src="images/yang_model_location.svg" alt="Figure 2.1 Yang model location">
+<img src="images/yang_model_location.svg" alt="Figure 2 Yang model location">
 </p>
 
 If the Application Extension will be installed or updated by `sonic-package-manager` and the CLI will be generated - the YANG model for the current Application Extension will be placed in a well-known system location on the switch along with existing YANG models. This step is done in order to provide data validation - when the user executing generated CLI.
@@ -142,13 +142,12 @@ Inside the manifest.json there are [other keys](https://github.com/stepanblyscha
 | ---------------------- | ------ | --------- | --------------------------------------------------------------- |
 | /cli/show-cli-plugin   | string | no        | A path to a plugin for sonic-utilities show CLI command.        |
 | /cli/config-cli-plugin | string | no        | A path to a plugin for sonic-utilities config CLI command.      |
-| /cli/clear-cli-plugin  | string | no        | A path to a plugin for sonic-utilities sonic-clear CLI command. |
 
 For example, the user can have a `config` CLI auto-generated and the `show` CLI NOT auto-generated.
 
 ### SONiC CLI Auto-generation tool as independent CLI utility
 
-For `debugging` purposes the `SONiC CLI Auto-generation` tool will be accessible from the switch CLI as an independent CLI utility called - `sonic-cli-gen`. The user could provide a YANG model and place on the switch to:
+For `debugging` purposes the `SONiC CLI Auto-generation` tool will be accessible from the switch CLI as an independent utility called - `sonic-cli-gen`. The user could provide a YANG model and place on the switch to:
 ###### YANG model location:
 ```
 admin@sonic: /usr/local/yang-models/
@@ -194,6 +193,19 @@ sonic-versions.yang
 sonic-vlan.yang
 ```
 
+### Auto-generated CLI workflow
+
+###### Figure 3. Config command flow
+<p align=center>
+<img src="images/config_cmd_flow.svg" alt="Figure 3. Workflow">
+</p>
+
+The auto-generated CLI will use the next scenario:
+
+1. The user executes an auto-generated CLI command.
+2. The auto-generated command produces a file, which describes the configuration to apply.
+3. The YANG library validates data provided by the user in 1 step, according to the YANG model.
+4. After successful validation, it writes data to Config DB.
 
 ## Configuration and management
 
@@ -329,6 +341,8 @@ admin@sonic:~$ config vlan add Vlan11 --vlanid 11 --mtu 128 --admin-status up
 admin@sonic:~$ config vlan del Vlan11
 ```
 
+The `update` command will be generated but not always could be executed. The user will get an error message from the YANG validator if the `update command` is not supported.
+
 YANG models support [The leaf's "mandatory" Statement](https://tools.ietf.org/html/rfc7950#section-7.6.5).
 If the user wants to distinguish whether a CLI argument is mandatory or not, he can use the --help command (covered in the next rules)
 
@@ -457,6 +471,8 @@ admin@sonic:~$ config vlan dhcp-servers del Vlan11 10.10.10.10
 admin@sonic:~$ config vlan dhcp-servers clear Vlan11
 ```
 
+The `update` command will be generated but not always could be executed. The user will get an error message from the YANG validator if the `update command` is not supported.
+
 ###### `show` command
 ```
 admin@sonic:~$ show vlan
@@ -578,7 +594,7 @@ Commands:
   del     Del configuration.
 ```
 
-In case if `leaf` contain ["mandatory" statement](https://tools.ietf.org/html/rfc7950#section-7.6.5)
+In case if `leaf` contain ["mandatory"](https://tools.ietf.org/html/rfc7950#section-7.6.5) statement
 
 ###### `config` command
 ```
@@ -592,20 +608,6 @@ Options:
   --adrress  [mandatory] IP address.
   --port     Port number. 
 ```
-
-### Generated CLI workflow
-
-###### Figure 3. Config command flow
-<p align=center>
-<img src="images/config_cmd_flow.svg" alt="Figure 2.1 Yang model location">
-</p>
-
-The auto-generated CLI will use the next scenario:
-
-1. The user executes an auto-generated CLI command.
-2. The auto-generated command produces a file, which describes the configuration to apply.
-3. The YANG library validates data provided by the user in 1 step, according to the YANG model.
-4. After successful validation, it writes data to Config DB.
 
 ## SAI API
 
