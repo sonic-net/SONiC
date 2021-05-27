@@ -623,6 +623,9 @@ In the current implementation, Tunnel Creation handling in the VxlanMgr and Vxla
 The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0 and 
 SAI object type as TUNNEL. This SAI object is P2MP.
 
+Some vendors support P2P Tunnels to handle Layer2 extension and learning while some vendors support using existing P2MP for Layer2 scenarios.
+
+#### 4.3.1.1 P2P Tunnel creation flow
 In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
 
 - IMET route rx 
@@ -643,10 +646,15 @@ For every dynamic tunnel discovered, the following processing occurs.
 The creation sequence assuming only IMET rx is depicted in the diagram below.
 
 ![Tunnel Creation](images/tunnelcreate.PNG "Figure : Tunnel Creation")
-__Figure 5: EVPN Tunnel Creation__
+__Figure 5.1: EVPN P2P Tunnel Creation__
+
+#### 4.3.1.2 P2MP Tunnel IMET creation flow
+In the current implementation P2MP tunnel creation flow exist with the exception of a bridgeport not created for P2MP tunnel. To support using P2MP tunnel for L2 purposes a bridge port is created for the P2MP tunnel object.
+![P2MP Tunnel Creation](images/p2mptunnelcreate.jpg "Figure : P2MP Tunnel Creation")
+__Figure 5.2: EVPN P2MP Tunnel Creation__
 
 ### 4.3.2 Tunnel Deletion
-
+#### 4.3.2.1 P2P Tunnel Deletion
 EVPN Tunnel Deletion happens when the refcnt goes down to zero. So depending on the last route being deleted (IMET, MAC or IP prefix) the tunnel is deleted. 
 
 sai_tunnel_api remove calls are incompletely handled in the current implementation. 
@@ -655,6 +663,9 @@ The following will be added as part of tunnel deletion.
 - sai_tunnel_remove_map_entry when an entry from CFG_VXLAN_TUNNEL_MAP is removed.
 - sai_tunnel_remove_map, sai_tunnel_remove_tunnel_termination, sai_tunnel_remove_tunnel when the tunnel is to be removed on account of the last entry being removed. 
 - VxlanTunnel object will be deleted.
+
+#### 4.3.2.2 P2MP Tunnel Deletion
+P2MP tunnel deletion flow is same as the existing flow where the tunnel is deleted after last vxlan-vni map or vrf-vni map is deleted. Additionally before the tunnel deletion, the bridge port created is deleted.
 
 ### 4.3.3 Per Tunnel Mapper handling
 
@@ -698,6 +709,7 @@ It is proposed to handle these variances in the SAI implementation.
 
 ### 4.3.6 IMET route handling
 
+#### 4.3.6.1 P2P Tunnel Vlan extension
 The IMET route is used in EVPN to specify how BUM traffic is to be handled. This feature enhancement supports only ingress replication as the method to originate BUM traffic. 
 
 The VLAN, Remote IP and VNI to be used is encoded in the IMET route. 
@@ -707,7 +719,15 @@ The VLAN, Remote IP and VNI to be used is encoded in the IMET route.
 The IMET rx processing sequence is depicted in the diagram below. 
 
 ![Vlan extension](images/vlanextend.PNG "Figure : VLAN Extension")
-__Figure 6: IMET route processing VLAN extension__
+__Figure 6.1: IMET route processing P2P Tunnel VLAN extension__
+
+#### 4.3.6.2 P2MP Tunnel Vlan extension
+
+Similar to P2P tunnel scenario, the feature supports only the ingress replication. However the remote end points are added to VLAN by creating a L2MC group and setting it to VLAN created in combined mode, and adding one L2MC group member per remote end point as shown in the flow below
+
+![P2MP Vlan extension](images/p2mpvlanextension.jpg "Figure : P2MP VLAN Extension")
+__Figure 6.2: IMET route processing P2MP TunnelVLAN extension__
+
 
 ##### FRR processing
 When remote IMET route is received, fdbsyncd will install entry in REMOTE_VNI_TABLE in APP_DB:
@@ -1082,6 +1102,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 4. show vxlan tunnel
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
+   - This command is not supported when the platform supports only P2MP tunnels.
 
    +---------+---------+-------------------+--------------+
    | SIP     | DIP     | Creation Source   | OperStatus   |
