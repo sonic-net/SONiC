@@ -535,10 +535,10 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
 ```
 {
   "Table": "<STR>",             # Mandatory, A Valid Table Name
-  "key_pattern": "<STR>",       # Mandatory, Defaults to "*".
-				                        # table<table_sep>key_pattern is directly applied for filtering entries  
-  "field": "<STR>",             # Mandatory, Defaults to None
-  "value": "<STR>",             # Mandatory, Value to match, Defaults to None
+  "key_pattern": "<STR>",       # Optional, Defaults to "*". Eg: "*" will match all the keys.
+				# table<table_sep>key_pattern is directly applied for filtering entries  
+  "field": "<STR>",             # Optional, Defaults to None
+  "value": "<STR>",             # Optional, Value to match, Defaults to None
   "return_fields": [
     "<STR>"                     # An optional List of fields for which the corresponding values are returned
   ],
