@@ -1,5 +1,5 @@
 # Dump Utility for Easy Debugging #
-#### Rev 0.1
+#### Rev 1.0
 
 # Table of Contents
   * [Revision](#revision)
@@ -25,7 +25,7 @@
 
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
-| 0.1 | 05/20/2021  | Vivek Reddy Karri        | Initial version       |
+| 1.0 | 05/28/2021  | Vivek Reddy Karri        | Initial version       |
 
 ## About this Manual
 This document describes the details of a dump cli utility which collects and dumps the redis state for a given feature/module.
@@ -106,6 +106,7 @@ root@sonic# dump state --show
 Module    Identifier
 --------  ------------
 port      port_name
+copp      trap_id
 
 
 root@sonic# dump state port Ethernet0
@@ -214,6 +215,65 @@ root@sonic# dump state port Ethernet0 --key-map
                 "PORT_TABLE|Ethernet0"
             ],
             "tables_not_found": []
+        }
+    }
+}
+
+admin@sonic:~$ dump state copp sample_packet --key-map
+{
+    "sample_packet": {
+        "CONFIG_DB": {
+            "keys": [],
+            "tables_not_found": []
+        },
+        "APPL_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "COPP_TABLE"
+            ]
+        },
+        "ASIC_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP",
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP"
+            ]
+        },
+        "STATE_DB": {
+            "keys": [
+                "COPP_TRAP_TABLE|sflow"
+            ],
+            "tables_not_found": [
+                "COPP_GROUP_TABLE"
+            ]
+        },
+        "CONFIG_FILE": {
+            "keys": [
+                "COPP_TRAP|sflow",
+                "COPP_GROUP|queue2_group1"
+            ],
+            "tables_not_found": []
+        }
+    }
+}
+
+admin@sonic:~$ dump state copp arp_req --key-map --db ASIC_DB
+{
+    "arp_req": {
+        "ASIC_DB": {
+            "keys": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:oid:0x22000000000c5b",
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP_GROUP:oid:0x11000000000c59",
+                "ASIC_STATE:SAI_OBJECT_TYPE_POLICER:oid:0x12000000000c5a",
+                "ASIC_STATE:SAI_OBJECT_TYPE_QUEUE:oid:0x15000000000626"
+            ],
+            "tables_not_found": [],
+            "vidtorid": {
+                "oid:0x22000000000c5b": "oid:0x200000000022",
+                "oid:0x11000000000c59": "oid:0x300000011",
+                "oid:0x12000000000c5a": "oid:0x200000012",
+                "oid:0x15000000000626": "oid:0x12e0000040015"
+            }
         }
     }
 }
@@ -377,6 +437,63 @@ root@sonic# dump state port Ethernet0 --db APPL_DB --namespace asic0
     }
 }
 
+admin@r-lionfish-07:~$ dump state port Etheohffb --key-map --verbose
+-----------------------
+MatchRequest:
+db:CONFIG_DB , table:PORT , key_regx:Etheohffb , just_keys:True Match Entire List: False
+MatchRequest Checks Passed
+MatchEngine:
+No Entries found for Table|key_pattern provided
+-----------------------
+MatchRequest:
+db:APPL_DB , table:PORT_TABLE , key_regx:Etheohffb , just_keys:True Match Entire List: False
+MatchRequest Checks Passed
+MatchEngine:
+No Entries found for Table|key_pattern provided
+-----------------------
+MatchRequest:
+db:ASIC_DB , table:ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF , key_regx:* , field:SAI_HOSTIF_ATTR_NAME , value:Etheohffb , just_keys:True Return Fields: SAI_HOSTIF_ATTR_OBJ_ID Match Entire List: False
+MatchRequest Checks Passed
+Filtered Keys:[]
+MatchEngine:
+No Keys found after applying the filtering criteria
+-----------------------
+MatchRequest:
+db:STATE_DB , table:PORT_TABLE , key_regx:Etheohffb , just_keys:True Match Entire List: False
+MatchRequest Checks Passed
+MatchEngine:
+No Entries found for Table|key_pattern provided
+{
+    "Etheohffb": {
+        "CONFIG_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT"
+            ]
+        },
+        "APPL_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT_TABLE"
+            ]
+        },
+        "ASIC_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF",
+                "ASIC_STATE:SAI_OBJECT_TYPE_PORT"
+            ]
+        },
+        "STATE_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT_TABLE"
+            ]
+        }
+    }
+}
+
+
 admin@single-asic-sonic-device:~$ dump state port Ethernet0 --namespace asic0
 Namespace option is not valid for a single-ASIC device
 ```
@@ -520,7 +637,9 @@ class Port(Executor):
 ```
 1) display_template(dbs=['CONFIG_DB', 'APPL_DB', 'ASIC_DB', 'STATE_DB']): Returns a dictionary of format JSON Template 1
 2) MatchEngine / MatchRequest: Provided to abstract the heavy lifting in fetching the required data from redis-db/config-files. More info in the next section.
-3) verbose_print(str_): prints to the stdout based on verbosity provided by the user.  
+3) verbose_print(str_): prints to the stdout based on verbosity provided by the user. 
+4) handle_error(err_str, excep=False): Prints the error output to stdout, if any experienced by the module, Set excep = True, to raise an exception
+5) handle_multiple_keys_matched_error(err_str, key_to_go_with="", excep=False): When a filtering criteria specified by the module matches multiple keys, wherein it is expected to match ony one, this method can be used.
 ```
 
 ### 2.4 Match Infrastructure
@@ -547,6 +666,9 @@ To Abstract this functionality out, a MatchEngine class is created. A MatchReque
                                 # Only one of the db/file fields should have a non-empty string.
   "just_keys": "true|false"     # Mandatory, if true, Only Returns the keys matched. Does not return field-value pairs. Defaults to True
   "ns" : DEFAULT_NAMESPACE      # namespace argument, if nothing is provided, default namespace is used
+  "match_entire_list" : False   # Some of the fields in redis can consist of multiple values eg: trap_ids = "bgp,bgpv6,ospf". 
+  			          When this arg is set to true, entire list is matched incluing the ",". 
+				  When False, the values are split based on "," and individual items are matched with
 }
 ```
 
@@ -585,6 +707,7 @@ Possible Error strings returned by the MatchEngine.
  Other Errors:
  12) "No Entries found for Table|key_pattern provided.
  13) "Connection Error"
+ 14) "No Keys found after applying the filtering criteria"
 
  Note: Run the "dump state <feature/module> arg" command with -v option to print these errors any other exceptions thrown to the stdout. 
 ```
@@ -670,9 +793,10 @@ Return Dict:
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
 |  1   | Verify MatchEngine funtionality in cases of invalid Request Objects                                                                     |
 |  2   | Verify MatchEngine Match functionality is as expected                                                                                   |
-|  3   | Verify VidToRid Mappings are extracted as expected                                                                                      |
-|  4   | Verify dump cli options are working as expected                                                                                         |
-|  5  | Unit tests should be added for every new module added                                                                                    |
+|  3   | Verify all the options in the CLI is working as expected                                                                                |
+|  4   | Verify the namespace arg is working as expected                                                                                         |
+|  5   | Verify dump cli options are working as expected                                                                                         |
+|  6  | Unit tests should be added for every new module added                                                                                    |
 
 
 ## 4 **TechSupport**
@@ -686,7 +810,6 @@ $BASE
          ├── unified_view_dump/
              ├── copp
              ├── port
-             ├── sflow
              ├── <random_feature>
              ├── .......
              ├── <One file for every feature should be present here>        
