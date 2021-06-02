@@ -112,21 +112,26 @@ Currently 7 transceiver events are defined as below.
     status='5' High Temperature,
     status='6' Bad cable.
 
-However, multiple errors could exist at the same time. For example, a module can be unsupported cable and high temperature. The new transceiver event will be described in a bitmap.
+However, multiple errors could exist at the same time. For example, a module can be unsupported cable and high temperature. The new transceiver event will be described in a bitmap as below:
 
     bit 32  : 0=SFP removed, 1=SFP inserted,
-    bit 31  : 0=OK, 1=I2C bus stuck,
-    bit 30  : 0=OK, 1=Bad eeprom,
-    bit 29  : 0=OK, 1=Unsupported cable,
-    bit 28  : 0=OK, 1=High Temperature,
-    bit 27  : 0=OK, 1=Bad cable.
-    bit 1~26: reserved. Must be 0.
+    bit 31  : 0=OK, 1=An error that blocks eeprom from being read,
+    bit 30  : 0=OK, 1=I2C bus stuck,
+    bit 29  : 0=OK, 1=Bad eeprom,
+    bit 28  : 0=OK, 1=Unsupported cable,
+    bit 27  : 0=OK, 1=High Temperature,
+    bit 26  : 0=OK, 1=Bad cable.
+    bit 1~25: reserved. Must be 0.
 
     Define bit 32 as the least significant bit and bit 1 as the most significant bit.
 
+The bit 32 represents whether the SFP module is inserted. Any error bit must be set along with this bit.
+
+The bit 31 represents whether the error indicated by platform API will block the SFP module from being read or not. This bit must be set along with other error bits.
+
 Vendor can extend this bitmap with more errors. However, some errors can be vendor specific, which means they won't occur on other vendors' platforms. The bitmap can grow rapidly and eventually run out of bits if all vendors insert vendor specific error codes to the bitmap.
 
-This can be resolved by dividing the bitmap into two parts: one for generic errors and the other for vendor specific errors. The bits 17 ~ 32 represent the generic errors and bits 1 ~ 16 represent the vendor specific errors.
+This can be resolved by dividing the bitmap into two parts: one for generic errors and the other for vendor specific errors. The bits 17 ~ 30 represent the generic errors and bits 1 ~ 16 represent the vendor specific errors.
 
 Xcvrd should parse the bitmap and set transceiver status table in database accordingly. The error descriptions is fetched in the following ways:
 
@@ -189,8 +194,8 @@ The API is defined as below:
                   Ex1. {'fan':{'0':'0', '2':'1'}, 'sfp':{'11':'0'}}
                        indicates that fan 0 has been removed, fan 2
                        has been inserted and sfp 11 has been removed.
-                  Ex2. {'sfp':{'11':'65537'}, 'sfp_error':{'11':'vendor specific error'}}
-                      indicates SFP 11 has been inserted with a vendor specific error represented by bit 17.
+                  Ex2. {'sfp':{'11':'65537'}, 'sfp_error':{'11':<vendor specific error>}}
+                      indicates SFP 11 has been inserted with a vendor specific error represented by bit 16.
 
 ##### 1.3.2.3 Xcvrd wrapper for calling transceiver change event API #####
 
@@ -205,7 +210,8 @@ Xcvrd uses a wrapper to call one of the above two APIs depends on the implementa
                 return status, sfp_events, sfp_errors
             except NotImplementedError:
                 pass
-        return platform_sfputil.get_transceiver_change_event(timeout)
+        status, sfp_events = platform_sfputil.get_transceiver_change_event(timeout)
+        return status, sfp_events, None
 
 It's possible that when received the plug in/out event, the transceiver eeprom is not ready for reading, so need to give another try if first reading failed.
 
@@ -343,7 +349,7 @@ The CLI is like this:
 
 The error status can be fetched for
 
-- A specific SFP module designed by --port argument
+- A specific SFP module designated by --port argument
 - or all SPF modules if --port isn't provided
 
 By default, it will fetch the error status from `TRANSCEIVER_STATUS` in `STATE_DB`. It also supports fetching error status from low level component directly. In this case, it will call platform API `get_error_description` from the `pmon` docker.
@@ -356,12 +362,12 @@ The error status of each SPF module should be:
 
 The output of the command is like this:
 
-    admin@sonic:~$ show interface transceiver error-status Ethernet8
+    admin@sonic:~# sfputil show error-status --port Ethernet8
     Port       Error Status
     ---------  ------------------------------------
     Ethernet8  OK
 
-    admin@sonic:~$ show interface transceiver error-status
+    admin@sonic:~# sfputil show error-status
     Port         Error Status
     -----------  ----------------------------------------------
     Ethernet0    OK
