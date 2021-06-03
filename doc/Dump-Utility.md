@@ -840,7 +840,7 @@ Return Dict:
 Output for every <feature/module> which extends from Executor class will be added to the techsupport dump.
 Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. Output will be printed in JSON format for TechSupport Dumps.
 Only the related keys information will be present in the unified_dump_folder as entire DB dumps are already present in the dump/folder.
-When operating on a Multi-Asic platform, the file will have a suffic signifying th namespace i.e. eg: "port.asic0" etc
+When operating on a Multi-Asic platform, the file will have a suffix signifying the namespace i.e. eg: "port.asic0" etc
 
 ```
 $BASE
