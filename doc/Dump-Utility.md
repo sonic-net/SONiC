@@ -89,7 +89,6 @@ Options:
   -k, --key-map         Only fetch the keys matched, don't extract field-value dumps  [default: False]
   -v, --verbose         Prints any intermediate output to stdout useful for dev & troubleshooting  [default: False]
   -n, --namespace TEXT  Dump the redis-state for this namespace.  [default: DEFAULT_NAMESPACE]
-  --no-split            Doesn't split the identifier when a list type (eg: 1,2,3,4) is passed as an identifier  [default: False]
   --help                Show this message and exit.
 ```
 
@@ -470,39 +469,6 @@ MatchEngine:
 No Entries found for Table|key_pattern provided
 {
     "Etheohffb": {
-        "CONFIG_DB": {
-            "keys": [],
-            "tables_not_found": [
-                "PORT"
-            ]
-        },
-        "APPL_DB": {
-            "keys": [],
-            "tables_not_found": [
-                "PORT_TABLE"
-            ]
-        },
-        "ASIC_DB": {
-            "keys": [],
-            "tables_not_found": [
-                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF",
-                "ASIC_STATE:SAI_OBJECT_TYPE_PORT"
-            ]
-        },
-        "STATE_DB": {
-            "keys": [],
-            "tables_not_found": [
-                "PORT_TABLE"
-            ]
-        }
-    }
-}
-
-# --no-split usage
-# For a use-case which requires the identifier to be of a list-type 
-root@sonic:~$ dump state port Ethernet0,Ethernet4,Ethernet8,Ethernet16 --no-split
-{
-    "Ethernet0,Ethernet4,Ethernet8,Ethernet16": {
         "CONFIG_DB": {
             "keys": [],
             "tables_not_found": [
