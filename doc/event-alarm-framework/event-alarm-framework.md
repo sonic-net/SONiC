@@ -37,8 +37,7 @@ Event and Alarm Framework
       * [3.1.8 Pull Model](#318-pull-model)
       * [3.1.9 Supporting third party containers](#319-supporting-third-party-containers)
     * [3.2 DB Changes](#32-db-changes)
-      * [3.2.1 STATE DB](#321-state-db)
-      * [3.2.2 APPL DB](#322-appl-db)
+      * [3.2.1 EVENT DB](#321-event-db)
     * [3.3 User Interface](#33-user-interface)
       * [3.3.1 Data Models](#331-data-models)
       * [3.3.2 CLI](#332-cli)
@@ -100,9 +99,9 @@ Such a change has an important metric called *severity* to indicate how critical
    An operator could *ACKNOWLEDGE/UNACKNOWLEDGE* an alarm. This indicates that the operator is aware of the faulty condition.
 
    The set of alarms and their severities are an indication to health of various applications of the system and System LED can be deduced from alarms.
-   An acknowledged alarm means that operator is aware of the condition so, acknowledged alarm should be taken out of consideration from deciding system LED state.
+   An acknowledged alarm means that operator is aware of the condition so, acknowledged alarm will be taken out of consideration.
 
-Both events and alarms get recorded in the STATE_DB.
+Both events and alarms get recorded in a new DB called EVENT DB in a new redis instance.
 
 1.  Event History Table
 
@@ -836,13 +835,14 @@ and are being evaluated.
 Approach 1 is preferred.
 
 ## 3.2 DB Changes
-### 3.2.1 STATE DB
+### 3.2.1 EVENT DB
+A new instance, redis4, is created and EVENT DB uses the new instance.
+The following tables uses Event DB.
 Table EVENTPUBSUB is used for applications to write events and for eventd to access and process them.
-Four other new tables are introduced. 
-Event History Table (EVENT) and Current Alarm Table (ALARM).
-To maintain various statistics of events, these two are introduced : EVENT_STATS and ALARM_STATS.
-### 3.2.2 APPL DB
-Application DB is used to house EVPROFILE table to communicate name of the custom event profile when configured through NBI. 
+Event History Table (EVENT) and Current Alarm Table (ALARM) are used to house events and alarms respectively.
+To maintain various statistics of events, these two tables are used : EVENT_STATS and ALARM_STATS.
+
+EVPROFILE table is used by mgmt-framework to communicate name of the custom event profile when configured through NBI. 
 Eventd reads the file name from this table and merges it with its static_event_map.
 
 ## 3.3 User Interface
