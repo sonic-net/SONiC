@@ -89,6 +89,7 @@ Options:
   -k, --key-map         Only fetch the keys matched, don't extract field-value dumps  [default: False]
   -v, --verbose         Prints any intermediate output to stdout useful for dev & troubleshooting  [default: False]
   -n, --namespace TEXT  Dump the redis-state for this namespace.  [default: DEFAULT_NAMESPACE]
+  --no-split            Doesn't split the identifier when a list type (eg: 1,2,3,4) is passed as an identifier  [default: False]
   --help                Show this message and exit.
 ```
 
@@ -183,7 +184,7 @@ root@sonic# dump state port Ethernet0
 }
 
 
-
+# --key-map option
 root@sonic# dump state port Ethernet0 --key-map
 {
     "Ethernet0": {
@@ -257,6 +258,7 @@ admin@sonic:~$ dump state copp sample_packet --key-map
     }
 }
 
+# db filtering using --db option
 admin@sonic:~$ dump state copp arp_req --key-map --db ASIC_DB
 {
     "arp_req": {
@@ -316,6 +318,7 @@ root@sonic# dump state port Ethernet0 --key-map --db STATE_DB
     }
 }
 
+# Table display using --table/-t
 root@sonic# dump state port Ethernet0 --key-map --db ASIC_DB --table
 +-------------+-----------+-----------------------------------------------------------+
 | port_name   | DB_NAME   | DUMP                                                      |
@@ -356,7 +359,7 @@ root@sonic# dump state port Ethernet0 --db APPL_DB --table
 |             |           | +----------------------+------------------------------------+ |
 +-------------+-----------+---------------------------------------------------------------+
 
-
+# Identifiers can take a list
 root@sonic# dump state port Ethernet0,Ethernet8,Ethernet16 --key-map --db STATE_DB --table
 +-------------+-----------+---------------------------+
 | port_name   | DB_NAME   | DUMP                      |
@@ -380,7 +383,7 @@ root@sonic# dump state port Ethernet0,Ethernet8,Ethernet16 --key-map --db STATE_
 |             |           | +-----------------------+ |
 +-------------+-----------+---------------------------+
 
-
+# 'all' use-case
 root@sonic# dump state port all --key-map --db ASIC_DB
 {
     "Ethernet52": {
@@ -412,6 +415,7 @@ root@sonic# dump state port all --key-map --db ASIC_DB
     <Truncated>
 }
 
+# Specify the namespace from which the keys should be fetched from using --namespace
 root@sonic# dump state port Ethernet0 --db APPL_DB --namespace asic0
 {
     "Ethernet0": {
@@ -437,6 +441,7 @@ root@sonic# dump state port Ethernet0 --db APPL_DB --namespace asic0
     }
 }
 
+# Example usage for --verbose option
 admin@r-lionfish-07:~$ dump state port Etheohffb --key-map --verbose
 -----------------------
 MatchRequest:
@@ -493,6 +498,38 @@ No Entries found for Table|key_pattern provided
     }
 }
 
+# --no-split usage
+# For a use-case which requires the identifier to be of a list-type 
+root@sonic:~$ dump state port Ethernet0,Ethernet4,Ethernet8,Ethernet16 --no-split
+{
+    "Ethernet0,Ethernet4,Ethernet8,Ethernet16": {
+        "CONFIG_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT"
+            ]
+        },
+        "APPL_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT_TABLE"
+            ]
+        },
+        "ASIC_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF",
+                "ASIC_STATE:SAI_OBJECT_TYPE_PORT"
+            ]
+        },
+        "STATE_DB": {
+            "keys": [],
+            "tables_not_found": [
+                "PORT_TABLE"
+            ]
+        }
+    }
+}
 
 admin@single-asic-sonic-device:~$ dump state port Ethernet0 --namespace asic0
 Namespace option is not valid for a single-ASIC device
@@ -803,6 +840,7 @@ Return Dict:
 Output for every <feature/module> which extends from Executor class will be added to the techsupport dump.
 Every Json file will have the corresponding output: `dump state <corresponding_feature> all -k`. Output will be printed in JSON format for TechSupport Dumps.
 Only the related keys information will be present in the unified_dump_folder as entire DB dumps are already present in the dump/folder.
+When operating on a Multi-Asic platform, the file will have a suffic signifying th namespace i.e. eg: "port.asic0" etc
 
 ```
 $BASE
