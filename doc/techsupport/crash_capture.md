@@ -88,7 +88,7 @@ A new schema is added to Cfg DB which is defined below.
 #### Schema additions to Config DB
 ```
 key = "CRASH_CAPTURE|global"
-state = enabled;
+state = enabled|disabled;
 ```
 
 To monitor the config changes pushed by the user, a crash-capture-daemon will be started. 
