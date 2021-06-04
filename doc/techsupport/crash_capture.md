@@ -17,7 +17,7 @@
 ### Revision  
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
-| 1.0 | 06/15/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
+| 1.0 | 06/04/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
 
 
 ## About this Manual
@@ -31,7 +31,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 ## 2. High Level Requirements
 * Techsupport invocation should also be made event-driven based on core dump generation
 * This capability should be made optional and is disabled by default
-* Users should have the abiliity to configre the capability.
+* Users should have the abiliity to configure this capability.
 
 ## 3. Core Dump Generation in SONiC
 In SONiC, the core dumps generated from any process crash across the dockers and the base host are directed to the location `/var/core` and will have the name `/var/core/*.core.gz`. 
@@ -51,7 +51,7 @@ To Monitor and respond for the file-change events in `/var/core/`, systemd path 
 [Unit]
 Description=Triggers the Unit when a core is dumped
 After=database.service, crash-capture-configure.service
-Requires=database.service
+Requires=database.service, crash-capture-configure.service
 
 [Path]
 PathExists=/var/core/
@@ -66,7 +66,7 @@ WantedBy=multi-user.target
 [Unit]
 Description=Executes the crash-capture script when triggered
 After=database.service, crash-capture-configure.service
-Requires=database.service
+Requires=database.service, crash-capture-configure.service
 
 [Service]
 Type=simple
@@ -76,7 +76,7 @@ ExecStart=/usr/local/bin/crash-capture
 WantedBy=multi-user.target
 ```
 
-Note: Both of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services.
+Note: Both of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services. The other dependency is `crash-capture-configure.service` which will be explained in the next section.
 
 ### 4.3 crash-capture ecosystem should be configurable.
 
@@ -123,6 +123,5 @@ It then enables or disables the service accordingly
 
 `show crash-capture status`
 
-Both of them would work as you've expected
 
 
