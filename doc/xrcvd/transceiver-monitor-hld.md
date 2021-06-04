@@ -411,6 +411,6 @@ The output of the command is like this:
 
 A wrapper command `show interface transceiver error-status` is also provided.
 
-    show interface transceiver error-status --fetch-from-hardware port
+    show interface transceiver error-status --fetch-from-hardware <port>
 
 The output is the same as that of `sfputil`.
