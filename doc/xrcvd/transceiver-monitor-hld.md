@@ -96,8 +96,6 @@ New Transceiver info table and transceiver DOM sensor table will be added to sta
 
 Transceiver EEPROM information can be accessed via reading sysfs files(e.g. `/sys/bus/i2c/devices/2-0048/hwmon/hwmon4/qsfp9_eeprom`) or other ways, this is upon vendor's own implementation.
 
-Transceiver EEPROM accessing can be achieved by legacy sfputil.py plugin or new platform API. Xcvrd supports both methods. If platform API is not yet implemented on some vendor's device, it will automatically fall back on sfputil.py plugin.
-
 ### 1.3 Transceiver change event and vendor platform API ###
 
 #### 1.3.1 Transceiver change event ####
@@ -121,7 +119,8 @@ However, multiple errors could exist at the same time. For example, a module can
     bit 28  : 0=OK, 1=Unsupported cable,
     bit 27  : 0=OK, 1=High Temperature,
     bit 26  : 0=OK, 1=Bad cable.
-    bit 1~25: reserved. Must be 0.
+    bit 17~25: reserved. Must be 0.
+    bit 1~16: vendor specific errors.
 
     Define bit 32 as the least significant bit and bit 1 as the most significant bit.
 
@@ -141,30 +140,13 @@ Xcvrd should parse the bitmap and set transceiver status table in database accor
   - Otherwise, the newly introduced platform API `get_error_description` will be called to fetch the descriptions.
   - For both case, the error descriptions should reflect the vendor specific errors only. If there are multiple errors, the error descriptions should be joined by "|".
 
-Translating vendor specific error bits to descriptions is supported for platform API only. It is not supported for plugin because it needs to add new interfaces to plugin which needs all vendors to update their plugin.
-
-For example, if the transceiver event bit map is 0x7, the status field value should be "1" and the error field value should be "I2C bus stuck | Bad eeprom".
+For example, if the transceiver event bit map is 0x0F, the status field value should be "1" and the error field value should be "I2C bus stuck|Bad eeprom|Blocking error", indicating the SFP module is inserted with errors `I2C bus stuck` and `Bad eeprom` detected and at least one of the errors is blocking.
 
 #### 1.3.2 API to get Transceiver change event from platform ####
 
 Xcvrd need to be triggered by transceiver change event to refresh the transceiver info table.
 
-How to get this event is various on different platform. There is no common implementation available.
-
-##### 1.3.2.1 Transceiver change event API in plugin #####
-
-In legacy sfputil.py plugin a new API was defined to wait for this event in class `SfpUtilBase`:
-
-    @abc.abstractmethod
-    def get_transceiver_change_event(self, timeout=0):
-        """
-        :param timeout: function will return success and a empty dict if no event in this period, default value is 0.
-        :returns: Boolean, True if call successful, False if not; 
-        dict for pysical port number and the SFP status, status '1' represent plug in, '0' represent plug out(eg. {'0': '1', '31':'0'})
-        """
-        return 
-
-Each vendor need to implement this function in `SfpUtil` plugin.
+How to get this event varies between different platforms. There is no common implementation available.
 
 ##### 1.3.2.2 Transceiver change event API in new platform API #####
 
@@ -216,8 +198,6 @@ Xcvrd uses a wrapper to call one of the above two APIs depends on the implementa
 It's possible that when received the plug in/out event, the transceiver eeprom is not ready for reading, so need to give another try if first reading failed.
 
 #### 1.3.2 API to get error description of an SFP module ####
-
-As mentioned before, only platform API is supported for this API. Plugin isn't supported for it because it needs to extend the base class for the existing plugin, which needs all vendor to instantiate accordingly.
 
 ##### 1.3.2.1 Platform API definition #####
 
@@ -293,9 +273,9 @@ In the process of handling SFP change event, a state machine is defined to handl
 
 #### 1.4.2 Transceiver error events handling procedure ####
 
-When error events(defined in section 1.3.1) received from some transceiver, the related interface TRANSCEIVER_STATUS table will be updated with the error code , and DOM information will be removed from the DB.
+When error events (defined in section 1.3.1) are received from a transceiver, the related interface's TRANSCEIVER_STATUS table will be updated with the error descriptions, and the DOM information will be removed from the database.
 
-Before the DOM update thread update the DOM info, it will check the Transceiver status table first, DOM info updating will be skipped if some port is in the error status. In the Xcvrd main task recovering missing interface info, same check will also be applied.
+The DOM update thread will check the transceiver status table before updating the DOM information. The DOM info updating will be skipped for a port if there is a blocking error for the port in the table. The xcvrd main task will also perform the same check-and-skip logic before recovering the missing DOM information for a port.
 
 Currently no explicit "error clear event" is defined, a plug in event will be considered as port recovered from error(on Mellanox platform it does send out a plug in event when recovered from error).
 
