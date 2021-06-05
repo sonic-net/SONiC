@@ -1419,7 +1419,7 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
    
-   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
+   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information. In case of platforms that use P2P tunnel verify that P2P tunnel's bridgeport is used while in case of platforms that use P2MP tunnel, P2MP tunnel's bridge port is used.
 3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
 4. Repeat above steps for remote static MACs.
 5. Add MAC in the ASIC DB and verify that the STATE_DB MAC_TABLE is updated.
@@ -1449,6 +1449,9 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 6. Add remote MAC entry in Kernel and verify MAC is present in VXLAN_FDB_TABLE. Delete remote MAC entry in Kernel and verify MAC is removed from VXLAN_FDB_TABLE.
 7. Move remote MAC to local by programming the same entry in STATE_FDB_TABLE and verify Kernel is updated.
 8. Move local MAC entry to remote by replacing fdb entry in Kernel and verify VXLAN_FDB_TABLE is updated.
+
+### 8.4 Vlanmgr
+1. Verify that for platforms which use P2MP tunnel when Type 3 routes are processed, VLAN is created with SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED
 
 ## 9 References
 
