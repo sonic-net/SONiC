@@ -1406,11 +1406,13 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    - Verify that there is a SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2P tunnel.
    - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
 7. Add more REMOTE_VNI table entries to different Remote IP.
-   - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created.
+   - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created in case of platforms that create dynamic P2P tunnels on type 3 routes.
+   - Verify that L2MC group is created and SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER with end point IP and P2MP bridge port is created in case of platforms that use P2MP tunnel on type 3 routes.
 8. Add more REMOTE_VNI table entries to the same Remote IP.
-   - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip.
-9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted.
-10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted.
+   - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip in case of platforms that create dynamic P2P tunnels on type 3 routes.
+   - Verify that additional SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER entries are created per remote ip with P2MP bridge port in case of platforms that use P2MP tunnel on type 3 routes.
+9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted in case of platforms that create VLAN_MEMBER. In case of platforms creating SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER per end point IP verify that L2MC_GROUP_MEMBER entries are deleted.
+10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted for platforms that use P2P Tunnels. In case of platforms that use P2MP tunnel, verify that L2MC_GROUP_MEMBERS are removed and L2MC_GROUP is deleted.
 
 ### 8.2 FdbOrch
 
