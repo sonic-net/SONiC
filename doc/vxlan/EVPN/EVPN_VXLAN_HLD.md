@@ -28,7 +28,11 @@
     - [COUNTER_DB](#counter_db-changes)
   - [4.3 Modules Design and Flows](#43-modules-design-and-flows)
     - [4.3.1 Tunnel Creation](#431-tunnel-auto-discovery-and-creation)
+    - [4.3.1.1 P2P Tunnel Creation](#4311-p2p-tunnel-creation)
+    - [4.3.1.2 P2MP Tunnel Creation](#4312-p2mp-tunnel-creation)
     - [4.3.2 Tunnel Deletion](#432-tunnel-deletion)
+    - [4.3.2.1 P2P Tunnel Deletion](#4321-p2p-tunnel-deletion)
+    - [4.3.2.2 P2MP Tunnel Deletion](#4322-p2mp-tunnel-deletion)
     - [4.3.3 Mapper Handling](#433-per-tunnel-mapper-handling)
     - [4.3.4 VXLAN State DB Changes](#434-vxlan-state-db-changes)
     - [4.3.5 Tunnel ECMP](#435-support-for-tunnel-ecmp)
@@ -625,7 +629,7 @@ SAI object type as TUNNEL. This SAI object is P2MP.
 
 Some vendors support P2P Tunnels to handle Layer2 extension and learning while some vendors support using existing P2MP for Layer2 scenarios.
 
-#### 4.3.1.1 P2P Tunnel creation flow
+#### 4.3.1.1 P2P Tunnel creation
 In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
 
 - IMET route rx 
@@ -648,7 +652,7 @@ The creation sequence assuming only IMET rx is depicted in the diagram below.
 ![Tunnel Creation](images/tunnelcreate.PNG "Figure : Tunnel Creation")
 __Figure 5.1: EVPN P2P Tunnel Creation__
 
-#### 4.3.1.2 P2MP Tunnel IMET creation flow
+#### 4.3.1.2 P2MP Tunnel Creation
 In the current implementation P2MP tunnel creation flow exist with the exception of a bridgeport not created for P2MP tunnel. To support using P2MP tunnel for L2 purposes a bridge port is created for the P2MP tunnel object.
 ![P2MP Tunnel Creation](images/p2mptunnelcreate.jpg "Figure : P2MP Tunnel Creation")
 __Figure 5.2: EVPN P2MP Tunnel Creation__
@@ -665,7 +669,7 @@ The following will be added as part of tunnel deletion.
 - VxlanTunnel object will be deleted.
 
 #### 4.3.2.2 P2MP Tunnel Deletion
-P2MP tunnel deletion flow is same as the existing flow where the tunnel is deleted after last vxlan-vni map or vrf-vni map is deleted. Additionally before the tunnel deletion, the bridge port created is deleted.
+In case of P2MP tunnels, the flow is same as the existing flow where the tunnel is deleted after last vxlan-vni map or vrf-vni map is deleted. Additionally before the tunnel deletion, the bridge port created is deleted.
 
 ### 4.3.3 Per Tunnel Mapper handling
 
