@@ -54,7 +54,7 @@ After=database.service, crash-capture-configure.service
 Requires=database.service, crash-capture-configure.service
 
 [Path]
-PathExists=/var/core/
+PathChanged=/var/core/
 Unit=crash-capture.service
 
 [Install]
