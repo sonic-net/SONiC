@@ -42,7 +42,7 @@ To handle a set operation, daemon will subscribe to some DB entries and when the
 
 for FAN and PSU daemons, possible set operation could be  status led and fan speed. 
 
-#### 1.1.4  Detail flow for PSU Daemon
+### 1.2 PSU Daemon flow
 
 Supervisord takes charge of this daemon. This daemon will loop every 3 seconds and get the data from psuutil and then write it the Redis DB.
 
@@ -52,12 +52,12 @@ The psu_status and psu_presence will store in "psu_info" table. It will be updat
 Currently, there are just those three functions in psuutil, which is get_psu_presence(), get_psu_status(), get_psu_num(). So after the new platform API is implemented, we can extend this daemon to get some more information to DB. 
 
 
-### 1.2 Xcvrd daemon extension
+### 1.3 Xcvrd daemon extension
 
 Part of transceiver related data already in the DB which are collected by Xcvrd, compare to the output of current "show interface transceiver" CLI which get data directly from hardware, Xcvrd need to post more information from eeprom to DB. Detailed list for the new needed information please check following DB schema section. 
 
 
-### 1.3 Misc platform related data collection
+### 1.4 Misc platform related data collection
 
 For the platform hwsku, AISC name, reboot cause and other datas from syseeprom will be write to DB during the start up. A new separate task will be added to collect all of the data, since these data will not change over time, so this task doing one shot thing, will exit after post all the data to DB.
 
@@ -67,14 +67,14 @@ Detail datas that need to be collected please see the below DB Schema section.
 
 All the peripheral devices data will be stored in state DB.
 
-#### 1.1.1 Platform Table
+#### 1.5.1 Platform Table
 
     ; Defines information for a platfrom
     key                     = PLATFORM_INFO|platform_name    ; infomation for the chassis
     ; field                 = value                 
     chassis_list            = STRING                   ; chassis name list
     
-#### 1.1.2 Chassis Table
+#### 1.5.2 Chassis Table
 
 	; Defines information for a chassis
 	key                     = CHASSIS_INFO|chassis_name      ; infomation for the chassis
@@ -104,7 +104,7 @@ All the peripheral devices data will be stored in state DB.
 	vendor_ext5             = STRING                         ; vendorextension 5 from syseeprom
 
 
-#### 1.1.3 Fan Table
+#### 1.5.3 Fan Table
 
 	; Defines information for a fan
 	key                     = FAN_INFO|fan_name              ; information for the fan
@@ -121,7 +121,7 @@ All the peripheral devices data will be stored in state DB.
 	led_status              = STRING                         ; fan led status
 
 
-#### 1.1.4 PSU Table
+#### 1.5.4 PSU Table
 
 	; Defines information for a psu
 	key                     = PSU_INFO|psu_name              ; information for the psu
@@ -136,7 +136,7 @@ All the peripheral devices data will be stored in state DB.
 
 
 	
-#### 1.1.6 Transceiver Table
+#### 1.5.6 Transceiver Table
 
 We have a transceiver related information DB schema defined in the [Xcvrd daemon design doc](https://github.com/Azure/SONiC/blob/master/doc/xrcvd/transceiver-monitor-hld.md#11-state-db-schema).
 
@@ -168,6 +168,7 @@ New Transceiver info Table schema will be:
 	encoding                    = 1*255VCHAR                       ; encoding information
 	ext_identifier              = 1*255VCHAR                       ; extend identifier
 	ext_rateselect_compliance   = 1*255VCHAR                       ; extended rateSelect compliance
+	cable_type                  = 1*255VCHAR                       ; cable type
 	cable_length                = INT                              ; cable length in m
 	mominal_bit_rate            = INT                              ; nominal bit rate by 100Mbs
 	specification_compliance    = 1*255VCHAR                       ; specification compliance
@@ -299,13 +300,15 @@ An pmon config files will be added to the [platform device folder](https://githu
 For example, one platform don't want ledd to be started, can add a config file to the platform,
 The contenet of the platform specific config filelike below:
            
-	"skipped_daemons": {
-	    ledd
+	{
+	    "skip_ledd": true,
+	    "skip_xcvrd": false,
+	    "skip_psud": false
 	}
 	   
 a common template file for the supervisored config can like below(only show the ledd part)  
 
-	{%- if ledd != "skipped" %}
+	{ % if not skip_ledd % }
             [program:ledd]
             command=/usr/bin/ledd
             priority=5
@@ -314,7 +317,7 @@ a common template file for the supervisored config can like below(only show the 
             stdout_logfile=syslog
             stderr_logfile=syslog
             startsecs=0
-	{%- endif %}
+	{ % endif % }
 
 ## 5. Open Questions
 - 1. How to get and organize the watchdog data? do we need a watchdog daemon?
