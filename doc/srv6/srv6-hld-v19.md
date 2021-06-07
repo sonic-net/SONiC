@@ -130,7 +130,7 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 # 2 Feature Design
 
-![draw-configdb](drawing-configdb-frr3.png)
+![draw-configdb](images/drawing-configdb-frr3.png)
 
 ## 2.1 ConfigDB Changes
 
