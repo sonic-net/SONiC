@@ -132,8 +132,6 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 ![draw-configdb](images/drawing-controller.png)
 
-![draw-configdb](images/drawing-configdb-frr3.png)
-
 ## 2.1 ConfigDB Changes
 
 **SRV6_SID_LIST_TABLE**
