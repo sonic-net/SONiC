@@ -132,6 +132,8 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 ![draw-configdb](images/drawing-configdb-frr3.png)
 
+Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plan forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
+
 ## 2.1 ConfigDB Changes
 
 **SRV6_SID_LIST_TABLE**
