@@ -87,7 +87,6 @@ For example...
         |--- ssd_fw_B.bin
         |--- onie_fw_A.bin
         |--- onie_fw_B.bin
-        |--- pwrcyc
 ```
 
 And an example `platform_components.json`
@@ -101,8 +100,7 @@ And an example `platform_components.json`
                     {
                         "firmware": "onie_fw_A.bin",
                         "version": "10",
-                        "reboot": "power",
-                        "power-cycle": "./pwrcyc"
+                        "reboot": "power"
                     },
                     {
                         "firmware": "onie_fw_B.bin",
@@ -128,13 +126,20 @@ And an example `platform_components.json`
 }
 ```
 
-The first version listed that does not match the firmware version installed will be installed for the test. If the firmware version originally installed on the switch is present in the list the test will attempt to restore that version.
+The **first version listed** that **does not match the firmware version installed** will be installed for the test. If the firmware version originally installed on the switch is present in the list the test will attempt to restore that version.
+
+#### Downgrades
+If your platform does NOT support downgrades then you **MUST** specify the `upgrade_only: True` parameter in the firmware definition.
+
+This means that the test suite will skip testing a specific component if it is not able to upgrade the firmware (the latest is installed).
+
+However, if that option is specified AND it is able to upgrade the firmware it will, and will not attempt to downgrade it again. All future tests performed on that box *will skip until a newer firmware version is released and added to the tarball*.
 
 #### Reboot Type
 
 In addition to version **the vendor should specify the type of reboot that is required to complete the install for a given firmware image**. This will be used for the `auto update` testing and must be `< none | warm | cold | power >`.
 
-If the vendor specifies that a power cycle is neccesary they must also specify a utility to perform that action. The variables `hostname` and `ip` may be used in this utility call i.e. `"power-cycle": "./pwr-cyc {hostname} {ip}"`
+If the vendor specifies that a power cycle is neccesary they must have support the `pdu_controller` test plugin otherwise the test will skip.
 
 #### Vendor Implementation
 
