@@ -80,10 +80,14 @@ CONFIG_GCOV_FORMAT_AUTODETECT=y
 ```
 
 # 2. Design
-In order that a SONiC image can be complied with gcov option and a corresponding gcov report can be generated as easily as possible, a script named gcov\_support.sh will be added. Currently this script will be added to sonic-swss repo to provide help for gcno and gcda files colletion and report generating in a very simple way as shown in figure 2.1.<br>
+In order that a SONiC image can be complied with gcov option and a corresponding gcov report can be generated as easily as possible, a script named gcov\_support.sh will be added. Currently this script will be added to sonic-swss repo to provide help for swss's gcno and gcda files colletion and report generating in a way as shown in figure 2.1.<br>
 
 ![](figure21.png)<br>
 __Figure 2.1 Workflow to enable gcov in SONiC__.<br>
+
+The main design workflow is shown below:
+![](figure22.png)<br>
+__Figure 2.2 Main design workflow__.<br>
 
 ## 2.1 New Configuration Parameters
 ENABLE_GCOV as a new configuration parameter is added to SONiC build system. The default value is "n". When a gcov building is required, this parameter should be set to "y"
@@ -110,6 +114,11 @@ AC_ARG_ENABLE([gcov], AS_HELP_STRING([--enable-gcov], [enable coverage test]))
 AS_IF([test "x${enable_gcov}" = "xyes" ], AC_MSG_RESULT([yes]), AC_MSG_RESULT([no]))
 AM_CONDITIONAL([ENABLE_GCOV],[test "x${enable_gcov}" = "xyes"])
 ```
+Besides the compiling flag, a dynamic library called libgcov_preload.so is also be introduced in this repo and added as a link to all submodules' Makefile.am. This dynamic library will help all user processes handle killing signals and call exit() to successfully generate gcda files.
+```
+e.g.
+tlm_teamd_LDADD = -lhiredis -lswsscommon -lteamdctl $(JANSSON_LIBS) -lgcov_preload
+```
 
 ## 2.3 Collect gcno files
 The keyword "collect" in gcov_support.sh which has been added to swss repo will be used to collect gcno files, and it will be excuted during the "install" stage of the debian package building:
@@ -117,61 +126,70 @@ The keyword "collect" in gcov_support.sh which has been added to swss repo will 
 ```
 root@5c5e8c570c0f:/tmp/swss_gcov/src/sonic-swss# ./gcov_support.sh
 Usage:
- init                initialize gcov compiling environment
- collect             collect .gcno files
- collect_gcda        collect .gcda files
- generate            generate gcov report in html form (all or submodule_name)
- clean               reset environment
- tar_output          tar gcov_output forder
+ collect               collect .gcno files based on module
+ collect_gcda          collect .gcda files
+ generate              generate gcov report in html form (all or submodule_name)
+ tar_output            tar gcov_output forder
+ merge_container_info  merge info files from different container
+ set_environment       set environment ready for report generating in containers
 ```
 - Adjustment towards the debian building rules
 ```
 override_dh_auto_install:
 	dh_auto_install --destdir=debian/swss
 
-	mkdir -p debian/swss/tmp/swss_gcov
+	mkdir -p debian/swss/tmp/gcov
 
 	sh ./gcov_support.sh collect
 ```
-After the "collect" operation, a compressed gcno.tar.gz is sent to /tmp/swss\_gcov inside the debian package.
+After the "collect" operation, a compressed gcno_swss.tar.gz is sent to /tmp/gcov inside the debian package.
 
 ## 2.4 Collect gcda files
-gcov_support.sh is also sent to /tmp/swss\_gcov inside the debian package. After the regular tests to the swss module inside a device, a new-added pytest test case named "test_zzgcov.py" will be executed to ensure gcda collection and report generation. The keyword "collect\_gcda" in the script gcov_support.sh can be used to collect the generating gcda files, produce gcda.tar.gz and move it into /tmp/swss_gcov together with gcno.tar.gz
+ After the regular tests to the swss module, keyword 'collect_gcda' will be executed inside the running containers to collect the gcda files and pack them into /tmp/gcov together with gcno_swss.tar.gz. This collection step will be included during the following 'set_environment' stage. Besides the collection of gcda files, 'set_environment' stage will prepare the environment ready for report generating and publish it into artifacts.
 ```
-def test_gcda_collection():
-  os.system(" docker exec -it vs /bin/bash -c './gcov_support.sh collect_gcda'")
+./tests/gcov_support.sh set_environment $(Build.ArtifactStagingDirectory)
 ```
+It is worth noting that all vs containers set up for testing wil be keep active inside the environment, so that a killall command can be called in every containers to produce gcda files which can be collect during this stage.
+```
+sudo py.test -v --force-flaky --junitxml=tr.xml --keeptb --imgname=docker-sonic-vs:$(Build.DefinitionName).$(Build.BuildNumber)
+``` 
 
-## 2.5 Generation of gcov report
-gcno.tar.gz and gcda.tar.gz are the two basic files required to generate an accessible coverage report. The user can enter the /tmp/swss\_gcov inside the swss docker and run:
+## 2.5 Generation of gcov info files
+In order to generate an accessible coverage report, gcno files, gcda files and the corresponding source codes are the basic elements required. The previous 'set_environment' stage prepares the gcno and gcda files by obtaining the report-generating environment(the directory of /tmp/gcov) from every containers running test cases. While this generation stage will set up a new container in order to collect source codes and use the report-generating environment to create the gcov report. The following keywords will be used during generation stage:
 ```
-./gcov_support.sh generate all
+./gcov_support.sh generate
+./gcov_support.sh merge_container_info $(Build.ArtifactStagingDirectory)
 ```
-or the test_zzgcov.py will automatically generate the report by the function below:
+After report generation, a folder named 'gcov_output' will be posed and published as gcov_info to the artifact.
 ```
-def test_report_generation():
-  os.system("docker exec -it vs /bin/bash -c './gcov_support.sh generate all'")
+- publish: $(Build.ArtifactStagingDirectory)/gcov_output
+  artifact: gcov_info
+  displayName: "Archive gcov info"
+  condition: always()
 ```
-to generate the overall gcov report for swss module
+Then the overall summary report can be accessed through the 'Code Coverage' tab in the Azure Pipeline platform.
 
 ## 2.6 Check the coverage report
-Figure 2.2 shows that the coverage reports will be saved under /tmp/swss\_gcov/src/sonic-swss directory.<br>
+The overall summary report coverage.xml created by lcov_cobertura.py is saved under $(Build.ArtifactStagingDirectory)/gcov_output/AllMergeReport, and this xml file can be checked by Cobertura and display coverage information in the platform after a pull request. 
+Figure 2.3 shows the contents under gcov_output folder. It is pulished as gcov_info in the artifacts<br>
 
 ![](figure26.png)<br>
-__Figure 2.2 Contents in gcov\_output__.<br>
+__Figure 2.3 Contents in gcov\_output__.<br>
 
 The output includes:<br>
-- info folder: save info files for all modules according to their generated paths<br>
-- html folder: save gcov html report for all modules according to their generated paths<br>
+- info: save info files for all modules<br>
 - AllMergeReport: save the merged overall report which contains all coverage information<br>
-- info\_err\_list:record the modules which failed to generate the info files<br>
-- gcda\_dir\_list.txt:record the directories of all .gcda files<br>
-The merged overall report can be checked from index.html under AllMergeReport dir by a web browser.<br>
+- coverage.xml: the summary report in xml form originated from index.html in AllMergeReport<br>
+- infolist: an info file list<br>
+- total.info: an overall info file used to produced the summary report<br>
+Figure 2.4 to 2.6 shows how the coverage information can be checked by anyone who just creates a pull request. 
 
 ![](figure27.png)<br>
-__Figure 2.3 Contents of AllMergeReport__.<br>
+__Figure 2.4 Code Coverage tab in pipeline platform__.<br>
 ![](figure28.png)<br>
-__Figure 2.4 Overall coverage report__.<br>
+__Figure 2.5 summary coverage information__.<br>
+![](figure29.png)<br>
+__Figure 2.6 source code details__.<br>
 
 # 3. Safety instruction
 The gcov support for SONiC totally depends on the open-source tools -- gcov/lcov. Hence the modification towards the sonic project is only limited to the compiling options of gcc in order that the additional gcov-required files (.gcno and .gcda) can be generated during compiling. This modification will not have any influence on other sections of the compiling process.<br> 
