@@ -18,8 +18,8 @@ Examples of these devices are:
 * CPLD / FPGA
 
 The architecture of this tool is
-
-![Untitled Diagram(6)](fwutil/images/fwutil_arch.png)
+          
+![Architecture Diagram](images/fwutil_arch.png)
 
 These components are already (or planned to be) unit tested individually thus we have a reasonable level of confidence that they are independently functionally correct.
 
