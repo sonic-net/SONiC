@@ -45,10 +45,10 @@ NHG - Next Hop Group
 # 1 Introduction
 Class Based Forwarding allows the routed traffic according to the IP/MPLS decision rules to be forwarded on different paths for the same destination depending on the Forwarding Class (different from the Traffic Class), which is determined by a mapping from the DSCP/EXP value of the packet to the Forwarding Class value. A packet coming in with a DSCP/EXP value of X will receive a Forwarding Class (FC) value of Y according to the mapping table provided at the start-of-day. This packet will then be routed, as mentioned earlier, using the traditional IP/MPLS lookup. If the chosen route uses Class Based Forwarding, the next hop will be chosen based on the Forwarding Class value. You can find a flow diagram describing this below:
 
-Packet is received         A lookup is performed        FC value X is assigned        IP routing decision         Routing lookup returns           The next hop group Z is         Packet is forwarded via
-with DSCP value of  -----> in the DSCP to FC map ----->      to the packet     -----> lookup is performed  -----> next hop group Y, which  -----> selected from the members -----> a member of the next hop
-W for destination D          table for DSCP W                                          for destination D              is a CBF group                of Y, based on the FC                group Z to the
-                                                                                                                                                           value X                       destination D
+Packet is received with     A lookup is performed      FC value X is      IP routing decision     Routing lookup returns      The next hop group Z is       Packet is forwarded
+DSCP/EXP value of W for --> in the DSCP/EXP to FC --> assigned to the --> lookup is performed --> next hop group Y, which --> selected from the members --> via group Z to the
+   destination D               map table for W            packet           for destination D          is a CBF group            of Y based on the FC           destination D
+                                                                                                                                    value X
 
 This feature enables opeartors, among other things, to send the important (foreground) traffic through the shortest path, while sending the background traffic through longer paths to still give it some bandwidth instead of using QoS queues which may block background traffic from getting bandwitdh.
 
