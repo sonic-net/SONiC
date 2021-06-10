@@ -77,7 +77,6 @@ dump state port all
 
 ```
 root@sonic# dump state --help
-admin@r-lionfish-16:~$ python3 dump/main.py state --help
 Usage: main.py state [OPTIONS] MODULE IDENTIFIER
 
   Dump the redis-state of the identifier for the module specified
