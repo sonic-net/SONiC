@@ -12,7 +12,8 @@
   * [6. Design](#6-design)
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
-      * [6.3 Adding these services to SONiC](#63-Adding-these-services-to-sonic)
+      * [6.3 auto_techsupport_gen script](#63-auto-techsupport-gen-script)
+      * [6.4 Adding these services to SONiC](#64-Adding-these-services-to-sonic)
 
 
 ### Revision  
@@ -146,14 +147,15 @@ WantedBy=multi-user.target
 
 Note: All of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services. 
 
-### 6.3 auto_techsupport_gen Script
+### 6.3 auto_techsupport_gen script
 
 As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. 
 
 On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.
 
+**Note: The last_techsupport_run value doesn't persist across reboots, since we're keeping track of monotonic time. The field will be empty after reboot (including warm-boot)**
 
-### 6.3 Adding these services to SONiC
+### 6.4 Adding these services to SONiC
 
 These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb`.
 
