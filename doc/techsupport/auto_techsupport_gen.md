@@ -153,7 +153,7 @@ As seen in the techsupport-monit.service & coredump-monit.service Unit descripti
 
 On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.
 
-**Note: The last_techsupport_run value doesn't persist across reboots, since we're keeping track of monotonic time. The field will be empty after reboot (including warm-boot)**
+**Note: The last_techsupport_run value doesn't persist across reboots, since monotonic time is used. The field will be empty after reboot (including warm-boot)**. 
 
 ### 6.4 Adding these services to SONiC
 
