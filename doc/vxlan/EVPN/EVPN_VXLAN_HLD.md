@@ -727,7 +727,7 @@ __Figure 6.1: IMET route processing P2P Tunnel VLAN extension__
 
 #### 4.3.6.2 P2MP Tunnel Vlan extension
 
-Similar to P2P tunnel scenario, the feature supports only the ingress replication. However the remote end points are added to VLAN as follows. In SONiC VLAN is created currently using SAI_VLAN_FLOOD_CONTROL_TYPE_ALL(default). To support flooding in P2MP based tunnels, the VLANs are created using SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED which would support flooding to local ports as well as an additional multicast group. When type 2 prefixs are received, the remote end points are added to VLAN by creating a L2MC group and setting it to VLAN created in combined mode, and adding one L2MC group member per remote end point as shown in the flow below
+Similar to P2P tunnel scenario, the feature supports only the ingress replication. However the remote end points are added to VLAN as follows. In SONiC VLAN is created currently using SAI_VLAN_FLOOD_CONTROL_TYPE_ALL(default). To support flooding in P2MP based tunnels, the VLAN's flood control type is set to SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED which would support flooding to local ports as well as an additional multicast group. When type 2 prefixs are received, the remote end points are added to VLAN by creating a L2MC group and setting it to VLAN created in combined mode, and adding one L2MC group member per remote end point as shown in the flow below
 
 ![P2MP Vlan extension](images/p2mpvlanextension.jpg "Figure : P2MP VLAN Extension")
 __Figure 6.2: IMET route processing P2MP TunnelVLAN extension__
