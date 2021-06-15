@@ -12,7 +12,7 @@
   * [6. Design](#6-design)
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
-      * [6.3 auto_techsupport_gen script](#63-auto-techsupport-gen-script)
+      * [6.3 auto_techsupport_gen script](#63-auto_techsupport_gen-script)
       * [6.4 Adding these services to SONiC](#64-Adding-these-services-to-sonic)
 
 
