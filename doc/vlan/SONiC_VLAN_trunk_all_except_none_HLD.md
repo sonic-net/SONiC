@@ -67,11 +67,14 @@ Provide ability to configure allowed VLANs on trunk port using options "all", "e
     
 1. Support KLISH CLI "all" option to allow all VLAN IDs on trunk port. Port is added in all existing VLANs and any future VLAN that get created in the system, port is automatically added in this VLAN. 
 2. Support KLISH CLI "except" option to allow all VLAN IDs except the specified VLAN IDs on trunk port. Any future VLAN that get created in the system except for the specified VLANs, port is automatically added in this VLAN. 
-3. Support KLISH CLI "none" option to remove trunk port from all VLANs. Any future VLANs that get created in the system, will exclude this port now. 
-4. Support KLISH CLI option to directly specify allowed VLAN IDs list (*\<vlan-list\>*) without any other parameter, to add port to specified list of tagged VLANs. Existing tagged VLANs configuration on port will be replaced with the specified VLANs configuration. 
-5. Allow non-existing VLAN IDs configuration on trunk/access port. 
-6. Higher precedence to "untagged" VLAN config; i.e., if port is already tagged and untagged config is given then port's tagging_mode will be changed to untagged for the specified VLAN. And if port already untagged and tagged config is given then the port will remain untagged for the specified VLAN. 
-7. "show running config" to show all the allowed VLANs(existing and non-existing) configured on the interface. 
+3. Support KLISH CLI "none" option to remove trunk port from all VLANs. Any future VLANs that get created in the system, will exclude this port now.
+4. Support KLISH CLI option to directly specify allowed VLAN IDs list (*\<vlan-list\>*) without any other parameter, to add port to specified list of tagged VLANs. Existing tagged VLANs configuration on port will be replaced with the specified VLANs configuration.
+5. Higher precedence to "untagged" VLAN config; i.e., if port is already tagged and untagged config is given then port's tagging_mode will be changed to untagged for the specified VLAN. And if port already untagged and tagged config is given then the port will remain untagged for the specified VLAN. 
+6. Allow non-existing VLAN IDs configuration on port/portchannel. 
+7. "show running config" to show all the allowed VLANs (existing and non-existing) configured on the interface.
+8. Automatic addtion of members during VLAN creation; all interfaces having the VLAN config will be added as members during VLAN creation.
+9. VLAN deletion will only remove the VLAN i.e the VLAN config on the port/portchannel is preserved in DB, so that when the VLAN gets re-created these members are automatically added back.
+10. No L3 config will be allowed on interface even if non-existing VLAN is configured on interface. 
 
 ### 1.1.2 Scalability Requirements
 N/A
@@ -83,7 +86,7 @@ N/A
 2. For supporting KLISH CLI "except" option, transaction will be a REPLACE request with the VLANs inclusive list i.e. allowed VLANs list excluding specified VLANs. 
 3. For supporting KLISH CLI "none" option, trasaction will be a DELETE request to remove trunk port from all VLANs.  
 4. For supporting KLISH CLI *vlan-list* option, transaction will be a POST request with the VLANs in *vlan-list*.
-5. Changes in ConfigDB to store access and tagged VLAN(exiting and non-existing) IDs configured on port or portchannel.
+5. Changes in ConfigDB's PORT & PORTCHANNEL tables to store non-existing and existing VLAN IDs config on an interface.
 6. To support automatic addition of members during VLAN creation, a "cache" will be maintained, caching trunk and access ports list for each VLAN. Cache will be automatically updated if any event in port's or portchannel's "tagged_vlans" and "access_vlan" fields in Config DB.
 
 ### 1.2.2 Container
@@ -352,7 +355,8 @@ interface EthernetX
 ```
 * Performance test by measuring the time taken for configuration.
 
-#### 5.2 Test scenarios for “all”, “except”, “none” and *vlan-list* in combination with existing options: 
+#### 5.2 Functionality test 
+##### 5.2.1 Test scenarios for “all”, “except”, “none” and *vlan-list* in combination with existing options: 
 
 **Scenario 1:**
 <br> Vlan 5 exists. 
@@ -707,8 +711,112 @@ sonic#
 <br> Step 1: sonic(conf-if-EthernetX)#switchport trunk allowed vlan except 1-10
 <br> Step 2: sonic(conf-if-EthernetX)#switchport trunk allowed vlan remove 11 
 <br> Result: Port tagged in Vlan12-4094
-<br> Verify: 'show run-configuration' output.  
+<br> Verify: 'show run-configuration' output.
 
+
+##### 5.2.2 Test VLAN create and delete: 
+
+**Scenario 1:** Automatic addition of members during VLAN creation
+<br> Step 1 : Configure non-existing VLAN
+```
+(conf-if-Ethernet16)# switchport trunk allowed Vlan 12
+sonic(conf-if-Ethernet16)# do show Vlan
+sonic(conf-if-Ethernet16)#
+```
+<br> Step 2 : Create VLAN
+```
+sonic(config)# interface Vlan 12
+```
+<br> Step 2 : Verify VLAN config
+`Klish CLI`
+```
+sonic(conf-if-Vlan12)# do show Vlan
+Q: A - Access (Untagged), T - Tagged
+NUM        Status      Q Ports
+12         Inactive    T  Ethernet16
+sonic(conf-if-Vlan12)#
+```
+`bcmsh`
+```
+drivshell>vlan show 12
+vlan show 12
+vlan 12 ports xe4 (0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000), untagged none (0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) MCAST_FLOOD_UNKNOWN
+drivshell>
+```
+
+**Scenario 2:** Delete VLAN and remove VLAN config
+<br> Step 1 : VLAN delete
+```
+sonic(config)# do show Vlan
+Q: A - Access (Untagged), T - Tagged
+NUM        Status      Q Ports
+12         Inactive    T  Ethernet16
+```
+```
+sonic(config)# no interface Vlan 12
+```
+<br> Step 2: Verify 'show vlan' & 'show run-configuration <interface>' output.
+```
+sonic(config)# do show Vlan
+
+sonic(config)#
+sonic(config)# do show running-configuration interface Ethernet 16
+!
+interface Ethernet16
+ mtu 9100
+ speed 40000
+ no shutdown
+ switchport trunk allowed Vlan 12
+sonic(config)#
+```
+<br> Step 3: Remove VLAN config on interface
+```
+sonic(conf-if-Ethernet16)# switchport trunk allowed Vlan none
+sonic(conf-if-Ethernet16)# show configuration
+!
+interface Ethernet16
+ mtu 9100
+ speed 40000
+ no shutdown
+sonic(conf-if-Ethernet16)# do show running-configuration interface Ethernet 16
+!
+interface Ethernet16
+ mtu 9100
+ speed 40000
+ no shutdown
+```
+**Scenario 3:** Configure non-existing VLAN12 on Ethernet16
+```
+sonic(config)# interface Ethernet16
+sonic(conf-if-Ethernet16)# switchport trunk allowed Vlan 12
+sonic(conf-if-Ethernet16)# do show Vlan 12
+
+sonic(conf-if-Ethernet16)# show configuration
+!
+interface Ethernet16
+ mtu 9100
+ speed 40000
+ no shutdown
+ switchport trunk allowed Vlan 12
+sonic(conf-if-Ethernet16)# exit
+```
+L3 config on an interface tagged in non-existing VLAN should return error:
+```
+sonic(conf-if-Ethernet16)# ip address 10.1.1.1/24
+%Error: Tagged VLANs:12 configuration exists on interface: Ethernet16
+sonic(conf-if-Ethernet16)#
+
+```
+Create VLAN12, Ethernet16 should be automatically added as member:
+```
+sonic(config)# interface Vlan 12
+sonic(conf-if-Vlan12)# do show Vlan 12
+Q: A - Access (Untagged), T - Tagged
+NUM        Status      Q Ports
+12         Inactive    T  Ethernet16
+
+sonic(conf-if-Vlan12)#
+```
 
 #### 5.3 SONiC upgrade & downgrade with configuration persistence after installation. 
 ##### 5.3.1 Test image upgrade (migrating from 3.1.1 & 3.1.2 to 3.2.0) with configuration persistence after installation
