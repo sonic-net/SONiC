@@ -22,7 +22,7 @@
 
 
 ## About this Manual
-This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC when the NOS throws a core dump.
+This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process across the dockers or the host crashes and a core dump is generated.
 
 ## 1. Overview
 Currently, techsupport is run by invoking `show techsupport` either by orchestration tools like Jenkins or manually. The techsupport dump also collects any core dump files available in the `/var/core/` directory.
@@ -45,7 +45,6 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
 cooloff = 300;    # Minimum Time in seconds, between two successive techsupport invocations by the script.
-                  # Should be greater than 120 seconds as a techsupport run would take around that time.
 ```
 
 #### State DB
@@ -53,6 +52,8 @@ cooloff = 300;    # Minimum Time in seconds, between two successive techsupport 
 key = "AUTO_TECHSUPPORT|global"
 last_techsupport_run = 0; # Monotonic time in seconds relative to the latest techsupport run   
 enabled = yes|no;
+core_file_list = "<*.core.gz>;<*.core.gz>"; List of the core files inside the /var/core/ folder as a list 
+                                     Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
 ```
 
 ## 5. CLI Enhancements.
@@ -65,12 +66,19 @@ enabled = yes|no;
 
 ### show cli
 
-`show auto-techsupport` 
+```
+admin@sonic:~$ show auto-techsupport 
++----------------+----------------+-----------------------------------+
+|     Enabled    |  Cooloff (sec) |       Last TechSupport Run        |
++================+================+===================================+
+|       Yes      |      300       |   Tue 15 Jun 2021 08:09:59 PM UTC |
++----------------+----------------+-----------------------------------+
+```
 
 ## 6. Design
 
 ### 6.1 Event-trigger for Core-dump generation
-To Monitor and respond for the file-change events in `/var/core/`, a systemd path unit ([systemd path unit](https://www.freedesktop.org/software/systemd/man/systemd.path.html)) will be used. This unit will start a corresponding systemd service, which inturn invokes the python script `/usr/local/bin/auto_techsupport_gen` and it handles the heavylifting of invoking techsupport and other config tasks. 
+To Monitor and respond for the file-change events in `/var/core/`, a systemd path unit ([systemd path unit](https://www.freedesktop.org/software/systemd/man/systemd.path.html)) will be used. This unit will start a corresponding systemd service, which inturn invokes the python script `/usr/local/bin/auto_techsupport_gen` and it handles the heavylifting of invoking techsupport and other tasks. More on the script in section 6.3 
 
 #### coredump-monit.path
 ```
@@ -137,6 +145,13 @@ WantedBy=multi-user.target
 ```
 
 Note: All of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services. 
+
+### 6.3 auto_techsupport_gen Script
+
+As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. 
+
+On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.
+
 
 ### 6.3 Adding these services to SONiC
 
