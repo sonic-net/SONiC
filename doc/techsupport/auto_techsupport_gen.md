@@ -70,7 +70,7 @@ enabled = yes|no;
 ## 6. Design
 
 ### 6.1 Event-trigger for Core-dump generation
-To Monitor and respond for the file-change events in `/var/core/`, a systemd path unit ([systemd path unit](https://www.freedesktop.org/software/systemd/man/systemd.path.html)) will be used. This unit will start a corresponding systemd service, which inturn invokes the python script and it handles the heavylifting of invoking techsupport and other config tasks. 
+To Monitor and respond for the file-change events in `/var/core/`, a systemd path unit ([systemd path unit](https://www.freedesktop.org/software/systemd/man/systemd.path.html)) will be used. This unit will start a corresponding systemd service, which inturn invokes the python script `/usr/local/bin/auto_techsupport_gen` and it handles the heavylifting of invoking techsupport and other config tasks. 
 
 #### coredump-monit.path
 ```
@@ -103,7 +103,7 @@ WantedBy=multi-user.target
 ```
 
 ### 6.2 Monitor Techsupport creation
-As seen in the schema, the script will be using the last_techsupport_run field in the State DB to determine whether to run techsupport based on the cooloff period configured by the user. To have the last_techsupport_run upto date, techsupport-monit.{path, service} is used.
+The script will use the last_techsupport_run field in the State DB to determine whether to run techsupport based on the cooloff period configured by the user. To have the last_techsupport_run upto date, techsupport-monit.{path, service} units is used.
 
 
 #### techsupport-monit.path
@@ -140,7 +140,7 @@ Note: All of these will have strict ordering dependency on database.service and 
 
 ### 6.3 Adding these services to SONiC
 
-These will be added to sonic-host-services directory under sonic-buildimage/src directory.
+These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb`.
 
 
 
