@@ -1411,19 +1411,25 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
 7. Add more REMOTE_VNI table entries to different Remote IP.
    - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created in case of platforms that create dynamic P2P tunnels on type 3 routes.
-   - Verify that L2MC group is created and SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER with end point IP and P2MP bridge port is created in case of platforms that use P2MP tunnel on type 3 routes.
+   - Verify that vlan flood type is set to SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED. Verify that L2MC group is created and SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER with end point IP and P2MP bridge port is created and set in vlan's unknown unicast and broadcast flood group in case of platforms that use P2MP tunnel on type 3 routes.
 8. Add more REMOTE_VNI table entries to the same Remote IP.
    - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip in case of platforms that create dynamic P2P tunnels on type 3 routes.
    - Verify that additional SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER entries are created per remote ip with P2MP bridge port in case of platforms that use P2MP tunnel on type 3 routes.
-9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted in case of platforms that create VLAN_MEMBER. In case of platforms creating SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER per end point IP verify that L2MC_GROUP_MEMBER entries are deleted.
-10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted for platforms that use P2P Tunnels. In case of platforms that use P2MP tunnel, verify that L2MC_GROUP_MEMBERS are removed and L2MC_GROUP is deleted.
+9. Remove the additional entries created above
+  - Verify that the created VLAN_MEMBER entries are deleted in case of platforms that create VLAN_MEMBER. 
+  - Verify that L2MC_GROUP_MEMBER entries are deleted in case of platforms creating SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER per end point IP. 
+10. Remove the last REMOTE_VNI entry for a DIP
+  - Verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted for platforms that use P2P Tunnels.
+  - Verify that L2MC_GROUP_MEMBERS are removed, L2MC_GROUP is deleted and vlan's flood group are set to null object as well as vlan's flood type is updated to SAI_VLAN_FLOOD_CONTROL_TYPE_ALL in case of platforms that use P2MP tunnel.
 
 ### 8.2 FdbOrch
 
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
    
-   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information. In case of platforms that use P2P tunnel verify that P2P tunnel's bridgeport is used while in case of platforms that use P2MP tunnel, P2MP tunnel's bridge port is used.
+   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information. 
+   - In case of platforms that use P2P tunnel, verify that P2P tunnel's bridgeport is used. 
+   - In case of platforms that use P2MP tunnel, verify that P2MP tunnel's bridge port is used.
 3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
 4. Repeat above steps for remote static MACs.
 5. Add MAC in the ASIC DB and verify that the STATE_DB MAC_TABLE is updated.
@@ -1453,9 +1459,6 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
 6. Add remote MAC entry in Kernel and verify MAC is present in VXLAN_FDB_TABLE. Delete remote MAC entry in Kernel and verify MAC is removed from VXLAN_FDB_TABLE.
 7. Move remote MAC to local by programming the same entry in STATE_FDB_TABLE and verify Kernel is updated.
 8. Move local MAC entry to remote by replacing fdb entry in Kernel and verify VXLAN_FDB_TABLE is updated.
-
-### 8.4 Vlanmgr
-1. Verify that for platforms which use P2MP tunnel when Type 3 routes are processed, VLAN is created with SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED
 
 ## 9 References
 
