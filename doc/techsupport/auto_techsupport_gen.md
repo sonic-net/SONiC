@@ -14,7 +14,9 @@
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto_techsupport_gen script](#63-auto_techsupport_gen-script)
-      * [6.4 Adding these services to SONiC](#64-Adding-these-services-to-sonic)
+      * [6.4 Warmboot Considerations](#64-Warmboot-Considerations)
+      * [6.5 Adding these services to SONiC](#66-Adding-these-services-to-sonic)
+      * [6.6 Design choices for max_cdd_size argument ](#66-Design-choices-for-max_cdd_size-argument )
 
 
 ### Revision  
@@ -49,11 +51,9 @@ state = enabled|disabled;
 cooloff = 300;              # Minimum Time in seconds, between two successive techsupport invocations by the script.
 max_ts_dumps = 3;           # Maximum number of Techsupport dumps, which can be present on the switch.
                               The oldest one will be deleted, when the the limit has already crossed this.                         
-max_cdd_size = 1;           # Maximum Size to which /var/core directory can go;
-                              A perentage value should be specified. The actual value in bytes is calculate dbased on available disk size
-                              When the limit is crossed, the older core files are deleted.
-                              Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf
-                              https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
+max_cdd_size = 2;           # Maximum Size to which /var/core directory can go. A perentage value should be specified. 
+                              The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
+                              When the limit is crossed, the older core files are incrementally deleted 
 ```
 
 #### State DB
@@ -120,15 +120,16 @@ module sonic-auto_techsupport {
                 
                 leaf max_cdd_size {
                     description "Maximum Size to which /var/core directory can go;
-                                 A perentage value should be specified. The actual value in bytes is calculate based on the available disk size
+                                 A perentage value should be specified. 
+                                 The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                  When the limit is crossed, the older core files are deleted.";
                     type uint8 {
                          range "1..20" {
-                            error-message "Should be between 1 to 20% of the total disk space";
+                            error-message "Can be between 1 to 20%";
                             error-app-tag max_cdd_size_size-invalid;
                          }
                     }
-                    default "1";
+                    default "2";
                 }  
         }
         /* end of container AUTO_TECHSUPPORT */
@@ -142,11 +143,12 @@ module sonic-auto_techsupport {
 ## 5. CLI Enhancements.
 
 ### config cli
-
-`config auto-techsupport state <enabled/disabled>`
-`config auto-techsupport cooloff <0..3600>`
-`config auto-techsupport max_ts_dumps <1..10>`
-`config auto-techsupport max_cdd_size <1..20>`
+```
+config auto-techsupport state <enabled/disabled>
+config auto-techsupport cooloff <0..3600>
+config auto-techsupport max_ts_dumps <1..10>
+config auto-techsupport max_cdd_size <1..20>
+```
 
 ### show cli
 
@@ -154,7 +156,7 @@ module sonic-auto_techsupport {
 admin@sonic:~$ show auto-techsupport 
 STATUS      COOLOFF    MAX_TS_DUMPS   MAX_CDD_SIZE         LAST_TECHSUPPORT_RUN
 -------     -------    ------------   -------------------  -------------------------------
-Enabled     300 sec    3              200000 KB / 1%       Tue 15 Jun 2021 08:09:59 PM UTC
+Enabled     300 sec    3              200000 KB / 2%       Tue 15 Jun 2021 08:09:59 PM UTC
 ```
 
 ## 6. Design
@@ -238,11 +240,32 @@ On the other hand, when invoked with `core` argument, the script first checks if
 
 The last_techsupport_run value is meaningless across reboots since monotonic time is used. This field will be empty after reboot type. Other Relavant Entries in the State DB will be added to the db_migrator and are persisted across warm-reboots.  and uf yes, deletes the old core files
 
-### 6.4 Adding these services to SONiC
+### 6.5 Adding these services to SONiC
 
 These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb`.
 
+### 6.6 Design choices for max_cdd_size argument 
 
+Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
+
+```
+admin@sonic-nvda-spc:/var/core$ df .
+Filesystem     1K-blocks    Used Available Use% Mounted on
+root-overlay    14928328 3106572  11040396  22% /
+
+admin@sonic-nvda-spc2:/var/core$ df .
+Filesystem     1K-blocks    Used Available Use% Mounted on
+root-overlay    28589288 2922160  24191796  11% /
+
+admin@sonic-nvda-spc3:/var/core$ df .
+Filesystem     1K-blocks    Used Available Use% Mounted on
+root-overlay    32896880 5460768  25742008  18% /
+```
+
+/var/core directory is hosted on root-overlay filesystem and i've seen this ranging from 10G to 25G. 
+Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistc default value of 2% is choosen. A typical 2% would amount to 200 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
+
+Although if the admin feels otherwise, this value is configurable upto 20% i.e almost 2G.
 
 
 
