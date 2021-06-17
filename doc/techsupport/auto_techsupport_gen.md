@@ -8,6 +8,7 @@
   * [2. High Level Requirements](#2-high-level-requirements)
   * [3. Core Dump Generation in SONiC](#3-core-dump-generation-in-sonic)
   * [4. Schema Additions](#4-schema-additions)
+    * [4.1 YANG Model](#61-YANG-Model)
   * [5. CLI Enhancements](#5-cli-enhancements)
   * [6. Design](#6-design)
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
@@ -55,9 +56,9 @@ max_core_dump_size = 100;   # Maximum Size to which /var/core directory can go t
 #### State DB
 ```
 key = "AUTO_TECHSUPPORT|global"
-last_techsupport_run = 0; # Monotonic time in seconds relative to the latest techsupport run   
-core_file_list = "<*.core.gz>;<*.core.gz>"; List of the core files inside the /var/core/ folder 
-                                     Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
+last_techsupport_run = 0;                   # Monotonic time in seconds relative to the latest techsupport run   
+core_file_list = "<*.core.gz>;<*.core.gz>"; # List of the core files inside the /var/core/ folder 
+                                              Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
 ```
 
 ### 4.1 YANG Model
@@ -123,7 +124,7 @@ module sonic-auto_techsupport {
                             error-app-tag max_core_dump_size-invalid;
                          }
                     }
-                    default "200";
+                    default "100";
                 }  
         }
         /* end of container AUTO_TECHSUPPORT */
@@ -230,11 +231,13 @@ Note: All of these will have strict ordering dependency on database.service and 
 
 ### 6.3 auto_techsupport_gen script
 
-As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. 
+As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. It then deletes any old Techsupport dumps, if the limit configured by the user has crossed.
 
-On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.
+On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.  The script will also independently check if the Max Size configured by the user has already exceeded
 
-**Note: The last_techsupport_run value doesn't persist across reboots, since monotonic time is used. The field will be empty after reboot (including warm-boot)**. 
+### 6.4 Warmboot Considerations
+
+The last_techsupport_run value is meaningless across reboots since monotonic time is used. This field will be empty after reboot type. Other Relavant Entries in the State DB will be added to the db_migrator and are persisted across warm-reboots.  and uf yes, deletes the old core files
 
 ### 6.4 Adding these services to SONiC
 
