@@ -45,9 +45,11 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 ```
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
-cooloff = 300;    # Minimum Time in seconds, between two successive techsupport invocations by the script.
-max_dumps = 3;    # Maximum number of Techsupport dumps, which can be present on the switch.
-                    If a new request to create a techsupport comes in, the oldest one will be deleted.
+cooloff = 300;              # Minimum Time in seconds, between two successive techsupport invocations by the script.
+max_ts_dumps = 3;           # Maximum number of Techsupport dumps, which can be present on the switch.
+                            The oldest one will be deleted, when the the limit has already crossed this.                         
+max_core_dump_size = 100;   # Maximum Size to which /var/core directory can go till in MB;
+                            When the limit is crossed, the older core files are deleted.
 ```
 
 #### State DB
@@ -58,6 +60,82 @@ core_file_list = "<*.core.gz>;<*.core.gz>"; List of the core files inside the /v
                                      Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
 ```
 
+### 4.1 YANG Model
+
+```
+module sonic-auto_techsupport {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/Azure/sonic-auto_techsupport";
+    prefix auto_techsupport;
+
+    description "Auto Techsupport Capability in SONiC OS";
+
+    revision 2021-06-17 {
+        description "First Revision";
+    }
+
+    container sonic-auto_techsupport {
+
+        container AUTO_TECHSUPPORT {
+
+                description "AUTO_TECHSUPPORT part of config_db.json";
+                
+                leaf status {
+                    description "AUTO_TECHSUPPORT status";
+                    type enumeration {
+                        enum disable;
+                        enum enable;
+                    }
+                    default disable;
+                }
+                
+                leaf cooloff {
+                    description "Minimum Time in seconds, between two successive techsupport invocations by the script.";
+                    type uint16 {
+                         range "0..3600" {
+                            error-message "Should be between 0 to 3600 seconds";
+                            error-app-tag cooloff-invalid;
+                         }
+                    }
+                    default "300";
+                }
+                
+                leaf max_ts_dumps {
+                    description "Maximum number of Techsupport dumps, which can be present on the switch.
+                                 The oldest one will be deleted, when the the limit has already crossed this. ";
+                    type uint8 {
+                         range "1..10" {
+                            error-message "Should be between 1 to 10";
+                            error-app-tag max_ts_dumps-invalid;
+                         }
+                    }
+                    default "3";
+                }
+                
+                leaf max_core_dump_size {
+                    description "Maximum Size to which /var/core directory can go till in MB;
+                                 When the limit is crossed, the older core files are deleted.";
+                    type uint16 {
+                         range "10..500" {
+                            error-message "Should be between 10 to 500 MB";
+                            error-app-tag max_core_dump_size-invalid;
+                         }
+                    }
+                    default "200";
+                }  
+        }
+        /* end of container AUTO_TECHSUPPORT */
+    }
+    /* end of top level container */
+}
+
+
+```
+
+
+
 ## 5. CLI Enhancements.
 
 ### config cli
@@ -66,17 +144,17 @@ core_file_list = "<*.core.gz>;<*.core.gz>"; List of the core files inside the /v
 
 `config auto-techsupport cooloff <seconds>`
 
-`config auto-techsupport max_dumps <Integer>`
+`config auto-techsupport max_ts_dumps <Integer>`
+
+`config auto-techsupport max_core_dump_size <Integer>`
 
 ### show cli
 
 ```
 admin@sonic:~$ show auto-techsupport 
-+----------------+----------------+-----------------------------------+
-|     Enabled    |  Cooloff (sec) |       Last TechSupport Run        |
-+================+================+===================================+
-|       Yes      |      300       |   Tue 15 Jun 2021 08:09:59 PM UTC |
-+----------------+----------------+-----------------------------------+
+STATUS      COOLOFF    MAX_TS_DUMPS   MAX_CORE_DUMP_SIZE  LAST_TECHSUPPORT_RUN
+-------     -------    ------------   ------------------  -------------------------------
+Enabled     300 sec    3              200 MB              Tue 15 Jun 2021 08:09:59 PM UTC
 ```
 
 ## 6. Design
