@@ -46,6 +46,8 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
 cooloff = 300;    # Minimum Time in seconds, between two successive techsupport invocations by the script.
+max_dumps = 3;    # Maximum number of Techsupport dumps, which can be present on the switch.
+                    If a new request to create a techsupport comes in, the oldest one will be deleted.
 ```
 
 #### State DB
@@ -64,6 +66,8 @@ core_file_list = "<*.core.gz>;<*.core.gz>"; List of the core files inside the /v
 `config auto-techsupport state <enabled/disabled>`
 
 `config auto-techsupport cooloff <seconds>`
+
+`config auto-techsupport max_dumps <Integer>`
 
 ### show cli
 
