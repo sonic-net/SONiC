@@ -13,9 +13,9 @@
   * [6. Design](#6-design)
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
-      * [6.3 auto_techsupport_gen script](#63-auto_techsupport_gen-script)
+      * [6.3 auto-techsupport script](#63-auto-techsupport-script)
       * [6.4 Warmboot Considerations](#64-Warmboot-Considerations)
-      * [6.5 Adding these services to SONiC](#66-Adding-these-services-to-sonic)
+      * [6.5 Adding these services to SONiC](#65-Adding-these-services-to-sonic)
       * [6.6 Design choices for max_cdd_size argument ](#66-Design-choices-for-max_cdd_size-argument )
 
 
@@ -183,13 +183,13 @@ WantedBy=multi-user.target
 #### coredump-monit.service
 ```
 [Unit]
-Description=Invokes the auto_techsupport_gen script when triggered by the coredump-monit.path
+Description=Invokes the auto-techsupport script when triggered by the coredump-monit.path
 After=database.service
 Requires=database.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/auto_techsupport_gen core
+ExecStart=/usr/local/bin/auto-techsupport core
 
 [Install]
 WantedBy=multi-user.target
@@ -202,7 +202,7 @@ The script will use the last_techsupport_run field in the State DB to determine 
 #### techsupport-monit.path
 ```
 [Unit]
-Description=Triggers the auto_techsupport_gen services when a techsupport dump is found.
+Description=Triggers the auto-techsupport services when a techsupport dump is found.
 After=database.service
 Requires=database.service
 
@@ -217,13 +217,13 @@ WantedBy=multi-user.target
 #### techsupport-monit.service
 ```
 [Unit]
-Description=Invokes the auto_techsupport_gen script when triggered by the techsupport-monit.path
+Description=Invokes the auto-techsupport script when triggered by the techsupport-monit.path
 After=database.service
 Requires=database.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/auto_techsupport_gen techsupport
+ExecStart=/usr/local/bin/auto-techsupport techsupport
 
 [Install]
 WantedBy=multi-user.target
@@ -231,7 +231,7 @@ WantedBy=multi-user.target
 
 Note: All of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services. 
 
-### 6.3 auto_techsupport_gen script
+### 6.3 auto-techsupport script
 
 As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. It then deletes any old Techsupport dumps, if the limit configured by the user has crossed.
 
