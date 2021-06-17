@@ -8,7 +8,7 @@
   * [2. High Level Requirements](#2-high-level-requirements)
   * [3. Core Dump Generation in SONiC](#3-core-dump-generation-in-sonic)
   * [4. Schema Additions](#4-schema-additions)
-    * [4.1 YANG Model](#61-YANG-Model)
+    * [4.1 YANG Model](#41-YANG-Model)
   * [5. CLI Enhancements](#5-cli-enhancements)
   * [6. Design](#6-design)
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
@@ -22,7 +22,7 @@
 ### Revision  
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
-| 1.0 | 06/14/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
+| 1.0 | 06/17/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
 
 
 ## About this Manual
@@ -49,7 +49,8 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
 cooloff = 300;              # Minimum Time in seconds, between two successive techsupport invocations by the script.
-max_ts_dumps = 3;           # Maximum number of Techsupport dumps, which can be present on the switch.
+max_ts_dumps = 3;           # Maximum number of Techsupport dumps (Doesn't matter if it's manually or auto invoked), 
+                              which are allowed to be present on the device.
                               The oldest one will be deleted, when the the limit has already crossed this.                         
 max_cdd_size = 2;           # Maximum Size to which /var/core directory can go. A perentage value should be specified. 
                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
