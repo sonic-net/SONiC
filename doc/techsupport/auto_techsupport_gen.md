@@ -61,7 +61,7 @@ core-usage = 5;                 # A perentage value should be specified.
 #### State DB
 ```
 key = "AUTO_TECHSUPPORT|global"
-last_techsupport_run = 0;                   # Monotonic time in seconds relative to the latest techsupport run   
+last_techsupport_run = 0;                   # The last techsupport run, represented by the Monotonic time in seconds.  
 core_file_list = "<*.core.gz>;<*.core.gz>"; # List of the core files inside the /var/core/ folder 
                                               Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
 ```
