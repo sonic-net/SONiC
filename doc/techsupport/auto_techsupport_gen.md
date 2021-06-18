@@ -258,7 +258,7 @@ root-overlay    32896880 5460768  25742008  18% /
 ```
 
 /var/core directory is hosted on root-overlay filesystem and i've seen this ranging from 10G to 25G. 
-Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistc default value of 2% is choosen. A typical 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
+Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistic default value of 2% is chosen. A typical 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
 
 Although if the admin feels otherwise, this value is configurable.
 
