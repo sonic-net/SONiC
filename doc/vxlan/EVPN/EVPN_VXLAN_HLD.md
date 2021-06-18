@@ -627,7 +627,7 @@ In the current implementation, Tunnel Creation handling in the VxlanMgr and Vxla
 The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0 and 
 SAI object type as TUNNEL. This SAI object is P2MP.
 
-Some vendors support P2P Tunnels to handle Layer2 extension and learning while some vendors support using existing P2MP for Layer2 scenarios.
+Some vendors support P2P Tunnels to handle Layer2 extension and fdb learning while some vendors support using existing P2MP for Layer2 scenarios. In order to differentiate the different requirements evpn_remote_vni orch which currently handles remote VNI is split into two types - evpn_remote_vni_p2p to handle the flow involving the P2P tunnel creation and evpn_remote_vni_p2mp to handle the flow for using the existing P2MP tunnel. Vendors can pick one of these orch based on the implementation their platforms support.
 
 #### 4.3.1.1 P2P Tunnel creation
 In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
