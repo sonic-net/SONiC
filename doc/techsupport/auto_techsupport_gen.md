@@ -149,9 +149,9 @@ config auto-techsupport core-usage <1..100>
 
 ```
 admin@sonic:~$ show auto-techsupport 
-STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_DIR_SIZE  LAST_TECHSUPPORT_RUN
--------     -------    ---------------------   ----------------------  -------------------------------
-Enabled     300 sec    3                       200000 KB / 2%          Tue 15 Jun 2021 08:09:59 PM UTC
+STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  LAST_TECHSUPPORT_RUN
+-------     -------    ---------------------   ------------------------  -------------------------------
+Enabled     300 sec    3                       200000 KB / 2%            Tue 15 Jun 2021 08:09:59 PM UTC
 ```
 
 ## 6. Design
