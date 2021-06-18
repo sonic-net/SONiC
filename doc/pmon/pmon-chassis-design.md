@@ -1,6 +1,6 @@
 # SONiC Chassis Platform Management & Monitoring #
 
-### Rev 1.0 ###
+### Rev 1.1 ###
 
 # Table of Contents
 
@@ -36,6 +36,7 @@
  | Rev |     Date    |       Author                                                            | Change Description                |
  |:---:|:-----------:|:-----------------------------------------------------------------------:|-----------------------------------|
  | 1.0 |             |  Manjunath Prabhu, Sureshkannan Duraisamy, Marty Lok, Marc Snider       | Initial version                   |
+ | 1.1 | 06/18/2021  |  Vedavinayagam Ganesan                                                  | chassis_modules command change    |
 
 # About this Manual
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on VOQ chassis with line-card CPUs.
@@ -218,10 +219,10 @@ Configuration will be provided to administratively bring down a line-card or fab
 
 ```
 Configuration to administratively bring down the module
-#config chassis-modules shutdown <module_name>
+#config chassis modules shutdown <module_name>
 
 Configuration to remove the adminstrative down state of module
-#config chassis-modules startup <module_name>
+#config chassis modules startup <module_name>
 ```
 #### Config-DB Schema
 The schema for CHASSIS_MODULE table in Config DB is:
@@ -234,7 +235,7 @@ admin-status                          = "up" | "down"                           
 #### Show command
 A new show command is introduced to show the status of the modules in a chassis
 
-**show chassis-modules status**
+**show chassis modules status**
 ```
         Name                      Description    Physical-Slot    Oper-Status    Admin-Status
 ------------  -------------------------------  ---------------  -------------  --------------
