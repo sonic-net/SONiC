@@ -48,13 +48,14 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 ```
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
-cooloff = 300;              # Minimum Time in seconds, between two successive techsupport invocations by the script.
-max_ts_dumps = 3;           # Maximum number of Techsupport dumps (Doesn't matter if it's manually or auto invoked), 
-                              which are allowed to be present on the device.
-                              The oldest one will be deleted, when the the limit has already crossed this.                         
-max_cdd_size = 2;           # Maximum Size to which /var/core directory can go. A perentage value should be specified. 
-                              The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
-                              When the limit is crossed, the older core files are incrementally deleted 
+cooloff = 300;                  # Minimum Time in seconds, between two successive techsupport invocations by the script.
+max-techsupports = 5;           # Maximum number of Techsupport dumps (Doesn't matter if it's manually or auto invoked), 
+                                  which are allowed to be present on the device.
+                                  The oldest one will be deleted, when the the limit has already crossed this.                         
+core-usage = 5;                 # A perentage value should be specified. 
+                                  This signifies maximum Size to which /var/core directory can be grown until. 
+                                  The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
+                                  When the limit is crossed, the older core files are incrementally deleted
 ```
 
 #### State DB
@@ -87,51 +88,44 @@ module sonic-auto_techsupport {
 
                 description "AUTO_TECHSUPPORT part of config_db.json";
                 
-                leaf status {
-                    description "AUTO_TECHSUPPORT status";
-                    type enumeration {
-                        enum disable;
-                        enum enable;
+                container global {
+               
+                    leaf status {
+                        description "AUTO_TECHSUPPORT status";
+                        type enumeration {
+                            enum disable;
+                            enum enable;
+                        }
+                        default disable;
                     }
-                    default disable;
-                }
-                
-                leaf cooloff {
-                    description "Minimum Time in seconds, between two successive techsupport invocations by the script.";
-                    type uint16 {
-                         range "0..3600" {
-                            error-message "Should be between 0 to 3600 seconds";
-                            error-app-tag cooloff-invalid;
-                         }
+
+                    leaf cooloff {
+                        description "Minimum Time in seconds, between two successive techsupport invocations by the script.";
+                        type uint16;
+                        default "300";
                     }
-                    default "300";
-                }
-                
-                leaf max_ts_dumps {
-                    description "Maximum number of Techsupport dumps, which can be present on the switch.
-                                 The oldest one will be deleted, when the the limit has already crossed this. ";
-                    type uint8 {
-                         range "1..10" {
-                            error-message "Should be between 1 to 10";
-                            error-app-tag max_ts_dumps-invalid;
-                         }
+
+                    leaf max-techsupports {
+                        description "Maximum number of Techsupport dumps, which can be present on the switch.
+                                     The oldest one will be deleted, when the the limit has already crossed this. ";
+                        type uint8;
+                        default "5";
                     }
-                    default "3";
-                }
-                
-                leaf max_cdd_size {
-                    description "Maximum Size to which /var/core directory can go;
-                                 A perentage value should be specified. 
-                                 The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
-                                 When the limit is crossed, the older core files are deleted.";
-                    type uint8 {
-                         range "1..20" {
-                            error-message "Can be between 1 to 20%";
-                            error-app-tag max_cdd_size_size-invalid;
-                         }
-                    }
-                    default "2";
-                }  
+
+                    leaf core-usage {
+                        description "A perentage value should be specified. 
+                                     This signifies maximum Size to which /var/core directory can be grown until
+                                     The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
+                                     When the limit is crossed, the older core files are deleted.";
+                        type uint8 {
+                             range "1..100" {
+                                error-message "Can only be between 1 to 100"; 
+                             }
+                        }
+                        default "5";
+                    }  
+              }
+              /* end of container global */
         }
         /* end of container AUTO_TECHSUPPORT */
     }
@@ -146,18 +140,18 @@ module sonic-auto_techsupport {
 ### config cli
 ```
 config auto-techsupport state <enabled/disabled>
-config auto-techsupport cooloff <0..3600>
-config auto-techsupport max_ts_dumps <1..10>
-config auto-techsupport max_cdd_size <1..20>
+config auto-techsupport cooloff <uint16>
+config auto-techsupport max-techsupport <uints8>
+config auto-techsupport core-usage <1..100>
 ```
 
 ### show cli
 
 ```
 admin@sonic:~$ show auto-techsupport 
-STATUS      COOLOFF    MAX_TS_DUMPS   MAX_CDD_SIZE         LAST_TECHSUPPORT_RUN
--------     -------    ------------   -------------------  -------------------------------
-Enabled     300 sec    3              200000 KB / 2%       Tue 15 Jun 2021 08:09:59 PM UTC
+STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_DIR_SIZE  LAST_TECHSUPPORT_RUN
+-------     -------    ---------------------   ----------------------  -------------------------------
+Enabled     300 sec    3                       200000 KB / 2%          Tue 15 Jun 2021 08:09:59 PM UTC
 ```
 
 ## 6. Design
@@ -264,9 +258,9 @@ root-overlay    32896880 5460768  25742008  18% /
 ```
 
 /var/core directory is hosted on root-overlay filesystem and i've seen this ranging from 10G to 25G. 
-Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistc default value of 2% is choosen. A typical 2% would amount to 200 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
+Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistc default value of 2% is choosen. A typical 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
 
-Although if the admin feels otherwise, this value is configurable upto 20% i.e almost 2G.
+Although if the admin feels otherwise, this value is configurable.
 
 
 
