@@ -62,8 +62,10 @@ core-usage = 5;                 # A perentage value should be specified.
 ```
 key = "AUTO_TECHSUPPORT|global"
 last_techsupport_run = 0;                   # The last techsupport run, represented by the Monotonic time in seconds.  
+num_techsupports  = 0;                      # Number of TS Dumps already present.
 core_file_list = "<*.core.gz>;<*.core.gz>"; # List of the core files inside the /var/core/ folder 
                                               Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
+                                             
 ```
 
 ### 4.1 YANG Model
