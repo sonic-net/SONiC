@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 0.9
+#### Rev 1.0
 
 # Table of Contents
 
@@ -73,6 +73,7 @@
 | 0.7  |  | Rajesh Sankaran | Click and SONiC CLI added |
 | 0.8 | | Hasan Naqvi | Linux kernel section and fdbsyncd testcases added |
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
+| 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
 
 # Definition/Abbreviation
 
