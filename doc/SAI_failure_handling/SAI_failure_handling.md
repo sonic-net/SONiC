@@ -68,17 +68,17 @@ An ERROR_DB will be introduced to escalate the failures from orchagent to upper 
 The schema of ERROR_DB is designed as follows:
 
 ```
-ERROR_{{TABLE_TYPE}}_TABLE|entry
+ERROR_{{DB_TYPE}}_{{TABLE_TYPE}}_TABLE|entry
     "failed_orch": {{failed orch type}}
     "failed_SAI": {{failed SAI type}}
     "opcode": {{failed SAI operation type}}
     "status": {{sai_status}}
-    "attributes": "attr_type0,attr_type1,..."
-    "attr_values": "attr_value0,attr_value1,..."
+    "attributes": "attr_type0,attr_type1,..." (Optional)
+    "attr_values": "attr_value0,attr_value1,..." (Optional)
     "counter": {{count}}
 ```
 
-The table and key in ERROR_DB correspond to the table and key in APPL_DB where SAI failures happen (e.g., SAI failure happens when conducting operations for APPL_DB entry `ROUTE_TABLE:0.0.0.0/0`, the corresponding key in ERROR_DB should be `ERROR_ROUTE_TABLE:0.0.0.0/0`).
+The table and key in ERROR_DB correspond to the DB, table, and key where SAI failures happen (e.g., SAI failure happens when conducting operations for APPL_DB entry `ROUTE_TABLE:0.0.0.0/0`, the corresponding key in ERROR_DB should be `ERROR_APPL_ROUTE_TABLE:0.0.0.0/0`).
 
 The field `failed_orch` indicates the type of orch where the SAI failure happens.
 
