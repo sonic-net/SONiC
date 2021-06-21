@@ -239,7 +239,7 @@ The last_techsupport_run value is meaningless across reboots since monotonic tim
 
 ### 6.5 Adding these services to SONiC
 
-These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb`.
+These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb` & `target/python-wheels/sonic_host_services-1.0-py3-none-any.whl` accordingly.
 
 ### 6.6 Design choices for max_cdd_size argument 
 
