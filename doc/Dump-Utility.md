@@ -77,7 +77,7 @@ dump state port all
 
 ```
 root@sonic# dump state --help
-Usage: main.py state [OPTIONS] MODULE IDENTIFIER
+Usage: dump state [OPTIONS] MODULE IDENTIFIER
 
   Dump the redis-state of the identifier for the module specified
 
