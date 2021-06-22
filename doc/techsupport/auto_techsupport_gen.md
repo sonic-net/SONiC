@@ -14,8 +14,8 @@
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto-techsupport script](#63-auto-techsupport-script)
-      * [6.4 Warmboot/Fastboot consideration](#63-Warmboot/Fastboot-consideration)
-      * [6.5 Design choices for max_cdd_size argument ](#65-Design-choices-for-max_cdd_size-argument )
+      * [6.4 Warmboot/Fastboot consideration](#64-Warmboot/Fastboot-consideration)
+      * [6.5 Design choices for max_cdd_size argument](#65-Design-choices-for-max_cdd_size-argument )
 
 
 ### Revision  
