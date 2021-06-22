@@ -15,7 +15,7 @@
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto-techsupport script](#63-auto-techsupport-script)
       * [6.4 Warmboot/Fastboot consideration](#64-Warmboot/Fastboot-consideration)
-      * [6.5 Design choices for max_cdd_size argument](#65-Design-choices-for-max_cdd_size-argument )
+      * [6.5 Design choices for max_cdd_size argument](#65-Design-choices-for-core-usage-argument )
 
 
 ### Revision  
@@ -230,7 +230,7 @@ The script then checks if the cooloff period has passed, and it invokes the tech
 
 No impact for warmboot/fastboot flows.
 
-### 6.5 Design choices for max_cdd_size argument 
+### 6.5 Design choices for core-usage argument 
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
@@ -248,8 +248,8 @@ Filesystem     1K-blocks    Used Available Use% Mounted on
 root-overlay    32896880 5460768  25742008  18% /
 ```
 
-/var/core directory is hosted on root-overlay filesystem and i've seen this ranging from 10G to 25G. 
-Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistic default value of 5% is chosen.This would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
+/var/core directory is hosted on root-overlay filesystem and this usually ranges from 10G to 25G+. 
+Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistic default value of 5% is chosen. This would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
 
 Although if the admin feels otherwise, this value is configurable.
 
