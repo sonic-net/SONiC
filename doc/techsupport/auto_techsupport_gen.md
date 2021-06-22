@@ -224,7 +224,7 @@ As seen in the techsupport-monit.service & coredump-monit.service Unit descripti
 
 On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script first verifies if a file is created within the last 20 sec and if yes, it moves forward. 
 
-The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files independently. 
+The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
 ### 6.4 Warmboot/Fastboot consideration
 
