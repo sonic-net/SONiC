@@ -15,7 +15,7 @@
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto-techsupport script](#63-auto-techsupport-script)
       * [6.4 Warmboot/Fastboot consideration](#64-Warmboot/Fastboot-consideration)
-      * [6.5 Design choices for max_cdd_size argument](#65-Design-choices-for-core-usage-argument )
+      * [6.5 Design choices for core-usage argument](#65-Design-choices-for-core-usage-argument )
 
 
 ### Revision  
