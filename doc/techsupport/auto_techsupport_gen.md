@@ -14,7 +14,7 @@
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto-techsupport script](#63-auto-techsupport-script)
-      * [6.4 Adding these services to SONiC](#64-Adding-these-services-to-sonic)
+      * [6.4 Warmboot/Fastboot consideration](#63-Warmboot/Fastboot-consideration)
       * [6.5 Design choices for max_cdd_size argument ](#65-Design-choices-for-max_cdd_size-argument )
 
 
@@ -226,9 +226,9 @@ On the other hand, when invoked with `core` argument, the script first checks if
 
 The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files independently. 
 
-### 6.4 Adding these services to SONiC
+### 6.4 Warmboot/Fastboot consideration
 
-These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb` & `target/python-wheels/sonic_host_services-1.0-py3-none-any.whl` accordingly.
+No impact for warmboot/fastboot flows.
 
 ### 6.5 Design choices for max_cdd_size argument 
 
