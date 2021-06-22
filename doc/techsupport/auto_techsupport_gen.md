@@ -14,15 +14,14 @@
       * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
       * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
       * [6.3 auto-techsupport script](#63-auto-techsupport-script)
-      * [6.4 Warmboot Considerations](#64-Warmboot-Considerations)
-      * [6.5 Adding these services to SONiC](#65-Adding-these-services-to-sonic)
-      * [6.6 Design choices for max_cdd_size argument ](#66-Design-choices-for-max_cdd_size-argument )
+      * [6.4 Adding these services to SONiC](#64-Adding-these-services-to-sonic)
+      * [6.5 Design choices for max_cdd_size argument ](#65-Design-choices-for-max_cdd_size-argument )
 
 
 ### Revision  
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
-| 1.0 | 06/17/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
+| 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
 
 
 ## About this Manual
@@ -48,7 +47,8 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 ```
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled; 
-cooloff = 300;                  # Minimum Time in seconds, between two successive techsupport invocations by the script.
+cooloff = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
+                                  Manual Invocations will be considered as well in the cooloff calculation
 max-techsupports = 5;           # Maximum number of Techsupport dumps (Doesn't matter if it's manually or auto invoked), 
                                   which are allowed to be present on the device.
                                   The oldest one will be deleted, when the the limit has already crossed this.                         
@@ -58,15 +58,6 @@ core-usage = 5;                 # A perentage value should be specified.
                                   When the limit is crossed, the older core files are incrementally deleted
 ```
 
-#### State DB
-```
-key = "AUTO_TECHSUPPORT|global"
-last_techsupport_run = 0;                   # The last techsupport run, represented by the Monotonic time in seconds.  
-num_techsupports  = 0;                      # Number of TS Dumps already present.
-core_file_list = "<*.core.gz>;<*.core.gz>"; # List of the core files inside the /var/core/ folder 
-                                              Eg: "python3.15678876.168.core.gz;orchagent.145678765.182.core.gz;...."
-                                             
-```
 
 ### 4.1 YANG Model
 
@@ -192,7 +183,7 @@ WantedBy=multi-user.target
 ```
 
 ### 6.2 Monitor Techsupport creation
-The script will use the last_techsupport_run field in the State DB to determine whether to run techsupport based on the cooloff period configured by the user. To have the last_techsupport_run upto date, techsupport-monit.{path, service} units is used.
+These units are used to cleanup the old Techsupport dumps, when the limit configured by the user is crossed.
 
 
 #### techsupport-monit.path
@@ -229,19 +220,17 @@ Note: All of these will have strict ordering dependency on database.service and 
 
 ### 6.3 auto-techsupport script
 
-As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script updates the `last_techsupport_run` field in the State DB. It then deletes any old Techsupport dumps, if the limit configured by the user has crossed.
+As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
-On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then checks for any diff between `core_file_list` field in the State DB and the file system. If any diff is found, it updates the State Db entry and moves forward. The script finally checks the `last_techsupport_run` field in the State DB and only when the cooloff period has passed, the script invokes the techsupport.  The script will also independently check if the Max Size configured by the user has already exceeded
+On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script first verifies if a file is created within the last 20 sec and if yes, it moves forward. 
 
-### 6.4 Warmboot Considerations
+The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files independently. 
 
-The last_techsupport_run value is meaningless across reboots since monotonic time is used. This field will be empty after reboot type. Other Relavant Entries in the State DB will be added to the db_migrator and are persisted across warm-reboots.  and uf yes, deletes the old core files
-
-### 6.5 Adding these services to SONiC
+### 6.4 Adding these services to SONiC
 
 These will be added to `target/debs/buster/sonic-host-services-data_1.0-1_all.deb` & `target/python-wheels/sonic_host_services-1.0-py3-none-any.whl` accordingly.
 
-### 6.6 Design choices for max_cdd_size argument 
+### 6.5 Design choices for max_cdd_size argument 
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
