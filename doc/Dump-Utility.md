@@ -79,7 +79,7 @@ dump state port all
 root@sonic# dump state --help
 Usage: dump state [OPTIONS] MODULE IDENTIFIER
 
-  Dump the current state of the identifier for the module specified from the Redis DB's and CONFIG_FILE
+  Dump the current state of the identifier for the specified module from Redis DB or CONFIG_FILE
 
 Options:
   -s, --show            Display Modules Available
