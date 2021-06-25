@@ -343,6 +343,12 @@ admin@sonic:~$ config vlan del Vlan11
 
 The `update` command will be generated but not always could be executed. The user will get an error message from the YANG validator if the `update command` is not supported.
 
+###### `update` command
+```
+admin@sonic:~$ config vlan update Vlan11 --vlanid 12 --mtu 129
+admin@sonic:~$ config vlan update Vlan11 --admin-status down
+```
+
 YANG models support [The leaf's "mandatory" Statement](https://tools.ietf.org/html/rfc7950#section-7.6.5).
 If the user wants to distinguish whether a CLI argument is mandatory or not, he can use the --help command (covered in the next rules)
 
