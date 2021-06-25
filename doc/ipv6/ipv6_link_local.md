@@ -36,11 +36,13 @@
       * [3.3.1 Orchestration Agent](#331-orchestration-agent)
       * [3.3.2 NeighSyncd changes](#332-neighsyncd-changes)
       * [3.3.3 IntfMgr](#333-intfmgr)
+      * [3.3.4 IntfOrch](#334-intforch)
     * [3.4 SyncD](#34-syncd)
     * [3.5 SAI](#35-sai)
     * [3.6 CLI](#36-cli)
       * [3.6.1 Data Models](#361-data-models)
       * [3.6.2 Configuration Commands](#362-configuration-commands)
+      * [3.6.3 Show Commands](#363-show-commands)
   * [4 Flow Diagrams](#4-flow-diagrams)
   * [5 Error Handling](#5-error-handling)
   * [6 Serviceability and Debug](#6-serviceability-and-debug)
@@ -58,11 +60,11 @@
 [Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
-| Rev |     Date    |       Author       | Change Description                |
+| Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 08/02/2019  | Abhimanyu Devarapalli | Initial version                   |
-| 0.2 | 08/09/2019  | Abhimanyu Devarapalli | Addressed review comments         |
-| 0.3 | 08/20/2019  | Santosh Doke          | Addressed review comments         |
+| 0.1 | 05/28/2020  | Abhimanyu Devarapalli | Initial version                   |
+| 0.2 | 08/20/2020  | Santosh Doke          | Addressed review comments         |
+| 0.3 | 06/25/2021  | Kiran Kella           | Addressed review comments         |
 
 # About this Manual
 This document provides general information about the IPv6 link-local enhancements in SONiC.
@@ -89,7 +91,7 @@ This document describes the high level design of IPv6 link-local enhancements.
 7. Support to trap control packets destined to IPv6 link-local address to CPU.
 8. Support filtering of packets with IPv6 link-local source or destination addresses. These packets must not be routed to other interfaces.  This implies utilities like trace route are not applicable for IPv6 link-local addresses. Also, ping to link-local address is only applicable for directly connected networks.
 9. Support BGP peering using unnumbered interface configuration. In this configuration, the IPv6 link-local address of the interface is used and the remote peer IPv6 link-local address is dynamically discovered to establish adjacency.
-10. IPv6 mode is disabled by default on an interface.
+10. IPv6 mode is enabled by default on an interface.
 11. Support per interface knob to enable IPv6 auto link-local address generation in the absence of manually configured IPv6 addresses on the interface.
 12. Support for global IPv6 command to disable or enable IPv6 auto link-local address generation (in the absence of manually configured addresses) on all the existing eligible interfaces in the switch. Exceptions are the OOB port (eth0) and Linux loopback (lo) port. In L2 only deployments, it is desirable to turn off auto-generating link-local address so that IPv6 control packets are not transmitted by switch. L3 applications are responsible to handle the interface address add and delete events and cleanup/restore the state. For other applications like ACL, link-local addresses are treated like global IPv6 address. This command applies to all VRF instances in the system.
 
@@ -115,9 +117,9 @@ This document describes the high level design of IPv6 link-local enhancements.
 
 4. Provide SONiC CLI global command to enable or disable the IPv6 auto link-local address generation configuration on all eligible interfaces.
 
-   `#config ipv6 enable`
+   `#config ipv6 enable link-local`
 
-   `#config ipv6 disable`
+   `#config ipv6 disable link-local`
 
 5. Standard SNMP IP-MIB should support retrieving of link-local IPv6 addresses/neighbors.
 
@@ -220,23 +222,21 @@ To support enabling/disable of IPv6 auto link-local address generation on an int
 To support auto generated IPv6 link-local address, the APP_DB interface tables and neighbor tables are updated to store link-local addresses too.
 
 ```
-127.0.0.1:6379> hgetall "INTF_TABLE:Ethernet48:fe80::ba6a:97ff:feca:b900/64"
-1) "scope"
-2) "local"
-3) "family"
-4) "IPv6"
+    "INTF_TABLE": {
+        "Ethernet24": {
+            "ipv6_use_link_local_only": "disable"
+        }
+
+    127.0.0.1:6379[0]> hgetall INTF_TABLE:Ethernet24
+    1) "ipv6_use_link_local_only"
+    2) "disable"
 
 127.0.0.1:6379> keys *NEIGH*
 1) "NEIGH_TABLE:Ethernet0:fe80::5054:ff:fe03:6175"
-```
-### 3.2.3 STATE DB
-To support auto generated IPv6 link-local address, the STATE_DB interface tables are updated to store link-local addresses too.
 
 ```
-127.0.0.1:6379[6]> hgetall "INTERFACE_TABLE|Ethernet48|fe80::ba6a:97ff:feca:b900/64"
-1) "state"
-2) "ok"
-```
+### 3.2.3 STATE DB
+There are no changes to STATE DB schema definition.
 
 ### 3.2.4 ASIC DB
 To support programming of link-local neighbors, ASIC_DB neighbor tables are updated to store the link-local neighbors.
@@ -288,14 +288,11 @@ S>*  2222::/64 [1/0] via fe80::5054:ff:fe03:6175, Ethernet0, 00:00:04
 Neighsyncd is updated to learn the IPv6 link-local neighbors. All link-local neighbors that are dynamically learned are programmed to ASIC_DB.
 
 ### 3.3.3 IntfMgr
-In the absence of manually configured addresses on an interface, to enable/disable IPv6 mode, IntfMgr is modified to handle changes to the CONFIG DB `'ipv6_use_link_local_only'` setting. The IPv6 mode is enforced using the Linux system control utility to set the `'disable_ipv6'` parameter. The default value is also set so that new interfaces are created with default disable IPv6 setting.
+In the absence of manually configured addresses on an interface, to enable/disable IPv6 link-local mode, IntfMgr is modified to handle changes to the CONFIG DB `'ipv6_use_link_local_only'` setting by forwards the same `'ipv6_use_link_local_only'` mode to APPL_DB.
 
-`sysctl -w net.ipv6.conf.default.disable_ipv6=1`
-
-Since the Linux kernel auto-generates the IPv6 link-local address per interface, netlink events for IPv6 address addition and deletion are handled by the IntfMgr. All netlink messages other than RTM_NEWADDR, RTM_DELADDR are ignored. It also ignores all addresses other than IPv6 link-local addresses.
-
-- On receiving IPv6 Link local address add event on an interface, entry is created in both APP DB and STATE DB. Orchagent then creates the L3 RIF based on these entries. This is needed to ensure that the L3 routing can happen even with out any global IPv6 address configured on the interface.
-- On receiving IPv6 Link local address delete event on interface, the corresponding entries are deleted from APP DB and STATE DB. Orchagent then deletes the L3 RIF from the ASIC DB.
+### 3.3.4 IntfOrch
+- On receiving IPv6 Link local enable event on an interface, Orchagent then creates the L3 RIF based on these entries. This is needed to ensure that the L3 routing can happen even with out any global IPv6 address configured on the interface.
+- On receiving IPv6 Link local disable event on interface, Orchagent then deletes the L3 RIF from the ASIC DB.
 
 ## 3.4 SyncD
 
@@ -321,7 +318,37 @@ Commands:
   disable  Disable IPv6 processing on interface
   enable   Enable IPv6 processing on interface
 
+#config ipv6 enable link-local
+Usage: config ipv6 enable [OPTIONS]
+
+  Enable IPv6 link-local on all interfaces
+
+Options:
+  --help  Show this message and exit.
+
+#config ipv6 disable link-local
+Usage: config ipv6 disable [OPTIONS]
+
+  Disable IPv6 link-local on all interfaces
+
+Options:
+  --help  Show this message and exit.
+
 ```
+
+### 3.6.3 Show Commands
+
+```
+# show ipv6 link-local-mode -h
+Usage: show ipv6 link-local-mode [OPTIONS]
+
+  show ipv6 link-local-mode
+
+Options:
+  --verbose    Enable verbose output
+  --help       Show this message and exit.
+
+``` 
 
 # 4 Flow Diagrams
 Below sequence depicts the interactions between various components for events w.r.t IPv6 Link Local Address and IPv6 Link Local Neighbor in SONiC
