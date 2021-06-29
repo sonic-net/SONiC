@@ -875,12 +875,12 @@ The high-level lookup logic after an identifier is read can be described as foll
 
 ## SfpBase Modifications
 
-SfpBase will gain two new methods in the new design: reload() and get_xcvr_api(). Both will be called by xcvrd.
+SfpBase will gain two new methods in the new design: refresh_xcvr_api() and get_xcvr_api(). Both will be called by xcvrd.
 
 
 
-*   reload() will be called at boot time (when the chassis constructs the SfpBase-derived objects) and on transceiver change events by xcvrd. Purpose is to update the XcvrApi in SfpBase for subsequent xcvr EEPROM-related operations.
-*   get_xcvr_api() is called by xcvrd to get a reference to the XcvrApi associated with the SfpBase object. The return value is based on the most recent call to reload(); that is, if a call to reload() occurs, get_xcvr_api() must be called again to get the correct XcvrApi. 
+*   refresh_xcvr_api() is used to update the XcvrApi associated with the SfpBase object. This will need to be done on first access to a XcvrApi method and on transceiver change events. 
+*   get_xcvr_api() is called by xcvrd to get a reference to the XcvrApi currently associated with the SfpBase object. If the current value is None (e.g. at initialization), then refresh_xcvr_api() will be called first to update it.
 
 ```
 # sonic-platform-common/sonic_platform_base/sfp_base.py
@@ -888,15 +888,26 @@ SfpBase will gain two new methods in the new design: reload() and get_xcvr_api()
 class SfpBase(device_base.DeviceBase):
     def __init__(self):
         self.xcvr_api_factory = XcvrApiFactory(self.read_eeprom, self.write_eeprom)
-        self.reload()
+        self.xcvr_api = None
 
-    def reload(self):
-        # Called at init or when new Sfp inserted
+    ...
+
+    def refresh_xcvr_api(self):
+        """
+        Updates the XcvrApi associated with this SFP
+        """
         self.xcvr_api = self.xcvr_api_factory.create_xcvr_api()
 
     def get_xcvr_api(self):
-        return self.xcvr_api
+        """
+        Retrieves the XcvrApi associated with this SFP
 
+        Returns:
+            An object derived from XcvrApi that corresponds to the SFP
+        """
+        if self.xcvr_api is None:
+            self.refresh_xcvr_api()
+        return self.xcvr_api
     ... 
 
 ```
