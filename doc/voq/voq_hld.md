@@ -785,7 +785,7 @@ Example coniguration for voq inband interface type "port" is presented
             "admin_status": "up",
             "alias": "Rcy-Asic1",
             "index": "3",
-            "lanes": "24,25,26,27,28,29,30,31",
+            "lanes": "133",
             "mtu": "1500",
             "speed": "10000"
         },
