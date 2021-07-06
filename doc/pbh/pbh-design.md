@@ -444,12 +444,12 @@ hash-field = "INNER_IP_PROTOCOL"
              / "INNER_SRC_IPV6"
 h16        = 1*4HEXDIG
 ls32       = h16 ":" h16
-dec-octet  = DIGIT                  ; 0-9
-             / %x31-39 DIGIT        ; 10-99
-             / %x31 2DIGIT          ; 100-199
-             / %x32 %x30-35 %x30-35 ; 200-255
-ipv4-addr  = dec-octet "." dec-octet "."
-             dec-octet "." dec-octet
+dec-octet  = DIGIT               ; 0-9
+             / %x31-39 DIGIT     ; 10-99
+             / "1" 2DIGIT        ; 100-199
+             / "2" %x30-34 DIGIT ; 200-249
+             / "25" %x30-35      ; 250-255
+ipv4-addr  = dec-octet "." dec-octet "." dec-octet "." dec-octet
 ipv6-addr  = 6( h16 ":" ) ls32
              /                       "::" 5( h16 ":" ) ls32
              / [               h16 ] "::" 4( h16 ":" ) ls32
@@ -610,7 +610,7 @@ show
      |--- rule
      |--- hash
      |--- hash-field
-     |--- statistics OPTIONS
+     |--- statistics
 ```
 
 **Options:**
@@ -638,10 +638,6 @@ _config pbh hash-field add/update_
 2. -m|--ip-mask - ip mask
 3. -s|--sequence-id - sequence id
 
-_show pbh statistics_
-1. -a|--all - Show all PBH counters
-2. -c|--clear - Clear PBH counters
-
 ### 2.6.2 Usage examples
 
 #### 2.6.2.1 Config command group
@@ -666,7 +662,7 @@ config pbh rule add 'pbh_table' 'nvgre' \
 --packet-action 'SET_ECMP_HASH' \
 --flow-counter 'DISABLED'
 config pbh rule update 'pbh_table' 'nvgre' \
---counter 'ENABLED'
+--flow-counter 'ENABLED'
 config pbh rule delete 'pbh_table' 'nvgre'
 ```
 
