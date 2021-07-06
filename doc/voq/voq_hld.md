@@ -62,7 +62,7 @@
 |:---:|:-----------:|:----------------------------------------------------------------------------------:|-----------------------------------|
 | 1.0 | 06/29/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) | Initial public version            |
 | 1.1 | 09/08/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) Eswaran Bhaskaran, Kartik Chandran (Arista Networks) | Updates after reviews             |
-| 1.2 | 06/14/2021  | Vedavinayagam Ganesan (Nokia)                                                      | Updates for cli commands      |
+| 1.2 | 06/14/2021  | Vedavinayagam Ganesan (Nokia)                                                      | Updates for cli commands, Inband interface port name change      |
 
 # About this Manual
 This document describes the design details for supporting SONiC on a Distributed VOQ System. It aligns with the SONiC Distributed VOQ-Architecture and should be read in conjunction with that document. It also adopts the SONiC Multi-ASIC architecture is adopted - which allows each asic within an FSI to be controlled independently by a separate instance of the "SONiC Network Stack" (comprising bgp, swss, syncd, lldp, teamd etc ..).
@@ -609,7 +609,9 @@ Example coniguration for voq inband interface type "port" is presented
         "localhost": {
 	   "switch_type": "voq",
 	   "switch_id": "0",
-	   "max_cores": "48"
+	   "max_cores": "48",
+	   "asic_name": "Asci0",
+	   "hostname": "Slot1"
 	}
      },
      "INTERFACE": {
@@ -621,10 +623,10 @@ Example coniguration for voq inband interface type "port" is presented
          "Ethernet3"|"30.0.0.1/16": {}
      },
      "VOQ_INBAND_INTERFACE": {
-        "Inband0": {
+        "Ethernet-IB0": {
 	   "inband_type": "port",
 	},
-	"Inband0|3.3.3.1/32": {}
+	"Ethernet-IB0|3.3.3.1/32": {}
      }
      "PORT": {
          "Ethernet1": {
@@ -650,6 +652,14 @@ Example coniguration for voq inband interface type "port" is presented
             "lanes": "24,25,26,27,28,29,30,31",
             "mtu": "1500",
             "speed": "400000"
+        },
+	 "Ethernet-IB0": {
+            "admin_status": "up",
+            "alias": "Rcy-Asic0",
+            "index": "4",
+            "lanes": "133",
+            "mtu": "1500",
+            "speed": "10000"
         },
 	.
 	.
@@ -677,12 +687,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband0": {
+	 "Slot1|Asic0|Ethernet-IB0": {
              "system_port_id": "63",
              "switch_id": "0",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          },
 	 .
 	 .
@@ -708,12 +718,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband1": {
+	 "Slot1|Asic1|Ethernet-IB1": {
              "system_port_id": "77",
              "switch_id": "2",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          }
      }
  }
@@ -727,7 +737,9 @@ Example coniguration for voq inband interface type "port" is presented
         "localhost": {
 	   "switch_type": "voq",
 	   "switch_id": "2",
-	   "max_cores": "48"
+	   "max_cores": "48",
+	   "asic_name": "Asic1",
+	   "hostname": "Slot1"
 	}
      },
       "INTERFACE": {
@@ -739,10 +751,10 @@ Example coniguration for voq inband interface type "port" is presented
          "Ethernet3"|"30.1.0.1/16": {}
      },
      "VOQ_INBAND_INTERFACE": {
-        "Inband1": {
+        "Ethernet-IB1": {
 	   "inband_type": "port",
 	},
-	"Inband1|3.3.3.2/32": {}
+	"Ethernet-IB1|3.3.3.2/32": {}
      },
      "PORT": {
          "Ethernet1": {
@@ -768,6 +780,14 @@ Example coniguration for voq inband interface type "port" is presented
             "lanes": "24,25,26,27,28,29,30,31",
             "mtu": "1500",
             "speed": "400000"
+        },
+	 "Ethernet-IB1": {
+            "admin_status": "up",
+            "alias": "Rcy-Asic1",
+            "index": "3",
+            "lanes": "24,25,26,27,28,29,30,31",
+            "mtu": "1500",
+            "speed": "10000"
         },
 	.
 	.
@@ -795,12 +815,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband0": {
+	 "Slot1|Asic0|Ethernet-IB0": {
              "system_port_id": "63",
              "switch_id": "0",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          },
 	 .
 	 .
@@ -826,12 +846,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband1": {
+	 "Slot1|Asic1|Ethernet-IB1": {
              "system_port_id": "77",
              "switch_id": "2",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          }
      }
  }
@@ -842,8 +862,8 @@ Example coniguration for voq inband interface type "port" is presented
 ```
 {
    "SYSTEM_INTERFACE": {
-      "Inband0": {},
-      "Inband1": {},
+      "Slot1|Asic0|Ethernet-IB0": {},
+      "Slot1|Asic1|Ethernet-IB1": {},
       "Slot1|Asic0|Ethernet1": {},
       "Slot1|Asic0|Ethernet2": {},
       "Slot1|Asic0|Ethernet3": {},
@@ -860,7 +880,7 @@ Example coniguration for voq inband interface type "port" is presented
          "neigh": "02:01:00:00:00:02",
 	 "encap_index": "8194",
       },
-      "Inband0:3.3.3.1": {
+      "Slot1|Asic0|Ethernet-IB0:3.3.3.1": {
          "neigh": "02:01:00:00:00:00",
 	 "encap_index": "8195",
       },
@@ -872,7 +892,7 @@ Example coniguration for voq inband interface type "port" is presented
          "neigh": "02:01:01:00:00:02",
 	 "encap_index": "8194",
       },
-      "Inband1:3.3.3.2": {
+      "Slot1|Asic1|Ethernet-IB1:3.3.3.2": {
          "neigh": "02:01:01:00:00:00",
 	 "encap_index": "8195",
       }
