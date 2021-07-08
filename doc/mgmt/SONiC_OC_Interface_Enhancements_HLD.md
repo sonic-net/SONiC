@@ -98,19 +98,20 @@ Enable/disable VLAN and Loopback interfaces via gNMI, REST or KLISH CLI.
    - Autostate.
    - Physical Port members.
    - LAG members.
-4. When the configuration changes from admin state up to down the operational status will change to operationally down. If the state were to be already operationally down then it will be a no-op. 
-5. When the configuration changes from admin down to up the operational status will change to operationally up based on autostate and members operational state.  
-6. For the VLAN state in kernel, the existing mechanism to notify the VlanMgr about the operational status will be reused. 
+   - L3 VNI status
+4. When the admin state will change from up to down, the operational status will be set to down. If already operationally down then it will be a no-op.
+5. When the admin state will change from down to up, the operational status will be set to either up or down, based on autostate and members operational status.
+6. For VLAN interface oper status updates in kernel, the existing mechanism to notify VLAN's operational status from Orchagent to VlanMgr will be reused.
 
 #### 1.3.1.2 LOOPBACK
 1. Update LOOPBACK table in the CONFIG_DB to support admin state up/down parameter.
 2. The LOOPBACK_TABLE in APP_DB already supports admin state up/down parameter.
 3. The oper status will be controlled by the admin status. 
-4. When the configuration changes from admin state up to down the operational status will change to operationally down.  
-5. When the configuration changes from admin down to up the operational status will change to operationally up.   
+4. When the configuration changes from admin state up to down the operational status will change to operationally down.
+5. When the configuration changes from admin down to up the operational status will change to operationally up.
 
 ### 1.3.2 Container
-* **swss container** : 
+* **swss container** :
   * VlanMgr and Orchagent changes to also consider admin status while setting oper status.
 * **management-framework** :
   * CLI XML & Jinja-template changes to support CLI-style configurations and relevant show commands.
@@ -132,7 +133,7 @@ As described in section 1.3
 * No change.
 
 **LOOPBACK table**
-* Producer: Mangement framework
+* Producer: Mangement framework/config_db.json/Click command
 * Consumer: VlanMgr
 * Description: Update existing table to store 'admin_status' configuration.
 * Schema:
@@ -142,7 +143,7 @@ As described in section 1.3
 ;
 ;Status: stable
 
-key = LOOPBACK_TABLE|LOOPBACK_NAME ;
+key = LOOPBACK|LOOPBACK_NAME ;
 admin_status = "up"/"down" ; admin status
 ```
 
@@ -189,7 +190,7 @@ leaf admin_status {
 ```
 #### LOOPBACK
 1. sonic-loopback.yang
-* Update containers LOOPBACK and LOOPBACK_TABLE with leaf admin status as below:
+* Update the container LOOPBACK with leaf admin status as below:
 ```
 leaf admin_status {
     type scommon:admin-status;
