@@ -574,10 +574,9 @@ Usage: show chassis system-lags [OPTIONS] [SYSTEMLAGNAME]
   Show VOQ system lags information
 
 Options:
-  -d, --display [all]  Show internal interfaces  [default: all]
-  -n, --namespace []   Namespace name or all
-  --verbose            Enable verbose output
-  -?, -h, --help       Show this message and exit.
+  -x, --asicname TEXT   Asic name
+  --verbose             Enable verbose output
+  -?, -h, --help        Show this message and exit.
 admin@Linecard2:~$ 
 ```
 ### Sample output
