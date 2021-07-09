@@ -507,15 +507,14 @@ Usage: show chassis system-ports [OPTIONS] [SYSTEMPORTNAME]
   Show VOQ system ports information
 
 Options:
-  -d, --display [all]  Show internal interfaces  [default: all]
-  -n, --namespace []   Namespace name or all
-  --verbose            Enable verbose output
-  -h, -?, --help       Show this message and exit.
+  -n, --namespace TEXT   Namespace name or all  [required]
+  --verbose              Enable verbose output
+  -h, -?, --help         Show this message and exit.
 admin@Linecard2:~$
 ```
 #### Sample output
 ```
-admin@Linecard2:~$ show chassis system-ports
+admin@Linecard2:~$ show chassis system-ports -n asic0
             System Port Name    Port Id    Switch Id    Core    Core Port    Speed
 ----------------------------  ---------  -----------  ------  -----------  -------
        Linecard2|Asic0|Asic0        192            6       0            0      10G
@@ -537,22 +536,21 @@ Linecard4|Asic0|Ethernet-IB0        613           18       1           37      1
 ```
 **Note:**
 
-   - In multi asic voq systems, for system ports since the configurations in all asics are required to be identical, the output of show for system ports in all namespaces will show multiple entries of the same system port info. The number of entries will be equal to the number of namespaces in the host.
+   - In multi asic voq systems, for system ports since the configurations in all asics are required to be identical, the output of show for a system port is expected to be same in all the namespaces
 
 ### 2.7.2 System neighbors show command
 The information for the system neighbors are taken from the **SYSTEM_NEIGH_TABLE** of **CHASSIS_APP_DB** in the supervisor card. 
 #### Syntax
 ```
 admin@Linecard2:~$ show chassis system-neighbors -h
-Usage: show chassis system-neighbors [OPTIONS]
+Usage: show chassis system-neighbors [OPTIONS] [IPADDRESS]
 
   Show VOQ system neighbors information
 
 Options:
-  -d, --display [all]  Show internal interfaces  [default: all]
-  -n, --namespace []   Namespace name or all
-  --verbose            Enable verbose output
-  -h, -?, --help       Show this message and exit.
+  -x, --asicname TEXT   Asic name
+  --verbose             Enable verbose output
+  -h, -?, --help        Show this message and exit.
 admin@Linecard2:~$ 
 ```
 #### Sample output
