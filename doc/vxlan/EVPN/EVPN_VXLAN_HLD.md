@@ -1173,7 +1173,14 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+--------------+-------+
    Total count : 1
 
+  7. show vxlan counters
+   +--------+------------+----------+------------+----------+
+   | Tunnel | RX_PACKETS | RX_BYTES | TX_PACKETS | TX_BYTES |
+   +========+============+==========+============+==========+
+   | Vtep1  |     1234   | 1512034  |  2213      | 2235235  |
+   +--------+------------+----------+------------+----------+
 
+  
 ```
 
 ### 5.2 KLISH CLI
