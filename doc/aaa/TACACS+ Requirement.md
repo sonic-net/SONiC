@@ -132,14 +132,14 @@ This document provides a detailed description on the requirement of TACACS+ prot
  - Whitelist management command
 ```
     show tacacs whitelist
-    Config tacacs whitelist remove <command>
-    Config tacacs whitelist add <command>
+    config tacacs whitelist remove <command>
+    config tacacs whitelist add <command>
 ```
 
  - Counter command
 ```
     show tacacs counter
-    clean tacacs counter
+    sonic-clear tacacscounters
 ```
 
 ## 2.2 Config DB
@@ -160,9 +160,9 @@ This document provides a detailed description on the requirement of TACACS+ prot
         Bad responses: 1
 ```
 
-## 2.4 System log
-- Generate system log when Authentication/Authorization/Accounting.
-- When remote TACACS server not accessible from SONiC, use system log for accounting.
+## 2.4 Syslog
+- Generate syslog when Authentication/Authorization/Accounting.
+- When remote TACACS server not accessible from SONiC, use syslog for accounting.
 
 
 # 3 Limitation
