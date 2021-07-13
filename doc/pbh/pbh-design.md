@@ -173,12 +173,14 @@ A custom hashing can be configured for Regular/FG ECMP and LAG.
 | API  | Function                       | Attribute                                          | Comment                     |
 |:-----|:-------------------------------|:---------------------------------------------------|:----------------------------|
 | ACL  | create_acl_table               | SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY                   |                             |
+|      |                                | SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE                |                             |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL               |                             |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_IPV6_NEXT_HEADER          |                             |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT               |                             |
 |      |                                | SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE          |                             |
 |      | create_acl_entry               | SAI_ACL_ENTRY_ATTR_PRIORITY                        | PBH_RULE\|priority          |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_GRE_KEY                   | PBH_RULE\|gre_key           |
+|      |                                | SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE                | PBH_RULE\|ether_type        |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_IP_PROTOCOL               | PBH_RULE\|ip_protocol       |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_IPV6_NEXT_HEADER          | PBH_RULE\|ipv6_next_header  |
 |      |                                | SAI_ACL_ENTRY_ATTR_FIELD_L4_DST_PORT               | PBH_RULE\|l4_dst_port       |
@@ -313,6 +315,10 @@ bool AclTable::create()
         attr.value.booldata = true;
         table_attrs.push_back(attr);
 
+        attr.id = SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE;
+        attr.value.booldata = true;
+        table_attrs.push_back(attr);
+
         attr.id = SAI_ACL_TABLE_ATTR_FIELD_IP_PROTOCOL;
         attr.value.booldata = true;
         table_attrs.push_back(attr);
@@ -386,6 +392,7 @@ key = PBH_RULE|table_name|rule_name ; rule name. Must be unique across the table
 ; field           = value
 priority         = 1*5DIGIT      ; rule priority. Valid values range is platform dependent
 gre_key          = h32 "/" h32   ; GRE key (32 bits)
+ether_type       = h16           ; EtherType (16 bits)
 ip_protocol      = h8            ; IP protocol (8 bits)
 ipv6_next_header = h8            ; IPv6 Next Header (8 bits)
 l4_dst_port      = h16           ; L4 destination port (16 bits)
@@ -402,7 +409,7 @@ packet-action = "SET_ECMP_HASH" / "SET_LAG_HASH"
 flow-counter  = "DISABLED" / "ENABLED"
 ```
 
-**Note:** at least one match field (_gre_key_/_ip_protocol_/_l4_dst_port_/_inner_ether_type_) is required
+**Note:** at least one match field (_gre_key_/_ether_type_/_ip_protocol_/etc.) is required
 
 #### 2.4.1.3 PBH hash
 ```abnf
@@ -526,6 +533,8 @@ ip-mask    = ipv4-addr / ipv6-addr
     "PBH_RULE": {
         "pbh_table|nvgre": {
             "priority": "2",
+            "ether_type": "0x0800",
+            "ip_protocol": "0x2f",
             "gre_key": "0x2500/0xffffff00",
             "inner_ether_type": "0x86dd",
             "hash": "inner_v6_hash",
@@ -534,6 +543,7 @@ ip-mask    = ipv4-addr / ipv6-addr
         },
         "pbh_table|vxlan": {
             "priority": "1",
+            "ether_type": "0x0800",
             "ip_protocol": "0x11",
             "l4_dst_port": "0x12b5",
             "inner_ether_type": "0x0800",
@@ -622,13 +632,14 @@ _config pbh table add/update_
 _config pbh rule add/update_
 1. -p|--priority - rule priority
 2. -g|--gre-key - GRE key match
-3. -p|--ip-protocol - IP protocol match
-4. -n|--ipv6-next-header - IPv6 Next Header match
-5. -d|--l4-dst-port - L4 destination port
-6. -e|--inner-ether-type - inner EtherType match
-7. -f|--hash - hash
-8. -a|--packet-action=<SET_ECMP_HASH|SET_LAG_HASH> - packet action
-9. -c|--flow-counter=<DISABLED|ENABLED> - packet/byte counter
+3. -e|--ether-type - EtherType match
+4. -r|--ip-protocol - IP protocol match
+5. -n|--ipv6-next-header - IPv6 Next Header match
+6. -d|--l4-dst-port - L4 destination port
+7. -t|--inner-ether-type - inner EtherType match
+8. -h|--hash - hash
+9. -a|--packet-action=<SET_ECMP_HASH|SET_LAG_HASH> - packet action
+10. -c|--flow-counter=<DISABLED|ENABLED> - packet/byte counter
 
 _config pbh hash add/update_
 1. -f|--hash-field-list - hash field list
@@ -656,6 +667,8 @@ config pbh table delete 'pbh_table'
 ```bash
 config pbh rule add 'pbh_table' 'nvgre' \
 --priority '2' \
+--ether-type '0x0800' \
+--ip-protocol '0x2f' \
 --gre-key '0x2500/0xffffff00' \
 --inner-ether-type '0x86dd' \
 --hash 'inner_v6_hash' \
@@ -704,9 +717,12 @@ pbh_table  Ethernet0        NVGRE and VxLAN
 root@sonic:/home/admin# show pbh rule
 Table      Rule    Priority    Match                                 Hash           Action         Counter
 ---------  ------  ----------  ------------------------------------  -------------  -------------  ---------
-pbh_table  nvgre   2           gre_key:           0x2500/0xffffff00  inner_v6_hash  SET_ECMP_HASH  DISABLED
+pbh_table  nvgre   2           ether_type:        0x0800             inner_v6_hash  SET_ECMP_HASH  DISABLED
+                               ip_protocol:       0x2f
+                               gre_key:           0x2500/0xffffff00
                                inner_ether_type:  0x86dd
-pbh_table  vxlan   1           ip_protocol:       0x11               inner_v4_hash  SET_LAG_HASH   ENABLED
+pbh_table  vxlan   1           ether_type:        0x0800             inner_v4_hash  SET_LAG_HASH   ENABLED
+                               ip_protocol:       0x11
                                l4_dst_port:       0x12b5
                                inner_ether_type:  0x0800
 ```
