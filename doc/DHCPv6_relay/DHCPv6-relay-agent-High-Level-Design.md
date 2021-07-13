@@ -17,13 +17,13 @@
   - [CLI and Usage](#cli-and-usage)
   - [DHCPRELAY counter](#dhcprelay-counter)
   - [CONFIG DB schema](#config-db-schema)
+  - [YANG Model schema](#yang-model-schema)
   - [Option 79 for client link-layer address](#option-79-for-client-link-layer-address)
   - [Option for Dual ToR](#option-for-dual-tor)
   - [Feature table](#feature-table)
   - [RADV modification](#radv-modification)
   - [CoPP manager](#copp-manager)
   - [Source IP](#source-ip)
-  - [Multiple VLAN](#multiple-vlan)
 * [Performance](#performance)
 * [Testing](#testing)
 
@@ -160,9 +160,33 @@ RELAY-REPLY
 
 # CONFIG DB schema
 
+<pre>
 DHCP|intf-i|dhcpv6\_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
-DHCP|intf-i|dhcpv6\_options: []
+DHCP|intf-i|dhcpv6\_options: [&quot;79&quot;]
+</pre>
+
+# YANG Model schema
+
+sonic-dhcpv6-relay.yang
+<pre>
+module DHCP  
+    container DHCP {  	
+        list VLAN_LIST {
+    		key name;
+   		    leaf name {
+    			type string;
+  		    }
+   		    leaf dhcpv6_servers {
+     		    type inet6:ip-address;
+  		    }
+		    leaf options {
+			    type uint16;
+		    }
+        }
+    }
+}
+</pre>
 
 # Option 79 for client link-layer address
 
