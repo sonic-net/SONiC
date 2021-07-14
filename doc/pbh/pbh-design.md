@@ -390,7 +390,8 @@ interface-list = interface-name [ 1*( "," interface-name ) ] ; list of the inter
 key = PBH_RULE|table_name|rule_name ; rule name. Must be unique across the table
 
 ; field           = value
-priority         = 1*5DIGIT      ; rule priority. Valid values range is platform dependent
+priority         = 1*5DIGIT      ; rule priority. Valid values range is platform dependent.
+                                 ; The evaluation order is descending: the higher priorities shall be evaluated first
 gre_key          = h32 "/" h32   ; GRE key (32 bits)
 ether_type       = h16           ; EtherType (16 bits)
 ip_protocol      = h8            ; IP protocol (8 bits)
