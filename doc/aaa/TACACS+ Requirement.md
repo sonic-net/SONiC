@@ -34,7 +34,7 @@ This document provides a detailed description on the requirement of TACACS+ prot
 		- User can only run commands in whitelist.
 		- For recursive command/script, only the top level command have authorization.
 
-- Only command in whitelist  visible to user:
+- Only command in whitelist visible to user:
 	- Whitelist is per host, all user share same whitelist to simplify design.
 	- Different privilege level have different permission to run these command.
 	- All commands in sudoers will add to the whitelist. and sudoers config file still need for RO users, this is because when remote TACACS server not accessible from SONiC, we need use local group permission for failover.
@@ -62,7 +62,6 @@ This document provides a detailed description on the requirement of TACACS+ prot
 
 	- Importing function definitions from the shell environment at startup.
 	- Parsing the value of SHELLOPTS from the shell environment at startup.
-	- Redirecting output using the ‘>’, ‘>|’, ‘<>’, ‘>&’, ‘&>’, and ‘>>’ redirection operators.
 	- Builtin commands:
 
 | **Command** | **Behavior**                |
@@ -74,7 +73,6 @@ This document provides a detailed description on the requirement of TACACS+ prot
 | deleting/adding     | Use the -f and -d options to the enable builtin. |
 | enable     | Using the 'enable' builtin command to enable disabled shell builtins. |
 | command     | Specifying the -p option to the 'command' builtin command. |
-| set     | Turning off restricted mode with ‘set +r’ or ‘set +o restricted’. |
 
 	- All these behavior disabled only for user input, command in script will not be affected, see here for more details: https://www.gnu.org/software/bash/manual/html_node/The-Restricted-Shell.html
 
