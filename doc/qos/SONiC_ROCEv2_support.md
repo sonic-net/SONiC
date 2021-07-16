@@ -3,7 +3,7 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 
 # High Level Design Document
 
-#### Rev 0.1
+#### Rev 0.2
 # Table of Contents
 
   * [List of Tables](#list-of-tables)
@@ -19,7 +19,7 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 06/17/2021 |   Venkatesan Mahalingam         | Initial version                   |
-
+| 0.2 | 07/16/2021 |   Venkatesan Mahalingam         | Addressed review comments                   |
 
 
 # About this Manual
@@ -35,7 +35,9 @@ This document covers the following,
 2) NBI interface to create/delete buffer pool \
 3) NBI interface to create/delete buffer profile \
 4) NBI interface to map/unmap priority group to buffer profile \
-5) Unit Testcases
+5) NBI interface to set/unset PORT table for default buffer profile creation
+   based on cable length and speed
+6) Unit Testcases
 
 # Definition/Abbreviation
 
@@ -58,7 +60,7 @@ ROVEv2 uses PFC to prevent buffer overflow.
 
 ## 1.1 Requirements
 
-### 1.1.1 Front end configuration and get capabilities
+### 1.1.1 Front end configuration and get capabilities using mgmt-framework interfaces (MF-CLI/REST/gNMI)
 
 #### 1.1.1.1 QoS buffer init/clear
 This requirement is to follow the default buffer settings defined for a particular platform.
@@ -77,6 +79,10 @@ This requirement is to map/unmap queue (egress) with buffer profile.
 
 #### 1.1.1.5 Get operation on QoS buffer and it's mapping
 This displays the output of the buffer pool/profile and it's mapping with priority group and queue.
+
+#### 1.1.1.6 Allow user defined lossless profile based on cable length and speed
+This requirement is to add a field in the PORT table to avoid automatic creation of buffer profile
+for lossless profile based on the cable length and speed so that user can create the profile based on the particular use-case.
 
 ### 1.1.2 Backend mechanisms to support configuration and get
  QoS buffer init populates/clears the following tables in the Redis ConfigDB by default, the size & xoff values vary based on HW capabilities.
@@ -260,8 +266,22 @@ Enhancing the management framework backend code and transformer methods to add s
 ## 3.2 DB Changes
 
 ### 3.2.1 CONFIG DB
-Existing QoS buffer tables will be used and a new field will be introduced in PORT table to avoid taking the buffer-mgr created profile based
+Existing QoS buffer tables will be used and a new field (default_lossless_buffer_profile) will be introduced in PORT table to avoid the creation of profile based
 on cable length and speed e.g [BUFFER_PROFILE|pg_lossless_40000_300m_profile]
+
+**PORT table**
+* Producer: Mangement framework/config_db.json/Click command
+* Consumer: buffermgrd
+* Description: Update existing table to store 'default_lossless_buffer_profile' configuration.
+* Schema:
+```
+;Existing table
+;defines PORT information. Store default_lossless_buffer_profile configuration
+;
+;Status: stable
+key = PORT|ifname;
+default_lossless_buffer_profile = true/false ; default value - true
+```
 
 ### 3.2.2 APP DB
 
@@ -294,6 +314,14 @@ Supported yang objects and attributes:
 module: openconfig-qos
     +--rw qos
       |
+      +--rw interfaces
+      |  +--rw interface* [interface-id]
+      |     |
+      |     +--rw oc-qos-dev:buffer
+      |        +--rw oc-qos-dev:config
+      |        |  +--rw oc-qos-dev:default-lossless-buffer-profile?   boolean
+      |        +--ro oc-qos-dev:state
+      |           +--ro oc-qos-dev:default-lossless-buffer-profile?   boolean
       +--rw oc-qos-ext:buffer
          +--rw oc-qos-ext:buffer-pools
          |  +--rw oc-qos-ext:buffer-pool* [name]
@@ -303,11 +331,13 @@ module: openconfig-qos
          |     |  +--rw oc-qos-ext:type    qos-buffer-type
          |     |  +--rw oc-qos-ext:size    uint32
          |     |  +--rw oc-qos-ext:xoff?   uint32
+         |     |  +--rw oc-qos-ext:mode                       qos-buffer-mode
          |     +--ro oc-qos-ext:state
          |        +--ro oc-qos-ext:name?   string
          |        +--ro oc-qos-ext:type    qos-buffer-type
          |        +--ro oc-qos-ext:size    uint32
          |        +--ro oc-qos-ext:xoff?   uint32
+         |        +--rw oc-qos-ext:mode                       qos-buffer-mode
          +--rw oc-qos-ext:buffer-profiles
          |  +--rw oc-qos-ext:buffer-profile* [name]
          |     +--rw oc-qos-ext:name      -> ../config/name
@@ -316,7 +346,6 @@ module: openconfig-qos
          |     |  +--rw oc-qos-ext:pool                       -> ../../../../buffer-pools/buffer-pool/name
          |     |  +--rw oc-qos-ext:type                       qos-buffer-type
          |     |  +--rw oc-qos-ext:size                       uint32
-         |     |  +--rw oc-qos-ext:mode                       qos-buffer-mode
          |     |  +--rw oc-qos-ext:static-threshold           uint32
          |     |  +--rw oc-qos-ext:dynamic-threshold          uint32
          |     |  +--rw oc-qos-ext:pause-threshold?           uint32
@@ -327,7 +356,6 @@ module: openconfig-qos
          |        +--ro oc-qos-ext:pool                       -> ../../../../buffer-pools/buffer-pool/name
          |        +--ro oc-qos-ext:type                       qos-buffer-type
          |        +--ro oc-qos-ext:size                       uint32
-         |        +--ro oc-qos-ext:mode                       qos-buffer-mode
          |        +--ro oc-qos-ext:static-threshold           uint32
          |        +--ro oc-qos-ext:dynamic-threshold          uint32
          |        +--ro oc-qos-ext:pause-threshold?           uint32
@@ -426,7 +454,64 @@ on cable length and speed e.g [BUFFER_PROFILE|pg_lossless_40000_300m_profile]
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# [no] qos default-lossless-buffer-profile
 ```
+#### 3.6.2.2 Show Commands
+#### 3.6.2.2.1 Show Buffer Pool
+The below command shows buffer pool information.
+```
+sonic# show buffer pool
+Pool egress_lossless_pool:
+   mode : static
+   size : 32575488 bytes
+   type : egress
+Pool ingress_lossless_pool:
+   mode             : dynamic
+   size             : 26284032 bytes
+   type             : ingress
+   shared head room : 6291456 bytes
+```
+#### 3.6.2.2.2 Show Buffer Profile
+The below command shows buffer profile information.
+```
+sonic# show buffer profile
+Profile egress_lossless_profile:
+   mode             : static
+   pool             : egress_lossless_pool
+   size             : 0
+   static_threshold : 32575488 bytes
+```
+#### 3.6.2.2.3 Show interface to priority group mapping
+The below command shows all interfaces to priority group or particular interface
+```
+sonic# show buffer interface all priority-group
+Interface   Priority-group     Profile
+Ethernet0        0             ingress_lossy_profile
+Ethernet4        3-4           ingress_lossless_profile
+.......
+.......
 
+sonic# show buffer interface Ethernet0 priority-group
+Interface   Priority-group     Profile
+Ethernet0        0             ingress_lossy_profile
+sonic# show buffer interface all queue
+Interface       Queue          Profile
+Ethernet0        0             ingress_lossy_profile
+Ethernet4        3-4           ingress_lossless_profile
+.......
+.......
+````
+#### 3.6.2.2.4 Show interface to queue mapping
+The below command shows all interfaces to queue or particular interface
+```
+sonic# show buffer interface all queue
+Interface       Queue     Profile
+Ethernet0        0             ingress_lossy_profile
+Ethernet4        3-4           ingress_lossless_profile
+.......
+.......
+sonic# show buffer interface Ethernet0 queue
+Interface       Queue          Profile
+Ethernet0        0             ingress_lossy_profile (edited)
+```
 #### 3.6.2.3 Debug Commands
 
 #### 3.6.2.4 IS-CLI Compliance
@@ -453,24 +538,25 @@ This support is added in the hostcfgd and hence no explicit handling is needed.
 # 9 Unit Test
 
 The unit-test for this feature will include:
-#### Configuration via CLI
-1) Initialize buffer settings to populate various buffer tables and make sure all the tables are populated.
-2) Remove buffer settings and check whether all the default tables are removed
-3) Create buffer pool (type ingress & egress) and check the config-DB
-4) Remove buffer pool and verify that buffer pool entry is not present in the config-DB
-5) Create
+#### 9.1 Configuration via CLI
+1) Initialize buffer settings to populate various buffer tables and make sure all the tables are populated.\
+2) Remove buffer settings and check whether all the default tables are removed \
+3) Create buffer pool (type ingress & egress) and check the config-DB \
+4) Remove buffer pool and verify that buffer pool entry is not present in the config-DB \
+5) Disable default buffer profile under interface and verify that default lossless profile
+   based on able length and speed is not created.
 
-#### Configuration via gNMI
+#### 9.2 Configuration via gNMI
 
 Same test as CLI configuration Test but using gNMI request.
 Additional tests will be done to set buffer configuration at different levels of Yang models.
 
-#### Get configuration via gNMI
+#### 9.3 Get configuration via gNMI
 
 Same as CLI show test but with gNMI request, will verify the JSON response is correct.
 Additional tests will be done to get buffer configuration and buffer states at different levels of Yang models.
 
-#### Configuration via REST (POST/PUT/PATCH)
+#### 9.4 Configuration via REST (POST/PUT/PATCH)
 
 Same test as CLI configuration Test but using REST POST request
 Additional tests will be done to set buffer configuration at different levels of Yang models.
@@ -478,7 +564,7 @@ Additional tests will be done to set buffer configuration at different levels of
 **URIs for REST configurations:**
 
 Buffer configuration parent URI  - /restconf/data/openconfig-qos/openconfig-qos-ext:buffer
-
+Default lossless profile configuration under interface - /restconf/data/openconfig-qos/oc-qos:interfaces/oc-qos:interface/oc-qos-dev:buffer/oc-qos-dev:config/oc-qos-dev:default-lossless-buffer-profile
 #### Get configuration via REST (GET)
 
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
