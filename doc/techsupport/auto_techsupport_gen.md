@@ -151,9 +151,9 @@ Enabled     300 sec    3                       200000 KB / 2%            Tue 15 
 
 ### 6.1 auto-techsupport script
 
-A script under the name `auto-techsupport` will be added to `/usr/local/bin/` directory which has the logic on the auto-invocation & auto-cleanup.  This script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+A script under the name `auto-techsupport` will be added to `/usr/local/bin/` directory which has the logic to handle the auto-invocation & auto-cleanup.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
-On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script first verifies if a file is created within the last 20 sec and if yes, it moves forward. 
+On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
 
 The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
