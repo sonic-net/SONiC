@@ -11,9 +11,9 @@
     * [4.1 YANG Model](#41-YANG-Model)
   * [5. CLI Enhancements](#5-cli-enhancements)
   * [6. Design](#6-design)
-      * [6.1 Event trigger for Core-dump generation](#61-Event-trigger-for-Core-dump-generation)
-      * [6.2 Monitor Techsupport creation](#62-Monitor-Techsupport-Creation)
-      * [6.3 auto-techsupport script](#63-auto-techsupport-script)
+      * [6.1 auto-techsupport script](#61-auto-techsupport-script)
+      * [6.2 Modifications to coredump-compress script](#62-Modifications-to-coredump-compress-script)
+      * [6.3 Modifications to generate_dump script](#63-Modifications-to-generate-dump-script)
       * [6.4 Warmboot/Fastboot consideration](#64-Warmboot/Fastboot-consideration)
       * [6.5 Design choices for core-usage argument](#65-Design-choices-for-core-usage-argument )
 
@@ -38,7 +38,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 * Users should have the abiliity to configure this capability.
 
 ## 3. Core Dump Generation in SONiC
-In SONiC, the core dumps generated from any process crashes across the dockers and the base host are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
+In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
 The naming format and compression is governed by the script `/usr/local/bin/coredump-compress`.
 
 ## 4. Schema Additions
@@ -149,82 +149,21 @@ Enabled     300 sec    3                       200000 KB / 2%            Tue 15 
 
 ## 6. Design
 
-### 6.1 Event-trigger for Core-dump generation
-To Monitor and respond for the file-change events in `/var/core/`, a systemd path unit ([systemd path unit](https://www.freedesktop.org/software/systemd/man/systemd.path.html)) will be used. This unit will start a corresponding systemd service, which inturn invokes the python script `/usr/local/bin/auto_techsupport_gen` and it handles the heavylifting of invoking techsupport and other tasks. More on the script in section 6.3 
+### 6.1 auto-techsupport script
 
-#### coredump-monit.path
-```
-[Unit]
-Description=Triggers the coredump-monit services accordingly when a coredump is found.
-After=database.service
-Requires=database.service
-
-[Path]
-PathChanged=/var/core/
-Unit=coredump-monit.service
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### coredump-monit.service
-```
-[Unit]
-Description=Invokes the auto-techsupport script when triggered by the coredump-monit.path
-After=database.service
-Requires=database.service
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/auto-techsupport core
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 6.2 Monitor Techsupport creation
-These units are used to cleanup the old Techsupport dumps, when the limit configured by the user is crossed.
-
-
-#### techsupport-monit.path
-```
-[Unit]
-Description=Triggers the auto-techsupport services when a techsupport dump is found.
-After=database.service
-Requires=database.service
-
-[Path]
-PathChanged=/var/dump/
-Unit=techsupport-monit.service
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### techsupport-monit.service
-```
-[Unit]
-Description=Invokes the auto-techsupport script when triggered by the techsupport-monit.path
-After=database.service
-Requires=database.service
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/auto-techsupport techsupport
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Note: All of these will have strict ordering dependency on database.service and not swss or sonic.target, because the crashes might occur during the swss/syncd bringup etc. And for this to be captured the service should be active before the start of these services. 
-
-### 6.3 auto-techsupport script
-
-As seen in the techsupport-monit.service & coredump-monit.service Unit descriptions, the script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+A script under the name `auto-techsupport` will be added to `/usr/local/bin/` directory which has the logic on the auto-invocation & auto-cleanup.  This script follows two separate flows based on the argument provided.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
 On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script first verifies if a file is created within the last 20 sec and if yes, it moves forward. 
 
 The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
+
+### 6.2 Modifications to coredump-compress script
+
+The coredump-compress script is modified to invoke the auto-techsupport script with `core` argument once it is done writing the core file to /var/core.
+
+### 6.3 Modifications to generate_dump script
+
+The generate_dump script will invoke the auto-techsupport script with `techsupport` argument to handle the cleanup of techsupport files, if configured 
 
 ### 6.4 Warmboot/Fastboot consideration
 
