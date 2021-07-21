@@ -11,11 +11,12 @@
     * [4.1 YANG Model](#41-YANG-Model)
   * [5. CLI Enhancements](#5-cli-enhancements)
   * [6. Design](#6-design)
-      * [6.1 auto-techsupport script](#61-auto-techsupport-script)
-      * [6.2 Modifications to coredump-compress script](#62-Modifications-to-coredump-compress-script)
-      * [6.3 Modifications to generate_dump script](#63-Modifications-to-generate-dump-script)
-      * [6.4 Warmboot/Fastboot consideration](#64-Warmboot/Fastboot-consideration)
-      * [6.5 Design choices for core-usage argument](#65-Design-choices-for-core-usage-argument )
+      * [6.1 coredump_gen_handler script](#61-coredump_gen_handler-script)
+      * [6.2 techsupport_cleanup script](#62-techsupport_cleanup-script)
+      * [6.3 Modifications to coredump-compress script](#63-Modifications-to-coredump-compress-script)
+      * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
+      * [6.5 Warmboot/Fastboot consideration](#65-Warmboot/Fastboot-consideration)
+      * [6.6 Design choices for core-usage argument](#66-Design-choices-for-core-usage-argument )
 
 
 ### Revision  
@@ -34,7 +35,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 
 ## 2. High Level Requirements
 * Techsupport invocation should also be made event-driven based on core dump generation
-* This capability should be made optional and is disabled by default
+* This capability should be made optional and is enabled by default
 * Users should have the abiliity to configure this capability.
 
 ## 3. Core Dump Generation in SONiC
@@ -56,6 +57,10 @@ core-usage = 5;                 # A perentage value should be specified.
                                   This signifies maximum Size to which /var/core directory can be grown until. 
                                   The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                   When the limit is crossed, the older core files are incrementally deleted
+since = "2 days ago";           # This limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided.
+                                  Any valid date string of the formats specified here (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
+                                  can be used.                           
+                                  If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used.
 ```
 
 
@@ -116,7 +121,18 @@ module sonic-auto_techsupport {
                              }
                         }
                         default "5";
-                    }  
+                    }
+                    
+                    leaf since {
+                        description "This limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided.
+                                     Any valid date string of the formats specified here (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
+                                     can be used.                          
+                                     If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used";
+                        type string {
+                            length 1..255;
+                        }
+                        default "2 days ago";
+                    }
               }
               /* end of container global */
         }
@@ -136,40 +152,43 @@ config auto-techsupport state <enabled/disabled>
 config auto-techsupport cooloff <uint16>
 config auto-techsupport max-techsupport <uints8>
 config auto-techsupport core-usage <1..100>
+config auto-techsupport since <string>
 ```
 
 ### show cli
 
 ```
 admin@sonic:~$ show auto-techsupport 
-STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  LAST_TECHSUPPORT_RUN
--------     -------    ---------------------   ------------------------  -------------------------------
-Enabled     300 sec    3                       200000 KB / 2%            Tue 15 Jun 2021 08:09:59 PM UTC
+STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  SINCE        LAST_TECHSUPPORT_RUN
+-------     -------    ---------------------   ------------------------  ----------   -------------------------------
+Enabled     300 sec    3                       200000 KB / 2%            2 days ago   Tue 15 Jun 2021 08:09:59 PM UTC
 ```
 
 ## 6. Design
 
-### 6.1 auto-techsupport script
+### 6.1 coredump_gen_handler script
 
-A script under the name `auto-techsupport` will be added to `/usr/local/bin/` directory which has the logic to handle the auto-invocation & auto-cleanup.  When invoked with `techsupport` argument, the script checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+A script under the name `coredump_gen_handler` will be added to `/usr/local/bin/` directory which will be invoked after a coredump is generated.  The script first checks if this feature is enabled by the user. The script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
 
-On the other hand, when invoked with `core` argument, the script first checks if this feature is enabled by the user. The Script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
+The script invokes the show techsupport command, if the cooloff period configured by the user has passed. The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
-The script then checks if the cooloff period has passed, and it invokes the techsupport command.  The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
+### 6.2 techsupport_cleanup script
 
-### 6.2 Modifications to coredump-compress script
+A script under the name `techsupport_cleanup` will be added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+
+### 6.3 Modifications to coredump-compress script
 
 The coredump-compress script is modified to invoke the auto-techsupport script with `core` argument once it is done writing the core file to /var/core.
 
-### 6.3 Modifications to generate_dump script
+### 6.4 Modifications to generate_dump script
 
 The generate_dump script will invoke the auto-techsupport script with `techsupport` argument to handle the cleanup of techsupport files, if configured 
 
-### 6.4 Warmboot/Fastboot consideration
+### 6.5 Warmboot/Fastboot consideration
 
 No impact for warmboot/fastboot flows.
 
-### 6.5 Design choices for core-usage argument 
+### 6.6 Design choices for core-usage argument 
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
