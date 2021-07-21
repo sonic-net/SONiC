@@ -168,21 +168,21 @@ Enabled     300 sec    3                       200000 KB / 2%            2 days 
 
 ### 6.1 coredump_gen_handler script
 
-A script under the name `coredump_gen_handler` will be added to `/usr/local/bin/` directory which will be invoked after a coredump is generated.  The script first checks if this feature is enabled by the user. The script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
+A script under the name `coredump_gen_handler` is added to `/usr/local/bin/` directory which will be invoked after a coredump is generated.  The script first checks if this feature is enabled by the user. The script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
 
 The script invokes the show techsupport command, if the cooloff period configured by the user has passed. The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
 ### 6.2 techsupport_cleanup script
 
-A script under the name `techsupport_cleanup` will be added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+A script under the name `techsupport_cleanup` is added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
 ### 6.3 Modifications to coredump-compress script
 
-The coredump-compress script is modified to invoke the auto-techsupport script with `core` argument once it is done writing the core file to /var/core.
+The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core.
 
 ### 6.4 Modifications to generate_dump script
 
-The generate_dump script will invoke the auto-techsupport script with `techsupport` argument to handle the cleanup of techsupport files, if configured 
+The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files
 
 ### 6.5 Warmboot/Fastboot consideration
 
