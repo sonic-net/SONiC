@@ -211,5 +211,14 @@ Since Techsupport dumps are also hosted on the same filesystem, a slightly pessi
 
 Although if the admin feels otherwise, this value is configurable.
 
+## 7. Test Plan
 
+Enhance the existing techsupport sonic-mgmt test with the following cases.
+
+| S.No | Test case synopsis                                                                                                                      |
+|------|-----------------------------------------------------------------------------------------------------------------------------------------|
+|  1   | Check if the `coredump_gen_handler` script is infact invoking the techsupport cmd, when configured                                      |
+|  2   | Check if the techsupport cleanup is working as expected                                                                                 |
+|  3   | Check if the cooloff is honoured                                                                                                        |
+|  4   | Check if the core-dump cleanup mechanism is working as expected                                                                         |
 
