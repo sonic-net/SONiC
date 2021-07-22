@@ -397,12 +397,12 @@ swss                          104857600
 admin@sonic:~$ sudo config feature autorestart database enabled
 ```
 
-#### 2.2.5.5 Configure the Status of High Memory Rrestart
+#### 2.2.5.5 Configure the Status of High Memory Restart
 ```
 admin@sonic:~$ sudo config feature high_mem_restart database enabled
 ```
 
-#### 2.2.5.6 Configure the Memory Threshold of High Memory Rrestart
+#### 2.2.5.6 Configure the Memory Threshold of High Memory Restart
 ```
 admin@sonic:~$ sudo config feature mem_threshold database <threshold_value_in_bytes>
 ```
