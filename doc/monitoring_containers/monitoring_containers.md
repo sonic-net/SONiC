@@ -13,8 +13,8 @@
         - [1.1.1 Monitoring critical processes by Monit](#111-monitoring-critical-processes-by-monit)
         - [1.1.2 Monitoring critical processes by Supervisor](#112-monitoring-critical-processes-by-supervisor)
     - [1.2 Auto-mitigating](#12-auto-mitigating)
-        - [1.2.1 Container auto-restart related to crash of critical process](#121-container-auto-restart-related-to-crash-of-critical-process)
-        - [1.2.2 Container restart related to high memory usage](#122-container-restart-related-to-high-memory-usage)
+        - [1.2.1 Container restart per crash of critical process](#121-container-restart-per-crash-of-critical-process)
+        - [1.2.2 Container restart per high memory usage](#122-container-restart-per-high-memory-usage)
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
@@ -26,11 +26,16 @@
     - [2.2 Functional Description](#22-functional-description)
         - [2.2.1 Monitoring Critical Processes](#221-monitoring-critical-processes)
         - [2.2.2 Monitoring Critical Resource Usage](#222-monitoring-critical-resource-usage)
-        - [2.2.3 Auto-restart Docker Container](#223-auto-restart-docker-container)
-        - [2.2.4 CLI (and usage example)](#224-cli-and-usage-example)
-            - [2.2.4.1 Show the Status of Auto-restart](#2241-show-the-status-of-auto-restart)
-            - [2.2.4.2 Configure the Status of Auto-restart](#2242-configure-the-status-of-auto-restart)
-        - [2.2.5 CONTAINER_FEATURE Table](#225-container_feature-table)
+        - [2.2.3 Restarting Docker Container per Crash of Critical Process](#223-restarting-docker-container-per-crash-of-critical-process)
+        - [2.2.4 Restarting Docker Container per High Memory Usage](#223-restarting-docker-container-per-high-memory-usage)
+        - [2.2.5 CLI (and usage example)](#224-cli-and-usage-example)
+            - [2.2.5.1 Show the Status of Auto-restart](#2241-show-the-status-of-auto-restart)
+            - [2.2.5.2 Show the Status of High Memory Restart](#2241-show-the-status-of-high-memory-restart)
+            - [2.2.5.3 Show the Memory Threshold of High Memory Restart](#2241-show-the-memory-threshold-of-high-memory-restart)
+            - [2.2.5.4 Configure the Status of Auto-restart](#2242-configure-the-status-of-auto-restart)
+            - [2.2.5.5 Configure the Status of High Memory Restart](#2242-configure-the-status-of-high-memory-restart)
+            - [2.2.5.6 Configure the Memory Threshold of High Memory Restart](#2242-configure-the-memory-threshold-of-high-memory-restart)
+        - [2.2.6 CONTAINER_FEATURE Table](#225-container_feature-table)
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
@@ -294,7 +299,7 @@ named `CONTAINER_FEATURE` in Config_DB and this table includes the status of
 auto-restart feature for each docker container. Users can easily use CLI to
 check and configure the corresponding docker container status.
 
-### 2.2.3 Restart Docker Container per high memory usage
+### 2.2.4 Restart Docker Container per high memory usage
 The design principle behind this high memory restart is docker container will be restarted
 if memory usage of it is continuously larger than the threshold during a monitoring interval.
 Restarting the entire container ensures that configuration is reloaded and all processes in the container
@@ -318,9 +323,9 @@ Users can easily use CLI to retrieve and set these two configuration option of e
 ```bash
 check program container_memory_lldp with path "/usr/bin/memory_checker lldp"
     if status == 3 for 15 times within 20 cycles then exec "/usr/bin/restart_service lldp"
-`
+```
 
-### 2.2.4 CLI (and usage example)
+### 2.2.5 CLI (and usage example)
 The CLI tool will provide the following functionality:
 1. Show current status of auto-restart feature for docker containers.
 2. Show current status of high memory restart feature for docker containers.
@@ -329,7 +334,7 @@ The CLI tool will provide the following functionality:
 5. Configure the high memory restart status of a specific docker container.
 6. Configure the memory threshold of a specific docker container.
 
-#### 2.2.4.1 Show the status of Auto-restart
+#### 2.2.5.1 Show the Status of Auto-restart
 ```
 admin@sonic:~$ show feature autorestart
 Container Name         Status 
@@ -349,7 +354,7 @@ syncd                  enabled
 swss                   disabled
 ```
 
-#### 2.2.4.2 Show the status of high memory restart
+#### 2.2.5.2 Show the Status of High Memory Restart
 ```
 admin@sonic:~$ show feature high_mem_restart
 Container Name         Status 
@@ -369,7 +374,7 @@ syncd                  enabled
 swss                   disabled
 ```
 
-#### 2.2.4.3 Show the memory threshold of high memory restart
+#### 2.2.5.3 Show the Memory Threshold of High Mmemory Restart
 ```
 admin@sonic:~$ show feature high_mem_restart mem_threhsold
 Container Name         Memory Threshold
@@ -387,22 +392,22 @@ syncd                  629145600
 swss                   104857600
 ```
 
-#### 2.2.4.4 Configure the Status of Auto-restart
+#### 2.2.5.4 Configure the Status of Auto-restart
 ```
 admin@sonic:~$ sudo config feature autorestart database enabled
 ```
 
-#### 2.2.4.5 Configure the Status of high memory restart
+#### 2.2.5.5 Configure the Status of High Memory Rrestart
 ```
 admin@sonic:~$ sudo config feature high_mem_restart database enabled
 ```
 
-#### 2.2.4.5 Configure the memory threshold of high memory restart
+#### 2.2.5.6 Configure the Memory Threshold of High Memory Rrestart
 ```
 admin@sonic:~$ sudo config feature high_mem_restart database <threshold_value_in_bytes>
 ```
 
-### 2.2.5 FEATURE Table
+### 2.2.6 FEATURE Table
 Example:
 ```
 {
