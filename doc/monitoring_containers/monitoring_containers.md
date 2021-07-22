@@ -1,7 +1,7 @@
 # Monitoring and Auto-Mitigating Unhealthy Containers in SONiC
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
 * [List of Tables](#list-of-tables)
@@ -10,11 +10,11 @@
 * [Defintions/Abbreviation](#definitionsabbreviation)
 * [1 Feature Overview](#1-feature-overview)
     - [1.1 Monitoring](#11-monitoring)
-        - [1.1.1 Monitoring critical processes by Monit](#111-monitoring-critical-processes-by-monit)
-        - [1.1.2 Monitoring critical processes by Supervisor](#112-monitoring-critical-processes-by-supervisor)
+        - [1.1.1 Monitoring Critical Processes by Monit](#111-monitoring-critical-processes-by-monit)
+        - [1.1.2 Monitoring Critical Processes by Supervisor](#112-monitoring-critical-processes-by-supervisor)
     - [1.2 Auto-mitigating](#12-auto-mitigating)
-        - [1.2.1 Container restart per crash of critical process](#121-container-restart-per-crash-of-critical-process)
-        - [1.2.2 Container restart per high memory usage](#122-container-restart-per-high-memory-usage)
+        - [1.2.1 Restarting Container per Crash of Critical Process](#121-restarting-container-per-crash-of-critical-process)
+        - [1.2.2 Restarting Container per High Memory Usage](#122-restarting-container-per-high-memory-usage)
     - [1.3 Requirements](#13-requirements)
         - [1.3.1 Functional Requirements](#131-functional-requirements)
         - [1.3.2 Configuration and Management Requirements](#132-configuration-and-management-requirements)
@@ -65,13 +65,13 @@ container working correctly but also for the intended functionalities of entire 
 
 ## 1.1 Monitoring
 
-### 1.1.1 Monitoring critical processes by Monit
+### 1.1.1 Monitoring Critical Processes by Monit
 This feature is used to monitor the running status of critical processes in containers.
 
 We used Monit system tool to detect whether a critical process is running or not and whether 
 the resource usage of a docker container is beyond the pre-defined threshold.
 
-### 1.1.2 Monitoring critical processes by Supervisor
+### 1.1.2 Monitoring Critical Processes by Supervisor
 This feature demonstrated 'event listener' provided by Supervisord can be leveraged to do
 the critical processes monitoring. Specifically 'event listener' can subscribe to 'event notification'
 which indicates that something happened related to a sub-process controlled by Supervisord.
@@ -84,7 +84,7 @@ the syslog.
 
 ## 1.2 Auto-Mitigating
 
-### 1.2.1 Container auto-restart related to crash of critical process
+### 1.2.1 Restarting Docker Container per Crash of Critical Process
 This feature demonstrated docker container can be automatically shut down and
 restarted if one of critical processes running in docker container exits unexpectedly. Restarting
 the entire docker container ensures that configuration is reloaded and all processes in 
@@ -95,7 +95,7 @@ if one of its critical processes exited unexpectedly. We also added a configurat
 auto-restart feature dynamically configurable. Specifically users can run CLI to configure this 
 feature residing in Config_DB as enabled/disabled status.
 
-### 1.2.2 Container restart related to high memory usage
+### 1.2.2 Restarting Docker Container per High Memory Usage
 This feature demonstrated docker container can be shut down and restarted if memory usage
 of it is continuously beyond the threshold during monitoring interval. Restarting
 the entire docker container ensures that configuration is reloaded and all processes in 
@@ -275,7 +275,7 @@ a production environment. The value `0` in table represents the corresponding fe
 the docker container is in `disabled` status.
 
 
-### 2.2.3 Restart Docker Container per crash of critical process
+### 2.2.3 Restarting Docker Container per Crash of Critical Process
 The design principle behind this auto-restart feature is docker containers can be automatically shut down and
 restarted if one of critical processes running in the container exits unexpectedly. Restarting
 the entire container ensures that configuration is reloaded and all processes in the container
@@ -299,7 +299,7 @@ named `CONTAINER_FEATURE` in Config_DB and this table includes the status of
 auto-restart feature for each docker container. Users can easily use CLI to
 check and configure the corresponding docker container status.
 
-### 2.2.4 Restart Docker Container per high memory usage
+### 2.2.4 Restarting Docker Container per High Memory Usage
 The design principle behind this high memory restart is docker container will be restarted
 if memory usage of it is continuously larger than the threshold during a monitoring interval.
 Restarting the entire container ensures that configuration is reloaded and all processes in the container
