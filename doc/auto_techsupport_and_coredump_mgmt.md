@@ -223,11 +223,11 @@ DATE sonic INFO coredump_gen_handler[pid]:  Cooloff period has not yet passed.  
 DATE sonic INFO coredump_gen_handler[pid]:  AUTO_TECHSUPPORT is not enabled. No Techsupport Invocation and Coredump cleanup is performed 
 DATE sonic INFO coredump_gen_handler[pid]:  No Cleanup process is initiated since the core-usage param is not configured
 DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, /var/dump/sonic_dump_sonic_20210721_235228.tar.gz is created
-DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No dump is found in the /var/dump directory
-DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are deleted.
+DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No techsupport dump was created in the /var/dump directory
+DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are cleared.
 
 DATE sonic INFO techsupport_cleanup[pid]: AUTO_TECHSUPPORT is not enabled. No TechSupport Cleanup is performed, current number of dumps: 5
-DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not set. No TechSupport Cleanup Process is needed to be performed, current number of dumps: 5
+DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not configured. No TechSupport Cleanup is performed, current number of dumps: 5
 DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
 ```
 
