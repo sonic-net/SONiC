@@ -17,7 +17,8 @@
       * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
       * [6.5 Warmboot/Fastboot consideration](#65-Warmboot/Fastboot-consideration)
       * [6.6 Design choices for core-usage argument](#66-Design-choices-for-core-usage-argument)
-  * [7. Test Plan](#7-Test-Plan)
+  * [7. Syslog Messages](#7-Syslog-Messages)
+  * [8. Test Plan](#8-Test-Plan)
 
 
 ### Revision  
