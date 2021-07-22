@@ -190,8 +190,6 @@ A script under the name `techsupport_cleanup` is added to `/usr/local/bin/` dire
 
 Potential Syslog messages which can be logged are:
 ```
-DATE sonic INFO techsupport_cleanup[pid]: AUTO_TECHSUPPORT is not enabled. No TechSupport Cleanup is performed, current number of dumps: 5
-DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not configured. No TechSupport Cleanup is performed, current number of dumps: 5
 DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
 ```
 
