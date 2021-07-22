@@ -36,8 +36,11 @@ However if the techsupport invocation can be made event-driven based on core dum
 
 ## 2. High Level Requirements
 * Techsupport invocation should also be made event-driven based on core dump generation
-* This capability should be made optional and is enabled by default
-* Users should have the abiliity to configure this capability.
+* This capability should be enabled by default
+* Users should have the abiliity to enable/disable this feature through CLI.
+* Core cleanup mechanism should also be introduced.
+* Should provide a way to cleanup techsupport dumps
+* The existing "--since" option in techsupport should be leveraged and this should be a configurable parameter for this feature
 
 ## 3. Core Dump Generation in SONiC
 In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
@@ -212,7 +215,22 @@ Since Techsupport dumps are also hosted on the same filesystem, a slightly pessi
 
 Although if the admin feels otherwise, this value is configurable.
 
-## 7. Test Plan
+## 7. Syslog Messages
+```
+DATE sonic NOTICE coredump_gen_handler[pid]:  Core Dump spotted at /var/core/orchagent.1626916631.117644.core.gz
+DATE sonic INFO coredump_gen_handler[pid]:  Cooloff period has not yet passed.  No Techsupport Invocation is performed 
+DATE sonic INFO coredump_gen_handler[pid]:  AUTO_TECHSUPPORT is not enabled. No Techsupport Invocation and Coredump cleanup is performed 
+DATE sonic INFO coredump_gen_handler[pid]:  No Cleanup process is initiated since the core-usage param is not configured
+DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, /var/dump/sonic_dump_sonic_20210721_235228.tar.gz is created
+DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No dump is found in the /var/dump directory
+DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are deleted.
+
+DATE sonic INFO techsupport_cleanup[pid]: AUTO_TECHSUPPORT is not enabled. No TechSupport Cleanup is performed, current number of dumps: 5
+DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not set. No TechSupport Cleanup Process is needed to be performed, current number of dumps: 5
+DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
+```
+
+## 8. Test Plan
 
 Enhance the existing techsupport sonic-mgmt test with the following cases.
 
