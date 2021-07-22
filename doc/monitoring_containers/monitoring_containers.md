@@ -376,20 +376,20 @@ swss                   disabled
 
 #### 2.2.5.3 Show the Memory Threshold of High Mmemory Restart
 ```
-admin@sonic:~$ show feature high_mem_restart mem_threhsold
-Container Name         Memory Threshold
---------------------  -----------------
-database               157286400
-lldp                   104857600
-radv                   31457280
-pmon                   104857600
-snmp                   104857600
-telemetry              209715200
-bgp                    314572800
-dhcp_relay             62914560
-teamd                  73400320
-syncd                  629145600
-swss                   104857600
+admin@sonic:~$ show feature mem_threhsold
+Container Name         Memory Threshold (Bytes)
+--------------------  -------------------------
+database               	      157286400 
+lldp                          104857600
+radv                          31457280
+pmon                          104857600
+snmp                          104857600
+telemetry                     209715200
+bgp                           314572800
+dhcp_relay                    62914560
+teamd                         73400320
+syncd                         629145600
+swss                          104857600
 ```
 
 #### 2.2.5.4 Configure the Status of Auto-restart
@@ -404,7 +404,7 @@ admin@sonic:~$ sudo config feature high_mem_restart database enabled
 
 #### 2.2.5.6 Configure the Memory Threshold of High Memory Rrestart
 ```
-admin@sonic:~$ sudo config feature high_mem_restart database <threshold_value_in_bytes>
+admin@sonic:~$ sudo config feature mem_threshold database <threshold_value_in_bytes>
 ```
 
 ### 2.2.6 FEATURE Table
