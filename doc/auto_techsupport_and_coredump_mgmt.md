@@ -1,4 +1,4 @@
-# Auto Techsupport Enhancement #
+# Event Driven TechSupport Invocation & CoreDump Mgmt #
 #### Rev 1.0
 
 ## Table of Contents
