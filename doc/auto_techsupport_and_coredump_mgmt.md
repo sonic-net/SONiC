@@ -17,8 +17,7 @@
       * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
       * [6.5 Warmboot/Fastboot consideration](#65-Warmboot/Fastboot-consideration)
       * [6.6 Design choices for core-usage argument](#66-Design-choices-for-core-usage-argument)
-  * [7. Syslog Messages](#7-Syslog-Messages)
-  * [8. Test Plan](#8-Test-Plan)
+  * [7. Test Plan](#7-Test-Plan)
 
 
 ### Revision  
@@ -110,7 +109,8 @@ module sonic-auto_techsupport {
 
                     leaf max-techsupports {
                         description "Maximum number of Techsupport dumps, which can be present on the switch.
-                                     The oldest one will be deleted, when the the limit has already crossed this. ";
+                                     The oldest one will be deleted, when the the limit has already crossed this. 
+                                     Disabled by default. Configure '0' to explicitly disable";
                         type uint8;
                     }
 
@@ -118,9 +118,10 @@ module sonic-auto_techsupport {
                         description "A perentage value should be specified. 
                                      This signifies maximum Size to which /var/core directory can be grown until
                                      The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
-                                     When the limit is crossed, the older core files are deleted.";
+                                     When the limit is crossed, the older core files are deleted."
+                                     Disabled by default. Configure '0' to explicitly disable";;
                         type uint8 {
-                             range "1..100" {
+                             range "0..100" {
                                 error-message "Can only be between 1 to 100"; 
                              }
                         }
@@ -154,7 +155,7 @@ module sonic-auto_techsupport {
 config auto-techsupport state <enabled/disabled>
 config auto-techsupport cooloff <uint16>
 config auto-techsupport max-techsupport <uints8>
-config auto-techsupport core-usage <1..100>
+config auto-techsupport core-usage <0..100>
 config auto-techsupport since <string>
 ```
 
@@ -175,9 +176,24 @@ A script under the name `coredump_gen_handler` is added to `/usr/local/bin/` dir
 
 The script invokes the show techsupport command, if the cooloff period configured by the user has passed. The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
+Potential Syslog messages which can be logged are:
+```
+DATE sonic INFO coredump_gen_handler[pid]:  Cooloff period has not yet passed.  No Techsupport Invocation is performed 
+DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, sonic_dump_sonic_20210721_235228.tar.gz is created in response to the coredump orchagent.1626916631.117644.core.gz
+DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No techsupport dump was created in the /var/dump directory
+DATE sonic INFO coredump_gen_handler[pid]:  No Cleanup process is initiated since the core-usage param is not configured
+DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are cleared.
+```
 ### 6.2 techsupport_cleanup script
 
 A script under the name `techsupport_cleanup` is added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
+
+Potential Syslog messages which can be logged are:
+```
+DATE sonic INFO techsupport_cleanup[pid]: AUTO_TECHSUPPORT is not enabled. No TechSupport Cleanup is performed, current number of dumps: 5
+DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not configured. No TechSupport Cleanup is performed, current number of dumps: 5
+DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
+```
 
 ### 6.3 Modifications to coredump-compress script
 
@@ -214,21 +230,7 @@ Since Techsupport dumps are also hosted on the same filesystem, a slightly pessi
 
 Although if the admin feels otherwise, this value is configurable.
 
-## 7. Syslog Messages
-```
-DATE sonic INFO coredump_gen_handler[pid]:  Cooloff period has not yet passed.  No Techsupport Invocation is performed 
-DATE sonic INFO coredump_gen_handler[pid]:  AUTO_TECHSUPPORT is not enabled. No Techsupport Invocation and Coredump cleanup is performed 
-DATE sonic INFO coredump_gen_handler[pid]:  No Cleanup process is initiated since the core-usage param is not configured
-DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, /var/dump/sonic_dump_sonic_20210721_235228.tar.gz is created in response to the coredump orchagent.1626916631.117644.core.gz
-DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No techsupport dump was created in the /var/dump directory
-DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are cleared.
-
-DATE sonic INFO techsupport_cleanup[pid]: AUTO_TECHSUPPORT is not enabled. No TechSupport Cleanup is performed, current number of dumps: 5
-DATE sonic INFO techsupport_cleanup[pid]: max-techsupports is not configured. No TechSupport Cleanup is performed, current number of dumps: 5
-DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
-```
-
-## 8. Test Plan
+## 7. Test Plan
 
 Enhance the existing techsupport sonic-mgmt test with the following cases.
 
