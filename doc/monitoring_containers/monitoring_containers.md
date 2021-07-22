@@ -411,7 +411,7 @@ admin@sonic:~$ sudo config feature mem_threshold database <threshold_value_in_by
 Example:
 ```
 {
-    "CONTAINER_FEATURE": {
+    "FEATURE": {
         "database": {
             "state": "always_enabled",
             "has_timer": false,
