@@ -112,7 +112,6 @@ module sonic-auto_techsupport {
                         description "Maximum number of Techsupport dumps, which can be present on the switch.
                                      The oldest one will be deleted, when the the limit has already crossed this. ";
                         type uint8;
-                        default "5";
                     }
 
                     leaf core-usage {
@@ -125,7 +124,6 @@ module sonic-auto_techsupport {
                                 error-message "Can only be between 1 to 100"; 
                              }
                         }
-                        default "5";
                     }
                     
                     leaf since {
@@ -218,11 +216,10 @@ Although if the admin feels otherwise, this value is configurable.
 
 ## 7. Syslog Messages
 ```
-DATE sonic NOTICE coredump_gen_handler[pid]:  Core Dump spotted at /var/core/orchagent.1626916631.117644.core.gz
 DATE sonic INFO coredump_gen_handler[pid]:  Cooloff period has not yet passed.  No Techsupport Invocation is performed 
 DATE sonic INFO coredump_gen_handler[pid]:  AUTO_TECHSUPPORT is not enabled. No Techsupport Invocation and Coredump cleanup is performed 
 DATE sonic INFO coredump_gen_handler[pid]:  No Cleanup process is initiated since the core-usage param is not configured
-DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, /var/dump/sonic_dump_sonic_20210721_235228.tar.gz is created
+DATE sonic NOTICE coredump_gen_handler[pid]:  Techsupport Invocation is successful, /var/dump/sonic_dump_sonic_20210721_235228.tar.gz is created in response to the coredump orchagent.1626916631.117644.core.gz
 DATE sonic ERR coredump_gen_handler[pid]:  Techsupport Invocation failed, No techsupport dump was created in the /var/dump directory
 DATE sonic NOTICE coredump_gen_handler[pid]:  /var/core cleanup performed. 12456 bytes are cleared.
 
