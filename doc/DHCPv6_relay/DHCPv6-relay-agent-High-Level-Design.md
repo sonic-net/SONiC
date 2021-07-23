@@ -56,7 +56,7 @@ DHCP is a network protocol used to assign IP addresses and provide configuration
 3. Request, Renew, Rebind: DHCPv6 client sends a REQUEST message to request configuration parameters(IP address or delegated prefixes) from the DHCPv6 server
 4. Reply: DHCPv6 server sends a REPLY message containing assigned addresses and configuration parameters in response to a CONFIRM message that confirms or denies that the addresses assigned to the client are appropriate to the link to which the client is connected. REPLY message acknowledges receipt of a RELEASE or DECLINE message.
 
-![image](https://user-images.githubusercontent.com/42761586/117859723-3adcc800-b244-11eb-9dd4-dbde609185a1.png)
+![image](../../images/dhcpv6_relay_hld/dhcpv6_operation1.png)
 
 # Why DHCPv6 relay agent
 
@@ -64,7 +64,8 @@ Generally, the DHCPv6 clients get IP by multicasting the DHCP packets in the LAN
 
 A DHCPv6 client sends most messages using a reserved, link-scoped multicast destination address so that the client need not be configured with the address or addresses of DHCP servers.
 
-![image](https://user-images.githubusercontent.com/42761586/117859791-4b8d3e00-b244-11eb-88f1-59bfd5baa1d6.png)
+![image](../../images/dhcpv6_relay_hld/dhcpv6_operation2.png)
+
 
 In a Relay-forward message, the received message is relayed to the next relay agent or server; in a Relay-reply message, the message is to be copied and relayed to the relay agent or client whose address is in the peer-address field of the Relay-reply message.
 
@@ -115,7 +116,8 @@ The packets are forwarded to configurable IPv6 helpers addresses.
 9. DHCPv6 relay agent extracts message and relays the message to the address contained in the peer-address field of the Relay-reply message.
 10. DHCPv6 client receives the REPLY message that contains the desired IP address.
 
-![image](https://user-images.githubusercontent.com/42761586/117859842-5fd13b00-b244-11eb-9297-c2674d128dd9.png)
+![image](../../images/dhcpv6_relay_hld/dhcpv6_behavior.png)
+
 
 # Requirements
 
@@ -127,7 +129,7 @@ The packets are forwarded to configurable IPv6 helpers addresses.
 
 # Topology
 
-![image](https://user-images.githubusercontent.com/42761586/117859824-58aa2d00-b244-11eb-991f-7ad8759f6612.png)
+![image](../../images/dhcpv6_relay_hld/dhcpv6_topo.png)
 
 # Design
 
