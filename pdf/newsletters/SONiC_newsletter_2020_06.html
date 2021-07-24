@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3pro.css">
+<link href='https://fonts.googleapis.com/css?family=Roboto Slab' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Open Sans' rel='stylesheet'>
+<link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
+<style>
+      .button {
+      background-color: white;
+      color: red;
+      border: 2px solid white;
+      border-radius: 7px;
+      font-size: calc(10px + 0.5vw)
+      }
+      .button:hover {
+      background-color: #0366d6;
+      /* Green */
+      color: white;
+      border-radius: 5px;
+      border: 2px solid #0366d6;
+      }
+      .button:active {
+      background-color: #3e8e41;
+      box-shadow: 0 5px #666;
+      transform: translateY(4px);
+      }
+      .buttonh {
+      background-color: transparent;
+      color: blue;
+      border: 0px solid #0366d6;
+      border-radius: 7px;
+      font-size: calc(10px + 0.5vw)
+      }
+      .buttonh:hover {
+      background-color: #0366d6;
+      color: #ffffff;
+      }
+      .buttonh:active {
+      background-color: #3e8e41;
+      box-shadow: 0 5px #666;
+      transform: translateY(4px);
+      }
+      td {
+      border: 0.1em;
+      border-style: solid;
+      border-color: #0366d6;
+      padding-left: 1em
+      ;
+      }
+}
+   </style>
+   <body style="background-color: rgb(82, 86, 89);" >
+      <table style="width: 80%; background-color: #ffffff; font-family: 'Roboto'; font-size: calc(10px + 0.5vw); padding-top: 1%; padding-bottom: 1%;padding-right: 3%; padding-left: 3%; border-color: #ff0000; border: 2px; " align="center">
+         <tbody>
+<tr>
+<td style="background-color: #0366d6; height: 0.5em;" colspan="3" >&nbsp;&nbsp;&nbsp; 
+</tr>
+<tr>
+               <td style="width:30%; " align="center"><img src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/sonic-logo_40percentage.png" style=" width: auto;  height: auto; min-width: 60%;  max-width: 80%"></td>
+               <td style="  vertical-align: center; padding-left: 2%; text-align: center;  color: rgb(10,79,159);  font-weight: bold; font-family:'Roboto Slab';  font-size: 2.1em;   " colspan="2">
+                  SONiC Newsletter - June 2020
+               </td>
+            </tr>
+<tr>
+<td style="width: 30%; text-align: center; padding-left: 0.5em; background-color: #0366d6; height: 45px; align: center;">
+                  <span style=" color: #ffffff; letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw);">RECENT EVENTS</span></td>
+<td style="width: 70%; background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+                  <span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); ">SONiC COMMUNITY NEWS</span>
+               </td>
+</tr>
+<tr>
+<td style="background-color: #87ceeb; vertical-align: top"; rowspan="1"; ><center>
+<p >
+<a style="color: #0000ff;" href="https://www.opencompute.org/summit/virtual-summit" target="_blank " rel="noopener ">
+<strong>2020 OCP Virtual Summit</strong>
+</a>
+</p>
+<strong>
+<p style="color: #0000ff;">
+
+12-15 May, 2020</p>
+</strong>
+</p>
+<p style=" color: black; padding-top: 1em;">
+                            <strong>Keynote Presentation</strong>
+                        </p>
+						<p>
+							<a href="https://www.youtube.com/watch?v=mrOh1xnVjoI"><img style="display:block;" width="90%" height="90%" src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/2020_virtual_summit_keynote.jpg" />          
+								<br>
+								<button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+
+<p style=" color: black; padding-top: 1em;">
+                            <strong>Panel Discussion</strong>
+                        </p>
+                        <p>
+                            <a href="https://www.youtube.com/watch?v=b7vkNN7Fuyk"><img style="display:block;" width="90%" height="90%" src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/2020_virtual_summit_paneldiscussion.jpg" />          
+                                <br>
+								<button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>
+						
+<p style=" color: black; padding-top: 1em;">
+                           <strong>Industry Demo Collection</strong>
+                        </p>
+                        <p>
+                            <a href="https://github.com/Azure/SONiC/wiki/OCP-2020-Virtual-Summit-SONiC-SAI-Decks-and-Demos">
+                                <button class="button">
+                                    Video
+                                </button>
+                            </a>
+                        </p>	
+</td>
+<td  colspan="2">
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; ">SONiC community hopes all community members are staying safe during this COVID-19 pandemic hard time. Our sincere prayers for the wellness of all our members and the families.    </p>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; ">Amidst this pandemic, SONiC community has very well adapted to the new normal and successfully completed the 2020 OCP virtual Summit in May!   </p>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; ">Happy to see the march towards the 202006 release with many design reviews & new pull requests, issues triaging & fixing, with new focused sub-workgroups on <span style="color: #0000ff;"><a href="https://groups.google.com/g/sonic-chassis-subgroup">Chassis</a></span>, <span style="color: #0000ff;"><a href="https://groups.google.com/g/sonic-test-workgroup">Test</a></span>, <span style="color: #0000ff;"><a href="https://groups.google.com/g/sonic-platform-workgroup">Platform</a></span>, issue triage,etc.,
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; "><strong>More Community News:</strong>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://blogs.cisco.com/sp/cisco-goes-sonic-on-new-networking-platforms">Cisco Goes SONiC on New Networking Platforms</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.businesswire.com/news/home/20200227005317/en/Credo-Announces-HiWire-CLOS-AEC-2020-OCP">Credo Announces HiWire CLOS AEC at 2020 OCP Global Summit</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://blog.dellemc.com/en-us/dell-technologies-sonic-open-source-networking-checks-all-boxes/">Dell Technologies and SONiC Open Source Networking That Checks All the Boxes</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.fiercetelecom.com/telecom/dell-nokia-throw-their-support-behind-sonic-ecosystem">Dell, Nokia throw their support behind SONiC ecosystem</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://innovium.com/2020/03/04/innovium-delivers-production-grade-sonic-sai-for-teralynx-based-switch-systems/">Innovium Delivers Production Grade SONiC/SAI for TERALYNX based Switch Systems</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.businesswire.com/news/home/20200310005982/en/InsidePacket-extends-SONiC-cases-enabling-new-edge-cloud">InsidePacket extends SONiC use cases, enabling new edge-cloud network services</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.ixiacom.com/company/newsroom/press-releases/keysight-technologies-joins-sonic-open-source-network-operating">Keysight Technologies Joins SONiC Open Source Network Operating System Community</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://blogs.nvidia.com/blog/2020/05/12/mellanox-integrated-sonic-open-networking/">Mellanox Drives Data Center Innovation and Disaggregation with Integrated SONiC Open Networking Solution</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.sdxcentral.com/articles/news/nokia-dell-apstra-get-sonic-with-microsoft/2020/05/">Nokia, Dell, Apstra Get SONiC With Microsoft</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.nokia.com/about-us/news/releases/2020/05/12/nokia-extends-commitment-to-datacenter-networks-with-contributions-to-sonic-ecosystem-led-by-microsoft/">Nokia extends commitment to datacenter networks with contributions to SONiC ecosystem led by Microsoft</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.inspursystems.com/ocp-summit-2020-inspur-virtual-showcase/">OCP Summit 2020 Inspur Virtual Showcase</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.sdxcentral.com/articles/news/softiron-bets-on-sonic-with-hyperscale-switches/2020/03/">SoftIron Bets On SONiC With Hyperscale Switches</a></span>
+<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; font-size: 13px;"><span style="color: #0000ff;"><a href="https://www.stordis.com/open-networking/network-operating-system/sonic/">Stordis on SONiC</a></span>
+<p>&nbsp;&nbsp </p>
+</td>
+</tr>
+
+<tr>
+<td style="width: 30%; text-align: center; padding-left: 0.5em; background-color: #0366d6; height: 45px; align: center;">
+<span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); ">NEW PLATFORMS</span></td>
+<td style="background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+<span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); "> SONiC RELEASE UPDATES </span></td>
+</tr>
+<p><br></p>
+<p >
+<tr style="padding: 0.2em;">
+<td  style="background-color: #87ceeb; vertical-align: top; color: #174E7F; line-height: 2em;" rowspan="1" >
+<strong>
+<p>
+
+Celestica x86_64-cel_seastone_2-r0<br>
+DellEMC-Z9332f-C32<br>
+Delta-agc032<br>
+Marvell 98cx8580<br>
+
+</p> 
+</strong>
+</td>
+</p>
+
+</td>
+
+<td  colspan="2"><p style="padding-left: 0.5em; vertical-align: center; line-height: 1.5em">
+<p style="padding-left: 0.5em; vertical-align: center; line-height: 1.5em font-weight: bold; "><strong>SONiC 202006 Release:</strong><br><br>Community has been working hard to complete the features planned in the <span style="color: #0000ff;"><a href="https://github.com/Azure/SONiC/wiki/Sonic-Roadmap-Planning">Roadmap</a></span> which is being tracked in <span style="color: #0000ff;"><a href="https://github.com/Azure/SONiC/wiki/Release-Progress-Tracking-202006">Release Tracking</a></span>. A branch will be pulled by end of June 2020 with the completed features and the incomplete features shall catch the next train.
+</p>
+<p style="padding-left: 0.5em; vertical-align: center; line-height: 1.5em font-weight: bold; "><strong>Features Planned</strong> - BFD SW 100ms interval from FRR, Build Improvements, Consistent ECMP support, Container warm restart, CoPP config/management, D-Bus to Host Communications, Debian 10 upgrade - base image, driver & dockers, Dynamic headroom calculation, Dynamic port breakout, Egress shaping, EVPN/VXLAN, FRR BGP NBI, Fw utils extension, Gearbox, L2 functional and performance enhancements, Management framework (Phase 2), Media enhancements, PDDF advance to SONiC Platform 2.0, BMC, PDK - Platform development environment, & driver development framework, Port mirroring, Pytest 100% moved from ansible to Pytest, RADIUS AAA, SPytest, System health & system LED, etc., <br/>
+</p>
+<p style="padding-left: 0.5em; vertical-align: center; line-height: 1.5em font-weight: bold; "><strong>SONiC 201911 Release:</strong><br><br>Special thanks to all community members who contributed to the <span style="color: #0000ff;"><a href="https://github.com/Azure/SONiC/wiki/Release-Progress-Tracking-201911">Previous Release</a></span> 201911. 
+</p>
+</td>
+</p>
+  <p>&nbsp;&nbsp
+ </p>
+</tr>
+<tr>
+<td style="background-color: #0366d6; padding-left: 0.5em; height: 45px;" >
+<span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: 15px; "> <center>NEW PARTNERS</center></span>
+</td>
+<td style="background-color: #0366d6; padding-left: 0.5em; height: 45px;" colspan="2">
+ <span style="color: #ffffff;letter-spacing: 0.15em;  font-weight: bold; font-size: 15px; ">SONiC DESIGN DISCUSSIONS</span>
+</td>
+</tr>
+<tr style="padding: 0.2em;"> 
+
+<td  style="background-color: white; vertical-align: top; text-align: center; color: white; line-height: 1em;" rowspan="21" >
+<img style="display:block;" width="90%" height="90%" src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/sonic_new_partners_JanToJune2020.png">
+</td>
+</td>
+               <td >14 Jan 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://groups.google.com/g/sonicproject/c/vu3ubpwXohg/m/iULp6jLGCwAJ"> 
+                     Hackathon & New Workgroups</a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >28 Jan 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md">
+                     DBUS HLD</a>
+                  </p>
+               </td>
+            </tr>
+           
+<tr style="padding: 0.2em;">
+               <td >04 Feb 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/sonic-linux-kernel/pull/145">
+                     Debian 10 buster HLD</a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >11 Feb 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/5f188a463aa07d438524c6d969d438c0b4edd777/doc/linecard_hotswap/LineCard_hotSwap_HLD.md">
+                     SONiC Line card Hot Swap HLD</a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >25 Feb 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/dan-arsenault/SONiC/blob/b523fcd51a2ba94b672d217f74ea0b84be330d88/doc/gearbox/gearbox_mgr_design.md">
+                     Gear Box Design</a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >10 Mar 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/9884fc29d43bae85b7843fad736a1adfd75608ee/doc/monitoring_containers/monitoring_containers.md">
+                     Monitoring, Auto-Mitigating Unhealthy Containers</a>
+                  </p>
+               </td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >17 Mar 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/41e55d2762e9267454a4910b42a1eb7ad07acda8/doc/qos/scheduler/SONiC_QoS_Scheduler_Shaper.md">
+                     Add QoS Scheduler and Shaper HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >24 Mar 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/e8c86d1b3a03d6320727ff148966081869461e4a/doc/SONiC_Port_Mirroring_HLD.md">
+                     SONiC Port mirroring HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >31 Mar 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/fd9abf13f8aa2a2c2ca241bc9e3a7dde369cae3f/doc/system_health_monitoring/system-health-HLD.md">
+                     System Health and System LED Monitoring</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >07 Apr 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/a46aa68b3a3ca57fea28c3d139fcef437e0cf0e6/doc/aaa/AAA%20Improvements/AAA%20Improvements.md">
+                     AAA HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >14 Apr 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md">
+                     D-Bus Host to Container Communications HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >21 Apr 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/34cac1aabdc865fc41cbe064a2ab2442645524b1/doc/mgmt/Management%20Framework.md">
+                     Management Framework-Phase II HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >28 Apr 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/master/doc/ecmp/fine_grained_next_hop_hld.md">
+                     Fine grained ECMP HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >05 May 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/b3e2d73667edf839fb6d405f65e6915e04f70c7d/doc/mclag/MCLAG_Enhancements_HLD.md">
+                     MCLAG Enhancements HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >12 May 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/decc682bb4df11f1b4097275595b1df7a9bbe945/doc/config-replace/SONiC_Configuration_Replace_Design_Doc.md">
+                     SONiC Configuration Replace HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >19 May 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/3e4b6865910a2bc74422b46a5d209806ffade978/doc/qos/dynamically-headroom-calculation.md">
+                     Dynamic buffer calculation HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >26 May 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/7fbda34ee3315960c164a0c202f39c2ec515cfc3/doc/vxlan/EVPN/EVPN_VXLAN_HLD.md">
+                     EVPN VXLAN HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >02 June 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/Azure/SONiC/blob/3d2e5e66e05bcce0a64f5ad077b96ae2006527fd/doc/ipv6/ipv6_link_local.md">
+                     BGP Unnumbered HLD</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >09 June 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://www.youtube.com/watch?v=9IXFvqz1QoA">
+                     PDDF v2.0</a>
+                  </p>       
+		</td>
+            </tr>
+<tr style="padding: 0.2em;">
+               <td >16 June 2020</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://github.com/project-arlo/SONiC/blob/a6e9636552149829e39a82705d1ad2b48a17b3f0/doc/media-info-enhancements/media-info.md">
+                     Enhancements to Optical Transceiver Information Model</a>
+                  </p>       
+		</td>
+            </tr>			
+<tr style="padding: 0.2em;">
+               <td >Videos</td>
+               <td >
+                  <p style="text-align: left;">
+                     <a href="https://www.opencompute.org/wiki/Networking/SONiC#Recordings_from_Past_Calls">
+                     HLD Discussion Videos</a>
+                  </p>       
+		</td>
+            </tr>
+<tr>
+<td style="background-color: #0366d6; height: 0.5em;" colspan="3" >&nbsp;&nbsp;&nbsp; 
+</tr>
+</tbody>
+</table>
+</body>
+
+</html>

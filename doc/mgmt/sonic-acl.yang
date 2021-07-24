@@ -1,0 +1,252 @@
+module sonic-acl {
+	namespace "http://github.com/Azure/sonic-acl";
+	prefix sacl;
+	yang-version 1.1;
+
+	import ietf-yang-types {
+		prefix yang;
+	}
+
+	import ietf-inet-types {
+		prefix inet;
+	}
+
+	import sonic-common {
+		prefix scommon;
+	}
+
+	import sonic-port {
+		prefix prt;
+	}
+
+	import sonic-portchannel {
+		prefix spc;
+	}
+
+	import sonic-mirror-session {
+		prefix sms;
+	}
+
+	import sonic-pf-limits {
+		prefix spf;
+	}
+
+	organization
+		"BRCM";
+
+	contact
+		"BRCM";
+
+	description
+		"SONIC ACL";
+
+	revision 2019-05-15 {
+		description
+			"Initial revision.";
+	}
+
+	container sonic-acl {
+			scommon:db-name "CONFIG_DB";
+
+		list ACL_TABLE {
+			key "aclname";
+			scommon:key-delim "|";
+			scommon:key-pattern "ACL_TABLE|{aclname}";
+
+			/* must "count(/prt:sonic-port/prt:PORT) > 0"; */
+
+			leaf aclname {
+				type string;
+			}
+
+			leaf policy_desc {
+				type string {
+					length 1..255 {
+						error-app-tag policy-desc-invalid-length;
+					}
+				}
+			}
+
+			leaf stage {
+				type enumeration {
+					enum INGRESS;
+					enum EGRESS;
+				}
+			}
+
+			leaf type {
+				type enumeration {
+					enum MIRROR;
+					enum L2;
+					enum L3;
+					enum L3V6;
+				}
+			}
+
+			leaf-list ports {
+				/*type union { */
+					type leafref {
+						path "/prt:sonic-port/prt:PORT/prt:ifname";
+					}
+			/*		type leafref {
+						path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:name";
+					}
+				}*/
+			}
+		}
+
+		list ACL_RULE { 
+			key "aclname rulename";
+			scommon:key-delim "|";
+			scommon:key-pattern "ACL_RULE|{aclname}|{rulename}";
+			scommon:pf-check    "ACL_CheckAclLimits";	
+
+			/* Limit for number of dynamic ACL rules */	
+			/*must "count(../ACL_RULE) > /spf:sonic-pf-limits/acl/MAX_ACL_RULES" {
+				error-message "Number of ACL rules reached max platform limit.";
+			}
+			must "PRIORITY > /spf:sonic-pf-limits/acl/MAX_PRIORITY" {
+				error-message "Invalid ACL rule priority.";
+			}
+			 must "count(../ACL_TABLE) > 0 and count(/prt:sonic-port/prt:PORT) > 0"; //Temporary work-around 
+			 */
+
+			leaf aclname {
+				type leafref {
+					path "../../ACL_TABLE/aclname";
+				}
+				must "(/scommon:operation/scommon:operation != 'DELETE') or " +
+					"count(../../ACL_TABLE[aclname=current()]/ports) = 0" {
+						error-message "Ports are already bound to this rule.";
+				}
+			} 
+
+			leaf rulename {
+				type string;
+			}
+
+			leaf PRIORITY {
+				type uint16 {
+					range "1..65535";
+				}
+			}
+
+			leaf RULE_DESCRIPTION {
+				type string;
+			}
+
+			leaf PACKET_ACTION {
+				type enumeration {
+					enum FORWARD;
+					enum DROP;
+					enum REDIRECT;
+				}
+			}
+
+			leaf MIRROR_ACTION {
+				type leafref {
+					path "/sms:sonic-mirror-session/sms:MIRROR_SESSION/sms:name";
+				}
+			}
+
+			leaf IP_TYPE {
+				type enumeration {
+					enum any;
+					enum ip;
+					enum ipv4;
+					enum ipv4any;
+					enum non_ipv4;
+					enum ipv6any;
+					enum non_ipv6;
+				}
+			}
+		
+			leaf IP_PROTOCOL {
+				type uint8 {
+					range "1|2|6|17|46|47|51|103|115";
+				}
+			}
+
+			leaf ETHER_TYPE {
+				type string{
+					pattern "(0x88CC)|(0x8100)|(0x8915)|(0x0806)|(0x0800)|(0x86DD)|(0x8847)";
+				}
+			}
+
+			choice ip_src_dst {
+				case ipv4_src_dst {
+					leaf SRC_IP {
+						mandatory true;
+						type inet:ipv4-prefix;
+					}
+					leaf DST_IP {
+						mandatory true;
+						type inet:ipv4-prefix;
+					}
+				}
+				case ipv6_src_dst {
+					leaf SRC_IPV6 {
+						mandatory true;
+						type inet:ipv6-prefix;    
+					}
+					leaf DST_IPV6 {
+						mandatory true;
+						type inet:ipv6-prefix;    
+					}
+				}
+			}
+
+			choice src_port {
+				case l4_src_port {
+					leaf L4_SRC_PORT {
+						type uint16;
+					}
+				}
+				case l4_src_port_range {
+					leaf L4_SRC_PORT_RANGE {
+						type string {
+							pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+						}
+					}
+				}
+			}
+
+			choice dst_port {
+				case l4_dst_port {
+					leaf L4_DST_PORT {
+						type uint16;
+					}
+				}
+				case l4_dst_port_range {
+					leaf L4_DST_PORT_RANGE {
+						type string {
+							pattern "[0-9]{1,5}(-)[0-9]{1,5}";
+						}
+					}
+				}
+			}
+
+			leaf TCP_FLAGS { 
+				type string {
+					pattern "0[xX][0-9a-fA-F]{2}[/]0[xX][0-9a-fA-F]{2}";
+				}
+			}
+
+			leaf DSCP { 
+				type uint8;
+			}
+		}
+
+		container state {
+			config false;
+
+			leaf MATCHED_PACKETS {
+				type yang:counter64;
+			}
+
+			leaf MATCHED_OCTETS {
+				type yang:counter64;
+			}
+		}
+	}
+}
