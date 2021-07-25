@@ -1970,6 +1970,12 @@ img {
   margin-top: 10px;
   width: 100%;
 }
+#mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget .twitter-footer-link {
+  color: #fff;
+}
+#mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget .twitter-footer-link:hover {
+  color: #01bafd;
+}
 #mu-footer .mu-footer-top .mu-footer-top-area .mu-footer-widget .mu-subscribe-form input[type="email"] {
   border: 1px solid #ccc;
   border-radius: 4px;
