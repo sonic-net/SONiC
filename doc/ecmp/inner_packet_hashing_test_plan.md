@@ -15,6 +15,7 @@
       * [PBH rule configuration](#pbh-rule-configuration)
     * [High level test details](#high-level-test-details)
     * [Different outer encapsulation formats tested with various inner packets](#different-outer-encapsulation-formats-tested-with-various-inner-packets)
+    * [Different inner encapsulated formats tested with various outer packets](#different-inner-encapsulated-formats-tested-with-various-outer-packets)
     * [Inner packet tuples varied for hash validation](#inner-packet-tuples-varied-for-hash-validation)
       * [Validate hashing with different inner packet tuples](#validate-hashing-with-different-inner-packet-tuples)
       * [Ensure that outer packets are not contributing to the hashing](#ensure-that-outer-packets-are-not-contributing-to-the-hashing)
@@ -65,8 +66,8 @@ inner_l4_dst_port  INNER_L4_DST_PORT  N/A              2           Yes
 inner_l4_src_port  INNER_L4_SRC_PORT  N/A              2           Yes
 inner_dst_ipv4     INNER_DST_IPV4     255.255.255.255  3           Yes
 inner_src_ipv4     INNER_SRC_IPV4     255.255.255.255  3           Yes
-inner_dst_ipv6     INNER_DST_IPV6     ffff:ffff::      4           Yes
-inner_src_ipv6     INNER_SRC_IPV6     ffff:ffff::      4           Yes
+inner_dst_ipv6     INNER_DST_IPV6     ::ffff:ffff      4           Yes
+inner_src_ipv6     INNER_SRC_IPV6     ::ffff:ffff      4           Yes
 ```
 
 #### PBH hash configuration
@@ -82,22 +83,36 @@ Define hash with field list:
 #### PBH rule configuration
 Created rules:
 ```
-TABLE      RULE        PRIORITY    MATCH                      HASH        ACTION         COUNTER
----------  ----------  ----------  -------------------------  ----------  -------------  ---------
-pbh_table  nvgre_ipv4  2           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
-                                   ip_protocol:       0x2f
-                                   inner_ether_type:  0x8000
-pbh_table  nvgre_ipv6  2           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
-                                   ipv6-next-header:  0x2f
-                                   inner_ether_type:  0x8000
-pbh_table  vxlan_ipv4  1           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
-                                   ip_protocol:       0x11
-                                   l4_dst_port:       0x12b5
-                                   inner_ether_type:  0x8000
-pbh_table  vxlan_ipv6  1           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
-                                   ipv6-next-header:  0x11
-                                   l4_dst_port:       0x12b5
-                                   inner_ether_type:  0x8000
+TABLE      RULE             PRIORITY    MATCH                      HASH        ACTION         COUNTER
+---------  ---------------  ----------  -------------------------  ----------  -------------  ---------
+pbh_table  nvgre_ipv4_ipv4  2           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ip_protocol:       0x2f
+                                        inner_ether_type:  0x0800
+pbh_table  nvgre_ipv4_ipv6  2           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ip_protocol:       0x2f
+                                        inner_ether_type:  0x86dd
+pbh_table  nvgre_ipv6_ipv4  2           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ipv6_next_header:  0x2f
+                                        inner_ether_type:  0x0800
+pbh_table  nvgre_ipv6_ipv6  2           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ipv6_next_header:  0x2f
+                                        inner_ether_type:  0x86dd
+pbh_table  vxlan_ipv4_ipv4  1           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ip_protocol:       0x11
+                                        l4_dst_port:       0x3412
+                                        inner_ether_type:  0x0800
+pbh_table  vxlan_ipv4_ipv6  1           ether_type:        0x0800  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ip_protocol:       0x11
+                                        l4_dst_port:       0x3412
+                                        inner_ether_type:  0x86dd
+pbh_table  vxlan_ipv6_ipv4  1           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ipv6_next_header:  0x11
+                                        l4_dst_port:       0x3412
+                                        inner_ether_type:  0x0800
+pbh_table  vxlan_ipv6_ipv6  1           ether_type:        0x86dd  inner_hash  SET_ECMP_HASH  ENABLED
+                                        ipv6_next_header:  0x11
+                                        l4_dst_port:       0x3412
+                                        inner_ether_type:  0x86dd
 ```
 
 ### High level test details
@@ -114,6 +129,11 @@ The test will send inner packets and validate that varying any single 5-tuple of
 2. IPv6 Vxlan
 3. IPv4 NVGRE
 4. IPv6 NVGRE
+
+### Different inner encapsulated formats tested with various outer packets
+1. IPv4
+2. IPv6
+
 
 ### Inner packet tuples varied for hash validation
 #### Validate hashing with different inner packet tuples
@@ -134,3 +154,8 @@ This will be tested by sending one direction of the packet, recording the receiv
 
 ### Warm boot testing
 Run inner packet hashing traffic while warm boot is ongoing and ensure that it works just as in the standard non-warm boot case.
+Different packets tested with various inner encapsulated and outer encapsulation formats
+1. IPv4 Vxlan
+2. IPv6 Vxlan
+3. IPv4 NVGRE
+4. IPv6 NVGRE
