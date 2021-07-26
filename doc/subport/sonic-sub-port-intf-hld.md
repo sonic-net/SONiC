@@ -55,10 +55,10 @@
 <!-- /TOC -->
 
 # Revision history
-| Rev |    Date     |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                   |
-| 0.2  | 12/17/2020 | Broadcom Subinterface Dev Team | Update with Feature support |
+| Rev |    Date     |       Author       | Change Description                        |
+|:---:|:-----------:|:------------------:|-------------------------------------------|
+| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                           |
+| 0.2  | 12/17/2020 | Broadcom           | Updating PortChannel Subinterface support |
 
 # Scope
 A sub port interface is a logical interface that can be created on a physical port or a port channel.
@@ -98,8 +98,14 @@ A sub port interface shall support the following features:
 * VRF
 * RIF counters
 * QoS setting inherited from parent physical port or port channel
-* mtu inherited from parent physical port or port channel
+* MTU: 
+  MTU inherited from parent physical port or port channel. 
+  If subinterface MTU is configured, MTU on subinterface will be configured with:
+  - If Subinterface MTU <= parent port MTU, configured subinterface MTU will be applied.
+  - If Subinterface MTU > parent port MTU, parent port MTU will be applied.
 * Per sub port interface admin status config
+  - Kernel subinterface netdev admin UP can be performed only if parent interface netdev is admin UP.
+    Hence subinterface admin UP is performed only after parent interface is admin UP.
 
 # 2 Schema design
 
@@ -120,7 +126,7 @@ Please refer to the API library section for details.
 
 Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
 
-All click & klish config & show CLIs for sub-interfaces will follow long name format.
+All click config & show CLIs for sub-interfaces will follow long name format.
 
 ### 2.1.2 config_db.json
 ```
