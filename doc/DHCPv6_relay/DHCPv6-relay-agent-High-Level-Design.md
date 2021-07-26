@@ -163,9 +163,9 @@ RELAY-REPLY
 # CONFIG DB schema
 
 <pre>
-DHCP|intf-i|dhcpv6\_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
+DHCP|intf-i|dhcpv6_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
-DHCP|intf-i|dhcpv6\_options: [&quot;79&quot;]
+DHCP|intf-i|dhcpv6_option|link_layer_addr: [&quot;79&quot;]
 </pre>
 
 # YANG Model schema
@@ -180,10 +180,10 @@ module DHCP
     			type string;
   		    }
    		    leaf dhcpv6_servers {
-     		    type inet6:ip-address;
+     		    	type inet6:ip-address;
   		    }
-		    leaf options {
-			    type uint16;
+		    leaf dhcpv6_option|link_layer_addr {
+			    type bool;
 		    }
         }
     }
