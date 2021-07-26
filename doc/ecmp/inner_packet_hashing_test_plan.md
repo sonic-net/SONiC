@@ -155,7 +155,11 @@ This will be tested by sending one direction of the packet, recording the receiv
 ### Warm boot testing
 Run inner packet hashing traffic while warm boot is ongoing and ensure that it works just as in the standard non-warm boot case.
 Different packets tested with various inner encapsulated and outer encapsulation formats
-1. IPv4 Vxlan
-2. IPv6 Vxlan
-3. IPv4 NVGRE
-4. IPv6 NVGRE
+1. IPv4 IPv4 Vxlan
+2. IPv4 IPv6 Vxlan
+3. IPv6 IPv4 Vxlan
+4. IPv6 IPv6 Vxlan
+5. IPv4 IPv4 NVGRE
+6. IPv4 IPv6 NVGRE
+7. IPv6 IPv4 NVGRE
+8. IPv6 IPv6 NVGRE
