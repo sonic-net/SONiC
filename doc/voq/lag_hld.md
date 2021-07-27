@@ -575,6 +575,7 @@ Usage: show chassis system-lags [OPTIONS] [SYSTEMLAGNAME]
 
 Options:
   -x, --asicname TEXT   Asic name
+  -t, --hostname TEXT   Host or Linecard name
   --verbose             Enable verbose output
   -?, -h, --help        Show this message and exit.
 admin@Linecard2:~$ 
