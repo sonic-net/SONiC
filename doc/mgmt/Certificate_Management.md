@@ -163,6 +163,40 @@ The certificate management functionality will be implemented using a new YANG mo
 
 To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events.
 
+### 1.3.2 YANG Model
+
+The YANG model will describe the following structure(s) and field(s):
+
+  - security-profile
+    - profile-name
+    - certificate-filename
+    - revocation-check
+    - peer-name-check
+    - key-usage-check
+
+To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined:
+
+** Table 1: gNOI RPCs **
+
+| **RPC Name**                   | **Description** |
+| ------------------------------ | --------------- |
+| Rotate                         | Rotate will replace an existing Certificate on the target by creating a |
+|                                | new CSR request and placing the new Certificate based on the CSR on the |
+|                                | target. If the stream is broken or any steps in the process fail the    |
+|                                | target must rollback to the original Certificate.                       |
+| Install                        |                 |
+| GenerateCSR                    |                 |
+| LoadCertificate                |                 |
+| LoadCertificateAuthorityBundle |                 |
+| GetCertificates                |                 |
+| RevokeCertificates             |                 |
+| CanGenerateCSR                 |                 |
+
+In addition, to facilitate local generation of self-signed certificates this RPC will also be defined:
+
+
+
+
 ### 1.3.2 Container
 
 No new containers are introduced for this feature. Existing Mgmt container will be updated.
