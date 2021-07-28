@@ -109,25 +109,24 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 3.0 The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
 
 # 4 Configuration
-## 4.0 - Install CA certificate from local file, remote location or copy and past into CLI
-## 4.1 - Generate self-signed certificate 
-## 4.2 - Generate certificate signing request (CSR)
-## 4.3 - Install certificate or private key from local file, remote location
-## 4.4 - Delete CA certificate
-## 4.5 - Delete certificate
-## 4.6 - Display certificate
-## 4.7 - Display trusted CAs
-## 4.8 - Display raw PEM Format certificate
-## 4.9 - Configure certificate revocation check behavior
-## 4.10 - Refresh CRL
-## 4.11 - Configure CRL download location(s)
-## 4.12 - Configure CRL Override
-## 4.13 - Display CRL
-## 4.14 - Create new security profile
-## 4.15 - Delete security profile
-## 4.16 - Associate a certificate and private key file with a security-profile
-## 4.17 - Apply security profile to service
-## 4.18 - Remove association of security profile with service
+4.0. Install CA certificate from local file, remote location or copy and past into CLI
+4.1. Generate self-signed certificate 
+4.2. Generate certificate signing request (CSR)
+4.3. Install certificate or private key from local file, remote location
+4.4. Delete CA certificate
+4.5. Delete certificate
+4.6. Display certificate
+4.7. Display trusted CAs
+4.8. Display raw PEM Format certificate
+4.9. Configure certificate revocation check behavior
+4.10. Refresh CRL
+4.11. Configure CRL download location(s)
+4.12. Configure CRL Override
+4.13. Display CRL
+4.14. Create new security profile4.15. - Delete security profile
+4.16. Associate a certificate and private key file with a security-profile
+4.17. Apply security profile to service
+4.18. Remove association of security profile with service
 
 # 5 User Interfaces  
 ## 5.0 The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
