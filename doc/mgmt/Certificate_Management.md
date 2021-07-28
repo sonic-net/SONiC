@@ -107,7 +107,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ### Interfaces
  - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
 
-### 4 Configurability
+### Configurability
   - Install CA certificate from local file, remote location or copy and past into CLI
   - Generate self-signed certificate 
   - Generate certificate signing request (CSR)
@@ -127,29 +127,29 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Apply security profile to service
   - Remove association of security profile with service
 
-### 5 User Interfaces  
+### User Interfaces  
   - The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
 
-### 6 Serviceability  
+### Serviceability  
   - UI show commands are provided to show session states  
   - All session events are logged 
   - Alarms are raised for certificate issues
 
-### 7 Scaling
+### Scaling
   - No known issues with scaling
 
 ### 8 Warm Boot/ISSU
   - Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
 
-### 9 Platforms  
+### Platforms  
   - Certificate management is supported on all SONiC platforms  
 
-### 10 Feature Interactions/Exclusions  
+### Feature Interactions/Exclusions  
   - HTTP server certificate and CA will be configured with this feature
   - gNMI server certificate and CA will be configured with this feature
   - Other services will be integrated in the future
 
-### 11 Limitations  
+### Limitations  
   - Services must be restarted in for new certificates to take effect
 
 ## 1.3 Design Overview
