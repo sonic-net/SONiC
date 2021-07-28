@@ -109,49 +109,49 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 3.0 The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
 
 # 4 Configuration
-4.0. Install CA certificate from local file, remote location or copy and past into CLI
-4.1. Generate self-signed certificate 
-4.2. Generate certificate signing request (CSR)
-4.3. Install certificate or private key from local file, remote location
-4.4. Delete CA certificate
-4.5. Delete certificate
-4.6. Display certificate
-4.7. Display trusted CAs
-4.8. Display raw PEM Format certificate
-4.9. Configure certificate revocation check behavior
-4.10. Refresh CRL
-4.11. Configure CRL download location(s)
-4.12. Configure CRL Override
-4.13. Display CRL
-4.14. Create new security profile4.15. - Delete security profile
-4.16. Associate a certificate and private key file with a security-profile
-4.17. Apply security profile to service
-4.18. Remove association of security profile with service
+1. Install CA certificate from local file, remote location or copy and past into CLI
+2. Generate self-signed certificate 
+3. Generate certificate signing request (CSR)
+4. Install certificate or private key from local file, remote location
+5. Delete CA certificate
+6. Delete certificate
+7. Display certificate
+8. Display trusted CAs
+9. Display raw PEM Format certificate
+10. Configure certificate revocation check behavior
+11. Refresh CRL
+12. Configure CRL download location(s)
+13. Configure CRL Override
+14. Display CRL
+15. Create new security profile4.15. - Delete security profile
+16. Associate a certificate and private key file with a security-profile
+17. Apply security profile to service
+18. Remove association of security profile with service
 
 # 5 User Interfaces  
-## 5.0 The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
+1. The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
 
 # 6 Serviceability  
-## 6.0 - UI show commands are provided to show session states  
-## 6.1 - All session events are logged 
-## 6.2 - Alarms are raised for certificate issues
+1. UI show commands are provided to show session states  
+2. All session events are logged 
+3. Alarms are raised for certificate issues
 
 # 7 Scaling
-## 7.0 No known issues with scaling
+1. No known issues with scaling
 
 # 8 Warm Boot/ISSU
-## 8.0 Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
+1. Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
 
 # 9 Platforms  
-## 9.0 - Certificate management is supported on all SONiC platforms  
+1. Certificate management is supported on all SONiC platforms  
 
 # 10 Feature Interactions/Exclusions  
-## 10.1 HTTP server certificate and CA will be configured with this feature
-## 10.2 gNMI server certificate and CA will be configured with this feature
-## 10.3 Other services will be integrated in the future
+1. HTTP server certificate and CA will be configured with this feature
+2. gNMI server certificate and CA will be configured with this feature
+3. Other services will be integrated in the future
 
 # 11 Limitations  
-## 11.1 Services must be restarted in for new certificates to take effect
+1. 11.1 Services must be restarted in for new certificates to take effect
 
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
