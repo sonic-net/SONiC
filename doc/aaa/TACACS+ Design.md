@@ -20,14 +20,10 @@
   * [3.2 Server count](#32-server-count)
 - [4 Design](#design)
   * [4.1 Authentication](#41-authentication)
-  * [4.2 Authorization](#42-authorization)
-    * [4.2.1 Implementation](#421-implementation)
-    * [4.2.2 ConfigDB Schema](#422-configdb-schema)
-    * [4.2.3 CLI](#423-cli)
-  * [4.3 Accounting](#43-accounting)
-    * [4.3.1 Implementation](#431-implementation)
-    * [4.3.2 ConfigDB Schema](#432-configdb-schema)
-    * [4.3.3 CLI](#433-cli)
+  * [4.2 Authorization Implementation](#42-authorization-implementation)
+  * [4.3 Accounting Implementation](#43-accountin-implementationg)
+  * [4.4 ConfigDB Schema](#44-configdb-schema)
+  * [4.5 CLI](#45-cli)
 - [5 Error handling](#error-handling)
 - [6 Serviceability and Debug](#serviceability-and-debug)
 - [7 Unit Test](#unit-test)
@@ -35,12 +31,12 @@
   * [7.2 End to end test with testbed](#41-end-to-end-test-with-testbed)
   * [7.3 Backward compatibility test](#41-backward compatibility test)
 - [8 References](#references)
-  * [ RFC8907](#rfc8907)
-  * [ TACACS+ Authentication](#tacacs+-Authentication)
-  * [ Bash](#bash)
+  * [RFC8907](#rfc8907)
+  * [TACACS+ Authentication](#tacacs+-Authentication)
+  * [Bash](#bash)
   * [pam_tacplus](#pam_tacplus)
-  * [ Auditd](#auditd)
-  * [ audisp-tacplus](#audisp-tacplus)
+  * [Auditd](#auditd)
+  * [audisp-tacplus](#audisp-tacplus)
 
 # About this Manual
 This document provides a detailed description on the requirement and design of TACACS+ protocol support.
@@ -63,8 +59,17 @@ This document provides a detailed description on the requirement and design of T
 	- EXEC: user session authorization support. this happen when user login.
 	- Command: user run command in shell.
 
+- Support to set the local authorization and TACACS+ authorization.
+    - If set both local and TACACS+ authorization, TACACS+ authorization must happened before local authorization.
+    - If TACACS+ authorization passed but local authorization failed, user can't  run the command. This limitation because SONiC is a Linux based system, and local authorization using Linux permission control.
+
+- Authorization for root is only specified in local.
+
 - Failover:
-	- Authorization will happen before execute, if remote TACACS server not available, use local group based authorization as failover.
+    - If a TACACS+ server authorization fails, the next TACACS+ server authorization will be performed.
+	- When all remote TACACS+ server not accessible, TACACS+ authorization will failed.
+	- When set TACACS+ as only authorization method, if all TACACS+ server not accessible, user cannot run any command on SONiC device.
+	
 
 ## 1.3 Accounting
  - Accounting is the action of recording what a user is doing, and/or has done.
@@ -100,9 +105,8 @@ This document provides a detailed description on the requirement and design of T
 ## 2.1 SONiC CLI
  - Enable/Disable TACACS Authorization/Accounting command
 ```
-    config aaa authorization tacacs local
-    config aaa authorization local
-    config aaa accounting tacacs local
+	config aaa authorization {local | tacacs+}
+    config aaa accounting {local | tacacs+}
     config aaa accounting local
 ```
 
@@ -149,12 +153,14 @@ This document provides a detailed description on the requirement and design of T
 # 4 Design
 ## 4.1 Authentication
  - For Authentication design detail please check [TACACS+ Authentication](#TACPLUS-Authentication)
-## 4.2 Authorization
-### 4.2.1 Implementation
- - [ Bash](#bash) will be patched to support plugin when user execute disk command.
+
+## 4.2 Authorization Implementation
+ - Pam_tacplus will provide Authorization for account management, for more detail please check [TACACS+ Authentication](#TACPLUS-Authentication)
+ - [Bash](#bash) will be patched to support plugin when user execute disk command.
  - A bash plugin to support TACACS+ authorization.
-    - Use TACACS+ setting from TACACS+ authentication.
-    - Use libtac library from [pam_tacplus](#pam_tacplus) for TACACS+ protocol.
+   - Use TACACS+ setting from TACACS+ authentication.
+   - Use libtac library from [pam_tacplus](#pam_tacplus) for TACACS+ protocol.
+   - Bash configration file for root user not enable this plugin, root user only use local Authorization. 
 
 The following figure show how Bash plugin work with TACACS+ server.
 ```
@@ -203,18 +209,13 @@ SSH/Console           SONiC Device                     TACACS+ Server
 
 ```
 
-### 4.2.2 ConfigDB Schema
  - The hostcfg enforcer reads data from configDB to configure host environment.
    - The AAA config module in hostcfg enforcer is responsible for modifying Bash configuration files in host.
    - For how TACACS+ config file update please check [TACACS+ Authentication](#TACPLUS-Authentication)
 
-The following figure show how Bash config an TACACS+ config update by ConfigDB.
+The following figure show how Bash config and TACACS+ config update by ConfigDB.
 ```
-       +-------+  +---------+
-       |  SSH  |  | Console |
-       +---+---+  +----+----+
-           |           |
-+----------v-----------v---------+       +---------------------+
++--------------------------------+       +---------------------+
 | Bash                           |       |                     |
 |   +-------------------------+  |       |  +--------------+   |
 |   | Bash config file        <-------------+ Authorization|   |
@@ -226,8 +227,8 @@ The following figure show how Bash config an TACACS+ config update by ConfigDB.
 |   +-------------------------+  |       |  +--------------+   |
 |                                |       |                     |
 |                                |       |  HostCfg Enforcer   |
-+---------------+----------------+       +----------^----------+
-                                                 |
++--------------------------------+       +----------^----------+
+                                                    |
            +---------+                      +-------+--------+
            |         |                      |                |
            |   CLI   +---------------------->    ConifgDB    |
@@ -235,12 +236,89 @@ The following figure show how Bash config an TACACS+ config update by ConfigDB.
            +---------+                      +----------------+
 ```
 
-### 4.2.3 CLI
+## 4.3 Accounting Implementation
+ - [Auditd](#auditd) will enable on SONiC to provide syscall event for accounting.
+ - [audisp-tacplus](#audisp-tacplus) is a Auditd plugin that support TACACS+ Acounting (user command).
+ - Pam_tacplus will provide session accounting, for more detail please check [TACACS+ Authentication](#TACPLUS-Authentication)
+
+The following figure show how audisp-tacplus work with TACACS+ server.
+```
+         +-----------------+
+         |  Syscall Event  |
+         +-------+---------+
+                 |
++----------------v---------------+       +---------------------+
+| Auditd                         |       |                     |
+|                                |       |                     |
+|   +-------------------------+  |       |                     |
+|   |     audisp-tacplus      +---------->    TACACS+ server   |
+|   +-------------------------+  |       |                     |
+|                                |       |                     |
+|                                |       |                     |
++---------------+----------------+       +---------------------+
+```
+
+
+ - The hostcfg enforcer reads data from configDB to configure host environment.
+   - The AAA config module in hostcfg enforcer is responsible for modifying Auditd configuration files in host.
+   - For how TACACS+ config file update please check [TACACS+ Authentication](#TACPLUS-Authentication)
+
+The following figure show how Auditd config an TACACS+ config update by ConfigDB.
+```
++--------------------------------+       +---------------------+
+| Auditd                         |       |                     |
+|   +-------------------------+  |       |  +--------------+   |
+|   | Auditd config file      <-------------+ Accounting   |
+|   |                         |  |       |  |    Config    |   |
+|   +-------------------------+  |       |  +--------------+   |
+|                                |       |                     |
+|   +-------------------------+  |       |  +--------------+   |
+|   | TACACS+ config file     <-------------+  AAA Config  |   |
+|   +-------------------------+  |       |  +--------------+   |
+|                                |       |                     |
+|                                |       |  HostCfg Enforcer   |
++--------------------------------+       +----------^----------+
+                                                    |
+           +---------+                      +-------+--------+
+           |         |                      |                |
+           |   CLI   +---------------------->    ConifgDB    |
+           |         |                      |                |
+           +---------+                      +----------------+
+```
+
+
+## 4.4 ConfigDB Schema
+ - TACACS+ Authorization and Accounting will use existing tables
+   - AAA Table.
+   - TACPLUS Table
+   - TACPLUS_SERVER Table.
+
+ - For more detail of existing tables, please check [TACACS+ Authentication](#TACPLUS-Authentication)
+ 
+## 4.5 CLI
  - The existing TACACS+ server config command will not change.
  - Add following command to enable/disable TACACS+ authorizarion.
 ```
+    // authorization with TACACS+ server and local
     config aaa authorization tacacs local
+    
+    // authorization with TACACS+ server
+    config aaa authorization tacacs
+    
+    // authorization with TACACS+ local
     config aaa authorization local
+```
+
+ - Add following command to enable/disable TACACS+ accounting.
+```
+    // accounting with TACACS+ server and local syslog
+    config aaa accounting tacacs local
+
+    // accounting with TACACS+ server
+    config aaa accounting tacacs
+
+    // accounting with local syslog
+    config aaa accounting local
 ```
 
  - When config AAA authorization with "no" prefix, SONiC will use local authorization, so following commands have same effect
@@ -250,24 +328,124 @@ The following figure show how Bash config an TACACS+ config update by ConfigDB.
     config aaa authorization local
 ```
 
-## 4.3 Accounting
-### 4.3.1 Implementation
-### 4.3.2 ConfigDB Schema
-### 4.3.3 CLI
-
+ - When config AAA accounting with "no" prefix, SONiC will use stop accounting, following command have same effect.
+```
+    no config aaa authorization tacacs local
+    no config aaa authorization tacacs
+    no config aaa authorization local
+```
 # 5 Error handling
-[TODO]: add more detail.
+ - Bash plugin for authorization will return error code [Bash](#bash). and patched Bash will:
+   - Output error log to syslog.
+   - Output error message to stdout.
+ - [audisp-tacplus](#audisp-tacplus) will return errors as per [Auditd](#auditd)  respectively.
 
 # 6 Serviceability and Debug
-[TODO]: add more detail.
+ - The Bash plugin and [audisp-tacplus](#audisp-tacplus) can be debugged by enabling the debug
+field of the AAA|authentication key. (Please see ConfigDB AAA Table
+Schema in [TACACS+ Authentication](#TACPLUS-Authentication)). 
 
 # 7 Unit Test
 ## 7.1 Unit test for source code
-[TODO]: add more detail.
+ - All patch code in Bash and Bash plugin should have 100% code coverage.
+ - Bash plugin test, all TACACS+ server not reachable test:
+```
+    Verify TACACS+ authorization failed.
+```
+
+ - Bash plugin test, partial TACACS+ server accessable, and user command config as allowed on all server.
+```
+    Verify TACACS+ authorization passed.
+```
+
+ - Bash plugin test, partial TACACS+ server accessable, and user command config as reject on all server.
+```
+    Verify TACACS+ authorization rejected.
+```
+
+ - Bash plugin test, partial TACACS+ server accessable, and user command config as reject on accessable server, and allow on not accessable server.
+```
+    Verify TACACS+ authorization rejected.
+```
+
+ - Bash plugin test, partial TACACS+ server accessable, and user command config as allow on accessable server, and reject on not accessable server.
+```
+    Verify TACACS+ authorization passed.
+```
+
+ - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server accessable.
+```
+    Verify TACACS+ accounting succeeded.
+```
+
+ - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server not accessable.
+```
+    Verify plugin return correct error code.
+```
+
+ - [audisp-tacplus](#audisp-tacplus) test, partial TACACS+ server accessable.
+```
+    Verify TACACS+ accounting succeeded.
+```
+
+ - [audisp-tacplus](#audisp-tacplus) test, user command longer than 240 bytes.
+```
+    Verify TACACS+ accounting succeeded.
+    Verify only 240 bytes of user command send to TACACS+ server side.
+```
+
+ - [audisp-tacplus](#audisp-tacplus) test, user command+parameter longer than 240 bytes.
+```
+    Verify TACACS+ accounting succeeded.
+    Verify only 240 bytes of user command+parameter send to TACACS+ server side.
+```
+
 ## 7.2 End to end test
-[TODO]: add more detail.
+
+- config aaa authorization with TACACS+ only:
+```
+    Verify TACACS+ user run command in server side whitelist:
+        If command have local permission, user can run command.
+        If command not have local permission, user can't run command.
+    Verify TACACS+ user can't run command not in server side whitelist.
+```
+
+- config aaa authorization with TACACS+ and local:
+```
+    Verify TACACS+ user run command in server side whitelist:
+        If command have local permission, user can run command.
+        If command not have local permission, user can't run command.
+    Verify TACACS+ user can't run command not in server side whitelist.
+```
+
+- config aaa authorization with TACACS+ only and server not accessable:
+```
+    Verify TACACS+ user can't run any command.
+```
+
+- config aaa authorization with TACACS+ and local, but server not accessable:
+```
+    Verify TACACS+ user can run command not in server side whitelist but have permission in local.
+    Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
+```
+
+- config aaa authorization with local:
+```
+    Verify TACACS+ user can run command if have permission in local.
+    Verify TACACS+ user can't run command if not have permission in local.
+```
+
+[TODO]: add more test case.
+
 ## 7.3 Backward compatibility test
-[TODO]: add more detail.
+
+- config disable aaa authorization:
+```
+    Verify TACACS+ user can run command if have permission in local.
+    Verify TACACS+ user can't run command if not have permission in local.
+```
+
+[TODO]: add more test case.
 
 # 8 References
 ## RFC8907
