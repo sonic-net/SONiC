@@ -83,74 +83,74 @@ The certificate management feature will introduce a new YANG model and CLI to ad
 
 The use case for certificates is any service that wants secure communication to the outside. This includes but is not limited to:
 
-    - HTTPS Web Server (REST, Swagger UI etc.)
-    - gNMI Telemetry/Configuration
-    - Dialout Telemetry
-    - Syslog
-    - RADIUS
-    - SSH
+  - HTTPS Web Server (REST, Swagger UI etc.)
+  - gNMI Telemetry/Configuration
+  - Dialout Telemetry
+  - Syslog
+  - RADIUS
+  - SSH
 
 Although only REST and gNMI are to be targeted initially for use with certificate management, the other services can be integrated eventually as well. 
 
 ## 1.2 Requirements
 
 ### Overview
-    - Certificate Management is a set of YANG models, CLIs and scripts to generate, install, configure and monitor PKI certificates and the services that use them. Security profiles will be used to associate a service with a certificate and key pair.
+  - Certificate Management is a set of YANG models, CLIs and scripts to generate, install, configure and monitor PKI certificates and the services that use them. Security profiles will be used to associate a service with a certificate and key pair.
 
 ### Functionality
-    - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
-    - Create YANG model for managing certificate and security profile information.
-    - Create scripts to generate, download and verify certificates as well as configure services.
-    - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
-    - Create CLI to generate/download certificates & signing requests and configure services.
+  - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
+  - Create YANG model for managing certificate and security profile information.
+  - Create scripts to generate, download and verify certificates as well as configure services.
+  - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
+  - Create CLI to generate/download certificates & signing requests and configure services.
 
 ### Interfaces
-    - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
+ - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
 
 ### 4 Configurability
-    - Install CA certificate from local file, remote location or copy and past into CLI
-    - Generate self-signed certificate 
-    - Generate certificate signing request (CSR)
-    - Install certificate or private key from local file, remote location
-    - Delete CA certificate
-    - Delete certificate
-    - Display certificate
-    - Display trusted CAs
-    - Display raw PEM Format certificate
-    - Configure certificate revocation check behavior
-    - Refresh CRL
-    - Configure CRL download location(s)
-    - Configure CRL Override
-    - Display CRL
-    - Create new security profile4.15. - Delete security profile
-    - Associate a certificate and private key file with a security-profile
-    - Apply security profile to service
-    - Remove association of security profile with service
+  - Install CA certificate from local file, remote location or copy and past into CLI
+  - Generate self-signed certificate 
+  - Generate certificate signing request (CSR)
+  - Install certificate or private key from local file, remote location
+  - Delete CA certificate
+  - Delete certificate
+  - Display certificate
+  - Display trusted CAs
+  - Display raw PEM Format certificate
+  - Configure certificate revocation check behavior
+  - Refresh CRL
+  - Configure CRL download location(s)
+  - Configure CRL Override
+  - Display CRL
+  - Create new security profile4.15. - Delete security profile
+  - Associate a certificate and private key file with a security-profile
+  - Apply security profile to service
+  - Remove association of security profile with service
 
 ### 5 User Interfaces  
-    - The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
+  - The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
 
 ### 6 Serviceability  
-    - UI show commands are provided to show session states  
-    - All session events are logged 
-    - Alarms are raised for certificate issues
+  - UI show commands are provided to show session states  
+  - All session events are logged 
+  - Alarms are raised for certificate issues
 
 ### 7 Scaling
-    - No known issues with scaling
+  - No known issues with scaling
 
 ### 8 Warm Boot/ISSU
-    - Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
+  - Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
 
 ### 9 Platforms  
-   - Certificate management is supported on all SONiC platforms  
+  - Certificate management is supported on all SONiC platforms  
 
 ### 10 Feature Interactions/Exclusions  
-   - HTTP server certificate and CA will be configured with this feature
-   - gNMI server certificate and CA will be configured with this feature
-   - Other services will be integrated in the future
+  - HTTP server certificate and CA will be configured with this feature
+  - gNMI server certificate and CA will be configured with this feature
+  - Other services will be integrated in the future
 
 ### 11 Limitations  
-   - Services must be restarted in for new certificates to take effect
+  - Services must be restarted in for new certificates to take effect
 
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
