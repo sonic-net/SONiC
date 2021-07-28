@@ -94,16 +94,16 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 
 ## 1.2 Requirements
 
-### 1 Overview
-#### 1.0 - Certificate Management is a set of YANG models, CLIs and scripts to generate, install, configure and monitor PKI certificates and the services that use them. Security profiles will be used to associate a service with a certificate and key pair.
+### 1.2.0 Overview
+#### 1.2.0.1 - Certificate Management is a set of YANG models, CLIs and scripts to generate, install, configure and monitor PKI certificates and the services that use them. Security profiles will be used to associate a service with a certificate and key pair.
 
-### 2 Functionality
-#### 2.0 Overview
-##### 2.0.1 - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
-##### 2.0.2 - Create YANG model for managing certificate and security profile information.
-##### 2.0.3 - Create scripts to generate, download and verify certificates as well as configure services.
-##### 2.0.4 - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
-##### 2.0.5 - Create CLI to generate/download certificates & signing requests and configure services.
+# 2 Functionality
+## 2.0 Overview
+### 2.0.1 - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
+### 2.0.2 - Create YANG model for managing certificate and security profile information.
+### 2.0.3 - Create scripts to generate, download and verify certificates as well as configure services.
+### 2.0.4 - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
+### 2.0.5 - Create CLI to generate/download certificates & signing requests and configure services.
 
 # 3 Interfaces
 ## 3.0 The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
