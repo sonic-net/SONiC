@@ -180,10 +180,7 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
-| Rotate                         | Rotate will replace an existing Certificate on the target by creating a |
-|                                | new CSR request and placing the new Certificate based on the CSR on the |
-|                                | target. If the stream is broken or any steps in the process fail the    |
-|                                | target must rollback to the original Certificate.                       |
+| Rotate                         | Rotate will replace an existing Certificate on the target by creating a new CSR request and placing the new Certificate based on the CSR on the target. If the stream is broken or any steps in the process fail the target must rollback to the original Certificate. |
 | Install                        |                 |
 | GenerateCSR                    |                 |
 | LoadCertificate                |                 |
