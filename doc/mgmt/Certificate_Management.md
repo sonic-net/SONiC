@@ -181,17 +181,19 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
 | Rotate                         | Rotate will replace an existing Certificate on the target by creating a new CSR request and placing the new Certificate based on the CSR on the target. If the stream is broken or any steps in the process fail the target must rollback to the original Certificate. |
-| Install                        |                 |
-| GenerateCSR                    |                 |
-| LoadCertificate                |                 |
-| LoadCertificateAuthorityBundle |                 |
-| GetCertificates                |                 |
-| RevokeCertificates             |                 |
-| CanGenerateCSR                 |                 |
+| Install                        | Install will put a new Certificate on the target by creating a new CSR request and placing the new Certificate based on the CSR on the target.The new Certificate will be associated with a new Certificate Id on the target. If the target has a pre existing Certificate with the given Certificate Id, the operation should fail. If the stream is broken or any steps in the process fail the target must revert any changes in state. |
+| GenerateCSR                    | When credentials are generated on the device, generates a keypair and returns the Certificate Signing Request (CSR). The CSR has the public key, which when signed by the CA, becomes the Certificate  |
+| LoadCertificate                | Loads a certificate signed by a Certificate Authority (CA). |
+| LoadCertificateAuthorityBundle | Loads a bundle of CA certificates. |
+| GetCertificates                | // An RPC to get the certificates on the target. |
+| RevokeCertificates             |  An RPC to revoke specific certificates. If a certificate is not present on the target, the request should silently succeed. Revoking a certificate should render the existing certificate unusable by any endpoints. |
+| CanGenerateCSR                 | An RPC to ask a target if it can generate a Certificate. |
 
 In addition, to facilitate local generation of self-signed certificates this RPC will also be defined:
 
-
+| **RPC Name**                   | **Description** |
+| ------------------------------ | --------------- |
+| cert-generate                  | Generate self-signed certificate |
 
 
 ### 1.3.2 Container
