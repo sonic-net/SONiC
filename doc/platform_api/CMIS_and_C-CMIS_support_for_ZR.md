@@ -1,19 +1,19 @@
 ## CMIS and C-CMIS support for ZR on SONiC
 
-### Overview
+### 1. Overview
 Common Management Interface Specification (CMIS) is defined for pluggables or on-board modules to communicate with the registers [CMIS v5.0](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf). With a clear difinition of these registers, modules can set the configurations or get the status, to achieve the basic level of monitor and control. 
 
 CMIS is widely used on modules based on a Two-Wire-Interface (TWI), including QSFP-DD, OSFP, COBO and QSFP modules. However, new requirements emerge with the introduction of coherent optical modules, such as 400G ZR. 400G ZR is the first type of modules to require definitions on coherent optical specifications, a field CMIS does not touch on. The development of C(coherent)-CMIS aims to solve this issue [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf). It is based on CMIS but incroporates more definitions on registers in the extended space, regarding the emerging demands on coherent optics specifications.
 
 The scope of this work is to develop APIs for both CMIS and C-CMIS to support 400G ZR modules on SONiC.
 
-### State_DB and show transceiver CLI definitions:
+### 2. State_DB and show transceiver CLI definitions:
 
-#### State_DB Schema ####
+#### 2.1 State_DB Schema ####
 
 New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR modules.
 
-##### Transceiver info Table #####
+##### 2.1.1 Transceiver info Table #####
 
     ; Defines Transceiver information for a port
     key                          = TRANSCEIVER_INFO|ifname          ; information for module on port
@@ -53,7 +53,7 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     firmware_minor_rev           = 1*255VCHAR                       ; firmware minor revision
 
 
-##### Transceiver DOM sensor Table #####
+##### 2.1.2 Transceiver DOM sensor Table #####
 
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
@@ -104,7 +104,7 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     host_intput_loopback_lane7   = FLOAT                            ; host side intput loopback enable lane7
     host_intput_loopback_lane8   = FLOAT                            ; host side intput loopback enable lane8
 
-##### Transceiver Status Table #####
+##### 2.1.3 Transceiver Status Table #####
 
     ; Defines Transceiver Status info for a port
     key                          = TRANSCEIVER_STATUS|ifname        ; Error information for module on port
@@ -179,7 +179,7 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     lasertemphighwarning         = 1*255VCHAR                       ; laser temperature high warning threshold
     lasertemplowwarning          = 1*255VCHAR                       ; laser temperature low warning threshold
     
-##### Transceiver PM Table #####
+##### 2.1.4 Transceiver PM Table #####
 
     ; Defines Transceiver PM information for a port
     key                          = TRANSCEIVER_PM|ifname            ; information of PM on port
@@ -223,7 +223,7 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     rx_sig_power_min             = FLOAT                            ; rx signal power min
     rx_sig_power_max             = FLOAT                            ; rx signal power max 
     
-#### Show interfaces transceiver CLI
+#### 2.2 Show interfaces transceiver CLI
 Displays diagnostic monitoring information of the transceivers
 
 **show interfaces transceiver**
@@ -422,8 +422,8 @@ This command displays information for all the interfaces for the transceiver req
   rx_sig_power_max : -8.00 dBm
   ```
   
-#### Config_DB Schema ####
-##### Port Table #####
+#### 2.3 Config_DB Schema ####
+##### 2.3.1 Port Table #####
 Stores information for physical switch ports managed by the switch chip. Ports to the CPU (ie: management port) and logical ports (loopback) are not declared in the PORT_TABLE. See INTF_TABLE.
 
     ;Defines layer 2 ports
@@ -444,7 +444,7 @@ Stores information for physical switch ports managed by the switch chip. Ports t
     loopback            = "media output" / "media input" / "host output" / "host input" / "none" ; loopback mode
     
     
-#### configure interfaces transceiver CLI
+#### 2.4 Configure interfaces transceiver CLI
 configure privisioning settings of the transceivers
 
 - Usage:
@@ -470,7 +470,75 @@ configure privisioning settings of the transceivers
 - Example (configure the loopback mode):
     ```
     admin@sonic:~$ configure interfaces transceiver Ethernet0 loopback none
-    ```    
+    ```
+    
+#### 2.5 Module firmware CLI ####
+
+- Example (show module firmware version):
+    ```
+    admin@sonic:~$ show interfaces transceiver firmware version Ethernet0 
+    Ethernet0:
+    Active firmware: xxx.xxx.xxx
+    Inactive firmware: xxx.xxx.xxx
+    ```
+
+- Example (show module firmware download status):
+    ```
+    admin@sonic:~$ show interfaces transceiver firmware download_status Ethernet0 
+    Ethernet0:
+    Download progress: xx%
+    ```
+    
+- Example (configure module firmware download):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware download qsfp_dd_ver_xx_xx_xx.bin Ethernet0
+    Module firmware download starts...
+    ```
+    
+- Example (configure module firmware commit):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware commit Ethernet0
+    Commiting module firmware...
+    Done
+    ```
+    
+- Example (configure module firmware run):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware run Ethernet0
+    Running module firmware
+    Done
+    ```
+    
+- Example (configure module firmware upgrade, which combines the show FW version, configure download, show download status, configure commit and run and show version in the end):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware upgrade qsfp_dd_ver_xx_xx_xx.bin Ethernet0
+    Ethernet0:
+    Active firmware: xxx.xxx.xxx
+    Inactive firmware: xxx.xxx.xxx  
+    
+    Module firmware download starts...
+    Download progress: 1%
+    Download progress: 10%
+    Download progress: 20%
+    Download progress: 30%
+    Download progress: 40%
+    Download progress: 50%
+    Download progress: 60%
+    Download progress: 70%
+    Download progress: 80%
+    Download progress: 90%
+    Download progress: 100%
+    
+    Commiting module firmware...
+    Done
+    
+    Running module firmware
+    Done
+    
+    Active firmware: xxx.xxx.xxx
+    Inactive firmware: xxx.xxx.xxx      
+    ```
+
 The rest of the article will discuss the following items:
 
 - Layered architecture to access registers
@@ -479,7 +547,7 @@ The rest of the article will discuss the following items:
 - High level functions
 - Module firmware upgrade using command data block (CDB)
 
-### Layered architecture to access registers
+### 3. Layered architecture to access registers
           ---------------------------
          |   High level functions    |
           ---------------------------
@@ -500,7 +568,7 @@ The rest of the article will discuss the following items:
              ---------------------           
                 
 
-### Definition on CMIS and C-CMIS registers
+### 4. Definition on CMIS and C-CMIS registers
 -  Memory structure and mapping
 
 The host addressable memory starts with a lower memory of 128 bytes that occupy address byte 0-127. 
@@ -625,9 +693,9 @@ See [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf
 |42h|PM Advertisement|RO|
 |43h|Media Lane Provisioning Advertisement|RO|
 
-### Method to read from and write to registers
+### 5. Method to read from and write to registers
 
-#### Read and write registers
+#### 5.1 Read and write registers
 - read_reg
 - write_reg
 
@@ -645,7 +713,7 @@ def read_reg(port, page, offset, size):
 def write_reg(port, page, offset, size, write_raw):
     platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
 ```
-#### Encoding and decoding raw data
+#### 5.2 Encoding and decoding raw data
 - read_reg_from_dict
 - write_reg_from_dict
 
@@ -665,9 +733,9 @@ def write_reg_from_dict(port, Dict, write_buffer):
     write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
 ```
 
-### High level functions
+### 6. High level functions
 
-#### Get module basic information
+#### 6.1 Get module basic information
 - get_module_type
 
 ```
@@ -832,7 +900,7 @@ def get_TX_configured_power(port):
     tx_configured_power = read_reg_from_dict(port, Page12h.TX_TARGET_OUTPUT_POWER_LANE_1) * TX_POWER_SCALE
 ```
 
-#### Get VDM related information
+#### 6.2 Get VDM related information
 - get_VDM
 
 ```get_VDM_page``` function uses ```VDM_TYPE``` dictionary above. It parses all the VDM items defined in the dictionary within a certain VDM page and returns both VDM monitor values and four threshold values related to this VDM item. ```get_VDM``` function combines VDM items from all VDM pages.
@@ -929,7 +997,7 @@ def get_VDM(port):
     return VDM
 ```
 
-#### Get C-CMIS PM
+#### 6.3 Get C-CMIS PM
 - get_PM
 
 Sample code to read C-CMIS defined PMs:
@@ -1020,7 +1088,7 @@ def get_PM(port):
     return PM_dict
 ```
 
-#### Set module configuration, turn up
+#### 6.4 Set module configuration, turn up
 - set_low_power
 
 ```
@@ -1113,7 +1181,7 @@ def set_laser_freq(port, freq):
     else:
         print('Error! Tuning failed!')
 ```
-### Module firmware upgrade using command data block (CDB)
+### 7. Module firmware upgrade using command data block (CDB)
 This section discusses the details of implementing firmware upgrade using CDB message communication. Figure 7-4 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) defines the flowchart for upgrading the module firmware. 
 
 The first step is to obtain CDB features supported by the module from CDB command 0041h, such as start local payload size, maximum block size, whether extended payload messaging (page 0xA0 - 0xAF) or only local payload is supported. These features are important because the following upgrade with depend on these parameters. 
