@@ -138,7 +138,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ### Scaling
   - No known issues with scaling
 
-### 8 Warm Boot/ISSU
+### Warm Boot/ISSU
   - Warm boot will causes services to restart. On restart services will continue to use their configured certificates.
 
 ### Platforms  
