@@ -60,7 +60,7 @@
 | 0.1 | <07/20/2020>|   Eric Seifert     | Initial version                   |
 
 # About this Manual
-This document provides comprehensive functional and design information about the certificate mangement feature implementation in SONiC.
+This document provides comprehensive functional and design information about the certificate management feature implementation in SONiC.
 
 # Definition/Abbreviation
 
@@ -70,6 +70,7 @@ This document provides comprehensive functional and design information about the
 | PKI                      | Public Key Infrastructure           |
 | CSR                      | Certificate Signing Request         |
 | gNMI                     | gRPC Network Management Interface   |
+| gNOI                     | gRPC Network Operations Interface   |
 | CA                       | Certificate Authority               |
 | PEM                      | Privacy Enhanced Mail               |
 | CRL                      | Certificate Revocation List         |
@@ -77,7 +78,7 @@ This document provides comprehensive functional and design information about the
 
 X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem manually. Then you must configure the redis keys manually as well and restart the services. There is also the issue of upgrades where the location of the certificates are placed is not preserved causing these services to break until the files locations are restored. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
-The certificate management feature will introduce a new YANG model and CLI to address the above issues. It will handle certificate generation and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues.
+The certificate management feature will introduce a new YANG model and CLI to address the above issues. It will handle certificate generation and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -103,9 +104,10 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Create scripts to generate, download and verify certificates as well as configure services.
   - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
   - Create CLI to generate/download certificates & signing requests and configure services.
+  - Integrate with gNOI Certificate RPCs.
 
 ### Interfaces
- - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI interfaces on the management interface.
+ - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI/gNOI interfaces on the management interface.
 
 ### Configurability
   - Install CA certificate from local file, remote location or copy and past into CLI
@@ -134,6 +136,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - UI show commands are provided to show session states  
   - All session events are logged 
   - Alarms are raised for certificate issues
+  - RPCs will return error codes and messages
 
 ### Scaling
   - No known issues with scaling
@@ -151,6 +154,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 
 ### Limitations  
   - Services must be restarted in for new certificates to take effect
+  - If an invalid certificate is configured, services including REST and gNMI/gNOI may become inaccessible. However the CLI will continue to work.
 
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
