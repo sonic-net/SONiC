@@ -174,7 +174,7 @@ The YANG model will describe the following structure(s) and field(s):
     - peer-name-check
     - key-usage-check
 
-To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined:
+To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
 **Table 1: gNOI RPCs**
 
@@ -189,18 +189,55 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 | RevokeCertificates             | An RPC to revoke specific certificates. If a certificate is not present on the target, the request should silently succeed. Revoking a certificate should render the existing certificate unusable by any endpoints. |
 | CanGenerateCSR                 | An RPC to ask a target if it can generate a Certificate. |
 
-In addition, to facilitate local generation of self-signed certificates this RPC will also be defined:
+In addition, to facilitate local generation of self-signed certificates and easier KLISH implementation these RPCs will also be defined for both REST and gNOI:
+
+**Table 2: Custom RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
-| cert-generate                  | Generate self-signed certificate |
+| crypto-ca-cert-install | This procedure is used to install an X.509 CA certificate |
+| crypto-ca-cert-delete | This procedure is used to delete an X.509 CA certificate |
+| crypto-host-cert-install | This procedure is used to install the X.509 host certificate |
+| crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
+| crypto-cdp-delete | This procedure is used to install an X.509 certificate revocation list |
+| crypto-cdp-add | This procedure is used to install an X.509 certificate revocation list |
+| crypto-crl-install | This procedure is used to install an X.509 certificate revocation list |
+| crypto-crl-delete | This procedure is used to delete an X.509 certificate revocation list |
+| crypto-cert-generate | This procedure is used to create X.509 CSRs and self-signed certificates |
 
 
-### 1.3.2 Container
+### 1.3.3 KLISH CLI
+
+A new CLI will be added with the following commands:
+
+
+
+### 1.3.4 Monitoring
+
+The sysmonitor.py script will be enhanced to detect the following conditions:
+
+**Table 3: Alarms**
+
+| **Alarm Name** | **Severity** | **Description** |
+| -------------- | ------------ | --------------- |
+| Certificate Expiration | Warning | The host certificate is within 7 days of expiring |
+| Certificate Expired | Alarm | The host certificate has expired |
+| CA Certificate Expiration | Warning | The CA certificate is within 7 days of expiring |
+| CA Certificate Expired | Alarm | The CA certificate has expired |
+| Revoked Certificate | Alarm | The host certificate has been revoked |
+| Revoked CA Certificate | Alarm | The CA certificate has been revoked |
+| Certificate Misconfigured | Warning | An application that is configured to use a certificate has been manually changed to another certificate |
+| CA Certificate Misconfigured | Warning | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
+
+### 1.3.5 Directory Structure
+
+THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts.
+
+### 1.3.5 Container
 
 No new containers are introduced for this feature. Existing Mgmt container will be updated.
 
-### 1.3.3 SAI Overview
+### 1.3.6 SAI Overview
 
 No new or existing SAI services are required
 
