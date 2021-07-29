@@ -55,7 +55,7 @@ This document provides a detailed description on the requirement and design of T
 	- User run any executable file or script on SONiC host.
       - The full path and parameters will be send to TACACS+ server side for authorization.
       - For recursive command/script, only the top level command have authorization.
-        - No authorization for  bash builtin command and bash function, but if a bash function call any executable file or script, those executable file or script will have authorization.
+        - No authorization for  bash built-in command and bash function, but if a bash function call any executable file or script, those executable file or script will have authorization.
       - Commands entered through the console not have authorization by default.
 
 - Supported Authorization types:
@@ -69,7 +69,7 @@ This document provides a detailed description on the requirement and design of T
     - TACACS+ authorization method will send  to TACACS+ server for authorization, TACACS+ server should setup permit/deny rules.
 
 - Failover:
-    - If a TACACS+ server not accessable, the next TACACS+ server authorization will be performed.
+    - If a TACACS+ server not accessible, the next TACACS+ server authorization will be performed.
 	- When all remote TACACS+ server not accessible, TACACS+ authorization will failed.
 	- When set TACACS+ as the only authorization method, if all TACACS+ server not accessible, user cannot run any command on SONiC device.
 
@@ -119,7 +119,7 @@ This document provides a detailed description on the requirement and design of T
 ```
 
 ## 2.2 Config DB
- - TACACS AAA are fully configable by config DB.
+ - TACACS AAA are fully configurable by config DB.
 
 ## 2.3 Counter
  - Support  AAA counter:
@@ -144,7 +144,7 @@ This document provides a detailed description on the requirement and design of T
 # 3 Limitation
 ## 3.1 Command size
  - TACACS protocol limitation: command + parameter size should smaller than 240 byte. The longer than 240 bytes parts will be drop.
- 	- This limitation is a protocol level, all TACACS implementation have this limittation, include CISCO, ARISTA and Cumulus.
+ 	- This limitation is a protocol level, all TACACS implementation have this limitation, include CISCO, ARISTA and Cumulus.
  	- Both Authorization and Accounting have this limitation.
  	- When user user a command longer than 240 bytes, only commands within 240 bytes will send to TACACS server. which means Accounting may lost some user input. and Authorization check can only partly check user input.
 
@@ -152,7 +152,7 @@ This document provides a detailed description on the requirement and design of T
  - Max TACACS server  count was hardcoded, default count is 8.
 
 ## 3.3 Local authorization
- - Operation system limitation: SONiC based on linux system, so permission to execute local command are managed by Linux file permission control. This means TACACS+ authorization can't config to disable 'local' authorization, and local authorization must be last authorization in authorization method list.
+ - Operation system limitation: SONiC based on Linux system, so permission to execute local command are managed by Linux file permission control. This means when enable both TACACS+ authorization and local authorization, local authorization will always happen after TACACS+ authorization.
 
 # 4 Design
 ## 4.1 Authentication
@@ -164,7 +164,7 @@ This document provides a detailed description on the requirement and design of T
  - A bash plugin to support TACACS+ authorization.
    - Use TACACS+ setting from TACACS+ authentication.
    - Use libtac library from [pam_tacplus](#pam_tacplus) for TACACS+ protocol.
-   - Bash configration file for root user not enable this plugin, root user only use local Authorization. 
+   - Bash configuration file for root user not enable this plugin, root user only use local Authorization. 
 
 The following figure show how Bash plugin work with TACACS+ server.
 ```
@@ -183,7 +183,7 @@ The following figure show how Bash plugin work with TACACS+ server.
 +---------------+----------------+       +---------------------+
 ```
 
-Following is the sequence of events during TACACS+ authoriztaion user command:
+Following is the sequence of events during TACACS+ authorization user command:
 
 ```
 SSH/Console           SONiC Device                     TACACS+ Server
@@ -246,7 +246,7 @@ The following figure show how Bash config and TACACS+ config update by ConfigDB.
 
 ## 4.3 Accounting Implementation
  - [Auditd](#auditd) will enable on SONiC to provide syscall event for accounting.
- - [audisp-tacplus](#audisp-tacplus) is a Auditd plugin that support TACACS+ Acounting (user command).
+ - [audisp-tacplus](#audisp-tacplus) is a Auditd plugin that support TACACS+ Accounting (user command).
  - Pam_tacplus will provide session accounting, please check [TACACS+ Authentication](#TACPLUS-Authentication)
 
 The following figure show how audisp-tacplus work with TACACS+ server.
@@ -305,7 +305,7 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
 
 ## 4.5 CLI
  - The existing TACACS+ server config command will not change.
- - Add following command to enable/disable TACACS+ authorizarion.
+ - Add following command to enable/disable TACACS+ authorization.
 ```
     // authorization with TACACS+ server and local
     config aaa authorization tacacs local
@@ -329,23 +329,19 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
     config aaa accounting local
 ```
 
- - When config AAA authorization with "no" prefix, SONiC will use local authorization, so following commands have same effect
+ - Following command will disable authorization.
 ```
-    no config aaa authorization tacacs local
-    no config aaa authorization local
     config aaa authorization local
 ```
 
- - When config AAA accounting with "no" prefix, SONiC will use stop accounting, following command have same effect.
+ - Following command will disable accounting
 ```
-    no config aaa authorization tacacs local
-    no config aaa authorization tacacs
-    no config aaa authorization local
+    config aaa authorization disable
 ```
 # 5 Error handling
  - Bash plugin for authorization will return error code [Bash](#bash). and patched Bash will:
    - Output error log to syslog.
-   - Output error message to stdout.
+   - Output error message to stderr.
  - [audisp-tacplus](#audisp-tacplus) will return errors as per [Auditd](#auditd)  respectively.
 
 # 6 Serviceability and Debug
@@ -361,37 +357,37 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ authorization failed.
 ```
 
- - Bash plugin test, partial TACACS+ server accessable, and user command config as allowed on all server.
+ - Bash plugin test, partial TACACS+ server accessible, and user command config as allowed on all server.
 ```
     Verify TACACS+ authorization passed.
 ```
 
- - Bash plugin test, partial TACACS+ server accessable, and user command config as reject on all server.
+ - Bash plugin test, partial TACACS+ server accessible, and user command config as reject on all server.
 ```
     Verify TACACS+ authorization rejected.
 ```
 
- - Bash plugin test, partial TACACS+ server accessable, and user command config as reject on accessable server, and allow on not accessable server.
+ - Bash plugin test, partial TACACS+ server accessible, and user command config as reject on accessible server, and allow on not accessible server.
 ```
     Verify TACACS+ authorization rejected.
 ```
 
- - Bash plugin test, partial TACACS+ server accessable, and user command config as allow on accessable server, and reject on not accessable server.
+ - Bash plugin test, partial TACACS+ server accessible, and user command config as allow on accessible server, and reject on not accessible server.
 ```
     Verify TACACS+ authorization passed.
 ```
 
- - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server accessable.
+ - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server accessible.
 ```
     Verify TACACS+ accounting succeeded.
 ```
 
- - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server not accessable.
+ - [audisp-tacplus](#audisp-tacplus) test, all TACACS+ server not accessible.
 ```
     Verify plugin return correct error code.
 ```
 
- - [audisp-tacplus](#audisp-tacplus) test, partial TACACS+ server accessable.
+ - [audisp-tacplus](#audisp-tacplus) test, partial TACACS+ server accessible.
 ```
     Verify TACACS+ accounting succeeded.
 ```
@@ -410,7 +406,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 
 ## 7.2 End to end test
 
-- config aaa authorization with TACACS+ only:
+- config AAA authorization with TACACS+ only:
 ```
     Verify TACACS+ user run command in server side whitelist:
         If command have local permission, user can run command.
@@ -418,12 +414,16 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ user can't run command not in server side whitelist.
 ```
 
-- config aaa authorization with TACACS+ only and all  server not accessable:
+- config AAA authorization with TACACS+ only:
+    - when user login server are accessible.
+    - user run some command in whitelist and server are accessible.
+    - then all  server not accessible, and run some command
 ```
-    Verify TACACS+ user can't run any command.
+    Verify when server are accessible, TACACS+ user can run command in server side whitelist.
+    Verify when server are not accessible, TACACS+ user can't run any command.
 ```
 
-- config aaa authorization with TACACS+ only and some server not accessable:
+- config AAA authorization with TACACS+ only and some server not accessible:
 ```
     Verify TACACS+ user run command in server side whitelist:
         If command have local permission, user can run command.
@@ -431,7 +431,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ user can't run command not in server side whitelist.
 ```
 
-- config aaa authorization with TACACS+ and local:
+- config AAA authorization with TACACS+ and local:
 ```
     Verify TACACS+ user run command in server side whitelist:
         If command have local permission, user can run command.
@@ -439,48 +439,51 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ user can't run command not in server side whitelist.
 ```
 
-- config aaa authorization with TACACS+ and local, but server not accessable:
+- config AAA authorization with TACACS+ and local, but server not accessible:
 ```
     Verify TACACS+ user can run command not in server side whitelist but have permission in local.
     Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
 ```
 
-- config aaa authorization with local:
+- config AAA authorization with local:
 ```
     Verify TACACS+ user can run command if have permission in local.
     Verify TACACS+ user can't run command if not have permission in local.
 ```
 
-- config aaa accounting with TACACS+ only:
+- config AAA accounting with TACACS+ only:
 ```
     Verify TACACS+ server have user command record.
     Verify TACACS+ server not have any command record which not run by user.
 ```
 
-- config aaa accounting with TACACS+ only and all server not accessable:
+- config AAA accounting with TACACS+ only:
+    - when user login server are accessible.
+    - user run some command in whitelist and server are accessible.
+    - then all  server not accessible, and run some command
 ```
     Verify local user still can run command without any issue.
 ```
 
-- config aaa accounting with TACACS+ only and some server not accessable:
+- config AAA accounting with TACACS+ only and some server not accessible:
 ```
     Verify syslog have user command record.
     Verify syslog not have any command record which not run by user.
 ```
 
-- config aaa accounting with TACACS+ and local:
+- config AAA accounting with TACACS+ and local:
 ```
     Verify TACACS+ server and syslog have user command record.
     Verify TACACS+ server and syslog not have any command record which not run by user.
 ```
 
-- config aaa accounting with TACACS+ and local, but all server not accessable:
+- config AAA accounting with TACACS+ and local, but all server not accessible:
 ```
     Verify TACACS+ user can run command not in server side whitelist but have permission in local.
     Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
 ```
 
-- config aaa accounting with local:
+- config AAA accounting with local:
 ```
     Verify syslog have user command record.
     Verify syslog not have any command record which not run by user.
@@ -489,7 +492,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 
 ## 7.3 Backward compatibility test
 
-- config disable aaa authorization and accounting:
+- config disable AAA authorization and accounting:
 ```
     Verify GME user can login to device successfully.
     Verify GME user can run command if have permission in local.
@@ -499,7 +502,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify admin user can't run command if not have permission in local.
 ```
 
-- config enable aaa authorization and accounting, and run all existing aaa authencation test case:
+- config enable AAA authorization and accounting, and run all existing AAA authentication test case:
 ```
     Verify all test case not break.
 ```
