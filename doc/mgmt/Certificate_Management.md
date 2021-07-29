@@ -176,7 +176,7 @@ The YANG model will describe the following structure(s) and field(s):
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined:
 
-** Table 1: gNOI RPCs **
+**Table 1: gNOI RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
@@ -185,8 +185,8 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 | GenerateCSR                    | When credentials are generated on the device, generates a keypair and returns the Certificate Signing Request (CSR). The CSR has the public key, which when signed by the CA, becomes the Certificate  |
 | LoadCertificate                | Loads a certificate signed by a Certificate Authority (CA). |
 | LoadCertificateAuthorityBundle | Loads a bundle of CA certificates. |
-| GetCertificates                | // An RPC to get the certificates on the target. |
-| RevokeCertificates             |  An RPC to revoke specific certificates. If a certificate is not present on the target, the request should silently succeed. Revoking a certificate should render the existing certificate unusable by any endpoints. |
+| GetCertificates                | An RPC to get the certificates on the target. |
+| RevokeCertificates             | An RPC to revoke specific certificates. If a certificate is not present on the target, the request should silently succeed. Revoking a certificate should render the existing certificate unusable by any endpoints. |
 | CanGenerateCSR                 | An RPC to ask a target if it can generate a Certificate. |
 
 In addition, to facilitate local generation of self-signed certificates this RPC will also be defined:
