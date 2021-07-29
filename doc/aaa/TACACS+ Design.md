@@ -151,7 +151,7 @@ This document provides a detailed description on the requirement and design of T
 ## 3.2 Server count
  - Max TACACS server  count was hardcoded, default count is 8.
 
-## 3.1 Local authorization
+## 3.3 Local authorization
  - Operation system limitation: SONiC based on linux system, so permission to execute local command are managed by Linux file permission control. This means TACACS+ authorization can't config to disable 'local' authorization, and local authorization must be last authorization in authorization method list.
 
 # 4 Design
