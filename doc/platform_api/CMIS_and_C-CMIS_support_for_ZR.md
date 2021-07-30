@@ -7,7 +7,58 @@ CMIS is widely used on modules based on a Two-Wire-Interface (TWI), including QS
 
 The scope of this work is to develop APIs for both CMIS and C-CMIS to support 400G ZR modules on SONiC.
 
-### 2. State_DB and show transceiver CLI definitions:
+#### 1.1 Diagram - from CLI, State_DB, Config_DB, xcvrd to module registers
+
+The following diagram shows how the CLI
+               ---------------------------
+              |           CLIs            |
+               ---------------------------
+               ||                       /\
+               \/                       ||
+          ---------                    --------
+        | Config_DB |                | State_DB |
+          ---------                    --------
+            ||                              /\
+            \/                              ||
+ -------------------------       --------------------------------
+|lpmode|freq|TXPow|looback|     |xcvr_info|xcvr_dom|xcvr_status|PM|
+ -------------------------       -------------------------------- 
+            ||                              /\
+            \/                              ||
+       ---------------------------------------------
+      |                   xcvrd                     |
+       ---------------------------------------------
+                    ||            /\
+                    \/            ||
+              ---------------------------
+             |    High level functions   |
+              ---------------------------
+                    ||            /\
+                    \/            ||
+                 ---------------------
+                | Encode        Decode |
+                 ---------------------
+                    ||            /\
+                    \/            ||
+                ------------------------
+               | write_reg     read_reg |
+                ------------------------               
+                    ||            /\
+                    \/            ||
+                 ---------------------
+                |   Module registers  |
+                 ---------------------         
+
+##### 1.1.1 Upon plug-in of a module 
+When there is plug-in event of a module on a port, the xcvrd detects the presence state changes from "absent" to "present" on that port. xcvrd reacts to this event by pushing the config_DB on that port to the module. More specifically for ZR module, the low power mode (lpmode), the configured frequency, the configured TX power and the loopback mode are the four most important settings to decide whether the module will be turned up, and with what settings if the module is to be turned up. xcvrd also constantly polls the state of the module and update its memory. When a CLI show command queries the module state or other features, the state_DB will be updated with the information in xcvrd.
+
+##### 1.1.2 Issuing a show CLI command
+When a user issues a show CLI command, state_DB will read from xcvrd and update its fields with information from xcvrd.
+
+##### 1.1.3 Issuing a config CLI command
+When a user issues a config CLI command, config_DB will be updated, and send new settings to xcvrd. xcvrd will further push the settings into the module registers. 
+
+### 2. State_DB, Config_DB, show/config transceiver CLI definitions:
 
 #### 2.1 State_DB Schema ####
 
@@ -423,7 +474,7 @@ This command displays information for all the interfaces for the transceiver req
   ```
   
 #### 2.3 Config_DB Schema ####
-##### 2.3.1 Port Table #####
+##### 2.3.1 Transceiver Config Table #####
 Stores information for physical switch ports managed by the switch chip. Ports to the CPU (ie: management port) and logical ports (loopback) are not declared in the PORT_TABLE. See INTF_TABLE.
 
     ;Defines layer 2 ports
@@ -551,203 +602,9 @@ configure privisioning settings of the transceivers
     Inactive firmware: xxx.xxx.xxx      
     ```
 
-The rest of the article will discuss the following items:
+### 3. High level functions
 
-- Layered architecture to access registers
-- Definition on CMIS and C-CMIS registers
-- Method to read from and write to registers
-- High level functions
-- Module firmware upgrade using command data block (CDB)
-
-### 3. Layered architecture to access registers
-          ---------------------------
-         |   High level functions    |
-          ---------------------------
-                /\            ||            
-                ||            \/
-             ---------------------
-            | Decode       Encode |
-             ---------------------
-                /\            ||            
-                ||            \/
-            ------------------------
-           | read_reg     write_reg |
-            ------------------------               
-                /\            ||            
-                ||            \/
-             ---------------------
-            |   Module registers  |
-             ---------------------           
-                
-
-### 4. Definition on CMIS and C-CMIS registers
--  Memory structure and mapping
-
-The host addressable memory starts with a lower memory of 128 bytes that occupy address byte 0-127. 
-Then it starts from Page 0. Each page has 128 bytes and the first byte of each page starts with an offset of 128.
-Therefore, the address of a byte with *page* and *offset* is *page* * 128 + *offset*.
-
--  Module general information pages (Page 0h - 1Fh, CMIS). See Figure 8-1 and Figure 8-2 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
-
-Important pages containing module general information:
-
-|Address|Page Description|Type|
-|-------|----------------|----|
-|00h|Administrative Information|RO|
-|01h|Advertising|RO|
-|02h|Threshold Information|RO|
-|04h|Laser Capabilities Advertising|RO|
-|10h|Lane and Datapath Configuration|RW|
-|11h|Lane and Datapath Status|RO|
-|12h|Tunable Laser Control and Status|mixed|
-
-
-Sample code to define registers with module general information:
-
-```
-SFF8024_IDENTIFIER = {
-          'PAGE': 0x00,
-          'OFFSET': 0,
-          'SIZE': 1,
-          'TYPE': 'B'
-}
-```
--  Versatile Diagnostics Monitor (VDM) pages (Page 20h - 2Fh, CMIS and C-CMIS)
-
-VDM Pages. See Table 8-119 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
-
-|Address|Page Description|Type|
-|-------|----------------|----|
-|20h|VDM Observable Descriptors 1| RO|
-|21h|VDM Observable Descriptors 2| RO|
-|22h|VDM Observable Descriptors 3| RO|
-|23h|VDM Observable Descriptors 4| RO|
-|24h|VDM Samples 1| RO|
-|25h|VDM Samples 2| RO|
-|26h|VDM Samples 3| RO|
-|27h|VDM Samples 4| RO|
-|28h|VDM Thresholds 1| RO|
-|29h|VDM Thresholds 2| RO|
-|2Ah|VDM Thresholds 3| RO|
-|2Bh|VDM Thresholds 4| RO|
-|2Ch|VDM Flags|RO/COR|
-|2Dh|VDM Masks|RW|
-
-
-Note that VDM ID 1-24 are defined in CMIS. VDM ID starting from 128 are defined in C-CMIS. Below is sample code to define registers with VDM information. 
-We use ```get_VDM``` function to get VDM items and their thresholds, which will be introduced later in this document [here](#get-vdm-related-information).
-
-```
-VDM_TYPE = {
-          # VDM_ID: [VDM_NAME, DATA_TYPE, SCALE]
-          1: ['Laser Age [%]', 'U16', 1],
-          2: ['TEC Current [%]', 'S16', 100.0/32767],
-          3: ['Laser Frequency Error [MHz]', 'S16', 10],
-          4: ['Laser Temperature [C]', 'S16', 1.0/256],
-          5: ['eSNR Media Input [dB]', 'U16', 1.0/256],
-          6: ['eSNR Host Input [dB]', 'U16', 1.0/256],
-          7: ['PAM4 Level Transition Parameter Media Input [dB]', 'U16', 1.0/256],
-          8: ['PAM4 Level Transition Parameter Host Input [dB]', 'U16', 1.0/256],
-          9: ['Pre-FEC BER Minimum Media Input', 'F16', 1], 
-          10: ['Pre-FEC BER Minimum Host Input', 'F16', 1], 
-          11: ['Pre-FEC BER Maximum Media Input', 'F16', 1], 
-          12: ['Pre-FEC BER Maximum Host Input', 'F16', 1], 
-          13: ['Pre-FEC BER Average Media Input', 'F16', 1], 
-          14: ['Pre-FEC BER Average Host Input', 'F16', 1], 
-          15: ['Pre-FEC BER Current Value Media Input', 'F16', 1],
-          16: ['Pre-FEC BER Current Value Host Input', 'F16', 1],
-          17: ['Errored Frames Minimum Media Input', 'F16', 1], 
-          18: ['Errored Frames Minimum Host Input', 'F16', 1], 
-          19: ['Errored Frames Maximum Media Input', 'F16', 1], 
-          20: ['Errored Frames Minimum Host Input', 'F16', 1], 
-          21: ['Errored Frames Average Media Input', 'F16', 1], 
-          22: ['Errored Frames Average Host Input', 'F16', 1], 
-          23: ['Errored Frames Current Value Media Input', 'F16', 1], 
-          24: ['Errored Frames Current Value Host Input', 'F16', 1],
-          128: ['Modulator Bias X/I [%]', 'U16', 100.0/65535],
-          129: ['Modulator Bias X/Q [%]', 'U16', 100.0/65535],
-          130: ['Modulator Bias Y/I [%]', 'U16', 100.0/65535],
-          131: ['Modulator Bias Y/Q [%]', 'U16', 100.0/65535],
-          132: ['Modulator Bias X_Phase [%]', 'U16', 100.0/65535],
-          133: ['Modulator Bias Y_Phase [%]', 'U16', 100.0/65535],
-          134: ['CD high granularity, short link [ps/nm]', 'S16', 1], 
-          135: ['CD low granularity, long link [ps/nm]', 'S16', 20],
-          136: ['DGD [ps]', 'U16', 0.01],
-          137: ['SOPMD [ps^2]', 'U16', 0.01],
-          138: ['PDL [dB]', 'U16', 0.1],
-          139: ['OSNR [dB]', 'U16', 0.1],
-          140: ['eSNR [dB]', 'U16', 0.1],
-          141: ['CFO [MHz]', 'S16', 1],
-          142: ['EVM_modem [%]', 'U16', 100.0/65535],
-          143: ['Tx Power [dBm]', 'S16', 0.01],
-          144: ['Rx Total Power [dBm]', 'S16', 0.01],
-          145: ['Rx Signal Power [dBm]', 'S16', 0.01],
-          146: ['SOP ROC [krad/s]', 'U16', 1],
-          147: ['MER [dB]', 'U16', 0.1]
-}
-```
--  C-CMIS related pages (Page 30h - 4Fh, C-CMIS)
-
-See [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf)
-
-|Address|Page Description|Type|
-|-------|----------------|----|
-|30h|Media Lane Configurable Thresholds|RW|
-|31h|Media Lane Provisioning|RW|
-|32h|Media Lane Masks|RW|
-|33h|Media Lane Flags|RO/COR|
-|34h|Media Lane FEC PM|RO|
-|35h|Media Lane Link PM|RO|
-|38h|Host Interface Configuration|RW|
-|3Ah|Host Interface PM|RO|
-|3Bh|Host Interface Flags and Masks|mixed|
-|41h|RX Power Advertisement and Configurable Thresholds|RO|
-|42h|PM Advertisement|RO|
-|43h|Media Lane Provisioning Advertisement|RO|
-
-### 5. Method to read from and write to registers
-
-#### 5.1 Read and write registers
-- read_reg
-- write_reg
-
-Read and write registers use vendor provided functions to access the bottom layer registers with dictionaries defined Sample code to read and write registers with vendor provided functoins. As mentioned above, the address of a byte with *page* and *offset* is *page* * 128 + *offset*. Below is sample code to read and write registers.
-
-```
-import sonic_platform.platform
-import sonic_platform_base.sonic_sfp.sfputilhelper
-platform_chassis = sonic_platform.platform.Platform().get_chassis()
-PAGE_SIZE = 128
-
-def read_reg(port, page, offset, size):
-    return platform_chassis.get_sfp(port).read_eeprom(page*PAGE_SIZE + offset,size)
-
-def write_reg(port, page, offset, size, write_raw):
-    platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
-```
-#### 5.2 Encoding and decoding raw data
-- read_reg_from_dict
-- write_reg_from_dict
-
-Read and write registers from dictionary use dictionaries defined [here](#definition-on-cmis-and-c-cmis-registers) and calls read and write register function [here](#read-and-write-registers). We use Python built-in library ```struct``` to encode and decode the raw data in bytearray form to meaningful values. Sample code to decode and encode from/to rawdata in registers:
-
-```
-def read_reg_from_dict(port, Dict): 
-    read_raw = read_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'])
-    read_buffer = struct.unpack(Dict['TYPE'], read_raw)
-    if len(read_buffer) == 1:
-        return read_buffer[0]
-    else:
-        return read_buffer
-
-def write_reg_from_dict(port, Dict, write_buffer):
-    write_raw = struct.pack(Dict['TYPE'], write_buffer)
-    write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
-```
-
-### 6. High level functions
-
-#### 6.1 Get module basic information
+#### 3.1 Get module basic information
 - get_module_type
 
 ```
@@ -912,7 +769,7 @@ def get_TX_configured_power(port):
     tx_configured_power = read_reg_from_dict(port, Page12h.TX_TARGET_OUTPUT_POWER_LANE_1) * TX_POWER_SCALE
 ```
 
-#### 6.2 Get VDM related information
+#### 3.2 Get VDM related information
 - get_VDM
 
 ```get_VDM_page``` function uses ```VDM_TYPE``` dictionary above. It parses all the VDM items defined in the dictionary within a certain VDM page and returns both VDM monitor values and four threshold values related to this VDM item. ```get_VDM``` function combines VDM items from all VDM pages.
@@ -1009,7 +866,7 @@ def get_VDM(port):
     return VDM
 ```
 
-#### 6.3 Get C-CMIS PM
+#### 3.3 Get C-CMIS PM
 - get_PM
 
 Sample code to read C-CMIS defined PMs:
@@ -1100,7 +957,7 @@ def get_PM(port):
     return PM_dict
 ```
 
-#### 6.4 Set module configuration, turn up
+#### 3.4 Set module configuration, turn up
 - set_low_power
 
 ```
@@ -1192,8 +1049,174 @@ def set_laser_freq(port, freq):
         print('Success! Tuning completes!')
     else:
         print('Error! Tuning failed!')
+```                
+
+### 4. Method to read from and write to registers
+
+#### 4.1 Read and write registers
+- read_reg
+- write_reg
+
+Read and write registers use vendor provided functions to access the bottom layer registers with dictionaries defined Sample code to read and write registers with vendor provided functoins. As mentioned above, the address of a byte with *page* and *offset* is *page* * 128 + *offset*. Below is sample code to read and write registers.
+
 ```
-### 7. Module firmware upgrade using command data block (CDB)
+import sonic_platform.platform
+import sonic_platform_base.sonic_sfp.sfputilhelper
+platform_chassis = sonic_platform.platform.Platform().get_chassis()
+PAGE_SIZE = 128
+
+def read_reg(port, page, offset, size):
+    return platform_chassis.get_sfp(port).read_eeprom(page*PAGE_SIZE + offset,size)
+
+def write_reg(port, page, offset, size, write_raw):
+    platform_chassis.get_sfp(port).write_eeprom(page*PAGE_SIZE + offset,size,write_raw)
+```
+#### 4.2 Encoding and decoding raw data
+- read_reg_from_dict
+- write_reg_from_dict
+
+Read and write registers from dictionary use dictionaries defined [here](#definition-on-cmis-and-c-cmis-registers) and calls read and write register function [here](#read-and-write-registers). We use Python built-in library ```struct``` to encode and decode the raw data in bytearray form to meaningful values. Sample code to decode and encode from/to rawdata in registers:
+
+```
+def read_reg_from_dict(port, Dict): 
+    read_raw = read_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'])
+    read_buffer = struct.unpack(Dict['TYPE'], read_raw)
+    if len(read_buffer) == 1:
+        return read_buffer[0]
+    else:
+        return read_buffer
+
+def write_reg_from_dict(port, Dict, write_buffer):
+    write_raw = struct.pack(Dict['TYPE'], write_buffer)
+    write_reg(port, page = Dict['PAGE'], offset = Dict['OFFSET'], size = Dict['SIZE'], write_raw = write_raw)
+```
+
+### 5. Definition on CMIS and C-CMIS registers
+-  Memory structure and mapping
+
+The host addressable memory starts with a lower memory of 128 bytes that occupy address byte 0-127. 
+Then it starts from Page 0. Each page has 128 bytes and the first byte of each page starts with an offset of 128.
+Therefore, the address of a byte with *page* and *offset* is *page* * 128 + *offset*.
+
+-  Module general information pages (Page 0h - 1Fh, CMIS). See Figure 8-1 and Figure 8-2 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
+
+Important pages containing module general information:
+
+|Address|Page Description|Type|
+|-------|----------------|----|
+|00h|Administrative Information|RO|
+|01h|Advertising|RO|
+|02h|Threshold Information|RO|
+|04h|Laser Capabilities Advertising|RO|
+|10h|Lane and Datapath Configuration|RW|
+|11h|Lane and Datapath Status|RO|
+|12h|Tunable Laser Control and Status|mixed|
+
+
+Sample code to define registers with module general information:
+
+```
+SFF8024_IDENTIFIER = {
+          'PAGE': 0x00,
+          'OFFSET': 0,
+          'SIZE': 1,
+          'TYPE': 'B'
+}
+```
+-  Versatile Diagnostics Monitor (VDM) pages (Page 20h - 2Fh, CMIS and C-CMIS)
+
+VDM Pages. See Table 8-119 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
+
+|Address|Page Description|Type|
+|-------|----------------|----|
+|20h|VDM Observable Descriptors 1| RO|
+|21h|VDM Observable Descriptors 2| RO|
+|22h|VDM Observable Descriptors 3| RO|
+|23h|VDM Observable Descriptors 4| RO|
+|24h|VDM Samples 1| RO|
+|25h|VDM Samples 2| RO|
+|26h|VDM Samples 3| RO|
+|27h|VDM Samples 4| RO|
+|28h|VDM Thresholds 1| RO|
+|29h|VDM Thresholds 2| RO|
+|2Ah|VDM Thresholds 3| RO|
+|2Bh|VDM Thresholds 4| RO|
+|2Ch|VDM Flags|RO/COR|
+|2Dh|VDM Masks|RW|
+
+
+Note that VDM ID 1-24 are defined in CMIS. VDM ID starting from 128 are defined in C-CMIS. Below is sample code to define registers with VDM information. 
+We use ```get_VDM``` function to get VDM items and their thresholds, which will be introduced later in this document [here](#get-vdm-related-information).
+
+```
+VDM_TYPE = {
+          # VDM_ID: [VDM_NAME, DATA_TYPE, SCALE]
+          1: ['Laser Age [%]', 'U16', 1],
+          2: ['TEC Current [%]', 'S16', 100.0/32767],
+          3: ['Laser Frequency Error [MHz]', 'S16', 10],
+          4: ['Laser Temperature [C]', 'S16', 1.0/256],
+          5: ['eSNR Media Input [dB]', 'U16', 1.0/256],
+          6: ['eSNR Host Input [dB]', 'U16', 1.0/256],
+          7: ['PAM4 Level Transition Parameter Media Input [dB]', 'U16', 1.0/256],
+          8: ['PAM4 Level Transition Parameter Host Input [dB]', 'U16', 1.0/256],
+          9: ['Pre-FEC BER Minimum Media Input', 'F16', 1], 
+          10: ['Pre-FEC BER Minimum Host Input', 'F16', 1], 
+          11: ['Pre-FEC BER Maximum Media Input', 'F16', 1], 
+          12: ['Pre-FEC BER Maximum Host Input', 'F16', 1], 
+          13: ['Pre-FEC BER Average Media Input', 'F16', 1], 
+          14: ['Pre-FEC BER Average Host Input', 'F16', 1], 
+          15: ['Pre-FEC BER Current Value Media Input', 'F16', 1],
+          16: ['Pre-FEC BER Current Value Host Input', 'F16', 1],
+          17: ['Errored Frames Minimum Media Input', 'F16', 1], 
+          18: ['Errored Frames Minimum Host Input', 'F16', 1], 
+          19: ['Errored Frames Maximum Media Input', 'F16', 1], 
+          20: ['Errored Frames Minimum Host Input', 'F16', 1], 
+          21: ['Errored Frames Average Media Input', 'F16', 1], 
+          22: ['Errored Frames Average Host Input', 'F16', 1], 
+          23: ['Errored Frames Current Value Media Input', 'F16', 1], 
+          24: ['Errored Frames Current Value Host Input', 'F16', 1],
+          128: ['Modulator Bias X/I [%]', 'U16', 100.0/65535],
+          129: ['Modulator Bias X/Q [%]', 'U16', 100.0/65535],
+          130: ['Modulator Bias Y/I [%]', 'U16', 100.0/65535],
+          131: ['Modulator Bias Y/Q [%]', 'U16', 100.0/65535],
+          132: ['Modulator Bias X_Phase [%]', 'U16', 100.0/65535],
+          133: ['Modulator Bias Y_Phase [%]', 'U16', 100.0/65535],
+          134: ['CD high granularity, short link [ps/nm]', 'S16', 1], 
+          135: ['CD low granularity, long link [ps/nm]', 'S16', 20],
+          136: ['DGD [ps]', 'U16', 0.01],
+          137: ['SOPMD [ps^2]', 'U16', 0.01],
+          138: ['PDL [dB]', 'U16', 0.1],
+          139: ['OSNR [dB]', 'U16', 0.1],
+          140: ['eSNR [dB]', 'U16', 0.1],
+          141: ['CFO [MHz]', 'S16', 1],
+          142: ['EVM_modem [%]', 'U16', 100.0/65535],
+          143: ['Tx Power [dBm]', 'S16', 0.01],
+          144: ['Rx Total Power [dBm]', 'S16', 0.01],
+          145: ['Rx Signal Power [dBm]', 'S16', 0.01],
+          146: ['SOP ROC [krad/s]', 'U16', 1],
+          147: ['MER [dB]', 'U16', 0.1]
+}
+```
+-  C-CMIS related pages (Page 30h - 4Fh, C-CMIS)
+
+See [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf)
+
+|Address|Page Description|Type|
+|-------|----------------|----|
+|30h|Media Lane Configurable Thresholds|RW|
+|31h|Media Lane Provisioning|RW|
+|32h|Media Lane Masks|RW|
+|33h|Media Lane Flags|RO/COR|
+|34h|Media Lane FEC PM|RO|
+|35h|Media Lane Link PM|RO|
+|38h|Host Interface Configuration|RW|
+|3Ah|Host Interface PM|RO|
+|3Bh|Host Interface Flags and Masks|mixed|
+|41h|RX Power Advertisement and Configurable Thresholds|RO|
+|42h|PM Advertisement|RO|
+|43h|Media Lane Provisioning Advertisement|RO|
+
+### 6. Module firmware upgrade using command data block (CDB)
 This section discusses the details of implementing firmware upgrade using CDB message communication. Figure 7-4 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) defines the flowchart for upgrading the module firmware. 
 
 The first step is to obtain CDB features supported by the module from CDB command 0041h, such as start local payload size, maximum block size, whether extended payload messaging (page 0xA0 - 0xAF) or only local payload is supported. These features are important because the following upgrade with depend on these parameters. 
