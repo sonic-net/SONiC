@@ -2,8 +2,21 @@
 
 _Rev v0.1_
 
-[TOC]
-
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitions-abbreviations)
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [P4RT Application High-Level Design](#p4rt-application-high-level-design)
+  * [Arbitration & Controller Roles](#arbitration---controller-roles)
+  * [P4 programs & P4Info](#p4-programs---p4info)
+  * [ACL Table Definitions](#acl-table-definitions)
+  * [Writing (insert/modify/delete) into the P4RT APPL_DB Table](#writing--insert-modify-delete--into-the-p4rt-appl-db-table)
+  * [WCMP/Hashing](#wcmp-hashing)
+  * [Response path](#response-path)
+- [APPL DB Schema High-Level Design](#appl-db-schema-high-level-design)
+- [Testing Requirements/Design](#testing-requirements-design)
+- [Open/Action items - if any](#open-action-items---if-any)
 
 ## Revision
 
