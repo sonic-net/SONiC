@@ -64,7 +64,7 @@ This document provides comprehensive functional and design information about the
 
 # Definition/Abbreviation
 
-### Table 2: Abbreviations
+### Table 1: Abbreviations
 | **Term**                 | **Meaning**                         |
 |--------------------------|-------------------------------------|
 | PKI                      | Public Key Infrastructure           |
@@ -176,7 +176,7 @@ The YANG model will describe the following structure(s) and field(s):
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
-**Table 3: gNOI RPCs**
+**Table 2: gNOI RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
@@ -191,7 +191,7 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 
 In addition, to facilitate local generation of self-signed certificates and easier KLISH implementation these RPCs will also be defined for both REST and gNOI:
 
-**Table 4: Custom RPCs**
+**Table 3: Custom RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
@@ -210,7 +210,7 @@ In addition, to facilitate local generation of self-signed certificates and easi
 
 A new CLI will be added with the following commands:
 
-**Table 5: CLI Commands**
+**Table 4: CLI Commands**
 
 | **Command** | **Description** |
 | ----------- | --------------- |
@@ -234,7 +234,7 @@ Association of security-profile to application happens in the application specif
 
 The sysmonitor.py script will be enhanced to detect the following conditions:
 
-**Table 6: Alarms**
+**Table 5: Alarms**
 
 | **Alarm Name** | **Severity** | **Description** |
 | -------------- | ------------ | --------------- |
