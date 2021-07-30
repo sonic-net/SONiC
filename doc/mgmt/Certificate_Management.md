@@ -210,19 +210,24 @@ In addition, to facilitate local generation of self-signed certificates and easi
 
 A new CLI will be added with the following commands:
 
-  - crypto ca-cert install
-  - crypto ca-cert install
-  - crypto cert generate
-  - crypto cert install
-  - crypto ca-cert delete
-  - crypto cert delete
-  - show crypto cert
-  - show crypto ca-certs
-  - show file cert
-  - crypto security-profile
-    - certificate
-    
+**Table 3: CLI Commands**
 
+| **Command** | **Description** |
+| ----------- | --------------- |
+| crypto ca-cert install | Install CA cert from local or remote location |
+| crypto ca-cert delete | Delete CA certificate |
+| crypto cert generate | Generate signing request or self-signed host certificate |
+| crypto cert install | Install host certificate from local or remote location |
+| crypto cert delete | Delete host certificate |
+| show crypto cert | Show installed certificates |
+| show crypto ca-certs | Show installed CA certificates |
+| show file cert | Show raw certificate file in PEM format |
+| crypto security-profile | Create security-profile |
+| crypto security-profile certificate | Associate security-profile with certificate|
+
+
+**Note:**
+Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.)
 
 
 ### 1.3.4 Monitoring
