@@ -210,11 +210,20 @@ In addition, to facilitate local generation of self-signed certificates and easi
 
 A new CLI will be added with the following commands:
 
-**Table 3: CLI**
+  - crypto ca-cert install
+  - crypto ca-cert install
+  - crypto cert generate
+  - crypto cert install
+  - crypto ca-cert delete
+  - crypto cert delete
+  - show crypto cert
+  - show crypto ca-certs
+  - show file cert
+  - crypto security-profile
+    - certificate
+    
 
-| Syntax | crypto ca-cert install {path} [filename] | Installing a CA certificate from local file storage |
-| Parameters | path | LOCAL Path to the CA certificate. |
-| | filename | (OPTIONAL) A filename that the certificate will be stored under in the system's trust store directory. The certificate is stored with this filename and an extension of .crt. Thus the filename must either have no extension or a .crt extension. |
+
 
 ### 1.3.4 Monitoring
 
