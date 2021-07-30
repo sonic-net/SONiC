@@ -233,11 +233,15 @@ The sysmonitor.py script will be enhanced to detect the following conditions:
 
 THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts.
 
-### 1.3.5 Container
+### 1.3.6 Application Associations
+
+Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require chaning the applications.
+
+### 1.3.7 Container
 
 No new containers are introduced for this feature. Existing Mgmt container will be updated.
 
-### 1.3.6 SAI Overview
+### 1.3.8 SAI Overview
 
 No new or existing SAI services are required
 
