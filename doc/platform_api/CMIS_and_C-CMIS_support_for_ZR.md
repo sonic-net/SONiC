@@ -449,7 +449,7 @@ configure privisioning settings of the transceivers
 
 - Usage:
     ```
-    configure interfaces transceiver [<interface_name>] (lpmode | configured_frequency | configured_tx_power | loopback) 
+    configure interfaces transceiver [<interface_name>] (lpmode  | configured_frequency | configured_tx_power | loopback) 
     ```
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
@@ -474,6 +474,12 @@ configure privisioning settings of the transceivers
     
 #### 2.5 Module firmware CLI ####
 
+- Usage:
+    ```
+    show interfaces transceiver (firmware version | firmware download_status) [<interface_name>]
+    configure interfaces transceiver (firmware download <bin_file> | firmware abort | firmware commit | firmware run | firmware upgrade <bin_file>) [<interface_name>]
+    ```
+
 - Example (show module firmware version):
     ```
     admin@sonic:~$ show interfaces transceiver firmware version Ethernet0 
@@ -494,7 +500,13 @@ configure privisioning settings of the transceivers
     admin@sonic:~$ configure interfaces transceiver firmware download qsfp_dd_ver_xx_xx_xx.bin Ethernet0
     Module firmware download starts...
     ```
-    
+
+- Example (configure module firmware download abort):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware abort Ethernet0
+    Module firmware download aborted
+    ```
+
 - Example (configure module firmware commit):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware commit Ethernet0
