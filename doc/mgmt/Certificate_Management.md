@@ -220,14 +220,14 @@ The sysmonitor.py script will be enhanced to detect the following conditions:
 
 | **Alarm Name** | **Severity** | **Description** |
 | -------------- | ------------ | --------------- |
-| Certificate Expiration | Warning | The host certificate is within 7 days of expiring |
-| Certificate Expired | Alarm | The host certificate has expired |
-| CA Certificate Expiration | Warning | The CA certificate is within 7 days of expiring |
-| CA Certificate Expired | Alarm | The CA certificate has expired |
-| Revoked Certificate | Alarm | The host certificate has been revoked |
-| Revoked CA Certificate | Alarm | The CA certificate has been revoked |
-| Certificate Misconfigured | Warning | An application that is configured to use a certificate has been manually changed to another certificate |
-| CA Certificate Misconfigured | Warning | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
+| Certificate Expiration | WARNING | The host certificate is within 7 days of expiring |
+| Certificate Expired | CRITICAL | The host certificate has expired |
+| CA Certificate Expiration | WARNING | The CA certificate is within 7 days of expiring |
+| CA Certificate Expired | CRITICAL | The CA certificate has expired |
+| Revoked Certificate | CRITICAL | The host certificate has been revoked |
+| Revoked CA Certificate | CRITICAL | The CA certificate has been revoked |
+| Certificate Misconfigured | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
+| CA Certificate Misconfigured | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
 
 ### 1.3.5 Directory Structure
 
