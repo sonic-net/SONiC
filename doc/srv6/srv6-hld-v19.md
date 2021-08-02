@@ -366,7 +366,7 @@ Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB.
 
 
 
-NextHopKey
+**NextHopKey Changes**
 
 
 
@@ -378,7 +378,8 @@ Struct NextHopKey {
 
   IpAddress ip_address;
 
-  std::set<string> segments;
+  string segments; // SRV6 segment
+  string srv6_source; // Source IPV6 string used for SRV6 source encapsulation.
 
   …..
 
