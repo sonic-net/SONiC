@@ -132,7 +132,7 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 ![draw-configdb](images/drawing-configdb-frr3.png)
 
-Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plan forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
+Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plane forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
 
 ## 2.1 ConfigDB Changes
 
@@ -304,13 +304,9 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping
 
-key = SRV6_LOCAL_SID_TABLE:ipv6address
+key = SRV6_LOCAL_SID_TABLE:block_len:node_len:func_len:arg_len:ipv6address
 
 ; field = value
-block_len = blen                   ; bit length of block portion in address, default = 40
-node_len = nlen                    ; bit length of node portion in address, default = 24
-func_len = flen                    ; bit length of function portion in address, default = 16
-arg_len = alen                     ; bit length of argument portion in address, default = 0
 action = behavior                  ; behaviors defined for local SID
 vrf = VRF_TABLE.key                ; VRF name for END.DT46, can be empty
 adj = address,                     ; List of adjacencies for END.X, can be empty
@@ -370,7 +366,7 @@ Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB.
 
 
 
-RouteOrch uses NexthopKey to create SAI next hop objects. To support SRV6 segments in the nextHop, key is modified to include the list of segments.
+RouteOrch uses NexthopKey to create SAI next hop objects. To support SRV6 segments in the nextHop, key is modified to include segment string and source address string used for SRv6 source encapsulation.
 
 
 
@@ -378,8 +374,10 @@ Struct NextHopKey {
 
   IpAddress ip_address;
 
-  string segments; // SRV6 segment
-  string srv6_source; // Source IPV6 string used for SRV6 source encapsulation.
+  
+  string segment;
+  
+  string srv6_source;
 
   …..
 
