@@ -165,7 +165,7 @@ RELAY-REPLY
 <pre>
 DHCP|intf-i|dhcpv6_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
-DHCP|intf-i|dhcpv6_option|link_layer_addr: &quot;true&quot;
+DHCP|intf-i|dhcpv6_option|rfc6939_support: &quot;true&quot;
 </pre>
 
 # YANG Model schema
@@ -182,7 +182,7 @@ module DHCP
    		    leaf dhcpv6_servers {
      		    	type inet6:ip-address;
   		    }
-		    leaf dhcpv6_option|link_layer_addr {
+		    leaf dhcpv6_option|rfc6939_support {
 			    type bool;
 		    }
         }
