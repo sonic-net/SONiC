@@ -158,8 +158,8 @@ BUM storm control
 
 __Figure 1: Storm Control High Level Architecture__
 
-1) Storm-control configurations are parsed and stored in CFG_PORT_STORM_CONTROL_TABLE in Configuration database by the Management Framework.
-2) The Policer Orchestration Agent subscribes to notifications from the CFG_PORT_STORM_CONTROL_TABLE and parses the input parameters (interface, storm-control type, kbps). A policer_name is created internally by encoding the interface_name and storm_control_type.
+1) Storm-control configurations are parsed and stored in PORT_STORM_CONTROL in Configuration database by the Management Framework.
+2) The Policer Orchestration Agent subscribes to notifications from the PORT_STORM_CONTROL and parses the input parameters (interface, storm-control type, kbps). A policer_name is created internally by encoding the interface_name and storm_control_type.
 3) create_policer SAI API is invoked to create a policer with the given input parameters. 
 4) The identifier of the policer created is associated with the encoded policer_name.
 5) The policer identifier is passed to set_port_attribute SAI API to set the appropriate type of storm-control on the port. 
@@ -170,13 +170,13 @@ This section describes the changes made to different DBs for supporting storm-co
 
 
 ### 3.2.1 CONFIG_DB
-A new table CFG_PORT_STORM_CONTROL_TABLE is introduced in the configuration database for the purpose of storing storm-control configuration parameters. This table is filled by the management framework. 
-#### CFG_PORT_STORM_CONTROL_TABLE
+A new table PORT_STORM_CONTROL is introduced in the configuration database for the purpose of storing storm-control configuration parameters. This table is filled by the management framework. 
+#### PORT_STORM_CONTROL
 
     ;Store Storm Control configuration per physical port
     ;Status: work in progress
     ;storm control type - broadcast / unknown-unicast / unknown-multicast
-    key     = CFG_PORT_STORM_CONTROL_TABLE:port:storm_control_type ; Ethernet Interface Name and storm control type
+    key     = PORT_STORM_CONTROL:port|storm_control_type ; Ethernet Interface Name and storm control type
     ;field  = value
     enabled = BIT          ; Is the storm control enabled (1) or disabled (0) on the interface 
     kbps     = 1*13 DIGIT   ; CIR value in kilo bits per second
@@ -195,7 +195,7 @@ No changes are introduced in COUNTER_DB.
 ## 3.3 Switch State Service Design
 ### 3.3.1 PolicerOrch changes 
 Policer Orchestration agent is responsible for the following activities:
-   - Subscribes to notifications on CFG_PORT_STORM_CONTROL_TABLE entries in the CONFIG_DB. 
+   - Subscribes to notifications on PORT_STORM_CONTROL entries in the CONFIG_DB. 
    - Creates an internal name for policer by encoding the interface name and storm-control type. 
    - Creates the policer based on the parameters and associates the policer identifier to internal name
    - Populates the port attribute SAI structures and pushes the entry to ASIC_DB. 
