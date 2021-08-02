@@ -362,7 +362,7 @@ When a route entry is added to ROUTE_TABLE, routeOrchagent calls srv6Orchagent t
 
 
 
-Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB. For LOCAL_SID's END.X action, this orchagent queries the existing IP NextHop and NextHopGroup database and use the existing object handle and update ASIC_DB. This orchagent creates a new ECMP group when Nexthop exists for all the Nexthop addresses in END.X action and no matching group exists in the DB. For LOCAL_SID's END.DT46 action, orchagent passes the VRF handle associated with VRF name to ASIC_DB. For LOCAL_SID's END.B6 Encaps, orchagent use existing Nexthop/NexthopGroup for the list of segments or create a new NexthopGroup.
+Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB. For LOCAL_SID's END.X action, this orchagent queries the existing IP NextHop and NextHopGroup database and use the existing object handle and update ASIC_DB. When IP NextHop doesn't exist, LOCAL_SID objects are programmed with Drop action and notify NeighOrch to resolve IP NextHop. When that NextHop is resolved, SRV6Orchagent updates LOCAL_SID with valid IP NextHop handle and Forward action. This orchagent creates a new ECMP group when Nexthop exists for all the Nexthop addresses in END.X action and no matching group exists in the DB. For LOCAL_SID's END.DT46 action, orchagent passes the VRF handle associated with VRF name to ASIC_DB. For LOCAL_SID's END.B6 Encaps, orchagent use existing Nexthop/NexthopGroup for the list of segments or create a new NexthopGroup.
 
 
 
