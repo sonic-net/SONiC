@@ -66,6 +66,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 06/24/2019  |  Mohanarajan Selvaraj| Initial version                   |
+| 1.0 | 08/01/2021  |  Mohanarajan Selvaraj| Config DB Table update            |
 
 
 # About this Manual
@@ -98,7 +99,7 @@ Unknown-multicast traffic consists of all multicast traffic which donot match an
  2. Support threshold rate configuration in kilo bits per second (kbps) in the range of 0 kbps to 100,000,000 kbps (100Gbps). 
 
 ### 1.1.2 Configuration and Management Requirements
-This feature supports Click, Klish, REST, gNMI interfaces.
+This feature supports ,SONiC yang, SONiC CLI and mgmt framework interfaces(Klish, REST, gNMI).
  1. Support a CLI to add or delete broadcast, unknown-unicast and unknown-multicast storm-control on a physical interface as described in "Configuration Commands" section below. 
  2. Support show commands to display the storm-control configuration as described in "Show Commands" section below. 
  3. Support debug commands as described in "Debug Commands" section below.
@@ -158,7 +159,7 @@ BUM storm control
 
 __Figure 1: Storm Control High Level Architecture__
 
-1) Storm-control configurations are parsed and stored in PORT_STORM_CONTROL in Configuration database by the Management Framework.
+1) Storm-control configurations are done using SONiC yang / SONiC CLI / management framework. The configurations are parsed and stored in PORT_STORM_CONTROL Table in Configuration database.
 2) The Policer Orchestration Agent subscribes to notifications from the PORT_STORM_CONTROL and parses the input parameters (interface, storm-control type, kbps). A policer_name is created internally by encoding the interface_name and storm_control_type.
 3) create_policer SAI API is invoked to create a policer with the given input parameters. 
 4) The identifier of the policer created is associated with the encoded policer_name.
