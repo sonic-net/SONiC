@@ -10,6 +10,8 @@ The scope of this work is to develop APIs for both CMIS and C-CMIS to support 40
 #### 1.1 Diagram - from CLI, State_DB, Config_DB, xcvrd to module registers
 
 The following diagram shows how the CLI
+
+```
                ---------------------------
               |           CLIs            |
                ---------------------------
@@ -20,9 +22,9 @@ The following diagram shows how the CLI
           ---------                    --------
             ||                              /\
             \/                              ||
- -------------------------       --------------------------------
+ -------------------------       ---------------------------------
 |lpmode|freq|TXPow|looback|     |xcvr_info|xcvr_dom|xcvr_status|PM|
- -------------------------       -------------------------------- 
+ -------------------------       --------------------------------- 
             ||                              /\
             \/                              ||
        ---------------------------------------------
@@ -47,7 +49,8 @@ The following diagram shows how the CLI
                     \/            ||
                  ---------------------
                 |   Module registers  |
-                 ---------------------         
+                 ---------------------
+```      
 
 ##### 1.1.1 Upon plug-in of a module 
 When there is plug-in event of a module on a port, the xcvrd detects the presence state changes from "absent" to "present" on that port. xcvrd reacts to this event by pushing the config_DB on that port to the module. More specifically for ZR module, the low power mode (lpmode), the configured frequency, the configured TX power and the loopback mode are the four most important settings to decide whether the module will be turned up, and with what settings if the module is to be turned up. xcvrd also constantly polls the state of the module and update its memory. When a CLI show command queries the module state or other features, the state_DB will be updated with the information in xcvrd.
