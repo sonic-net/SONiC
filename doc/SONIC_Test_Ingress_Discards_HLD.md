@@ -994,3 +994,25 @@ Packet1 to send
 - Get L2 drop counter
 - Verify L2 drop counter is not incremented
 - Enable back egress interface on DUT which is linked with neighbouring device
+
+#### Test case #22
+##### Test objective 
+Test steps
+- Get interfaces which are members of LAG or RIF and choose 2 random interfaces (neighbors are linked to them are host A and B)
+- update the buffer profile on the DUT’s ports, set "dynamic_th" to -8 : 
+redis-cli -n 4 hset "BUFFER_PROFILE|pg_lossless_<speed>_5m_profile" dynamic_th -8
+- config save & config reload
+- Start PFC storm on one of the ports (host A)
+- create packets on PTF with DSCP mark 3 or 4 
+```
+...
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x11   (4 << 2) | 1
+  src= [auto]
+  dst= [auto]
+...
+```
+- send numerous of these packets from host B to A
+- observe PG drop counters increasing 
