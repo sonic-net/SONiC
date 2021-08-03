@@ -92,7 +92,8 @@
 | VRF      | Virtual Routing and Forwarding            |
 | VTEP     | VXLAN Tunnel End point                    |
 | VXLAN    | Virtual Extended LAN                      |
-
+| P2P      | Point to Point Tunnel                     |
+| P2MP     | Point to MultiPoint Tunnel                |
 # About this Manual
 
 This document provides general information about the EVPN VXLAN feature implementation based on RFC 7432 and 8365 in SONiC. 
@@ -628,7 +629,7 @@ In the current implementation, Tunnel Creation handling in the VxlanMgr and Vxla
 The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0 and 
 SAI object type as TUNNEL. This SAI object is P2MP.
 
-Some vendors support P2P Tunnels to handle Layer2 extension and fdb learning while some vendors support using existing P2MP for Layer2 scenarios. In order to differentiate the different requirements evpn_remote_vni orch which currently handles remote VNI is split into two types - evpn_remote_vni_p2p to handle the flow involving the P2P tunnel creation and evpn_remote_vni_p2mp to handle the flow for using the existing P2MP tunnel. The decision to chose which orch to use is dependent on the SAI enum query capability for the attribute SAI_TUNNEL_ATTR_PEER_MODE. If the vendors have SAI_TUNNEL_PEER_MODE_P2P listed, then evpn_remote_vni_p2p orch will be used, else evpn_remote_vni_p2mp will be used.
+Some vendors support P2P Tunnels to handle Layer2 extension and fdb learning while some vendors support using existing P2MP for handling Layer2 scenarios. The difference between the two approaches is the way in which the remote end point flooding is done. In P2P tunnel based approach, for every end point discovered from IMET a P2P tunnel object is created in the hardware and the bridge port created with this tunnel object is added as a VLAN member to the VLAN. In P2MP tunnel based approach, when an IMET route is received the remote end point along with local P2MP tunnel bridge port is added as L2MC group member along for the L2MC group associated with the VLAN. In order to handle both scenarios, evpn_remote_vni orch which currently handles remote VNI is split into two types - evpn_remote_vni_p2p to handle the flow involving the P2P tunnel creation and evpn_remote_vni_p2mp to handle the flow for using the existing P2MP tunnel. The decision to chose which orch to use is dependent on the SAI enum query capability for the attribute SAI_TUNNEL_ATTR_PEER_MODE. If the vendors have SAI_TUNNEL_PEER_MODE_P2P listed, then evpn_remote_vni_p2p orch will be used, else evpn_remote_vni_p2mp will be used. These enhancements abstract the two different modes that can be used to program the SAI. For an external user, there will be no changes from usability perspective since the schema is unchanged.
 
 #### 4.3.1.1 P2P Tunnel creation
 In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
