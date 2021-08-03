@@ -28,6 +28,7 @@
     - [Test case #19](#test-case-19)
     - [Test case #20](#test-case-20)
     - [Test case #21](#test-case-21)
+    - [Test case #22](#test-case-22)
 
 #### Overview
 The purpose is to test drop counters triggers on receiving specific packets by DUT.
@@ -84,6 +85,7 @@ Please refer to the test case for detailed description.
 | 19 | DST IP address is link-local | IP|
 | 20 | ACL SRC IP DROP| IP|
 | 21 | No drops when ERIF interface disabled | IP|
+| 22 | Ingress Priority Group drop | PG|
 
 #### Related DUT CLI commands
 | **Command**                                                      | **Comment** |
@@ -95,6 +97,7 @@ Please refer to the test case for detailed description.
 | aclshow -a                            | Check ```PACKETS COUNT```              |
 | sonic-clear counters                  | Clear counters                         |
 | sonic-clear rifcounters               | Clear RIF counters                     |
+| show priority-group drop counters     | Show PG dropped pakets                 |
 
 As different vendors can have diferent drop counters calculation, for example L2 and L3 drop counters can be combined and L2 drop counter will be increased for all ingress discards.
 So for valid drop counters verification there is a need to distinguish wheter drop counters are combined or not for current vendor.
@@ -994,3 +997,36 @@ Packet1 to send
 - Get L2 drop counter
 - Verify L2 drop counter is not incremented
 - Enable back egress interface on DUT which is linked with neighbouring device
+
+#### Test case #22
+##### Test objective
+Verify ingress Priority Group drop packets counter
+
+Packet to send
+```
+...
+###[ IP ]###
+  version= 4
+  tos= [(lossless_priority << 2) | ECN]
+  src= [neighbor1 ip src]
+  dst= [neighbor2 ip dst]
+...
+```
+
+##### Test description
+It is required to have RPC image for this test.
+Get interfaces which are members of LAG and RIF. Choose 2 random interfaces (neighbors are linked to them are host A and B).
+To make packet dropped on ingress side, we need to:
+-	create congestion on egress side by closing port by setting the shaper, which can be done in RPC image only.
+-	send enough packet to occupy the shared buffer pool
+-	send enough packet to occupy the headroom
+-	send extra packet to trigger packet drop
+
+
+##### Test steps
+- limit maximum bandwith rate on the destination port with using SAI port attribute SAI_PORT_ATTR_QOS_SCHEDULER_PROFILE_ID
+- choose losless Priority Queue an get appropriate DSCP value
+- consruct IP packet
+- start data traffic from RX to TX ports
+- verify there are drops on apropriate PG on apropriate port
+- cleanup (resore maximin bandwith)
