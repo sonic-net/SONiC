@@ -9,7 +9,7 @@ The scope of this work is to develop APIs for both CMIS and C-CMIS to support 40
 
 #### 1.1 Diagram - from CLI, State_DB, Config_DB, xcvrd to module registers
 
-The following diagram shows how the CLI
+The following diagram shows how the CLI interfaces with the module registers through config_DB and state_DB and xcvrd platform. 
 
 ```
                ---------------------------
