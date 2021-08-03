@@ -24,7 +24,7 @@
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-
+| 1.1 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 
 ## About this Manual
 This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process across the dockers or the host crashes and a core dump is generated.
@@ -35,12 +35,34 @@ Currently, techsupport is run by invoking `show techsupport` either by orchestra
 However if the techsupport invocation can be made event-driven based on core dump generation, that would definitely improve the debuggability. That is the overall idea behind this HLD. All the high-level requirements are summarized in the next section
 
 ## 2. High Level Requirements
-* Techsupport invocation should also be made event-driven based on core dump generation
-* This capability should be enabled by default
-* Users should have the abiliity to enable/disable this feature through CLI.
+### Global Scope
+* Techsupport invocation should also be made event-driven based on core dump generation.
+* This is only applicable for the critical processes running inside the dockers. Does not apply for other processes.
+* init_cfg.json will be enhanced to include the "global CONFIG" required for this feature (described in section 4) and is enabled by default.
+* To provide flexibility, a compile time flag "DISABLE_AUTO_TS_CFG" should be provided to disable the "global CONFIG" for this feature. 
+* Users should have the abiliity to globally enable/disable this capability through CLI.
+
+### Configurable Params
+* A configurable "cooloff" should be introduced to limit the number of techsupport invocations.
+* The existing "--since" option in techsupport should be leveraged and this should be a configurable parameter for this feature
+
+### Per-docker Scope
+* Should provide a per-docker granularity for this feature.  
+* Per-docker enable/disable capability should be achieved through FEATURE table.
+* Per-docker cooloff capability should is achieved through FEATURE table.
+* Changes to per-docker config's will apply to all the critical processes inside the corresponding docker. 
+* Existing FEATURE CLI & Table should be used to apply the Configuration
+
+### Invocation Rules
+* Auto techsupport invocation should only happen when both the global cooloff and per-docker cooloff period is passed.
+* Feature should be enabled globally and also per-docker, for this to apply on any of the critical processes running inside that docker.
+* If not explicitly enabled, the feature is considered disabled.
+* If the cooloff (global & per-docker) isn't explicitly configured, a default value should be set and is used
+
+### Core & Techsupport Cleanup
 * Core cleanup mechanism should also be introduced.
 * Should provide a way to cleanup techsupport dumps
-* The existing "--since" option in techsupport should be leveraged and this should be a configurable parameter for this feature
+
 
 ## 3. Core Dump Generation in SONiC
 In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
