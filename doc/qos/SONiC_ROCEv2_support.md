@@ -3,7 +3,7 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 
 # High Level Design Document
 
-#### Rev 0.2
+#### Rev 0.3
 # Table of Contents
 
   * [List of Tables](#list-of-tables)
@@ -20,7 +20,7 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 06/17/2021 |   Venkatesan Mahalingam         | Initial version                   |
 | 0.2 | 07/16/2021 |   Venkatesan Mahalingam         | Addressed review comments                   |
-
+| 0.3 | 08/03/2021 |   Venkatesan Mahalingam         | Added sample configurations                   |
 
 # About this Manual
 
@@ -56,7 +56,7 @@ across storage or compute nodes.
 ROCEv2 stands for RDMA over Converged Ethernet version 2, this is an extension of ROCE protocol a.k.a routable ROCE,
 This overcomes the limitation of ROCEv1 bounded to a single broadcast domain (VLAN),
 ROCEv2 encapsulates an RDMA transport packet within the Ethernet/IPv4/UDP packet,
-ROVEv2 uses PFC to prevent buffer overflow.
+ROCEv2 uses PFC to prevent buffer overflow.
 
 ## 1.1 Requirements
 
@@ -169,7 +169,7 @@ and the get support will be provided to dump the buffer information.
 ### 1.1.3 Functional Requirements
 
 Provide management framework support to
-- Configure buffer pool and buffer pool
+- Configure buffer pool and buffer profile
 - Associate PG & Queue with buffer profile
 
 ### 1.1.4 Configuration and Management Requirements
@@ -447,8 +447,9 @@ sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# no qos buffer queue <pg-value-range>
 ```
 ##### 3.6.2.1.8 Enable/disable default lossless buffer profile
-New field will be introduced in PORT table to avoid taking the buffer-mgr created profile based
-on cable length and speed e.g [BUFFER_PROFILE|pg_lossless_40000_300m_profile]
+New field (default_lossless_buffer_profile) will be introduced in PORT table to avoid creation of buffer profile based
+on cable length and speed e.g [BUFFER_PROFILE|pg_lossless_40000_300m_profile] for lossless traffic in SWSS buffermgrd.
+
 
 ```
 sonic(config)# interface Ethernet0
@@ -512,9 +513,88 @@ sonic# show buffer interface Ethernet0 queue
 Interface       Queue          Profile
 Ethernet0        0             ingress_lossy_profile (edited)
 ```
-#### 3.6.2.3 Debug Commands
+#### 3.6.2.3 Sample configurations
+The below configurations are already supported and should be configured along with above buffer configuration for ROCEv2 Functionality.
 
-#### 3.6.2.4 IS-CLI Compliance
+| CoS/DSCP |     Traffic Class  |    Priority Group          |Queue|PFC (supported only for 3 & 4 Traffic Class)|Scheduling |
+|---|-----------|------------------|-----------------------------------|----|---|
+| 0-1,5-6 | 6 |   0         | 6                   | No | DWRR - 40% |
+|2	|1|	0	|3	|No	|DWRR - 25%|
+|3	|3	|3	|1	|Yes|	DWRR - 10%|
+|4	|4	|4	|4	|Yes	|DWRR - 25%|
+|7	|7	|0	|7	|No	|Strict|
+
+###### 3.6.2.3.1	dot1p to Traffic Class mapping
+```
+sonic(config)# qos map dot1p-tc rocev2_dot1p-to-tc
+sonic(conf-dot1p-tc-map-rocev2_dot1p-to-tc)# dot1p 0-1,5-6 traffic-class 6
+sonic(conf-dot1p-tc-map-rocev2_dot1p-to-tc)# dot1p 2 traffic-class 1
+sonic(conf-dot1p-tc-map-rocev2_dot1p-to-tc)# dot1p 3 traffic-class 3
+sonic(conf-dot1p-tc-map-rocev2_dot1p-to-tc)# dot1p 4 traffic-class 4
+sonic(conf-dot1p-tc-map-rocev2_dot1p-to-tc)# dot1p 7 traffic-class 7
+
+     Note: Similar mapping can be for DSCP to TC as well.
+```
+###### 3.6.2.3.2	Traffic Class to Queue mapping
+```
+sonic(config)# qos map tc-queue rocev2_tc-q
+sonic(conf-tc-queue-map-rocev2_tc-q)# traffic-class 6 queue 6
+sonic(conf-tc-queue-map-rocev2_tc-q)# traffic-class 1 queue 3
+sonic(conf-tc-queue-map-rocev2_tc-q)# traffic-class 3 queue 1
+sonic(conf-tc-queue-map-rocev2_tc-q)# traffic-class 4 queue 4
+sonic(conf-tc-queue-map-rocev2_tc-q)# traffic-class 7 queue 7
+```
+###### 3.6.2.3.3 Traffic Class to Priority Group mapping
+```
+sonic(config)# qos map tc-pg rocev2_tc-pg
+sonic(conf-tc-pg-map-rocev2_tc-pg)# traffic-class 0-2,5-7 priority-group 0
+sonic(conf-tc-pg-map-rocev2_tc-pg)# traffic-class 3 priority-group 3
+sonic(conf-tc-pg-map-rocev2_tc-pg)# traffic-class 4 priority-group 4
+```
+###### 3.6.2.3.4	PFC priority to Queue mapping
+```
+sonic(config)# qos map pfc-priority-queue rocev2_pfc-to-q
+sonic(conf-pfc-priority-queue-map-rocev2_pfc-to-q)# pfc-priority 3 queue 1
+sonic(conf-pfc-priority-queue-map-rocev2_pfc-to-q)# pfc-priority 4 queue 4
+```
+###### 3.6.2.3.5	ETS (Enhanced Transmission Selection) configurations
+```
+sonic(config)# qos scheduler-policy rocev2_sched1
+sonic(conf-sched-policy-rocev2_sched1)#
+sonic(conf-sched-policy-rocev2_sched1)# queue 6
+sonic(conf-scheduler-rocev2_sched1-queue-6)# type dwrr
+sonic(conf-scheduler-rocev2_sched1-queue-6)# weight 40
+sonic(conf-scheduler-rocev2_sched1-queue-6)# exit
+sonic(conf-sched-policy-rocev2_sched1)# queue 3
+sonic(conf-scheduler-rocev2_sched1-queue-3)# type dwrr
+sonic(conf-scheduler-rocev2_sched1-queue-3)# weight 25
+sonic(conf-scheduler-rocev2_sched1-queue-3)# exit
+sonic(conf-sched-policy-rocev2_sched1)# queue 1
+sonic(conf-scheduler-rocev2_sched1-queue-1)# type dwrr
+sonic(conf-scheduler-rocev2_sched1-queue-1)# weight 10
+sonic(conf-scheduler-rocev2_sched1-queue-1)# exit
+sonic(conf-sched-policy-rocev2_sched1)# queue 4
+sonic(conf-scheduler-rocev2_sched1-queue-4)# type dwrr
+sonic(conf-scheduler-rocev2_sched1-queue-4)# weight 25
+sonic(conf-scheduler-rocev2_sched1-queue-4)# exit
+sonic(conf-sched-policy-rocev2_sched1)# queue 7
+sonic(conf-scheduler-rocev2_sched1-queue-7)# type strict
+sonic(conf-scheduler-rocev2_sched1-queue-7)#
+```
+###### 3.6.2.3.6	Apply QoS templates on interface
+```
+sonic(config)# interface Ethernet <id>
+sonic(conf-if-Ethernet0)# qos-map dot1p-tc  rocev2_dot1p-to-tc
+sonic(conf-if-Ethernet0)# qos-map tc-queue  rocev2_tc-q
+sonic(conf-if-Ethernet0)# qos-map tc-pg  rocev2_tc-pg
+sonic(conf-if-Ethernet0)# qos-map pfc-priority-queue rocev2_pfc-to-q
+sonic(conf-if-Ethernet0)# scheduler-policy rocev2_sched1
+sonic(conf-if-Ethernet0)# priority-flow-control priority 3
+sonic(conf-if-Ethernet0)# priority-flow-control priority 4
+```
+#### 3.6.2.4 Debug Commands
+
+#### 3.6.2.5 IS-CLI Compliance
 
 ### 3.6.3 REST API Support
 ```
