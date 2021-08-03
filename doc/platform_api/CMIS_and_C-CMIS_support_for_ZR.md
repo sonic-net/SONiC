@@ -503,7 +503,7 @@ configure privisioning settings of the transceivers
 
 - Usage:
     ```
-    configure interfaces transceiver [<interface_name>] (lpmode  | configured_frequency | configured_tx_power | loopback) 
+    configure interfaces transceiver [<interface_name>] (lpmode  | frequency | tx_power | loopback) 
     ```
 
 - Example (bring module up from low power mode, or bring down module to low power mode):
@@ -513,12 +513,12 @@ configure privisioning settings of the transceivers
 
 - Example (configure the privisioning frequency):
     ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 configured_frequency 193100000
+    admin@sonic:~$ configure interfaces transceiver Ethernet0 frequency 193100000
     ```
 
 - Example (configure the privisioning TX power):
     ```
-    admin@sonic:~$ configure interfaces transceiver Ethernet0 configured_tx_power -10.00
+    admin@sonic:~$ configure interfaces transceiver Ethernet0 tx_power -10.00
     ```
 
 - Example (configure the loopback mode):
