@@ -24,10 +24,10 @@
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-| 1.1 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
+| 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 
 ## About this Manual
-This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process across the dockers or the host crashes and a core dump is generated.
+This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any critical process inside the docker crashes and a core dump is generated.
 
 ## 1. Overview
 Currently, techsupport is run by invoking `show techsupport` either by orchestration tools like Jenkins or manually. The techsupport dump also collects any core dump files available in the `/var/core/` directory.
