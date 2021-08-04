@@ -65,9 +65,11 @@ This document provides a detailed description on the requirement and design of T
 - Support to set the local authorization and TACACS+ authorization.
     - Local authorization method is based on Linux permission control.
       - Local authorization can't be disabled, and must be the last authorization method, for detail please check [3.3 Local authorization](#32-local-authorization)	
-      - Authorization for root and admin can only specified as local.
+      - When TACACS+ server not accessible, TACACS+ authorization will failed, then:
+        - If user login as local user, for example root or admin user, then local authorization will allow user run command with Linux permission control.
+        - If user login as TACACS+ user,  for example domain user, then local authorization will disabled, and user can't run any command.
     - TACACS+ authorization method will send  to TACACS+ server for authorization, TACACS+ server should setup permit/deny rules.
-
+    
 - Failover:
     - If a TACACS+ server not accessible, the next TACACS+ server authorization will be performed.
 	- When all remote TACACS+ server not accessible, TACACS+ authorization will failed.
