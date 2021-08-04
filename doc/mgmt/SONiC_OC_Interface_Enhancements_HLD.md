@@ -109,6 +109,7 @@ Enable/disable VLAN and Loopback interfaces via gNMI, REST or KLISH CLI.
 3. The oper status will be controlled by the admin status. 
 4. When the configuration changes from admin state up to down the operational status will change to operationally down.
 5. When the configuration changes from admin down to up the operational status will change to operationally up.
+6. Code handling loopback interface creation/deletion in kernel will be moved from intfmgr to loopbackmgr to create/delete interface in kernel at the arrival of LOOPBACK table key event in ConfigDB.
 
 ### 1.3.2 Container
 * **swss container** :
@@ -369,6 +370,54 @@ Applicable on all platforms.
 | 1 | Configure ip address, then "shutdown" the Loopback interface | Verify network address not in the IP routing table and not able to ping the IP address |
 | 2 | Configure ip address, then "no shutdown" the Loopback interface | Verify network address in the IP routing table and can be pinged |
 
-#### 7.2.4 Verify reboot, config-reload with admin state up and down.
+#### 7.2.4 Verify reboot, config-reload.
+Test Scenario 1:
+* Create loopback interfaces, save config then reload.
+* No Warning/Error log must be shown.
+* Verify DB configuration.
+* Verify loopback interfaces added in the kernel. 
+
+Test Scenario 2:
+* Create loopback interfaces and shutdown the interfaces, save config then reload.
+* No Warning/Error log must be shown.
+* Verify loopback interfaces operationally down in the kernel. 
+
+Test Scenario 3:
+* Create loopback interfaces and configure IP, save config then reload.
+* No Warning/Error log must be shown.
+* Verify configuration in DB.
+* Verify loopback interfaces configuration in the kernel. 
+
+#### 7.2.5 SONiC upgrade & downgrade with configuration persistence after installation.
+
+##### 7.2.5.1 Test image upgrade with configuration persistence after installation
+Test Scenario 1:
+* Create Loopback interface using klish CLI, save config and then upgrade.
+* No Warning/Error log must be shown.
+* Verify loopback interface added in kernel.
+
+Test Scenario 2:
+* Create loopback interface and configure IP using klish CLI, save config and then upgrade.
+* No Warning/Error log must be shown.
+* Verify loopback interface added in kernel.
+* Verify IP configuration on loopback interface.
+
+##### 7.2.5.2 Test image downgrade with configuration persistence after installation
+Test Scenario 1:
+* Create Loopback interface using klish CLI, save config and then downgrade.
+* No Warning/Error log must be shown.
+* Verify loopback interface not added in kernel.
+* Verify loopback interface added in kernel after L3 config. 
+
+Test Scenario 2:
+* Create loopback interface and configure IP using klish CLI, save config and then downgrade.
+* No Warning/Error log must be shown.
+* Verify loopback interface added in kernel.
+* Verify IP configuration on loopback interface.
+
+Test Scenario 3:
+* Create Loopback interface and shutdown the interface using klish CLI, save config and then downgrade.
+* No Warning/Error log must be shown.
+* Verify loopback interface should remain operationally up in the kernel irrespective of config in DB.
 
 
