@@ -560,13 +560,6 @@ configure privisioning settings of the transceivers
     admin@sonic:~$ configure interfaces transceiver firmware abort Ethernet0
     Module firmware download aborted
     ```
-
-- Example (configure module firmware commit):
-    ```
-    admin@sonic:~$ configure interfaces transceiver firmware commit Ethernet0
-    Commiting module firmware...
-    Done
-    ```
     
 - Example (configure module firmware run):
     ```
@@ -575,6 +568,13 @@ configure privisioning settings of the transceivers
     Done
     ```
     
+- Example (configure module firmware commit):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware commit Ethernet0
+    Commiting module firmware...
+    Done
+    ```
+
 - Example (configure module firmware upgrade, which combines the show FW version, configure download, show download status, configure commit and run and show version in the end):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware upgrade qsfp_dd_ver_xx_xx_xx.bin Ethernet0
@@ -595,12 +595,12 @@ configure privisioning settings of the transceivers
     Download progress: 90%
     Download progress: 100%
     
-    Commiting module firmware...
-    Done
-    
     Running module firmware
     Done
     
+    Commiting module firmware...
+    Done
+  
     Active firmware: xxx.xxx.xxx
     Inactive firmware: xxx.xxx.xxx      
     ```
