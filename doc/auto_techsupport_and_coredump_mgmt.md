@@ -39,7 +39,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 * Techsupport invocation should also be made event-driven based on core dump generation.
 * This is only applicable for the critical processes running inside the dockers. Does not apply for other processes.
 * init_cfg.json will be enhanced to include the "global CONFIG" required for this feature (described in section 4) and is enabled by default.
-* To provide flexibility, a compile time flag "DISABLE_AUTO_TS_CFG" should be provided to disable the "global CONFIG" for this feature. 
+* To provide flexibility, a compile time flag "ENABLE_AUTO_TECH_SUPPORT" should be provided to enable/disable the "CONFIG" for this feature. 
 * Users should have the abiliity to globally enable/disable this capability through CLI.
 
 ### Configurable Params
@@ -47,7 +47,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 * The existing "--since" option in techsupport should be leveraged and this should be a configurable parameter for this feature
 
 ### Per-docker Scope
-* Should provide a per-docker granularity for this feature.  
+* Should provide a per-docker configurable granularity for this feature.  
 * Per-docker enable/disable capability should be achieved through FEATURE table.
 * Per-docker cooloff capability should is achieved through FEATURE table.
 * Changes to per-docker config's will apply to all the critical processes inside the corresponding docker. 
@@ -56,13 +56,11 @@ However if the techsupport invocation can be made event-driven based on core dum
 ### Invocation Rules
 * Auto techsupport invocation should only happen when both the global cooloff and per-docker cooloff period is passed.
 * Feature should be enabled globally and also per-docker, for this to apply on any of the critical processes running inside that docker.
-* If not explicitly enabled, the feature is considered disabled.
-* If the cooloff (global & per-docker) isn't explicitly configured, a default value should be set and is used
 
 ### Core & Techsupport Cleanup
-* Core cleanup mechanism should also be introduced.
-* Should provide a way to cleanup techsupport dumps
-
+* Core dump & techsupport dump cleanup mechanism should also be introduced.
+* Size-based cleanup should be performed for both of these.
+* Individual configurable options should be provided for each of these.
 
 ## 3. Core Dump Generation in SONiC
 In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
@@ -70,15 +68,16 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 
 ## 4. Schema Additions
 
-#### Config DB
+#### AUTO_TECHSUPPORT|global
 ```
 key = "AUTO_TECHSUPPORT|global"
-state = enabled|disabled; 
+state = enabled|disabled;       # Enable/Disable the feature globally 
 cooloff = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
                                   Manual Invocations will be considered as well in the cooloff calculation
-max-techsupports = 5;           # Maximum number of Techsupport dumps (Doesn't matter if it's manually or auto invoked), 
-                                  which are allowed to be present on the device.
-                                  The oldest one will be deleted, when the the limit has already crossed this.                         
+max-techsupport-size = 10;      # A perentage value should be specified. 
+                                  This signifies maximum Size to which /var/dump/ directory can be grown until. 
+                                  The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
+                                  When the limit is crossed, the older techsupport dumps are incrementally deleted                         
 core-usage = 5;                 # A perentage value should be specified. 
                                   This signifies maximum Size to which /var/core directory can be grown until. 
                                   The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
@@ -89,6 +88,14 @@ since = "2 days ago";           # This limits the auto-invoked techsupport to on
                                   If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used.
 ```
 
+#### FEATURE Table
+```
+.............
+.............
+cooloff =  600;                       #  Minimum Time in seconds, between two successive techsupport invocations because of the same process
+                                         The idea here is not to let a periodically crashing process to invoke the techsupport until a cooloff is met
+auto_techsupport = enabled|disabled;  #  Enable/Disable this feature per-docker                              
+```
 
 ### 4.1 YANG Model
 
@@ -129,11 +136,17 @@ module sonic-auto_techsupport {
                         default "300";
                     }
 
-                    leaf max-techsupports {
-                        description "Maximum number of Techsupport dumps, which can be present on the switch.
-                                     The oldest one will be deleted, when the the limit has already crossed this. 
-                                     Disabled by default. Configure '0' to explicitly disable";
-                        type uint8;
+                    leaf max-techsupport-size {
+                        description "A perentage value should be specified. 
+                                    This signifies maximum Size to which /var/core directory can be grown until. 
+                                    The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
+                                    When the limit is crossed, the older core files are incrementally deleted";
+                        type uint8{
+                             range "0..100" {
+                                error-message "Can only be between 1 to 100"; 
+                             }
+                        }
+                        default "10";
                     }
 
                     leaf core-usage {
@@ -147,6 +160,7 @@ module sonic-auto_techsupport {
                                 error-message "Can only be between 1 to 100"; 
                              }
                         }
+                        default "5";
                     }
                     
                     leaf since {
@@ -168,6 +182,7 @@ module sonic-auto_techsupport {
 }
 ```
 
+Note: The "cooloff" & "auto_techsupport" will be added to the YANG Model for FEATURE Table
 
 
 ## 5. CLI Enhancements.
@@ -179,15 +194,25 @@ config auto-techsupport cooloff <uint16>
 config auto-techsupport max-techsupport <uints8>
 config auto-techsupport core-usage <0..100>
 config auto-techsupport since <string>
+
+config feature auto-techsupport <name> enabled|disabled>
+config feature cooloff <name> <uint16>
 ```
 
 ### show cli
 
 ```
-admin@sonic:~$ show auto-techsupport 
+admin@sonic:~$ show auto-techsupport global
 STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  SINCE        LAST_TECHSUPPORT_RUN
 -------     -------    ---------------------   ------------------------  ----------   -------------------------------
 Enabled     300 sec    3                       200000 KB / 2%            2 days ago   Tue 15 Jun 2021 08:09:59 PM UTC
+
+admin@sonic:~$ show feature status
+Feature         State    AutoRestart  SetOwner   cooloff Auto-techsupport  
+--------------  -------- ----------   --------   ------- ----------------    
+swss            enabled  enabled                 600     enabled
+.....
+
 ```
 
 ## 6. Design
@@ -196,7 +221,7 @@ Enabled     300 sec    3                       200000 KB / 2%            2 days 
 
 A script under the name `coredump_gen_handler` is added to `/usr/local/bin/` directory which will be invoked after a coredump is generated.  The script first checks if this feature is enabled by the user. The script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
 
-The script invokes the show techsupport command, if the cooloff period configured by the user has passed. The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
+The script invokes the show techsupport command, if the global cooloff & the per-docker cooloff period has passed. The script will also independently check if the Max Size configured by the user has already exceeded and if yes deletes the core files incrementally. 
 
 Potential Syslog messages which can be logged are:
 ```
@@ -227,7 +252,7 @@ The generate_dump script is updated to invoke the `techsupport_cleanup` script t
 
 No impact for warmboot/fastboot flows.
 
-### 6.6 Design choices for core-usage argument 
+### 6.6 Design choices for core-usage & max-techsupport-size argument 
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
@@ -245,10 +270,10 @@ Filesystem     1K-blocks    Used Available Use% Mounted on
 root-overlay    32896880 5460768  25742008  18% /
 ```
 
-/var/core directory is hosted on root-overlay filesystem and this usually ranges from 10G to 25G+. 
-Since Techsupport dumps are also hosted on the same filesystem, a slightly pessimistic default value of 5% is chosen. This would amount to a minimum of 500 MB which is a already a decent space for coredumps. In normal conditions, a core dump will usually be in the order of hundreds of KB's to tens of MB's.
+/var/core & /var/dum directories are hosted on root-overlay filesystem and this usually ranges from 10G to 25G+. 
+A default value of 5% would amount to a minimum of 500 MB which is a already a decent space for coredumps.  For techsupport a default value of 10% would amount to a minium of 1G, which might accomodate from 5-10 techsupports.  
 
-Although if the admin feels otherwise, this value is configurable.
+Although if the admin feels otherwise, these values are configurable.
 
 ## 7. Test Plan
 
@@ -258,6 +283,6 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |------|-----------------------------------------------------------------------------------------------------------------------------------------|
 |  1   | Check if the `coredump_gen_handler` script is infact invoking the techsupport cmd, when configured                                      |
 |  2   | Check if the techsupport cleanup is working as expected                                                                                 |
-|  3   | Check if the cooloff is honoured                                                                                                        |
-|  4   | Check if the core-dump cleanup mechanism is working as expected                                                                         |
+|  3   | Check if the global cooloff & per-process cooloff is honoured                                                                           |
+|  4   | Check if the core-dump cleanup & techsupport-cleanup mechanisms are working as expected                                                 |
 
