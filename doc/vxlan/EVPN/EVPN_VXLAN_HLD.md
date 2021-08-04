@@ -1104,11 +1104,20 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    | Vrf-1 |   104 |
    +-------+-------+
    Total count : 1
-
+  
 4. show vxlan tunnel
+   +-----------------------+---------------+------------------+------------------+---------------------------------+
+   | vxlan tunnel name     | source ip     | destination ip   | tunnel map name  | tunnel map mapping(vni -> vlan) |
+   +=======================+===============+==================+==================+=================================+
+   | Vtep1                 | 4.4.4.4       |                  | map_50_Vlan5     |    50 -> 5                      |
+   +-----------------------+---------------+------------------+------------------+---------------------------------+
+   | Vtep1                 | 4.4.4.4       |                  | map_100_Vlan10   |    100 -> 10                    |
+   +-----------------------+---------------+------------------+------------------+---------------------------------+   
+   
+5. show vxlan remotevtep
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
-   - This command is not supported when the platform supports only P2MP tunnels.
+   - Since P2P tunnels are not created in the hardware on the flow where P2MP tunnel itself is used flooding using L2MC group, this table will not be populated.
 
    +---------+---------+-------------------+--------------+
    | SIP     | DIP     | Creation Source   | OperStatus   |
@@ -1119,7 +1128,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+---------+-------------------+--------------+
    Total count : 2
 
-5. show vxlan remote_mac <remoteip/all> 
+6. show vxlan remote_mac <remoteip/all> 
    - lists all the MACs learnt from the specified remote ip or all the remotes for all vlans. (APP DB view) 
    - VLAN, MAC, RemoteVTEP,  VNI,  Type are the columns.
 
@@ -1152,7 +1161,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    Total count : 2
 
 
-6. show vxlan remote_vni <remoteip/all> 
+7. show vxlan remote_vni <remoteip/all> 
    - lists all the VLANs learnt from the specified remote ip or all the remotes.  (APP DB view) 
    - VLAN, RemoteVTEP, VNI are the columns
 
@@ -1174,14 +1183,14 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+--------------+-------+
    Total count : 1
 
-  7. show vxlan counters(P2MP Tunnel)
+8. show vxlan counters(P2MP Tunnel)
    +--------+------------+----------+------------+----------+
    | Tunnel | RX_PACKETS | RX_BYTES | TX_PACKETS | TX_BYTES |
    +========+============+==========+============+==========+
    | Vtep1  |     1234   | 1512034  |  2213      | 2235235  |
    +--------+------------+----------+------------+----------+
   
-  8. show vxlan counters(P2P Tunnels)
+9. show vxlan counters(P2P Tunnels)
    +---------------+------------+----------+------------+----------+
    | Tunnel        | RX_PACKETS | RX_BYTES | TX_PACKETS | TX_BYTES |
    +===============+============+==========+============+==========+
@@ -1192,7 +1201,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    | EVPN_5.1.6.8  |     9843   | 9953260  |  8293      | 7423511  |
    +---------------+------------+----------+------------+----------+  
   
-  9. show vxlan counters EVPN_5.1.6.8 (Per P2P Tunnel)
+10. show vxlan counters EVPN_5.1.6.8 (Per P2P Tunnel)
    +---------------+------------+----------+------------+----------+
    | Tunnel        | RX_PACKETS | RX_BYTES | TX_PACKETS | TX_BYTES |
    +===============+============+==========+============+==========+
