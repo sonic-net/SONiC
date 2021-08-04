@@ -8,14 +8,13 @@
   * [2. High Level Requirements](#2-high-level-requirements)
   * [3. Core Dump Generation in SONiC](#3-core-dump-generation-in-sonic)
   * [4. Schema Additions](#4-schema-additions)
-    * [4.1 YANG Model](#41-YANG-Model)
   * [5. CLI Enhancements](#5-cli-enhancements)
   * [6. Design](#6-design)
       * [6.1 coredump_gen_handler script](#61-coredump_gen_handler-script)
       * [6.2 techsupport_cleanup script](#62-techsupport_cleanup-script)
       * [6.3 Modifications to coredump-compress script](#63-Modifications-to-coredump-compress-script)
       * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
-      * [6.5 Warmboot/Fastboot consideration](#65-Warmboot/Fastboot-consideration)
+      * [6.5 Warmboot consideration](#65-Warmboot-consideration)
       * [6.6 Design choices for core-usage & max-techsupport-size argument](#66-Design-choices-for-core-usage-&-max-techsupport-sizeargument)
   * [7. Test Plan](#7-Test-Plan)
 
@@ -68,6 +67,8 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 
 ## 4. Schema Additions
 
+### Config DB
+
 #### AUTO_TECHSUPPORT|global
 ```
 key = "AUTO_TECHSUPPORT|global"
@@ -97,7 +98,7 @@ cooloff =  600;                       #  Minimum Time in seconds, between two su
 auto_techsupport = enabled|disabled;  #  Enable/Disable this feature per-docker                              
 ```
 
-### 4.1 YANG Model
+#### YANG Model
 
 ```
 module sonic-auto_techsupport {
@@ -184,6 +185,19 @@ module sonic-auto_techsupport {
 
 Note: The "cooloff" & "auto_techsupport" will be added to the YANG Model for FEATURE Table
 
+### State DB
+
+#### AUTO_TECHSUPPORT|TS_CORE_MAP
+```
+key = "AUTO_TECHSUPPORT|TS_CORE_MAP"
+<dump_name> = <core_dump_name;timestamp_as_epoch>
+```
+Eg:
+```
+hgetall "AUTO_TECHSUPPORT|TS_CORE_MAP"
+sonic_dump_sonic_20210412_223645 = orchagent.1599047232.39.core;1599047233
+sonic_dump_sonic_20210405_202756 = syncd.1617684247.17.core;1617684249
+```
 
 ## 5. CLI Enhancements.
 
@@ -206,6 +220,14 @@ admin@sonic:~$ show auto-techsupport global
 STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  SINCE        LAST_TECHSUPPORT_RUN
 -------     -------    ---------------------   ------------------------  ----------   -------------------------------
 Enabled     300 sec    3                       200000 KB / 2%            2 days ago   Tue 15 Jun 2021 08:09:59 PM UTC
+
+admin@sonic:~$ show auto-techsupport history
+TECHSUPPORT DUMP                    INVOCATION REASON
+--------------------------------    ---------------------------
+sonic_dump_sonic_20210412_223645    orchagent.1599047232.39.core 
+sonic_dump_sonic_20210405_202756    syncd.1617684247.17.core
+sonic_dump_sonic_20210329_183626    Unknown
+sonic_dump_sonic_20210412_223645    snmpd.1617916877.41.core
 
 admin@sonic:~$ show feature status
 Feature         State    AutoRestart  SetOwner   cooloff Auto-techsupport  
@@ -248,9 +270,9 @@ The coredump-compress script is updated to invoke the `coredump_gen_handler` scr
 
 The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files
 
-### 6.5 Warmboot/Fastboot consideration
+### 6.5 Warmboot consideration
 
-No impact for warmboot/fastboot flows.
+AUTO_TECHSUPPORT|TS_CORE_MAP table in the State DB will be preserved across Warmboot
 
 ### 6.6 Design choices for core-usage & max-techsupport-size argument 
 
