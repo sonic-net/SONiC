@@ -292,10 +292,11 @@ default_lossless_buffer_profile = true/false ; default value - true
 ### 3.2.5 COUNTER DB
 
 ## 3.3 Switch State Service Design
+### 3.3.1 Configuration Manager - buffermgrd
+  Avoid the default buffer profile creation based on cable length and speed when the field 'default_lossless_buffer_profile' in PORT table is set to false.
+### 3.3.2 Orchestration Agent
 
-### 3.3.1 Orchestration Agent
-
-### 3.3.2 Other Process
+### 3.3.3 Other Process
 
 ## 3.4 SyncD
 
@@ -306,10 +307,22 @@ default_lossless_buffer_profile = true/false ; default value - true
 ### 3.6.1 Data Models
 
 YANG model needed for QoS buffer handling in the management framework:
- **openconfig-qos-buffer.yang**
+
+**openconfig-qos-deviation.yang** - RPC for buffer initialization \
+**openconfig-qos-buffer.yang** - YANG objects for fine tuning the system defaults
 
 Supported yang objects and attributes:
 ```diff
+
+module: openconfig-qos-deviation
+
+  rpcs:
+    +---x qos-buffer-config
+       +---w input
+       |  +---w operation?   enumeration
+       +--ro output
+          +--ro status?          uint32
+          +--ro status-detail?   string
 
 module: openconfig-qos
     +--rw qos
@@ -388,65 +401,78 @@ module: openconfig-qos
 
 ### 3.6.2 CLI
 
-
 #### 3.6.2.1 Configuration Commands
 All commands are executed in `configuration-view`:
 ```
 sonic# configure terminal
 sonic(config)#
 ```
-
-##### 3.6.2.1.1 Configure buffer pool
-Configure ingress and egress type buffer pools.
+##### 3.6.2.1.1 Initialize the buffer based on system defaults
+Initialize the buffer defaults based on platform specific values (ingress/ingress buffer pools size, buffer profile, priority-group, queue..etc)
 ```
-sonic(config)# qos buffer-pool <name> <shared-buffer-size-in-bytes> { [type ingress shared-headroom-size <xoff (included in the shared-buffer-size-in-bytes)>]  | [type egress ]}
+sonic(config)# qos buffer init
 
 ```
 
 ##### 3.6.2.1.2 Delete buffer pool
+Clear default buffer initialization.
+```
+sonic(config)# no qos buffer init
+
+```
+##### 3.6.2.1.3 Configure buffer pool
+Configure shared head room size for the ingress buffer pool (fixed name - ingress_lossless_pool), other settings such as pool size and egress pool are automatically created during buffer init.
+Please refer user guide for platform specific defaults and based on that use these CLIs to fine-tune the numbers for the use-case.
+```
+sonic(config)# qos buffer pool ingress_lossless_pool shared-headroom-size shared-headroom-size <xoff>
+
+Note: We use fixed pool name due to the backend restriction to use fixed pool name, once that's relaxed, any pool-name can be used from NBI.
+```
+
+##### 3.6.2.1.4 Delete buffer pool
 Delete buffer pool.
 ```
 sonic(config)# no qos buffer-pool <name>
 
 ```
-##### 3.6.2.1.3 Configure buffer profile
+##### 3.6.2.1.5 Configure buffer profile
 Configure buffer profile and associate with buffer pool.
 ```
 sonic(config)# qos buffer-profile <name> <pool-name> <qmin/pgmin reserved-buffer-size-in-bytes> [threshold-mode {static | dynamic}]   { static-threshold <value> | dynamic-threshold <signed-integer-value>}}  [pause [pause-threshold <xoff>] [resume-threshold <xon>] [resume-offset-threshold <xon_offset>] ]
 
 ```
 
-##### 3.6.2.1.4 Delete buffer profile
+##### 3.6.2.1.6 Delete buffer profile
 Delete buffer profile.
 ```
 sonic(config)# no qos buffer-profile <name>
 
 ```
-##### 3.6.2.1.5 Associate priority-group with buffer profile
+##### 3.6.2.1.7 Associate priority-group with buffer profile
 Associate priority group (ingress) with buffer profile.
 ```
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# qos buffer priority-group <pg-value-range> <profile-name(depend on profile config)>
 ```
-##### 3.6.2.1.6 Dissociate priority-group from buffer profile
+##### 3.6.2.1.8 Dissociate priority-group from buffer profile
 Dissociate priority-group (ingress) from buffer profile.
 ```
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# no qos buffer priority-group <pg-value-range>
 ```
-##### 3.6.2.1.7 Associate queue with buffer profile
+##### 3.6.2.1.9 Associate queue with buffer profile
 Associate queue (egress) with buffer profile.
 ```
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# qos buffer queue <pg-value-range> <profile-name(depend on profile config)>
 ```
-##### 3.6.2.1.8 Dissociate queue from buffer profile
+##### 3.6.2.1.10 Dissociate queue from buffer profile
 Dissociate queue (egress) with buffer profile.
 ```
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# no qos buffer queue <pg-value-range>
 ```
-##### 3.6.2.1.8 Enable/disable default lossless buffer profile
+##### 3.6.2.1.11 Enable/disable default lossless buffer profile
 New field (default_lossless_buffer_profile) will be introduced in PORT table to avoid creation of buffer profile based
 on cable length and speed e.g [BUFFER_PROFILE|pg_lossless_40000_300m_profile] for lossless traffic in SWSS buffermgrd.
 
@@ -636,13 +662,29 @@ Additional tests will be done to set buffer configuration at different levels of
 Same as CLI show test but with gNMI request, will verify the JSON response is correct.
 Additional tests will be done to get buffer configuration and buffer states at different levels of Yang models.
 
+#### 9.4 ONCHANGE/SAMPLE/TARGET_DEFINED subscription support
+
+Below is the list of URIs supported at the top level for gNMI subscription request,
+all subsequent paths from parent are expected to support the same subscription request as that of the parent.
+
+|     Paths                                                                        | ON_CHANGE/SAMPLE/TARGET_DEFINED Supported yes(y)/no(n) |
+|---------------------------------------------------------------------------| -------------|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-pools"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-pools/buffer-pool[name=*]"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-profiles"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-profiles/buffer-profiles[name=*]"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-priority-groups"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-priority-groups/buffer-priority-group[ifname=*, priority-group=*]"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-queues"|y|
+|"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-queues/buffer-queue[ifname=*, queue=*]"|y|
+
 #### 9.4 Configuration via REST (POST/PUT/PATCH)
 
 Same test as CLI configuration Test but using REST POST request
 Additional tests will be done to set buffer configuration at different levels of Yang models.
 
 **URIs for REST configurations:**
-
+Buffer init/clear RPC -  /restconf/data/openconfig-qos:qos-buffer-config
 Buffer configuration parent URI  - /restconf/data/openconfig-qos/openconfig-qos-ext:buffer
 Default lossless profile configuration under interface - /restconf/data/openconfig-qos/oc-qos:interfaces/oc-qos:interface/oc-qos-dev:buffer/oc-qos-dev:config/oc-qos-dev:default-lossless-buffer-profile
 #### Get configuration via REST (GET)
