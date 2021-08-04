@@ -217,9 +217,9 @@ config feature cooloff <name> <uint16>
 
 ```
 admin@sonic:~$ show auto-techsupport global
-STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  SINCE        LAST_TECHSUPPORT_RUN
--------     -------    ---------------------   ------------------------  ----------   -------------------------------
-Enabled     300 sec    3                       200000 KB / 2%            2 days ago   Tue 15 Jun 2021 08:09:59 PM UTC
+STATUS      COOLOFF    MAX_TECHSUPPORT_DUMPS   MAX_CORE_DUMP_USAGE_SIZE  SINCE        
+-------     -------    ---------------------   ------------------------  ----------   
+Enabled     300 sec    3                       200000 KB / 2%            2 days ago  
 
 admin@sonic:~$ show auto-techsupport history
 TECHSUPPORT DUMP                    INVOCATION REASON
