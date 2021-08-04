@@ -110,10 +110,10 @@ Although only REST and gNMI are to be targeted initially for use with certificat
  - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI/gNOI interfaces on the management interface.
 
 ### Configurability
-  - Install CA certificate from local file, remote location or copy and past into CLI
+  - Install CA certificate from local file (alias location), remote location or copy and past into CLI
   - Generate self-signed certificate 
   - Generate certificate signing request (CSR)
-  - Install certificate or private key from local file, remote location
+  - Install certificate or private key from local file (alias location), remote location
   - Delete CA certificate
   - Delete certificate
   - Display certificate
@@ -214,10 +214,10 @@ A new CLI will be added with the following commands:
 
 | **Command** | **Description** |
 | ----------- | --------------- |
-| crypto ca-cert install | Install CA cert from local or remote location |
+| crypto ca-cert install | Install CA cert from local (alias location) or remote location |
 | crypto ca-cert delete | Delete CA certificate |
 | crypto cert generate | Generate signing request or self-signed host certificate |
-| crypto cert install | Install host certificate from local or remote location |
+| crypto cert install | Install host certificate from local (alias location) or remote location |
 | crypto cert delete | Delete host certificate |
 | show crypto cert | Show installed certificates |
 | show crypto ca-certs | Show installed CA certificates |
@@ -232,7 +232,7 @@ Association of security-profile to application happens in the application specif
 
 ### 1.3.4 Monitoring
 
-The sysmonitor.py script will be enhanced to detect the following conditions:
+The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, rais the appropriate alarm:
 
 **Table 5: Alarms**
 
@@ -249,11 +249,11 @@ The sysmonitor.py script will be enhanced to detect the following conditions:
 
 ### 1.3.5 Directory Structure
 
-THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts.
+THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target.
 
 ### 1.3.6 Application Associations
 
-Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require chaning the applications.
+Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require chaning the applications. The association will be managed by per-application CLI.
 
 ### 1.3.7 Container
 
