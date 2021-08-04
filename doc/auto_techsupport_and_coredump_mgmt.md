@@ -16,7 +16,7 @@
       * [6.3 Modifications to coredump-compress script](#63-Modifications-to-coredump-compress-script)
       * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
       * [6.5 Warmboot/Fastboot consideration](#65-Warmboot/Fastboot-consideration)
-      * [6.6 Design choices for core-usage argument](#66-Design-choices-for-core-usage-argument)
+      * [6.6 Design choices for core-usage & max-techsupport-size argument](#66-Design-choices-for-core-usage-&-max-techsupport-sizeargument)
   * [7. Test Plan](#7-Test-Plan)
 
 
