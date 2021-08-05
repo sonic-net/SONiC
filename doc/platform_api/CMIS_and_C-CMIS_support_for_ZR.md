@@ -538,8 +538,11 @@ configure privisioning settings of the transceivers
     ```
     admin@sonic:~$ show interfaces transceiver firmware version Ethernet0 
     Ethernet0:
-    Active firmware: xxx.xxx.xxx
-    Inactive firmware: xxx.xxx.xxx
+    Firmware A: xxx.xxx.xxx
+    Firmware B: xxx.xxx.xxx
+    Firmware Running: A
+    Firmware Commited: A
+    Firmware Validity: A B
     ```
 
 - Example (show module firmware download status):
@@ -579,8 +582,11 @@ configure privisioning settings of the transceivers
     ```
     admin@sonic:~$ configure interfaces transceiver firmware upgrade qsfp_dd_ver_xx_xx_xx.bin Ethernet0
     Ethernet0:
-    Active firmware: xxx.xxx.xxx
-    Inactive firmware: xxx.xxx.xxx  
+    Firmware A: xxx.xxx.xxx
+    Firmware B: xxx.xxx.xxx
+    Firmware Running: A
+    Firmware Commited: A
+    Firmware Validity: A B
     
     Module firmware download starts...
     Download progress: 1%
@@ -601,8 +607,11 @@ configure privisioning settings of the transceivers
     Commiting module firmware...
     Done
   
-    Active firmware: xxx.xxx.xxx
-    Inactive firmware: xxx.xxx.xxx      
+    Firmware A: xxx.xxx.xxx
+    Firmware B: xxx.xxx.xxx
+    Firmware Running: B
+    Firmware Commited: B
+    Firmware Validity: A B  
     ```
 
 ### 3. High level functions
