@@ -574,10 +574,10 @@ Usage: show chassis system-lags [OPTIONS] [SYSTEMLAGNAME]
   Show VOQ system lags information
 
 Options:
-  -x, --asicname TEXT   Asic name
-  -t, --hostname TEXT   Host or Linecard name
-  --verbose             Enable verbose output
-  -?, -h, --help        Show this message and exit.
+  -n, --asicname     TEXT   Asic name
+  -l, --linecardname TEXT   Linecard or Host name
+  --verbose                 Enable verbose output
+  -?, -h, --help            Show this message and exit.
 admin@Linecard2:~$ 
 ```
 ### Sample output
