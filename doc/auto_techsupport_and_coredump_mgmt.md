@@ -75,11 +75,11 @@ key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled;       # Enable/Disable the feature globally 
 cooloff = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
                                   Manual Invocations will be considered as well in the cooloff calculation
-max-techsupport-size = 10;      # A perentage value should be specified. 
+max_techsupport_size = 10;      # A perentage value should be specified. 
                                   This signifies maximum Size to which /var/dump/ directory can be grown until. 
                                   The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                                   When the limit is crossed, the older techsupport dumps are incrementally deleted                         
-core-usage = 5;                 # A perentage value should be specified. 
+core_usage = 5;                 # A perentage value should be specified. 
                                   This signifies maximum Size to which /var/core directory can be grown until. 
                                   The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                   When the limit is crossed, the older core files are incrementally deleted
@@ -137,7 +137,7 @@ module sonic-auto_techsupport {
                         default "300";
                     }
 
-                    leaf max-techsupport-size {
+                    leaf max_techsupport_size {
                         description "A perentage value should be specified. 
                                     This signifies maximum Size to which /var/core directory can be grown until. 
                                     The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
@@ -150,7 +150,7 @@ module sonic-auto_techsupport {
                         default "10";
                     }
 
-                    leaf core-usage {
+                    leaf core_usage {
                         description "A perentage value should be specified. 
                                      This signifies maximum Size to which /var/core directory can be grown until
                                      The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
