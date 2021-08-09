@@ -13,9 +13,6 @@
     - [Determining the Correct Transceiver Specification](#determining-the-correct-transceiver-specification)
     - [Vendor Specific Data](#vendor-specific-data)
   - [Common Sfp Platform API Logic](#common-sfp-platform-api-logic)
-  - [Other Considerations](#other-considerations)
-    - [Y Cable](#y-cable)
-    - [Coherent Optics/400G ZR](#coherent-optics400g-zr)
 - [Design Scope](#design-scope)
   - [In scope](#in-scope)
   - [Out of scope](#out-of-scope)
@@ -33,8 +30,6 @@
       - [Vendor Specific Identifier](#vendor-specific-identifier)
   - [SfpBase Modifications](#sfpbase-modifications)
     - [SfpOptoeBase](#sfpoptoebase)
-  - [Y Cable](#y-cable-1)
-  - [Coherent Optics/400G ZR](#coherent-optics400g-zr-1)
 - [Testing](#testing)
 
 
@@ -128,7 +123,7 @@
 
 This document summarizes an approach to refactor the Sfp-related functionality in sonic-platform-common.
 
-The current platform API model is such that base classes in sonic-platform-common define a common, PI interface that can be implemented in PD classes. 
+The current platform API model is such that base classes in sonic-platform-common define a common, PI interface that can be implemented in PD classes.
 
 For Sfp, there is a great deal of PI logic that exists in sonic_sfp pertaining to different xcvr specs. Ideally, platform vendors reponsible for implementing the PD classes would only need to add logic that is actually PD.
 
@@ -151,57 +146,37 @@ There needs to be a proper abstraction for each xcvr specification that we suppo
 *   Representation of those fields in the memory map, and how they should be interpreted
 
 With these abstractions, the most that should be exposed to any clients using these abstractions is an API for reading and writing specific fields in the EEPROM according to the associated specs.
+
 ### Determining the Correct Transceiver Specification
 
 The correct specification abstraction needs to be selected at runtime to interpret a xcvr’s memory map correctly. This should be done by reading the first byte in the xcvr’s EEPROM, which contains an identifier value whose meaning is specified in Table 4-1 of SFF-8024. There should then be a set of mappings between identifier values and the specifications we support.
 
 This approach is in contrast to what's currenly done with selecting parsers based on the xcvr's port number, which can sometimes lead to the wrong memory map interpretation.
+
 ### Vendor Specific Data
 
-The xcvr specifications indicate that certain types of data (e.g. register bits, fields, or codes) that may be found in the xcvr EEPROM are not explicitly defined by the specification and instead may be set by the xcvr vendor. Although there currently isn’t any vendor specific logic in our codebase, the new design should make it straightforward to add support for such logic. 
+The xcvr specifications indicate that certain types of data (e.g. register bits, fields, or codes) that may be found in the xcvr EEPROM are not explicitly defined by the specification and instead may be set by the xcvr vendor. Although there currently isn’t any vendor specific logic in our codebase, the new design should make it straightforward to add support for such logic.
 
 ## Common Sfp Platform API Logic
 
 All methods in the Sfp platform API which strictly involve reading or writing xcvr EEPROM fields and are platform independent should be implemented in sonic-platform-common. Platform vendors would then only need to implement a subset of the currently required methods in their platform-specific Sfp classes.
 
-## Other Considerations
-
-
-### Y Cable
-
-The sonic_y_cable Python package that exists outside of sonic_platform_base consists of a collection of functions for controlling a Credo Y cable. These functions are dependent on SfpBase.read_eeprom and SfpBase.write_eeprom for accessing the Y cable’s QSFP EEPROM.
-
-The new design should be able to easily accommodate a future refactor to integrate the sonic_y_cable package into sonic_sfp. The main requirements to be addressed in the integration are the following:
-
-*   Supporting multiple Y cable vendors, which should align with this refactor: [https://github.com/Azure/SONiC/pull/757](https://github.com/Azure/SONiC/pull/757)
-*   Moving the existing functions into a Y cable class, ideally associated with a particular port or Sfp object so that the port number isn’t a required argument in all functions
-*   Encapsulating specification-specific details in a similar manner to what was described above to help keep the high level Y cable API readable
-### Coherent Optics/400G ZR
-
-There is a need to support 400G ZR modules, a type of coherent optical module, in SONiC. Initial plans are described in [https://github.com/Azure/SONiC/pull/769](https://github.com/Azure/SONiC/pull/769). Such modules can be in QSFP-DD and OSFP form factors and adhere to CMIS/C-CMIS (an extension to CMIS for coherent optics). The main requirements to be addressed are the following:
-
-*   Adding relevant CMIS/C-CMIS register definitions
-*   Adding a high level API for controlling these registers
-
-
 # Design Scope
 ## In scope
 
-*   Support for xcvrs that adhere to SFF-8436, SFF-8472, and CMIS; namely, SFP, QSFP, and OSFP/QSFP-DD form factors
+*   Basic support for xcvrs that adhere to SFF-8436, SFF-8472, and CMIS; namely, SFP, QSFP, and OSFP/QSFP-DD form factors, based on what is required by current Sfp platform API
+*   Infrastructure for adding new xcvr-related platform APIs, either PI or PD
 *   Infrastructure for adding support for other xcvr specifications, including vendor-specific specifications
 *   Mechanism for interfacing with the correct specification (on initialization or change event) based on reading xcvr identifier in EEPROM, with the assumption of one xcvr per port
-*   Implementation of common Sfp APIs in sonic-platform-common
-*   Integration of sonic_y_cable with the new sonic_sfp package
-*   Support for coherent optic (400G ZR) xcvrs
 
 ## Out of scope
 
-*   Support for other xcvr form factors (e.g. SFP-DD); these will be added when the need arises
-*   Full support for hot swapping of xcvrs (some platform dependent work needed)
+*   Support for other xcvr form factors (e.g. SFP-DD)
 *   Refactor of sfpshow to better support additional xcvr types
 *   Refactor of xcvrd to better support additional xcvr types
 *   Any vendor-specific implementation of provided infrastructure (to be done by the vendors)
-
+*   Integration of sonic_y_cable with the new design
+*   Support for coherent optic (400G ZR) xcvrs
 
 # Design
 
@@ -243,13 +218,6 @@ class XcvrApi(object):
 
     def get_transceiver_info(self):
         raise NotImplementedError
-
-    def get_y_cable_api(self):
-        raise NotImplementedError
-
-    def get_coherent_optic_api(self):
-        raise NotImplementedError
-
     ...
 
 # api/public/sff8436.py
@@ -286,6 +254,7 @@ class VendorAQsfpApi(Sff8436Api):
     * RegBitField: a field occupying a bit in the memory map
     * RegField: a field occupying one or more bytes in the memory map, but is logically meant to be interpreted as one entity, e.g. a 4-byte integer
     * RegGroupField: a field occupying one or more bytes in the memory map, logically representing 1 or more RegFields or RegGroupFields that exist contiguously in memory that may be interpreted as distinct entities, e.g. a 4-byte integer followed by a 16-byte string
+
 ## XcvrMemMap
 
 * Represent memory maps in xcvr specs
@@ -343,7 +312,7 @@ The SFF-8024 specification lists several tables of codes that are referenced by 
 # codes/codes.py
 
 class XcvrCodes(object):
-    ... 
+    ...
 
 # codes/public/sff8024.py
 
@@ -354,7 +323,7 @@ class Sff8024(XcvrCodes):
         ...
     }
     ...
-    
+
 ```
 
 There are some codes that are specific to a xcvr specification. For these, a class that inherits from Sff8024 will be used to define the codes.
@@ -370,11 +339,10 @@ class CmisCodes(Sff8024):
         4: “ModulePwrDn”,
         5: “Fault”
     }
-    
-    ...
-    
-```
 
+    ...
+
+```
 
 ## XcvrEeprom
 
@@ -415,7 +383,7 @@ class XcvrEeprom(object):
 ```
 ## XcvrApiFactory
 
-* Responisble for reading xcvr identifier and instantiating correct set of classes for interpreting EEPROM
+* Responsible for reading xcvr identifier and instantiating correct set of classes for interpreting EEPROM
 
 ```
 # xcvr_api_factory.py
@@ -448,29 +416,29 @@ class XcvrApiFactory(object):
   "identifiers": {
     "03": {
       "public": {
-        "mem_map": "mem_maps.sff8472.SFF8472MemMap", 
+        "mem_map": "mem_maps.sff8472.SFF8472MemMap",
         "codes": "codes.sff8024.Sff8024",
         "api": "api.sff8472.Sff8472Api",
       },
       "vendorA": {
         "model1": {
-          "mem_map": "mem_maps.vendorA.sff8472_model1.Model1MemMap", 
+          "mem_map": "mem_maps.vendorA.sff8472_model1.Model1MemMap",
           "codes": "codes.vendorA.sff8024_model1.Model1Codes",
           "api": "api.vendorA.sff8472_model1.Model1Api",
-        }, 
+        },
         "model2": {
-          "mem_map": "mem_maps.vendorA.sff8472_model2.Model2MemMap", 
+          "mem_map": "mem_maps.vendorA.sff8472_model2.Model2MemMap",
           "codes": "codes.vendorA.sff8024_model2.Model2Codes",
           "api": "api.vendorA.sff8472_model2.Model2Api",
         }
-      }, 
+      },
       "vendorB": {
           ...
       }
-    }, 
+    },
     "0D": {
       "public": {
-        "mem_map": "...", 
+        "mem_map": "...",
         "codes": "..."
         "api": "..."
       },
@@ -480,9 +448,9 @@ class XcvrApiFactory(object):
     }
     "80": {
       # No "public" key since "80" is vendor-specific
-      "vendorY": "...", 
+      "vendorY": "...",
       "vendorX": "..."
-    }, 
+    },
   }
 }
 
@@ -502,7 +470,7 @@ The high-level lookup logic after an identifier is read can be described as foll
 2. Initialize XcvrMemMap
 3. Retrieve vendor ID via XcvrMemMap
 4. Lookup mapping for vendor-specific definitions based on vendor ID
-5. If vendor-specific classes are found, use them instead  
+5. If vendor-specific classes are found, use them instead
 6. Else, proceed with currently initialized classes
 
 
@@ -542,14 +510,14 @@ class SfpBase(device_base.DeviceBase):
         Returns:
             An object derived from XcvrApi that corresponds to the SFP
         """
-    ... 
+    ...
 
 ```
 ### SfpOptoeBase
 
 The long-term plan for this refactor is to have SfpBase primarily be an interface for functionality that is expected to vary across platforms and thus would need to be implemented by platform vendors. This means that methods like get_temperature, get_transceiver_info(), etc. from SfpBase that are xcvr EEPROM-related and whose implementations are not actually platform dependent will get moved to XcvrApi.
 
-In the short-term, the methods will be kept in SfpBase. A new class, SfpOptoeBase, will inherit SfpBase and implement these methods simply by deferring to XcvrApi. Platform vendors that wish to make use of SfpOptoeBase will create an Sfp class that inherits from SfpOptoeBase rather than SfpBase; this is illustrated below by platform vendor A and B’s Sfp classes. Vendors that continue inheriting from SfpBase (vendors C and D) can continue to do so without being affected negatively. 
+In the short-term, the methods will be kept in SfpBase. A new class, SfpOptoeBase, will inherit SfpBase and implement these methods simply by deferring to XcvrApi. Platform vendors that wish to make use of SfpOptoeBase will create an Sfp class that inherits from SfpOptoeBase rather than SfpBase; this is illustrated below by platform vendor A and B’s Sfp classes. Vendors that continue inheriting from SfpBase (vendors C and D) can continue to do so without being affected negatively.
 
 ![](../../images/sfp-refactor/sfp-optoe-base-diagram.png)
 
@@ -569,7 +537,7 @@ class SfpOptoeBase(SfpBase):
 
     def get_tx_fault(self):
         return self.xcvr_api.get_tx_fault()
-    
+
     def tx_disable(self, tx_disable):
         return self.xcvr_api.tx_disable(tx_disable)
 
@@ -586,229 +554,6 @@ class SfpOptoeBase(SfpBase):
         # Use get_eeprom_path
         ...
 
-```
-
-## Y Cable
-
-Similar to what is proposed in [https://github.com/Azure/SONiC/pull/757](https://github.com/Azure/SONiC/pull/757), there will be a common base class for Y cable functionality. It will accept a XcvrEeprom for read and write operations, but leave the API implementation up to Y cable vendors.
-
-
-```
-# api/y_cable_api.py
-
-class YCableApi(object):
-
-    def __init__(self, xcvr_eeprom):
-        ...
-
-    def toggle_mux_to_torA(self):
-        raise NotImplementedError
-
-    def toggle_mux_to_torB(self):
-        raise NotImplementedError
-
-    def check_mux_direction(self):
-        raise NotImplementedError
-
-    ...
-
-```
-
-
-The following diagram and steps describe what a vendor must do to add support for their particular Y cable. 
-
-![](../../images/sfp-refactor/y-cable-integration-diagram.png)
-
-1. Extend the appropriate XcvrMemMap class, defining XcvrFields according to their Y cable spec.
-
-```
-# mem_maps/credo/y_cable.py
-
-class CredoYCableMuxMemMap(SFF8436MemMap):
-    ...
-    self.SWITCH_MUX_DIRECTION = RegField(name=SWITCH_MUX_DIRECTION_FIELD, offset=642)
-    self.MUX_DIRECTION = RegField(name=MUX_DIRECTION_FIELD, offset=644)
-    ...
-
-# mem_maps/othervendor/y_cable.py
-
-class OtherVendorYCableMuxMemMap(SFF8436MemMap):
-    ...
-    self.SWITCH_MUX_DIRECTION = RegField(name=SWITCH_MUX_DIRECTION_FIELD, offset=700)
-    self.MUX_DIRECTION = RegField(name=MUX_DIRECTION_FIELD, offset=702)
-    ...
-
-```
-
-
-2. Extend the YCableApi class with an implementation of the Y cable API.
-
-```
-# api/credo/y_cable.py
-
-class CredoYCable(YCableApi):
-    def __init__(self, xcvr_eeprom):
-        super(CredoYCable, self).__init__(xcvr_eeprom)
-
-    def toggle_mux_to_torA(self):
-        return self.xcvr_eeprom.write(SWITCH_MUX_DIRECTION_FIELD, 2)
-
-    def toggle_mux_to_torB(self):
-        return self.xcvr_eeprom.write(SWITCH_MUX_DIRECTION_FIELD, 3)
-
-    def check_mux_direction(self):
-        return self.xcvr_eeprom.read(MUX_DIRECTION_FIELD)
-
-    def _get_credo_custom_field(self):
-        return self.xcvrEeeprom.read(CREDO_CUSTOM_FIELD)
-
-    ...
-
-# api/othervendor/y_cable.py
-
-class OtherVendorYCable(YCableApi):
-    def __init__(self, xcvr_eeprom):
-        super(OtherVendorYCable, self).__init__(xcvr_eeprom)
-
-    def toggle_mux_to_torA(self):
-        return self.xcvr_eeprom.write(SWITCH_MUX_DIRECTION_FIELD, 1)
-
-    def toggle_mux_to_torB(self):
-        return self.xcvr_eeprom.write(SWITCH_MUX_DIRECTION_FIELD, 2)
-
-    def check_mux_direction(self):
-        return self.xcvr_eeprom.read(MUX_DIRECTION_FIELD)
-
-    def _get_other_vendor_custom_field(self):
-        return self.xcvrEeeprom.read(OTHER_VENDOR_CUSTOM_FIELD)
-
-    ...
-
-```
-
-
-3. Extend the appropriate XcvrApi class, overriding get_y_cable_api to return an instance of the YCableApi-derived class.
-
-```
-# api/credo/y_cable_qsfp.py
-
-class CredoYCableQsfpApi(Sff8436Api):
-    ...
-    
-    def get_y_cable_api(self):
-        return CredoYCable(self.xcvr_eeprom)
-    ...
-
-
-# api/othervendor/y_cable_qsfp.py
-
-class OtherVendorYCableQsfpApi(Sff8436Api):
-    ...
-
-    def get_y_cable_api(self):
-        return OtherVendorYCable(self.xcvr_eeprom)
-    ...
-
-```
-
-
-4. Update id_mapping.py with an entry for the Y cable. Note that the “api” entry here would be for the XcvrApi-based implementation, not the YCableApi implementation.
-
-```
-# id_mapping.py
-
-{
-  "identifiers": {
-    ...
-    "0D": {
-      "public": {
-        ...
-      },
-      "credo": {
-        "model1": {
-          "mem_map": "mem_maps.credo.y_cable.CredoYCableMuxMemMap", 
-          "api": "api.credo.y_cable_qsfp.CredoYCableQsfpApi",
-        }, 
-      }, 
-      "othervendor": {
-        "model1": {
-          "mem_map": "mem_maps.othervendor.y_cable.OtherVendorYCableMuxMemMap", 
-          "api": "api.othervendor.y_cable_qsfp.OtherVendorYCableQsfpApi",
-        },
-      }
-    }
-  ... 
-  }
-}
-
-```
-## Coherent Optics/400G ZR
-
-The appropriate register definitions can be defined as XcvrFields in the XcvrMemMap for CMIS, CmisMemMap. Any definitions from C-CMIS would also be included under CmisMemMap.
-
-```
-# mem_maps/public/cmis.py
-
-PAGE_SIZE = 128
-
-def get_addr(page, offset):
-    return PAGE_SIZE * page + offset
-
-class CmisMemMap(XcvrMemMap):
-    ...
-
-    self.PM_ADVERTISING = RegGroupField(PM_ADVERTISING_FIELD,
-        RegField(RX_BITS_FIELD, offset=get_addr(0x42, 128),
-            RegBitField(RX_BITS_PM_IMPL_FIELD, bit=4)
-            RegBitField(RX_BITS_SUB_INT_PM_IMPL_FIELD, bit=3),
-            RegBitField(RX_CORR_BITS_PM_IMPL_FIELD, bit=2),
-            RegBitField(RX_MIN_CORR_BITS_SUB_INT_PM_IMPL_FIELD, bit=1),
-            RegBitField(RX_MAX_CORR_BITS_SUB_INT_PM_IMPL_FIELD, bit=0),
-        ),
-        RegField(RX_FRAMES_FIELD, offset=get_addr(0x42, 129),
-            ...
-        ),
-        ...
-
-    ...
-
-```
-
-The high-level API for using these definitions will form a new class, CoherentOpticApi. It will depend on XcvrEeprom for performing EEPROM accesses, similar to YCableApi and XcvrApi.
-
-
-```
-# api/coh_optic_api.py
-
-class CoherentOpticApi(object):
-    def __init__(self, xcvr_eeprom):
-        ...
-
-    def get_media_lane_link_pm(self):
-        ...
-
-    ...
-```
-
- \
-In XcvrApi, we define a get_coherent_optic_api method. For non-CMIS XcvrAPIs this will return None, but for CMIS the method will return an instance of CoherentOpticApi if the underlying xcvr module is a coherent optic module (for now, if it is 400G ZR). \
-
-```
-# api/public/cmis.py
-
-class CmisApi(XcvrApi):
-    ...
-
-    def _is_coherent_optic(self):
-        ...
-
-    def get_coherent_optic_api(self):
-        api = None
-        if self._is_coherent_optic():
-            api = CoherentOpticApi(self.xcvr_eeprom)
-        return apie
-
-    ...
 ```
 
 # Testing
