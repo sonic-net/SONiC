@@ -88,9 +88,13 @@ Phase #1
 
 ​	Should be able to perform the role of SRv6 domain headend node, and endpoint node, more specific:
 
-- Support H.Encaps, H.Encaps.Red, END.B6.Encaps, END.B6.Encaps.Red
-- Support END, END.X
-- Support END.DT46
+- Support H.Encaps, SR Headend Behavior with Encapsulation in an SR Policy
+- Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
+- Support END.B6.Encaps, Endpoint bound to an SRv6 encapsulation Policy - SRv6 instantiation of a Binding SID
+- Support END.B6.Encaps.Red,  END.B6.Encaps with reduced SRH insertion - SRv6 instantiation of a Binding SID
+- Support END, Endpoint function - The SRv6 instantiation of a prefix SID 
+- Support END.X, Endpoint function with Layer-3 cross-connect - The SRv6 instantiation of a Adj SID
+- Support END.DT46, Endpoint with decapsulation and IP table lookup - IP L3VPN use (equivalent of a per-VRF VPN label)
 - Support traffic steering on SID list
 - Support anycast SID
 
@@ -146,7 +150,7 @@ Schema:
 ; New table
 ; holds SRv6 SID list
 
-key = SRV6_SID_LIST:segment_name
+key = SRV6_SID_LIST|segment_name
                      ; SID segment name
 ; field = value
 path = SID,          ; List of SIDs
@@ -178,7 +182,7 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping, allow 1:1 or n:1 mapping
 
-key = SRV6_LOCAL_SID:ipv6address
+key = SRV6_LOCAL_SID|ipv6address
 ; field = value
 block_len = blen             ; bit length of block portion in address, default 40
 node_len = nlen              ; bit length of node ID portion in address, default 24
@@ -227,7 +231,7 @@ Schema:
 ; New table
 ; holds SRv6 policy
 
-key = SRV6_POLICY:policy_name
+key = SRV6_POLICY|policy_name
 
 ; field = value
 endpoint = address             ; 
@@ -257,7 +261,7 @@ Schema:
 ; New table
 ; holds prefix to SRv6 SID list encapsulation mapping
 
-key = SRV6_STEER:VRF_NAME:prefix
+key = SRV6_STEER|VRF_NAME:prefix
                                ; Prefix to be steered
 ; field = value
 policy = SRV6_POLICY.key       ; Policy to steer the prefix
@@ -374,9 +378,9 @@ Struct NextHopKey {
 
   IpAddress ip_address;
 
-  
+
   string segment;
-  
+
   string srv6_source;
 
   …..
@@ -548,4 +552,5 @@ TBD
 -  [draft-filsfils-spring-net-pgm-extension-srv6-usid](https://tools.ietf.org/html/draft-filsfils-spring-net-pgm-extension-srv6-usid-08)
 
 -  [draft-cl-spring-generalized-srv6-for-cmpr](https://tools.ietf.org/html/draft-cl-spring-generalized-srv6-for-cmpr-02)  
+
 
