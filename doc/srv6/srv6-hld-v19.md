@@ -336,9 +336,39 @@ vni_label = VRF.vni            ; zero or more separated by ',' (empty value for 
 router_mac = mac_address       ; zero or more remote router MAC address separated by ',' (empty value for non-vxlan next-hops)
 blackhole = BIT                ; Set to 1 if this route is a blackhole (or null0)
 weight = weight_list           ; List of weights
-sid = SRV6_STEER_TABLE.key,    ; New optional field. List of SID, separated by ',' 
+sid = lookup from SRV6_STEER_TABLE    ; New optional field. List of SID, separated by ',' 
 seg_src = address              ; New optional field. Source addrs for sid encap
 ```
+
+**Condition:** 
+
+We should have a controller which can indicate the egress interface and nexthop,  FRR is not needed if controller is there. 
+
+A static route with the same key VRF_NAME:prefix in SRV6_STEER_TABLE should be installed via controller in ROUTE_TABLE. 
+
+SRV6_STEER_TABLE entry has higher priority than ROUTE_TABLE,  SRV6_STEER_TABLE entry  will overwrite the entry in ROUTE_TABLE if any matched. Srv6mgr will generate the updated ROUTE_TABLE entry and modify it in APPL_DB ROUTE_TABLE.
+
+In Srv6Orch, it will mark which rount entry is Srv6 modified and having higher priority, FRR cannot modify these high priority routes.
+
+**key**: the key in ROUTE_TABLE is the same as the one in SRV6_STEER_MAP
+
+**nexthop**: the controller will send this information
+
+**intf**: the controller will send this information
+
+**vni_lable**: the controller will send this information
+
+**route_mac**: the controller will send this information
+
+**blackhole**: the controller will send this information
+
+**weight**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the weight information is there
+
+**sid**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the segment field information is there. The segment field indicates the entry in SRV6_SID_LIST, the matched sid list is there and will be used here
+
+**seg_src**: form SRV6_STEER_MAP entry, the source field indicates what will be used here
+
+
 
 ## 2.3 Orchestration Agent Changes
 
@@ -485,38 +515,38 @@ saistatus = saiv6sr_api->create_local_sid(&local_sid_entry, 2, local_sid_attr)
 ### 2.5.1 Configuration Commands
 
 ##### Create SID list:
-
-  ​		config srv6 segment add/del <seg-name>  <sid-id>
-  ​        for example:
-
+```
+      config srv6 segment add/del <seg-name>  <sid-id>
+      for example:
+```
 ```
       config srv6 segment add seg1 BABA:1001:0:10::, BABA:1001:0:20:F1::
       config srv6 segment add seg2 BABA:1001:0:30::, BABA:1001:0:40:F1::
 ```
 
 ##### Create Policy:
-
-​		config srv6 policy add/del <policy-name> [endpoint <address>] segment <sid-list-name> [ weight <num>]
- 		for example:  
-
+```
+      config srv6 policy add/del <policy-name> [endpoint <address>] segment <sid-list-name> [ weight <num>]
+      for example:  
+```
 ```
       config srv6 policy add policy1 segment seg1, seg2 weight 1, 2
 ```
 ##### Steer traffic:
-
-​		config srv6 steer add/del ipv4/ipv6 <prefix> policy <policy-name> source <ipv6-addr> [vrf <vrf-name>]
-​       for example:
-
+```
+      config srv6 steer add/del ipv4/ipv6 <prefix> policy <policy-name> source <ipv6-addr> [vrf <vrf-name>]
+      for example:
+```
 
 ```
       config srv6 steer add ipv4 11.11.11.0/24 policy policy1 source A::1 vrf Vrf-1001                                                      
 ```
 
 ##### Create local SID:
-
-  		config srv6 localsid add/del <SID> [block-len <blen>] [node-len <nlen>] [function-len <flen>] action <action> [param]
-  	       for example:
-
+```
+      config srv6 localsid add/del <SID> [block-len <blen>] [node-len <nlen>] [function-len <flen>] action <action> [param]
+      for example:
+```
 ```
       config srv6 localsid add BABA:1001:0:20:F1:: action end.dt46 vrf Vrf-1001
       config srv6 localsid add BABA:1001:0:40:F1:: action end.dt46 vrf Vrf-1001
