@@ -291,11 +291,10 @@ xcvrd depends on port mapping information to update transceiver information to D
 - Physical port index to logical port name mapping. E.g. {1: "Ethernet0"}
 - Logical port name to ASIC ID mapping. This is useful for multi ASIC platforms.
 
-Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature. After doing a dynamic port breakout, port in CONFIG_DB could be removed or created, xcvrd cannot update transceiver information, DOM information and transceiver status information accordingly. This causes invalid data in STATE_DB. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly. Observer pattern will be used here to handle port mapping information change:
+Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature introduced. Port can be added/created on the fly, xcvrd cannot update transceiver information, DOM information and transceiver status information without knowing the ports change. This causes data in state db not aligned with config db. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly. Observer pattern will be used here to handle port mapping information change:
 
 - Main process works as a "Subject", it subscribes CONFIG_DB PORT table change and publish port change event.
-- State machine process works as a "Observer", it subscribes port change event and update local port mapping accordingly.
-- DOM sensor update thread works as a "Observer" either, it subscribes port change event and update local port mapping accordingly.
+- State machine process and DOM sensor update thread work as "Observer", it subscribes port change event and update local port mapping accordingly.
 
 Port change event contains following data:
 
@@ -325,7 +324,7 @@ SONiC has implemented a way to "select" data changes from redis. xcvrd should re
 
 As state machine task is a process, it should use multiprocessing.Queue to receive the port change event. Once a port change event arrives, it should update local port mapping information first, and if it is a remove event, state machine task should remove transceiver information from table TRANSCEIVER_INFO, TRANSCEIVER_STATUS and TRANSCEIVER_DOM_SENSOR; if it is an add event, there could be 4 cases:
 
-- Transceiver information is already in DB which means that a logical port with the same physical index is already in DB. Copy the data from DB and create a new entry to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO whose key is the newly added logical port name.
+- Transceiver information is already in DB which means that a logical port with the same physical index already exists. Copy the data from DB and create a new entry to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO whose key is the newly added logical port name.
 - Transceiver information is not in DB and transceiver is present with no SFP error. Query transceiver information and DOM sensor information via platform API and update the data to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO.
 - Transceiver information is not in DB and transceiver is present with SFP error. If the SFP error does not block EEPROM reading, just query transceiver information and DOM sensor information via platform API and update the data to DB; otherwise, just update TRANSCEIVER_STATUS table with the error.
 - Transceiver information is not in DB and transceiver is not present. Update TRANSCEIVER_STATUS only.
