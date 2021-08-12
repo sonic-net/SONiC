@@ -196,21 +196,20 @@ The controller requires state information from the switches to quickly identify 
 
 ### Packet IO
 
-There are multiple scenarios where the remote controller is interested in listening on the ingress pipeline of the switch for specific packets and getting those packets sent to it. Similarly, the controller is interested in sending specific packets through the egress pipeline and requires the packet to be routed based on the rules already programmed in the switch. These are the receive and transmit rules.
+There are multiple scenarios where the remote controller is interested in listening on the ingress pipeline of the switch for specific packets and getting those packets along with additional information. In certain other scenarios, the controller is interested in sending specific packets through the egress pipeline and requires the packet to be routed based on the rules already programmed in the switch.
 
-P4RT clients can program ACLs to punt or copy packets received in the ingress pipeline. These packets will be trapped and sent to the P4RT application running in the switch and will be forwarded to the client over gRPC.
-
-SONiC relies on basic packet I/O support that uses netdev ports to send and receive packets. PINS follows the example of most SONiC applications and uses devices rather than SAI APIs for packet I/O.
 
 #### Receiving Packets (Packet Ins)
 
-P4RT clients require additional packet attributes, like the target egress port, which are not available via netdev. To support the above requirements, a model similar to the one used to add sFlow to SONiC is used. The packet receive path creates a genetlink type host interface. It programs a user defined trap for packets that are interesting to the controller and maps them to the genetlink host interface. A generic ASIC independent model is defined for passing parameters such as “target egress port” to the application container.
+P4RT clients can program ACLs to punt or copy packets received in the ingress pipeline. These packets will be trapped and sent to the P4RT application running in the switch and will be forwarded to the client over gRPC. 
+
+P4RT clients require additional packet attributes, like the target egress port, which are not available via netdev. To support the above requirements, a model similar to the one used to add sFlow to SONiC is used. The packet receive path creates a genetlink type host interface. The P4RT application programs user defined traps for packets that are interesting to the controller and maps them to the genetlink host interface. A generic ASIC independent model is defined for passing parameters such as “target egress port” to the application container. 
 
 #### Transmitting Packet (Packet Outs)
 
 For packets that should be directly transmitted from a specific port, PINS uses the standard SONIC port netdevs. These packets will bypass ingress pipeline processing.
 
-PINS requires packet transmission based on the programming present in the ASIC. This is required to support scenarios where the remote SDN controller needs to route a packet entirely based on the ASIC hardware tables. To support this feature, PINS introduces a new netdev (“send_to_ingress”) that will send packets through the ingress pipeline before they are transmitted.
+PINS also requires packet transmission based on the programming present in the ASIC. To support this feature, PINS introduces a new netdev (“send_to_ingress”) that will send packets through the ingress pipeline before they are transmitted.
 
 A detailed description of the receive and transmit paths is present in the supplementary document: [Packet IO][packet-hld].
 
