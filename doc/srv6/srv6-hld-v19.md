@@ -336,37 +336,100 @@ vni_label = VRF.vni            ; zero or more separated by ',' (empty value for 
 router_mac = mac_address       ; zero or more remote router MAC address separated by ',' (empty value for non-vxlan next-hops)
 blackhole = BIT                ; Set to 1 if this route is a blackhole (or null0)
 weight = weight_list           ; List of weights
-sid = lookup from SRV6_STEER_TABLE    ; New optional field. List of SID, separated by ',' 
+segment = SRV6_SID_LIST.key    ; New optional field. List of segment names, separated by ',' 
 seg_src = address              ; New optional field. Source addrs for sid encap
 ```
 
-**Condition:** 
+**Two cases:**
 
-We should have a controller which can indicate the egress interface and nexthop,  FRR is not needed if controller is there. 
+**CASE A :** route entry with the same key(VRF_NAME:prefix ) already exists in APPL_DB ROUTE_TABLE
 
-A static route with the same key VRF_NAME:prefix in SRV6_STEER_TABLE should be installed via controller in ROUTE_TABLE. 
+**CASE B:** route entry with the same key(VRF_NAME:prefix ) DOES NOT exist in APPL_DB ROUTE_TABLE
 
-SRV6_STEER_TABLE entry has higher priority than ROUTE_TABLE,  SRV6_STEER_TABLE entry  will overwrite the entry in ROUTE_TABLE if any matched. Srv6mgr will generate the updated ROUTE_TABLE entry and modify it in APPL_DB ROUTE_TABLE.
+For both cases, we don't care  fields **nexthop**, **intf**, **vni_lable**, **route_mac** and **blackhole**, since srv6 related fields will be added which includes segments. Segments actually is lists of sids which tell the packets will be added SRV6 encap header and SID list will be used for nexthop lookup in SRV6Orch.
 
-In Srv6Orch, it will mark which rount entry is Srv6 modified and having higher priority, FRR cannot modify these high priority routes.
+
+
+For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE_TABLE no matter it exists or not. 
 
 **key**: the key in ROUTE_TABLE is the same as the one in SRV6_STEER_MAP
 
-**nexthop**: the controller will send this information
-
-**intf**: the controller will send this information
-
-**vni_lable**: the controller will send this information
-
-**route_mac**: the controller will send this information
-
-**blackhole**: the controller will send this information
-
 **weight**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the weight information is there
 
-**sid**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the segment field information is there. The segment field indicates the entry in SRV6_SID_LIST, the matched sid list is there and will be used here
+**segment**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the segment field information is there. Srv6Orch will use segment to find sid list and sids for nexthop lookup.
 
 **seg_src**: form SRV6_STEER_MAP entry, the source field indicates what will be used here
+
+    EXAMPLE : how to modify ROUTE_TABLE
+    current CONFIG_DB:
+    "SRV6_SID_LIST": {
+        "seg1": {
+            "path": [
+                "BABA:1001:0:10::",
+                "BABA:1001:0:20:F1::"
+            ]
+        },
+        "seg2": {
+            "path": [
+                "BABA:1001:0:30::",
+                "BABA:1001:0:40:F1::"
+            ]
+        }
+    }
+    
+    "SRV6_STEER": {
+        "Vrf-red|11.11.11.0/24": {
+            "policy": "policy1"，
+            "source": "A::1"
+        },
+        "Vrf-blue|2001:a::0/64": {
+            "policy": "policy2"，
+            "source": "A::1"
+        }
+    }
+    
+    "SRV6_POLICY": {
+        "policy1": {
+            "segment": "seg1, seg2",
+            "weight": "1, 2"
+            },
+        "policy2": {
+            “endpoint": "BABA:1001:0:40::1"
+            "segment": "seg1"
+        }
+    }
+    
+    current APPL_DB:
+    "ROUTE_TABLE": {
+        "Vrf-red:11.11.11.0/24": {
+            "nexthop" : "109.109.109.109",
+            "ifname" : "Vlan1001",
+            "vni_label" : "1001",
+            "router_mac" : "c6:97:75:ed:06:72"
+        }
+    }
+    
+    future APPL_DB:
+    "ROUTE_TABLE": {
+        "Vrf-red:11.11.11.0/24": {
+            "nexthop" : "109.109.109.109",
+            "ifname" : "Vlan1001",
+            "vni_label" : "1001",
+            "router_mac" : "c6:97:75:ed:06:72",
+            
+            "weight" : "1,2",
+            "segment": "seg1,seg2",
+            "seg_src": "A::1"        
+        }
+    }
+
+SRV6_STEER_TABLE generated route entry has higher priority than the entry in ROUTE_TABLE if any matched. Srv6mgr will generate the updated ROUTE_TABLE entry and modify it in APPL_DB ROUTE_TABLE.
+
+In Srv6Orch, it will mark which route entry is Srv6 modified and having higher priority to do SID and nexthop lookup, FRR or other modules cannot modify these high priority routes, they can only be modified via Srv6Orch.
+
+**Resolve SID NextHop Via Controller:** 
+
+If the SID subnet (above example, BABA:1001:0:10::) is directly connected, the nexthop could be found, if not, we should have a controller to indicate nexthop information for subnet BABA:1001:0:10::, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE. 
 
 
 
