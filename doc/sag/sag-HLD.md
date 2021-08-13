@@ -27,7 +27,7 @@
 # Revision History
 |  Rev  | Date       |   Author    | Change Description                |
 | :---: | :--------- | :---------: | --------------------------------- |
-|  0.1  | 07/27/2020 |  Jimi Chen  | Initial version                   |
+|  0.1  | 08/13/2021 |  Jimi Chen  | Initial version                   |
 
 # Abbreviations
 | Abbreviations | Description            |
