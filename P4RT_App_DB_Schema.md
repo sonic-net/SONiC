@@ -2,6 +2,20 @@
 
 _Rev v0.1_
 
+## Table of Contents
+- [Revision](#revision)
+- [Scope](#scope)
+- [Overview](#overview)
+  - [P4RT Tables](#p4rt-tables)
+  - [Common definitions](#common-definitions)
+- [Schema definition](#schema-definition)
+  - [APP_DB](#app_db)
+    - [P4RT Table](#p4rt-table)
+      - [1. DEFINITION Tables](#1-definition-tables)
+      - [2. ACL_* Tables](#2-acl_-tables)
+      - [3. FIXED_* Tables](#3-fixed_-tables)
+  - [Switch/Hash table](#switchhash-table)
+  - [CountersDB](#countersdb)
 
 ## Revision
 
@@ -10,38 +24,31 @@ Rev  | RevDate    | Author(s)   | Change Description
 v0.1 | 07/19/2021 | Google, ONF | Initial Version
 
 
-#
-Scope
+## Scope
 
-This document captures the schema changes done for supporting the P4RT app in Sonic. 
+This document captures the schema changes done for supporting the P4RT app in SONiC∏.
 
-
-# 
-Overview
+## Overview
 
 As part of the PINS effort, a new P4RT table is introduced into the APPL_DB. The P4RT application and P4Orch will communicate through this newly introduced table. The new table organises entries into sub-tables based on the functionality the table caters to, based on the P4 program.
 
 As part of the PINS effort there are also extensions made to the existing SWITCH_TABLE and a new HASH_TABLE added for the hashing parameters.
 
 
-# 
-P4RT Tables
+### P4RT Tables
 
-P4RT application introduces new tables with the prefix P4RT in the APPL_DB that holds the definitions and entries for the various types of entities that it programs in the DB. It follows the convention of **P4RT:&lt;TableType>&lt;TableName>** where TableType is of **FIXED** or configurable (only **ACL** for now) and TableName is the specific table in the SAI pipeline specification like router interface, neighbor, nexthop, IPV4/IPV6 tables etc. 
+P4RT application introduces new tables with the prefix P4RT in the APPL_DB that holds the definitions and entries for the various types of entities that it programs in the DB. It follows the convention of **P4RT:&lt;TableType>&lt;TableName>** where TableType is of **FIXED** or configurable (only **ACL** for now) and TableName is the specific table in the SAI pipeline specification like router interface, neighbor, nexthop, IPV4/IPV6 tables etc.
 
-The key and value entries in the table are generally formatted according to the P4 program of the corresponding table. The table entries are uniformly represented in both the fixed SAI and configurable SAI aspects (ACL tables) or P4 extensions. The table format is compatible with other tables in SONiC and follows a human readable format to aid debugging. 
+The key and value entries in the table are generally formatted according to the P4 program of the corresponding table. The table entries are uniformly represented in both the fixed SAI and configurable SAI aspects (ACL tables) or P4 extensions. The table format is compatible with other tables in SONiC and follows a human readable format to aid debugging.
 
 
-# 
-Common definitions
+### Common definitions
 
-Every table entry is stored using a key made up of the table name, all match keys and the priority (if there is one). Then the value in the Redis DB is a hash map, mapping `action` to the name of the action and mapping all parameter names to the parameter values. Every key and the value in the Redis DB is represented as a JSON object that makes it consistent with the ASIC_DB representation and permitting the use of any char with variable length. 
+Every table entry is stored using a key made up of the table name, all match keys and the priority (if there is one). Then the value in the Redis DB is a hash map, mapping `action` to the name of the action and mapping all parameter names to the parameter values. Every key and the value in the Redis DB is represented as a JSON object that makes it consistent with the ASIC_DB representation and permitting the use of any char with variable length.
 
 **Match Fields**
 
 Match fields may be formatted as one of three types:
-
-
 
 * **Exact** (`"<value>"`)
     * Available to all tables.
@@ -55,16 +62,13 @@ Match fields may be formatted as one of three types:
 
 Note that exact, ternary and LPM here refer not to the match kind of the match field in P4, but instead on the value/mask used:
 
-
-
 * Exact is matching on a value exactly (i.e., no mask). This is available for P4 match kinds `exact`, `optional`, and `ternary`. For `ternary`, it implies a mask of all-ones.
 * Ternary is matching on a masked value. This is only available for P4 match kinds of `ternary`.
 * LPM is matching on a value with a given prefix length. This is only available for P4 match kinds `lpm`.
 
 **Value Formatting**
 
-Values are formatted according to their type (e.g. IPv4 addresses as `10.0.0.1`). The list of formats and their description are detailed below. 
-
+Values are formatted according to their type (e.g. IPv4 addresses as `10.0.0.1`). The list of formats and their description are detailed below.
 
 ```
 // Describes the format of a value which has a bit width `num_bits` (unless for
@@ -96,37 +100,33 @@ enum Format {
 Port names refer to the ports used in SONiC and use `Format::STRING`, example “Ethernet0”.
 
 
-# 
-Schema definition
+## Schema definition
 
 
-## APP_DB
+### APP_DB
 
 
-## P4RT Table
+#### P4RT Table
 
 All data in the Application Database (APPL DB) published by the P4RT application resides in  the P4RT table. Logically, the P4RT table is divided into **subtables**:
-
-
 
 * **DEFINITION** tables describe configuration of the logical tables.
 * **ACL_*** tables contain the runtime entries for ACL tables.
 * **FIXED_*** tables contain the runtime entries fixed SAI pipeline tables.
 
-
-### 1. DEFINITION Tables
+##### 1. DEFINITION Tables
 
 Definition tables describe the configuration of logical tables. Each key represents a separate logical table. Definition tables provide more details about the table, like which stage of the pipeline they fit into, one or more match/action parameters and values. This helps the P4Orch layer to interpret the actual table entries (when they arrive later as part of the P4 Write request processing) and program them accordingly into the ASIC_DB. Currently, fixed tables do not need a definition and only ACL tables have corresponding DEFINITION tables.
 
 **DEFINITION Table Keys**
 
-The keys of a DEFINITION table represent the dynamic table name or the pipeline stage of the table that it defines. 
+The keys of a DEFINITION table represent the dynamic table name or the pipeline stage of the table that it defines.
 
 ; defines the P4RT DEFINITION table used for defining a dynamic table.
 
 | key                     = | P4RT:DEFINITION:table_name | ; Dynamic table name |
 |---------------------------|----------------------------|----------------------|
-  
+
 
 
 ```
@@ -162,7 +162,6 @@ The values of a DEFINITION table represent table configuration parameters. The t
 | size                     =   |   <integer>                             | ; Maximum number of entries for this table.                                                                                                                                                                                                                       |
 | priority               =     |    <integer>                            | ; Table priority relative to other ACL tables in the same stage.                                                                                                                                                                                                    |
 
-
 ```
 127.0.0.1:6379> hgetall "P4RT:DEFINITION:ACL_ACL_PRE_INGRESS_TABLE"
  1) "stage"
@@ -187,11 +186,9 @@ The values of a DEFINITION table represent table configuration parameters. The t
 
 ```
 
+##### 2. ACL_* Tables
 
-
-### 2. ACL_* Tables
-
-Each entry in the ACL_* tables represent a single match/action rule in an ACL table. Entry** **keys uniquely identify and describe the rule. The table values 
+Each entry in the ACL_* tables represent a single match/action rule in an ACL table. Entry** **keys uniquely identify and describe the rule. The table values
 
 **ACL_* Table Keys**
 
@@ -251,7 +248,7 @@ The values of the ACL_* Table list the action meter settings for the rule. as de
 12) "7000"
 13) "controller_metadata"
 14) "my metadata"
- 
+
 127.0.0.1:6379> hgetall "P4RT:ACL_ACL_PRE_INGRESS_TABLE:{\"match/dst_ip\":\"10.53.192.0&255.255.240.0\",\"match/is_ipv4\":\"0x1\",\"priority\":1132}"
 1) "param/vrf_id"
 2) "p4rt-vrf-80"
@@ -265,7 +262,7 @@ The values of the ACL_* Table list the action meter settings for the rule. as de
 
 
 
-### 3. FIXED_* Tables
+##### 3. FIXED_* Tables
 
 FIXED_* Tables are similar to ACL_* Tables. However, FIXED_* Tables have a predefined set of matches & actions. This prevents the need for a DEFINITION table for these tables.
 
@@ -368,11 +365,9 @@ Fixed table values follow the same format as ACL_* tables (see Section ACL_* Tab
 18) "
 ```
 
+### Switch/Hash table
 
-
-## Switch/Hash table
-
-The entry represents the hashing related parameters written to the existing SWITCH_TABLE and a new HASH_TABLE. 
+The entry represents the hashing related parameters written to the existing SWITCH_TABLE and a new HASH_TABLE.
 
 **HASH_TABLE_Key**
 
@@ -380,15 +375,12 @@ The entry represents the hashing related parameters written to the existing SWIT
 |                            |                              |                                                                          |
 |----------------------------|------------------------------|--------------------------------------------------------------------------|
 | key                      = | HASH_TABLE:<hash_key_string> | ; Key used to define the hash fields and to be used in the SWITCH_TABLE. |
- 
-
 
 **HASH_TABLE_Values**
 
 |                                   |                                                                                  |                                                                                           |
 |-----------------------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
 | hash_field_list     =             | List of one or more <src_ip, dst_ip, l4_src_port, l4_dst_port, ipv6_flow_label,  | ; Specifies the list of fields to be included in the hashing computation for this object. |
-                                                                   
 
 ```
 127.0.0.1:6379> keys HASH_TABLE*
@@ -400,9 +392,8 @@ The entry represents the hashing related parameters written to the existing SWIT
 127.0.0.1:6379> hgetall HASH_TABLE:compute_ecmp_hash_ipv6
 1) "hash_field_list"
 2) "[\"src_ip\",\"dst_ip\",\"l4_src_port\",\"l4_dst_port\",\"ipv6_flow_label\"]"
-127.0.0.1:6379> 
+127.0.0.1:6379>
 ```
-
 
 **SWITCH_TABLE_Key**
 
@@ -411,11 +402,11 @@ The entry represents the hashing related parameters written to the existing SWIT
 |                                     |                     |                                                               |
 |-------------------------------------|---------------------|---------------------------------------------------------------|
 | key                   =             | SWITCH_TABLE:switch | ; Modifies existing Switch table key to include hash objects. |
-  
+
 
 **SWITCH_TABLE_Values**
 
-The new fields added to the switch table represent the ecmp_hash_&lt;protocol> which represents the protocol for which this key is used and the value references the corresponding entry with the same key in HASH_TABLE. 
+The new fields added to the switch table represent the ecmp_hash_&lt;protocol> which represents the protocol for which this key is used and the value references the corresponding entry with the same key in HASH_TABLE.
 
 
 |                                           |                 |                                                                                                          |
@@ -446,13 +437,11 @@ The new fields added to the switch table represent the ecmp_hash_&lt;protocol> w
 
 ```
 
-
-
-## CountersDB
+### CountersDB
 
 **COUNTERS:P4RT:ACL_* Tables**
 
-The entry represents the packets and/or bytes counts for the ACL entry. 
+The entry represents the packets and/or bytes counts for the ACL entry.
 
 **COUNTERS:P4RT:ACL_* Table Keys**
 
@@ -463,8 +452,6 @@ Table keys follow the format:
 |                            |                                                |                                                                                                                                     |
 |----------------------------|------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
 | key                      = | COUNTERS:P4RT:ACL_<Table_Name>:<Entry_ID_JSON> | ; The P4RT:ACL_<Table_Name>:<Entry_ID_JSON> is the key of the ACL entries in APPL_DB defined in the ACL_* Table keys section above. |
-  
-
 
 **COUNTERS:P4RT:ACL_* Table Values**
 
@@ -480,6 +467,3 @@ The values of the COUNTERS:P4RT:ACL_* Table list the ACL entry counter statistic
 | red_bytes         =             | <integer> | ; If the ACL rule is in a DEFINITION table with counter_unit in BYTES/BOTH and the packet color is RED in meter, this value should be populated in counter statistics.                   |
 | green_packets   =               | <integer> | ;If the ACL rule is in a DEFINITION table with counter_unit in PACKETS/BOTH and the packet color is GREEN in meter, this value should be populated in counter statistics.                |
 | green_bytes       =             | <integer> | ; If the ACL rule is in a DEFINITION table with counter_unit in BYTES/BOTH and the packet color is GREEN in meter, this value should be populated in counter statistics.                 |
-
-
-
