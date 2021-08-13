@@ -80,7 +80,7 @@ This document is focused on the high level design of P4Orch. It behaves similar 
 
 However, to support the P4 & SDN requirements, there are some key differences between P4Orch and other SONiC Orchs:
 
-* P4RT table in APPL DB uses a sub-table schema. Refer to the [P4RT APPL DB Schema](p4rt_appl_db_schema_hld.md) document for more information.
+* P4RT table in APPL DB uses a sub-table schema. Refer to the [P4RT APPL DB Schema](P4RT_App_DB_Schema.md) document for more information.
 * Any programming request is meant to be executed synchronously at the time it arrives
     * All dependencies should have been satisfied by previous requests. Therefore retry is not required.
     * Requires confirmation from the SAI layer that the operation is completed.
