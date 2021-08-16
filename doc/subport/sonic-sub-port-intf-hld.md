@@ -28,6 +28,7 @@
     * [3.1 Sub port interface creation](#31-sub-port-interface-creation)
     * [3.2 Sub port interface runtime admin status change](#32-sub-port-interface-runtime-admin-status-change)
     * [3.3 Sub port interface removal](#33-sub-port-interface-removal)
+    * [3.4 Sub port MTU Configuration](#34-sub-port-mtu-configuration)
   * [4 CLI](#4-cli)
     * [4.1 Config commands](#41-config-commands)
         * [4.1.1 Config a sub port interface](#411-config-a-sub-port-interface)
@@ -309,8 +310,6 @@ SAI attributes related to a sub port interface are listed in the Table below.
 | SAI_ROUTER_INTERFACE_ATTR_OUTER_VLAN_ID          | VLAN id (sai_uint16_t)                       |
 | SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS        | MAC address                                  |
 | SAI_ROUTER_INTERFACE_ATTR_MTU                    | mtu size                                     |
-| SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE         | IPv4 Admin State                             |
-| SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE         | IPv6 Admin State                             |
 
 ### 2.4.1 Create a sub port interface
 ```
@@ -414,13 +413,25 @@ Internally, a sub port interface is represented as a Port object to be perceived
 
 # 3 Event flow diagrams
 ## 3.1 Sub port interface creation
-![](sub_intf_creation_flow.png)
+![](sub_intf_creation_flow_version_2.png)
 
 ## 3.2 Sub port interface runtime admin status change
-![](sub_intf_set_admin_status_flow.png)
+
+IntfMgrd subscribes to STATE_DB PORT_TABLE to listen to physical interface port admin status changes
+
+![](sub_intf_set_admin_status_flow_version_2.png)
 
 ## 3.3 Sub port interface removal
 ![](sub_intf_removal_flow.png)
+
+## 3.4 Sub port MTU Configuration
+
+IntfMgrd subscribes to STATE_DB PORT_TABLE to listen to MTU change on physical and portchannel interfaces.
+
+Subinterface MTU should be <= Parent interface MTU. 
+Linux kernel does not allow subinterface netdev MTU to exceed Parent interface netdev MTU.
+
+![](sub_intf_set_mtu_flow_version_2.png)
 
 # 4 CLIs
 ## 4.1 Config commands
