@@ -20,6 +20,7 @@ _Rev v0.1_
 - [Testing Requirements / Design](#testing-requirements--design)
 - [Open / Action items - if any](#open--action-items---if-any)
 - [Appendix A](#appendix-a)
+- [Appendix B](#appendix-b)
 
 ## Revision
 | Rev  | Rev Date   | Author(s)          | Change Description |
@@ -40,13 +41,13 @@ This document describes the high-level design for adding support for SAI P4 exte
 
 User applications which are custom built with proprietary IP or niche use cases pertaining to specific markets (Telco/BNG) need to program the pipeline differently than the SAI implementation today or append to it. For edge use cases where there are stringent pipeline restrictions, tighter control of features is also required.
 
-Advantages of SAI P4 extensions
-
+Goals of SAI P4 extensions
+* Provide a mechanism to support vendor differentiation
 * Ability to add exclusive features
 * Expose device specific capabilities
 * Rapid application prototyping
 
-SAI P4 Extensions via PINS attempts to solve this using the unique programming model afforded by PINS. The [sai.p4](https://docs.google.com/document/u/1/d/1llmrHqBZz1mbpmWzA-_j_CtI-tRvq9ItWhlSBhTcRKQ/edit) program is a well defined data plane specification with a fixed feature set modelling the SAI behavioral model. The P4 language offers a unique top-down way to extend this pipeline while keeping the base functionality unchanged. Just by extending the P4 program offered by PINS to describe
+SAI P4 Extensions via PINS attempts to solve this using the unique programming model afforded by PINS. The [sai.p4] program is a well defined data plane specification with a fixed feature set modelling the SAI behavioral model. The P4 language offers a unique top-down way to extend this pipeline while keeping the base functionality unchanged. Just by extending the P4 program offered by PINS to describe
 non-SAI features, supporting these custom features would virtually **require no changes to the SONiC stack**. Prototyping or productizing these custom features can be done in weeks or even days with SONiC.
 
 
@@ -65,7 +66,9 @@ Additional functionality will be made available in future releases.
 
 ## Architecture
 
-Please refer to the “Architecture Design” section of the PINS HLD document.
+Please refer to the “Architecture" section of the PINS HLD document. The original figure describing the SAI P4 pipeline is shown below.
+
+![alt_text](images/sai_p4.png "SAI P4 pipeline")
 
 
 ## High-Level Design
@@ -79,13 +82,9 @@ To distinguish between these new non-SAI P4 tables and the existing SAI tables, 
 
 From SONiC PINS perspective, supporting this new extension path requires minimal change. A common P4 Extensions manager in SWSS orchagent can handle any new non-SAI P4 tables. The changes needed in various SONiC layers SAI Redis/syncd, swss, swss-common need to be made just once for the new non-SAI tables. This makes adding new proprietary features on top of standard SAI features trivial. New changes required to support non-SAI P4 tables in SONiC are highlighted in red in the picture below.
 
-
-
 ![alt_text](images/ext_path.png "Path for SAI P4 extension programming")
 
-
 The main and only difference between this entry and P4RT fixed table is the naming convention used for the key. P4FIXED_ will be replaced with P4EXT_ for all new extension tables.
-
 
 ## SAI API
 
@@ -215,4 +214,54 @@ typedef struct _sai_p4ext_api_t
     sai_set_p4ext_entry_attribute_fn        set_p4ext_entry_attribute;
     sai_get_p4ext_entry_attribute_fn        get_p4ext_entry_attribute;
 } sai_p4ext_api_t;
+```
+
+## Appendix B
+
+### Example P4 extension table
+```
+    action set_meter_and_tc(etrap_index_t index, traffic_class_t tc) {
+        etrap_index_value = index;
+        etrap_tc_value = tc;
+    }
+    @saip4ext()
+    table etrap_ipv4_flow {
+        key = {
+            headers.ipv4.src_addr : ternary @format(IPV4_ADDRESS) @name("src_addr");
+            headers.ipv4.dst_addr : ternary @format(IPV4_ADDRESS) @name("dst_addr");
+        }
+        actions = {
+            @proto_id(1) set_meter_and_tc;
+        }
+        size = 1000;
+    }
+```
+
+### gRPC protobuf message
+```
+TBD
+```
+
+### APP DB schema
+```
+HGETALL "P4RT:P4EXT_ETRAP_IPV4_FLOW:{\"match/src_addr\":\"10.10.10.0&255.255.255.0\",\"priority\":100}"
+1) "action"
+2) "set_meter_and_tc"
+3) "param/index"
+4) "1"
+5) "param/tc"
+6) "2"
+```
+
+### ASIC DB schema
+```
+HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_P4EXT_ENTRY:oid:0x5f00000000011d"
+1) "SAI_P4EXT_ENTRY_ATTR_TABLE_ID"
+2) "etrap_ipv4_flow"
+3) "SAI_P4EXT_ENTRY_ATTR_MATCH_FIELD_ID"
+4) "{\"priority\":100,\"src_addr\":\"10.10.10.0&255.255.255.0\"}"
+5) "SAI_P4EXT_ENTRY_ATTR_ACTION_ID"
+6) "set_meter_and_tc"
+7) "SAI_P4EXT_ENTRY_ATTR_PARAMETER_ID"
+8) "{\"index\":\"1\",\"tc\":\"2\"}"
 ```
