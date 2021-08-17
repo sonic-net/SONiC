@@ -429,12 +429,12 @@ Links:
 
 We tested the Linux kernel dump mechanism on different platfroms in StarLab. 
 The following table shows detailed information related to the size of core
-dump file and kernel log file, the downtime of device. At here, the downtime
-represents the time interval from issuing the command `echo c > /prpc/sysrq-trigger`
+dump file and kernel log file, the downtime of device. At here, the `downtime`
+represents the time interval from issuing the command `echo c > /proc/sysrq-trigger`
 triggering the kernel crash to the device is up and can be logged in again.
 
 |       Platforms     | Memory Size | Size of core file | Size of kernel log file | Downtime |
-| ------------------- | ----------- | ----------------- | ----------------------- | -------- |
+| :------------------ | :---------: | :---------------: | :---------------------: | :------: |
 | Arista-7050-QX-32S  |     4 GB    |       119 MB      |          72 KB          |   150 s  |
 | Mellanox SN2700     |     8 GB    |       246 MB      |          116 KB         |   160 s  |
 | Force10-S6000       |     8 GB    |       77 MB       |          72 KB          |   150 s  |
