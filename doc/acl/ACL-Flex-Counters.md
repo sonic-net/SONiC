@@ -159,10 +159,10 @@ E.g:
 ### CLI
 
 *aclshow* utility is modified to read counters from COUNTERS DB using ACL_RULE table in CONFIG DB and COUNTERS_ACL_COUNTER_RULE_MAP in COUNTERS DB.
-Utility reads all ACLs from ACL_RULE table, uses COUNTERS_ACL_COUNTER_RULE_MAP to get the VID of the ACL counter object and gets the counter values
-from COUNTERS DB. If COUNTERS_ACL_COUNTER_RULE_MAP is missing an entry for the rule it either means that ACL rule was created without counter (which
+Utility reads all ACLs from ACL_RULE table, uses the map to get the VID of the ACL counter object and gets the counter values
+from COUNTERS DB. If the map is missing an entry for the rule it either means that ACL rule was created without counter (which
 is not supported right now, but might be possible in the future) or we hit a condition when orchagent hasn't yet created the rule or the entry in the
-map. In both cases we will display N/A.
+map. In both cases utility displays N/A. In case the COUNTERS DB is missing a VID that exists in the rule the utilitity displays N/A. That means that either polling is disabled for ACL group or syncd haven't yet put any value in COUNTERS DB.
 
 ```
 admin@sonic:~$ aclshow -a
