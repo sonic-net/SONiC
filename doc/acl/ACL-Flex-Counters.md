@@ -152,8 +152,31 @@ E.g:
 
 ```
 127.0.0.1:6379[2]> hgetall COUNTERS_ACL_COUNTER_RULE_MAP
- 1) "DATA:RULE0"
+ 1) "L3_TABLE:RULE0"
  2) "oid:0x100000000037a"
+```
+
+### CLI
+
+*aclshow* utility is modified to read counters from COUNTERS DB using ACL_RULE table in CONFIG DB and COUNTERS_ACL_COUNTER_RULE_MAP in COUNTERS DB.
+Utility reads all ACLs from ACL_RULE table, uses COUNTERS_ACL_COUNTER_RULE_MAP to get the VID of the ACL counter object and gets the counter values
+from COUNTERS DB. If COUNTERS_ACL_COUNTER_RULE_MAP is missing an entry for the rule it either means that ACL rule was created without counter (which
+is not supported right now, but might be possible in the future) or we hit a condition when orchagent hasn't yet created the rule or the entry in the
+map. In both cases we will display N/A.
+
+```
+admin@sonic:~$ aclshow -a
+RULE NAME     TABLE NAME      PRIO    PACKETS COUNT    BYTES COUNT
+------------  ------------  ------  ---------------  -------------
+RULE_1        DATAACL         9999              101            100
+RULE_2        DATAACL         9998              201            200
+RULE_3        DATAACL         9997              301            300
+RULE_4        DATAACL         9996              401            400
+RULE_7        DATAACL         9993              701            700
+RULE_9        DATAACL         9991              901            900
+RULE_10       DATAACL         9989             1001           1000
+DEFAULT_RULE  DATAACL            1                2              1
+RULE_6        EVERFLOW        9994              601            600
 ```
 
 ### Flows
@@ -164,11 +187,15 @@ E.g:
 <img src="img/acl-counters-acl-rule-add-flow.svg" alt="Figure 2. Create ACL rule flow">
 </p>
 
+In case an *error* happened, we roll back, deleting objects with best effort and removing the ACL rule taks from m_toSync map. An error is printed in the syslog.
+
 ### Delete ACL rule
 
 <p align=center>
 <img src="img/acl-counters-acl-rule-remove-flow.svg" alt="Figure 3. Delete ACL rule flow">
 </p>
+
+In case an *error* happened, we proceed deleting objects with best effort and removing the ACL rule taks from m_toSync map. An error is printed in the syslog.
 
 ### Mirror flow enhancement
 
@@ -189,7 +216,7 @@ admin@sonic:~$ counterpoll acl enable
 
 Disable ACL counter polling (NOTE: ACL counter objects are still configured in HW):
 ```
-admin@sonic:~$ counterpoll acl enable
+admin@sonic:~$ counterpoll acl disable
 ```
 
 Set ACL counter polling interval:
@@ -201,10 +228,11 @@ Config DB schema with ACL key in FLEX COUNTER table:
 
 ```json
 {
-"FLEX_COUNTER_TABLE": {
-    "ACL": {
-        "FLEX_COUNTER_STATUS": "enable"
-    }
+    "FLEX_COUNTER_TABLE": {
+        "ACL": {
+            "FLEX_COUNTER_STATUS": "enable",
+	    "POLL_INTERVAL": "10000"
+        }
   }
 }
 ```
@@ -219,6 +247,8 @@ YANG model with ACL group:
       }
   }
 ```
+
+NOTE: YANG is currently not having POLL_INTERVAL field defined.
 		
 ### Warmboot and Fastboot Design Impact  
 N/A
@@ -232,9 +262,17 @@ N/A
 
 1. Enhance test_flex_counters.py with ACL group
 2. Enhance test_acl.py with check for ACL rule mapping and ACL counter OID inserted in FLEX COUNTER DB.
+3. Modify aclshow_test.py in sonic-utilities to work with new data source.
 
 #### System Test cases
 
 ACL/Everflow tests suite in sonic-mgmt covers the ACL counter functionality.
 
 ### Open/Action items
+
+- In case mirror session goes down, ACL rule is deleted but counters is not to save the counters values. This counter could be deleted from FLEX COUNTER DB to avoid polling it but it will trigger removal of the VID in the COUNTERS DB which we would like to keep.
+	- In the current desing it will work just like for PORT, QUEUE, PG counters for port in down state - meaning polling is happenning although there is no real point for it.
+	- It is more like an optimization for a bad scenario rather then a real optimization. A rule is created to be active and counter to be polled in the first place and there must be enough resources and free CPU time to do that.
+	- In case the ACL rule has more action, like mirror ingress on session s0 and mirror egress on session s1 (currently not supported but possible scenario) and if one sesssion goes down, say s0, the counter can't be removed anyway as there is still egress mirroring happening on s1.
+	- Considering previous items it does not make sense to remove the whole rule and a counter but just disable actions if the state in the network(session IP is reachable) requires.
+	- It is not clear how to remove mirror action from the rule in SAI as the SAI_ACL_ACTION_TYPE_MIRROR_INGRESS/SAI_ACL_ACTION_TYPE_MIRROR_EGRESS are not @allowempty.
