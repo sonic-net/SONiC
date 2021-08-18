@@ -40,7 +40,7 @@
   * [tacplus-auth](#tacplus-auth)
 
 # About this Manual
-This document is beased on [TACACS+ Authentication](#TACPLUS-Authentication), and provides a detailed description on the new features for improve TACACS+ support.
+This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and provides a detailed description on the new features for improve TACACS+ support.
 
  - SONiC currently supported TACACS+ features:
    - Authentication.
