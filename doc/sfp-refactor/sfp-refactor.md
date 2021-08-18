@@ -253,6 +253,10 @@ class VendorAQsfpApi(Sff8436Api):
 * Can have various sizes, ranging from single bit to multiple bytes
     * RegBitField: a field occupying a bit in the memory map
     * RegField: a field occupying one or more bytes in the memory map, but is logically meant to be interpreted as one entity, e.g. a 4-byte integer
+        * NumberRegField: interpret byte(s) as a number
+        * CodeRegField: interpret byte(s) as a code
+        * StringRegField: interpret byte(s) as a string
+        * HexRegField: interpret byte(s) as a series of hex pairs
     * RegGroupField: a field occupying one or more bytes in the memory map, logically representing 1 or more RegFields or RegGroupFields that exist contiguously in memory that may be interpreted as distinct entities, e.g. a 4-byte integer followed by a 16-byte string
 
 ## XcvrMemMap
