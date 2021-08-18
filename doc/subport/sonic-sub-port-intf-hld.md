@@ -49,9 +49,12 @@
   * [8 Port channel renaming](#8-port-channel-renaming)
   * [9 Appendix](#9-appendix)
     * [9.1 Difference between a sub port interface and a vlan interface](#91-difference-between-a-sub-port-interface-and-a-vlan-interface)
-  * [10 Open questions](#10-open-questions)
-  * [11 Acknowledgment](#11-acknowledgment)
-  * [12 References](#12-references)
+  * [10 API Library](#10-api-library)
+    * [10.1 CPP Library](#101-cpp-library)
+    * [10.2 Python Library](#102-python-library)
+  * [11 Open questions](#11-open-questions)
+  * [12 Acknowledgment](#12-acknowledgment)
+  * [13 References](#13-references)
 
 <!-- /TOC -->
 
@@ -116,7 +119,7 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
 ## 2.1 Configuration
 ### 2.1.1 Naming Convention for sub-interfaces:
 
-Since Kernel has netdevice name length restriction to 15, port channel sub-interfaces(Physical interfaces as well in case interface number > 99) cannot follow the same nomenclature as physical sub-interfaces. Hence Long name to  short name conversion needs to be performed.
+Since Kernel has netdevice name length restriction to 15, port channel sub-interfaces(Physical interfaces as well in case interface number > 99) cannot follow the same nomenclature as physical sub-interfaces. Hence Long name to  short name conversion needs to be performed for the subinterfaces.
 
 All DB & Kernel netdevice corresponding to the sub-interface should be created with a short name.
 
@@ -127,7 +130,7 @@ Please refer to the API library section for details.
 
 Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
 
-All click config & show CLIs for sub-interfaces will follow long name format.
+All click config CLIs for sub-interfaces will follow long name format.
 
 ### 2.1.2 config_db.json
 ```
@@ -137,11 +140,11 @@ All click config & show CLIs for sub-interfaces will follow long name format.
         "admin_status" : "{{ adminstatus }}",
         "vrf_name" : <vrf-name>
     },
-    "{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}": {}
+    "{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}": {}
 },
 ```
 A key in the VLAN_SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot).
-The section before the dot is the name of the parent physical port or port channel. The section after the dot is a unique number which uniquely identifies the sub-interface on the parent interface. Sub-interface id value can be in range 0-4294967295.
+The section before the dot is the name of the parent physical port or port channel. The section after the dot is a unique number which uniquely identifies the sub-interface on the parent interface. Sub-interface id value can be in range 1-99999999(Subinterface ID cannot exceed 8 digits).
 
 vlan field identifies the vlan to which the sub-interface is associated using .1Q trunking.
 Note that subinterface_id and vlan_id for a subinterface can be different.
@@ -167,6 +170,7 @@ Example configuration:
 ### 2.1.3 CONFIG_DB
 ```
 VLAN_SUB_INTERFACE|{{ port_name }}.{{ subinterface_id }}
+    "vlan" : "{{ vlan-id }}"
     "admin_status" : "{{ adminstatus }}"
 
 VLAN_SUB_INTERFACE|{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}
@@ -180,7 +184,7 @@ key             = VLAN_SUB_INTERFACE|subif_name      ; subif_name is the name of
 
 ; subif_name annotations
 subif_name      = port_name "." subinterface_id         ; port_name is the name of parent physical port or port channel
-                                                ; subinterface_id is DIGIT 1-4294967295
+                                                ; subinterface_id is DIGIT 1-99999999
 
 ; field         = value
 admin_status    = up / down                     ; admin status of the sub port interface
@@ -233,7 +237,8 @@ VLAN_SUB_INTERFACE|Eth64.10|fc00::/7
 
 ## 2.2 APPL_DB
 ```
-INTF_TABLE:{{ port_name }}.{{ vlan_id }}
+INTF_TABLE:{{ port_name }}.{{ subinterface_id }}
+    "vlan" : "{{ vlan id }}"
     "admin_status" : "{{ adminstatus }}"
 
 ; field         = value
@@ -415,23 +420,39 @@ Internally, a sub port interface is represented as a Port object to be perceived
 ## 3.1 Sub port interface creation
 ![](sub_intf_creation_flow_version_2.png)
 
+* Field vlan added to config_db carries vlan id associated to the subinterface.
+* Sub Interface will be created and treated ready only if vlan corresponding to subinterface is configured.
+
 ## 3.2 Sub port interface runtime admin status change
-
-IntfMgrd subscribes to STATE_DB PORT_TABLE to listen to physical interface port admin status changes
-
 ![](sub_intf_set_admin_status_flow_version_2.png)
+
+Admin status of the subinterface is tied to its parent interface admin status:
+* Kernel does not allow subinterface netdev UP until its parent netdev is UP.
+* IntfMgrd looks up the admin status of parent interface from STATE_DB|PORT_TABLE.
+    - OP: admin UP of subinterface: If Parent interface is admin UP, subinterface admin UP is performed.
+    - OP: admin down of subinterface: No dependency on parent interface admin status. Subinterface admin down performed.
+* IntfMgrd also subscribes to STATE_DB|PORT_TABLE and APPL_DB|LAG_TABLE for parent interface admin status change to update associated subinterface admin status.
 
 ## 3.3 Sub port interface removal
 ![](sub_intf_removal_flow.png)
 
 ## 3.4 Sub port MTU Configuration
-
-IntfMgrd subscribes to STATE_DB PORT_TABLE to listen to MTU change on physical and portchannel interfaces.
-
-Subinterface MTU should be <= Parent interface MTU. 
-Linux kernel does not allow subinterface netdev MTU to exceed Parent interface netdev MTU.
-
 ![](sub_intf_set_mtu_flow_version_2.png)
+
+MTU on subinterface has dependency on MTU configured on parent interface.
+
+* Kernel does not allow subinterface netdev MTU to exceed its parent netdev MTU.
+* By default kernel inherits subinterface netdev MTU from parent netdev.
+* If Parent netdev MTU is updated to lower value than any of its subinterface netdev MTU, kernel updates subinterface netdev MTU to parent netdev MTU. But, kernel does NOT restore previous subinterface MTU if parent netdev MTU is configured > subinterface MTU.
+
+To solve above dependency:
+
+* Whenever MTU is updated on subinterface
+    - If configured MTU <= Parent MTU, update subinterface MTU.
+    - If configured MTU > Parent interface MTU, do not update subinterface MTU and cache the configured MTU.
+* IntfMgrd subscribes to STATE_DB|PORT_TABLE & APPL_DB|LAG_TABLE.
+    - If Parent interface MTU is changed to < subinterface MTU, APPL_DB|INTF_TABLE for subinterface is updated to parent interface MTU.
+    - If Parent interface MTU is changed to > subinterface MTU, update subinterface MTU to user configured subinterface MTU.
 
 # 4 CLIs
 ## 4.1 Config commands
@@ -616,7 +637,48 @@ Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. 
 ![](vlan_intf_rif.png "Fig. 3: Vlan interface")
 __Fig. 3: Vlan interface__
 
-# 10 Open questions:
+# 10 API Library
+All DB & Kernel netdev corresponding to the subinterface should be created with a short name.
+All applications interacting/maintaining these netdev should be aware of this mapping.
+
+## 10.1 CPP Library
+In CPP, applications can use subintf class provided by swss-common library to fetch attributes of subinterface.
+
+Subintf class provides below methods:
+
+1. isValid()
+This method returns true if the subinterface is valid.
+Subinterface will be considered valid if it follows format Ethxxx.yyyy, Poxxx.yyyy, Ethernetxxx.yyyy & PortChannelxxx.yyyy
+
+2. subIntfIdx()
+Returns a subinterface index as an integer type.
+
+3. longName()
+Returns subinterface name in longname format.
+
+4. shortName()
+Returns subinterface name in shortname format.
+
+5. parentIntfLongName()
+Returns parent interface name in longname format.
+
+6. parentIntfShortName()
+Returns parent interface in shortname format.
+
+
+## 10.2 Python Library
+In Python, applications can use interface library in utilities_common  to perform conversion to longname or shortname.
+
+1. intf_get_longname()
+Returns interface in longname format. 
+It returns a longname format for both subinterface and parent interface depending on what argument is being passed.
+
+2. intf_get_shortname()
+Returns interface in shortname format. 
+It returns a shortname format for both subinterface and parent interface depending on what argument is being passed.
+
+
+# 11 Open questions:
 1. Miss policy to be defined in SAI specification
 
     When a 802.1q tagged packet is received on a physical port or a port channel, it will go to the sub port interface that matches the VLAN id inside the packet.
@@ -625,10 +687,10 @@ __Fig. 3: Vlan interface__
     As shown in Fig. 1, there is possiblity that a physical port or a port channel may not have a RIF type port created.
     In this case, if an untagged packet is received on the physical port or port channel, what is the policy on handling the untagged packet?
 
-# 11 Acknowledgment
+# 12 Acknowledgment
 Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Prince, Pavel, and Qi in particular, Itai with Mellanox for all discussions that shape the design proposal, and community members for comments and feedbacks that improve the design.
 
-# 12 References
+# 13 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998
