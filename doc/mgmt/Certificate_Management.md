@@ -74,6 +74,7 @@ This document provides comprehensive functional and design information about the
 | CA                       | Certificate Authority               |
 | PEM                      | Privacy Enhanced Mail               |
 | CRL                      | Certificate Revocation List         |
+
 # 1 Feature Overview
 
 X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem manually. Then you must configure the redis keys manually as well and restart the services. There is also the issue of upgrades where the location of the certificates are placed is not preserved causing these services to break until the files locations are restored. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
@@ -96,15 +97,18 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 1.2 Requirements
 
 ### Overview
-  - Certificate Management is a set of YANG models, CLIs and scripts to generate, install, configure and monitor PKI certificates and the services that use them. Security profiles will be used to associate a service with a certificate and key pair.
+  - The certificate management feature should allow for host and CA certificates to be installed, generated and removed as well as applied to specific applications. Certificates should also be validated and monitored for issues such as expiration and revocation.
+
 
 ### Functionality
   - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
-  - Create YANG model for managing certificate and security profile information.
-  - Create scripts to generate, download and verify certificates as well as configure services.
-  - Integrate with sysmonitor.py to periodically validate certificates/configurations and raise alarms if needed.
-  - Create CLI to generate/download certificates & signing requests and configure services.
-  - Integrate with gNOI Certificate RPCs.
+  - Add ability to install host and CA certificates
+  - Add ability to remove host and CA certificates
+  - Add ability to configure CRL
+  - Add ability to generate self-signed certificates as well as certificate signing requests
+  - Add ability to associate host and CA certs with application
+  - Add CLIs to configure and manage certificates
+  - Add validation and monitoring of certificates
 
 ### Interfaces
  - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI/gNOI interfaces on the management interface.
@@ -124,7 +128,8 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Configure CRL download location(s)
   - Configure CRL Override
   - Display CRL
-  - Create new security profile4.15. - Delete security profile
+  - Create new security profile
+  - Delete security profile
   - Associate a certificate and private key file with a security-profile
   - Apply security profile to service
   - Remove association of security profile with service
@@ -170,6 +175,7 @@ The YANG model will describe the following structure(s) and field(s):
   - security-profile
     - profile-name
     - certificate-filename
+    - CA Store (System or app specific)
     - revocation-check
     - peer-name-check
     - key-usage-check
@@ -201,8 +207,6 @@ In addition, to facilitate local generation of self-signed certificates and easi
 | crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
 | crypto-cdp-delete | This procedure is used to install an X.509 certificate revocation list |
 | crypto-cdp-add | This procedure is used to install an X.509 certificate revocation list |
-| crypto-crl-install | This procedure is used to install an X.509 certificate revocation list |
-| crypto-crl-delete | This procedure is used to delete an X.509 certificate revocation list |
 | crypto-cert-generate | This procedure is used to create X.509 CSRs and self-signed certificates |
 
 
@@ -225,41 +229,67 @@ A new CLI will be added with the following commands:
 | crypto security-profile | Create security-profile |
 | crypto security-profile certificate | Associate security-profile with certificate|
 
-
 **Note:**
-Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.)
+Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.). The CLIs will follow the format below:
+
+`rest security-profile <profile-name>`
+
+### 1.3.4 Validation
+
+When the security-profile model is configured and the RPC's are called, the data and files passed will be validated and return appropriate errors if invalid configuration is applied. The following validations will be run at configuration time:
+
+**Table 5: Validations**
+
+| **Operation** | **Condition** | **Response** |
+| ------------- | ------------- | ------------ |
+| Host cert install | Invalid Certificate | Return invalid certificate error |
+| Host cert install | Expired Certificate | Return expired certificate error |
+| Host cert install | Revoked Certificate | Return revoked certificate error |
+| CA cert install | Invalid Certificate | Return invalid certificate error |
+| CA cert install | Expired Certificate | Return expired certificate error |
+| CA cert install | Revoked Certificate | Return revoked certificate error |
+| Delete Host Cert | Certificate in use | Return certificate in use error |
+| Delete CA Cert | Certificate in use | Return certificate in use error |
 
 
-### 1.3.4 Monitoring
+In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
 
-The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, rais the appropriate alarm:
+### 1.3.5 Monitoring
 
-**Table 5: Alarms**
+The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, raise the appropriate alarm:
 
-| **Alarm Name** | **Severity** | **Description** |
-| -------------- | ------------ | --------------- |
-| Certificate Expiration | WARNING | The host certificate is within 7 days of expiring |
-| Certificate Expired | CRITICAL | The host certificate has expired |
-| CA Certificate Expiration | WARNING | The CA certificate is within 7 days of expiring |
-| CA Certificate Expired | CRITICAL | The CA certificate has expired |
-| Revoked Certificate | CRITICAL | The host certificate has been revoked |
-| Revoked CA Certificate | CRITICAL | The CA certificate has been revoked |
-| Certificate Misconfigured | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
-| CA Certificate Misconfigured | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
+**Table 6: Alarms**
 
-### 1.3.5 Directory Structure
+| **Name** | **Type** | **Severity** | **Description** |
+| -------- | -------- | ------------ | --------------- |
+| Certificate Expiration | EVENT | WARNING | The host certificate is within 60 days of expiring |
+| Certificate Expiration | EVENT | WARNING | The host certificate is within 30 days of expiring |
+| Certificate Expiration | EVENT | WARNING | The host certificate is within 14 days of expiring |
+| Certificate Expiration | EVENT | WARNING | The host certificate is within 7 days of expiring |
+| Certificate Expired | ALARM | CRITICAL | The host certificate has expired |
+| CA Certificate Expiration | EVENT | WARNING | The CA certificate is within 60 days of expiring |
+| CA Certificate Expiration | EVENT | WARNING | The CA certificate is within 30 days of expiring |
+| CA Certificate Expiration | EVENT | WARNING | The CA certificate is within 14 days of expiring |
+| CA Certificate Expiration | EVENT | WARNING | The CA certificate is within 7 days of expiring |
+| CA Certificate Expired | ALARM | CRITICAL | The CA certificate has expired |
+| Revoked Certificate | ALARM | CRITICAL | The host certificate has been revoked |
+| Revoked CA Certificate | ALARM | CRITICAL | The CA certificate has been revoked |
+| Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
+| CA Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
+
+### 1.3.6 Directory Structure
 
 THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target.
 
-### 1.3.6 Application Associations
+### 1.3.7 Application Associations
 
 Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require chaning the applications. The association will be managed by per-application CLI.
 
-### 1.3.7 Container
+### 1.3.8 Container
 
 No new containers are introduced for this feature. Existing Mgmt container will be updated.
 
-### 1.3.8 SAI Overview
+### 1.3.9 SAI Overview
 
 No new or existing SAI services are required
 
