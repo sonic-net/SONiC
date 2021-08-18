@@ -134,6 +134,13 @@ $(CPU_REPORT)_VERSION = 1.0.0
 SONIC_PACKAGES += $(CPU_REPORT)
 ```
 
+Additional options:
+
+```
+$(CPU_REPORT)_DEFAULT_FEATURE_STATE_ENABLED # "y" or "n" - whether feature is enabled by default at system start. Sets enabled in the FEATURE table. Disabled by default.
+$(CPU_REPORT)_DEFAULT_FEATURE_OWNER # "local" or "kube". Default is "local".
+```
+
 ### Manifest Reference
 
 Label that manifest content should be written to:
