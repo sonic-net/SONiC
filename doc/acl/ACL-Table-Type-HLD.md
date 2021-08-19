@@ -3,6 +3,22 @@
 
 <!-- omit in toc -->
 ## Table of Content
+- Revision
+- Scope
+- Definitions/Abbreviations
+- Overview
+- Requirements
+- Architecture Design
+- High-Level Design
+- SAI
+- Orchagent
+  - Mirror table type: combined/separated table
+- Syncd
+- CONFIG DB
+  - Control plane tables
+- Initial CONFIG DB
+- Flows
+- Open questions
 
 ### Revision
 
@@ -116,7 +132,7 @@ with IPv4 and IPv6 keys.
 3. Put this as a configuration in CONFIG DB. E.g, for certain two table types define "combined_v4_v6_mode". This configuration can come from init_cfg.json at start as well
 as default table types.
 
-In this design option 2 is chosen since it maintains current behaviour and does not expose different treatment of mirror tables
+In this design option 2 is chosen since it maintains current behavior and does not expose different treatment of mirror tables
 based on ASIC vendor to the user.
 
 ### Syncd
@@ -203,6 +219,21 @@ container ACL_TABLE_TYPE {
 }
 ```
 
+#### Control plane tables
+
+Control plane table are moved to its own table in CONFIG DB to not overlap with HW ACL tables.
+
+```json
+"CTRL_PLANE_ACL_TABLE": {
+    "SSH_ONLY": {
+        "policy_desc": "SSH only",
+        "services": [
+            "SSH"
+        ],
+        "stage": "ingress"
+    }
+}
+```
 
 ### Initial CONFIG DB
 
