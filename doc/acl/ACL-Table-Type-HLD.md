@@ -13,11 +13,16 @@
 - SAI
 - Orchagent
   - Mirror table type: combined/separated table
+  - ACL rule object model
 - Syncd
 - CONFIG DB
   - Control plane tables
 - Initial CONFIG DB
 - Flows
+  - ACL table type create flow
+  - ACL table type update flow
+  - ACL table type remove flow
+  - ACL rule update flow
 - Open questions
 
 ### Revision
@@ -96,8 +101,9 @@ private:
 }
 ```
 
-Orchagent's ACL orch AclRule::make_shared makes decision which AclRule child instance to create based on table type.
-Since orchagent does not know.
+Orchagent's AclRule::make_shared makes decision which AclRule child instance to create based on table type.
+Since orchagent does not know all the table types there should be single AclRule handling all the matches
+and actions and perform validation against the table type configuration.
 
 #### Mirror table type: combined/separated table
 
@@ -134,6 +140,16 @@ as default table types.
 
 In this design option 2 is chosen since it maintains current behavior and does not expose different treatment of mirror tables
 based on ASIC vendor to the user.
+
+#### ACL rule object model
+
+Since the ACL rule is now not bound to a table type (e.g could be table type which supports mirror action, packet action and redirect action at the same time)
+a single AclRule implementation should account for all. The AclRuleBase holds common implementation to validate, create and remove the rule allowing
+other orchs to override the behavior.
+
+<p align=center>
+<img src="img/acl-rule-object-model.svg" alt="Figure 1. ACL rule model">
+</p>
 
 ### Syncd
 
@@ -253,4 +269,39 @@ of the unsupported type.
 
 ### Flows
 
+#### ACL table type create flow
+
+<p align=center>
+<img src="img/acl-table-type-create-flow.svg" alt="Figure 2. ACL table type create flow">
+</p>
+
+#### ACL table type update flow
+
+ACL table type update would mean recreation of ACL table and ACL rules in that table.
+Currently orchagent does not support changing ACL table type nor changing a set of matches, actions
+and bind points.
+
+#### ACL table type remove flow
+
+ACL table type removal can happen if non of the ACL tables reference it. This validation could be done by YANG
+infrastructure. On the orchagent level, orchagent does not remove it from internal cache unless there are no more
+tables referencing it.
+
+<p align=center>
+<img src="img/acl-table-type-remove-flow.svg" alt="Figure 3. ACL table type remove flow">
+</p>
+
+#### ACL rule update flow
+
+Single AclRule implementation handles updates for mirror, in-band telemetry session state changes.
+
+<p align=center>
+<img src="img/acl-rule-flow.svg" alt="Figure 4. ACL rule update flow">
+</p>
+
 ### Open questions
+
+- SAI does not allow to disable mirror action as it is not @allowempty
+- ACL counters issue: since a rule may have several actions (counter is one of them)
+  the counter counts matched packets and not the packets that are mirrored
+  and this is behavior change.
