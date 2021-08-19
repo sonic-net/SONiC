@@ -77,9 +77,9 @@ This document provides comprehensive functional and design information about the
 
 # 1 Feature Overview
 
-X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem manually. Then you must configure the redis keys manually as well and restart the services. There is also the issue of upgrades where the location of the certificates are placed is not preserved causing these services to break until the files locations are restored. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
+X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem manually. Then you must configure the redis keys manually as well and restart the services. There is also the issue of upgrades where the location of the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
-The certificate management feature will introduce a new YANG model and CLI to address the above issues. It will handle certificate generation and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions.
+The certificate management feature will introduce a new YANG model and CLI to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -106,6 +106,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Add ability to remove host and CA certificates
   - Add ability to configure CRL
   - Add ability to generate self-signed certificates as well as certificate signing requests
+  - Add ability to sign CSR's by running in a CA mode
   - Add ability to associate host and CA certs with application
   - Add CLIs to configure and manage certificates
   - Add validation and monitoring of certificates
@@ -133,6 +134,8 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Associate a certificate and private key file with a security-profile
   - Apply security profile to service
   - Remove association of security profile with service
+  - Have "CA mode" where switch generates CA certificate and can then sign certificates for other switches
+  - Have option to specify CA server to have your CSR signed by it
 
 ### User Interfaces  
   - The feature is managed through the SONiC Management Framework, including full support for Klish, REST and gNMI  
@@ -170,7 +173,7 @@ To monitor the certificates validity and the correct configuration of the servic
 
 ### 1.3.2 YANG Model
 
-The YANG model will describe the following structure(s) and field(s):
+The security-profile YANG model will describe the following structure(s) and field(s):
 
   - security-profile
     - profile-name
@@ -179,6 +182,15 @@ The YANG model will describe the following structure(s) and field(s):
     - revocation-check
     - peer-name-check
     - key-usage-check
+
+This model will be for the CA server mode:
+
+  - ca-mode
+    - ca-mode (true|false)
+    - csr-list
+      - csr-hostname
+      - csr-source
+
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
@@ -208,7 +220,8 @@ In addition, to facilitate local generation of self-signed certificates and easi
 | crypto-cdp-delete | This procedure is used to install an X.509 certificate revocation list |
 | crypto-cdp-add | This procedure is used to install an X.509 certificate revocation list |
 | crypto-cert-generate | This procedure is used to create X.509 CSRs and self-signed certificates |
-
+| crypto-cert-ca-sign | Sign CSR that was sent to us |
+| crypto-cert-signed-cert-get | Get/Download the signed certificate after the CA has signed it |
 
 ### 1.3.3 KLISH CLI
 
@@ -227,7 +240,16 @@ A new CLI will be added with the following commands:
 | show crypto ca-certs | Show installed CA certificates |
 | show file cert | Show raw certificate file in PEM format |
 | crypto security-profile | Create security-profile |
-| crypto security-profile certificate | Associate security-profile with certificate|
+| crypto security-profile certificate | Associate security-profile with certificate |
+| crypto ca-server mode | Enable CA server/client or disabled |
+| crypto ca-server host | The CA server hostname/ip if in client mode |
+| crypto ca-server list-csr | Show list of CSRs sent to us to be signed |
+| crypto ca-server show-csr | Show details of CSR |
+| crypto ca-server sign-csr | Sign CSR sent to us |
+| crypto ca-server reject-csr | Reject and delete CSR sent to us |
+
+
+The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically.
 
 **Note:**
 Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.). The CLIs will follow the format below:
@@ -250,6 +272,7 @@ When the security-profile model is configured and the RPC's are called, the data
 | CA cert install | Revoked Certificate | Return revoked certificate error |
 | Delete Host Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate in use | Return certificate in use error |
+| CSR Create | Invalid CSR | Return invalid CSR error |
 
 
 In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
@@ -277,13 +300,16 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 | Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
 | CA Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
 
+
+Also, the CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
+
 ### 1.3.6 Directory Structure
 
 THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target.
 
 ### 1.3.7 Application Associations
 
-Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require chaning the applications. The association will be managed by per-application CLI.
+Applications associations with certificates will be done the same way as they currently are via per-application redis DB keys for certificate location and CA certificate location. This will preserve backwards compatibility and does not require changing the applications. The association will be managed by per-application CLI.
 
 ### 1.3.8 Container
 
