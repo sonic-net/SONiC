@@ -128,7 +128,7 @@ See https://github.com/Azure/sonic-buildimage/blob/master/rules/sonic-packages.m
 
 Create a file under rules/ called rules/cpu-report.mk with the following content:
 ```makefile
-CPU_REPORT = cpu-report 
+CPU_REPORT = cpu-report
 $(CPU_REPORT)_REPOSITORY = stepanblyschak/cpu-report
 $(CPU_REPORT)_VERSION = 1.0.0
 SONIC_PACKAGES += $(CPU_REPORT)
@@ -182,8 +182,7 @@ The value should contain a JSON serialized as a string.
 | /service/requisite | list of strings | no        | List of SONiC services that are requisite for this package.<p>The option maps to systemd's unit "Requisite=".                                                                               |
 | /service/wanted-by | list of strings | no        | List of SONiC services that wants for this package.<p>The option maps to systemd's unit "WantedBy=".                                                                                        |
 | /service/after     | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start after on system boot.                                                                                         |
-| /service/before    | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start before on system boot.                                                                                        |
-| /service/wanted-by | list of strings | no        | Services list that "wants" this service. Maps to systemd's WantedBy                                                                                                                         |
+| /service/before    | list of strings | no        | Boot order dependency. List of SONiC services the application is set to start before on system boot.                                                                                        |                                                                                                                   |
 | /service/delayed   | boolean         | no        | Wether to generate a timer to delay the service on boot. Defaults to false.                                                                                                                 |
 | /service/dependent-of        | lits of strnigs | no        | List of SONiC services this application is dependent of.<p>Specifying in this option a service X, will regenerate the /usr/local/bin/X.sh script and upgrade the "DEPENDENT" list with this package service.<p>This option is warm-restart related, a warm-restart of service X will not trigger this package service restart.<p>On the other hand, this service package will be started, stopped, restarted togather with service X.<p>Example:<p>For "dhcp-relay", "radv", "teamd" this field will have "swss" service in the list. |
 | /service/post-start-action   | string          | no        | Path to an executable inside Docker image filesystem to be executed after container start.<p>A package may use this field in case a systemd service should not reach started state before some condition. E.g.: A database service should not reach started state before redis process is not ready. Since, there is no control, when the redis process will start a "post-start-action" script may execute "redis-cli ping" till the ping is succeessful.                                                                            |
