@@ -186,7 +186,7 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-if-aggregate:aggregation/state/fallback                                                      | Y            | N(disallow)      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-if-aggregate:aggregation/state/fast-rate                                                     | Y            | N(disallow)      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-if-aggregate:aggregation/state/member                                                                | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4                                                | Y            | Y      | Y      | Y      | Y               |
+| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4                                                | N(rej)            | N(rej)      | N(rej)      | N(rej)      | N(rej)               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses                                              | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=*]                                | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=*]/config                         | Y            | Y      | Y      | Y      | Y               |
@@ -197,7 +197,7 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/ip                       | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/prefix-length            | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/secondary                | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6                                                | Y            | Y      | Y      | Y      | Y               |
+| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6                                                | N(rej)            | N(rej)      | N(rej)      | N(rej)      | N(rej)               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses                                              | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=*]                                | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=*]/config                         | Y            | Y      | Y      | Y      | Y               |
@@ -206,7 +206,7 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=*]/state                          | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=*]/state/ip                       | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=*]/state/prefix-length            | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4                                 | Y            | Y      | Y      | Y      | Y               |
+| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4                                 | N(rej)            | N(rej)      | N(rej)      | N(rej)      | N(rej)               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses                                      | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses/address[ip=*]                        | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses/address[ip=*]/config                 | Y            | Y      | Y      | Y      | Y               |
@@ -217,7 +217,7 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/ip               | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/prefix-length    | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/addresses/address[ip=*]/state/secondary        | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6                                 | Y            | Y      | Y      | Y      | Y               |
+| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6                                 | N(rej)            | N(rej)      | N(rej)      | N(rej)      | N(rej)               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses                                      | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]                        | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/config                 | Y            | Y      | Y      | Y      | Y               |
@@ -226,7 +226,6 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/state                  | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/state/ip               | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/state/secondary        | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4                                                | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors                                      | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]                       | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]config                   | Y            | Y      | Y      | Y      | Y               |
@@ -235,7 +234,6 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state                     | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state/ip                | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state/link-layer-address      | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6                                                | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors                                      | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]                                        | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]/config                        | Y            | Y      | Y      | Y      | Y               |
@@ -244,7 +242,6 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]/state                       | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]/state/ip                    | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]/state/link-layer-address    | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4                                  | Y          | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors                        | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]         | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/config  | Y            | Y      | Y      | Y      | Y               |
@@ -253,7 +250,6 @@ TARGET_DEFINED
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state           | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state/ip       | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv4/neighbors/neighbor[ip=*]/state/link-layer-address      | Y            | Y      | Y      | Y      | Y               |
-| openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6                            | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/neighbors                  | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]   | Y            | Y      | Y      | Y      | Y               |
 | openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/neighbors/neighbor[ip=*]/config   | Y            | Y      | Y      | Y      | Y               |
