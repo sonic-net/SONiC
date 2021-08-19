@@ -431,6 +431,8 @@ In Srv6Orch, it will mark which route entry is Srv6 modified and having higher p
 
 If the SID subnet (above example, BABA:1001:0:10::) is directly connected, the nexthop could be found, if not, we should have a controller to indicate nexthop information for subnet BABA:1001:0:10::, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE. 
 
+**An Example as below:**
+![draw-configdb](images/Srv6Example.png)
 
 
 ## 2.3 Orchestration Agent Changes
