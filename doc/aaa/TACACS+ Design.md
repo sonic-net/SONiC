@@ -121,7 +121,7 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
  - TACACS AAA are fully configurable by config DB.
 
 ## 2.3 Counter
- - Support  AAA counter:
+ - Support  AAA counter, this will be low priority:
 ```
     show tacacs counter
     
@@ -159,7 +159,6 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
  - A bash plugin to support TACACS+ authorization.
    - Use TACACS+ setting from TACACS+ authentication.
    - Use libtac library from [pam_tacplus](#pam_tacplus) for TACACS+ protocol.
-   - Bash configuration file for root user not enable this plugin, root user only use local Authorization. 
 
 The following figure show how Bash plugin work with TACACS+ server.
 ```
@@ -209,7 +208,7 @@ SSH/Console           SONiC Device                     TACACS+ Server
 ```
 
  - The hostcfg enforcer reads data from configDB to configure host environment.
-   - The AAA config module in hostcfg enforcer is responsible for modifying Bash configuration files in host.
+   - The AAA config module in hostcfg enforcer is responsible for modifying Bash configuration files in host. this will be low priority.
    - For how TACACS+ config file update, please check [TACACS+ Authentication](#TACPLUS-Authentication)
 
 The following figure show how Bash config and TACACS+ config update by ConfigDB.
@@ -263,7 +262,7 @@ The following figure show how audisp-tacplus work with TACACS+ server.
 
 
  - The hostcfg enforcer reads data from configDB to configure host environment.
-   - The AAA config module in hostcfg enforcer is responsible for modifying Auditd configuration files in host.
+   - The AAA config module in hostcfg enforcer is responsible for modifying Auditd configuration files in host. this will be low priority.
    - For how TACACS+ config file update, please check [TACACS+ Authentication](#TACPLUS-Authentication)
 
 The following figure show how Auditd config an TACACS+ config update by ConfigDB.
@@ -292,11 +291,19 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
 
 ## 4.3 ConfigDB Schema
  - Existing tables, for more detail please check [TACACS+ Authentication](#TACPLUS-Authentication)
-   - AAA Table.
    - TACPLUS Table
    - TACPLUS_SERVER Table.
+   - AAA Table (updated).
+```
+; Key
+aaa_key              = 1*32VCHAR          ; AAA type "authentication"/"authorization"/"accounting"
+; Attributes
+protocol             = LIST(1*32VCHAR)   ; AAA protocol, now only support (local, tacacs+)
+fallback             = "True" / "False"  ; fallback mechanism for pam modules
+failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
+```
 
- - New Tables
+ - New Tables (low priority)
    - Bash_Plugin Table schema
 ```
 ; Key
@@ -329,7 +336,7 @@ keyname          = 1*32VCHAR           ; key name, for more detail, please check
     // authorization with TACACS+ server
     config aaa authorization tacacs
     
-    // authorization with TACACS+ local
+    // authorization with local, disable tacacs authorization
     config aaa authorization local
 ```
 
@@ -454,12 +461,14 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 ```
     Verify TACACS+ user can run command not in server side whitelist but have permission in local.
     Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
+    Verify Local user can login, and run command with local permission.
 ```
 
 - config AAA authorization with local:
 ```
     Verify TACACS+ user can run command if have permission in local.
     Verify TACACS+ user can't run command if not have permission in local.
+    Verify Local user can login, and run command with local permission.
 ```
 
 - config AAA accounting with TACACS+ only:
