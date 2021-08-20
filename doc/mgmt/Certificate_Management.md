@@ -402,6 +402,11 @@ ca-mode:
 *This content should go into the following sub-sections.*
 
 #### 3.6.2.1 Configuration Commands
+
+*Install Certificate*
+
+crypto ca-cert install
+
 #### 3.6.2.2 Show Commands
 #### 3.6.2.3 Exec Commands
 *e.g. "Clear" commands*
