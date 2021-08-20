@@ -375,7 +375,7 @@ security-profile:
 ca-mode:
 
     +--rw ca-mode
-       +--rw ca-mode            bool
+       +--rw ca-mode                bool
        +--rw csr-list* [csr-hostname]
            +--rw csr-hostname       string
            +--rw csr-source         string
