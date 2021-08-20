@@ -224,7 +224,6 @@ sonic_dump_sonic_20210405_202756 = python3.1617684247.17.core;1617684249;snmp-su
 
 #### AUTO_TECHSUPPORT|FEATURE_PROC_INFO
 
-CRITICAL_PROC = "AUTO_TECHSUPPORT|FEATURE_PROC_INFO"
 ```
 key = "AUTO_TECHSUPPORT|FEATURE_PROC_INFO"
 <executable_name:pid> = <feature_name;supervisor_proc_name>
@@ -305,17 +304,18 @@ Potential Syslog messages which can be logged are:
 DATE sonic INFO coredump_gen_handler[pid]: Global Cooloff period has not passed. Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
 DATE sonic INFO coredump_gen_handler[pid]: Process Cooloff period for snmp has not passed.Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
 DATE sonic INFO coredump_gen_handler[pid]: "show techsupport --since '2 days ago'" is successful, sonic_dump_sonic_20210721_235228.tar.gz is created 
-DATE sonic INFO coredump_gen_handler[pid]: No Cleanup is performed, current size occupied: 456 MB
+DATE sonic INFO coredump_gen_handler[pid]: core-usage argument is not set. No Cleanup is performed, current size occupied: 456 MB
 DATE sonic INFO coredump_gen_handler[pid]: 12 MB deleted from /var/core.
-DATE sonic NOTICE coredump_gen_handler[pid]:  No Corresponding Exit event info was found for python3.1629401152.23.core.gz. Techsupport Invocation is skipped
+DATE sonic INFO coredump_gen_handler[pid]:  No Corresponding Exit event info was found for python3.1629401152.23.core.gz. Techsupport Invocation is skipped
 DATE sonic NOTICE coredump_gen_handler[pid]:  auto_invoke_ts is not enabled. No Techsupport Invocation will be performed. core: python3.1629401152.23.core.gz
 DATE sonic NOTICE coredump_gen_handler[pid]:  auto-techsupport feature for swss is not enabled. Techsupport Invocation is skipped. core: python3.1629401152.23.core.gz
+DATE sonic NOTICE coredump_gen_handler[pid]:  coredump_cleanup is disabled. No cleanup is performed
 DATE sonic ERR coredump_gen_handler[pid]:  "show techsupport --since '2 days ago'" was run, but no techsupport dump is found
 ```
 
 ### 6.3 Requirements for FEATURE_PROC_INFO table
 
-A coredump generate will be of format <proc_comm_name>.<timestamp>.<pid>.core.gz. comm name is typically the executable file name. The dump name is the only information directly available to coredump_gen_handler script. And Just by looking at this, it not possible to infer if the coredump generated is of a particular critical process. That missed information is read from AUTO_TECHSUPPORT|FEATURE_PROC_INFO table. 
+A coredump generate will be of format `<proc_comm_name>.<timestamp>.<pid>.core.gz`. comm name is typically the executable file name. The dump name is the only information directly available to coredump_gen_handler script. And Just by looking at this, it not possible to infer if the coredump generated is of a particular critical process. That information is read from AUTO_TECHSUPPORT|FEATURE_PROC_INFO table. 
  
 Producer for this table is the supervisor-proc-exit-listener script running inside every docker. This script is an event listener for PROC_EXIT & PROC_RUNNING events for the processes running inside the docker and is naturally the right fit to populate the AUTO_TECHSUPPORT|FEATURE_PROC_INFO table. 
  
@@ -334,7 +334,8 @@ A script under the name `techsupport_cleanup.py` is added to `/usr/local/bin/` d
 
 Potential Syslog messages which can be logged are:
 ```
-DATE sonic NOTICE techsupport_cleanup[pid]: /var/dump/ cleanup is performed. current number of dumps: 4
+DATE sonic NOTICE techsupport_cleanup[pid]:  techsupport_cleanup is disabled. No cleanup is performed
+DATE sonic INFO coredump_gen_handler[pid]: max-techsupport-size argument is not set. No Cleanup is performed, current size occupied: 456 MB
 ```
 
 ### 6.5 Warmboot consideration
