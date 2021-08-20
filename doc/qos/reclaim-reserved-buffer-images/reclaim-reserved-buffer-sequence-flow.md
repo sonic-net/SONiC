@@ -57,7 +57,7 @@ sequenceDiagram
         opt zero profiles exist
             Note over sonic cfggen, DATABASE: Generate items for inactive ports by rendering bufer template if zero profiles exist
             loop for each inactive port
-                sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_QUEUE table for queue 0-2, 3-4, 5-6
+                sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_QUEUE table for queue 0-7
                 sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_PORT_INGRESS_PROFILE_LIST table
                 sonic cfggen ->> DATABASE: Generate zero buffer profile item in BUFFER_PORT_EGRESS_PROFILE_LIST table
                 sonic cfggen ->> DATABASE: Generate zero buffer profile item for lossy PG 0 in BUFFER_PG table
@@ -197,12 +197,12 @@ sequenceDiagram
     User ->> CONFIG_DB: Shutdown the port
     CONFIG_DB ->> buffer manager: Update notification
     rect rgb(255, 0, 255)
-        opt zero buffer profiles NOT exist
-            buffer manager ->> APPL_DB: Create zero buffer profiles
-        end
-        buffer manager ->> buffer manager: Fetch the zero buffer profile on ingress side
         loop for each buffer PG object on the port
             alt lossy priority-group
+                opt zero buffer profile for lossy priority-group does NOT exist
+                    buffer manager ->> APPL_DB: Create zero ingress buffer pool with static threshold mode
+                    buffer manager ->> APPL_DB: Create zero ingress buffer profile referencing the pool
+                end
                 buffer manager ->> APPL_DB: set the profile of the PG to corresponding zero buffer profile in BUFFER_PG
             else
                 rect rgb(255, 255, 255)
@@ -210,17 +210,24 @@ sequenceDiagram
                 end
             end
         end
-        buffer manager ->> buffer manager: Fetch the zero buffer profile on egress side
-        loop for each buffer queue object on the port
-            buffer manager ->> APPL_DB: set the profile of the queue to corresponding zero buffer profile in BUFFER_QUEUE
+        loop For each buffer queue object on the port
+            buffer manager ->> APPL_DB: Remove the buffer queue object
         end
-        alt ingress_lossy_pool exists
-            buffer manager ->> buffer manager: set ingress zero profile list to [ingress_zero_lossless_profile, ingress_zero_lossy_profile]
-        else
-            buffer manager ->> buffer manager: set ingress zero profile list to [ingress_zero_lossless_profile]
+        buffer manager ->> buffer manager: Fetch the egress zero profile
+        opt zero profile does NOT exist
+            buffer manager ->> APPL_DB: Create zero buffer profile
         end
-        buffer manager ->> APPL_DB: set the profile_list of the port to egress zero buffer profile list in BUFFER_PORT_INGRESS_PROFILE_LIST
-        buffer manager ->> buffer manager: set egress zero profile list to [egress_zero_lossless_profile, egress_zero_lossy_profile]
-        buffer manager ->> APPL_DB: set the profile_list of the port to egress zero buffer profile list in BUFFER_PORT_EGRESS_PROFILE_LIST
+        buffer manager ->> APPL_DB: Set the profile of the buffer object to the zero buffer profile
+        loop For each profile_list in [BUFFER_PORT_INGRESS_PROFILE_LIST, BUFFER_PORT_EGRESS_PROFILE_LIST]
+            loop For each profile in profile_list
+                Note over buffer manager, APPL_DB: Check and create zero profile for a pool
+                    buffer manager ->> buffer manager: Fetch the zero profile of the pool referenced by the profile
+                    opt Zero profile does NOT exist
+                        buffer manager ->> APPL_DB: Create zero buffer profile for the pool
+                    end
+                buffer manager ->> buffer manager: Add the zero_profile to the list
+                buffer manager ->> APPL_DB: Update the profile list
+            end
+        end
     end
 ```
