@@ -226,14 +226,14 @@ sonic_dump_sonic_20210405_202756 = python3.1617684247.17.core;1617684249;snmp-su
 
 ```
 key = "AUTO_TECHSUPPORT|FEATURE_PROC_INFO"
-<executable_name:pid> = <feature_name;supervisor_proc_name>
+<feature_name;supervisor_proc_name> = <executable_name:pid>
 ```
 
 Eg:
 ```
-<orchagent:20> = "swss;orchagent"
-<python3:22>   = "snmp;snmp-subagent"
-<python2:33>   = "lldp;lldp_syncd"
+<swss;orchagent> = <orchagent;20>
+<snmp;snmp-subagent> = <python3;22>
+<lldp;lldp_syncd> = <python2;33>
 ```
 
 ## 5. CLI Enhancements.
