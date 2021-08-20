@@ -156,9 +156,9 @@ For the containers:
     
    Below is an example of updated timestamp in the logs. The UTC offset is the difference in hours and minutes from UTC for a specific timezone. Note that the UTC offset for the same timezone will be different depending on if DST is active.      
    ```
-   Jul 20 00:00:30.251175-07.00 2021     
+   Jul 20 00:00:30.251175-07:00 2021     
    ...
-   Nov 18 00:06:14.025528-08.00 2021  
+   Nov 18 00:06:14.025528-08:00 2021  
 
    ```
      
@@ -220,7 +220,7 @@ Manage/configure timezone via gNMI, REST and CLI interfaces.
 Manage/configure time&date via gNMI, REST and CLI interfaces.    
            
 ## 2.2 Functional Description
-Provide CLI, gNMI and REST supports for NTP related configurations.
+Provide CLI, gNMI and REST supports for timezone related configurations.
             
 ## 2.3 Backend change to support new configurations
 **timezone**       
