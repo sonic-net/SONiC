@@ -321,56 +321,66 @@ No new or existing SAI services are required
 
 Note that the SAI specification includes a BFD capability for SAI acceleration of BFD - this is not used in this feature
 
-*---------------------------------- Stop here for the first stage review -----------------------------------------*
-
 # 2 Functionality
 
-*Feature specific. Much of the overview and usage should already be covered in section 1. This section is for more detailed functional descriptions as required.*
+The Certificate Management Feature will implement two new YANG models, security-profile and ca-mode. The security-profile model will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode model will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The models will also have RPCs defined for all certificate related actions.
+
+A set of functions will be created in sysmonitor.py that will be used to monitor the certificates and configurations and raise appropriate alarms and events.
 
 # 3 Design
 ## 3.1 Overview
 *Big picture view of the actors involved - containers, processes, DBs, kernel etc. What's being added, what's being changed, how will they interact etc. A diagram is strongly encouraged.*
 
+The models will be implemented in sonic-mgmt-common and will be used by the mgmt-framework and telemetry containers. The sysmonitor.py is in sonic-buildimage and will run on the host. The certificates themselves will be stored on the host in /etc/sonic/cert and will be mounted on all of the containers by default.
+
+The YANG models will store their configuration in the configdb and will add two new tables, for security-profiles and ca-mode.
+
 ### 3.1.1 Service and Docker Management
 
-*Discuss the dockers affected by the feature. If a new service and/or a new docker is introduced, please follow the guidelines below:*
-
-- *Identify the dependencies on other services. This includes the starting order, restart dependencies on other services, etc. Please take the multiple images (Cloud Base, Enterprise Advanced) into consideration - where is this feature included/excluded?*
-- *Identify the processes in the docker and their starting order (if applicable); specify process restartability needs and dependencies*
+No new containers will be added. The models will be configured via mgmt-framework and gNMI. The monitoring will run on the host as part of sysmonitor.py. No new services will be running either since the monitoring will be periodic and handled by sysmonitor.py.
 
 ### 3.1.2 Packet Handling
-*e.g. Discuss CoPP queue/priority and limits here*
+N/A
 
 ## 3.2 DB Changes
-*Describe changes to existing DB tables or any new tables being added. Cover schema and defaults.*
-
-*Note that changes to existing DB contents (keys, fields) should be avoided where possible, and handled very carefully where necessary. Need to consider forward/backward migration etc.*
 
 ### 3.2.1 CONFIG DB
-### 3.2.2 APP DB
-### 3.2.3 STATE DB
-### 3.2.4 ASIC DB
-### 3.2.5 COUNTER DB
-### 3.2.6 ERROR DB
+
+The config DB will contain the new model's information.
 
 ## 3.3 Switch State Service Design
-### 3.3.1 Orchestration Agent
-*List/describe all the orchagents that are added/changed - sub-section for each.*
-
-### 3.3.2 Other Processes 
-*Describe adds/changes to other processes within SwSS (if applicable) - e.g. \*mgrd, \*syncd*
+N/A
 
 ## 3.4 SyncD
-*Describe changes to syncd (if applicable).*
+N/A
 
 ## 3.5 SAI
-*Describe SAI APIs used by this feature. State whether they are new or existing.*
+N/A
 
 ## 3.6 User Interface
 *Please follow the SONiC Management Framework Developer Guide - https://drive.google.com/drive/folders/1J5_VVuwoJBa69UZ2BoXLYW8PZCFIi76K*
 
 ### 3.6.1 Data Models
 *Include at least the short tree form here (as least for standard extensions/deviations, or proprietary content). The full YANG model can be a reference another file as desired.*
+
+security-profile:
+
+    +--rw security-profile* [profile-name]
+       +--rw profile-name            string
+       +--rw certificate-filename?   string
+       +--rw revocation-check?       boolean
+       +--rw peer-name-check?        boolean
+       +--rw key-usage-check?        boolean
+
+ca-mode:
+
+    +--rw ca-mode
+       +--rw ca-mode            bool
+       +--rw csr-list* [csr-hostname]
+           +--rw csr-hostname       string
+           +--rw csr-source         string
+
+
 
 ### 3.6.2 CLI
 *Describe the type (Klish, Click etc) and content of the CLI. Klish is the preferred choice in almost all cases, and we are aiming for 100% coverage. Generally other choices would only be used where you are extending an existing feature with other prior command support.*
