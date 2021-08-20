@@ -746,7 +746,7 @@ Let's imagine what will happen after a XOFF frame has been sent for a priority. 
 1. MAC/PHY delay, which is the bytes held in the SWITCH CHIP's egress pipeline and PHY when XOFF has been generated.
 2. Gearbox delay, which is the latency caused by the Gearbox, if there is one.
 3. KB on cable, which is the bytes held in the cable, which is equals the time required for packet to travel from one end of the cable to the other multiplies the port's speed. Obviously, the time is equal to cable length divided by speed of the light in the media.
-4. Peer response time, which is the bytes that are held in the peer switch's pipeline and will be send out when the XOFF packet is received.
+4. Peer response time, which is the bytes that are held in the peer switch's pipeline and will be send out when the XOFF packet is received. IEEE 802.3 31B.3.7 defines how many pause_quanta shall wait when a switch receives a pause frame at different operating speed. For example, at 40 Gb/s it shall wait for 118 pause_quanta while 394 pause_quanta shall be taken at 100 Gb/s. A pause_quanta equal to 512 bit times(see IEEE 802.3 31B.2).
 
 Let's consider the flow of XOFF packet generating and handling:
 
@@ -773,6 +773,7 @@ Therefore, headroom is calculated as the following:
 - `cell occupancy` = (100 - `small packet percentage` + `small packet percentage` * `worst case factor`) / 100
 - `kb on cable` = `cable length` / `speed of light in media` * `port speed`
 - `kb on gearbox` = `port speed` * `gearbox delay` / 8 / 1024
+- `peer response` = (`number of pause_quanta` * 512) / 8 / 1024
 - `propagation delay` = `port mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
 - `Xon` = `pipeline latency`
 - `Xoff` = `lossless mtu` + `propagation delay` * `cell occupancy`
@@ -787,7 +788,6 @@ The values used in the above procedure are fetched from the following table:
 - `port mtu`: PORT|\<port name\>|mtu, default value is `9100`
 - `gearbox delay`: PERIPHERIAL_TABLE|\<gearbox name\>|gearbox_delay
 - `mac/phy delay`: ASIC_TABLE|\<asic name\>|mac_phy_delay
-- `peer response`: ASIC_TABLE|\<asic name\>|peer_response_time
 - `cell`: ASIC_TABLE|\<asic name\>|cell_size
 - `small packet percentage`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|small_packet_percentage
 - `lossless mtu`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|mtu
