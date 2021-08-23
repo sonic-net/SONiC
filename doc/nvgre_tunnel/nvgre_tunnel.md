@@ -63,7 +63,7 @@ Tunnel stitching - decapsulating VxLAN packet and encapsulating it with NVGRE he
 
 NVGRE orchagent:
 
-- Should be able to create BRIDGE/VLAN/VNI to VSID mapping
+- Should be able to create Bridge/VLAN to VSID mapping
 - Should be able to create tunnels and encap/decap mappers.
 
 ### Architecture Design 
@@ -111,6 +111,23 @@ VSID                                  = DIGITS                        ; 1 to 16 
 VLAN                                  = 1\*4DIGIT                     ; 1 to 4094 Vlan id
 ```
 
+
+#### Orchestration agent
+
+The following orchestration agents will be modified. The flow diagrams are captured in a later section.
+
+<p align=center>
+<img src="images/nvgre_orch.svg" alt="Figure 1. Orchestration agents">
+</p>
+
+#### NvgreOrch
+
+`nvgreorch` - it is an orchestration agent that handles the configuration requests directly from ConfigDB. The `nvgreorch` is responsible for creates the tunnel and attaches encap and decap mappers. Separate tunnels are created for L3 Nvgre and can attach different VLAN/VSID or Bridge/VSID to a respective tunnel.
+
+#### Orchdaemon
+
+`orchdaemon` - it is the main orchestration agent, which handles all Redis DB's updates then calls appropriate an orchagent, the new `nvgreorch` should be registered inside an `orchdaemon`.
+
 ### High-Level Design 
 
 This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
@@ -135,10 +152,20 @@ This section covers the high level design of the feature/enhancement. This secti
 
 ### SAI API 
 
+| NVGRE component | SAI attribute |
+|--------------|---------------------------------------|
+| NVGRE tunnel type | SAI_TUNNEL_TYPE_NVGRE |
+| Encap mapper | SAI_TUNNEL_MAP_TYPE_VLAN_ID_TO_VSID |
+| Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_VLAN_ID |
+| Encap mapper | SAI_TUNNEL_MAP_TYPE_BRIDGE_IF_TO_VSID |
+| Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_BRIDGE_IF |
+
+
 This section covers the changes made or new API added in SAI API for implementing this feature. If there is no change in SAI API for HLD feature, it should be explicitly mentioned in this section.
 This section should list the SAI APIs/objects used by the design so that silicon vendors can implement the required support in their SAI. Note that the SAI requirements should be discussed with SAI community during the design phase and ensure the required SAI support is implemented along with the feature/enhancement.
 
 ### Configuration and management 
+
 This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
 
 #### CLI/YANG model Enhancements 
