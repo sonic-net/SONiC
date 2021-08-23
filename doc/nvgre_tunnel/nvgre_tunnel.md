@@ -47,17 +47,9 @@ This section describes the SONiC requirements for NVGRE feature.
 
 #### Functional requirements
 
-The Spectrum-2 and Spectrum-3 swithes will be deployed as a tunnel gateway. The gateway should be able to connect next-generation VxLAN data centers to legacy network.
-
 At a high level the following should be supported:
 
-- stiching between VxLAN and NVGRE tunnels and vise versa 
-- stiching between VxLAN and GRE tunnels and vise versa 
 - NVGRE tunnel should be able to work in parallel to VxLAN tunnel
-- NVGRE tunnel should be supported on Spectrum-2 based devices and above
-- NVGRE tunnel should be able to support RIF counters
-
-Tunnel stitching - decapsulating VxLAN packet and encapsulating it with NVGRE header.
 
 #### Orchagent requirements
 
@@ -74,12 +66,11 @@ This section should explain how the new feature/enhancement (module/sub-module) 
 
 The new tables will be added to Config DB. Unless otherwise stated, the attributes are mandatory.
 
-#### NVGRE Table
+#### NVGRE configDB table
 
 ```
 NVGRE_TUNNEL|{{tunnel_name}} 
     "src_ip": {{ip_address}} 
-    "dst_ip": {{ip_address}} (OPTIONAL)
 
 NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
     "vsid": {{vsid_id}}
@@ -93,7 +84,6 @@ NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
 key                                   = NVGRE_TUNNEL:name             ; NVGRE tunnel configuration
 ; field                               = value
 SRC_IP                                = ipv4                          ; IPv4 source address
-DST_IP                                = ipv4                          ; IPv4 destination address
 
 ;value annotations
 ipv4          = dec-octet "." dec-octet "." dec-octet "." dec-octet
@@ -114,7 +104,7 @@ VLAN                                  = 1\*4DIGIT                     ; 1 to 409
 
 #### Orchestration agent
 
-The following orchestration agents will be modified. The flow diagrams are captured in a later section.
+The following orchestration agents will be added or modified. The flow diagrams are captured in a later section.
 
 <p align=center>
 <img src="images/nvgre_orch.svg" alt="Figure 1. Orchestration agents">
@@ -122,11 +112,11 @@ The following orchestration agents will be modified. The flow diagrams are captu
 
 #### NvgreOrch
 
-`nvgreorch` - it is an orchestration agent that handles the configuration requests directly from ConfigDB. The `nvgreorch` is responsible for creates the tunnel and attaches encap and decap mappers. Separate tunnels are created for L3 Nvgre and can attach different VLAN/VSID or Bridge/VSID to a respective tunnel.
+`nvgreorch` - it is an orchestration agent that handles the configuration requests directly from ConfigDB. The `nvgreorch` is responsible for creates the tunnel and attaches encap and decap mappers. Separate tunnel maps are created for L3 NVGRE and can attach different VLAN/VSID or Bridge/VSID to a respective tunnel.
 
 #### Orchdaemon
 
-`orchdaemon` - it is the main orchestration agent, which handles all Redis DB's updates then calls appropriate an orchagent, the new `nvgreorch` should be registered inside an `orchdaemon`.
+`orchdaemon` - it is the main orchestration agent, which handles all Redis DB's updates then calls appropriate orchagent, the new `nvgreorch` should be registered inside an `orchdaemon`.
 
 ### High-Level Design 
 
