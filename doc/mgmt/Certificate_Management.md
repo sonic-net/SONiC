@@ -44,12 +44,6 @@
 - [8 Platform](#8-Platform)
 - [9 Limitations](#9-Limitations)
 - [10 Unit Test](#10-Unit-Test)
-- [11 Internal Design Information](#11-Internal-Design-Information)
-    - [11.1 IS-CLI Compliance](#111-IS-CLI-Compliance)
-    - [11.2 Broadcom Packaging](#112-Broadcom-SONiC-Packaging)
-    - [11.3 Broadcom Silicon Considerations](#113-Broadcom-Silicon-Considerations)    
-    - [11.4 Design Alternatives](#114-Design-Alternatives)
-    - [11.5 Broadcom Release Matrix](#115-Broadcom-Release-Matrix)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-Abbreviations)
@@ -415,16 +409,16 @@ crypto ca-cert install
 *URL-based view*
 
 ### 3.6.4 gNMI Support
-*Generally this is covered by the YANG specification. This section should also cover objects where on-change and interval based telemetry subscriptions can be configured.*
+The YANG models defined above will be available to read/wrtie from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
 
 ## 3.7 Warm Boot Support
-*Describe expected behavior and any limitations. Also describe any design artefacts in support of this.*
+N/A
 
 ## 3.8 Upgrade and Downgrade Considerations
-*If any - cover things like DB changes/versioning, config migration etc*
+The certificate directory /etc/sonic/cert must be preserved during upgrades and downgrades. This is acheived using upgrade hook scripts that will copy from the directory to the new partition.
 
 ## 3.9 Resource Needs
-*Describe any significant resource needs for the feature (esp. at scale) - memory, CPU, disk, I/O etc. Only cover for significant needs (designed decision) - not required for small/medium resource usages.*
+N/A
 
 # 4 Flow Diagrams
 *Provide flow diagrams for inter-container and intra-container interactions.*
@@ -441,52 +435,19 @@ crypto ca-cert install
 - *Trace: Please make sure you have incorporated the debugging framework feature (or similar) as appropriate. e.g. ensure your code registers with the debugging framework and add your dump routines for any debug info you want to be collected.*
 
 # 7 Scalability
-*Describe key scaling factors and considerations.*
+N/A
 
 # 8 Platform
-*Describe any platform support considerations (e.g. supported/not, scaling, deviations etc)*
+All sonic platforms will be supported.
 
 # 9 Limitations
-*More detail on the limitations stated in requirements*
+Currently the REST and gNMI processes need to be restarted in order to use new certificates and this can take a minute or more. For REST server in particular, this can be an issue since the sonic-cli must be exited and re-started when REST server restarts due to invalidation of the jwt token.
 
 # 10 Unit Test
-*List unit test cases added for this feature (one-liners). These should ultimately align to tests (e.g SPytest, Pytest) that can be shared with the Community.*
 
-# 11 Internal Design Information
-*Internal BRCM information to be removed before sharing with the community.*
+	- Add certificate
+	- Add security-profile
+	- Apply security-profile to REST & telemetry server and vilidate it is applied correctly
+	- Add CA certificate and client certificate and verify REST & telemetry server can be accessed without insecure mode
 
-## 11.1 IS-CLI Compliance
-*This is here because we don't want to be too externally obvious about a "follow the leader" strategy. However it must be filled in for all Klish commands.*
 
-*The following table maps SONIC CLI commands to corresponding IS-CLI commands. The compliance column identifies how the command comply to the IS-CLI syntax:*
-
-- ***IS-CLI drop-in replace**  – meaning that it follows exactly the format of a pre-existing IS-CLI command.*
-- ***IS-CLI-like**  – meaning that the exact format of the IS-CLI command could not be followed, but the command is similar to other commands for IS-CLI (e.g. IS-CLI may not offer the exact option, but the command can be positioned is a similar manner as others for the related feature).*
-- ***SONIC** - meaning that no IS-CLI-like command could be found, so the command is derived specifically for SONIC.*
-
-|CLI Command|Compliance|IS-CLI Command (if applicable)| Link to the web site identifying the IS-CLI command (if applicable)|
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-| | | | |
-
-***Deviations from IS-CLI:** If there is a deviation from IS-CLI, Please state the reason(s).*
-
-## 11.2 Broadcom SONiC Packaging
-*Cloud base vs. Enterprise etc*
-
-## 11.3 Broadcom Silicon Considerations
-*Where this feature is/not supported, silicon-specific scaling factors and behaviors*
-
-## 11.4 Design Alternatives
-*Please state any significant design alternatives considered (if any), and why these were not chosen*
-
-## 11.5 Broadcom Release Matrix
-*Please state the Broadcom release in which a feature is planned to be introduced. Where a feature spans multiple releases, then please state which enhancements/sub-features go into which Broadcom release*
-|Release|Change(s)|
-|:-------:|:-------------------------------------------------------------------------|
-| | |
