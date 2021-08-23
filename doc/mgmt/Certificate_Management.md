@@ -185,6 +185,12 @@ This model will be for the CA server mode:
       - csr-hostname
       - csr-source
 
+This model will define a CA certificate trust-store:
+
+  - trust-store
+    - name
+    - ca-list
+      - name
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
@@ -241,6 +247,8 @@ A new CLI will be added with the following commands:
 | crypto ca-server show-csr | Show details of CSR |
 | crypto ca-server sign-csr | Sign CSR sent to us |
 | crypto ca-server reject-csr | Reject and delete CSR sent to us |
+| crypto trust-store <name> | Create new or access existing trust-store |
+| crypto trust-store <name> add <ca-name> | Add CA cert to trust-store |
 
 
 The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically.
@@ -352,16 +360,15 @@ N/A
 N/A
 
 ## 3.6 User Interface
-*Please follow the SONiC Management Framework Developer Guide - https://drive.google.com/drive/folders/1J5_VVuwoJBa69UZ2BoXLYW8PZCFIi76K*
 
 ### 3.6.1 Data Models
-*Include at least the short tree form here (as least for standard extensions/deviations, or proprietary content). The full YANG model can be a reference another file as desired.*
 
 security-profile:
 
     +--rw security-profile* [profile-name]
        +--rw profile-name            string
-       +--rw certificate-filename?   string
+       +--rw certificate-name?       leaf-ref
+       +--rw trust-store?            leaf-ref
        +--rw revocation-check?       boolean
        +--rw peer-name-check?        boolean
        +--rw key-usage-check?        boolean
@@ -374,6 +381,12 @@ ca-mode:
            +--rw csr-hostname       string
            +--rw csr-source         string
 
+trust-store:
+
+    +--rw trust-store
+       +--rw name                   string
+       +--rw ca-list* [name]
+           +--rw certificate-name?  leaf-ref
 
 
 ### 3.6.2 CLI
@@ -397,11 +410,71 @@ ca-mode:
 
 #### 3.6.2.1 Configuration Commands
 
-*Install Certificate*
+*Install host certificate*
 
-crypto ca-cert install
+    crypto cert install cert-file <URI> key-file <URI> password <password>
+
+*Delete host certificate*
+
+    crypto cert delete <name|all>
+
+*Install CA Certificate*
+
+    crypto ca-cert install <URI> 
+
+*Delete CA certificate*
+
+    crypto ca-cert delete <name|all>
+
+*Configure CRL frequency*
+
+    crypto x509 crl frequency <days>
+
+*Refresh CRL*
+
+    crypto cert refresh crl
+
+*Configure CRL download location*
+
+    [no] revocation crl identifier
 
 #### 3.6.2.2 Show Commands
+
+*Show host certificate(s)*
+
+    show crypto cert <name|all>
+
+*Show CA cert(s)*
+
+    show crypto ca-cert <name|all>
+
+*Raw PEM Format Certificate*
+
+    show file cert <name>
+
+*Create new or access existing trust-store*
+
+    crypto trust-store <name>
+
+*Add/Remove CA to trust-store*
+
+    [no] ca-cert <name>
+
+*Create new or access existing security-profile*
+
+    security-profile <name>
+
+*Associate host certificate to security-profile*
+
+    certificate <name>
+
+*Associate trust-store to security-profile*
+
+    trust-store <name|system|none>
+
+
+
+
 #### 3.6.2.3 Exec Commands
 *e.g. "Clear" commands*
 
