@@ -66,7 +66,7 @@ This document describes the high-level design of the p4 orchagent in PINS. Refer
 
 ## Overview
 
-The P4RT application and the p4 orchagent (P4Orch) are the new components that PINS introduces into SONiC to support programming the switch through P4 language. The P4RT server application receives the P4 requests from the P4 client and converts them into APPL_DB P4RT table entries. The P4Orch is a new orchagent which lives inside the OrchAgent process and picks up the entries to make the corresponding SAI API calls to program the switch hardware. For more information on PINS architecture design, please refer to the "PINS HLD'' document.
+The P4RT application and the p4 orchagent (P4Orch) are the new components that PINS introduces into SONiC to support programming the switch through P4 language. The P4RT server application receives the P4 requests from the P4 client and converts them into APPL_DB P4RT table entries. The P4Orch is a new orchagent which lives inside the OrchAgent process and picks up the entries to make the corresponding SAI API calls to write to ASIC DB. For more information on PINS architecture design, please refer to the "PINS HLD'' document.
 
 ![drawing](images/p4orch_hld_overview.png)
 
