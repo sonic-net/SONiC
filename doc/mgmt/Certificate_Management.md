@@ -166,7 +166,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 
 The certificate management functionality will be implemented using new YANG models and accompanying KLISH CLI. The functionality of generating new certificate and key pairs, signing request, downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate generation, signing etc. The downloading of the certificates from remote locations will be handled with calls to curl.
 
-To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events.
+To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events and downloading CRL lists.
 
 ### 1.3.2 YANG Model
 
@@ -196,6 +196,15 @@ This model will define a CA certificate trust-store:
     - ca-list
       - name
 
+This model will store information related to certificate revocation distribution points:
+
+  - cdp-config
+    - frequency
+    - last-checked
+    - cdp-list
+      - url
+
+
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
 **Table 2: gNOI RPCs**
@@ -222,7 +231,7 @@ In addition, to facilitate local generation of self-signed certificates and easi
 | crypto-host-cert-install | This procedure is used to install the X.509 host certificate |
 | crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
 | crypto-cdp-delete | This procedure is used to install an X.509 CRL distribution point (CDP) |
-| crypto-cdp-add | This procedure is used to install an X.509 CRL distribution port (CDP) |
+| crypto-cdp-add | This procedure is used to install an X.509 CRL distribution point (CDP) |
 | crypto-cert-generate | This procedure is used to create X.509 CSRs or self-signed certificates |
 | crypto-cert-ca-sign | Sign CSR that was sent to us |
 | crypto-cert-ca-csr-install | Send CSR to CA |
@@ -308,6 +317,7 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 | Revoked CA Certificate | ALARM | CRITICAL | The CA certificate has been revoked |
 | Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
 | CA Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
+| CDP connection failed | EVENT | WARNING | Failed to connect and download from CDP server |
 
 
 Also, the CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
@@ -332,7 +342,7 @@ Note that the SAI specification includes a BFD capability for SAI acceleration o
 
 # 2 Functionality
 
-The Certificate Management Feature will implement three new YANG models, security-profile and ca-mode. The security-profile model will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode model will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The models will also have RPCs defined for all certificate related actions.
+The Certificate Management Feature will implement new YANG models, security-profile ca-mode, trust-store and cdp-config. The security-profile model will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode model will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The models will also have RPCs defined for all certificate related actions.
 
 A set of functions will be created in sysmonitor.py that will be used to monitor the certificates and configurations and raise appropriate alarms and events.
 
@@ -342,7 +352,7 @@ A set of functions will be created in sysmonitor.py that will be used to monitor
 
 The models will be implemented in sonic-mgmt-common and will be used by the mgmt-framework and telemetry containers. The sysmonitor.py is in sonic-buildimage and will run on the host. The certificates themselves will be stored on the host in /etc/sonic/cert and will be mounted on all of the containers by default.
 
-The YANG models will store their configuration in the configdb and will add three new tables, for security-profiles and ca-mode.
+The YANG models will store their configuration in the configdb and will add new tables, for security-profiles, ca-mode, trust-store and cdp-config.
 
 ### 3.1.1 Service and Docker Management
 
@@ -396,6 +406,13 @@ trust-store:
        +--rw ca-list* [name]
            +--rw certificate-name?  leaf-ref
 
+cdp-config:
+
+    +--rw cdp-config
+       +--rw frequency              integer
+       +--ro last-checked           integer
+       +--rw cdp-list* [url]
+           +rw url?                 string
 
 ### 3.6.2 CLI
 *Describe the type (Klish, Click etc) and content of the CLI. Klish is the preferred choice in almost all cases, and we are aiming for 100% coverage. Generally other choices would only be used where you are extending an existing feature with other prior command support.*
@@ -433,19 +450,99 @@ trust-store:
 
     crypto cert delete <name|all>
 
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The certificate name or all which will delete all host certificates and keys |
+
 #### Install CA Certificate
 
-    crypto ca-cert install <URI> 
+
+     crypto ca-cert install <URI>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| cert-file | Optional certificate file location URI as defined by the file mgmt feature. URL or location alias i.e. home://. If no URI is provided, the CLI will prompt to paste the CA certificate |
+
+*Examples*
+
+    sonic(config)# crypto ca-cert install <URI> 
+    crypto ca-cert install home://GeoTrust_Universal_CA.crt
+    Processing certificate ...
+    Installed Root CA certificate
+     CommonName = GeoTrust Universal CA
+     IssuerName = GeoTrust Universal CA
+
+
+    sonic(config)# crypto ca-cert install
+    Certificate base file name : Dell_interCA1
+    Paste certificate below.
+    Include the -----BEGIN CERTIFICATE----- and -----END CERTIFICATE----- headers.
+    Enter a blank line to abort this command.
+    Certificate:
+    -----BEGIN CERTIFICATE-----
+    MIIFuzCCA6OgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwdzELMAkGA1UEBhMCVVMx
+    EzARBgNVBAgMCkNhbGlmb3JuaWExFDASBgNVBAcMC1NhbnRhIENsYXJhMREwDwYD
+    VQQKDAhEZWxsIEVNQzETMBEGA1UECwwKTmV0d29ya2luZzEVMBMGA1UEAwwMRGVs
+    bF9yb290Q0ExMB4XDTE4MDcyNTE4NDkyMloXDTI4MDcyMjE4NDkyMlowYjELMAkG
+    A1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExETAPBgNVBAoMCERlbGwgRU1D
+    MRMwEQYDVQQLDApOZXR3b3JraW5nMRYwFAYDVQQDDA1EZWxsX2ludGVyQ0ExMIIC
+    IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuEaThievPvunvcEldv1QhwLe
+    mCuVLrBJ5Fx824O55z3jYWPp4elvpOu4Br9Xt7sX0VDufK3RCf7DLOp5v7n6klIi
+    DkliC5e4ksJZQy5T4MbU6tXsNXlPwpWCkUPuPj2u46m6N5R5J7MN+VrMG/1tJNYA
+    zh09SvqVlMilHGXM8AhKf3nHaE7COrW5IYIcJUX0foT5068oBguN2nLBQRrKwWPe
+    1iXv+Oynk4jgoE+TFIGm6JAxerhTTFJE4VxqqpS2DetzuBgh1Zykc6RUFluvsDUN
+    Nv/LcgRj0d9IWdPpUeHLKmEg7jElUWgOvpjDIpgp+RMDxC27StLPfQD5TC5GcOOr
+    5zyRsMn3SInq599P9PX8Ohfc+IxI5aoDhNcge1Uuc2OFHJehu5aVodOuDHquAjws
+    B7abxZdp+oi97IuIs5Dj3KqYFcaRmaTsUnOhF7MxkIh5jynITYOFaPR6Kr+ULvyU
+    En/4Nm7YvY7ZynKF37ICknagnFKkr09/VwiIjw+DeaX8Xpbxq8DabaMbYtuNQFN7
+    AZ4t/39UCS6FQgumdyh98gpwmDqtTtCeGKs5bUZNW3Uqhq9J70mBPluVyyjF28pi
+    CNQlSgXqgIENc440mhPrLVdiHsg9OmkxNAJsN7o4iQrLzaLJRr4mVTBR9L/1up3s
+    UJzLNSmRZtkldSF59kcCAwEAAaNmMGQwHQYDVR0OBBYEFKM5y8d2hjsFRDTCb5Bz
+    H19kVVx2MB8GA1UdIwQYMBaAFHUiP76Zt/qhWx1oC+leIX2DYqzbMBIGA1UdEwEB
+    /wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4ICAQCE
+    A5u+roYvaVGTALbo628a3477On5B6kw3NLeDOyzfr5aHa0Z+NNo1UonrQgXWLXJu
+    MO3p9+7HG/ShBYUU4aTKWQ+J5aYNqfrA8tc9kOE7yZDvXPOY2wB1zEtiKnmUEEEB
+    PXdl8jYCfJRNe9n0KHZ6pTgn5lFRZhagldZCEnWQm7yVRYBaobS+Kjlnwds86/7z
+    TNdlBEcrJaQFkfdRwyTa6FSdM3XMxMjNUD7g2wgJXOCRRTsi0U2GHmTGaZQIcARD
+    LdUTAgrDUmQUPOX0oS9sdNb0gHxBKpDoaQ30IOe3YIrPuOtE8FnPFDtJp5ajYNwd
+    6/uR2NaL76Gnt24P9xR6afixnkghUpO6g8ttv5rC3zhF/P64pjIjI42Kzx8Venxe
+    GiPEjcG2x0o8X24+5zv5GSKdGWVtEh9+kKu2sycvNH6p9p1PMWeK/uXZ0ijYknx2
+    FpY3nk/dw54Ci14Q/x+sBQQsFiqpHLKKalcLxFgXmamQ/HgahPYamHESljL3d4Dw
+    44xIJHVURT2RIRHHBEK8H4uARLL6ouY71gK32IgUVw5D9PtFZPmkKS4Z0m8+VaFO
+    86uf2A3B+7/8m7IkySRbi83J1USrEwwuQjQMcag9bTXVia9NOzPz02k29Ev67dSV
+    YlJmoZLRJebozS40kikUc4jA2LJMNNaMJPNwihMqkA==
+    -----END CERTIFICATE-----
+    Processing certificate ...
+    Installed CA certificate
+     CommonName = Dell_interCA1
+     IssuerName = Dell_rootCA1
+    sonic(config)#
 
 #### Delete CA certificate
 
     crypto ca-cert delete <name|all>
 
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The certificate name or all which will delete all CA certificates |
+
 #### Configure CRL frequency
 
     crypto x509 crl frequency <days>
 
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| frequency | How often CDP will be checked for updates in number of days. (Default 7) |
+
+*Note: sysmonitor.py will perform cdp updates based on desired frequency*
+
 #### Refresh CRL
+
+*Force CDP refresh*
 
     crypto cert refresh crl
 
@@ -453,42 +550,92 @@ trust-store:
 
     [no] revocation crl identifier
 
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| identifier | URL path to crl list |
+
+#### Create new or access existing trust-store
+
+    crypto trust-store <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of trust-store |
+
+#### Add/Remove CA to trust-store
+
+*Sub command of crypto trust-store*
+
+    [no] ca-cert <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| ca-cert | name of existing CA cert to add to trust-store |
+
+#### Create new or access existing security-profile
+
+    security-profile <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of security-profile |
+
+#### Associate host certificate to security-profile
+
+*Sub command of security-profile*
+
+    certificate <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of existing host cert to associate with security-profile |
+
+#### Associate trust-store to security-profile
+
+    [no] trust-store <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of existing trust-store to associate with security-profile. If unset, the system trust-store will be used. |
+
 #### 3.6.2.2 Show Commands
 
 #### Show host certificate(s)
 
     show crypto cert <name|all>
 
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of certificate or all will show all host certificates |
+
 #### Show CA cert(s)
 
     show crypto ca-cert <name|all>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of certificate or all will show all CA certificates |
 
 #### Raw PEM Format Certificate
 
     show file cert <name>
 
-#### Create new or access existing trust-store
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of certificate |
 
-    crypto trust-store <name>
+### Show CRL distribution points
 
-#### Add/Remove CA to trust-store
-
-    [no] ca-cert <name>
-
-#### Create new or access existing security-profile
-
-    security-profile <name>
-
-#### Associate host certificate to security-profile
-
-    certificate <name>
-
-#### Associate trust-store to security-profile
-
-    trust-store <name|system|none>
-
-
-
+    show revocation crl
 
 #### 3.6.2.3 Exec Commands
 
@@ -500,11 +647,28 @@ trust-store:
     /sonic-crypto:security-profile
     /sonic-crypto:security-profile/security-profile
     /sonic-crypto:security-profile/security-profile/name
+    /sonic-crypto:security-profile/security-profile/certificate-name
     /sonic-crypto:security-profile/security-profile/trust-store
+    /sonic-crypto:security-profile/security-profile/peer-name-check
+    /sonic-crypto:security-profile/security-profile/key-usage-check
     
     /sonic-crypto:ca-mode
+    /sonic-crypto:ca-mode/ca-mode
+    /sonic-crypto:ca-mode/ca-host
+    /sonic-crypto:ca-mode/csr-list
+    /sonic-crypto:ca-mode/csr-list/csr-hostname
+    /sonic-crypto:ca-mode/csr-list/csr-source
 
     /sonic-crypto:trust-store
+    /sonic-crypto:trust-store/name
+    /sonic-crypto:trust-store/ca-list
+    /sonic-crypto:trust-store/ca-list/certificate-name
+
+    /sonic-crypto:cdp-config
+    /sonic-crypto:cdp-config/frequency
+    /sonic-crypto:cdp-config/last-checked
+    /sonic-crypto:cdp-config/cdp-list
+    /sonic-crypto:cdp-config/cdp-list/url
 
 ### 3.6.4 gNMI Support
 The YANG models defined above will be available to read/wrtie from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
@@ -519,18 +683,13 @@ The certificate directory /etc/sonic/cert must be preserved during upgrades and 
 N/A
 
 # 4 Flow Diagrams
-*Provide flow diagrams for inter-container and intra-container interactions.*
 
 # 5 Error Handling
-*Provide details about incorporating error handling feature into the design and functionality of this feature.*
+
+The primary error handling will happen during configuration/RPC call time where data validation will occur to prevent invalid configuration. Secondly, since certificates can expire or be revoked, periodically the sysmonitor.py will check that the host and CA certificates are still valid and raise alarms if not. Also, events will be generated as certificates approach the invalidation time.
 
 # 6 Serviceability and Debug
-***This section is important and due attention should be given to it**. Topics include:*
-
-- *Commands: Debug commands are those that are not targeted for the end user, but are more for Dev, Support and QA engineers. They are not a replacement for user show commands, and don't necessarily need to comply with all command style rules. Many features will not have these.*
-- *Logging: Please state specific, known events that will be logged (and at what severity level)*
-- *Counters: Ensure that you add counters/statistics for all interesting events (e.g. packets rx/tx/drop/discard)*
-- *Trace: Please make sure you have incorporated the debugging framework feature (or similar) as appropriate. e.g. ensure your code registers with the debugging framework and add your dump routines for any debug info you want to be collected.*
+N/A
 
 # 7 Scalability
 N/A
@@ -545,9 +704,14 @@ All sonic platforms will be supported.
 
 # 10 Unit Test
 
-	- Add certificate
-	- Add security-profile
+  - Add certificate
+  - Add security-profile
+  - Add trust-store
+  - Configure cdp
 	- Apply security-profile to REST & telemetry server and validate it is applied correctly
 	- Add CA certificate and client certificate and verify REST & telemetry server can be accessed without insecure mode
+  - Use invalid client certificate with CA and verify it is rejected
+  - Force CDP refresh
+  - Enable CA mode and generate CSR for client and get it signed. Use this certificate for REST/gNMI requests.
 
 
