@@ -74,7 +74,11 @@ The new time and date should be consistent on the host and containers.
 SONiC already request DHCP timezone offset in the existing code. Though backend is not handling it.    
 In addtion, DHCP server can specify the timezone name that the systems should be using as specified in [RFC4833]. E-SONiC does not request this option as of now from the DHCP servers.    
 Either option may force the clients to use the same timezone.    
-
+    
+2. System Clock    
+This feature also provides the capability to configure the system clock time and date.
+Note that if the system is synchronized with a NTP server, the manually enterred time will be overriden eventually.
+The new time and date should be consistent on the host and containers.
            
 ## 1.1 Requirements
 
@@ -228,7 +232,6 @@ Provide CLI, gNMI and REST supports for timezone related configurations.
 - transformer functions to    
    * set "system" as key for CLOCK table in CONFIG DB   
    * rpc function to get output of timedatectl for OpenConfig YANG    
-   * rpc function to get output of timedatectl for SONiC YANG      
    * subscribe to listen for CLOCK change in CONFIG DB    
    * set local timezone for glog   
 - customer cvl validation function to reject timezone if the timezone name does not exist under /usr/share/zoneinfo. This is for the case when timezone configuration is done from SONiC YANG.     
@@ -315,12 +318,6 @@ Supported yang objects and attributes:
 +            +--rw CLOCK_LIST* [systemclock_key]
 +               +--rw systemclock_key    enumeration
 +               +--rw timezone_name?     string
-
-+  rpcs:
-+    +---x get_timezone
-+       +--ro output
-+          +--ro utc-offset?      string
-+          +--ro timezone-abbr?   string
 
 ```
 
