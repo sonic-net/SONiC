@@ -26,9 +26,7 @@
 - [2.2 AppDB Changes](#22-appdb-changes)
 - [2.3 Orchestration Agent Changes](#23-orchestration-agent-changes)
 - [2.4 SAI](#24-sai)
-- [2.5 CLI](#25-CLI)
-- [2.6 YANG Model](#26-yang-model )
-- [[2.7 Warm Reboot](#27-warm-reboot )
+- [2.6 YANG Model](#25-yang-model )
 - [3 Unit Test](#3-unit-test)
 - [4 References ](#9-references) 
 
