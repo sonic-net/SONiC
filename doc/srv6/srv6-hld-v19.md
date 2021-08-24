@@ -559,8 +559,36 @@ saistatus = saiv6sr_api->create_local_sid(&local_sid_entry, 2, local_sid_attr)
 
 
 ## 2.5 YANG Model
-
-TBD
+```
+module: sonic-srv6
+  +--rw sonic-srv6
+     +--rw SRV6_SID_LIST
+     |  +--rw SRV6_SID_LIST_LIST* [name]
+     |     +--rw name    string
+     |     +--rw path*   inet:ipv6-address
+     +--rw SRV6_LOCAL_SID
+     |  +--rw SRV6_LOCAL_SID_LIST* [ip-address]
+     |     +--rw ip-address    inet:ipv6-address
+     |     +--rw block_len?    uint16
+     |     +--rw node_len?     uint16
+     |     +--rw func_len?     uint16
+     |     +--rw arg_len?      uint16
+     |     +--rw action?       enumeration
+     |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
+     |     +--rw adj*          inet:ipv6-address
+     |     +--rw policy?       -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
+     |     +--rw source?       inet:ipv6-address
+     +--rw SRV6_POLICY
+     |  +--rw SRV6_POLICY_LIST* [name]
+     |     +--rw name       string
+     |     +--rw segment*   -> /sonic-srv6/SRV6_SID_LIST/SRV6_SID_LIST_LIST/name
+     +--rw SRV6_STEER
+        +--rw SRV6_STEER_LIST* [vrf-name ip-prefix]
+           +--rw vrf-name     -> /vrf:sonic-vrf/VRF/VRF_LIST/name
+           +--rw ip-prefix    union
+           +--rw policy?      -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
+           +--rw source?      inet:ipv6-address
+```
 
 ## 3 Unit Test
 
