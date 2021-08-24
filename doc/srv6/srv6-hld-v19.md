@@ -28,7 +28,7 @@
 - [2.4 SAI](#24-sai)
 - [2.5 YANG Model](#25-yang-model )
 - [3 Unit Test](#3-unit-test)
-- [4 References ](#9-references) 
+- [4 References ](#4-references) 
 
 # Revision
 
@@ -410,9 +410,9 @@ SRV6_STEER_TABLE generated route entry has higher priority than the entry in ROU
 
 In Srv6Orch, it will mark which route entry is Srv6 modified and having higher priority to do SID and nexthop lookup, FRR or other modules cannot modify these high priority routes, they can only be modified via Srv6Orch.
 
-**Resolve SID NextHop Via Controller:** 
+**Resolve SID NextHop Via Controller or Others:** 
 
-If the SID subnet (above example, BABA:1001:0:10::) is directly connected, the nexthop could be found, if not, we should have a controller to indicate nexthop information for subnet BABA:1001:0:10::, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE. 
+If the SID subnet (below example, 2000::31 on E31) is directly connected to E11, the nexthop could be found, if not, we should have a controller to indicate nexthop information on E11 for subnet 2000::31, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE.  Or the network itself has some basic ipv6 protocol is ruuning, and all the basic ipv6 informaion is fully exchanged, it depends on how the architecture is designed.
 
 **An Example as below:**
 ![draw-configdb](images/Srv6Example.png)
