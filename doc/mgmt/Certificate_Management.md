@@ -13,37 +13,21 @@
 - [3 Design](#3-Design)
     - [3.1 Overview](#31-Overview)
         - [3.1.1 Service and Docker Management](#311-Service-and-Docker-Management)
-        - [3.1.2 Packet Handling](#312-Packet-Handling)
     - [3.2 DB Changes](#32-DB-Changes)
         - [3.2.1 CONFIG DB](#321-CONFIG-DB)
-        - [3.2.2 APP DB](#322-APP-DB)
-        - [3.2.3 STATE DB](#323-STATE-DB)
-        - [3.2.4 ASIC DB](#324-ASIC-DB)
-        - [3.2.5 COUNTER DB](#325-COUNTER-DB)
-        - [3.2.6 ERROR DB](#326-ERROR-DB)
-    - [3.3 Switch State Service Design](#33-Switch-State-Service-Design)
-        - [3.3.1 Orchestration Agent](#331-Orchestration-Agent)
-        - [3.3.2 Other Processes](#332-Other-Processes)
-    - [3.4 SyncD](#34-SyncD)
-    - [3.5 SAI](#35-SAI)
-    - [3.6 User Interface](#36-User-Interface)
-        - [3.6.1 Data Models](#361-Data-Models)
-        - [3.6.2 CLI](#362-CLI)
-        - [3.6.2.1 Configuration Commands](#3621-Configuration-Commands)
-        - [3.6.2.2 Show Commands](#3622-Show-Commands)
-        - [3.6.2.3 Exec Commands](#3623-Exec-Commands)
-        - [3.6.3 REST API Support](#363-REST-API-Support)
-        - [3.6.4 gNMI Support](#364-gNMI-Support)
-     - [3.7 Warm Boot Support](#37-Warm-Boot-Support)
-     - [3.8 Upgrade and Downgrade Considerations](#38-Upgrade-and-Downgrade-Considerations)
-     - [3.9 Resource Needs](#39-Resource-Needs)
-- [4 Flow Diagrams](#4-Flow-Diagrams)
-- [5 Error Handling](#5-Error-Handling)
-- [6 Serviceability and Debug](#6-Serviceability-and-Debug)
-- [7 Scalability](#7-Scalability)
-- [8 Platform](#8-Platform)
-- [9 Limitations](#9-Limitations)
-- [10 Unit Test](#10-Unit-Test)
+    - [3.3 User Interface](#36-User-Interface)
+        - [3.3.1 Data Models](#361-Data-Models)
+        - [3.3.2 CLI](#362-CLI)
+        - [3.3.2.1 Configuration Commands](#3621-Configuration-Commands)
+        - [3.3.2.2 Show Commands](#3622-Show-Commands)
+        - [3.3.2.3 Exec Commands](#3623-Exec-Commands)
+        - [3.3.3 REST API Support](#363-REST-API-Support)
+        - [3.3.4 gNMI Support](#364-gNMI-Support)
+     - [3.4 Upgrade and Downgrade Considerations](#38-Upgrade-and-Downgrade-Considerations)
+- [4 Error Handling](#5-Error-Handling)
+- [5 Platform](#8-Platform)
+- [6 Limitations](#9-Limitations)
+- [7 Unit Test](#10-Unit-Test)
 
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -356,27 +340,15 @@ The YANG models will store their configuration in the configdb and will add new 
 
 No new containers will be added. The models will be configured via mgmt-framework and gNMI. The monitoring will run on the host as part of sysmonitor.py. No new services will be running either since the monitoring will be periodic and handled by sysmonitor.py.
 
-### 3.1.2 Packet Handling
-N/A
-
 ## 3.2 DB Changes
 
 ### 3.2.1 CONFIG DB
 
 The config DB will contain the new model's information.
 
-## 3.3 Switch State Service Design
-N/A
+## 3.3 User Interface
 
-## 3.4 SyncD
-N/A
-
-## 3.5 SAI
-N/A
-
-## 3.6 User Interface
-
-### 3.6.1 Data Models
+### 3.3.1 Data Models
 
 security-profile:
 
@@ -412,7 +384,7 @@ cdp-config:
        +--rw cdp-list* [url]
            +rw url?                 string
 
-### 3.6.2 CLI
+### 3.3.2 CLI
 *Describe the type (Klish, Click etc) and content of the CLI. Klish is the preferred choice in almost all cases, and we are aiming for 100% coverage. Generally other choices would only be used where you are extending an existing feature with other prior command support.*
 
 - *Klish commands must be added in the appropriate manner, including:*
@@ -431,7 +403,7 @@ cdp-config:
 
 *This content should go into the following sub-sections.*
 
-#### 3.6.2.1 Configuration Commands
+#### 3.3.2.1 Configuration Commands
 
 #### Install host certificate
 
@@ -602,7 +574,7 @@ cdp-config:
 | ------ | ------------- |
 | name | name of existing trust-store to associate with security-profile. If unset, the system trust-store will be used. |
 
-#### 3.6.2.2 Show Commands
+#### 3.3.2.2 Show Commands
 
 #### Show host certificate(s)
 
@@ -635,10 +607,10 @@ cdp-config:
 
     show revocation crl
 
-#### 3.6.2.3 Exec Commands
+#### 3.3.2.3 Exec Commands
 
 
-### 3.6.3 REST API Support
+### 3.3.3 REST API Support
 
 **URLs:**
 
@@ -668,39 +640,28 @@ cdp-config:
     /sonic-crypto:cdp-config/cdp-list
     /sonic-crypto:cdp-config/cdp-list/url
 
-### 3.6.4 gNMI Support
+### 3.3.4 gNMI Support
+
 The YANG models defined above will be available to read/wrtie from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
 
-## 3.7 Warm Boot Support
-N/A
-
-## 3.8 Upgrade and Downgrade Considerations
+## 3.4 Upgrade and Downgrade Considerations
 The certificate directory /etc/sonic/cert must be preserved during upgrades and downgrades. This is acheived using upgrade hook scripts that will copy from the directory to the new partition.
 
-## 3.9 Resource Needs
-N/A
-
-# 4 Flow Diagrams
-
-# 5 Error Handling
+# 4 Error Handling
 
 The primary error handling will happen during configuration/RPC call time where data validation will occur to prevent invalid configuration. Secondly, since certificates can expire or be revoked, periodically the sysmonitor.py will check that the host and CA certificates are still valid and raise alarms if not. Also, events will be generated as certificates approach the invalidation time.
 
-# 6 Serviceability and Debug
-N/A
+# 5 Platform
 
-# 7 Scalability
-N/A
-
-# 8 Platform
 All sonic platforms will be supported.
 
-# 9 Limitations
+# 6 Limitations
+
   - Currently the REST and gNMI processes need to be restarted in order to use new certificates and this can take a minute or more. For REST server in particular, this can be an issue since the sonic-cli must be exited and re-started when REST server restarts due to invalidation of the jwt token.
   - Currently no way to ensure that the time/date is the same between multiple switches which is important when generating certificates since they have start/end times. Either the API should require the client send what it thinks is current time or we should require NTP be configured.
 
 
-# 10 Unit Test
+# 7 Unit Test
 
   - Add certificate
   - Add security-profile
