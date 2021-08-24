@@ -26,7 +26,7 @@
 - [2.2 AppDB Changes](#22-appdb-changes)
 - [2.3 Orchestration Agent Changes](#23-orchestration-agent-changes)
 - [2.4 SAI](#24-sai)
-- [2.6 YANG Model](#25-yang-model )
+- [2.5 YANG Model](#25-yang-model )
 - [3 Unit Test](#3-unit-test)
 - [4 References ](#9-references) 
 
@@ -189,7 +189,6 @@ vrf = VRF_TABLE.key          ; VRF name for END.DT46, can be empty
 adj = address,               ; Optional, list of adjacencies for END.X
 policy = SRV6_POLICY.key     ; Optional, policy name for END.B6.ENCAP
 source  = address,           ; Optional, list of src addrs for encap for END.B6.ENCAP
-weight  = weight.value,      ; Optional, list of assigned weight
 
 For example:
     "SRV6_LOCAL_SID" : {
