@@ -45,20 +45,18 @@
 - [9 Limitations](#9-Limitations)
 - [10 Unit Test](#10-Unit-Test)
 
-# List of Tables
-[Table 1: Abbreviations](#table-1-Abbreviations)
-
 # Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | <07/20/2020>|   Eric Seifert     | Initial version                   |
+| 0.1 | <07/20/2021>|   Eric Seifert     | Initial version                   |
+| 0.2 | <08/24/2021>|   Eric Seifert     | Add Functionality Section         |
 
 # About this Manual
 This document provides comprehensive functional and design information about the certificate management feature implementation in SONiC.
 
 # Definition/Abbreviation
 
-### Table 1: Abbreviations
+### Abbreviations
 | **Term**                 | **Meaning**                         |
 |--------------------------|-------------------------------------|
 | PKI                      | Public Key Infrastructure           |
@@ -207,7 +205,7 @@ This model will store information related to certificate revocation distribution
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
-**Table 2: gNOI RPCs**
+**gNOI RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
@@ -222,7 +220,7 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 
 In addition, to facilitate local generation of self-signed certificates and easier KLISH implementation these RPCs will also be defined for both REST and gNOI:
 
-**Table 3: Custom RPCs**
+**Custom RPCs**
 
 | **RPC Name**                   | **Description** |
 | ------------------------------ | --------------- |
@@ -242,7 +240,7 @@ In addition, to facilitate local generation of self-signed certificates and easi
 
 A new CLI will be added with the following commands:
 
-**Table 4: CLI Commands**
+**CLI Commands**
 
 | **Command** | **Description** |
 | ----------- | --------------- |
@@ -277,7 +275,7 @@ Association of security-profile to application happens in the application specif
 
 When the security-profile model is configured and the RPC's are called, the data and files passed will be validated and return appropriate errors if invalid configuration is applied. The following validations will be run at configuration time:
 
-**Table 5: Validations**
+**Validations**
 
 | **Operation** | **Condition** | **Response** |
 | ------------- | ------------- | ------------ |
@@ -299,7 +297,7 @@ In addition, checking if a certificate has been revoked must be enabled on a per
 
 The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, raise the appropriate alarm:
 
-**Table 6: Alarms**
+**Alarms**
 
 | **Name** | **Type** | **Severity** | **Description** |
 | -------- | -------- | ------------ | --------------- |
@@ -708,8 +706,8 @@ All sonic platforms will be supported.
   - Add security-profile
   - Add trust-store
   - Configure cdp
-	- Apply security-profile to REST & telemetry server and validate it is applied correctly
-	- Add CA certificate and client certificate and verify REST & telemetry server can be accessed without insecure mode
+  - Apply security-profile to REST & telemetry server and validate it is applied correctly
+  - Add CA certificate and client certificate and verify REST & telemetry server can be accessed without insecure mode
   - Use invalid client certificate with CA and verify it is rejected
   - Force CDP refresh
   - Enable CA mode and generate CSR for client and get it signed. Use this certificate for REST/gNMI requests.
