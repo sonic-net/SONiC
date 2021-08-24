@@ -209,7 +209,7 @@ For example:
         },
        	"BABA:1001:0:20:F3::" : {
            "action": "end.b6.encap",
-           "segment": "seg1"
+           "policy": "policy1"
            "source": "A::1"
         }
     }
