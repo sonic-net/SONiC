@@ -37,7 +37,7 @@
 | Rev  |   Date   |           Author           | Change Description |
 | :--: | :------: | :------------------------: | :----------------: |
 | 0.1  | 6/5/2021 | Heidi Ou, Kumaresh Perumal |  Initial version   |
-| 0.2  |          |                            |                    |
+| 0.2  | 8/24/2021| Dong Zhang                 |  More explanation  |
 | 0.3  |          |                            |                    |
 
 
@@ -87,19 +87,17 @@ At a high level the following should be supported:
 Phase #1
 
 ​	Should be able to perform the role of SRv6 domain headend node, and endpoint node, more specific:
-
-- Support H.Encaps, SR Headend Behavior with Encapsulation in an SR Policy
-- Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
-- Support END.B6.Encaps, Endpoint bound to an SRv6 encapsulation Policy - SRv6 instantiation of a Binding SID
-- Support END.B6.Encaps.Red,  END.B6.Encaps with reduced SRH insertion - SRv6 instantiation of a Binding SID
 - Support END, Endpoint function - The SRv6 instantiation of a prefix SID 
-- Support END.X, Endpoint function with Layer-3 cross-connect - The SRv6 instantiation of a Adj SID
 - Support END.DT46, Endpoint with decapsulation and IP table lookup - IP L3VPN use (equivalent of a per-VRF VPN label)
 - Support traffic steering on SID list
 - Support anycast SID
 
 Later phases:
-
+- Support H.Encaps, SR Headend Behavior with Encapsulation in an SR Policy
+- Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
+- Support END.B6.Encaps, Endpoint bound to an SRv6 encapsulation Policy - SRv6 instantiation of a Binding SID
+- Support END.B6.Encaps.Red,  END.B6.Encaps with reduced SRH insertion - SRv6 instantiation of a Binding SID
+- Support END.X, Endpoint function with Layer-3 cross-connect - The SRv6 instantiation of a Adj SID
 - Support uSID/G-SID
 - Other programming functions
 - Support HMAC option
@@ -211,7 +209,6 @@ For example:
                 BABA:2001:0:10::1, 
                 BABA:2001:0:10::2
             ],
-            "weight": "1,2"
         },
        	"BABA:1001:0:20:F3::" : {
            "action": "end.b6.encap",
@@ -234,18 +231,14 @@ Schema:
 key = SRV6_POLICY|policy_name
 
 ; field = value
-endpoint = address             ; 
 segment = SRv6_SID_LIST.key,   ; List of segment names
-weight  = weight.value,        ; List of assigned weight value
 
 For example:
     "SRV6_POLICY": {
         "policy1": {
-            "segment": "seg1, seg2",
-            "weight": "1, 2"
+            "segment": "seg1, seg2"
             },
         "policy2": {
-            “endpoint": "BABA:1001:0:40::1"
             "segment": "seg1"
         }
     }
@@ -316,7 +309,6 @@ vrf = VRF_TABLE.key                ; VRF name for END.DT46, can be empty
 adj = address,                     ; List of adjacencies for END.X, can be empty
 segment = SRv6_SID_LIST.key,       ; List of segment names for END.B6.ENCAP, can be empty
 source  = address,                 ; List of src addrs for encap for END.B6.ENCAP
-weight  = weight.value,            ; List of assigned weight, can be empty
 ```
 
 **Modify ROUTE_TABLE**
@@ -335,7 +327,6 @@ intf = ifindex? PORT_TABLE.key ; zero or more separated by ',' (zero indicates n
 vni_label = VRF.vni            ; zero or more separated by ',' (empty value for non-vxlan next-hops). May carry MPLS label in future.
 router_mac = mac_address       ; zero or more remote router MAC address separated by ',' (empty value for non-vxlan next-hops)
 blackhole = BIT                ; Set to 1 if this route is a blackhole (or null0)
-weight = weight_list           ; List of weights
 segment = SRV6_SID_LIST.key    ; New optional field. List of segment names, separated by ',' 
 seg_src = address              ; New optional field. Source addrs for sid encap
 ```
@@ -353,8 +344,6 @@ For both cases, we don't care  fields **nexthop**, **intf**, **vni_lable**, **ro
 For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE_TABLE no matter it exists or not. 
 
 **key**: the key in ROUTE_TABLE is the same as the one in SRV6_STEER_MAP
-
-**weight**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the weight information is there
 
 **segment**: form SRV6_STEER_MAP entry, the policy field indicates the entry in SRV6_POLICY_TABLE, the segment field information is there. Srv6Orch will use segment to find sid list and sids for nexthop lookup.
 
@@ -390,11 +379,9 @@ For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE
     
     "SRV6_POLICY": {
         "policy1": {
-            "segment": "seg1, seg2",
-            "weight": "1, 2"
+            "segment": "seg1, seg2"
             },
         "policy2": {
-            “endpoint": "BABA:1001:0:40::1"
             "segment": "seg1"
         }
     }
@@ -417,7 +404,6 @@ For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE
             "vni_label" : "1001",
             "router_mac" : "c6:97:75:ed:06:72",
             
-            "weight" : "1,2",
             "segment": "seg1,seg2",
             "seg_src": "A::1"        
         }
@@ -575,58 +561,7 @@ local_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
 saistatus = saiv6sr_api->create_local_sid(&local_sid_entry, 2, local_sid_attr)
 
 
-
-## 2.5 CLI
-### 2.5.1 Configuration Commands
-
-##### Create SID list:
-```
-      config srv6 segment add/del <seg-name>  <sid-id>
-      for example:
-```
-```
-      config srv6 segment add seg1 BABA:1001:0:10::, BABA:1001:0:20:F1::
-      config srv6 segment add seg2 BABA:1001:0:30::, BABA:1001:0:40:F1::
-```
-
-##### Create Policy:
-```
-      config srv6 policy add/del <policy-name> [endpoint <address>] segment <sid-list-name> [ weight <num>]
-      for example:  
-```
-```
-      config srv6 policy add policy1 segment seg1, seg2 weight 1, 2
-```
-##### Steer traffic:
-```
-      config srv6 steer add/del ipv4/ipv6 <prefix> policy <policy-name> source <ipv6-addr> [vrf <vrf-name>]
-      for example:
-```
-
-```
-      config srv6 steer add ipv4 11.11.11.0/24 policy policy1 source A::1 vrf Vrf-1001                                                      
-```
-
-##### Create local SID:
-```
-      config srv6 localsid add/del <SID> [block-len <blen>] [node-len <nlen>] [function-len <flen>] action <action> [param]
-      for example:
-```
-```
-      config srv6 localsid add BABA:1001:0:20:F1:: action end.dt46 vrf Vrf-1001
-      config srv6 localsid add BABA:1001:0:40:F1:: action end.dt46 vrf Vrf-1001
-      config srv6 localsid add BABA:1001:0:20:F2:: action end.x adjacency BABA:2001:0:10::1, BABA:2001:0:10::2
-      config srv6 localsid add BABA:1001:0:20:F3:: action end.b6.encaps policy policy1 source A::1
-```
-### 2.5.2 Show Commands
-
-  		1. show srv6 segment
-  		2. show srv6 localsid 
-  		3. show srv6 traffic-eng policy
-
-
-
-## 2.6 YANG Model
+## 2.5 YANG Model
 
 TBD
 
