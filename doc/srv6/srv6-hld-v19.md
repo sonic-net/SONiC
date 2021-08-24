@@ -233,10 +233,10 @@ segment = SRv6_SID_LIST.key,   ; List of segment names
 For example:
     "SRV6_POLICY": {
         "policy1": {
-            "segment": "seg1, seg2"
-            },
+            "segment": ["seg1", "seg2"]
+        },
         "policy2": {
-            "segment": "seg1"
+            "segment": ["seg1"]
         }
     }
 ```
