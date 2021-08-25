@@ -321,9 +321,7 @@ No new containers are introduced for this feature. Existing Mgmt container will 
 
 ### 1.3.9 SAI Overview
 
-No new or existing SAI services are required
-
-Note that the SAI specification includes a BFD capability for SAI acceleration of BFD - this is not used in this feature
+No new or existing SAI services are required.
 
 # 2 Functionality
 
