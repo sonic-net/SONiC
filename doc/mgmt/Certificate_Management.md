@@ -212,8 +212,7 @@ In addition, to facilitate local generation of self-signed certificates and easi
 | crypto-ca-cert-delete | This procedure is used to delete an X.509 CA certificate |
 | crypto-host-cert-install | This procedure is used to install the X.509 host certificate |
 | crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
-| crypto-cdp-delete | This procedure is used to install an X.509 CRL distribution point (CDP) |
-| crypto-cdp-add | This procedure is used to install an X.509 CRL distribution point (CDP) |
+| crypto-cdp-refresh | Refresh CRL distribution point (CDP) |
 | crypto-cert-generate | This procedure is used to create X.509 CSRs or self-signed certificates |
 | crypto-cert-ca-sign | Sign CSR that was sent to us |
 | crypto-cert-ca-csr-install | Send CSR to CA |
@@ -359,6 +358,23 @@ security-profile:
        +--rw revocation-check?       boolean
        +--rw peer-name-check?        boolean
        +--rw key-usage-check?        boolean
+    
+    rpcs:
+      +--x crypto-ca-cert-install
+        +--w file-path?
+        +--w name?
+      +--w crypto-ca-cert-delete
+        +--w name?
+      +--w crypto-host-cert-install
+        +--w file-path?
+        +--w name?
+      +--w crypto-host-cert-delete
+        +--w name?
+      +--w crypto-cert-generate
+        +--w type?
+        +--w destination-path?
+        +--w parameters?
+
 
 ca-mode:
 
@@ -368,6 +384,17 @@ ca-mode:
        +--rw csr-list* [csr-hostname]
            +--rw csr-hostname       string
            +--rw csr-source         string
+
+    rpcs:
+      +--w crypto-cert-ca-sign
+        +--w name?
+      +--w crypto-cert-ca-csr-install
+        +--w name?
+        +--w csr?
+      +--w crypto-cert-ca-csr-delete
+        +-- name?
+      +--w crypto-cert-signed-cert-get
+        +-- name?
 
 trust-store:
 
@@ -383,6 +410,10 @@ cdp-config:
        +--ro last-checked           integer
        +--rw cdp-list* [url]
            +rw url?                 string
+
+    rpcs:
+      +--x crypto-cdp-refresh
+        +--w url
 
 ### 3.3.2 CLI
 *Describe the type (Klish, Click etc) and content of the CLI. Klish is the preferred choice in almost all cases, and we are aiming for 100% coverage. Generally other choices would only be used where you are extending an existing feature with other prior command support.*
