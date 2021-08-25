@@ -647,8 +647,9 @@ cdp-config:
     /sonic-crypto:ca-mode/ca-mode
     /sonic-crypto:ca-mode/ca-host
     /sonic-crypto:ca-mode/csr-list
-    /sonic-crypto:ca-mode/csr-list/csr-hostname
-    /sonic-crypto:ca-mode/csr-list/csr-source
+    /sonic-crypto:ca-mode/csr-list/name
+    /sonic-crypto:ca-mode/csr-list/source
+    /sonic-crypto:ca-mode/csr-list/type
 
     /sonic-crypto:trust-store
     /sonic-crypto:trust-store/name
