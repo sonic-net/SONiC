@@ -53,9 +53,9 @@ This document provides comprehensive functional and design information about the
 
 # 1 Feature Overview
 
-X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem manually. Then you must configure the redis keys manually as well and restart the services. There is also the issue of upgrades where the location of the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
+X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem. Then you must configure the redis keys and restart the services. There is also the issue of upgrades where the location the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
-The certificate management feature will introduce new YANG models and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions. The switch will be able to act as a Certificate Authority (CA) for itself and other switches as well to simplify the initial configuration.
+The certificate management feature will introduce new YANG models and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG models and exposed via REST and gNOI RPC interfaces to trigger certificate related actions. The switch will be able to act as a Certificate Authority (CA) for itself and other switches as well to simplify the initial configuration.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -107,9 +107,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Display CRL
   - Create new security profile
   - Delete security profile
-  - Associate a certificate and private key file with a security-profile
-  - Apply security profile to service
-  - Remove association of security profile with service
+  - Associate a certificate, private key file and CA trust-store with a security-profile
   - Have "CA mode" where switch generates CA certificate and can then sign certificates for other switches
   - Have option to specify CA server to have your CSR signed by it
 
