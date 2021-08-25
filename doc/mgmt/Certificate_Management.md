@@ -360,7 +360,8 @@ security-profile:
        +--rw revocation-check?       boolean
        +--rw peer-name-check?        boolean
        +--rw key-usage-check?        boolean
-    
+
+
     rpcs:
       +--x crypto-ca-cert-install
         +--w file-path?
@@ -388,6 +389,7 @@ ca-mode:
            +--rw source             string
            +--rw type               enum
 
+
     rpcs:
       +--w crypto-cert-ca-sign
         +--w name?
@@ -413,6 +415,7 @@ cdp-config:
        +--ro last-checked           integer
        +--rw cdp-list* [url]
            +rw url?                 string
+
 
     rpcs:
       +--x crypto-cdp-refresh
