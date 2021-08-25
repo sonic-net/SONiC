@@ -423,23 +423,6 @@ cdp-config:
         +--w url
 
 ### 3.3.2 CLI
-*Describe the type (Klish, Click etc) and content of the CLI. Klish is the preferred choice in almost all cases, and we are aiming for 100% coverage. Generally other choices would only be used where you are extending an existing feature with other prior command support.*
-
-- *Klish commands must be added in the appropriate manner, including:*
-   - *full command syntax, with descriptions*
-   - *command modes*
-   - *Follow IS-CLI syntax (incl "no" form)*
-- *Klish command specs also ideally include:*
-   - *Usage / Help string*
-   - *Command line completion options*
-   - *Error messages*
-   - *show output formats*
-   - *show running-config outputs*
-
-*Where there are command interactions (e.g. dependencies, ordering) that are not obvious, then please state some "best practices" for the configuration sequence(s).*
-*Also cover backward compatibility (if applicable). For instance, if existing commands are being changed, how is compatibility maintained? Any command deprecation?*
-
-*This content should go into the following sub-sections.*
 
 #### 3.3.2.1 Configuration Commands
 
