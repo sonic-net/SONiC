@@ -31,10 +31,6 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 |             | Stepan Blyshchak   | Initial version                   |
 
-### Scope
-
-The scope of this document covers ACL feature enhancements.
-
 ### Definitions/Abbreviations 
 
 | Definitions/Abbreviation | Description                                |
@@ -58,8 +54,18 @@ This document addresses this limitation by introducing a new concept of user def
 
 ### Requirements
 
-- Support user configurable ACL table types.
-- Support programming custom ACL tables by using AclOrch public interface without defining a new ACL table type.
+- Introduce a concept of ACL table types to the ACL orch
+  - ACLOrch partially implements but current support is limited for predefined ACL table types only
+  - ACLOrch's public API to leverage custom table types and use in different orchs (pfcwdorch, pbhorch, macsecorch, etc.)
+  - CONFIG DB user interface for defining custom ACL table types
+
+### Scope
+
+The scope of this document covers ACL feature enhancements, in particular the way user creates customized ACL tables
+with user defined set of matches, actions if required and bind point types. The way developers use aclorch public API
+is also improved to be more flexible for different use cases, such as PFC watchdog, PBH, MACSec, etc. The ACL rule
+classes defined in aclorch is also a subject to be changed due to the new concept of custom ACL table types.
+CLI nor other user interface is not covered by this document.
 
 ### Architecture Design
 
@@ -67,9 +73,152 @@ No SONiC architecture changes are required.
 
 ### High-Level Design
 
-### SAI
+### CONFIG DB
 
-N/A
+ACL table create-only SAI attributes include a list of match fields, bind point types and action list in case it is mandatory
+to pass on table creation, which is defined by SAI_SWITCH_ATTR_ACL_STAGE_INGRESS, SAI_SWITCH_ATTR_ACL_STAGE_EGRESS in sai_acl_capability_t structure, field is_action_list_mandatory.
+
+```abnf
+key: ACL_TABLE_TYPE:name           ; key of the ACL table type entry. The name is arbitary name user chooses.
+; field         = value
+matches         = match-list       ; list of matches for this table, matches are same as in ACL_RULE table.
+actions         = action-list      ; list of actions for this table, actions are same as in ACL_RULE table.
+bind_points     = bind-points-list ; list of bind point types for this table.
+
+; values annotation
+match            = 1*64VCHAR
+match-list       = [1-max-matches]*match
+action           = 1*64VCHAR
+action-list      = [1-max-actions]*action
+bind-point       = port/lag
+bind-points-list = [1-max-bind-points]*bind-point
+```
+
+Example:
+```json
+{
+    "ACL_TABLE_TYPE": {
+        "L3": {
+            "MATCHES": [
+                "IN_PORTS",
+                "OUT_PORTS",
+                "SRC_IP"
+            ],
+            "ACTIONS": [
+                "PACKET_ACTION",
+                "MIRROR_INGRESS_ACTION"
+            ],
+            "BIND_POINTS": [
+                "PORT",
+                "LAG"
+            ]
+        }
+    },
+    "ACL_TABLE": {
+        "DATAACL": {
+            "STAGE": "INGRESS",
+            "TYPE": "L3",
+            "PORTS": [
+                "Ethernet0",
+                "PortChannel1"
+            ]
+        }
+    },
+    "ACL_RULE": {
+        "DATAACL|RULE0": {
+            "PRIORITY": "999",
+            "PACKET_ACTION": "DROP",
+            "SRC_IP": "1.1.1.1/32",
+        }
+    }
+}
+```
+
+Yang container for ACL_TABLE_TYPE table:
+
+```yang
+container ACL_TABLE_TYPE {
+    list ACL_TABLE_TYPE_LIST {
+        key "ACL_TABLE_TYPE_NAME";
+
+        leaf-list MATCHES {
+            type string;
+        }
+
+        leaf-list ACTIONS {
+            type string;
+        }
+
+        leaf-list BIND_POINTS {
+            type enumeration {
+                enum PORT;
+                enum LAG;
+            }
+        }
+    }
+}
+```
+
+#### Control plane tables
+
+Control plane table are moved to its own table in CONFIG DB to not overlap with HW ACL tables.
+
+```json
+{
+    "CTRL_PLANE_ACL_TABLE": {
+        "SSH_ONLY": {
+            "policy_desc": "SSH only",
+            "services": [
+                "SSH"
+            ],
+            "stage": "ingress"
+        }
+    }
+}
+```
+
+### Initial CONFIG DB
+
+The following existing table types defined in init_cfg.json:
+
+- L3
+- L3V6
+- MIRROR
+- MIRRORV6
+- MIRRORV4V6
+- MIRROR_DSCP
+- DTEL_FLOW_WATCHLIST
+- DTEL_DROP_WATCHLIST
+- MCLAG
+
+The init_cfg.json.j2 creates some table types only for platforms that support a particular feature (like in band telemetry).
+
+### STATE DB
+
+ACL stage capabilities are queried by reading SAI_SWITCH_ATTR_ACL_STAGE_INGRESS and SAI_SWITCH_ATTR_ACL_STAGE_EGRESS
+which are published in STATE DB at orchagent initialization.
+
+```abnf
+key: ACL_STAGE_CAPABILITY|stage                       ; key of the ACL switch capability.
+; field         = value
+is_action_list_mandatory = true/false       ; Boolean 
+action_list              = action-list      ; list of actions for this table, actions are same as in ACL_RULE table.
+
+; values annotation
+stage                    = ingress/egress
+action                   = 1*64VCHAR
+action-list              = [1-max-actions]*action
+```
+
+Example:
+
+```json
+127.0.0.1:6379[6]> hgetall ACL_STAGE_CAPABILITY|INGRESS
+1) is_action_list_mandatory
+2) false
+3) action_list
+4) PACKET_ACTION,MIRROR_INGRESS_ACTION,REDIRECT_ACTION
+```
 
 ### Orchagent
 
@@ -138,8 +287,16 @@ with IPv4 and IPv6 keys.
 3. Put this as a configuration in CONFIG DB. E.g, for certain two table types define "combined_v4_v6_mode". This configuration can come from init_cfg.json at start as well
 as default table types.
 
-In this design option 2 is chosen since it maintains current behavior and does not expose different treatment of mirror tables
-based on ASIC vendor to the user.
+In this design option 1 is chosen due to transparency and simplicity. The mode is exposed by orchagent in STATE DB by orchagent.
+
+```
+
+127.0.0.1:6379[6]> hgetall SWITCH_CAPABILITY|switch
+1) mirror_mode
+2) combined
+```
+
+The user or controller needs to read this value and decide whether to create two ACL tables for IPv4 and IPv6 (separated) or single ACL table for both IPv4 and IPv6 (combined). 
 
 #### ACL rule object model
 
@@ -155,117 +312,9 @@ other orchs to override the behavior.
 
 N/A
 
-### CONFIG DB
+### SAI
 
-```abnf
-key: ACL_TABLE_TYPE:name           ; key of the ACL table type entry. The name is arbitary name user chooses.
-; field         = value
-matches         = match-list       ; list of matches for this table
-actions         = action-list      ; list of actions for this table
-bind_points     = bind-points-list ; list of bind point types for this table
-
-; values annotation
-match            = 1*64VCHAR
-match-list       = [1-max-matches]*match        
-action           = 1*64VCHAR
-action-list      = [1-max-actions]*action        
-bind-point       = port/lag
-bind-points-list = [1-max-bind-points]*bind-point
-```
-
-Example:
-```json
-{
-    "ACL_TABLE_TYPE": {
-        "L3": {
-            "MATCHES": [
-                "IN_PORTS",
-                "OUT_PORTS",
-                "SRC_IP"
-            ],
-            "ACTIONS": [
-                "PACKET_ACTION",
-                "MIRROR_INGRESS_ACTION"
-            ],
-            "BIND_POINTS": [
-                "PORT",
-                "LAG"
-            ]
-        }
-    },
-    "ACL_TABLE": {
-        "DATAACL": {
-            "STAGE": "INGRESS",
-            "TYPE": "L3",
-            "PORTS": [
-                "Ethernet0",
-                "PortChannel1"
-            ]
-        }
-    },
-    "ACL_RULE": {
-        "DATAACL|RULE0": {
-            "PRIORITY": "999",
-            "PACKET_ACTION": "DROP",
-            "SRC_IP": "1.1.1.1/32",
-        }
-    }
-}
-```
-
-Yang container for ACL_TABLE_TYPE table:
-
-```yang
-container ACL_TABLE_TYPE {
-    list ACL_TABLE_TYPE_LIST {
-        key "ACL_TABLE_TYPE_NAME";
-
-        leaf-list MATCHES {
-            type stypes:match;
-        }
-
-        leaf-list ACTIONS {
-            type stypes:actions;
-        }
-
-        leaf-list BIND_POINTS {
-            type stypes:acl_bind_points;
-        }
-    }
-}
-```
-
-#### Control plane tables
-
-Control plane table are moved to its own table in CONFIG DB to not overlap with HW ACL tables.
-
-```json
-"CTRL_PLANE_ACL_TABLE": {
-    "SSH_ONLY": {
-        "policy_desc": "SSH only",
-        "services": [
-            "SSH"
-        ],
-        "stage": "ingress"
-    }
-}
-```
-
-### Initial CONFIG DB
-
-The following existing table types defined in init_cfg.json:
-
-- L3
-- L3V6
-- MIRROR
-- MIRRORV6
-- MIRROR_DSCP
-- DTEL_FLOW_WATCHLIST
-- DTEL_DROP_WATCHLIST
-- MCLAG
-
-On platforms where certain features are not supported (like in band telemetry) the error is thrown on ACL table creation
-of the unsupported type.
+N/A
 
 ### Flows
 
