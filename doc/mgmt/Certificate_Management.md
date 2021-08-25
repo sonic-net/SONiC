@@ -168,8 +168,9 @@ This model will be for the CA server mode:
     - ca-mode (true|false)
     - ca-host
     - csr-list
-      - csr-hostname
-      - csr-source
+      - name
+      - source
+      - type
 
 This model will define a CA certificate trust-store:
 
@@ -381,9 +382,10 @@ ca-mode:
     +--rw ca-mode
        +--rw ca-mode                bool
        +--rw ca-host                string
-       +--rw csr-list* [csr-hostname]
-           +--rw csr-hostname       string
-           +--rw csr-source         string
+       +--rw csr-list* [name]
+           +--rw name               string
+           +--rw source             string
+           +--rw type               enum
 
     rpcs:
       +--w crypto-cert-ca-sign
