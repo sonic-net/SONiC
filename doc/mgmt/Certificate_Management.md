@@ -306,7 +306,12 @@ Also, the CA server mode will automatically generate a CA certificate to be used
 
 ### 1.3.6 Directory Structure
 
-THe directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target.
+The directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target. Under this directory will contain the following sub-directories:
+
+  - ca-certs
+  - certs
+  - csr
+  - crl
 
 ### 1.3.7 Application Associations
 
