@@ -297,8 +297,6 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 | CA Certificate Expired | ALARM | CRITICAL | The CA certificate has expired |
 | Revoked Certificate | ALARM | CRITICAL | The host certificate has been revoked |
 | Revoked CA Certificate | ALARM | CRITICAL | The CA certificate has been revoked |
-| Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a certificate has been manually changed to another certificate |
-| CA Certificate Misconfigured | ALARM | WARNING | An application that is configured to use a CA certificate has been manually changed to another CA certificate |
 | CDP connection failed | EVENT | WARNING | Failed to connect and download from CDP server |
 
 
