@@ -160,6 +160,12 @@ The security-profile YANG model will describe the following structure(s) and fie
     - peer-name-check
     - key-usage-check
 
+| **Field Path** | **Description** |
+| -------------- | --------------- |
+| /security-profile | Container for security-profile |
+| /security-profile/profile-name | Name of security-profile |
+| /security-profile/
+
 This model will be for the CA server mode:
 
   - ca-mode
@@ -226,16 +232,17 @@ A new CLI will be added with the following commands:
 
 | **Command** | **Description** |
 | ----------- | --------------- |
-| crypto ca-cert install | Install CA cert from local (alias location) or remote location |
+| crypto ca-cert install | Install CA cert from local (alias location) or remote location or via pasting raw cert file |
 | crypto ca-cert delete | Delete CA certificate |
 | crypto cert generate | Generate signing request or self-signed host certificate |
 | crypto cert install | Install host certificate from local (alias location) or remote location |
 | crypto cert delete | Delete host certificate |
-| show crypto cert | Show installed certificates |
-| show crypto ca-cert | Show installed CA certificates |
+| show crypto cert | Show installed certificates list or specific cert details |
+| show crypto ca-cert | Show installed CA certificates list or specific cert details |
 | show file cert | Show raw certificate file in PEM format |
 | crypto security-profile | Create security-profile |
 | crypto security-profile certificate | Associate security-profile with certificate |
+| crypto security-profile trust-store | Associate security-profile with trust-store |
 | crypto ca-server mode | Enable CA server/client or disabled |
 | crypto ca-server host | The CA server hostname/ip if in client mode |
 | crypto ca-server list-csr | Show list of CSRs sent to us to be signed |
@@ -261,19 +268,16 @@ When the security-profile model is configured and the RPC's are called, the data
 
 | **Operation** | **Condition** | **Response** |
 | ------------- | ------------- | ------------ |
-| Host cert install | Invalid Certificate | Return invalid certificate error |
-| Host cert install | Expired Certificate | Return expired certificate error |
-| Host cert install | Revoked Certificate | Return revoked certificate error |
-| Host cert install | Invalid/No Password | If key file is password protected, return invalid password error |
-| CA cert install | Invalid Certificate | Return invalid certificate error |
-| CA cert install | Expired Certificate | Return expired certificate error |
-| CA cert install | Revoked Certificate | Return revoked certificate error |
+| Host cert install | Invalid Certificate | Return invalid certificate error with output of openssl verify command indicating specific condition |
+| CA cert install | Invalid Certificate | Return invalid certificate error with output of openssl verify command indicating specific condition |
 | Delete Host Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate in use | Return certificate in use error |
 | CSR Create | Invalid CSR | Return invalid CSR error |
 | Configure CA server | Time on server is different than local | Return time configuration error to prevent invalid certs |
 
-In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
+**Notes:**
+  - In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
+  - Validation of certificate validity will be done via openssl verify and will be done at install time, association with a security-profile and association with an application.
 
 ### 1.3.5 Monitoring
 
@@ -297,8 +301,10 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 | Revoked CA Certificate | ALARM | CRITICAL | The CA certificate has been revoked |
 | CDP connection failed | EVENT | WARNING | Failed to connect and download from CDP server |
 
-
-Also, the CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
+*Notes:*
+  - The certificate expiration alarms will be rechecked when a new certificate is installed and cleared if the condition is resolved by the new certificate.
+  - The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
+  - Alarms for invalid certificates will only be raised on certificates that are currently in use. If you attempt to use an expired certificate, it will be rejected during configuration validation instead.
 
 ### 1.3.6 Directory Structure
 
@@ -544,6 +550,9 @@ cdp-config:
 | key-file | The private key file location URI |
 | password | Optional password if the private key file is password protected |
 
+*Notes:*
+  - The cert install rpc will also trigger a rechecking of the cert expiration alarms to clear alarms if the new certificate resolves the condition, instead of waiting for sysmonitor.py to check sometime later
+
 #### Delete host certificate
 
     crypto cert delete <name|all>
@@ -571,6 +580,7 @@ cdp-config:
      CommonName = GeoTrust Universal CA
      IssuerName = GeoTrust Universal CA
 
+The certificate between the begin and end tags will be extracted to facilitate pasting from a source such as an email containing other text.
 
     sonic(config)# crypto ca-cert install
     Certificate base file name : Dell_interCA1
@@ -616,6 +626,9 @@ cdp-config:
      CommonName = Dell_interCA1
      IssuerName = Dell_rootCA1
     sonic(config)#
+
+*Notes:*
+  - The CA cert install rpc will also trigger a rechecking of the CA cert expiration alarms to clear alarms if the new certificate resolves the condition, instead of waiting for sysmonitor.py to check sometime later
 
 #### Delete CA certificate
 
