@@ -31,6 +31,7 @@
 | Rev |     Date    |       Author            | Change Description                         |
 |:---:|:-----------:|:-----------------------:|--------------------------------------------|
 | 0.1 | 03/06/2021  |     Alexandru Banu      | Initial version                            |
+| 0.2 | 26/08/2021  |     Alexandru Banu      | Updates for new SAI model                  |
 
 
 # About this Manual
@@ -39,6 +40,7 @@ This document provides general information about Class Based Forwarding which al
 Along this document the following abbreviations might be used:
 
 FC - Forwarding Class
+TC - Traffic Class
 CBF - Class Based Forwarding
 NHG - Next Hop Group
 
@@ -53,7 +55,7 @@ DSCP/EXP value of W for --> in the DSCP/EXP to FC --> assigned to the --> lookup
 ```
 This feature enables opeartors, among other things, to send the important (foreground) traffic through the shortest path, while sending the background traffic through longer paths to still give it some bandwidth instead of using QoS queues which may block background traffic from getting bandwitdh.
 
-These new class based next hop groups are allowed thanks to the changes in https://github.com/opencomputeproject/SAI/pull/1193, which allow a next hop group object to also have other next hop group objects as members of the group along with the next hop objects. The way such a next hop group works is that a packet which has a Forwarding Class value of X will be matched against an appropriate member of this group, selected based on the Forwarding Class value thanks to the "class_map" property of the group. As an example, given the CBF group with members Nhg1, Nhg2 and Nhg3 and a class map of FC 0 -> Nhg1, FC 1 -> Nhg2 and FC 3 -> Nhg3, a packet which has an FC value of 0 will be forwarded using Nhg1. Note that multiple FC values can point to the same member, but a single FC value can't be mapped to more than one member.
+These new class based next hop groups are allowed thanks to the changes in https://github.com/opencomputeproject/SAI/pull/1193, which allow a next hop group object to also have other next hop group objects as members of the group along with the next hop objects. The way such a next hop group works is that a packet which has a Forwarding Class value of X will be matched against an appropriate member of this group, selected based on the Forwarding Class value thanks to the "selection_map" property of the group. As an example, given the CBF group with members Nhg1, Nhg2 and Nhg3 and a selection map of FC 0 -> Nhg1, FC 1 -> Nhg2 and FC 3 -> Nhg3, a packet which has an FC value of 0 will be forwarded using Nhg1. Note that multiple FC values can point to the same member, but a single FC value can't be mapped to more than one member.
 
 In order to support this mapping, 2 new mapping tables will be added to the CONFIG_DB for the DSCP/EXP to FC mapping and a new CLASS_BASED_NEXT_HOP_GROUP table will be added to APPL_DB to support the new FC-aware next hop groups.
 
@@ -86,21 +88,38 @@ This design directly changes CONFIG_DB, APPL_DB, orchagent and sairedis.
 ## 3.2 DB Changes
 ### 3.2.1 APPL DB
 Based on the next hop group split (https://github.com/Azure/SONiC/pull/712) on which this HLD is based on, a new CLASS_BASED_NEXT_HOP_GROUP table will be added to the APPL_DB with the following format:
+
+A new table is added to store the NHG maps.
+```
+### FC_TO_NHG_INDEX_MAP_TABLE
+    ; FC to Next hop group index map
+    key                    = "FC_TO_NHG_INDEX_MAP_TABLE:"name
+    fc_num = 1*DIGIT ;value
+    nh_index  = 1*DIGIT;  index of NH inside NH group
+```
+
+    Example:
+    127.0.0.1:6379> hgetall "FC_TO_NHG_INDEX_MAP_TABLE:AZURE"
+     1) "0" ;fc_num
+     2) "0" ;nhg_index
+     3) "1"
+     4) "0"
+
 ```
 ### CLASS_BASED_NEXT_HOP_GROUP_TABLE
     ;Stores a list of FC-aware next hop groups.
     ;Status: Mandatory
     key           = CLASS_BASED_NEXT_HOP_GROUP_TABLE:string ; arbitrary string identifying the class based next hop group, as determined by the programming application.
     members       = NEXT_HOP_GROUP_TABLE.key,    ; one or more indexes within NEXT_HOP_GROUP_TABLE, separated by “,”
-    class_map     = number:number,   ; one or more mapping from Forwarding Class to index in "members" field to use as NHG, separated by ","
+    selection_map = FC_TO_NHG_INDEX_MAP_TABLE.key ; the NHG map to use for this CBF NHG
 ```
 
 Example:
     127.0.0.1:6379[1]> hgetall  "CLASS_BASED_NEXT_HOP_GROUP:CbfNhg1"
     1) "members"
     2) "Nhg1,Nhg2,Nhg3,Nhg4"
-    3) "class_map"
-    4) "0:0,1:0,2:1,3:1,4:2,5:2,6:3,7:3"
+    3) "selection_map"
+    4) "NhgMap1"
 
 The ROUTE_TABLE is updated to allow the "nexthop_group" to allow both keys from NEXT_HOP_GROUP_TABLE and from the new CLASS_BASED_NEXT_HOP_GROUP_TABLE.
 ```
@@ -178,13 +197,15 @@ Example:
 
 A new orchestration agent will be written to handle the requests to both NEXT_HOP_GROUP_TABLE and CLASS_BASED_NEXT_HOP_GROUP_TABLE while also providing a common API for the route orchestration agent to use when working with next hop groups stored in these tables.
 
-For a new entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will validate the data and create a new next hop group object in ASIC_DB of type SAI_NEXT_HOP_GROUP_TYPE_CLASS_BASED to which it will add the provided members as long as they have alreaedy been created in ASIC_DB. If an error occurs during this process and it's coming from the validation process, the task will be efectively removed from the process queue as an update to the entry would be needed in order to fix it; otherwise the task will be kept in the process queue for the event of the missing member(s) being created which would allow the class based next hop group to be created.
+At the same time, another new orchestration agent will be added to handle the new FC_TO_NHG_INDEX_MAP_TABLE entries. This agent will validate the data and create a SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MAP entry in ASIC_DB. If the  data validation fails, the task will be removed from the process queue as an update to the entry is mandatory in order to fix these errors. This agent is also responsible of handling the switch's capabilities regarding the maximum number of FCs and NHG maps supported. If at a given point there is no more room in the dataplane for new NHG maps, these tasks will remain in the process queue waiting for space to be freed. The NHG maps can't be removed as long as they are being referenced by other objects (in our case, by CBF NHGs).
+
+For a new entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will validate the data and create a new next hop group object in ASIC_DB of type SAI_NEXT_HOP_GROUP_TYPE_CLASS_BASED to which it will add the provided members as long as they have alreaedy been created in ASIC_DB. If an error occurs during the creation of the object, the task will be kept in the process queue for the event of the missing member(s) and/or selection map being created, which would allow the class based next hop group to be created.
 
 If the dataplane doesn't have any more room for a new next hop group object, the task will remain in the process queue for the event of space being freed.
 
 There is a special scenario for creating the class based next hop groups, and that is when it references temporary next hop groups (as described in https://github.com/Azure/SONiC/pull/712), as these may be updated at some point which in turn will change their SAI ID. For this scenario, the class based next hop groups will keep a list of their temporary members and periodically check if it's SAI ID has been updated. If so, the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID attribute of the class based next hop group member will be updated to the match the new value and if the next hop group was updated to a proper (;-temporary) next hop group object, it will be erased from the specified list. When all the temporary next hop groups have been updated to proper next hop groups, the class based one will stop checking periodically for the updates.
 
-For an updated entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will remove the group's previous members and add the updated ones. We do this due to the limitation of the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_INDEX attribute which is CREATE_ONLY and so can't be updated. Instead of accounting for all the possibilities for the index of a member to be updated (by moving it to a different position in the list, removing a member that comes before it or adding a new one before it) which would be exhaustive to handle, we prefer this simpler and more robust solution. The class map will also be updated in ASIC_DB if necessary.
+For an updated entry in CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will remove the group's previous members and add the updated ones. We do this due to the limitation of the SAI_NEXT_HOP_GROUP_MEMBER_ATTR_INDEX attribute which is CREATE_ONLY and so can't be updated. Instead of accounting for all the possibilities for the index of a member to be updated (by moving it to a different position in the list, removing a member that comes before it or adding a new one before it) which would be exhaustive to handle, we prefer this simpler and more robust solution. The selection map will also be updated in ASIC_DB if necessary.
 
 For a removed entry from CLASS_BASED_NEXT_HOP_GROUP_TABLE, the orchestration agent will remove the group from ASIC_DB only if it is not referenced anymore by other objects (such as routes).
 
@@ -193,7 +214,9 @@ Thanks to the common API provided by the new next hop group orhcestration agent,
 The QoS orchestration agent is extended in order to process the DSCP_TO_FC_MAP_TABLE and EXP_TO_FC_MAP_TABLE entries. It's similar in functionality with the QoS task handling with the exception of the SAI_QOS_MAP_TYPE used for the entries created into ASIC_DB, being one of the SAI_QOS_MAP_TYPE_DSCP_TO_FORWARDING_CLASS or SAI_QOS_MAP_TYPE_MPLS_EXP_TO_FORWARDING_CLASS.
 
 ## 3.4 sairedis
-Sairedis support has been added for objects of type "sai_map_t" for validation, serialization and deserialization in order for the "class_map" property of the class based next hop groups to work properly and also "fc" has been added to "sai_qos_map_params_t" object to support the DSCP/EXP to FC mappings.
+Sairedis support has been added for objects of type "sai_map_t" for validation, serialization and deserialization in order for the NHG map objects to work properly and also "fc" has been added to "sai_qos_map_params_t" object to support the DSCP/EXP to FC mappings.
+
+libsairedis and libsaivs are enhanced to support the API for NHG maps and the VS interface is enhanced to default the NHG maps object availability to 512.
 
 ## 3.5 SAI
 The SAI changes are handled in https://github.com/opencomputeproject/SAI/pull/1193.
@@ -208,8 +231,5 @@ Unchanged.
 Unchanged.
 
 # 5 Unit Test
-Unit tests have been added to orchagent to test the mainline scenarios (create/delete) for the DSCP/EXP_TO_FC_MAP entries (update doesn't seem to be supported by CONFIG_DB tables) and mainline scenarios (create/update/delete) for the CLASS_BASED_NEXT_HOP_GROUP entries. Along with these mainline scenarios, different corner case scenarios have been tested as well, among which next hop group objects exhaustion has been tested to confirm the expected behaviour of class based next hop groups with limited resources available.
-
-A unit test has also been added to sairedis to test the serialization and deserialization of the "sai_map_t" objects.
-
-There are plans to complete the code coverage for the new orchagent code in the following month, as well as adding sonic-mgmt unit tests in the near future.
+The entire code is fully tested, having 100% code coverage.
+Adding sonic-mgmt unit tests in the near future.
