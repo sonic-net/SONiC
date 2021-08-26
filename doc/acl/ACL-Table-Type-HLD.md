@@ -16,6 +16,7 @@
 - STATE DB
 - Orchagent
   - Mirror table type: combined/separated table
+  - DB migration
   - ACL rule object model
   - ACLOrch public API
 - Syncd
@@ -304,6 +305,11 @@ In this design option 1 is chosen due to transparency and simplicity. The mode i
 ```
 
 The user or controller needs to read this value and decide whether to create two ACL tables for IPv4 and IPv6 (separated) or single ACL table for both IPv4 and IPv6 (combined). 
+
+#### DB migration
+
+The DB migrator script updated with a logic to move ACL rules for particular platforms supporting combined mirror mode to a table MIRRORV4V6 and for
+platforms where separated mode is used ACL rules are moved into corresponding MIRROR or MIRRORV6.
 
 #### ACL rule object model
 
