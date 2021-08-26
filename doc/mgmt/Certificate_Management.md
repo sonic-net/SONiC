@@ -423,100 +423,6 @@ cdp-config:
 
 #### 3.3.2.1 Configuration Commands
 
-#### Install host certificate
-
-    crypto cert install cert-file <URI> key-file <URI> password <password>
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| cert-file | The certificate file location URI as defined by the file mgmt feature. URL or location alias i.e. home:// |
-| key-file | The private key file location URI |
-| password | Optional password if the private key file is password protected |
-
-#### Delete host certificate
-
-    crypto cert delete <name|all>
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| name | The certificate name or all which will delete all host certificates and keys |
-
-#### Install CA Certificate
-
-
-     crypto ca-cert install <URI>
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| cert-file | Optional certificate file location URI as defined by the file mgmt feature. URL or location alias i.e. home://. If no URI is provided, the CLI will prompt to paste the CA certificate |
-
-*Examples*
-
-    sonic(config)# crypto ca-cert install <URI> 
-    crypto ca-cert install home://GeoTrust_Universal_CA.crt
-    Processing certificate ...
-    Installed Root CA certificate
-     CommonName = GeoTrust Universal CA
-     IssuerName = GeoTrust Universal CA
-
-
-    sonic(config)# crypto ca-cert install
-    Certificate base file name : Dell_interCA1
-    Paste certificate below.
-    Include the -----BEGIN CERTIFICATE----- and -----END CERTIFICATE----- headers.
-    Enter a blank line to abort this command.
-    Certificate:
-    -----BEGIN CERTIFICATE-----
-    MIIFuzCCA6OgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwdzELMAkGA1UEBhMCVVMx
-    EzARBgNVBAgMCkNhbGlmb3JuaWExFDASBgNVBAcMC1NhbnRhIENsYXJhMREwDwYD
-    VQQKDAhEZWxsIEVNQzETMBEGA1UECwwKTmV0d29ya2luZzEVMBMGA1UEAwwMRGVs
-    bF9yb290Q0ExMB4XDTE4MDcyNTE4NDkyMloXDTI4MDcyMjE4NDkyMlowYjELMAkG
-    A1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExETAPBgNVBAoMCERlbGwgRU1D
-    MRMwEQYDVQQLDApOZXR3b3JraW5nMRYwFAYDVQQDDA1EZWxsX2ludGVyQ0ExMIIC
-    IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuEaThievPvunvcEldv1QhwLe
-    mCuVLrBJ5Fx824O55z3jYWPp4elvpOu4Br9Xt7sX0VDufK3RCf7DLOp5v7n6klIi
-    DkliC5e4ksJZQy5T4MbU6tXsNXlPwpWCkUPuPj2u46m6N5R5J7MN+VrMG/1tJNYA
-    zh09SvqVlMilHGXM8AhKf3nHaE7COrW5IYIcJUX0foT5068oBguN2nLBQRrKwWPe
-    1iXv+Oynk4jgoE+TFIGm6JAxerhTTFJE4VxqqpS2DetzuBgh1Zykc6RUFluvsDUN
-    Nv/LcgRj0d9IWdPpUeHLKmEg7jElUWgOvpjDIpgp+RMDxC27StLPfQD5TC5GcOOr
-    5zyRsMn3SInq599P9PX8Ohfc+IxI5aoDhNcge1Uuc2OFHJehu5aVodOuDHquAjws
-    B7abxZdp+oi97IuIs5Dj3KqYFcaRmaTsUnOhF7MxkIh5jynITYOFaPR6Kr+ULvyU
-    En/4Nm7YvY7ZynKF37ICknagnFKkr09/VwiIjw+DeaX8Xpbxq8DabaMbYtuNQFN7
-    AZ4t/39UCS6FQgumdyh98gpwmDqtTtCeGKs5bUZNW3Uqhq9J70mBPluVyyjF28pi
-    CNQlSgXqgIENc440mhPrLVdiHsg9OmkxNAJsN7o4iQrLzaLJRr4mVTBR9L/1up3s
-    UJzLNSmRZtkldSF59kcCAwEAAaNmMGQwHQYDVR0OBBYEFKM5y8d2hjsFRDTCb5Bz
-    H19kVVx2MB8GA1UdIwQYMBaAFHUiP76Zt/qhWx1oC+leIX2DYqzbMBIGA1UdEwEB
-    /wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4ICAQCE
-    A5u+roYvaVGTALbo628a3477On5B6kw3NLeDOyzfr5aHa0Z+NNo1UonrQgXWLXJu
-    MO3p9+7HG/ShBYUU4aTKWQ+J5aYNqfrA8tc9kOE7yZDvXPOY2wB1zEtiKnmUEEEB
-    PXdl8jYCfJRNe9n0KHZ6pTgn5lFRZhagldZCEnWQm7yVRYBaobS+Kjlnwds86/7z
-    TNdlBEcrJaQFkfdRwyTa6FSdM3XMxMjNUD7g2wgJXOCRRTsi0U2GHmTGaZQIcARD
-    LdUTAgrDUmQUPOX0oS9sdNb0gHxBKpDoaQ30IOe3YIrPuOtE8FnPFDtJp5ajYNwd
-    6/uR2NaL76Gnt24P9xR6afixnkghUpO6g8ttv5rC3zhF/P64pjIjI42Kzx8Venxe
-    GiPEjcG2x0o8X24+5zv5GSKdGWVtEh9+kKu2sycvNH6p9p1PMWeK/uXZ0ijYknx2
-    FpY3nk/dw54Ci14Q/x+sBQQsFiqpHLKKalcLxFgXmamQ/HgahPYamHESljL3d4Dw
-    44xIJHVURT2RIRHHBEK8H4uARLL6ouY71gK32IgUVw5D9PtFZPmkKS4Z0m8+VaFO
-    86uf2A3B+7/8m7IkySRbi83J1USrEwwuQjQMcag9bTXVia9NOzPz02k29Ev67dSV
-    YlJmoZLRJebozS40kikUc4jA2LJMNNaMJPNwihMqkA==
-    -----END CERTIFICATE-----
-    Processing certificate ...
-    Installed CA certificate
-     CommonName = Dell_interCA1
-     IssuerName = Dell_rootCA1
-    sonic(config)#
-
-#### Delete CA certificate
-
-    crypto ca-cert delete <name|all>
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| name | The certificate name or all which will delete all CA certificates |
-
 #### Configure CRL frequency
 
     crypto x509 crl frequency <days>
@@ -627,6 +533,98 @@ cdp-config:
 
 #### 3.3.2.3 Exec Commands
 
+#### Install host certificate
+
+    crypto cert install cert-file <URI> key-file <URI> password <password>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| cert-file | The certificate file location URI as defined by the file mgmt feature. URL or location alias i.e. home:// |
+| key-file | The private key file location URI |
+| password | Optional password if the private key file is password protected |
+
+#### Delete host certificate
+
+    crypto cert delete <name|all>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The certificate name or all which will delete all host certificates and keys |
+
+#### Install CA Certificate
+
+     crypto ca-cert install <URI>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| cert-file | Optional certificate file location URI as defined by the file mgmt feature. URL or location alias i.e. home://. If no URI is provided, the CLI will prompt to paste the CA certificate |
+
+*Examples*
+
+    sonic(config)# crypto ca-cert install <URI> 
+    crypto ca-cert install home://GeoTrust_Universal_CA.crt
+    Processing certificate ...
+    Installed Root CA certificate
+     CommonName = GeoTrust Universal CA
+     IssuerName = GeoTrust Universal CA
+
+
+    sonic(config)# crypto ca-cert install
+    Certificate base file name : Dell_interCA1
+    Paste certificate below.
+    Include the -----BEGIN CERTIFICATE----- and -----END CERTIFICATE----- headers.
+    Enter a blank line to abort this command.
+    Certificate:
+    -----BEGIN CERTIFICATE-----
+    MIIFuzCCA6OgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwdzELMAkGA1UEBhMCVVMx
+    EzARBgNVBAgMCkNhbGlmb3JuaWExFDASBgNVBAcMC1NhbnRhIENsYXJhMREwDwYD
+    VQQKDAhEZWxsIEVNQzETMBEGA1UECwwKTmV0d29ya2luZzEVMBMGA1UEAwwMRGVs
+    bF9yb290Q0ExMB4XDTE4MDcyNTE4NDkyMloXDTI4MDcyMjE4NDkyMlowYjELMAkG
+    A1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExETAPBgNVBAoMCERlbGwgRU1D
+    MRMwEQYDVQQLDApOZXR3b3JraW5nMRYwFAYDVQQDDA1EZWxsX2ludGVyQ0ExMIIC
+    IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuEaThievPvunvcEldv1QhwLe
+    mCuVLrBJ5Fx824O55z3jYWPp4elvpOu4Br9Xt7sX0VDufK3RCf7DLOp5v7n6klIi
+    DkliC5e4ksJZQy5T4MbU6tXsNXlPwpWCkUPuPj2u46m6N5R5J7MN+VrMG/1tJNYA
+    zh09SvqVlMilHGXM8AhKf3nHaE7COrW5IYIcJUX0foT5068oBguN2nLBQRrKwWPe
+    1iXv+Oynk4jgoE+TFIGm6JAxerhTTFJE4VxqqpS2DetzuBgh1Zykc6RUFluvsDUN
+    Nv/LcgRj0d9IWdPpUeHLKmEg7jElUWgOvpjDIpgp+RMDxC27StLPfQD5TC5GcOOr
+    5zyRsMn3SInq599P9PX8Ohfc+IxI5aoDhNcge1Uuc2OFHJehu5aVodOuDHquAjws
+    B7abxZdp+oi97IuIs5Dj3KqYFcaRmaTsUnOhF7MxkIh5jynITYOFaPR6Kr+ULvyU
+    En/4Nm7YvY7ZynKF37ICknagnFKkr09/VwiIjw+DeaX8Xpbxq8DabaMbYtuNQFN7
+    AZ4t/39UCS6FQgumdyh98gpwmDqtTtCeGKs5bUZNW3Uqhq9J70mBPluVyyjF28pi
+    CNQlSgXqgIENc440mhPrLVdiHsg9OmkxNAJsN7o4iQrLzaLJRr4mVTBR9L/1up3s
+    UJzLNSmRZtkldSF59kcCAwEAAaNmMGQwHQYDVR0OBBYEFKM5y8d2hjsFRDTCb5Bz
+    H19kVVx2MB8GA1UdIwQYMBaAFHUiP76Zt/qhWx1oC+leIX2DYqzbMBIGA1UdEwEB
+    /wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4ICAQCE
+    A5u+roYvaVGTALbo628a3477On5B6kw3NLeDOyzfr5aHa0Z+NNo1UonrQgXWLXJu
+    MO3p9+7HG/ShBYUU4aTKWQ+J5aYNqfrA8tc9kOE7yZDvXPOY2wB1zEtiKnmUEEEB
+    PXdl8jYCfJRNe9n0KHZ6pTgn5lFRZhagldZCEnWQm7yVRYBaobS+Kjlnwds86/7z
+    TNdlBEcrJaQFkfdRwyTa6FSdM3XMxMjNUD7g2wgJXOCRRTsi0U2GHmTGaZQIcARD
+    LdUTAgrDUmQUPOX0oS9sdNb0gHxBKpDoaQ30IOe3YIrPuOtE8FnPFDtJp5ajYNwd
+    6/uR2NaL76Gnt24P9xR6afixnkghUpO6g8ttv5rC3zhF/P64pjIjI42Kzx8Venxe
+    GiPEjcG2x0o8X24+5zv5GSKdGWVtEh9+kKu2sycvNH6p9p1PMWeK/uXZ0ijYknx2
+    FpY3nk/dw54Ci14Q/x+sBQQsFiqpHLKKalcLxFgXmamQ/HgahPYamHESljL3d4Dw
+    44xIJHVURT2RIRHHBEK8H4uARLL6ouY71gK32IgUVw5D9PtFZPmkKS4Z0m8+VaFO
+    86uf2A3B+7/8m7IkySRbi83J1USrEwwuQjQMcag9bTXVia9NOzPz02k29Ev67dSV
+    YlJmoZLRJebozS40kikUc4jA2LJMNNaMJPNwihMqkA==
+    -----END CERTIFICATE-----
+    Processing certificate ...
+    Installed CA certificate
+     CommonName = Dell_interCA1
+     IssuerName = Dell_rootCA1
+    sonic(config)#
+
+#### Delete CA certificate
+
+    crypto ca-cert delete <name|all>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The certificate name or all which will delete all CA certificates |
 
 ### 3.3.3 REST API Support
 
