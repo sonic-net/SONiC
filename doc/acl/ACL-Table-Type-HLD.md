@@ -4,25 +4,26 @@
 <!-- omit in toc -->
 ## Table of Content
 - Revision
-- Scope
 - Definitions/Abbreviations
 - Overview
 - Requirements
+- Scope
 - Architecture Design
 - High-Level Design
-- SAI
-- Orchagent
-  - Mirror table type: combined/separated table
-  - ACL rule object model
-- Syncd
 - CONFIG DB
   - Control plane tables
 - Initial CONFIG DB
+- STATE DB
+- Orchagent
+  - Mirror table type: combined/separated table
+  - ACL rule object model
+  - ACLOrch public API
+- Syncd
+- SAI
 - Flows
   - ACL table type create flow
   - ACL table type update flow
   - ACL table type remove flow
-  - ACL rule update flow
 - Open questions
 
 ### Revision
@@ -62,9 +63,9 @@ This document addresses this limitation by introducing a new concept of user def
 ### Scope
 
 The scope of this document covers ACL feature enhancements, in particular the way user creates customized ACL tables
-with user defined set of matches, actions if required and bind point types. The way developers use aclorch public API
+with user defined set of matches, actions if required and bind point types. The way developers use ACLOrch public API
 is also improved to be more flexible for different use cases, such as PFC watchdog, PBH, MACSec, etc. The ACL rule
-classes defined in aclorch is also a subject to be changed due to the new concept of custom ACL table types.
+classes defined in ACLOrch is also a subject to be changed due to the new concept of custom ACL table types.
 CLI nor other user interface is not covered by this document.
 
 ### Architecture Design
@@ -192,6 +193,7 @@ The following existing table types defined in init_cfg.json:
 - MCLAG
 
 The init_cfg.json.j2 creates some table types only for platforms that support a particular feature (like in band telemetry).
+The list of matches, bind point types and actions is copied from orchagent code.
 
 ### STATE DB
 
@@ -242,11 +244,16 @@ struct AclTableType
 class AclTable
 {
 public:
+    AclTable(AclOrch *pAclOrch, string id, const AclTableType& type);
+
     // ...
     bool validateAddType(const AclTableType& type);
+    // ...
+
 private:
     // ...
     AclTableType m_type;
+    // ...
 }
 ```
 
@@ -300,13 +307,37 @@ The user or controller needs to read this value and decide whether to create two
 
 #### ACL rule object model
 
-Since the ACL rule is now not bound to a table type (e.g could be table type which supports mirror action, packet action and redirect action at the same time)
+Since the ACL rule is not bound to a table type anymore (e.g could be table type which supports mirror action, packet action and redirect action at the same time)
 a single AclRule implementation should account for all. The AclRuleBase holds common implementation to validate, create and remove the rule allowing
 other orchs to override the behavior.
 
 <p align=center>
 <img src="img/acl-rule-object-model.svg" alt="Figure 1. ACL rule model">
 </p>
+
+#### ACLOrch public API
+
+ACL Table methods declarations:
+
+```c++
+bool addAclTable(AclTable &aclTable);
+bool removeAclTable(string aclTableName);
+bool updateAclTable(AclTable &aclTable);
+```
+
+ACL Rule methods declaration:
+```c++
+bool addAclRule(AclRule& aclRule, string aclTableName);
+bool removeAclRule(string aclTableName, string aclRuleName);
+bool updateAclRule(AclRule& aclRule, string aclTableName);
+```
+
+While add and remove are known and already implemented today in orchagent, update for ACLRule iterates over the diff between old and new
+member fields m_matches, m_actions and sets the corresponding attribute of an ACL Rule.
+
+Updating ACL table allows only for updating ports bound to it.
+
+NOTE: ACL rules coming from CONFIG DB are updated by removal and re-creation, an updateAclRule is mostly used for other orch's use cases.
 
 ### Syncd
 
@@ -340,17 +371,11 @@ tables referencing it.
 <img src="img/acl-table-type-remove-flow.svg" alt="Figure 3. ACL table type remove flow">
 </p>
 
-#### ACL rule update flow
-
-Single AclRule implementation handles updates for mirror, in-band telemetry session state changes.
-
-<p align=center>
-<img src="img/acl-rule-flow.svg" alt="Figure 4. ACL rule update flow">
-</p>
-
 ### Open questions
 
-- SAI does not allow to disable mirror action as it is not @allowempty
-- ACL counters issue: since a rule may have several actions (counter is one of them)
-  the counter counts matched packets and not the packets that are mirrored
-  and this is behavior change.
+- What kind of level of YANG validation is required?
+  - Have matches and actions as enumeration (needs to be updated every time new match/action is introduced in SONiC) or could it be just of a type of string?
+  - Does YANG infrastructure in SONiC supports validation against STATE DB information (e.g. is_action_list_mandatory)?
+- Does this feature needs a similar capability table for match fields? What is the SAI API to query it?
+  - Currently SAI object API allows to query for an ACL table attributes CREATE, SET, GET operations implementation availability (sai_query_attribute_capability, sai_attr_capability_t),
+    but does not tell wether it is supported or not. Can we assume if it is not implemented it is not supported?
