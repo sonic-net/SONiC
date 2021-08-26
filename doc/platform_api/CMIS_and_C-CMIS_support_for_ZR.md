@@ -72,7 +72,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver information for a port
     key                          = TRANSCEIVER_INFO|ifname          ; information for module on port
     ; field                      = value    
-    type                         = 1*255VCHAR                       ; type of module
     module_media_type            = 1*255VCHAR                       ; module media interface ID
     host_electrical_interface    = 1*255VCHAR                       ; host electrical interface ID
     media_interface_code         = 1*255VCHAR                       ; media interface code
@@ -93,19 +92,16 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     serialnum                    = 1*255VCHAR                       ; module serial number 
     manufacturename              = 1*255VCHAR                       ; module venndor name
     modelname                    = 1*255VCHAR                       ; module model name
+    vendor_rev                   = 1*255VCHAR                       ; module vendor revision
     vendor_oui                   = 1*255VCHAR                       ; vendor organizationally unique identifier
     vendor_date                  = 1*255VCHAR                       ; module manufacture date
-    Connector                    = 1*255VCHAR                       ; connector type
-    encoding                     = 1*255VCHAR                       ; serial encoding mechanism
+    connector_type               = 1*255VCHAR                       ; connector type
     ext_identifier               = 1*255VCHAR                       ; additional infomation about the sfp
-    ext_rateselect_compliance    = 1*255VCHAR                       ; additional rate select compliance information
-    cable_type                   = 1*255VCHAR                       ; cable type
-    cable_length                 = 1*255VCHAR                       ; cable length that supported
     specification_compliance     = 1*255VCHAR                       ; electronic or optical interfaces that supported
-    nominal_bit_rate             = 1*255VCHAR                       ; nominal bit rate per channel
-    firmware_major_rev           = 1*255VCHAR                       ; firmware major revision
-    firmware_minor_rev           = 1*255VCHAR                       ; firmware minor revision
-
+    active_firmware_major_rev    = 1*255VCHAR                       ; active firmware major revision
+    acrive_firmware_minor_rev    = 1*255VCHAR                       ; active firmware minor revision
+    inactive_firmware_major_rev  = 1*255VCHAR                       ; inactive firmware major revision
+    inacrive_firmware_minor_rev  = 1*255VCHAR                       ; inactive firmware minor revision
 
 ##### 2.1.2 Transceiver DOM sensor Table #####
 
