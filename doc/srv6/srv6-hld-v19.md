@@ -405,7 +405,7 @@ In Srv6Orch, it will mark which route entry is Srv6 modified and having higher p
 
 If the SID subnet (below example, 2000::31 on E31) is directly connected to E11, the nexthop could be found, if not, we should have a controller to indicate nexthop information on E11 for subnet 2000::31, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE.  Or the network itself has some basic ipv6 protocol is ruuning, and all the basic ipv6 informaion is fully exchanged, it depends on how the architecture is designed.
 
-Beside adding/modifing routes, controller could delete routes. When controller deletes some routes, then the higher priority flag will be removed and the routes will be deleted. Frr or other modules could modify it the same way as today we did when the srv6 high priority flag doesn't exist.
+Beside adding/modifing routes, controller could delete routes. When controller deletes some routes, then the higher priority flag will be removed and the routes will be deleted. Frr or other modules could modify the routes the same way as we did today when the srv6 high priority flag doesn't exist.
 
 **An Example as below:**
 ![draw-configdb](images/Srv6Example.png)
