@@ -103,6 +103,8 @@ VLAN                                  = 1\*4DIGIT                     ; 1 to 409
 
 #### Orchestration agent
 
+##### Figure 1. Orchestration agents
+
 The following orchestration agents will be added or modified. The flow diagrams are captured in a later section.
 
 <p align=center>
@@ -166,12 +168,16 @@ Commands:
 
 #### Flows
 
+##### Figure 2. NVGRE Tunnel creation flow
+
 <p align=center>
 <img src="images/nvgre_tunnel_create_uml.svg" alt="Figure 2. NVGRE Tunnel creation flow">
 </p>
 
+##### Figure 2. NVGRE Tunnel Map creation flow
+
 <p align=center>
-<img src="images/nvgre_tunnel_map_create_uml.svg" alt="Figure 2. NVGRE Tunnel creation flow">
+<img src="images/nvgre_tunnel_map_create_uml.svg" alt="Figure 2. NVGRE Tunnel Map creation flow">
 </p>
 
 ### SAI API 
