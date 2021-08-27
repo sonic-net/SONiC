@@ -121,52 +121,9 @@ The following orchestration agents will be added or modified. The flow diagrams 
 
 ### High-Level Design 
 
-#### CLI tree
+The [sonic-swss](https://github.com/Azure/sonic-swss) sub-module will be extended with the new orchestration agent for NVGRE. The [sonic-swss-common](https://github.com/Azure/sonic-swss-common) sub-module will be extended with the new tables for ConfigDB. The [sonic-utilities](https://github.com/Azure/sonic-utilities) sub-module will be extened with the new CLI.
 
-Commands summary (Phase #2):
-
-```
-	- config nvgre <nvgre_name> vlan <vlan_id> vsid <vsid_id>
-	- config nvgre <nvgre_name> src_if <interface>
-	- show mac nvgre <nvgre_name> <vsid_id>
-	- show nvgre <nvgre_name>
-```
-
-##### Config CLI command
-
-Config command should be extended in order to add "nvgre" alias
-
-```
-Usage: config [OPTIONS] COMMAND [ARGS]...
-
-  SONiC command line - 'config' command
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-...
-  nvgre               nvgre related configuration.
-```
-
-##### Show CLI command
-
-Show command should be extended in order to add "nvgre" alias
-
-```
-Usage: show [OPTIONS] COMMAND [ARGS]...
-
-  SONiC command line - 'show' command
-
-Options:
-  -?, -h, --help  Show this message and exit.
-
-Commands:
-  ...
-  nvgre                   Show nvgre related information
-```
-
-#### Flows
+#### Sequence diagrams
 
 ##### Figure 2. NVGRE Tunnel creation flow
 
@@ -203,21 +160,164 @@ Commands:
 | Encap mapper | SAI_TUNNEL_MAP_TYPE_BRIDGE_IF_TO_VSID |
 | Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_BRIDGE_IF |
 
-### Configuration and management 
-
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
-
 #### CLI/YANG model Enhancements 
 
-This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
-This should also explain the CLICK and/or KLISH related configuration/show in detail.
+New YANG model which describe the NVGRE ConfigDB will be added.
 
-#### Config DB Enhancements  
+#### CLI tree
 
-This sub-section covers the addition/deletion/modification of config DB changes needed for the feature. If there is no change in configuration for HLD feature, it should be explicitly mentioned in this section. This section should also ensure the downward compatibility for the change. 
-		
+Commands summary (Phase #2):
+
+```
+	- config nvgre <nvgre_name> vlan <vlan_id> vsid <vsid_id>
+	- config nvgre <nvgre_name> src_if <interface>
+	- show mac nvgre <nvgre_name> <vsid_id>
+	- show nvgre tunnel <nvgre_name>
+	- show nvgre mappers <nvgre_name>
+```
+
+##### Show CLI command
+
+Show command should be extended in order to add "nvgre" alias
+
+```
+admin@sonic:~$ show nvgre --help
+Usage: show nvgre [OPTIONS] COMMAND [ARGS]...
+
+Show nvgre related information
+
+Options:
+-?, -h, --help Show this message and exit.
+
+Commands:
+  name    Show nvgre name <nvgre_name> information
+  tunnel  Show nvgre tunnel information
+  mappers Show nvgre tunnel mappings
+
+=============================================
+
+admin@sonic:~$ show nvgre tunnel
+NVGRE TUNNEL NAME   SOURCE IP
+------------------- -----------
+tunnel2             2.2.2.2
+tunnel3             3.3.3.3
+
+=============================================
+
+admin@sonic:~$ show nvgre tunnel tunnel2
+NVGRE TUNNEL NAME   SOURCE IP
+------------------- -----------
+tunnel2             2.2.2.2
+
+=============================================
+
+admin@sonic:~$ show nvgre mappers
+NVGRE TUNNEL NAME   VLAN        VNI
+------------------- ----------- ------------
+tunnel2 		    2000 		2000
+tunnel3 		    3000 		3000
+
+=============================================
+
+admin@sonic:~$ show nvgre mappers tunnel2
+NVGRE TUNNEL NAME   VLAN        VNI
+------------------- ----------- ------------
+tunnel2 		    2000 	    2000
+```
+
+##### Config CLI command
+
+Config command should be extended in order to add "nvgre" alias
+
+```
+admin@sonic:~$ config nvgre --help
+Usage: config nvgre [OPTIONS] COMMAND [ARGS]...
+
+config nvgre tunnel
+
+Options:
+-?, -h, --help Show this message and exit.
+
+Commands:
+  tunnel      config nvgre tunnel.
+  tunnel-map  config nvgre tunnel mappings.
+
+=============================================
+
+admin@sonic:~$ config nvgre tunnel --help
+Usage: config nvgre tunnel [OPTIONS] COMMAND [ARGS]...
+
+Config nvgre tunnel
+
+Options:
+  -?, -h, --help Show this message and exit.
+
+Commands:
+  add     Add configuration.
+  del     Del configuration.
+
+=============================================
+
+admin@sonic:~$ config nvgre tunnel add --help
+Usage: config nvgre tunnel add [OPTIONS] <tunnel_name>
+
+Add nvgre tunnel
+
+Options:
+  -?, -h, --help Show this message and exit.
+  --src-ip       Source IP address.
+
+=============================================
+
+admin@sonic:~$ config nvgre tunnel-map --help
+Usage: config nvgre tunnel-map [OPTIONS] COMMAND [ARGS]...
+
+Config nvgre tunnel mapping
+
+Options:
+  -?, -h, --help Show this message and exit.
+
+Commands:
+  add     Add configuration.
+  del     Del configuration.
+
+=============================================
+
+admin@sonic:~$ config nvgre tunnel-map add --help
+Usage: config nvgre tunnel-map add [OPTIONS] <tunnel_name> <vlan_name>
+
+Add nvgre tunnel mapping
+
+Options:
+  -?, -h, --help Show this message and exit.
+  --vlan_id  VLAN identifier
+  --vsid     Virtual Subnet Identifier
+
+```
+
+#### Config DB Enhancements
+
+The ConfigDB will be extended with next objects:
+
+```json
+{
+	"NVGRE_TUNNEL": {
+		"tunnel1": {
+			"src_ip": "2.2.2.2"
+		}
+	},
+	"NVGRE_TUNNEL_MAP": {
+		"tunnel1|Vlan2000": {
+			"vlan_id": "2000",
+			"vsid": "2000",
+		}
+	}
+}
+```
+
 ### Warmboot and Fastboot Design Impact  
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+
+No impact on Warmboot and Fastboot features.
 
 ### Restrictions/Limitations  
 
@@ -230,7 +330,4 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 #### System Test cases
 
-### Open/Action items - if any 
-
-	
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
+### Open/Action items
