@@ -16,18 +16,19 @@
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
 - [About This Manual](#about-this-manual)
-- [1 Feature Requirements](#1-feature-requirements)
-- [1.1 Functional Requirements](#11-functional-requirements)
-- [1.2 Confgiruation and Managment Requirements](#12-configuration-and-management-requirements)
-- [1.3 Warm Reboot Requirements](#13-warm-reboot-requirements)
-- [2 Feature Design](#2-feature-design)
-- [2.1 ConfigDB Changes](#21-configdb-changes)
-- [2.2 AppDB Changes](#22-appdb-changes)
-- [2.3 Orchestration Agent Changes](#23-orchestration-agent-changes)
-- [2.4 SAI](#24-sai)
-- [2.5 YANG Model](#25-yang-model )
-- [3 Unit Test](#3-unit-test)
-- [4 References ](#4-references) 
+- [1 Introuduction and Scope](#1-introuduction-and-scope)
+- [2 Feature Requirements](#2-feature-requirements)
+- [2.1 Functional Requirements](#21-functional-requirements)
+- [2.2 Confgiruation and Managment Requirements](#22-configuration-and-management-requirements)
+- [2.3 Warm Reboot Requirements](#23-warm-reboot-requirements)
+- [3 Feature Design](#3-feature-design)
+- [3.1 ConfigDB Changes](#31-configdb-changes)
+- [3.2 AppDB Changes](#32-appdb-changes)
+- [3.3 Orchestration Agent Changes](#33-orchestration-agent-changes)
+- [3.4 SAI](#34-sai)
+- [3.5 YANG Model](#35-yang-model )
+- [4 Unit Test](#4-unit-test)
+- [5 References ](#5-references) 
 
 # Revision
 
@@ -75,7 +76,7 @@ In SRv6 domain,  TE policy associated with SID list could be configured on heade
 
 # 2 Feature Requirements
 
-## 1.1 Functional Requirements
+## 2.1 Functional Requirements
 
 This section describes the SONiC requirements for SRv6 feature in phases:
 
@@ -102,7 +103,7 @@ Later phases:
 
 This document will focus on Phase #1, while keep the design extendable for future development
 
-## 1.2 Configuration and Management Requirements
+## 2.2 Configuration and Management Requirements
 
 1. User should be able to enable SRv6 globally
 
@@ -112,19 +113,19 @@ This document will focus on Phase #1, while keep the design extendable for futur
 
 4. User should be able to configure endpoint action and corresponding argument for matched local SID
 
-## 1.3 Warm Boot Requirements
+## 2.3 Warm Boot Requirements
 
 Warm reboot is intended to be supported for planned system, swss and BGP warm reboot.
 
  
 
-# 2 Feature Design
+# 3 Feature Design
 
 ![draw-configdb](images/drawing-configdb-frr3.png)
 
 Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plane forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
 
-## 2.1 ConfigDB Changes
+## 3.1 ConfigDB Changes
 
 **SRV6_SID_LIST_TABLE**
 
@@ -260,7 +261,7 @@ For example:
     }
 ```
 
-## 2.2 AppDB changes
+## 3.2 AppDB changes
 
 **New SRV6_SID_LIST_TABLE**
 
@@ -410,7 +411,7 @@ Beside adding/modifing routes, controller could delete routes. When controller d
 ![draw-configdb](images/Srv6Example.png)
 
 
-## 2.3 Orchestration Agent Changes
+## 3.3 Orchestration Agent Changes
 
 New Orchagent(SRV6Orch) is created to manage all SRV6 related objects. SRV6Orchagent listens to APP_DB for regular updates and create/update SAI objects in ASIC_DB.  
 
@@ -459,7 +460,7 @@ Struct NextHopKey {
 
 
 
-## 2.4 SAI
+## 3.4 SAI
 
   https://github.com/opencomputeproject/SAI/compare/master...ashutosh-agrawal:srv6
 
@@ -550,7 +551,7 @@ local_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
 saistatus = saiv6sr_api->create_local_sid(&local_sid_entry, 2, local_sid_attr)
 
 
-## 2.5 YANG Model
+## 3.5 YANG Model
 ```
 module: sonic-srv6
   +--rw sonic-srv6
@@ -582,11 +583,11 @@ module: sonic-srv6
            +--rw source?      inet:ipv6-address
 ```
 
-## 3 Unit Test
+## 4 Unit Test
 
 TBD
 
-## 4 References
+## 5 References
 
 -  [SAI IPv6 Segment Routing Proposal for SAI 1.2.0](https://github.com/opencomputeproject/SAI/blob/1066c815ddd7b63cb9dbf4d76e06ee742bc0af9b/doc/SAI-Proposal-IPv6_Segment_Routing-1.md)
 
