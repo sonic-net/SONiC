@@ -190,7 +190,7 @@ Options:
 -?, -h, --help Show this message and exit.
 
 Commands:
-  name    Show nvgre name <nvgre_name> information
+  name    Show nvgre name information
   tunnel  Show nvgre tunnel information
   mappers Show nvgre tunnel mappings
 
@@ -214,15 +214,15 @@ tunnel2             2.2.2.2
 admin@sonic:~$ show nvgre mappers
 NVGRE TUNNEL NAME   VLAN        VNI
 ------------------- ----------- ------------
-tunnel2 		    2000 		2000
-tunnel3 		    3000 		3000
+tunnel2             2000        2000
+tunnel3             3000        3000
 
 =============================================
 
 admin@sonic:~$ show nvgre mappers tunnel2
 NVGRE TUNNEL NAME   VLAN        VNI
 ------------------- ----------- ------------
-tunnel2 		    2000 	    2000
+tunnel2             2000        2000
 ```
 
 ##### Config CLI command
