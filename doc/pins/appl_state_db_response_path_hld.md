@@ -116,96 +116,21 @@ There are certain rare scenarios that the applications need to be aware of:
 
 A list of return codes will be defined for application layer response. The string representation of the code is encoded in the "operation" field in the notification channel as mentioned before. For SAI errors, orchagent will map the SAI error into the corresponding return code.
 
-<table>
-  <tr>
-   <td><strong>Return Status Code</strong>
-   </td>
-   <td><strong>SAI Error</strong>
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_SUCCESS
-   </td>
-   <td>SAI_STATUS_SUCCESS
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_INVALID_PARAM
-   </td>
-   <td>SAI_STATUS_INVALID_PARAMETER
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_DEADLINE_EXCEEDED
-   </td>
-   <td>
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_UNAVAIL
-   </td>
-   <td>
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_NOT_FOUND
-   </td>
-   <td>SAI_STATUS_ITEM_NOT_FOUND
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_NO_MEMORY
-   </td>
-   <td>SAI_STATUS_NO_MEMORY
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_EXISTS
-   </td>
-   <td>SAI_STATUS_ITEM_ALREADY_EXISTS
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_PERMISSION_DENIED
-   </td>
-   <td>
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_FULL
-   </td>
-   <td>SAI_STATUS_INSUFFICIENT_RESOURCES
-<p>
-SAI_STATUS_TABLE_FULL
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_IN_USE
-   </td>
-   <td>SAI_STATUS_OBJECT_IN_USE
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_INTERNAL
-   </td>
-   <td>SAI_STATUS_FAILURE
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_UNIMPLEMENTED
-   </td>
-   <td>SAI_STATUS_NOT_SUPPORTED
-<p>
-SAI_STATUS_NOT_IMPLEMENTED
-   </td>
-  </tr>
-  <tr>
-   <td>SWSS_RC_UNKNOWN
-   </td>
-   <td>Other SAI errors
-   </td>
-  </tr>
-</table>
+Return Status Code        | SAI Error
+------------------------- | ---------
+SWSS_RC_SUCCESS           | SAI_STATUS_SUCCESS
+SWSS_RC_INVALID_PARAM     | SAI_STATUS_INVALID_PARAMETER
+SWSS_RC_DEADLINE_EXCEEDED |
+SWSS_RC_UNAVAIL           |
+SWSS_RC_NOT_FOUND         | SAI_STATUS_ITEM_NOT_FOUND
+SWSS_RC_NO_MEMORY         | SAI_STATUS_NO_MEMORY
+SWSS_RC_EXISTS            | SAI_STATUS_ITEM_ALREADY_EXISTS
+SWSS_RC_PERMISSION_DENIED |
+SWSS_RC_FULL              | SAI_STATUS_INSUFFICIENT_RESOURCES<br>SAI_STATUS_TABLE_FULL
+SWSS_RC_IN_USE            | SAI_STATUS_OBJECT_IN_USE
+SWSS_RC_INTERNAL          | SAI_STATUS_FAILURE
+SWSS_RC_UNIMPLEMENTED     | SAI_STATUS_NOT_SUPPORTED<br>SAI_STATUS_NOT_IMPLEMENTED
+SWSS_RC_UNKNOWN           | Other SAI errors
 
 ### APPL STATE DB
 
