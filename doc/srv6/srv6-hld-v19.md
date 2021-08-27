@@ -19,8 +19,7 @@
 - [1 Feature Requirements](#1-feature-requirements)
 - [1.1 Functional Requirements](#11-functional-requirements)
 - [1.2 Confgiruation and Managment Requirements](#12-configuration-and-management-requirements)
-- [1.3 Scalabiliity Requirements](#13-scalability-requirements)
-- [1.4 Warm Reboot Requirements](#14-warm-reboot-requirements)
+- [1.3 Warm Reboot Requirements](#13-warm-reboot-requirements)
 - [2 Feature Design](#2-feature-design)
 - [2.1 ConfigDB Changes](#21-configdb-changes)
 - [2.2 AppDB Changes](#22-appdb-changes)
@@ -87,12 +86,12 @@ Phase #1
 ​	Should be able to perform the role of SRv6 domain headend node, and endpoint node, more specific:
 - Support END, Endpoint function - The SRv6 instantiation of a prefix SID 
 - Support END.DT46, Endpoint with decapsulation and IP table lookup - IP L3VPN use (equivalent of a per-VRF VPN label)
+- Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
 - Support traffic steering on SID list
 - Support anycast SID
 
 Later phases:
 - Support H.Encaps, SR Headend Behavior with Encapsulation in an SR Policy
-- Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
 - Support END.B6.Encaps, Endpoint bound to an SRv6 encapsulation Policy - SRv6 instantiation of a Binding SID
 - Support END.B6.Encaps.Red,  END.B6.Encaps with reduced SRH insertion - SRv6 instantiation of a Binding SID
 - Support END.X, Endpoint function with Layer-3 cross-connect - The SRv6 instantiation of a Adj SID
@@ -105,7 +104,7 @@ This document will focus on Phase #1, while keep the design extendable for futur
 
 ## 1.2 Configuration and Management Requirements
 
-1. User should be able to enable SRv6 globally or per interface
+1. User should be able to enable SRv6 globally
 
 2. User should be able to configure SID list for encapsulation
 
@@ -113,16 +112,7 @@ This document will focus on Phase #1, while keep the design extendable for futur
 
 4. User should be able to configure endpoint action and corresponding argument for matched local SID
 
-## 1.3 Scalability Requirements
-
-- Maximum number of end.DT46 SID: 2k
-- Maximum number  of Binding SID: 1k
-- Maximum number of SR policy: 1k
-- Maximum SID-list per SR Policy: 4
-- Maximum number of SID-list: 4k
-- SRH depth with regular SID: 3
-
-## 1.4 Warm Boot Requirements
+## 1.3 Warm Boot Requirements
 
 Warm reboot is intended to be supported for planned system, swss and BGP warm reboot.
 
@@ -413,6 +403,8 @@ In Srv6Orch, it will mark which route entry is Srv6 modified and having higher p
 **Resolve SID NextHop Via Controller or Others:** 
 
 If the SID subnet (below example, 2000::31 on E31) is directly connected to E11, the nexthop could be found, if not, we should have a controller to indicate nexthop information on E11 for subnet 2000::31, since FRR is not involved at this moment on Phase #1. A static route should be installed via controller in APPL_DB ROUTE_TABLE.  Or the network itself has some basic ipv6 protocol is ruuning, and all the basic ipv6 informaion is fully exchanged, it depends on how the architecture is designed.
+
+Beside adding/modifing routes, controller could delete routes. When controller deletes some routes, then the higher priority flag will be removed and the routes will be deleted. Frr or other modules could modify it the same way as today we did.
 
 **An Example as below:**
 ![draw-configdb](images/Srv6Example.png)
