@@ -174,10 +174,23 @@ Commands:
 <img src="images/nvgre_tunnel_create_uml.svg" alt="Figure 2. NVGRE Tunnel creation flow">
 </p>
 
-##### Figure 2. NVGRE Tunnel Map creation flow
+##### Figure 3. NVGRE Tunnel Map creation flow
 
 <p align=center>
 <img src="images/nvgre_tunnel_map_create_uml.svg" alt="Figure 2. NVGRE Tunnel Map creation flow">
+</p>
+
+
+##### Figure 4. NVGRE Tunnel CLI config
+
+<p align=center>
+<img src="images/nvgre_cli_config.svg" alt="Figure 4. NVGRE Tunnel CLI config">
+</p>
+
+##### Figure 5. NVGRE Tunnel CLI show
+
+<p align=center>
+<img src="images/nvgre_cli_show.svg" alt="Figure 5. NVGRE Tunnel CLI show">
 </p>
 
 ### SAI API 
