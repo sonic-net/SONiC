@@ -20,7 +20,7 @@
 - [2 Feature Requirements](#2-feature-requirements)
 - [2.1 Functional Requirements](#21-functional-requirements)
 - [2.2 Confgiruation and Managment Requirements](#22-configuration-and-management-requirements)
-- [2.3 Warm Reboot Requirements](#23-warm-reboot-requirements)
+- [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
 - [3.1 ConfigDB Changes](#31-configdb-changes)
 - [3.2 AppDB Changes](#32-appdb-changes)
