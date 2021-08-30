@@ -60,7 +60,7 @@ NVGRE orchagent:
 
 - Phase #1
   - Should be able to create Bridge/VLAN to VSID mapping
-  - Should be able to create tunnels and encap/decap mappers.
+  - Should be able to create tunnels and encap/decap mappers
 
 ### Architecture Design 
 
@@ -169,11 +169,10 @@ New YANG model which describe the NVGRE ConfigDB will be added.
 Commands summary (Phase #2):
 
 ```
-	- config nvgre <nvgre_name> vlan <vlan_id> vsid <vsid_id>
-	- config nvgre <nvgre_name> src_if <interface>
-	- show mac nvgre <nvgre_name> <vsid_id>
-	- show nvgre tunnel <nvgre_name>
-	- show nvgre mappers <nvgre_name>
+	- config nvgre tunnel add/del <nvgre_tunnel_name> --src-ip <src_ip>
+	- config nvgre tunnel-map add/del <nvgre_tunnel_name> --vlan_id <vlan_id> --vsid <vsid_id>
+	- show nvgre tunnel
+	- show nvgre tunnel-map
 ```
 
 ##### Show CLI command
@@ -190,9 +189,8 @@ Options:
 -?, -h, --help Show this message and exit.
 
 Commands:
-  name    Show nvgre name information
-  tunnel  Show nvgre tunnel information
-  mappers Show nvgre tunnel mappings
+  tunnel     Show nvgre tunnel information.
+  tunnel-map Show nvgre tunnel mappings.
 
 =============================================
 
@@ -204,25 +202,11 @@ tunnel3             3.3.3.3
 
 =============================================
 
-admin@sonic:~$ show nvgre tunnel tunnel2
-NVGRE TUNNEL NAME   SOURCE IP
-------------------- -----------
-tunnel2             2.2.2.2
-
-=============================================
-
-admin@sonic:~$ show nvgre mappers
+admin@sonic:~$ show nvgre tunnel-map
 NVGRE TUNNEL NAME   VLAN        VNI
 ------------------- ----------- ------------
 tunnel2             2000        2000
 tunnel3             3000        3000
-
-=============================================
-
-admin@sonic:~$ show nvgre mappers tunnel2
-NVGRE TUNNEL NAME   VLAN        VNI
-------------------- ----------- ------------
-tunnel2             2000        2000
 ```
 
 ##### Config CLI command
@@ -290,8 +274,8 @@ Add nvgre tunnel mapping
 
 Options:
   -?, -h, --help Show this message and exit.
-  --vlan_id  VLAN identifier
-  --vsid     Virtual Subnet Identifier
+  --vlan_id  VLAN identifier.
+  --vsid     Virtual Subnet Identifier.
 
 ```
 
@@ -322,11 +306,16 @@ No impact on Warmboot and Fastboot features.
 ### Restrictions/Limitations  
 
 ### Testing Requirements/Design  
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below. 
 
-#### Unit Test cases  
+The tests will be implemented under the VS environment and will be placed - [sonic-swss/tests](https://github.com/Azure/sonic-swss/tree/master/tests) sub-module.
+
+#### Unit Test cases
+
+VS test cases:
+- create NVGRE Tunnel
+- remove NVGRE Tunnel
+- create NVGRE Tunnel Map
+- remove NVGRE Tunnel Map
 
 #### System Test cases
 
