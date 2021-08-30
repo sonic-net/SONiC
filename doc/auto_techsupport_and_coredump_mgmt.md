@@ -137,50 +137,47 @@ module sonic-auto_techsupport {
                 container GLOBAL {
                
                     leaf auto_invoke_ts {
-                        /* Enable this to make the Techsupport Invocation event driven based on core-dump generation*/
+                        description "Knob to make techsupport invocation event-driven based on core-dump generation";
                         type enable-knob;
                     }
 
                     leaf coredump_cleanup {
-                        /* Enable Core dump cleanup based on core_usage argument */
+                        description "Knob to enable coredump cleanup";
                         type enable-knob;
                     }
 
                     leaf techsupport_cleanup  {
-                        /* Enable Techsupport Dump cleanup based on max_techsupport_size argument */
+                        description "Knob to enable techsupport dump cleanup";
                         type enable-knob;
                     }
 
                     leaf rate_limit_interval  {
-                        /* Minimum Time in seconds, between two successive techsupport invocations by the script. 
-                        Configure '0' to explicitly disable */
+                        description "Minimum time in seconds between two successive techsupport invocations. Configure 0 to explicitly disable";
                         type uint16;
                     }
 
                     leaf max_techsupport_size {
                         /*
-                        A value between [0,100) should be specified. 
+                        A value between (0,100) should be specified. 
                         Upto two decimal places will be used in the calculation
-                        This signifies maximum Size to which the techsupport dumps in /var/dump directory can be grown until 
                         The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                         When the limit is crossed, the older core files are incrementally deleted
-                        Configure '0.0' to explicitly disable
                         */
+                        description "Maximum Size to which the techsupport dumps in /var/dump directory can be grown until";
                         type decimal64 {
                             fraction-digits 2;
-                            range 0.0..99.99; 
+                            range 0.1..99.99; 
                         }
                     }
 
                     leaf max_core_size {
                         /*
-                        A value between [0,100) should be specified.
+                        A value between (0,100) should be specified.
                         Upto two decimal places will be used in the calculation
-                        This signifies maximum Size to which the core dumps in /var/core directory can be grown until
                         The actual value in bytes is calculated based on the available space in the filesystem hosting /var/core
                         When the limit is crossed, the older core files are deleted
-                        Configure '0.0' to explicitly disable
                         */
+                        description "Maximum Size to which the core dumps in /var/core directory can be grown until";
                         type decimal64 {
                             fraction-digits 2;
                             range 0.0..99.99; 
@@ -189,10 +186,10 @@ module sonic-auto_techsupport {
                     
                     leaf since {
                         /*
-                        This limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided
                         Any valid date string of the formats specified here (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
                         can be used. If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used
                         */
+                        description "Limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided";
                         type string;
                     }
               }
@@ -202,6 +199,7 @@ module sonic-auto_techsupport {
     }
     /* end of top level container */
 }
+
 ```
 
 Note: 
