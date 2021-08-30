@@ -323,6 +323,33 @@ other orchs to override the behavior.
 
 #### ACLOrch public API
 
+ACL rule base class declaration:
+
+```c++
+class AclRule
+{
+protected:
+    virtual bool create();
+    virtual bool remove();
+    virtual bool update(const AclRule& updatedRule);
+    virtual bool validate(const AclCapabilities& capabilities);
+protected:
+    uint32_t m_priority;
+    AclEntryAttrMap m_matches;
+    AclEntryAttrMap m_actions;
+private:
+    std::string m_name;
+    sai_object_id_t m_oid {SAI_NULL_OBJECT_ID};
+    const AclTable& m_table;
+
+    friend class AclOrch;
+};
+```
+
+The create/update/remove methods are protected allowing the child classes to be overwritten for custom behavior (like, AclRuleMirror),
+but the AclOrch's public API is the only way to create the actual rule, so that the AclOrch will manage AclRule CRM, FC, etc.
+
+
 ACL Table methods declarations:
 
 ```c++
@@ -335,7 +362,7 @@ ACL Rule methods declaration:
 ```c++
 bool addAclRule(AclRule& aclRule, string aclTableName);
 bool removeAclRule(string aclTableName, string aclRuleName);
-bool updateAclRule(AclRule& aclRule, string aclTableName);
+bool updateAclRule(AclRule& updatedAclRule, string aclTableName);
 ```
 
 While add and remove are known and already implemented today in orchagent, update for ACLRule iterates over the diff between old and new
