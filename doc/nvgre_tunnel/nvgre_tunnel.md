@@ -103,9 +103,9 @@ VLAN                                  = 1\*4DIGIT                     ; 1 to 409
 
 #### Orchestration agent
 
-##### Figure 1. Orchestration agents
-
 The following orchestration agents will be added or modified. The flow diagrams are captured in a later section.
+
+##### Figure 1. Orchestration agents
 
 <p align=center>
 <img src="images/nvgre_orch.svg" alt="Figure 1. Orchestration agents">
@@ -177,7 +177,7 @@ Commands summary (Phase #2):
 
 ##### Show CLI command
 
-Show command should be extended in order to add "nvgre" alias
+Show command should be extended in order to add "nvgre" alias:
 
 ```
 admin@sonic:~$ show nvgre --help
@@ -211,7 +211,7 @@ tunnel3             3000        3000
 
 ##### Config CLI command
 
-Config command should be extended in order to add "nvgre" alias
+Config command should be extended in order to add "nvgre" alias:
 
 ```
 admin@sonic:~$ config nvgre --help
