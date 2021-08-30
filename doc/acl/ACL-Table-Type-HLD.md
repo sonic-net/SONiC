@@ -326,7 +326,7 @@ other orchs to override the behavior.
 ACL rule base class declaration:
 
 ```c++
-class AclRule
+class AclBaseRule
 {
 protected:
     virtual bool create();
