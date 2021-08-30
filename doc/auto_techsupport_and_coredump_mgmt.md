@@ -82,7 +82,7 @@ max_techsupport_size = 10;                  # A perentage value should be specif
                                               This signifies maximum Size to which /var/dump/ directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                                               When the limit is crossed, the older techsupport dumps are incrementally deleted                         
-core_usage = 5;                             # A perentage value should be specified. 
+max_core_size = 5;                             # A perentage value should be specified. 
                                               This signifies maximum Size to which /var/core directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                               When the limit is crossed, the older core files are incrementally deleted
@@ -244,8 +244,8 @@ config auto-techsupport global auto-invoke-ts <enabled/disabled>
 config auto-techsupport global coredump-cleanups <enabled/disabled>
 config auto-techsupport global techsupport-cleanup <enabled/disabled>
 config auto-techsupport global rate-limit-interval <uint16>
-config auto-techsupport global max-techsupport <float upto two decimal places>
-config auto-techsupport global core-usage <float upto two decimal places>
+config auto-techsupport global max-techsupport-size <float upto two decimal places>
+config auto-techsupport global max-core-size <float upto two decimal places>
 config auto-techsupport global since <string>
 
 config feature autotechsupport <name> enabled|disabled>
@@ -257,9 +257,9 @@ config auto-techsupport rate-limit-interval <name> <uint16>
 
 ```
 admin@sonic:~$ show auto-techsupport global
-AUTO INVOKE TS    COREDUMP CLEANUP    TECHSUPPORT CLEANUP      COOLOFF    MAX TECHSUPPORT SIZE    CORE USAGE  SINCE
-----------------  ------------------  ---------------------  ---------  ----------------------  ------------  ----------
-enabled           enabled             enabled                      180                   12.23             5  2 days ago
+AUTO INVOKE TS    COREDUMP CLEANUP    TECHSUPPORT CLEANUP      COOLOFF    MAX TECHSUPPORT SIZE    MAX CORE SIZE  SINCE
+----------------  ------------------  ---------------------  ---------  ----------------------    ------------  ----------
+enabled           enabled             enabled                      180                   12.23               5  2 days ago
  
 
 admin@sonic:~$ show auto-techsupport history
