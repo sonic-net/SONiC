@@ -24,7 +24,7 @@
 
 This document gives developers a quick guide through developing new application extensions or porting existing SONiC docker images into application extension compatible ones.
 
-It is recommended to get acquainted with [HLD](https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md) document before reading this document.
+It is recommended to get acquainted with [HLD](sonic-application-extention-hld.md) document before reading this document.
 
 ### Porting an existing SONiC Docker image to be an Application Extension
 
@@ -109,7 +109,7 @@ Prerequisites, build instructions and installation instructions are present in r
 
 ### Adding 3rd party application to SONiC package database
 
-Modify files/build_templates/packages.json.j2 to include new package. Example:
+Modify files/build_templates/packages.json.j2 to include new package. Example for the previous sonic-example-extension - *cpu-report*:
 
 ```json
 {
@@ -143,7 +143,7 @@ $(CPU_REPORT)_DEFAULT_FEATURE_OWNER # "local" or "kube". Default is "local".
 
 ### Manifest Reference
 
-Label that manifest content should be written to:
+Label name the manifest content should be written to:
 ```
 com.azure.sonic.manifest
 ```
