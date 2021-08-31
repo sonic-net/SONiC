@@ -14,6 +14,7 @@
 - Orchagent
 - Syncd
 - COUNTERS DB
+- CLI
 - Flows
 - Create ACL rule
 - Delete ACL rule
@@ -177,6 +178,14 @@ RULE_9        DATAACL         9991              901            900
 RULE_10       DATAACL         9989             1001           1000
 DEFAULT_RULE  DATAACL            1                2              1
 RULE_6        EVERFLOW        9994              601            600
+```
+
+*sonic-clear* utility is extended with the ACL group to clear ACL counters. Counters are dumped into a file under /home/admin and the next time *aclshow* is invoked
+it shows the difference between dumped counters and actual from database. This approach makes each user have it's own view on the counters and aligned to other
+counter groups.
+
+```
+admin@sonic:~$ sonic-clear acl
 ```
 
 ### Flows
