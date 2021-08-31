@@ -239,7 +239,7 @@ Eg:
 ### config cli
 ```
 config auto-techsupport global auto-invoke-ts <enabled/disabled>
-config auto-techsupport global coredump-cleanups <enabled/disabled>
+config auto-techsupport global coredump-cleanup <enabled/disabled>
 config auto-techsupport global techsupport-cleanup <enabled/disabled>
 config auto-techsupport global rate-limit-interval <uint16>
 config auto-techsupport global max-techsupport-size <float upto two decimal places>
