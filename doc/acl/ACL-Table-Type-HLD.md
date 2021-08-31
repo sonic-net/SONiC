@@ -25,6 +25,9 @@
   - ACL table type create flow
   - ACL table type update flow
   - ACL table type remove flow
+- Testing
+- VS tests
+- System tests
 - Open questions
 
 ### Revision
@@ -196,6 +199,8 @@ The following existing table types defined in init_cfg.json:
 The init_cfg.json.j2 creates some table types only for platforms that support a particular feature (like in band telemetry).
 The list of matches, bind point types and actions is copied from orchagent code.
 
+DTEL table is created in the init_cfg.json on a platform supporting it.
+
 ### STATE DB
 
 ACL stage capabilities are queried by reading SAI_SWITCH_ATTR_ACL_STAGE_INGRESS and SAI_SWITCH_ATTR_ACL_STAGE_EGRESS
@@ -222,6 +227,8 @@ Example:
 3) action_list
 4) PACKET_ACTION,MIRROR_INGRESS_ACTION,REDIRECT_ACTION
 ```
+
+On table creation, a check is performed by the orchagent to check against the action list and action_list capability as well as is_action_list_mandatory flag.
 
 ### Orchagent
 
@@ -326,7 +333,7 @@ other orchs to override the behavior.
 ACL rule base class declaration:
 
 ```c++
-class AclBaseRule
+class AclRule
 {
 public:
     virtual bool create();
@@ -351,16 +358,16 @@ but the AclOrch's public API is the only way to create the actual rule, so that 
 ACL Table methods declarations:
 
 ```c++
-bool addAclTable(AclTable &aclTable);
+bool addAclTable(shared_ptr<AclTable> aclTable);
 bool removeAclTable(string aclTableName);
-bool updateAclTable(AclTable &aclTable);
+bool updateAclTable(shared_ptr<AclTable> aclTable);
 ```
 
 ACL Rule methods declaration:
 ```c++
-bool addAclRule(AclRule& aclRule, string aclTableName);
+bool addAclRule(shared_ptr<AclRule> aclRule, string aclTableName);
 bool removeAclRule(string aclTableName, string aclRuleName);
-bool updateAclRule(AclRule& updatedAclRule, string aclTableName);
+bool updateAclRule(shared_ptr<AclRule> updatedAclRule);
 ```
 
 While add and remove are known and already implemented today in orchagent, update for ACLRule iterates over the diff between old and new
@@ -401,6 +408,17 @@ tables referencing it.
 <p align=center>
 <img src="img/acl-table-type-remove-flow.svg" alt="Figure 3. ACL table type remove flow">
 </p>
+
+### Testing
+
+### VS tests
+
+- Enhance test_acl.py with a test configuration including table types needed for the rest of the tests (L3, L3V6, etc.).
+
+### System tests
+
+- Existing ACL/Everflow tests cover default table types coming from init_cfg.json, which means it is covering the flow of creating table types.
+- Warm/Fast reboot tests to verify the functionality with new changes.
 
 ### Open questions
 
