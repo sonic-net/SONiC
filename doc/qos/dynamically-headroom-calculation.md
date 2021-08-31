@@ -746,7 +746,19 @@ Let's imagine what will happen after a XOFF frame has been sent for a priority. 
 1. MAC/PHY delay, which is the bytes held in the SWITCH CHIP's egress pipeline and PHY when XOFF has been generated.
 2. Gearbox delay, which is the latency caused by the Gearbox, if there is one.
 3. KB on cable, which is the bytes held in the cable, which is equals the time required for packet to travel from one end of the cable to the other multiplies the port's speed. Obviously, the time is equal to cable length divided by speed of the light in the media.
-4. Peer response time, which is the bytes that are held in the peer switch's pipeline and will be send out when the XOFF packet is received. IEEE 802.3 31B.3.7 defines how many pause_quanta shall wait when a switch receives a pause frame at different operating speed. For example, at 40 Gb/s it shall wait for 118 pause_quanta while 394 pause_quanta shall be taken at 100 Gb/s. A pause_quanta equal to 512 bit times(see IEEE 802.3 31B.2).
+4. Peer response time, when a switch receives a pause frame, it will not stop the packet transmission immediately, because it need to drain the frames which already submitted to MAC layer. So extra buffer shall be considered to handle the peer delay response. IEEE 802.3 31B.3.7 defines how many pause_quanta shall wait upon an XOFF. A pause_quanta equal to the time required to transmit 512 bits of a frame at the data rate of the MAC.  At different operating speed the number of pause_quanta shall be taken are also different. Following table shows the number of pause_quanta shall be taken for each speed.
+
+      | Operating speed | Number of pause_quanta |
+      |:--------:|:-----------------------------:|
+      | 100 Mb/s |  1 |
+      | 1 Gb/s | 2 |
+      | 10 Gb/s | 67 |
+      | 25 Gb/s | 80 |
+      | 40 Gb/s | 118 |
+      | 50 Gb/s | 147 |
+      | 100 Gb/s | 394 |
+      | 200 Gb/s | 453 |
+      | 400 Gb/s | 905 |
 
 Let's consider the flow of XOFF packet generating and handling:
 
