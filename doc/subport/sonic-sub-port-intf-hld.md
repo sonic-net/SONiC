@@ -46,11 +46,11 @@
         * [6.3.2 Remove all IP addresses from a sub port interface](#632-remove-all-ip-addresses-from-a-sub-port-interface)
         * [6.3.3 Remove a sub port interface](#633-remove-a-sub-port-interface)
   * [7 Scalability](#7-scalability)
-  * [8 Port channel renaming](#8-port-channel-renaming)
+  * [8 upgrade and downgrade considerations](#8-upgrade-and-downgrade-considerations)
   * [9 Appendix](#9-appendix)
     * [9.1 Difference between a sub port interface and a vlan interface](#91-difference-between-a-sub-port-interface-and-a-vlan-interface)
   * [10 API Library](#10-api-library)
-    * [10.1 CPP Library](#101-cpp-library)
+    * [10.1 SWSS CPP Library](#101-swss-cpp-library)
     * [10.2 Python Library](#102-python-library)
   * [11 Open questions](#11-open-questions)
   * [12 Acknowledgment](#12-acknowledgment)
@@ -59,10 +59,10 @@
 <!-- /TOC -->
 
 # Revision history
-| Rev |    Date     |       Author       | Change Description                        |
-|:---:|:-----------:|:------------------:|-------------------------------------------|
-| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                           |
-| 0.2  | 12/17/2020 | Broadcom           | Updating PortChannel Subinterface support |
+| Rev |    Date     |       Author       | Change Description                                      |
+|:---:|:-----------:|:------------------:|---------------------------------------------------------|
+| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                                         |
+| 0.2 | 12/17/2020  | Broadcom           | Subinterface naming convention changes and enhancements |
 
 # Scope
 A sub port interface is a logical interface that can be created on a physical port or a port channel.
@@ -103,7 +103,7 @@ A sub port interface shall support the following features:
 * RIF counters
 * QoS setting inherited from parent physical port or port channel
 * MTU: 
-  MTU inherited from parent physical port or port channel. 
+  MTU of the subinterface is inherited from the parent interface (physical or portchannel)
   If subinterface MTU is configured, MTU on subinterface will be configured with:
   - If Subinterface MTU <= parent port MTU, configured subinterface MTU will be applied.
   - If Subinterface MTU > parent port MTU, parent port MTU will be applied.
@@ -119,13 +119,13 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
 ## 2.1 Configuration
 ### 2.1.1 Naming Convention for sub-interfaces:
 
-Since Kernel has netdevice name length restriction to 15, port channel sub-interfaces(Physical interfaces as well in case interface number > 99) cannot follow the same nomenclature as physical sub-interfaces. Hence Long name to  short name conversion needs to be performed for the subinterfaces.
+Since Kernel has netdevice name length restriction to 15, Physical sub-interfaces(in case interface number > 99) and port channel sub-interfaces cannot follow the same nomenclature as physical interfaces. Hence Long name to short name conversion needs to be performed for the subinterfaces.
 
 All DB & Kernel netdevice corresponding to the sub-interface should be created with a short name.
 
-All applications interacting/maintaining sub-interfaces should be aware of this mapping to get parent interface properties.
+Intfmgrd & IntfsOrch which manages sub-interfaces should be aware of this mapping to get parent interface properties.
 
-CPP & Python API library will be provided to perform short name to long name conversion and vice versa.
+SWSS CPP library & Click Python API library will be provided to perform short name to long name conversion and vice versa.
 Please refer to the API library section for details.
 
 Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
@@ -148,7 +148,6 @@ The section before the dot is the name of the parent physical port or port chann
 
 vlan field identifies the vlan to which the sub-interface is associated using .1Q trunking.
 Note that subinterface_id and vlan_id for a subinterface can be different.
-Unless the user configures vlan_id associated with the subinterface, the subinterface will NOT be provisioned in the SONiC system.
 
 In Click CLI, user will be able to configure the vlan id associated with the sub-interface. If vlan_id is not provided, sub-interface ID will be used as vlan id.
 
@@ -628,6 +627,11 @@ We enforce a minimum scalability requirement on the number of sub port interface
 | Number of sub port interfaces per physical port or port channel   | 250                       |
 | Number of sub port interfaces per switch                          | 750                       |
 
+# 8 Upgrade and Downgrade considerations
+Since subinterface names are stored in short name format with this enhancement,
+subinterface name in config DB should be convereted from long name to short name format during upgrade and short name to long name format during downgrade.
+
+db_migrator script will be updated to handle this subinterface name conversion.
 
 # 9 Appendix
 ## 9.1 Difference between a sub port interface and a vlan interface
@@ -639,9 +643,9 @@ __Fig. 3: Vlan interface__
 
 # 10 API Library
 All DB & Kernel netdev corresponding to the subinterface should be created with a short name.
-All applications interacting/maintaining these netdev should be aware of this mapping.
+Intfmgrd & IntfsOrch which manages sub-interfaces should be aware of this mapping to get parent interface properties.
 
-## 10.1 CPP Library
+## 10.1 SWSS CPP Library
 In CPP, applications can use subintf class provided by swss-common library to fetch attributes of subinterface.
 
 Subintf class provides below methods:
