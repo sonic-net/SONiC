@@ -37,30 +37,20 @@ This document provides general information about the NVGRE tunnel feature implem
 
 NVGRE is a network virtualization method that uses encapsulation and tunneling to create large numbers of virtual LANs (VLANs) for subnets that can extend across dispersed data centers and layer 2 (the data link layer) and  layer 3 (the network layer). The SONIC has no support of NVGRE tunnel feature and appropriate SAI implementation for it. 
 
-From the arhitecture point of view the new orchagent will be added to cover the NVGRE functionality. From the architecture point of view the new orchagent daemon will be added to cover the NVGRE functionality. New daemon should handle the configuration taken from config DB, and call an appropriate SAI API, which will create tunnel.
-
-The new YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
+From the architecture point of view the new orchagent daemon will be added to cover the NVGRE functionality. New daemon should handle the configuration taken from config DB, and call an appropriate SAI API, which will create tunnel and tunnel maps.
 
 ### Requirements
 
 This section describes the SONiC requirements for NVGRE feature.
 
-#### Functional requirements
-
 At a high level the following should be supported:
-
-- Phase #1
-  - NVGRE tunnel should be able to work in parallel to VxLAN tunnel
-- Phase #2
-  - CLI for NVGRE tunnel
-
-#### Orchagent requirements
-
-NVGRE orchagent:
 
 - Phase #1
   - Should be able to create Bridge/VLAN to VSID mapping
   - Should be able to create tunnels and encap/decap mappers
+  - YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
+- Phase #2
+  - CLI for NVGRE tunnel
 
 ### Architecture Design 
 
@@ -113,15 +103,18 @@ The following orchestration agents will be added or modified. The flow diagrams 
 
 #### NvgreOrch
 
-`nvgreorch` - it is an orchestration agent that handles the configuration requests directly from ConfigDB. The `nvgreorch` is responsible for creates the tunnel and attaches encap and decap mappers. Separate tunnel maps are created for L3 NVGRE and can attach different VLAN/VSID or Bridge/VSID to a respective tunnel.
+`nvgreorch` - it is an orchestration agent that handles the configuration requests directly from ConfigDB. The `nvgreorch` is responsible for creating the tunnel and attaches encap and decap mappers. Both VLAN and Bridge tunnel maps are created for NVGRE tunnel by default, so it would be possible to apply both VLAN/VSID and Bridge/VSID map entries.
 
 #### Orchdaemon
 
-`orchdaemon` - it is the main orchestration agent, which handles all Redis DB's updates then calls appropriate orchagent, the new `nvgreorch` should be registered inside an `orchdaemon`.
+`orchdaemon` - it is the main orchestration agent, which handles all Redis DB's updates, then calls appropriate orchagent, the new `nvgreorch` should be registered inside an `orchdaemon`.
 
 ### High-Level Design 
 
-The [sonic-swss](https://github.com/Azure/sonic-swss) sub-module will be extended with the new orchestration agent for NVGRE. The [sonic-swss-common](https://github.com/Azure/sonic-swss-common) sub-module will be extended with the new tables for ConfigDB. The [sonic-utilities](https://github.com/Azure/sonic-utilities) sub-module will be extened with the new CLI.
+The following sub-modules will be modified:
+* [sonic-swss](https://github.com/Azure/sonic-swss) - will be extended with the new orchestration agent for NVGRE.
+* [sonic-swss-common](https://github.com/Azure/sonic-swss-common) - will be extended with the new tables for ConfigDB.
+* [sonic-utilities](https://github.com/Azure/sonic-utilities) - will be extened with the new CLI.
 
 #### Sequence diagrams
 
