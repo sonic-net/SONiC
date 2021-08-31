@@ -18,6 +18,8 @@
 - Flows
 - Create ACL rule
 - Delete ACL rule
+- ACL counter registration in FC
+- ACL counter de-registration in FC
 - Mirror flow enhancement
 - SAI API
 - Configuration and management
@@ -196,7 +198,7 @@ admin@sonic:~$ sonic-clear acl
 <img src="img/acl-counters-acl-rule-add-flow.svg" alt="Figure 2. Create ACL rule flow">
 </p>
 
-In case an *error* happened, we roll back, deleting objects with best effort and removing the ACL rule taks from m_toSync map. An error is printed in the syslog.
+In case an *error* happened, we roll back, deleting objects with best effort and removing the ACL rule tasks from m_toSync map. An error is printed in the syslog.
 
 ### Delete ACL rule
 
@@ -204,7 +206,19 @@ In case an *error* happened, we roll back, deleting objects with best effort and
 <img src="img/acl-counters-acl-rule-remove-flow.svg" alt="Figure 3. Delete ACL rule flow">
 </p>
 
-In case an *error* happened, we proceed deleting objects with best effort and removing the ACL rule taks from m_toSync map. An error is printed in the syslog.
+In case an *error* happened, we roll back, deleting objects with best effort. An error is printed in the syslog.
+
+### ACL counter registration in FC
+
+<p align=center>
+<img src="img/acl-fc-th-add.svg" alt="Figure 3. ACL counter registration in FC">
+</p>
+
+### ACL counter de-registration in FC
+
+<p align=center>
+<img src="img/acl-fc-th-removal.svg" alt="Figure 4. ACL counter de-registration in FC">
+</p>
 
 ### Mirror flow enhancement
 
@@ -240,9 +254,9 @@ Config DB schema with ACL key in FLEX COUNTER table:
     "FLEX_COUNTER_TABLE": {
         "ACL": {
             "FLEX_COUNTER_STATUS": "enable",
-	    "POLL_INTERVAL": "10000"
+            "POLL_INTERVAL": "10000"
         }
-  }
+    }
 }
 ```
 
@@ -271,11 +285,13 @@ N/A
 
 1. Enhance test_flex_counters.py with ACL group
 2. Enhance test_acl.py with check for ACL rule mapping and ACL counter OID inserted in FLEX COUNTER DB.
-3. Modify aclshow_test.py in sonic-utilities to work with new data source.
+3. Enhance test_mirror.py with the check for ACL rule mapping and ACL counter OID inserted in FLEX COUNTER DB. Cover the flow of deactivation/activating mirror session.
+4. Modify aclshow_test.py in sonic-utilities to work with new data source.
 
 #### System Test cases
 
-ACL/Everflow tests suite in sonic-mgmt covers the ACL counter functionality.
+- ACL/Everflow tests suite in sonic-mgmt covers the ACL counter functionality.
+- Warm/Fast reboot tests to check the changes do not break these features.
 
 ### Open/Action items
 
