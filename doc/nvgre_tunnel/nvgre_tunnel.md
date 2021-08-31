@@ -6,6 +6,15 @@
 - [Scope](#scope)
 - [Definitions/Abbreviations](#definitionsabbreviations)
 - [Overview](#overview)
+- [Requirements](#requirements)
+- [Architecture Design](#architecture-design)
+- [High-level design](#high-level-design)
+- [SAI API](#sai-api)
+- [CLI/YANG model Enhancements](#cli-yang-model-enhancements)
+- [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+- [Restrictions Limitations](#restrictions-limitations)
+- [Testing Requirements Design](#testing-requirements-design)
+- [Open/Action items](#open-action-items)
 
 ### Revision  
 
@@ -153,7 +162,7 @@ The following sub-modules will be modified:
 | Encap mapper | SAI_TUNNEL_MAP_TYPE_BRIDGE_IF_TO_VSID |
 | Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_BRIDGE_IF |
 
-#### CLI/YANG model Enhancements 
+### CLI/YANG model Enhancements 
 
 New YANG model which describe the NVGRE ConfigDB will be added.
 
