@@ -306,9 +306,18 @@ The tests will be implemented under the VS environment and will be placed - [son
 
 VS test cases:
 - create NVGRE Tunnel
+	- create tunnel with invalid source IP address
+	- create tunnel with valid params
 - remove NVGRE Tunnel
+  - remove existing tunnel
+  - remove unexisting tunnel
 - create NVGRE Tunnel Map
+  - create tunnel map with invalid VLAN identifier
+  - create tunnel map with invalid VSID number
+  - create tunnel map with unexisting NVGRE Tunnel name
 - remove NVGRE Tunnel Map
+  - remove existing tunnel
+  - remove unexisting tunnel
 
 #### System Test cases
 
