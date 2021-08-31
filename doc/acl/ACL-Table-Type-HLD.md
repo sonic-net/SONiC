@@ -328,7 +328,7 @@ ACL rule base class declaration:
 ```c++
 class AclBaseRule
 {
-protected:
+public:
     virtual bool create();
     virtual bool remove();
     virtual bool update(const AclRule& updatedRule);
@@ -341,8 +341,6 @@ private:
     std::string m_name;
     sai_object_id_t m_oid {SAI_NULL_OBJECT_ID};
     const AclTable& m_table;
-
-    friend class AclOrch;
 };
 ```
 
