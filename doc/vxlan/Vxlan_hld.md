@@ -148,6 +148,7 @@ VXLAN_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
 VNET|{{vnet_name}} 
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
+    "scope": {{"default"}} (OPTIONAL)
     "peer_list": {{vnet_name_list}} (OPTIONAL)
 
 INTERFACE|{{intf_name}} 
@@ -248,7 +249,7 @@ VRFMgrD creates the following VNET Table
 VNET_TABLE:{{vnet_name}}
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
-    "scope": {{default}} 
+    "scope": {{"default"}} 
     "peer_list": {{ vnet_name_list }}
 ```
 
