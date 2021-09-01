@@ -75,15 +75,13 @@ Where `<comm>` value in the command name associated with a process. comm value o
 ```
 key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled;                   # Enable this to make the Techsupport Invocation event driven based on core-dump generation
-coredump_cleanup = enabled|disabled;        # Enable Core dump cleanup based on core_usage argument 
-techsupport_cleanup = enabled|disabled;     # Enable Techsupport Dump cleanup based on max_techsupport_size argument
 rate_limit_interval = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
                                               Manual Invocations will be considered as well in the cooloff calculation
 max_techsupport_size = 10;                  # A perentage value should be specified. 
                                               This signifies maximum Size to which /var/dump/ directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                                               When the limit is crossed, the older techsupport dumps are incrementally deleted                         
-max_core_size = 5;                             # A perentage value should be specified. 
+max_core_size = 5;                          # A perentage value should be specified. 
                                               This signifies maximum Size to which /var/core directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                               When the limit is crossed, the older core files are incrementally deleted
