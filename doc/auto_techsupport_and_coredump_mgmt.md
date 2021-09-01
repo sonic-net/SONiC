@@ -297,7 +297,9 @@ telemetry       enabled                     600
 admin@sonic:~$ show auto-techsupport history
 TECHSUPPORT DUMP                          TRIGGERED BY    CORE DUMP
 ----------------------------------------  --------------  -----------------------------
+sonic_dump_r-lionfish-16_20210901_221402  bgpcfgd         bgpcfgd.1630534439.55.core.gz
 sonic_dump_r-lionfish-16_20210901_203725  snmp-subagent   python3.1630528642.23.core.gz
+sonic_dump_r-lionfish-16_20210901_222408  lldpmgrd        python3.1630535045.34.core.gz
 
 ```
 
@@ -305,7 +307,7 @@ sonic_dump_r-lionfish-16_20210901_203725  snmp-subagent   python3.1630528642.23.
 
 ### 6.1 Modifications to coredump-compress script
 
-The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core.
+The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`
 
 ### 6.2 coredump_gen_handler script
 
@@ -315,8 +317,8 @@ The script invokes the show techsupport command, if the global cooloff & the per
 
 Potential Syslog messages which can be logged are:
 ```
-DATE sonic INFO coredump_gen_handler[pid]: Global Cooloff period has not passed. Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
-DATE sonic INFO coredump_gen_handler[pid]: Process Cooloff period for snmp has not passed.Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
+DATE sonic INFO coredump_gen_handler[pid]: Global rate_limit_interval period has not passed. Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
+DATE sonic INFO coredump_gen_handler[pid]: Process rate_limit_interval period for snmp has not passed.Techsupport Invocation is skipped. Core: python3.1629401152.23.core.gz
 DATE sonic INFO coredump_gen_handler[pid]: "show techsupport --since '2 days ago'" is successful, sonic_dump_sonic_20210721_235228.tar.gz is created 
 DATE sonic INFO coredump_gen_handler[pid]: core-usage argument is not set. No Cleanup is performed, current size occupied: 456 MB
 DATE sonic INFO coredump_gen_handler[pid]: 12 MB deleted from /var/core.
@@ -340,7 +342,7 @@ coredump_gen_handler.py consumes this data and uses it for decisions based on th
 
 ### 6.4 Modifications to generate_dump script
 
-The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files
+The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files. Any stdout/stderr seen during the execution of  `techsupport_cleanup` script is redirected to `/tmp/coredump_gen_handler.log`
 
 ### 6.5 techsupport_cleanup script
 
@@ -351,12 +353,12 @@ Potential Syslog messages which can be logged are:
 DATE sonic NOTICE techsupport_cleanup[pid]:  techsupport_cleanup is disabled. No cleanup is performed
 DATE sonic INFO coredump_gen_handler[pid]: max-techsupport-size argument is not set. No Cleanup is performed, current size occupied: 456 MB
 ```
-
-### 6.5 Warmboot consideration
+ 
+### 6.6 Warmboot consideration
 
 No changes to this flow
  
-### 6.6 Design choices for core-usage & max-techsupport-size argument 
+### 6.7 Design choices for core-usage & max-techsupport-size argument 
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
@@ -390,3 +392,6 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
 
+ ## 8. Limitations
+ 
+ 1) Since many processes can potentially have same comm name and may have same pid, it is not possible for the coredump_gen_handler script to uniquely identify the coredump, if both the processes crash at the same time. If such a situation occurs, the script acts on the first notification it sees inside the FEATURE_PROC_INFO table.
