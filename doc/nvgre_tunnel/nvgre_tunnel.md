@@ -136,20 +136,31 @@ The following sub-modules will be modified:
 ##### Figure 3. NVGRE Tunnel Map creation flow
 
 <p align=center>
-<img src="images/nvgre_tunnel_map_create_uml.svg" alt="Figure 2. NVGRE Tunnel Map creation flow">
+<img src="images/nvgre_tunnel_map_create_uml.svg" alt="Figure 3. NVGRE Tunnel Map creation flow">
 </p>
 
+##### Figure 4. NVGRE Tunnel delete flow
+
+<p align=center>
+<img src="images/nvgre_tunnel_delete_uml.svg" alt="Figure 4. NVGRE Tunnel delete flow">
+</p
+
+##### Figure 5. NVGRE Tunnel Map delete flow
+
+<p align=center>
+<img src="images/nvgre_tunnel_map_delete_uml.svg" alt="Figure 5. NVGRE Tunnel Map delete flow">
+</p
 
 ##### Figure 4. NVGRE Tunnel CLI config
 
 <p align=center>
-<img src="images/nvgre_cli_config.svg" alt="Figure 4. NVGRE Tunnel CLI config">
+<img src="images/nvgre_cli_config.svg" alt="Figure 6. NVGRE Tunnel CLI config">
 </p>
 
 ##### Figure 5. NVGRE Tunnel CLI show
 
 <p align=center>
-<img src="images/nvgre_cli_show.svg" alt="Figure 5. NVGRE Tunnel CLI show">
+<img src="images/nvgre_cli_show.svg" alt="Figure 7. NVGRE Tunnel CLI show">
 </p>
 
 ### SAI API 
@@ -164,7 +175,109 @@ The following sub-modules will be modified:
 
 ### CLI/YANG model Enhancements 
 
-New YANG model which describe the NVGRE ConfigDB will be added.
+#### NVGRE Tunnel YANG model
+
+```yang
+module sonic-nvgre-tunnel {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/Azure/sonic-nvgre-tunnel";
+    prefix copp;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import sonic-vlan {
+        prefix vlan;
+    }
+
+    description "NVGRE Tunnel YANG Module for SONiC OS";
+
+    revision 2021-08-31 {
+        description
+            "First Revision";
+    }
+
+    container sonic-nvgre-tunnel {
+
+        container NVGRE_TUNNEL {
+
+            description "NVGRE_TUNNEL part of config_db.json";
+
+            list NVGRE_TUNNEL_LIST {
+
+                key "tunnel_name";
+
+                leaf tunnel_name {
+                    description "NVGRE Tunnel name";
+
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                leaf src_ip {
+                    mandatory true;
+                    type inet:ip-address;
+                }
+
+            }
+            /* end of NVGRE_TUNNEL_LIST */
+
+        }
+        /* end of container NVGRE_TUNNEL */
+
+        container NVGRE_TUNNEL_MAP {
+
+            description "NVGRE_TUNNEL part of config_db.json";
+
+            list NVGRE_TUNNEL_MAP_LIST {
+
+                key "tunnel_name vlan_name";
+
+                leaf tunnel_name {
+                    type leafref {
+                        path /nvgre:sonic-nvgre-tunnel/nvgre:NVGRE_TUNNEL/nvgre:NVGRE_TUNNEL_LIST/nvgre:tunnel_name;
+                    }
+                }
+
+                leaf vlan_name {
+                    type leafref {
+                        path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name;
+                    }
+                }
+
+                leaf vlan_id {
+                    /* ?????
+                    type leafref {
+                        path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
+                    }
+                    */
+                    type uint16 {
+                        range 1..4094;
+                    }
+                }
+
+                leaf vsid {
+                    type uint24 {
+                        range 4095..16777214;
+                    }
+                }
+
+            }
+            /* end of NVGRE_TUNNEL_MAP_LIST */
+
+        }
+        /* end of container NVGRE_TUNNEL_MAP */
+
+    }
+    /* end of container sonic-nvgre-tunnel */
+
+}
+/* end of module sonic-nvgre-tunnel */
+```
 
 #### CLI tree
 
