@@ -24,7 +24,7 @@
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-| 1.1 |     TBD     | Vivek Reddy Karri        | Add the YANG Model and the autogen cli AUTO_TECHSUPPORT|RATE_LIMIT_INTERVAL table|
+| 1.1 |     TBD     | Vivek Reddy Karri        | Edit the AUTO_TECHSUPPORT_FEATURE YANG Model and Auto GEN CLI with the leafref of FEATURE table|
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 
 ## About this Manual
@@ -41,7 +41,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 * This is only applicable for the critical processes running inside the dockers. Does not apply for other processes.
 * init_cfg.json will be enhanced to include the "CONFIG" required for this feature (described in section 4) and is enabled by default.
 * To provide flexibility, a compile time flag "ENABLE_AUTO_TECH_SUPPORT" should be provided to enable/disable the "CONFIG" for this feature. 
-* Users should have the abiliity to globally enable/disable this capability through CLI.
+* Users should have the abiliity to enable/disable this capability through CLI.
 
 ### Configurable Params
 * A configurable "rate_limit_interval" should be introduced to limit the number consecutive of techsupport invocations.
@@ -49,7 +49,6 @@ However if the techsupport invocation can be made event-driven based on core dum
 
 ### Per-docker Scope
 * Should provide a per-docker configurable granularity for this feature.  
-* Per-docker enable/disable capability should be achieved through FEATURE table.
 * Per-docker rate_limit_interval capability should also be provided
 * Changes to per-docker config's will apply to all the critical processes inside the corresponding docker. 
 
@@ -63,8 +62,10 @@ However if the techsupport invocation can be made event-driven based on core dum
 * Individual configurable options should be provided for each of these.
 
 ## 3. Core Dump Generation in SONiC
-In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `/var/core/*.core.gz`. 
+In SONiC, the core dumps generated from any process crashes are directed to the location `/var/core` and will have the naming format `<comm>.<timestamp>.<pid>.core.gz`. 
 The naming format and compression is governed by the script `/usr/local/bin/coredump-compress`.
+
+Where `<comm>` value in the command name associated with a process. comm value of a running process can be read from `/proc/[pid]/comm` file
 
 ## 4. Schema Additions
 
@@ -73,7 +74,7 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 #### AUTO_TECHSUPPORT|GLOBAL
 ```
 key = "AUTO_TECHSUPPORT|global"
-auto_invoke_ts = enabled|disabled;          # Enable this to make the Techsupport Invocation event driven based on core-dump generation
+state = enabled|disabled;                   # Enable this to make the Techsupport Invocation event driven based on core-dump generation
 coredump_cleanup = enabled|disabled;        # Enable Core dump cleanup based on core_usage argument 
 techsupport_cleanup = enabled|disabled;     # Enable Techsupport Dump cleanup based on max_techsupport_size argument
 rate_limit_interval = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
@@ -91,21 +92,14 @@ since = "2 days ago";                       # This limits the auto-invoked techs
                                               can be used. If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used.      
 ```
 
-#### AUTO_TECHSUPPORT|RATE_LIMIT_INTERVAL
+#### AUTO_TECHSUPPORT_FEATURE|<feature_name>
 ```
-#  Minimum Time in seconds, between two successive techsupport invocations because of the same process
-#  The idea here is not to let a periodically crashing process to invoke the techsupport until a cooloff is met
-<feature_name> =  <time in sec>;                           
-```
-
-#### FEATURE|<feature_name>
-```
-.............
-.............
-auto_techsupport = enabled|disabled;  #  Enable/Disable this feature per-docker                              
+<state> =  <enabled|disabled>;              # Enable auto techsupport invocation on the critical processes running inside this feature
+<rate_limit_interval> = 600;                # Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
-#### YANG Model for AUTO_TECHSUPPORT|GLOBAL
+                           
+#### YANG Models
 
 ```
 module sonic-auto_techsupport {
@@ -128,6 +122,13 @@ module sonic-auto_techsupport {
         }
     }
 
+    typedef decimal-repr {
+        type decimal64 {
+            fraction-digits 2;
+            range 0.0..99.99; 
+        }
+    }
+
     container sonic-auto_techsupport {
 
         container AUTO_TECHSUPPORT {
@@ -136,18 +137,8 @@ module sonic-auto_techsupport {
                 
                 container GLOBAL {
                
-                    leaf auto_invoke_ts {
+                    leaf state {
                         description "Knob to make techsupport invocation event-driven based on core-dump generation";
-                        type enable-knob;
-                    }
-
-                    leaf coredump_cleanup {
-                        description "Knob to enable coredump cleanup";
-                        type enable-knob;
-                    }
-
-                    leaf techsupport_cleanup  {
-                        description "Knob to enable techsupport dump cleanup";
                         type enable-knob;
                     }
 
@@ -163,11 +154,8 @@ module sonic-auto_techsupport {
                         The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                         When the limit is crossed, the older core files are incrementally deleted
                         */
-                        description "Maximum Size to which the techsupport dumps in /var/dump directory can be grown until";
-                        type decimal64 {
-                            fraction-digits 2;
-                            range 0.1..99.99; 
-                        }
+                        description "Max Size to which the dumps in /var/dump dir can be grown until. No cleanup is performed if the value is not congiured or set to 0.0";
+                        type decimal-repr;
                     }
 
                     leaf max_core_size {
@@ -177,47 +165,78 @@ module sonic-auto_techsupport {
                         The actual value in bytes is calculated based on the available space in the filesystem hosting /var/core
                         When the limit is crossed, the older core files are deleted
                         */
-                        description "Maximum Size to which the core dumps in /var/core directory can be grown until";
-                        type decimal64 {
-                            fraction-digits 2;
-                            range 0.0..99.99; 
-                        }
+                        description "Max Size to which the coredumps in /var/core directory can be grown until. No cleanup is performed if the value is not congiured or set to 0.0";
+                        type decimal-repr;
                     }
                     
                     leaf since {
                         /*
                         Any valid date string of the formats specified here (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
-                        can be used. If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used
+                        can be used. 
                         */
-                        description "Limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided";
+                        description "Only collect the logs & core-dumps generated since the time provided. A default value of '2 days ago' is used if this value is not set explicitly or a non-valid string is provided";
                         type string;
                     }
-              }
-              /* end of container GLOBAL */
+            }
+            /* end of container GLOBAL */
         }
         /* end of container AUTO_TECHSUPPORT */
+            
+        container AUTO_TECHSUPPORT_FEATURE {
+
+            description "AUTO_TECHSUPPORT_FEATURE part of config_db.json";
+
+            list AUTO_TECHSUPPORT_FEATURE_LIST {
+
+                key "feature_name";
+
+                leaf feature_name {
+                    description "The name of this feature";
+                    /* TODO: Leafref once the FEATURE YANG is added*/
+                    type string;
+                }
+
+                leaf rate_limit_interval {
+                    description "Rate limit interval for the corresponding feature. Configure 0 to explicitly disable";
+                    type uint16;
+                }
+
+                leaf state {
+                    description "Enable auto techsupport invocation on the critical processes running inside this feature";
+                    type enable-knob;
+                }
+
+            }
+            /* end of AUTO_TECHSUPPORT_FEATURE_LIST */
+        }
+        /* end of container AUTO_TECHSUPPORT_FEATURE */
     }
     /* end of top level container */
 }
 
-```
 
-Note: 
-1) The "auto_techsupport" should be added to the YANG Model for FEATURE Table
-2) Once the FEATURE Table is added to the YANG, AUTO_TECHSUPPORT|RATE_LIMIT_INTERVAL should be added to YANG as well
+}
+
+```
 
 ### State DB
 
-#### AUTO_TECHSUPPORT|TS_CORE_MAP
+#### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
-key = "AUTO_TECHSUPPORT|TS_CORE_MAP"
-<dump_name> = <core_dump_name;timestamp_as_epoch;crit_proc_name>
+key = "AUTO_TECHSUPPOR_DUMP_INFO|<dump_name>"
+core_dump = "<core_dump name>"
+timestamp = "uint64"
+crit_proc = "<critical process for which the core_dump belongs to>"
 ```
 Eg:
 ```
-hgetall "AUTO_TECHSUPPORT|TS_CORE_MAP"
-sonic_dump_sonic_20210412_223645 = orchagent.1599047232.39.core;1599047233;orchagent
-sonic_dump_sonic_20210405_202756 = python3.1617684247.17.core;1617684249;snmp-subagent
+hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
+1) "core_dump"
+2) "orchagent.1599047232.39.core"
+3) "timestamp"
+4) "1599047233"
+5) "critical_process"
+6) "orchagent"
 ```
 
 #### AUTO_TECHSUPPORT|FEATURE_PROC_INFO
@@ -238,71 +257,50 @@ Eg:
 
 ### config cli
 ```
-config auto-techsupport global auto-invoke-ts <enabled/disabled>
-config auto-techsupport global coredump-cleanup <enabled/disabled>
-config auto-techsupport global techsupport-cleanup <enabled/disabled>
+config auto-techsupport global state <enabled/disabled>
 config auto-techsupport global rate-limit-interval <uint16>
 config auto-techsupport global max-techsupport-size <float upto two decimal places>
 config auto-techsupport global max-core-size <float upto two decimal places>
 config auto-techsupport global since <string>
 
-config feature autotechsupport <name> enabled|disabled>
-
-config auto-techsupport rate-limit-interval <name> <uint16>
+config auto-techsupport-feature update swss --state disabled --rate-limit-interval 800
+config auto-techsupport-feature add snmp --state disabled --rate-limit-interval 800
+config auto-techsupport-feature delete restapi
 ```
 
 ### show cli
 
 ```
 admin@sonic:~$ show auto-techsupport global
-AUTO INVOKE TS    COREDUMP CLEANUP    TECHSUPPORT CLEANUP      COOLOFF    MAX TECHSUPPORT SIZE    MAX CORE SIZE  SINCE
-----------------  ------------------  ---------------------  ---------  ----------------------    ------------  ----------
-enabled           enabled             enabled                      180                   12.23               5  2 days ago
- 
+STATE      RATE LIMIT INTERVAL    MAX TECHSUPPORT SIZE    MAX CORE SIZE  SINCE
+-------  ---------------------  ----------------------  ---------------  ----------
+enabled                    180                      10                5  2 days ago
+
+admin@sonic:~$ show auto-techsupport-feature 
+FEATURE NAME    STATE       RATE LIMIT INTERVAL
+--------------  --------  ---------------------
+bgp             enabled                     600
+database        enabled                     600
+dhcp_relay      enabled                     600
+lldp            enabled                     600
+macsec          enabled                     600
+mgmt-framework  enabled                     600
+nat             enabled                     600
+pmon            enabled                     600
+radv            enabled                     600
+restapi         disabled                    800
+sflow           enabled                     600
+snmp            enabled                     600
+swss            disabled                    800
+syncd           enabled                     600
+teamd           enabled                     600
+telemetry       enabled                     600
 
 admin@sonic:~$ show auto-techsupport history
-TECHSUPPORT DUMP                  TRIGGERED BY   CORE DUMP
---------------------------------  -------------  -----------------------------
-sonic_dump_sonic_20210819_192558  snmp-subagent  python3.1629401152.23.core.gz
+TECHSUPPORT DUMP                          TRIGGERED BY    CORE DUMP
+----------------------------------------  --------------  -----------------------------
+sonic_dump_r-lionfish-16_20210901_203725  snmp-subagent   python3.1630528642.23.core.gz
 
-
-admin@sonic:~$ show feature autotechsupport
-FEATURE         AUTO TECHSUPPORT    
---------------  ------------------
-bgp             enabled 
-database        enabled 
-dhcp_relay      enabled 
-lldp            enabled 
-macsec          enabled 
-mgmt-framework  enabled 
-nat             enabled 
-pmon            enabled 
-radv            enabled 
-sflow           enabled 
-snmp            enabled 
-swss            enabled 
-syncd           enabled 
-teamd           enabled 
-telemetry       enabled 
-
-admin@sonic:~$ show autotechsupport rate-limit-interval
-FEATURE         RATE LIMIT INTERVAL
---------------  -------------------
-bgp             600
-database        600
-dhcp_relay      600
-lldp            600
-macsec          600
-mgmt-framework  600
-nat             600
-pmon            600
-radv            600
-sflow           600
-snmp            600
-swss            600
-syncd           600
-teamd           600
-telemetry       600
 ```
 
 ## 6. Design
