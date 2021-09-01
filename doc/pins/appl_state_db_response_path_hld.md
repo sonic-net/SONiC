@@ -14,8 +14,12 @@
   + [Application Layer Notification Channel](#application-layer-notification-channel)
   + [Return Status Code](#return-status-code)
   + [APPL STATE DB](#appl-state-db)
+  + [PINS P4Orch](#pins-p4orch)
   + [APPL DB Cleanup](#appl-db-cleanup)
-  + [PINS P4RT Examples (with APPL DB Cleanup)](#pins-p4rt-examples--with-appl-db-cleanup-)
+  + [PINS P4RT Examples](#pins-p4rt-examples)
+    - [Success Case](#success-case)
+    - [Failure Case (with APPL DB Cleanup)](#failure-case--with-appl-db-cleanup-)
+    - [Batched Requests](#batched-requests)
 * [SAI API](#sai-api)
 * [Configuration and management](#configuration-and-management)
 * [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
@@ -26,28 +30,9 @@
 
 ## Revision
 
-<table>
-  <tr>
-   <td>Rev
-   </td>
-   <td>Rev Date
-   </td>
-   <td>Author(s)
-   </td>
-   <td>Change Description
-   </td>
-  </tr>
-  <tr>
-   <td>v0.1
-   </td>
-   <td>6/18/2021
-   </td>
-   <td>Runming Wu, Srikishen Pondicherry Shanmugam
-   </td>
-   <td>Initial version
-   </td>
-  </tr>
-</table>
+Rev  | Rev Date  | Author(s)                                   | Change Description
+---- | --------- | --------------------------------------------| ------------------
+v0.1 | 6/18/2021 | Runming Wu, Srikishen Pondicherry Shanmugam | Initial version
 
 ## Scope
 
@@ -105,12 +90,14 @@ A message in the NotificationProducer & NotificationConsumer APIs contains an op
 * operation: The string representation of the return status. This field is the operation field in KeyOpFieldsValuesTuple for pops() API.
 * field-value-pair list: The first field will be "err_str" which contains the error message of the status. The "err_str" field will always be the first field. If there is no error string, "err_str" field will be an empty string. The rest of the fields will be exactly the same as the original request attributes. For delete operation, the list will only include the "err_str".
 
-There are certain rare scenarios that the applications need to be aware of:
+There are certain scenarios that the applications need to be aware of:
 
 * Different applications might write to the same APPL DB table. If so, each application needs to be able to identify the entries that they manage. When an application receives a response, the response might be intended for other applications.
 * One application might write to multiple APPL DB tables. And there will be multiple NotificationConsumer to listen to multiple channels. When a response is received, the application needs to be able to identify the NotificationConsumer or the channel. So that the application can get the corresponding table.
-* When an application sends multiple requests for the same key in a short time, the orchagent might receive the aggregated request. The notifications orchagent sends will be a single aggregated entry instead of the original requests. It is recommended that the application should wait for the response of the previous request before sending a request of the same key.
+* When an application sends multiple requests for the same key in a short time, the orchagent might receive the aggregated request. The notifications orchagent sends will be a single aggregated entry instead of the original requests. It is recommended that the application should wait for the response of the previous request before sending a request of the same key. In a batched request scenario, it is recommended that the application to not send multiple requests of the same key in a single batch.
 * Application should wait for the response with a timeout. In a rare case that the application does not receive the response from the orchagent, the application can assume failure instead of waiting indefinitely.
+* In a scenario where a failed APPL DB request is partially programmed into the hardware (this can happen in certain update requests), the response does not include the fine-grained details on which attributes are succeeded or failed. Application could check the APPL STATE DB for details on which attributes are successfully programmed. In P4Orch, it handles the P4RT table request atomically. So it is not a concern in the P4RT application for partially programmed requests. Please refer to the [PINS P4Orch](#pins-p4orch) section for more details.
+
 
 ### Return Status Code
 
@@ -140,11 +127,23 @@ To record the successfully programmed entries in the APPL DB, a new DB is introd
 * The APPL STATE DB will use the exact same keys, same schema as the existing APPL DB.
 * When an orchagent operation is successful, orchagent will update the APPL STATE DB exactly the same as the request from the APPL DB. When an orchagent operation is failed, orchagent will not update the APPL STATE DB, so that the APPL STATE DB will have the correct system state.
 * Applications can read/subscribe to the APPL STATE DB to get the system state.
+* In a scenario where a failed APPL DB request is partially programmed into the hardware (this can happen in certain update requests), it is recommended for orchagent to only update the programmed attributes in the APPL STATE DB instead of all requested attributes. In P4Orch, it handles the P4RT table request atomically. So there is no partially programmed scenario in the P4RT table, and P4Orch will only update APPL STATE DB after a request is fully programmed. Please refer to the [PINS P4Orch](#pins-p4orch) section for more details.
+
+While the new APPL STATE DB is introduced, the existing APPL DB's purpose is unchanged. It serves as the system configuration intent. In a clean scenario where the system does not encounter any error, the APPL DB and the APPL STATE DB should be the same. Only in an error scenario, the APPL STATE DB will be different from the APPL DB.
 
 In implementation, there will be no specific APIs for APPL STATE DB. This is different from the APPL DB, which uses ProducerStateTable and ConsumerStateTable as APIs. The APPL STATE DB will simply be a redis hash:
 
 * Orchagent will directly set the redis hash once it needs to update the APPL STATE DB. This can be done by using the raw table APIs.
 * Application can read the APPL STATE DB by using raw table APIs. Or it can subscribe to the APPL STATE DB tables by using the SubscriberStateTable API.
+
+### PINS P4Orch
+
+P4Orch is a new orch introduced in PINS that first implemented the response path. More details on P4Orch can be found in the [P4 Orchagent HLD](#p4orch_hld.md). P4Orch has some differences from the other existing SONiC orch that relates to the response path handling:
+
+* P4Orch does not retry on failed requests. \
+In the existing SONiC orch, failed requests will be queued and retried indefinitely until success. However, P4Orch does not retry any failed requests. The decision of retry can be done in the controller. If the orchagent does retry indefinitely, it should only send the response and update APPL STATE DB after the request is successfully programmed. In P4Orch, response can be sent immediately after noticing a success or failure since there is no retry.
+* P4Orch handles each P4RT request atomically. \
+From the controller perspective, each RPC is better to be an atomic operation. And hence P4Orch handles each P4RT request atomically. If there is any failure encountered during the attribute programming, P4Orch will do the best to revert the already programmed attributes. (If the reversion fails, P4Orch will notify the system with a critical error.) With this, P4Orch does not need to update the APPL STATE DB for a partially programmed request. It will only update APPL STATE DB after it fully programs a request.
 
 ### APPL DB Cleanup
 
@@ -159,11 +158,19 @@ Read APPL STATE DB for the original entry. Wipe the entry in APPL DB, and re-wri
 * Failed delete \
 Read APPL STATE DB for the original entry. Write it into APPL DB to cleanup.
 
-### PINS P4RT Examples (with APPL DB Cleanup)
+### PINS P4RT Examples
+
+#### Success Case
 
 ![drawing](images/appl_state_db_response_path_hld_example_success.png)
 
+#### Failure Case (with APPL DB Cleanup)
+
 ![drawing](images/appl_state_db_response_path_hld_example_failure.png)
+
+#### Batched Requests
+
+![drawing](images/appl_state_db_response_path_hld_example_batch.png)
 
 ## SAI API
 
