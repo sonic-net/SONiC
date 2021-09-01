@@ -20,6 +20,7 @@ Timezone and System Clock Configuration in Management Framework
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 07/10/2021 |   Bing Sun         | Initial version                   |
 | 0.2 | 07/19/2021 |   Bing Sun         | address review comments to add timezone offset in the logs |
+| 0.3 | 08/26/2021 |   Bing Sun         | add section for timestamp in CLI/REST output |
       
 
 
@@ -62,12 +63,6 @@ The tzdata package includes timezone information, changeover dates for daylight 
     
 With Management Framework, timezone can be set and queried based on Openconfig YANG model as well as  SONiC YANG model.  
       
-**System Clock**    
-    
-This feature also provides the capability to configure the system clock time and date.    
-Note that if the system is synchronized with a NTP server, the manually enterred time will be overriden eventually.    
-The new time and date should be consistent on the host and containers.    
- 
 **optional items**   
      
 1. DHCP timezone offset and name options   
@@ -75,11 +70,11 @@ SONiC already request DHCP timezone offset in the existing code. Though backend 
 In addtion, DHCP server can specify the timezone name that the systems should be using as specified in [RFC4833]. E-SONiC does not request this option as of now from the DHCP servers.    
 Either option may force the clients to use the same timezone.    
     
-2. System Clock    
+2. System clock    
 This feature also provides the capability to configure the system clock time and date.
 Note that if the system is synchronized with a NTP server, the manually enterred time will be overriden eventually.
 The new time and date should be consistent on the host and containers.
-           
+    
 ## 1.1 Requirements
 
 ### 1.1.1 Front end configuration and get capabilities
@@ -109,19 +104,6 @@ Get the local timezone information from timedatectl output. For example,
            Time zone: US/Pacific (PDT, -0700)
     ```
     
-#### 1.1.1.3 set time and date
-```
-clock set 15:10:06 2021-06-06
-```
-Set time and date.    
-
-#### 1.1.1.4 Get time and date 
-```
-show clock 
-```
-This should display the current local time based on the timezone, time and date user configured. It will be adjusted in case a valid NTP server is configured.
-              
-
 ### 1.1.2 Backend mechanisms to support timezone/clock configuration and query 
 
 #### 1.1.2.1 add/delete timezone 
@@ -144,13 +126,12 @@ For the host:
 2. retart rsyslog to apply the updated time via command "systemctl restart rsyslog.service"    
         
 For the containers:     
-         
-1. with bind mounts, container /etc/localtime is updated when host /etc/localtime is updated. /etc/localtime points to the current timezone under /usr/share/zoneinfo/<timezone_name>.   
-   If the bind mount already exists, but to a different location in the container, then a soft link has to be made so that /etc/local is pointing to the correct timezone (e.g mgmt and telemetry)    
-2. restart rsyslog to apply the updated time via command "docker exec -it <container_name> supervisorctl restart rsyslogd"   
-       
-   For example in bgp container, once this is done, frr.log will use the updated timestamp.    
-3. For the logs not based on syslog, special handling needs to be applied.    
+1. Create a script in each container to handle    
+    - symbolic link /etc/localtime to the corresponding timezone under /usr/share/zoneinfo/    
+    - restart rsyslog service    
+   hostcfgd will trigger this script in each container upon detecting database timezone change.    
+
+2. For the logs not based on syslog, special handling needs to be applied.    
        
    For example in mgmt-framework container, rest_server.log is based on glog.   
          
@@ -165,11 +146,55 @@ For the containers:
    Nov 18 00:06:14.025528-08:00 2021  
 
    ```
-     
-#### 1.1.2.2 set time and date 
-Details to be added. 
+
+### 1.1.3 Timestamp conversion    
+When no timezone is configured, all timestamps use UTC time or epoch ticks. When a timezone is configured, timestamps displayed in the frontend have to be in the correct local time based on timezone configuration.    
+There are 3 types of timestamps in the OPENCONFIG YANG:    
+1. timestamp is of type string in the OPENCONFIG YANG and in the database, it is in the form of "%Y-%M-%D %h:%m:%s"    
+   We need to make sure that timestamp shown in the frontend is in the correct local time, for both CLI and REST.    
+   An example of this case is the timestamp in "/oc-if:interfaces/oc-if:interface/oc-eth:ethernet/oc-intf-ext:reason-events/oc-intf-ext:reason-event/oc-intf-ext:state/oc-intf-ext:timestamp".    
+   In the APPL_DB "IF_REASON_TABLE", it is seen as "timestamp":"2021-08-27 14:22:24". The same format would be displayed in the CLI and REST.    
+         
+2. timestamp is of type date-and-time (RFC3339 format) in the OPENCONFIG YANG and in the database, it is in the form of "%Y%M%D %h:%m:%s"    
+   We need to make sure that timestamp shown in the frontend is in correct local time, for both CLI and REST.    
+   An example of this case is the timestamp in the "openconfig-platform:components/component/state/temperature/timestamp".       
+   In the STATE_DB "TEMPERATURE_INFO" TABLE, it is seen as "timestamp":"20210827 06:20:56". The same format would be displayed in the CLI and REST.
+        
+   For case 1 and case 2, backend timestamp in the database will be kept as UTC based. For example, timestamps in "IF_REASON_TABLE" talbe and "TEMPERATURE_INFO" table may use UTC time, and the transformer functions will convert the UTC time to local time when send the response or notification to the frontend.
     
-### 1.1.3 Functional Requirements
+```
+admin@sonic:~$ date
+Thu 26 Aug 2021 04:15:10 AM PDT
+
+sonic#show platform temperature
+TH - Threshold
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+Name Temperature High TH Low TH Critical High TH Critical Low TH Warning Timestamp
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ASIC On-board 35 75 0 80 N/A false 20210826 04:15:21
+CPU On-board 29 68 0 72 N/A false 20210826 04:15:21
+Inlet Airflow Sensor 24 62 0 65 N/A false 20210826 04:15:23
+PSU1 Airflow Sensor 26 65 0 70 N/A false 20210826 04:15:24
+PSU2 Airflow Sensor 25 65 0 70 N/A false 20210826 04:15:24
+System Front Left 24 65 0 72 N/A false 20210826 04:15:22
+System Front Middle 30 75 0 80 N/A false 20210826 04:15:23
+System Front Right 24 65 0 72 N/A false 20210826 04:15:23
+```
+             
+3. timestamp is of type timetick64 in the OPENCONFIG YANG and in the backend, it is epoch (ticks)    
+   We need to make sure the timestamp shown in the CLI is converted to the correct local time based on the timezone, and  it is shown as epoch ticks in the REST.    
+   An example of this case is the timestamp in the "openconfig-system-ext:core-file-records/core-file-record/timestamp".    
+   In the backend, it has the form of "timestamp": "1630035254326013". The same will be shown in the REST output. In the CLI, it is converted to the local time based on the timezone.  
+``` 
+   sonic# show core list    
+        TIME               PID    SIG COREFILE EXE    
+   2021-08-26 20:34:14    13514   6   present  orchagent    
+    
+   admin@sonic:~$ date    
+   Thu 26 Aug 2021 08:53:10 PM PDT    
+```           
+     
+### 1.1.4 Functional Requirements
 
 Provide management framework support to          
 - configure timezone     
@@ -177,19 +202,19 @@ Provide management framework support to
 - configure time and date    
 - query time and date     
     
-### 1.1.4 Configuration and Management Requirements
+### 1.1.5 Configuration and Management Requirements
 - CLI style configuration and show commands    
 - REST API support    
 - gNMI Support    
            
-### 1.1.5 Configurations not supported by this feature using management framework:
+### 1.1.6 Configurations not supported by this feature using management framework:
 - support configuration of timezone abbreviations with offset to UTC        
 - support get timezone from dhcp option           
            
-### 1.1.6 Scalability Requirements
+### 1.1.7 Scalability Requirements
 No specific scalability requirement for this feature.
 
-### 1.1.7 Warm Boot Requirements
+### 1.1.8 Warm Boot Requirements
 Configured timezone should survive warm boot. No specific handling is required.    
     
 ## 1.2 Design Overview
@@ -209,7 +234,6 @@ The front end code changes in the management-framework container includes:
 - OpenConfig YANG model in openconfig-system.yang to set and get configured timezone in the configDB    
 - OpenConfig RPC YANG model to get timezone from timedatectl output, including UTC offset    
 - SONiC clock model in sonic-system-clock.yang to set and get configured timezone in the configDB       
-- SONiC clock model in sonic-system-clock.yang to get timezone from timedatectl output, including UTC offset     
        
 **time and date**   
      
@@ -237,10 +261,6 @@ Provide CLI, gNMI and REST supports for timezone related configurations.
 - customer cvl validation function to reject timezone if the timezone name does not exist under /usr/share/zoneinfo. This is for the case when timezone configuration is done from SONiC YANG.     
 - glog patch to handle local timezone change for the timestamp    
 - SONiC click CLI enhancement if possible.         
-    
-**time and date**   
-     
-Details to be added.     
     
 # 3 Design
     
@@ -445,9 +465,8 @@ sonic# show clock timezone
 ##### 3.6.2.2.2 Show time and date 
 ```
 sonic# show clock
-2021-07-11T15:25:52.89-10:00
+Wed 01 Sep 2021 03:02:06 PM JST
 ```
-The "-10:00" represents the offset from UTC.
     
 ##### 3.6.2.2.4 Show running-configuration
 
