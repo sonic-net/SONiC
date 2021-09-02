@@ -18,6 +18,7 @@
       * [6.5 Warmboot consideration](#65-Warmboot-consideration)
       * [6.6 Design choices for core-usage & max-techsupport-size argument](#66-Design-choices-for-core-usage-&-max-techsupport-sizeargument)
   * [7. Test Plan](#7-Test-Plan)
+  * [8. Limitations](#7-Limitations)
 
 
 ### Revision  
@@ -92,8 +93,8 @@ since = "2 days ago";                       # This limits the auto-invoked techs
 
 #### AUTO_TECHSUPPORT_FEATURE|<feature_name>
 ```
-<state> =  <enabled|disabled>;              # Enable auto techsupport invocation on the critical processes running inside this feature
-<rate_limit_interval> = 600;                # Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
+state =  enabled|disabled;              # Enable auto techsupport invocation on the critical processes running inside this feature
+rate_limit_interval = 600;                # Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
                            
