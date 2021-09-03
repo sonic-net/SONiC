@@ -78,11 +78,11 @@ key = "AUTO_TECHSUPPORT|global"
 state = enabled|disabled;                   # Enable this to make the Techsupport Invocation event driven based on core-dump generation
 rate_limit_interval = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
                                               Manual Invocations will be considered as well in the cooloff calculation
-max_techsupport_size = 10;                  # A perentage value should be specified. 
+max_techsupport_size = 10;                  # A percentage value should be specified. 
                                               This signifies maximum Size to which /var/dump/ directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                                               When the limit is crossed, the older techsupport dumps are incrementally deleted                         
-max_core_size = 5;                          # A perentage value should be specified. 
+max_core_size = 5;                          # A percentage value should be specified. 
                                               This signifies maximum Size to which /var/core directory can be grown until. 
                                               The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                               When the limit is crossed, the older core files are incrementally deleted
@@ -93,7 +93,7 @@ since = "2 days ago";                       # This limits the auto-invoked techs
 
 #### AUTO_TECHSUPPORT_FEATURE|<feature_name>
 ```
-state =  enabled|disabled;              # Enable auto techsupport invocation on the critical processes running inside this feature
+state =  enabled|disabled;                # Enable auto techsupport invocation on the critical processes running inside this feature
 rate_limit_interval = 600;                # Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
