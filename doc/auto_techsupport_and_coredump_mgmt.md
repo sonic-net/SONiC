@@ -72,29 +72,34 @@ Where `<comm>` value in the command name associated with a process. comm value o
 
 ### Config DB
 
-#### AUTO_TECHSUPPORT|GLOBAL
+#### AUTO_TECHSUPPORT Table
 ```
-key = "AUTO_TECHSUPPORT|global"
-state = enabled|disabled;                   # Enable this to make the Techsupport Invocation event driven based on core-dump generation
-rate_limit_interval = 300;                  # Minimum Time in seconds, between two successive techsupport invocations.
-                                              Manual Invocations will be considered as well in the cooloff calculation
-max_techsupport_size = 10;                  # A percentage value should be specified. 
-                                              This signifies maximum Size to which /var/dump/ directory can be grown until. 
-                                              The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
-                                              When the limit is crossed, the older techsupport dumps are incrementally deleted                         
-max_core_size = 5;                          # A percentage value should be specified. 
-                                              This signifies maximum Size to which /var/core directory can be grown until. 
-                                              The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
-                                              When the limit is crossed, the older core files are incrementally deleted
-since = "2 days ago";                       # This limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided.
-                                              Any valid date string of the formats specified here (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
-                                              can be used. If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used.      
+key                    = "AUTO_TECHSUPPORT|global"  
+state                  = "enabled" / "disabled"    ; Enable this to make the Techsupport Invocation event driven based on core-dump generation
+rate_limit_interval    = 1*5DIGIT                  ; Minimum Time in seconds, between two successive techsupport invocations.
+                                                     Manual Invocations will be considered as well in the calculation. 
+                                                     Configure 0 to explicitly disable
+max_techsupport_size   = 1*3DIGIT                  ; A percentage value should be specified. 
+                                                     This signifies maximum size to which /var/dump/ directory can be grown until. 
+                                                     The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
+                                                     When the limit is crossed, the older techsupport dumps are incrementally delete
+                                                     Configure 0.0 to explicitly disable
+max_core_size          = 1*3DIGIT                  ; A percentage value should be specified. 
+                                                     This signifies maximum Size to which /var/core directory can be grown until.
+                                                     The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
+                                                     When the limit is crossed, the older core files are incrementally deleted
+                                                     Configure 0.0 to explicitly disable
+since                  = 1*32VCHAR;                ; This limits the auto-invoked techsupport to only collect the logs & core-dumps generated since the time provided.
+                                                     Any valid date string of the formats specified here can be used. 
+                                                     (https://www.gnu.org/software/coreutils/manual/html_node/Date-input-formats.html) 
+                                                     If this value is not explicitly configured or a non-valid string is provided, a default value of "2 days ago" is used.      
 ```
 
-#### AUTO_TECHSUPPORT_FEATURE|<feature_name>
+#### AUTO_TECHSUPPORT_FEATURE table
 ```
-state =  enabled|disabled;                # Enable auto techsupport invocation on the critical processes running inside this feature
-rate_limit_interval = 600;                # Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
+key                    = feature name                
+state                  = "enabled" / "disabled"    ; Enable auto techsupport invocation on the critical processes running inside this feature
+rate_limit_interval    = 1*5DIGIT                  ; Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
                            
@@ -219,13 +224,13 @@ module sonic-auto_techsupport {
 
 #### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
-key = "AUTO_TECHSUPPOR_DUMP_INFO|<dump_name>"
-core_dump = "<core_dump name>"
-timestamp = "uint64"
-crit_proc = "<critical process for which the core_dump belongs to>"
-```
+key            = Techsupport Dump Name 
+core_dump      = 1*64VCHAR                ; Core Dump Name
+timestamp      = 1*12DIGIT                ; epoch of this record creation
+crit_proc      = 1*64VCHAR                ; Critical process for which the core_dump belongs to
+
 Eg:
-```
+
 hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 1) "core_dump"
 2) "orchagent.1599047232.39.core"
@@ -235,15 +240,13 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 6) "orchagent"
 ```
 
-#### AUTO_TECHSUPPORT|FEATURE_PROC_INFO
+#### AUTO_TECHSUPPORT Table
 
 ```
-key = "AUTO_TECHSUPPORT|FEATURE_PROC_INFO"
+key                                 = "FEATURE_PROC_INFO"
 <feature_name;supervisor_proc_name> = <executable_name:pid>
-```
 
-Eg:
-```
+hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 <swss;orchagent> = <orchagent;20>
 <snmp;snmp-subagent> = <python3;22>
 <lldp;lldp_syncd> = <python2;33>
