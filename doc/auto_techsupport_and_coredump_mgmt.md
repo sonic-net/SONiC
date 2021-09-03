@@ -108,17 +108,14 @@ module sonic-auto_techsupport {
     namespace "http://github.com/Azure/sonic-auto_techsupport";
     prefix auto_techsupport;
 
+    import sonic-types {
+        prefix stypes;
+    }
+
     description "Event Driven Techsupport & CoreDump Mgmt Capability in SONiC OS";
 
     revision 2021-08-09 {
         description "First Revision";
-    }
-
-    typedef enable-knob {
-        type enumeration {
-            enum disabled;
-            enum enabled;
-        }
     }
 
     typedef decimal-repr {
@@ -138,7 +135,7 @@ module sonic-auto_techsupport {
                
                     leaf state {
                         description "Knob to make techsupport invocation event-driven based on core-dump generation";
-                        type enable-knob;
+                        type stypes:admin_mode;
                     }
 
                     leaf rate_limit_interval  {
@@ -174,7 +171,9 @@ module sonic-auto_techsupport {
                         can be used. 
                         */
                         description "Only collect the logs & core-dumps generated since the time provided. A default value of '2 days ago' is used if this value is not set explicitly or a non-valid string is provided";
-                        type string;
+                        type string {
+                            length 1..255;
+                        }
                     }
             }
             /* end of container GLOBAL */
@@ -192,17 +191,19 @@ module sonic-auto_techsupport {
                 leaf feature_name {
                     description "The name of this feature";
                     /* TODO: Leafref once the FEATURE YANG is added*/
-                    type string;
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                leaf state {
+                    description "Enable auto techsupport invocation on the critical processes running inside this feature";
+                    type stypes:admin_mode;
                 }
 
                 leaf rate_limit_interval {
                     description "Rate limit interval for the corresponding feature. Configure 0 to explicitly disable";
                     type uint16;
-                }
-
-                leaf state {
-                    description "Enable auto techsupport invocation on the critical processes running inside this feature";
-                    type enable-knob;
                 }
 
             }
@@ -212,10 +213,6 @@ module sonic-auto_techsupport {
     }
     /* end of top level container */
 }
-
-
-}
-
 ```
 
 ### State DB
