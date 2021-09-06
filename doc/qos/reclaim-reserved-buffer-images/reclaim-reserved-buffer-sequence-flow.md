@@ -164,6 +164,41 @@ sequenceDiagram
 ```
 
 ```mermaid
+%Dynamic-port-init
+sequenceDiagram
+    participant Kernel stack
+    participant port manager
+    participant ports orchagent
+    participant buffer manager
+    participant buffer manager internal data
+    participant SAI
+    participant CONFIG_DB
+    participant APPL_DB
+    participant STATE_DB
+    CONFIG_DB ->> port manager: A port is heard from CONFIG_DB
+    loop for each attribute of the port
+        port manager ->> Kernel stack: Set corresponding port attributes in kernel netdev
+        port manager ->> APPL_DB: Push the attribute into APPL_DB.PORT_TABLE
+    end
+    APPL_DB ->> ports orchagent: A port is heard from APPL_DB
+    ports orchagent ->> ports orchagent: Initialize the port (other steps omitted)
+    ports orchagent ->> SAI: query maximum number of queues
+    loop for each queue
+        ports orchagent ->> ports orchagent: Initialize the queue
+    end
+    ports orchagent ->> SAI: query maximum number of PGs
+    loop for each queue
+        ports orchagent ->> ports orchagent: Initialize the queue
+    end
+    ports orchagent ->> SAI: query maximum headroom size of the port
+    ports orchagent ->> STATE_DB: Push maximum numbers into STATE_DB.BUFFER_MAX_PARAM_TABLE
+    rect rgb(255, 0, 255)
+        STATE_DB ->> buffer manager: Maximum numbers of the port heard
+        buffer manager ->> buffer manager internal data: Generate ID maps of all queues and PGs
+    end
+```
+
+```mermaid
 %Dynamic-original-flow
 sequenceDiagram
     participant User
@@ -197,37 +232,40 @@ sequenceDiagram
     User ->> CONFIG_DB: Shutdown the port
     CONFIG_DB ->> buffer manager: Update notification
     rect rgb(255, 0, 255)
-        loop for each buffer PG object on the port
-            alt lossy priority-group
-                opt zero buffer profile for lossy priority-group does NOT exist
-                    buffer manager ->> APPL_DB: Create zero ingress buffer pool with static threshold mode
-                    buffer manager ->> APPL_DB: Create zero ingress buffer profile referencing the pool
+        opt zero profiles haven't been inserted to APPL_DB
+            buffer manager ->> APPL_DB: Insert zero pools and profiles into APPL_DB
+        end
+        loop for each buffer PG configured on the port
+            alt lossless
+                alt support removing PGs
+                    buffer manager ->> APPL_DB: Remove the buffer item from BUFFER_PG table
+                else
+                    buffer manager ->> APPL_DB: Apply zero profile to the PG in BUFFER_PG table
                 end
-                buffer manager ->> APPL_DB: set the profile of the PG to corresponding zero buffer profile in BUFFER_PG
             else
-                rect rgb(255, 255, 255)
-                buffer manager ->> APPL_DB: Remove the buffer item from BUFFER_PG
-                end
+                buffer manager ->> APPL_DB: Apply zero profile to the PG in BUFFER_PG table
             end
         end
-        loop For each buffer queue object on the port
-            buffer manager ->> APPL_DB: Remove the buffer queue object
+        opt (Not all PGs on which zero profile needs to be applied are configured) and (removing PGs is supported)
+            loop for each of the rest PGs
+                buffer manager ->> APPL_DB: Apply zero profile to the PG in BUFFER_PG table
+            end
         end
-        buffer manager ->> buffer manager: Fetch the egress zero profile
-        opt zero profile does NOT exist
-            buffer manager ->> APPL_DB: Create zero buffer profile
+        loop for each buffer queue configured on the port
+            buffer manager ->> APPL_DB: Apply zero profile to the queue in BUFFER_QUEUE table
+        end
+        opt (Not all queues on which zero profile needs to be applied are configured) and (removing queues is supported)
+            loop for each of the rest PGs
+                buffer manager ->> APPL_DB: Apply zero profile to the queue in BUFFER_QUEUE table
+            end
         end
         buffer manager ->> APPL_DB: Set the profile of the buffer object to the zero buffer profile
         loop For each profile_list in [BUFFER_PORT_INGRESS_PROFILE_LIST, BUFFER_PORT_EGRESS_PROFILE_LIST]
             loop For each profile in profile_list
-                Note over buffer manager, APPL_DB: Check and create zero profile for a pool
-                    buffer manager ->> buffer manager: Fetch the zero profile of the pool referenced by the profile
-                    opt Zero profile does NOT exist
-                        buffer manager ->> APPL_DB: Create zero buffer profile for the pool
-                    end
+                buffer manager ->> buffer manager: Fetch the zero profile of the pool referenced by the profile
                 buffer manager ->> buffer manager: Add the zero_profile to the list
-                buffer manager ->> APPL_DB: Update the profile list
             end
+            buffer manager ->> APPL_DB: Update the profile list
         end
     end
 ```
