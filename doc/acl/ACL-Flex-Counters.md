@@ -224,6 +224,10 @@ In case an *error* happened, we roll back, deleting objects with best effort. An
 
 ACL counter should not be removed when mirror rule is removed on mirror session deactivation and upon mirror recreation attached back to the rule object.
 
+<p align=center>
+<img src="img/acl-mirror-rule-flow.svg" alt="Figure 5. ACL mirror flow enhancement">
+</p>
+
 ### SAI API
 
 No new SAI API is used.
@@ -274,7 +278,8 @@ YANG model with ACL group:
 NOTE: YANG is currently not having POLL_INTERVAL field defined.
 		
 ### Warmboot and Fastboot Design Impact  
-N/A
+
+Counter polling is delayed at system startup.
 
 ### Restrictions/Limitations  
 N/A
@@ -296,8 +301,6 @@ N/A
 ### Open/Action items
 
 - In case mirror session goes down, ACL rule is deleted but counters is not to save the counters values. This counter could be deleted from FLEX COUNTER DB to avoid polling it but it will trigger removal of the VID in the COUNTERS DB which we would like to keep.
-	- In the current desing it will work just like for PORT, QUEUE, PG counters for port in down state - meaning polling is happenning although there is no real point for it.
+	- In the current desing it will work just like for PORT, QUEUE, PG counters for port in down state - meaning polling is happening although there is no real point for it.
 	- It is more like an optimization for a bad scenario rather then a real optimization. A rule is created to be active and counter to be polled in the first place and there must be enough resources and free CPU time to do that.
-	- In case the ACL rule has more action, like mirror ingress on session s0 and mirror egress on session s1 (currently not supported but possible scenario) and if one sesssion goes down, say s0, the counter can't be removed anyway as there is still egress mirroring happening on s1.
-	- Considering previous items it does not make sense to remove the whole rule and a counter but just disable actions if the state in the network(session IP is reachable) requires.
-	- It is not clear how to remove mirror action from the rule in SAI as the SAI_ACL_ACTION_TYPE_MIRROR_INGRESS/SAI_ACL_ACTION_TYPE_MIRROR_EGRESS are not @allowempty.
+	- Current FC infrastructure does not allow to enable/disable polling on per-counter OID basis.
