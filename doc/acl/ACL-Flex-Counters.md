@@ -300,7 +300,8 @@ N/A
 
 ### Open/Action items
 
+- Can a default FC ACL counter state be disabled in init_cfg.json? Only enabled when generating configuration from minigraph.xml or when performing S2S upgrade in DB migrator?
 - In case mirror session goes down, ACL rule is deleted but counters is not to save the counters values. This counter could be deleted from FLEX COUNTER DB to avoid polling it but it will trigger removal of the VID in the COUNTERS DB which we would like to keep.
 	- In the current desing it will work just like for PORT, QUEUE, PG counters for port in down state - meaning polling is happening although there is no real point for it.
 	- It is more like an optimization for a bad scenario rather then a real optimization. A rule is created to be active and counter to be polled in the first place and there must be enough resources and free CPU time to do that.
-	- Current FC infrastructure does not allow to enable/disable polling on per-counter OID basis.
+	- Current FC infrastructure does not allow to enable/disable polling on per-counter OID basis but keeping the counter value in COUNTERS DB.
