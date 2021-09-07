@@ -125,6 +125,8 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plane forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
 
+A new Srv6Mgr will be introduced in sonic-bgpcfgd, Srv6Mgr handle CONFIG_DB changes and generate necessary data needed by APPL_DB and push them into APPL_DB as well. In later phase, Srv6Mgr will use frr , the same way as other sonic-bgpcfgd Mgrs did today, to connect CONFIG_DB changes and APPL_DB. 
+
 ## 3.1 ConfigDB Changes
 
 **SRV6_SID_LIST_TABLE**
@@ -444,7 +446,7 @@ Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB.
 RouteOrch uses NexthopKey to create SAI next hop objects. To support SRV6 segments in the nextHop, key is modified to include segment string and source address string used for SRv6 source encapsulation.
 
 
-
+```
 Struct NextHopKey {
 
   IpAddress ip_address;
@@ -457,6 +459,7 @@ Struct NextHopKey {
   …..
 
 }
+```
 
 
 
