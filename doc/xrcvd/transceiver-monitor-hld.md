@@ -295,7 +295,7 @@ Currently, xcvrd assumes that port mapping information is never changed, so it a
 
 ![new_flow](https://github.com/Junchao-Mellanox/SONiC/blob/update-xcvrd/doc/xrcvd/port_config_change_flow.svg)
 
-- Main process works as a "Subject", it subscribes CONFIG_DB PORT table change and publish port change event.
+- Main process works as a "Subject", it selects CONFIG_DB PORT table change and publish port change event.
 - State machine process and DOM sensor update thread work as "Observer", it subscribes port change event and update local port mapping accordingly.
 
 Port change event contains following data:
@@ -303,7 +303,7 @@ Port change event contains following data:
 - ASIC index which indicates the DB namespace.
 - Logical port name. Get from the key of PORT table. E.g, for key "PORT|Ethernet0", the logical port name is "Ethernet0".
 - Physic port index. Get from "index" field of PORT table.
-- Event type. Can be add or remove.
+- Event type. Can be "Add" or "Remove".
 
 As port mapping information might be updated during runtime, the global port mapping information cannot be shared properly among main process, state machine process and DOM sensor update thread. A possible solution is to use share memory between different processes, but it will introduce process level lock to many places which is hard to maintain. So, a simple solution is to store local port mapping information in main process, state machine process and DOM sensor update thread and update them via event. In this case, no explicit lock is needed and we can keep the logic as simple as it is. Of course it takes more memory, but port mapping information would be very small which should not cause any memory issue.
 
@@ -333,7 +333,7 @@ As state machine task is a process, it should use multiprocessing.Queue to recei
 
 ##### 1.4.3.2 Handle port change event in DOM sensor update thread #####
 
-DOM sensor update thread should use queue.Queue to receive the port change event. Once a port change event arrives, it should update local port mapping information first and if it is a remove event, it should remove transceiver information from table TRANSCEIVER_DOM_SENSOR; if it is and add event, nothing else need to be done because new port in alread in local port mapping and the DOM sensor information will be updated properly.
+DOM sensor update thread should use queue.Queue to receive the port change event. Once a port change event arrives, it should update local port mapping information first and if it is a remove event, it should remove transceiver information from table TRANSCEIVER_DOM_SENSOR; if it is and add event, nothing else need to be done because new port in already in local port mapping and the DOM sensor information will be updated properly.
 
 ##### 1.4.3.3 Recover missing SFP information in DB #####
 
