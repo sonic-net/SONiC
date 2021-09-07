@@ -40,10 +40,14 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 
 # Security Updates
 
-1. Kernel upgraded from 4.9.110-3deb9u6 (SONiC Release 201904) to 4.9.168-1+deb9u5 for SONiC release. 
-   Change log: https://tracker.debian.org/media/packages/l/linux/changelog-4.9.168-1deb9u5
-2. Docker upgraded from 18.09.2\~3-0\~debian-stretch to 18.09.8\~3-0\~debian-stretch. 
+1. Kernel upgraded from 4.9.168-1+deb9u5 (SONiC Release 202006) to 4.19.152-1 for SONiC release.
+   Change log: https://salsa.debian.org/kernel-team/linux/-/raw/buster-security/debian/changelog 
+
+2. Plexus-utils fix: CVE-2017-1000487   
+
+3. Docker upgraded from 18.09.2\~3-0\~debian-stretch to 18.09.8\~3-0\~debian-stretch. 
    Change log: https://docs.docker.com/engine/release-notes/#18098 
+
 
 # Feature List
 
