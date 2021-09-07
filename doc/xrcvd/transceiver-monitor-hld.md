@@ -293,6 +293,8 @@ xcvrd depends on port mapping information to update transceiver information to D
 
 Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature introduced. Port can be added/created on the fly, xcvrd cannot update transceiver information, DOM information and transceiver status information without knowing the ports change. This causes data in state db not aligned with config db. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly. Observer pattern will be used here to handle port mapping information change:
 
+![new_flow](https://github.com/Junchao-Mellanox/SONiC/blob/update-xcvrd/doc/xrcvd/port_config_change_flow.svg)
+
 - Main process works as a "Subject", it subscribes CONFIG_DB PORT table change and publish port change event.
 - State machine process and DOM sensor update thread work as "Observer", it subscribes port change event and update local port mapping accordingly.
 
