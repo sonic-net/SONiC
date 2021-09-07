@@ -767,8 +767,8 @@ The json file contains a list of zero pools (if necessary) and profiles, which w
 
 There is also an item containing control fields, including:
 
-- `pgs_to_reclaim`: In case zero profiles are not required to be applied on either all or configured priority groups, an ID map on which zero profiles should be applied can be specified on a per-platform basis in this field.
-- `queues_to_reclaim`: Similar to `pgs_to_reclaim` but for queues.
+- `pgs_to_apply_zero_profile`: In case zero profiles are not required to be applied on either all or configured priority groups, an ID map on which zero profiles should be applied can be specified on a per-platform basis in this field.
+- `queues_to_apply_zero_profile`: Similar to `pgs_to_apply_zero_profile` but for queues.
 - `ingress_zero_profile`: The ingress zero profile, in case the vendor need to specify it explicitly. By default, the zero profile of each buffer pool is the profile in the list and referencing the pool.
 - `egress_zero_profile`: The egress zero profile. It's similar as the ingress one but on egress side.
 - `support_remove_profile`: By default, it is `yes`. In this case, the normal profiles will be removed from the admin down port before applying the zero profiles on all priority groups or queues.
@@ -832,8 +832,8 @@ In the example, the egress_zero_profile is not specified, so the buffer profile 
         "OP": "SET"
     },
     {
-        "ids_to_reclaim" : {
-            "pgs_to_reclaim":"0",
+        "control_fields" : {
+            "pgs_to_apply_zero_profile":"0",
             "ingress_zero_profile":"[BUFFER_PROFILE_TABLE:ingress_lossy_pg_zero_profile]"
         },
         "OP": "SET"
@@ -927,6 +927,20 @@ N/A
 ### 10.2 Config DB Enhancements ###
 
 N/A
+
+### 10.3 Database migrator ###
+
+For any admin down port, if the port's buffer configuration aligns with the default configuration which is:
+
+- There is no lossless PG or a lossless PG according to the port's speed and cable length.
+- There is no lossy PG, queues and buffer ingress/egress profile lists.
+
+The buffer configuration will be configured on the port:
+
+- For dynamic buffer model, default normal profiles will be configured on PGs, queues, and ingress/egress profile lists.
+- For traditional buffer model, corresponding zero profiles will be configured on PGs, queues, and ingress/egress profile lists.
+
+  The zero buffer pools and profiles will also be configured in this case.
 
 ## 11 Warmboot and Fastboot Design Impact ##
 
