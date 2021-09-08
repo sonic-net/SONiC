@@ -20,7 +20,7 @@
 
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
-|  1.0  | 08/2021 | Vadym Hlushko    | Phase 1 Design     |
+|  1.0  | 09/2021 | Vadym Hlushko    | Phase 1 Design     |
 
 ### Scope  
 
@@ -39,8 +39,6 @@ This document provides general information about the NVGRE tunnel feature implem
 | SAI          | Switch Abstraction Interface          |
 | YANG         | Yet Another Next Generation           |
 | CLI          | Command-line interface                |
-| NOS          | Network operating system              |
-| RIF          | Router interface              |
 
 ### Overview 
 
@@ -55,8 +53,9 @@ This section describes the SONiC requirements for NVGRE feature.
 At a high level the following should be supported:
 
 - Phase #1
-  - Should be able to create Bridge/VLAN to VSID mapping
-  - Should be able to create tunnels and encap/decap mappers
+  - User should be able to create NVGRE tunnel
+  - User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
+  - Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
   - YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
 - Phase #2
   - CLI for NVGRE tunnel
@@ -250,11 +249,6 @@ module sonic-nvgre-tunnel {
                 }
 
                 leaf vlan_id {
-                    /* ?????
-                    type leafref {
-                        path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
-                    }
-                    */
                     type uint16 {
                         range 1..4094;
                     }
