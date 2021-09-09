@@ -142,21 +142,21 @@ The following sub-modules will be modified:
 
 <p align=center>
 <img src="images/nvgre_tunnel_delete_uml.svg" alt="Figure 4. NVGRE Tunnel delete flow">
-</p
+</p>
 
 ##### Figure 5. NVGRE Tunnel Map delete flow
 
 <p align=center>
 <img src="images/nvgre_tunnel_map_delete_uml.svg" alt="Figure 5. NVGRE Tunnel Map delete flow">
-</p
+</p>
 
-##### Figure 4. NVGRE Tunnel CLI config
+##### Figure 6. NVGRE Tunnel CLI config
 
 <p align=center>
 <img src="images/nvgre_cli_config.svg" alt="Figure 6. NVGRE Tunnel CLI config">
 </p>
 
-##### Figure 5. NVGRE Tunnel CLI show
+##### Figure 7. NVGRE Tunnel CLI show
 
 <p align=center>
 <img src="images/nvgre_cli_show.svg" alt="Figure 7. NVGRE Tunnel CLI show">
