@@ -115,7 +115,7 @@ SWSS_RC_EXISTS            | SAI_STATUS_ITEM_ALREADY_EXISTS
 SWSS_RC_PERMISSION_DENIED |
 SWSS_RC_FULL              | SAI_STATUS_INSUFFICIENT_RESOURCES<br>SAI_STATUS_TABLE_FULL
 SWSS_RC_IN_USE            | SAI_STATUS_OBJECT_IN_USE
-SWSS_RC_INTERNAL          | SAI_STATUS_FAILURE
+SWSS_RC_INTERNAL          |
 SWSS_RC_UNIMPLEMENTED     | SAI_STATUS_NOT_SUPPORTED<br>SAI_STATUS_NOT_IMPLEMENTED
 SWSS_RC_UNKNOWN           | Other SAI errors
 
@@ -178,7 +178,22 @@ N/A
 
 ## Configuration and management
 
-N/A
+A new configuration file will be added to enable the response channel and the APPL STATE DB for the selected APPL DB tables. There are two configurations: response channel and APPL STATE DB. They are defined in separate section of the configuration file. The configuration will contain a list of APPL DB table names. Only the tables in the list will have the feature enabled.
+
+An example configuration file will look like this:
+```
+{
+    "response_channel": [
+        "P4RT",
+        "SWITCH_TABLE",
+        "HASH_TABLE"
+    ],
+    "appl_state_db": [
+        "P4RT",
+        "HASH_TABLE"
+    ]
+}
+```
 
 ## Warmboot and Fastboot Design Impact
 
