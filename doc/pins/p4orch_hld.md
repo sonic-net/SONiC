@@ -27,30 +27,9 @@
 
 ## Revision
 
-<table>
-  <tr>
-   <td>Rev
-   </td>
-   <td>Rev Date
-   </td>
-   <td>Author(s)
-   </td>
-   <td>Change Description
-   </td>
-  </tr>
-  <tr>
-   <td>v0.1
-   </td>
-   <td>6/21/2021
-   </td>
-   <td>Runming Wu,
-<p>
-Stephen Wang
-   </td>
-   <td>Initial version
-   </td>
-  </tr>
-</table>
+Rev  | Rev Date  | Author(s)                | Change Description
+---- | --------- | ------------------------ | ------------------
+v0.1 | 6/21/2021 | Runming Wu, Stephen Wang | Initial version
 
 ## Scope
 
@@ -66,7 +45,7 @@ This document describes the high-level design of the p4 orchagent in PINS. Refer
 
 ## Overview
 
-The P4RT application and the p4 orchagent (P4Orch) are the new components that PINS introduces into SONiC to support programming the switch through P4 language. The P4RT server application receives the P4 requests from the P4 client and converts them into APPL_DB P4RT table entries. The P4Orch is a new orchagent which lives inside the OrchAgent process and picks up the entries to make the corresponding SAI API calls to write to ASIC DB. For more information on PINS architecture design, please refer to the "PINS HLD'' document.
+The P4RT application and the p4 orchagent (P4Orch) are the new components that PINS introduces into SONiC to support programming the switch through P4 language. The P4RT server application receives the P4 requests from the P4 client and converts them into APPL_DB P4RT table entries. The P4Orch is a new orchagent which lives inside the OrchAgent process and picks up the entries to make the corresponding SAI API calls to write to ASIC DB. For more information on PINS architecture design, please refer to the [PINS HLD](pins_hld.md) document.
 
 ![drawing](images/p4orch_hld_overview.png)
 
@@ -109,7 +88,7 @@ P4Orch is a new Orch class implementation added in the Orchagent process inside 
 
 ### P4RT Table
 
-This is a high level overview of the P4RT table. For more details, please refer to the "P4RT & APPL DB Schema HLD" document.
+This is a high level overview of the P4RT table. For more details, please refer to the [P4RT APPL DB Schema](P4RT_App_DB_Schema.md) document.
 
 The P4RT table defines the P4 programming requests. The current schema is modeled from the below fixed SAI routing pipeline for the 2021-11 release.
 
@@ -117,48 +96,13 @@ The P4RT table defines the P4 programming requests. The current schema is modele
 
 The following are the sub-tables in P4RT table and their corresponding SAI object:
 
-<table>
-  <tr>
-   <td><strong>P4RT sub table</strong>
-   </td>
-   <td><strong>SAI object</strong>
-   </td>
-  </tr>
-  <tr>
-   <td>FIXED_ROUTER_INTERFACE_TABLE
-   </td>
-   <td>Router Interface
-   </td>
-  </tr>
-  <tr>
-   <td>FIXED_NEIGHBOR_TABLE
-   </td>
-   <td>Neighbor
-   </td>
-  </tr>
-  <tr>
-   <td>FIXED_NEXTHOP_TABLE
-   </td>
-   <td>Next Hop
-   </td>
-  </tr>
-  <tr>
-   <td>FIXED_WCMP_GROUP_TABLE
-   </td>
-   <td>Next Hop Group
-<p>
-Next Hop Group Member
-   </td>
-  </tr>
-  <tr>
-   <td>FIXED_IPV4_TABLE
-<p>
-FIXED_IPV6_TABLE
-   </td>
-   <td>Route
-   </td>
-  </tr>
-</table>
+P4RT sub table                       | SAI object
+------------------------------------ | ---------------------------------------
+FIXED_ROUTER_INTERFACE_TABLE         | Router Interface
+FIXED_NEIGHBOR_TABLE                 | Neighbor
+FIXED_NEXTHOP_TABLE                  | Next Hop
+FIXED_WCMP_GROUP_TABLE               | Next Hop Group<br>Next Hop Group Member
+FIXED_IPV4_TABLE<br>FIXED_IPV6_TABLE | Route
 
 The ACLs are modeled similarly to the existing AclOrch with a DEFINITION table that defines each ACL table and ACL_*ACL_TABLE_NAME* table to insert ACL rules to the tables.
 
@@ -247,7 +191,7 @@ Currently, public methods provided by P4Orch are limited. Existing SONiC orchs d
 
 ### P4Orch To Application Response Path
 
-As P4RT interface requires the response of each programming request to match the real hardware state, synchronous mode between orchagent and syncd are enabled so P4Orch can get the exact SAI API response. And P4Orch implements a notification channel to send the response further up to the P4RT application. For more details, please refer to the "APPL State DB & Response Path HLD" document.
+As P4RT interface requires the response of each programming request to match the real hardware state, synchronous mode between orchagent and syncd are enabled so P4Orch can get the exact SAI API response. And P4Orch implements a notification channel to send the response further up to the P4RT application. For more details, please refer to the [APPL STATE DB & Response Path HLD](appl_state_db_response_path_hld.md) document.
 
 ## SAI API
 
