@@ -119,18 +119,23 @@ For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces
 ## 2.1 Configuration
 ### 2.1.1 Naming Convention for sub-interfaces:
 
-Since Kernel has netdevice name length restriction to 15, Physical sub-interfaces(in case interface number > 99) and port channel sub-interfaces cannot follow the same nomenclature as physical interfaces. Hence Long name to short name conversion needs to be performed for the subinterfaces.
+Since Kernel has netdevice name length restriction to 15, Physical sub-interfaces(in case interface number > 99) and port channel sub-interfaces cannot follow the same nomenclature as physical interfaces.
+Hence short name convention needs to be supported for subinterfaces.
 
-All DB & Kernel netdevice corresponding to the sub-interface should be created with a short name.
+All DB & kernel netdevice corresponding to the sub-interface will be created based on user configuration. 
+- If user configures subinterfaces in short name format, all DB & kernel netdevices will be created in short name format. 
+- If user configures subinterfaces in existing long name format, all DB & netdevices will be created with existing long name format. 
+
+Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
+Long naming conventions for sub-interfaces will have Ethernetxx.yyyy. 
+Physical subinterfaces on interface number exceeding 2 digits and PortChannel subinterfaces in long name format were not supported earlier and will NOT be supported due to name length restriction.
 
 Intfmgrd & IntfsOrch which manages sub-interfaces should be aware of this mapping to get parent interface properties.
 
 SWSS CPP library & Click Python API library will be provided to perform short name to long name conversion and vice versa.
 Please refer to the API library section for details.
 
-Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
-
-All click config CLIs for sub-interfaces will follow long name format.
+All click config CLIs for sub-interfaces will be enhanced to accept both long name & short name format for subinterfaces.
 
 ### 2.1.2 config_db.json
 ```
@@ -144,12 +149,16 @@ All click config CLIs for sub-interfaces will follow long name format.
 },
 ```
 A key in the VLAN_SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot).
-The section before the dot is the name of the parent physical port or port channel. The section after the dot is a unique number which uniquely identifies the sub-interface on the parent interface. Sub-interface id value can be in range 1-99999999(Subinterface ID cannot exceed 8 digits).
+The section before the dot is the name of the parent physical port or port channel. The section after the dot is a unique number which uniquely identifies the sub-interface on the parent interface. 
+Sub-interface id value represents vlan id in long name format. 
+Sub-interface id value in short name format uniqeuly identifies subinterface under the parent interface. It can be in range 1-99999999(Subinterface ID cannot exceed 8 digits).
 
+vlan field is applicable only for short name format subinterfaces.
 vlan field identifies the vlan to which the sub-interface is associated using .1Q trunking.
-Note that subinterface_id and vlan_id for a subinterface can be different.
+Note that subinterface_id and vlan_id for a subinterface can be different in short name format.
 
-In Click CLI, user will be able to configure the vlan id associated with the sub-interface. If vlan_id is not provided, sub-interface ID will be used as vlan id.
+In Click CLI, user will be able to configure the vlan id associated with the sub-interface in short name format.
+In existing long name format Sub-interface id is used as vlan id.
 
 admin_status of a sub port interface can be either up or down.
 In the case field "admin_status" is absent in the config_db.json file, a sub port interface is set admin status up by default at its creation.
@@ -157,6 +166,11 @@ In the case field "admin_status" is absent in the config_db.json file, a sub por
 Example configuration:
 ```
 "VLAN_SUB_INTERFACE": {
+    "Ethernet0.100": {
+        "admin_status" : "up"
+    },
+    "Ethernet0.100|192.0.0.1/21": {},
+    "Ethernet0.100|fc0a::/112": {}
     "Eth64.10": {
         “vlan” : 100,
         "admin_status" : "up"
@@ -183,7 +197,8 @@ key             = VLAN_SUB_INTERFACE|subif_name      ; subif_name is the name of
 
 ; subif_name annotations
 subif_name      = port_name "." subinterface_id         ; port_name is the name of parent physical port or port channel
-                                                ; subinterface_id is DIGIT 1-99999999
+                                                ; In short name format subinterface_id is DIGIT 1-99999999
+                                                ; In long name format subinterface_id is vlan id.
 
 ; field         = value
 admin_status    = up / down                     ; admin status of the sub port interface
@@ -223,6 +238,15 @@ ls32            = ( h16 ":" h16 ) / IPv4address
 
 Example:
 ```
+VLAN_SUB_INTERFACE|Ethernet0.100
+    "admin_status" : "up"
+
+VLAN_SUB_INTERFACE|Ethernet0.100|192.0.0.1/21
+    "NULL" : "NULL"
+
+VLAN_SUB_INTERFACE|Ethernet0.100|fc0a::/112
+    "NULL" : "NULL"
+
 VLAN_SUB_INTERFACE|Eth64.10
     "vlan" : 100,
     "admin_status" : "up"
@@ -260,6 +284,17 @@ family          = IPv4 / IPv6           ; address family
 
 Example:
 ```
+INTF_TABLE:Ethernet0.100
+    "admin_status" : "up"
+
+INTF_TABLE:Ethernet0.100:192.0.0.1/24
+    "scope" : "global"
+    "family": "IPv4"
+
+INTF_TABLE:Ethernet0.100:fc0a::/112
+    "scope" : "global"
+    "family": "IPv6"
+
 INTF_TABLE:Eth64.10
     "vlan" : 100
     "admin_status" : "up"
@@ -290,6 +325,19 @@ INTERFACE_TABLE|{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}
 ```
 
 Example:
+```
+PORT_TABLE|Ethernet0.100
+    "state" : "ok"
+```
+```
+INTERFACE_TABLE|Ethernet0.100|192.0.0.1/21
+    "state" : "ok"
+```
+```
+INTERFACE_TABLE|Ethernet0.100|fc0a::/112
+    "state" : "ok"
+```
+
 ```
 PORT_TABLE|Eth64.10
     "state" : "ok"
@@ -387,11 +435,15 @@ This command implies the dependency that a parent host interface must be created
 
 Example:
 ```
+ip link add link Ethernet0 name Ethernet0.100 type vlan id 100
+ip link set Ethernet0.100 mtu 9100
+ip link set Ethernet0.100 up
 ip link add link Ethernet64 name Eth64.10 type vlan id 100
 ip link set Eth64.10 mtu 9100
 ip link set Eth64.10 up
 ```
 ```
+ip link del Ethernet0.100
 ip link del Eth64.10
 ```
 
@@ -399,6 +451,7 @@ We use `ip address` and `ip -6 address` to add and remove ip adresses on a host 
 
 Example:
 ```
+ip address add 192.0.0.1/24 dev Ethernet0.100
 ip address add 192.168.0.1/24 dev Eth64.10
 ```
 
@@ -554,6 +607,7 @@ Example:
 Sub port interface    Speed    MTU    Vlan    Admin                 Type
 ------------------  -------  -----  ------  -------  -------------------
      Eth64.10          100G   9100    100       up  dot1q-encapsulation
+     Ethernet0.100     100G   9100    100       up  dot1q-encapsulation
 ```
 No operational status is defined on RIF (sub port interface being a type of RIF) in SAI spec.
 
@@ -628,10 +682,7 @@ We enforce a minimum scalability requirement on the number of sub port interface
 | Number of sub port interfaces per switch                          | 750                       |
 
 # 8 Upgrade and Downgrade considerations
-Since subinterface names are stored in short name format with this enhancement,
-subinterface name in config DB should be convereted from long name to short name format during upgrade and short name to long name format during downgrade.
-
-db_migrator script will be updated to handle this subinterface name conversion.
+Since subinterface are supported in existing long name CONFIG_DB format, Upgrade and downgrade will be seamless with no impact to subinterface functionality.
 
 # 9 Appendix
 ## 9.1 Difference between a sub port interface and a vlan interface
@@ -642,8 +693,8 @@ Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. 
 __Fig. 3: Vlan interface__
 
 # 10 API Library
-All DB & Kernel netdev corresponding to the subinterface should be created with a short name.
-Intfmgrd & IntfsOrch which manages sub-interfaces should be aware of this mapping to get parent interface properties.
+All DB & Kernel netdev corresponding to the subinterface can be created with short name & existing long name format.
+Intfmgrd & IntfsOrch which manages sub-interfaces should be able to fetch  parent interface properties for a given subinterface.
 
 ## 10.1 SWSS CPP Library
 In CPP, applications can use subintf class provided by swss-common library to fetch attributes of subinterface.
@@ -652,7 +703,7 @@ Subintf class provides below methods:
 
 1. isValid()
 This method returns true if the subinterface is valid.
-Subinterface will be considered valid if it follows format Ethxxx.yyyy, Poxxx.yyyy, Ethernetxxx.yyyy & PortChannelxxx.yyyy
+Subinterface will be considered valid if it follows format Ethxxx.yyyy, Poxxx.yyyy & Ethernetxx.yyyy.
 
 2. subIntfIdx()
 Returns a subinterface index as an integer type.
