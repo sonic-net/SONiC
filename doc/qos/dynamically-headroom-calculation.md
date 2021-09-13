@@ -786,7 +786,7 @@ Therefore, headroom is calculated as the following:
 - `cell occupancy` = (100 - `small packet percentage` + `small packet percentage` * `worst case factor`) / 100
 - `kb on cable` = `cable length` / `speed of light in media` * `port speed`
 - `kb on gearbox` = `port speed` * `gearbox delay` / 8 / 1024
-- `peer response` = (`number of pause_quanta` * 512) / 8 / 1024
+- `peer response` = (`number of pause_quanta` * 512) / 8
 - `propagation delay` = `port mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
 - `Xon` = `pipeline latency`
 - `Xoff` = `lossless mtu` + `propagation delay` * `cell occupancy`
