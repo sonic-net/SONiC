@@ -13,20 +13,24 @@
   * [Definitions/Abbreviation](#definitionsabbreviation)
  
   * [1 Requirements Overview](#1-requirements-overview)
-    * [1.1 Usecase](#11-Usecase)
+    * [1.1 Usecase](#11-usecase)
     * [1.2 Functional requirements](#12-functional-requirements)
     * [1.3 CLI requirements](#13-cli-requirements)
     * [1.4 Warm Restart requirements ](#14-warm-restart-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
     * [2.2 App DB](#22-app-db)
-    * [2.3 Orchestration Agent](#23-orchestration-agent)
-    * [2.4 CLI](#24-cli)
+    * [2.3 Module Interaction](#23-module-interaction)
+    * [2.4 Orchestration Agent](#24-orchestration-agent)
+    * [2.5 Monitoring and Health](#25-monitoring-and-health)
+    * [2.6 BGP](#26-bgp)
+    * [2.7 CLI](#27-cli)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2021  |     Prince Sunny   | Initial version                   |
+| 1.0 | 09/13/2021  |     Prince Sunny   | Revised                           |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -37,7 +41,7 @@ This document describes the high level design of the Overlay ECMP feature and as
 ###### Table 1: Abbreviations
 |                          |                                |
 |--------------------------|--------------------------------|
-| BFD                      | Bidirectional Forwarding       |
+| BFD                      | Bidirectional Forwarding Detection       |
 | VNI                      | Vxlan Network Identifier       |
 | VTEP                     | Vxlan Tunnel End Point         |
 | VNet                     | Virtual Network                |
@@ -48,7 +52,7 @@ This document describes the high level design of the Overlay ECMP feature and as
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
 
-## 1.1 Functional requirements
+## 1.2 Functional requirements
 
 At a high level the following should be supported:
 
@@ -56,11 +60,11 @@ At a high level the following should be supported:
 - Tunnel Endpoint monitoring via BFD
 - Add/Withdraw Nexthop based on Tunnel or Endpoint health
 
-## 1.2 CLI requirements
+## 1.3 CLI requirements
 - User should be able to show the BFD session
 - User should be able to show the Vnet routes
 
-## 1.3 Warm Restart requirements
+## 1.4 Warm Restart requirements
 No special handling for Warm restart support.
 
 # 2 Modules Design
@@ -84,6 +88,7 @@ VNET|{{vnet_name}}
     "vni": {{vni}} 
     "scope": {{"default"}} (OPTIONAL)
     "peer_list": {{vnet_name_list}} (OPTIONAL)
+    "advertise_prefix": {{false}} (OPTIONAL)
 ```
 
 ## 2.2 APP DB
@@ -115,8 +120,8 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
 ```
 key                      = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix 
 ; field                  = value 
-ENDPOINT                 = list of ipv4 addresses    ; comma separated list of endpoints 
-ENDPOINT_MONITOR         = list of ipv4 addresses    ; comma separated list of endpoints 
+ENDPOINT                 = list of ipv4 addresses    ; comma separated list of endpoints
+ENDPOINT_MONITOR         = list of ipv4 addresses    ; comma separated list of endpoints, space for empty/no monitoring
 MAC_ADDRESS              = 12HEXDIG                  ; Inner dst mac in encapsulated packet 
 VNI                      = DIGITS                    ; VNI value in encapsulated packet 
 WEIGHT                   = DIGITS                    ; Weights for the nexthops, comma separated (Optional) 
@@ -144,7 +149,7 @@ Overlay routes can be programmed via RestAPI or gNMI/gRPC interface which is not
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_ModuleInteraction.png)
 
-## 2.3 Orchestration Agent
+## 2.4 Orchestration Agent
 Following orchagents shall be modified. 
 
 ### VnetOrch
@@ -184,7 +189,7 @@ VNET_ROUTE_TUNNEL_TABLE can provide monitoring endpoint IPs which can be differe
 - Better performance in re-programming routes in ASIC instead of separate process to monitor and modify each route prefix by updating DB entries 
 
 ### BfdOrch
-Sonic may offload the BFD session handling to hardware that has BFD capabilities.  A new module, BfdOrch shall be introduced to handle BFD session to monitoring endpoints and check the health of remote endpoints. BfdOrch shall offload the session initiation/sustenance to hardware via SAI APIs and gets the notifications of session state from SAI. The session state shall be updated in STATE_DB and to any other observer orchestration agents.  
+Sonic shall offload the BFD session handling to hardware that has BFD capabilities.  A new module, BfdOrch shall be introduced to handle BFD session to monitoring endpoints and check the health of remote endpoints. BfdOrch shall offload the session initiation/sustenance to hardware via SAI APIs and gets the notifications of session state from SAI. The session state shall be updated in STATE_DB and to any other observer orchestration agents.  
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_BFD.png)
 
@@ -205,7 +210,32 @@ The flow of BfdOrch is presented in the following figure. BfdOrch subscribes to 
 
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_BFD_Notification.png)
 
-## 2.5 CLI
+A Control Plane BFD approach is to use FRR BFD and enable bfdctl module. This shall be part of the Sonic BGP container. For the current usecase, the BFD hw offload is being considered and control plane BFD using FRR is not scoped in this document.
+
+## 2.5 Monitoring and Health
+
+The routes are programmed based on the health of tunnel endpoints. It is possible that a tunnel endpoint health is monitored via another dedicated “monitoring” endpoint. It is required to have a “keep-alive” mechanism to monitor the health of end point and withdraw or reinstall the route when the endpoint is inactive or active respectively.
+When an endpoint is deemed unhealthy, router shall perform the following actions:
+1.	Remove the nexthop from the ECMP path. If all endpoints are down, the route shall be withdrawn.
+2.	If 50% of the nexthops are down, an alert shall be generated.
+
+## 2.6 BGP
+
+Advertise VNET routes
+The overlay routes programmed on the device must be advertised to BGP peers. This can be achieved by the “network” command. 
+
+For example:
+```
+router bgp 1
+ address-family ipv4 unicast
+  network 10.0.0.0/8
+ exit-address-family
+ ```
+
+This configuration example says that network 10.0.0.0/8 will be announced to all neighbors. FRR bgpd doesn’t care about IGP routes when announcing its routes.
+
+
+## 2.7 CLI
 
 The following commands shall be modified/added :
 
@@ -214,3 +244,5 @@ The following commands shall be modified/added :
 	- show vnet routes tunnel
 	- show bfd session <session name>
 ```
+
+Config commands for VNET, VNET Routes and BFD session is not considered in this design. This shall be added later based on requirement. It is taken into consideration of future BFD enhancement to have the sessions created via config_db. 
