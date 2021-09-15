@@ -318,6 +318,10 @@ based on the ASIC platform it is running on. There is either a "combined" or
 +-------------------+--------------+---------------+
 ```
 
+This special handling has also the following limitations:
+    - Only 1 ACL table of type MIRROR and 1 ACL table of type MIRRORV6 can exist and must be of the same stage
+    - Modifying ACL table configuration for V4 mirror table, e.g: bind ports results in silent modification of a V6 table.
+
 This does not play well with the new concept of user defined table types.
 To solve this we have few options:
 
