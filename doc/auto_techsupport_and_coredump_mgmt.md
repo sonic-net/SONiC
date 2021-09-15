@@ -12,24 +12,23 @@
   * [6. Design](#6-design)
       * [6.1 Modifications to coredump-compress script](#61-Modifications-to-coredump-compress-script)
       * [6.2 coredump_gen_handler script](#62-coredump_gen_handler-script)
-      * [6.3 Requirements for FEATURE_PROC_INFO table](#63-requirements-for-FEATURE_PROC_INFO-table)
-      * [6.4 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
-      * [6.5 techsupport_cleanup script](#65-techsupport_cleanup-script)
+      * [6.3 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
+      * [6.4 techsupport_cleanup script](#65-techsupport_cleanup-script)
       * [6.5 Warmboot consideration](#65-Warmboot-consideration)
-      * [6.6 Design choices for core-usage & max-techsupport-size argument](#66-Design-choices-for-core-usage-&-max-techsupport-sizeargument)
+      * [6.6 MultiAsic consideration](#66-MultiAsic-consideration)
+      * [6.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#67-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
   * [7. Test Plan](#7-Test-Plan)
-  * [8. Limitations](#7-Limitations)
 
 
 ### Revision  
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-| 1.1 |     TBD     | Vivek Reddy Karri        | Edit the AUTO_TECHSUPPORT_FEATURE YANG Model and Auto GEN CLI with the leafref of FEATURE table|
+| 1.1 |     TBD     | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 
 ## About this Manual
-This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any critical process inside the docker crashes and a core dump is generated.
+This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process inside the docker crashes and a core dump is generated.
 
 ## 1. Overview
 Currently, techsupport is run by invoking `show techsupport` either by orchestration tools or manually. The techsupport dump also collects any core dump files available in the `/var/core/` directory.
@@ -39,7 +38,7 @@ However if the techsupport invocation can be made event-driven based on core dum
 ## 2. High Level Requirements
 ### Global Scope
 * Techsupport invocation should also be made event-driven based on core dump generation.
-* This is only applicable for the critical processes running inside the dockers. Does not apply for other processes.
+* This is only applicable for the processes running inside the dockers. Does not apply for other processes.
 * init_cfg.json will be enhanced to include the "CONFIG" required for this feature (described in section 4) and is enabled by default.
 * To provide flexibility, a compile time flag "ENABLE_AUTO_TECH_SUPPORT" should be provided to enable/disable the "CONFIG" for this feature. 
 * Users should have the abiliity to enable/disable this capability through CLI.
@@ -50,12 +49,12 @@ However if the techsupport invocation can be made event-driven based on core dum
 
 ### Per-docker Scope
 * Should provide a per-docker configurable granularity for this feature.  
-* Per-docker rate_limit_interval capability should also be provided
-* Changes to per-docker config's will apply to all the critical processes inside the corresponding docker. 
+* Per-docker rate_limit_interval capability should also be provided.
+* This is required as a protection measure for periodically crashing processes
 
 ### Invocation Rules
 * Auto techsupport invocation should only happen when both the global rate_limit_interval and per-docker rate_limit_interval period has passed.
-* Feature should be enabled globally and also per-docker, for this to apply on any of the critical processes running inside that docker.
+* Feature should be enabled globally and also per-docker, for this to apply on any of the processes running inside that docker.
 
 ### Core & Techsupport Cleanup
 * Core dump & techsupport dump cleanup mechanism should also be introduced.
@@ -79,12 +78,12 @@ state                  = "enabled" / "disabled"    ; Enable this to make the Tec
 rate_limit_interval    = 1*5DIGIT                  ; Minimum Time in seconds, between two successive techsupport invocations.
                                                      Manual Invocations will be considered as well in the calculation. 
                                                      Configure 0 to explicitly disable
-max_techsupport_size   = 1*3DIGIT                  ; A percentage value should be specified. 
+max_techsupport_limit  = 1*3DIGIT                  ; A percentage value should be specified. 
                                                      This signifies maximum size to which /var/dump/ directory can be grown until. 
                                                      The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                                                      When the limit is crossed, the older techsupport dumps are incrementally delete
                                                      Configure 0.0 to explicitly disable
-max_core_size          = 1*3DIGIT                  ; A percentage value should be specified. 
+max_core_limit          = 1*3DIGIT                  ; A percentage value should be specified. 
                                                      This signifies maximum Size to which /var/core directory can be grown until.
                                                      The actual value in bytes is calculate based on the available space in the filesystem hosting /var/core
                                                      When the limit is crossed, the older core files are incrementally deleted
@@ -148,25 +147,25 @@ module sonic-auto_techsupport {
                         type uint16;
                     }
 
-                    leaf max_techsupport_size {
+                    leaf max_techsupport_limit {
                         /*
                         A value between (0,100) should be specified. 
                         Upto two decimal places will be used in the calculation
                         The actual value in bytes is calculate based on the available space in the filesystem hosting /var/dump
                         When the limit is crossed, the older core files are incrementally deleted
                         */
-                        description "Max Size to which the dumps in /var/dump dir can be grown until. No cleanup is performed if the value is not congiured or set to 0.0";
+                        description "Max Limit in percentage for the cummulative size of ts dumps. No cleanup is performed if the value isn't configured or is 0.0";
                         type decimal-repr;
                     }
 
-                    leaf max_core_size {
+                    leaf max_core_limit {
                         /*
                         A value between (0,100) should be specified.
                         Upto two decimal places will be used in the calculation
                         The actual value in bytes is calculated based on the available space in the filesystem hosting /var/core
                         When the limit is crossed, the older core files are deleted
                         */
-                        description "Max Size to which the coredumps in /var/core directory can be grown until. No cleanup is performed if the value is not congiured or set to 0.0";
+                        description "Max Limit in percentage for the cummulative size of core dumps. No cleanup is performed if the value isn't congiured or is 0.0";
                         type decimal-repr;
                     }
                     
@@ -202,7 +201,7 @@ module sonic-auto_techsupport {
                 }
 
                 leaf state {
-                    description "Enable auto techsupport invocation on the critical processes running inside this feature";
+                    description "Enable auto techsupport invocation on the processes running inside this feature";
                     type stypes:admin_mode;
                 }
 
@@ -218,16 +217,17 @@ module sonic-auto_techsupport {
     }
     /* end of top level container */
 }
+
 ```
 
 ### State DB
 
 #### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
-key            = Techsupport Dump Name 
-core_dump      = 1*64VCHAR                ; Core Dump Name
-timestamp      = 1*12DIGIT                ; epoch of this record creation
-crit_proc      = 1*64VCHAR                ; Critical process for which the core_dump belongs to
+key                 = Techsupport Dump Name 
+core_dump           = 1*64VCHAR                ; Core Dump Name
+timestamp           = 1*12DIGIT                ; epoch of this record creation
+container_name      = 1*64VCHAR                ; Container in which the process crashed
 
 Eg:
 
@@ -236,21 +236,10 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 2) "orchagent.1599047232.39.core"
 3) "timestamp"
 4) "1599047233"
-5) "critical_process"
-6) "orchagent"
+5) "container_name"
+6) "swss"
 ```
 
-#### AUTO_TECHSUPPORT Table
-
-```
-key                                 = "FEATURE_PROC_INFO"
-<feature_name;supervisor_proc_name> = <executable_name:pid>
-
-hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
-<swss;orchagent> = <orchagent;20>
-<snmp;snmp-subagent> = <python3;22>
-<lldp;lldp_syncd> = <python2;33>
-```
 
 ## 5. CLI Enhancements.
 
@@ -258,8 +247,8 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 ```
 config auto-techsupport global state <enabled/disabled>
 config auto-techsupport global rate-limit-interval <uint16>
-config auto-techsupport global max-techsupport-size <float upto two decimal places>
-config auto-techsupport global max-core-size <float upto two decimal places>
+config auto-techsupport global max-techsupport-limit <float upto two decimal places>
+config auto-techsupport global max-core-limit <float upto two decimal places>
 config auto-techsupport global since <string>
 
 config auto-techsupport-feature update swss --state disabled --rate-limit-interval 800
@@ -271,36 +260,34 @@ config auto-techsupport-feature delete restapi
 
 ```
 admin@sonic:~$ show auto-techsupport global
-STATE      RATE LIMIT INTERVAL    MAX TECHSUPPORT SIZE    MAX CORE SIZE  SINCE
--------  ---------------------  ----------------------  ---------------  ----------
-enabled                    180                      10                5  2 days ago
+STATE      RATE LIMIT INTERVAL (sec)    MAX TECHSUPPORT LIMIT (%)    MAX CORE SIZE (%)       SINCE
+-------  ---------------------------   --------------------------    ------------------  ----------
+enabled                          180                        10.0                   5.0   2 days ago
 
 admin@sonic:~$ show auto-techsupport-feature 
-FEATURE NAME    STATE       RATE LIMIT INTERVAL
---------------  --------  ---------------------
-bgp             enabled                     600
-database        enabled                     600
-dhcp_relay      enabled                     600
-lldp            enabled                     600
-macsec          enabled                     600
-mgmt-framework  enabled                     600
-nat             enabled                     600
-pmon            enabled                     600
-radv            enabled                     600
-restapi         disabled                    800
-sflow           enabled                     600
-snmp            enabled                     600
-swss            disabled                    800
-syncd           enabled                     600
-teamd           enabled                     600
-telemetry       enabled                     600
+FEATURE NAME    STATE       RATE LIMIT INTERVAL (sec)
+--------------  --------  --------------------------
+bgp             enabled                          600
+database        enabled                          600
+dhcp_relay      enabled                          600
+lldp            enabled                          600
+macsec          enabled                          600
+mgmt-framework  enabled                          600
+nat             enabled                          600
+pmon            enabled                          600
+radv            enabled                          600
+restapi         disabled                         800
+sflow           enabled                          600
+snmp            enabled                          600
+swss            disabled                         800
+
 
 admin@sonic:~$ show auto-techsupport history
 TECHSUPPORT DUMP                          TRIGGERED BY    CORE DUMP
 ----------------------------------------  --------------  -----------------------------
-sonic_dump_r-lionfish-16_20210901_221402  bgpcfgd         bgpcfgd.1630534439.55.core.gz
-sonic_dump_r-lionfish-16_20210901_203725  snmp-subagent   python3.1630528642.23.core.gz
-sonic_dump_r-lionfish-16_20210901_222408  lldpmgrd        python3.1630535045.34.core.gz
+sonic_dump_r-lionfish-16_20210901_221402  bgp             bgpcfgd.1630534439.55.core.gz
+sonic_dump_r-lionfish-16_20210901_203725  snmp            python3.1630528642.23.core.gz
+sonic_dump_r-lionfish-16_20210901_222408  teamd           python3.1630535045.34.core.gz
 
 ```
 
@@ -308,7 +295,7 @@ sonic_dump_r-lionfish-16_20210901_222408  lldpmgrd        python3.1630535045.34.
 
 ### 6.1 Modifications to coredump-compress script
 
-The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`
+The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`. This script is enahanced to determine to which docker the dump belongs to and passes it to the coredump_gen_handler script. 
 
 ### 6.2 coredump_gen_handler script
 
@@ -323,29 +310,17 @@ DATE sonic INFO coredump_gen_handler[pid]: Process rate_limit_interval period fo
 DATE sonic INFO coredump_gen_handler[pid]: "show techsupport --since '2 days ago'" is successful, sonic_dump_sonic_20210721_235228.tar.gz is created 
 DATE sonic INFO coredump_gen_handler[pid]: core-usage argument is not set. No Cleanup is performed, current size occupied: 456 MB
 DATE sonic INFO coredump_gen_handler[pid]: 12 MB deleted from /var/core.
-DATE sonic INFO coredump_gen_handler[pid]:  No Corresponding Exit event info was found for python3.1629401152.23.core.gz. Techsupport Invocation is skipped
 DATE sonic NOTICE coredump_gen_handler[pid]:  auto_invoke_ts is not enabled. No Techsupport Invocation will be performed. core: python3.1629401152.23.core.gz
 DATE sonic NOTICE coredump_gen_handler[pid]:  auto-techsupport feature for swss is not enabled. Techsupport Invocation is skipped. core: python3.1629401152.23.core.gz
 DATE sonic NOTICE coredump_gen_handler[pid]:  coredump_cleanup is disabled. No cleanup is performed
 DATE sonic ERR coredump_gen_handler[pid]:  "show techsupport --since '2 days ago'" was run, but no techsupport dump is found
 ```
 
-### 6.3 Requirements for FEATURE_PROC_INFO table
-
-A coredump generate will be of format `<proc_comm_name>.<timestamp>.<pid>.core.gz`. comm name is typically the executable file name. The dump name is the only information directly available to coredump_gen_handler script. And Just by looking at this, it not possible to infer if the coredump generated is of a particular critical process. That information is read from AUTO_TECHSUPPORT|FEATURE_PROC_INFO table. 
- 
-Producer for this table is the supervisor-proc-exit-listener script running inside every docker. This script is an event listener for PROC_EXIT & PROC_RUNNING events for the processes running inside the docker and is naturally the right fit to populate the AUTO_TECHSUPPORT|FEATURE_PROC_INFO table. 
- 
-1) During a PROC_RUNNING Event: The comm information is read from /proc/<pid>/comm file and saving it in a local cache. 
-2) A coredump will certainly trigger a PROC_EXIT event and, the exit-listener writes an entry of format specified in section 4 to the STATE DB.
- 
-coredump_gen_handler.py consumes this data and uses it for decisions based on the info written to this table.
-
-### 6.4 Modifications to generate_dump script
+### 6.3 Modifications to generate_dump script
 
 The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files. Any stdout/stderr seen during the execution of  `techsupport_cleanup` script is redirected to `/tmp/coredump_gen_handler.log`
 
-### 6.5 techsupport_cleanup script
+### 6.4 techsupport_cleanup script
 
 A script under the name `techsupport_cleanup.py` is added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
@@ -355,11 +330,17 @@ DATE sonic NOTICE techsupport_cleanup[pid]:  techsupport_cleanup is disabled. No
 DATE sonic INFO coredump_gen_handler[pid]: max-techsupport-size argument is not set. No Cleanup is performed, current size occupied: 456 MB
 ```
  
-### 6.6 Warmboot consideration
+### 6.5 Warmboot consideration
 
 No changes to this flow
+
+### 6.6 MultiAsic consideration
+
+Configuration specified for the default feature name in the AUTO_TECHSUPPORT_FEATURE table is applied across all the masic instances. 
+
+i.e. rate_limit_interval defined in the AUTO_TECHSUPPORT_FEATURE|swss key is applied for swss1, swss2, etc
  
-### 6.7 Design choices for core-usage & max-techsupport-size argument 
+### 6.7  Design choices for max-techsupport-limit & max-techsupport-limit arguments
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
@@ -393,6 +374,3 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
 
- ## 8. Limitations
- 
- 1) Since many processes can potentially have same comm name and may have same pid, it is not possible for the coredump_gen_handler script to uniquely identify the coredump, if both the processes crash at the same time. If such a situation occurs, the script acts on the first notification it sees inside the FEATURE_PROC_INFO table.
