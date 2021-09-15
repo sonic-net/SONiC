@@ -1,6 +1,6 @@
 # P4RT APPL DB Schema
 
-_Rev v0.1_
+_Rev v0.2_
 
 ## Table of Contents
 - [Revision](#revision)
@@ -14,7 +14,6 @@ _Rev v0.1_
       - [1. DEFINITION Tables](#1-definition-tables)
       - [2. ACL_* Tables](#2-acl_-tables)
       - [3. FIXED_* Tables](#3-fixed_-tables)
-  - [Switch/Hash table](#switchhash-table)
   - [CountersDB](#countersdb)
 
 ## Revision
@@ -22,7 +21,7 @@ _Rev v0.1_
 Rev  | RevDate    | Author(s)   | Change Description
 ---- | ---------- | ----------- | ------------------
 v0.1 | 07/19/2021 | Google, ONF | Initial Version
-
+v0.2 | 09/14/2021 | Google, ONF | Review comments addressed
 
 ## Scope
 
@@ -143,13 +142,13 @@ The values of a DEFINITION table represent table configuration parameters. The t
 |                              |                                |                                                                                                                                                                                                                                                                   |
 |------------------------------|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | stage                    =   | PRE_INGRESS / INGRESS / EGRESS | ; Pipeline stage for this ACL table.                                                                                                                                                                                                                              |
-| match/     =                 |                                |  is the alias from the P4Info and can be seen in the P4 program as the @name annotation. Multiple match entries may be declared.                                                                                                                                  |
-| JSON                    =    | {{kind}{format}{bitwidth}}     | ; JSON object with at least the specified members.                                                                                                                                                                                                                |
+| match/<name>     =                 |       <JSON>                         |  is the alias from the P4Info and can be seen in the P4 program as the @name annotation. Multiple match entries may be declared.                                                                                                                                  |
+| <JSON>                    =    | {{kind}{format}{bitwidth}}     | ; JSON object with at least the specified members.                                                                                                                                                                                                                |
 | kind                       = | sai_field / udf / composite    | ; See below for more details                                                                                                                                                                                                                                      |
 | format                   =   | STRING / HEX_STRING            | ; See the formatting section for more details.                                                                                                                                                                                                                    |
-| bitwidth                 =   |                                | ; number of bits for this match field in decimal.                                                                                                                                                                                                                 |
+| bitwidth                 =   |    <number>                            | ; number of bits for this match field in decimal.                                                                                                                                                                                                                 |
 | kind:sai_field:<json>              |                                | ; additional json members for sai_field kind.                                                                                                                                                                                                                     |
-|        <json>          =           | sai_field:                     | ; mapped to the  [SAI ACL Match](https://github.com/opencomputeproject/SAI/blob/master/inc/saiacl.h) field name.                                                                                                                                                                                                                        |
+|        <json>          =           | sai_field:<SAI_FIELD_NAME>                     | ; mapped to the  [SAI ACL Match](https://github.com/opencomputeproject/SAI/blob/master/inc/saiacl.h) field name.                                                                                                                                                                                                                        |
 | kind:udf:<json>                    |                                | ; additional json members for udf kind                                                                                                                                                                                                                            |
 |            <json>     =            | base / bitwidth / group        | ; base:  The base of the UDF, one of values from the sai_udf_base_t enum. ; bitwidth: Length in bytes. Note that all UDFs in a group must use the same length. This is enforced by the orch agent on table creation. ; group: The group that this ACL belongs to. |
 | kind:composite               |                                | ; a composite field                                                                                                                                                                                                                                               |
@@ -200,7 +199,7 @@ Table keys follow the format:
 |                           |                                                                                               |                                                                                                        |
 |---------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | key                     = | P4RT:ACL_<table_name>:<Entry_ID_JSON>                                                         | ; Dynamic table name as used in the DEFINITION entry.                                                  |
-| <Entry_ID_JSON> =         | match/<name>: "<value>( & <mask>)"   ... match/<name>: "<value>( & <mask>)" priority: <value> | ; One or more match fields and a priority value. The JSON components are described in the table below. |
+| <Entry_ID_JSON> =         | match/<name>: "<value>( & <mask>)"   ...  match/<name>: "<value>( & <mask>)" priority: <value> | ; One or more match fields and a priority value. The JSON components are described in the table below. |
 
 | KEY          | Format           | Description                                                                                                                                                                                                                                                                                                                                                                                      |
 |--------------|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -363,78 +362,6 @@ Fixed table values follow the same format as ACL_* tables (see Section ACL_* Tab
 16) "0x00"
 17) "controller_metadata"
 18) "
-```
-
-### Switch/Hash table
-
-The entry represents the hashing related parameters written to the existing SWITCH_TABLE and a new HASH_TABLE.
-
-**HASH_TABLE_Key**
-
-; defines the HASH_TABLE used for defining the hashing fields.
-|                            |                              |                                                                          |
-|----------------------------|------------------------------|--------------------------------------------------------------------------|
-| key                      = | HASH_TABLE:<hash_key_string> | ; Key used to define the hash fields and to be used in the SWITCH_TABLE. |
-
-**HASH_TABLE_Values**
-
-|                                   |                                                                                  |                                                                                           |
-|-----------------------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| hash_field_list     =             | List of one or more <src_ip, dst_ip, l4_src_port, l4_dst_port, ipv6_flow_label,  | ; Specifies the list of fields to be included in the hashing computation for this object. |
-
-```
-127.0.0.1:6379> keys HASH_TABLE*
-1) "HASH_TABLE:compute_ecmp_hash_ipv4"
-2) "HASH_TABLE:compute_ecmp_hash_ipv6"
-127.0.0.1:6379> hgetall HASH_TABLE:compute_ecmp_hash_ipv4
-1) "hash_field_list"
-2) "[\"src_ip\",\"dst_ip\",\"l4_src_port\",\"l4_dst_port\"]"
-127.0.0.1:6379> hgetall HASH_TABLE:compute_ecmp_hash_ipv6
-1) "hash_field_list"
-2) "[\"src_ip\",\"dst_ip\",\"l4_src_port\",\"l4_dst_port\",\"ipv6_flow_label\"]"
-127.0.0.1:6379>
-```
-
-**SWITCH_TABLE_Key**
-
-; defines the hashing related parameters in the SWITCH table.
-
-|                                     |                     |                                                               |
-|-------------------------------------|---------------------|---------------------------------------------------------------|
-| key                   =             | SWITCH_TABLE:switch | ; Modifies existing Switch table key to include hash objects. |
-
-
-**SWITCH_TABLE_Values**
-
-The new fields added to the switch table represent the ecmp_hash_&lt;protocol> which represents the protocol for which this key is used and the value references the corresponding entry with the same key in HASH_TABLE.
-
-
-|                                           |                 |                                                                                                          |
-|-------------------------------------------|-----------------|----------------------------------------------------------------------------------------------------------|
-| ecmp_hash_ipv4=                          | hash_key_string | ; Defines the hash object to be used for IPv4 packets which was created with the same key in HASH_TABLE. |
-| ecmp_hash_ipv6=                          | hash_key_string | ; Defines the hash object to be used for IPv6 packets which was created with the same key in HASH_TABLE. |
-
-
-
-```
-127.0.0.1:6379> keys SWITCH_TABLE:switch
-1) "SWITCH_TABLE:switch"
-127.0.0.1:6379> hgetall SWITCH_TABLE:switch
- 1) "ecmp_hash_seed"
- 2) "0"
- 3) "fdb_aging_time"
- 4) "600"
- 5) "lag_hash_seed"
- 6) "10"
- 7) "ecmp_hash_algorithm"
- 8) "crc_32lo"
- 9) "ecmp_hash_offset"
-10) "0"
-11) "ecmp_hash_ipv6"
-12) "compute_ecmp_hash_ipv6"
-13) "ecmp_hash_ipv4"
-14) "compute_ecmp_hash_ipv4"
-
 ```
 
 ### CountersDB
