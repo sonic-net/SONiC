@@ -70,7 +70,8 @@ The scope of this document covers ACL feature enhancements, in particular the wa
 with user defined set of matches, actions if required and bind point types. The way developers use ACLOrch public API
 is also improved to be more flexible for different use cases, such as PFC watchdog, PBH, MACSec, etc. The ACL rule
 classes defined in ACLOrch is also a subject to be changed due to the new concept of custom ACL table types.
-CLI nor other user interface is not covered by this document.
+
+No new CLI nor other user interface for creating custom ACL table types is covered by this document.
 
 ### Architecture Design
 
@@ -146,15 +147,22 @@ container ACL_TABLE_TYPE {
     list ACL_TABLE_TYPE_LIST {
         key "ACL_TABLE_TYPE_NAME";
 
+        leaf ACK_TABLE_TYPE_NAME {
+            type string;
+        }
+
         leaf-list MATCHES {
+            mandatory true;
             type string;
         }
 
         leaf-list ACTIONS {
             type string;
+            default "";
         }
 
         leaf-list BIND_POINTS {
+            mandatory true;
             type enumeration {
                 enum PORT;
                 enum LAG;
@@ -162,6 +170,27 @@ container ACL_TABLE_TYPE {
         }
     }
 }
+```
+
+ACL_TABLE container change:
+
+```yang
+container ACL_TABLE {
+    list ACL_TABLE_LIST {
+        key "ACL_TABLE_NAME";
+
+        leaf ACL_TABLE_NAME {
+            type string;
+        }
+
+        leaf type {
+            type leafref {
+                path "/acl:sonic-acl/acl:ACL_TABLE_TYPE/acl:ACL_TABLE_TYPE_LIST/acl:ACL_TABLE_TYPE_NAME";
+            }
+        }
+    }
+}
+
 ```
 
 #### Control plane tables
@@ -292,7 +321,7 @@ based on the ASIC platform it is running on. There is either a "combined" or
 This does not play well with the new concept of user defined table types.
 To solve this we have few options:
 
-1. Non backward compatible change: let the CONFIG DB table maps 1:1 in ASIC DB table.
+1. Reflecting exact CONFIG DB configuration: Let the CONFIG DB table maps 1:1 in ASIC DB table.
 User is able to configure either two tables types, one for IPv4, one for IPv6 or single
 with IPv4 and IPv6 keys.
 
@@ -301,6 +330,21 @@ with IPv4 and IPv6 keys.
 
 3. Put this as a configuration in CONFIG DB. E.g, for certain two table types define "combined_v4_v6_mode". This configuration can come from init_cfg.json at start as well
 as default table types.
+
+e.g:
+
+```json
+{
+    "DEVICE_METADATA": {
+        "localhost": {
+            "combined_v4_v6_mode": [
+                "MIRROR",
+                "MIRRORV6"
+            ]
+        }
+    }
+}
+```
 
 In this design option 1 is chosen due to transparency and simplicity. The mode is exposed by orchagent in STATE DB by orchagent.
 
@@ -315,8 +359,7 @@ The user or controller needs to read this value and decide whether to create two
 
 #### DB migration
 
-The DB migrator script updated with a logic to move ACL rules for particular platforms supporting combined mirror mode to a table MIRRORV4V6 and for
-platforms where separated mode is used ACL rules are moved into corresponding MIRROR or MIRRORV6.
+The DB migrator script updated with a logic to move ACL rules for particular platforms supporting combined mirror mode to a table MIRRORV4V6 and for platforms where separated mode is used ACL rules are moved into corresponding MIRROR or MIRRORV6.
 
 #### ACL rule object model
 
@@ -377,6 +420,15 @@ Updating ACL table allows only for updating ports bound to it.
 
 NOTE: ACL rules coming from CONFIG DB are updated by removal and re-creation, an updateAclRule is mostly used for other orch's use cases.
 
+### CLI
+
+ACL CLI implementation is updated to perform validation of a table type. In this validation, a table type name passed to CLI
+is validated against ACL_TABLE_TYPE CONFIG DB table. In addition, a list of actions is validated against STATE DB information.
+
+```
+admin@sonic:~$ sudo config acl add table DATAACL L3 --ports Ethernet0,Ethernet4 --stage ingress
+```
+
 ### Syncd
 
 N/A
@@ -414,10 +466,20 @@ tables referencing it.
 ### VS tests
 
 - Enhance test_acl.py with a test configuration including table types needed for the rest of the tests (L3, L3V6, etc.).
+- Add a new test case to check creating custom table types:
+    - Create a ACL table referencing not yet created table type "TEST"
+    - Verify no ACL table is created in ASIC DB
+    - Create a custom ACL table type "TEST" with the predefined list of matches, actions, bind points
+    - Verify ACL table is created in ASIC DB with correct attributes
+    - Delete ACL table type "TEST" from CONFIG DB
+    - Verify ACL table still exists in ASIC DB
+    - Delete ACL table from CONFIG DB
+    - Verify no ACL table exists in ASIC DB
 
 ### System tests
 
 - Existing ACL/Everflow tests cover default table types coming from init_cfg.json, which means it is covering the flow of creating table types.
+- Extend existing ACL/Everflow tests with a fixture to create custom table types that will be a copy of a default onces and run the same test cases.
 - Warm/Fast reboot tests to verify the functionality with new changes.
 
 ### Open questions
