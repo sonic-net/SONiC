@@ -295,7 +295,7 @@ sonic_dump_r-lionfish-16_20210901_222408  teamd           python3.1630535045.34.
 
 ### 6.1 Modifications to coredump-compress script
 
-The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`. This script is enahanced to determine to which docker the dump belongs to and passes it to the coredump_gen_handler script. 
+The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`. This script is enhanced to determine which container the dump belongs to and passes it to the coredump_gen_handler script. 
 
 ### 6.2 coredump_gen_handler script
 
