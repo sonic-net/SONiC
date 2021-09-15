@@ -148,6 +148,7 @@ VXLAN_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
 VNET|{{vnet_name}} 
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
+    "scope": {{"default"}} (OPTIONAL)
     "peer_list": {{vnet_name_list}} (OPTIONAL)
 
 INTERFACE|{{intf_name}} 
@@ -197,6 +198,7 @@ key                                   = VNET:name                     ; Vnet nam
 ; field                               = value
 VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
 VNI                                   = DIGITS                        ; 1 to 16 million VNI values
+SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
 PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
                                                                              (empty indicates no peering)
 ```
@@ -247,6 +249,7 @@ VRFMgrD creates the following VNET Table
 VNET_TABLE:{{vnet_name}}
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
+    "scope": {{"default"}} 
     "peer_list": {{ vnet_name_list }}
 ```
 
