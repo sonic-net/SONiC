@@ -52,13 +52,13 @@ This section describes the SONiC requirements for NVGRE feature.
 
 At a high level the following should be supported:
 
-- Phase #1
-  - User should be able to create NVGRE tunnel
-  - User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
-  - Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
-  - YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
-- Phase #2
-  - CLI for NVGRE tunnel
+- User should be able to create NVGRE tunnel
+- User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
+- Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
+- YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
+- CLI for NVGRE tunnel
+
+Counters for NVGRE Tunnel are out of scope of this design document.
 
 ### Architecture Design 
 
@@ -140,6 +140,8 @@ The following sub-modules will be modified:
 
 ##### Figure 4. NVGRE Tunnel delete flow
 
+Note that deleting a tunnel requires the user to remove all the configuration that are associated with this tunnel, it will not be done for the user automatically.
+
 <p align=center>
 <img src="images/nvgre_tunnel_delete_uml.svg" alt="Figure 4. NVGRE Tunnel delete flow">
 </p>
@@ -163,6 +165,8 @@ The following sub-modules will be modified:
 </p>
 
 ### SAI API 
+
+The NVGRE Tunnel feature require at least `SAI 1.9` or above.
 
 | NVGRE component | SAI attribute |
 |--------------|---------------------------------------|
@@ -278,8 +282,8 @@ module sonic-nvgre-tunnel {
 Commands summary (Phase #2):
 
 ```
-	- config nvgre tunnel add/del <nvgre_tunnel_name> --src-ip <src_ip>
-	- config nvgre tunnel-map add/del <nvgre_tunnel_name> --vlan_id <vlan_id> --vsid <vsid_id>
+	- config nvgre tunnel add/del/update <nvgre_tunnel_name> --src-ip <src_ip>
+	- config nvgre tunnel-map add/del/update <nvgre_tunnel_name> --vlan_id <vlan_id> --vsid <vsid_id>
 	- show nvgre tunnel
 	- show nvgre tunnel-map
 ```
@@ -348,6 +352,7 @@ Options:
 Commands:
   add     Add configuration.
   del     Del configuration.
+  update  Update configuration.
 
 =============================================
 
@@ -373,6 +378,7 @@ Options:
 Commands:
   add     Add configuration.
   del     Del configuration.
+  update  Update configuration.
 
 =============================================
 
@@ -412,7 +418,9 @@ The ConfigDB will be extended with next objects:
 
 No impact on Warmboot and Fastboot features.
 
-### Restrictions/Limitations  
+### Restrictions/Limitations
+
+The number of the tunnels are not limited by SONiC, but if ASIC vendor reach the max resources, the SAI will return an error, when the user will try to create a new tunnel or tunnel map and orchagent will abort.
 
 ### Testing Requirements/Design  
 
@@ -422,15 +430,17 @@ The tests will be implemented under the VS environment and will be placed - [son
 
 VS test cases:
 - create NVGRE Tunnel
-	- create tunnel with invalid source IP address
-	- create tunnel with valid params
+	- create a tunnel with invalid source IP address
+	- create a tunnel with valid params
 - remove NVGRE Tunnel
   - remove existing tunnel
   - remove unexisting tunnel
+  - remove a tunel with which have associated with a tunel maps
 - create NVGRE Tunnel Map
-  - create tunnel map with invalid VLAN identifier
-  - create tunnel map with invalid VSID number
-  - create tunnel map with unexisting NVGRE Tunnel name
+  - create a tunnel map with invalid VLAN identifier
+  - create a tunnel map with invalid VSID number
+  - create a tunnel map with unexisting NVGRE Tunnel name
+  - create valid tunnel map
 - remove NVGRE Tunnel Map
   - remove existing tunnel
   - remove unexisting tunnel
