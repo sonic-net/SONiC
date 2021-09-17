@@ -125,7 +125,7 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plane forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
 
-A new Srv6Mgr will be introduced in sonic-bgpcfgd, Srv6Mgr handle CONFIG_DB changes and generate necessary data needed by APPL_DB and push them into APPL_DB as well. In later phase, Srv6Mgr will use frr , the same way as other sonic-bgpcfgd Mgrs did today, to connect CONFIG_DB changes and APPL_DB. 
+For Phase#1, Controller will update all related tables in APPL_DB directly. 
 
 ## 3.1 ConfigDB Changes
 
@@ -331,7 +331,7 @@ For both cases, we don't care  fields **nexthop**, **intf**, **vni_lable**, **ro
 
 
 
-For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE_TABLE no matter it exists or not. 
+For Controller, it only needs to below information and update APPL_DB ROUTE_TABLE no matter it exists or not. 
 
 **key**: the key in ROUTE_TABLE is the same as the one in SRV6_STEER_MAP
 
@@ -399,7 +399,7 @@ For SRV6Mgr, it only needs to provide below information and update APPL_DB ROUTE
         }
     }
 
-SRV6_STEER_TABLE generated route entry has higher priority than the entry in ROUTE_TABLE if any matched. Srv6mgr will generate the updated ROUTE_TABLE entry and modify it in APPL_DB ROUTE_TABLE.
+SRV6_STEER_TABLE generated route entry has higher priority than the entry in ROUTE_TABLE if any matched. Controller will update ROUTE_TABLE entry and modify it in APPL_DB ROUTE_TABLE if any.
 
 In Srv6Orch, it will mark which route entry is Srv6 modified and having higher priority to do SID and nexthop lookup, FRR or other modules cannot modify these high priority routes, they can only be modified via Srv6Orch.
 
