@@ -34,6 +34,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | <07/20/2021>|   Eric Seifert     | Initial version                   |
 | 0.2 | <08/24/2021>|   Eric Seifert     | Add Functionality Section         |
+| 0.3 | <09/17/2021>|   Eric Seifert     | Address Review Comments           |
 
 # About this Manual
 This document provides comprehensive functional and design information about the certificate management feature implementation in SONiC.
@@ -41,21 +42,23 @@ This document provides comprehensive functional and design information about the
 # Definition/Abbreviation
 
 ### Abbreviations
-| **Term**                 | **Meaning**                         |
-|--------------------------|-------------------------------------|
-| PKI                      | Public Key Infrastructure           |
-| CSR                      | Certificate Signing Request         |
-| gNMI                     | gRPC Network Management Interface   |
-| gNOI                     | gRPC Network Operations Interface   |
-| CA                       | Certificate Authority               |
-| PEM                      | Privacy Enhanced Mail               |
-| CRL                      | Certificate Revocation List         |
+| **Term**                 | **Meaning**                             |
+|--------------------------|-----------------------------------------|
+| PKI                      | Public Key Infrastructure               |
+| CSR                      | Certificate Signing Request             |
+| gNMI                     | gRPC Network Management Interface       |
+| gNOI                     | gRPC Network Operations Interface       |
+| CA                       | Certificate Authority                   |
+| PEM                      | Privacy Enhanced Mail                   |
+| CRL                      | Certificate Revocation List             |
+| FIPS                     | Federal Information Processing Standard |
+| OCSP                     | Online Certificate Status Protocol      |
 
 # 1 Feature Overview
 
 X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem. Then you must configure the redis keys and restart the services. There is also the issue of upgrades where the location the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
-The certificate management feature will introduce new YANG models and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG models and exposed via REST and gNOI RPC interfaces to trigger certificate related actions. The switch will be able to act as a Certificate Authority (CA) for itself and other switches as well to simplify the initial configuration.
+The certificate management feature will introduce a new YANG model and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions. The switch will be able to act as a Certificate Authority (CA) for itself and other switches as well to simplify the initial configuration.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -79,13 +82,21 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ### Functionality
   - Establish a directory in the filesystem that all certificates and keys will be installed in to and that will be preserved through upgrades and downgrades.
   - Add ability to install host and CA certificates
+  - Decrypt password protected certs when installed and store the unencrypted certs
+  - Allow install of certificate bundles by breaking bundle apart and saving each cert in its own file with suffix number
+  - Support DER format certificates as well as PEM
+  - Allow trusted-host certificates (self-signed host certs) to be installed in trust-store as well as CA certs
   - Add ability to remove host and CA certificates
   - Add ability to configure CRL
+  - Add ability to configure OCSP
   - Add ability to generate self-signed certificates as well as certificate signing requests
   - Add ability to sign CSR's by running in a CA mode
   - Add ability to associate host and CA certs with application
   - Add CLIs to configure and manage certificates
   - Add validation and monitoring of certificates
+  - FIPS support: generate/install fips keys and use only in fips mode. fips keys will be stored in separate sub-directory.
+  - Peer Name Checking. Each application using security-profile should check if peer-name-check is set and act accordingly.
+  - Key usage check. Each application using security-profile should check if key-usage-check is set and if so verify the key is used appropriately.
 
 ### Interfaces
  - The configuration of the certificate management YANG model will be available via the CLI, but also the REST and gNMI/gNOI interfaces on the management interface.
@@ -94,7 +105,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Install CA certificate from local file (alias location), remote location or copy and past into CLI
   - Generate self-signed certificate 
   - Generate certificate signing request (CSR)
-  - Install certificate or private key from local file (alias location), remote location
+  - Install certificate and private key from local file (alias location), remote location
   - Delete CA certificate
   - Delete certificate
   - Display certificate
@@ -105,6 +116,8 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Configure CRL download location(s)
   - Configure CRL Override
   - Display CRL
+  - Configure OCSP
+  - Show OCSP
   - Create new security profile
   - Delete security profile
   - Associate a certificate, private key file and CA trust-store with a security-profile
@@ -119,7 +132,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Alarms are raised for certificate issues
   - RPCs will return error codes and messages
   - All RPC and API calls will be logged
-  - YANG models will validate data and return errors as appropriate
+  - YANG model will validate data and return errors as appropriate
 
 ### Scaling
   - No known issues with scaling
@@ -144,29 +157,21 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
 
-The certificate management functionality will be implemented using new YANG models and accompanying KLISH CLI. The functionality of generating new certificate and key pairs, signing request, downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate generation, signing etc. The downloading of the certificates from remote locations will be handled with calls to curl.
+The certificate management functionality will be implemented using a new YANG model and accompanying KLISH CLI. The functionality of generating new certificate and key pairs, signing request, downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate generation, signing etc. The downloading of the certificates from remote locations will be handled with calls to curl.
 
-To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events and downloading CRL lists.
+To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events and downloading CRL lists and make OCSP requests.
 
 ### 1.3.2 YANG Model
 
-The security-profile YANG model will describe the following structure(s) and field(s):
+The sonic-crypto YANG model will describe the following structure(s) and field(s):
 
   - security-profile
     - profile-name
     - certificate-filename
-    - CA Store (System or app specific)
+    - trust-store (System or app specific)
     - revocation-check
     - peer-name-check
     - key-usage-check
-
-| **Field Path** | **Description** |
-| -------------- | --------------- |
-| /security-profile | Container for security-profile |
-| /security-profile/profile-name | Name of security-profile |
-| /security-profile/
-
-This model will be for the CA server mode:
 
   - ca-mode
     - ca-mode (true|false)
@@ -176,14 +181,10 @@ This model will be for the CA server mode:
       - source
       - type
 
-This model will define a CA certificate trust-store:
-
   - trust-store
     - name
     - ca-list
       - name
-
-This model will store information related to certificate revocation distribution points:
 
   - cdp-config
     - frequency
@@ -191,6 +192,10 @@ This model will store information related to certificate revocation distribution
     - cdp-list
       - url
 
+  - ocsp-config
+    - responder
+
+This model will also be proposed to the openconfig community. The model is discussed in more detail below.
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
@@ -237,6 +242,8 @@ A new CLI will be added with the following commands:
 | crypto cert generate | Generate signing request or self-signed host certificate |
 | crypto cert install | Install host certificate from local (alias location) or remote location |
 | crypto cert delete | Delete host certificate |
+| crypt cert verify | Verify host cert |
+| crypt ca-cert verify | Verify CA cert |
 | show crypto cert | Show installed certificates list or specific cert details |
 | show crypto ca-cert | Show installed CA certificates list or specific cert details |
 | show file cert | Show raw certificate file in PEM format |
@@ -272,6 +279,7 @@ When the security-profile model is configured and the RPC's are called, the data
 | CA cert install | Invalid Certificate | Return invalid certificate error with output of openssl verify command indicating specific condition |
 | Delete Host Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate in use | Return certificate in use error |
+| Delete CA Cert | Certificate is root CA for another cert | Return certificate is root CA for child error |
 | CSR Create | Invalid CSR | Return invalid CSR error |
 | Configure CA server | Time on server is different than local | Return time configuration error to prevent invalid certs |
 
@@ -281,7 +289,7 @@ When the security-profile model is configured and the RPC's are called, the data
 
 ### 1.3.5 Monitoring
 
-The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, raise the appropriate alarm:
+The sysmonitor.py script will be enhanced to detect the following conditions, and using the event management framework, raise the appropriate alarm. A new certificate monitoring thread will be added to sysmonitor.py to periodically check the certificates.
 
 **Alarms**
 
@@ -304,7 +312,7 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 *Notes:*
   - The certificate expiration alarms will be rechecked when a new certificate is installed and cleared if the condition is resolved by the new certificate.
   - The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
-  - Alarms for invalid certificates will only be raised on certificates that are currently in use. If you attempt to use an expired certificate, it will be rejected during configuration validation instead.
+  - Alarms for invalid certificates will only be raised on certificates that are currently in use by a security-profile. If you attempt to use an expired certificate, it will be rejected during configuration validation instead.
 
 ### 1.3.6 Directory Structure
 
@@ -312,8 +320,14 @@ The directory `/etc/sonic/cert` will be used to store certificates and will be m
 
   - ca-certs
   - certs
+  - trust_store
+  - keys
   - csr
   - crl
+  - fips
+  - fips/keys
+
+The keys directories and all files within will have correct permissions 0700 so that no unauthorized users can read the private key files. The fips directory will store the fips mode keys and certs separately from the non-fips mode keys/certs. The trust-store directory will hold directories named after the trust-stores and symlinks to each certificate in the trust-store. There will be one default system trust-store directory that will be a symlink to the host system's trust-store directory (/etc/ssl/certs). Any certificate added to this trust store will be added to the system trust-store and update-ca-certificates will be ran.
 
 ### 1.3.7 Application Associations
 
@@ -329,21 +343,21 @@ No new or existing SAI services are required.
 
 # 2 Functionality
 
-The Certificate Management Feature will implement new YANG models, security-profile ca-mode, trust-store and cdp-config. The security-profile model will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode model will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The models will also have RPCs defined for all certificate related actions.
+The Certificate Management Feature will implement a new YANG model sonic-crypto with these section: security-profile ca-mode, trust-store and cdp-config. The security-profile will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The model will also have RPCs defined for all certificate related actions.
 
-A set of functions will be created in sysmonitor.py that will be used to monitor the certificates and configurations and raise appropriate alarms and events.
+A set of functions and a certificate monitor thread will be created in sysmonitor.py that will be used to monitor the certificates and configurations and raise appropriate alarms and events.
 
 # 3 Design
 ## 3.1 Overview
 *Big picture view of the actors involved - containers, processes, DBs, kernel etc. What's being added, what's being changed, how will they interact etc. A diagram is strongly encouraged.*
 
-The models will be implemented in sonic-mgmt-common and will be used by the mgmt-framework and telemetry containers. The sysmonitor.py is in sonic-buildimage and will run on the host. The certificates themselves will be stored on the host in /etc/sonic/cert and will be mounted on all of the containers by default.
+The model will be implemented in sonic-mgmt-common and will be used by the mgmt-framework and telemetry containers. The sysmonitor.py is in sonic-buildimage and will run on the host. The certificates themselves will be stored on the host in /etc/sonic/cert and will be mounted on all of the containers by default.
 
-The YANG models will store their configuration in the configdb and will add new tables, for security-profiles, ca-mode, trust-store and cdp-config.
+The YANG model will store the configuration in the configdb and will add new tables, for security-profiles, ca-mode, trust-store and cdp-config.
 
 ### 3.1.1 Service and Docker Management
 
-No new containers will be added. The models will be configured via mgmt-framework and gNMI. The monitoring will run on the host as part of sysmonitor.py. No new services will be running either since the monitoring will be periodic and handled by sysmonitor.py.
+No new containers will be added. The model will be configured via mgmt-framework and gNMI. The monitoring will run on the host as part of sysmonitor.py. No new services will be running either since the monitoring will be periodic and handled by sysmonitor.py.
 
 ## 3.2 DB Changes
 
@@ -355,17 +369,16 @@ The config DB will contain the new model's information.
 
 ### 3.3.1 Data Models
 
-security-profile:
+#### sonic-crypto YANG model:
 
     +--rw security-profile* [profile-name]
        +--rw profile-name            string
        +--rw certificate-name?       leaf-ref
-       +--rw trust-store?            leaf-ref
+       +--rw trust-stores* [trust-store]
+           +--rw trust-store         leaf-ref
        +--rw revocation-check?       boolean
        +--rw peer-name-check?        boolean
        +--rw key-usage-check?        boolean
-
-
     rpcs:
       +--x crypto-ca-cert-install
         +--w file-path?
@@ -381,10 +394,6 @@ security-profile:
         +--w type?
         +--w destination-path?
         +--w parameters?
-
-
-ca-mode:
-
     +--rw ca-mode
        +--rw ca-mode                bool
        +--rw ca-host                string
@@ -392,8 +401,6 @@ ca-mode:
            +--rw name               string
            +--rw source             string
            +--rw type               enum
-
-
     rpcs:
       +--w crypto-cert-ca-sign
         +--w name?
@@ -404,23 +411,17 @@ ca-mode:
         +-- name?
       +--w crypto-cert-signed-cert-get
         +-- name?
-
-trust-store:
-
     +--rw trust-store
        +--rw name                   string
        +--rw ca-list* [name]
            +--rw certificate-name?  leaf-ref
-
-cdp-config:
-
     +--rw cdp-config
        +--rw frequency              integer
        +--ro last-checked           integer
        +--rw cdp-list* [url]
            +rw url?                 string
-
-
+    +--rw ocsp-config
+       +--rw responder              string
     rpcs:
       +--x crypto-cdp-refresh
         +--w url
@@ -440,12 +441,6 @@ cdp-config:
 
 *Note: sysmonitor.py will perform cdp updates based on desired frequency*
 
-#### Refresh CRL
-
-*Force CDP refresh*
-
-    crypto cert refresh crl
-
 #### Configure CRL download location
 
     [no] revocation crl identifier
@@ -454,6 +449,16 @@ cdp-config:
 |**Name**|**Description**|
 | ------ | ------------- |
 | identifier | URL path to crl list |
+
+#### Configure OCSP responder location
+
+    [no] ocsp responder identifier
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| identifier | URL path to responder |
+
 
 #### Create new or access existing trust-store
 
@@ -536,6 +541,10 @@ cdp-config:
 ### Show CRL distribution points
 
     show revocation crl
+
+### Show OCSP responder
+
+    show ocsp
 
 #### 3.3.2.3 Exec Commands
 
@@ -632,12 +641,40 @@ The certificate between the begin and end tags will be extracted to facilitate p
 
 #### Delete CA certificate
 
+This command will first verify that you cannot delete a root CA that is used to verify other certificates.
+
     crypto ca-cert delete <name|all>
 
 *Parameters*
 |**Name**|**Description**|
 | ------ | ------------- |
 | name | The certificate name or all which will delete all CA certificates |
+
+#### Verify Certificate
+
+Verify certificate using openssl verify command.
+
+    crypto cert verify <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The certificate name which will be verified |
+
+#### Verify CA Certificate
+
+    crypto ca-cert verify <name>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | The CA certificate name which will be verified |
+
+#### Refresh CRL
+
+*Force CDP refresh*
+
+    crypto cert refresh crl
 
 ### 3.3.3 REST API Support
 
@@ -647,7 +684,8 @@ The certificate between the begin and end tags will be extracted to facilitate p
     /sonic-crypto:security-profile/security-profile
     /sonic-crypto:security-profile/security-profile/name
     /sonic-crypto:security-profile/security-profile/certificate-name
-    /sonic-crypto:security-profile/security-profile/trust-store
+    /sonic-crypto:security-profile/security-profile/trust-stores
+    /sonic-crypto:security-profile/security-profile/trust-stores/trust-store
     /sonic-crypto:security-profile/security-profile/peer-name-check
     /sonic-crypto:security-profile/security-profile/key-usage-check
     
@@ -659,10 +697,11 @@ The certificate between the begin and end tags will be extracted to facilitate p
     /sonic-crypto:ca-mode/csr-list/source
     /sonic-crypto:ca-mode/csr-list/type
 
-    /sonic-crypto:trust-store
-    /sonic-crypto:trust-store/name
-    /sonic-crypto:trust-store/ca-list
-    /sonic-crypto:trust-store/ca-list/certificate-name
+    /sonic-crypto:trust-stores
+    /sonic-crypto:trust-stores/trust-store
+    /sonic-crypto:trust-stores/trust-store/name
+    /sonic-crypto:trust-stores/trust-store/ca-list
+    /sonic-crypto:trust-stores/trust-store/ca-list/certificate-name
 
     /sonic-crypto:cdp-config
     /sonic-crypto:cdp-config/frequency
@@ -670,12 +709,19 @@ The certificate between the begin and end tags will be extracted to facilitate p
     /sonic-crypto:cdp-config/cdp-list
     /sonic-crypto:cdp-config/cdp-list/url
 
+    /sonic-crypto:ocsp-config
+    /sonic-crypto:ocsp-config/responder
+
 ### 3.3.4 gNMI Support
 
-The YANG models defined above will be available to read/wrtie from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
+The YANG model defined above will be available to read/write from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
 
 ## 3.4 Upgrade and Downgrade Considerations
-The certificate directory /etc/sonic/cert must be preserved during upgrades and downgrades. This is acheived using upgrade hook scripts that will copy from the directory to the new partition.
+The certificate directory /etc/sonic/cert must be preserved during upgrades and downgrades. This is achieved using upgrade hook scripts that will copy from the directory to the new partition.
+
+When upgrading from a sonic version before certificate management feature exists, per-application upgrade hook scripts will be used to migrate the old certificates and configuration into the new model.
+
+In the case of migrating a config from one switch to another, there will be no automated way of migrating certificates. The user will have to manually re-install/generate the certificates as needed.
 
 # 4 Error Handling
 
