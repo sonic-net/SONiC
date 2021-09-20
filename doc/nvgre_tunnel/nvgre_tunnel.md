@@ -260,7 +260,7 @@ module sonic-nvgre-tunnel {
 
                 leaf vsid {
                     type uint24 {
-                        range 4095..16777214;
+                        range 4096..16777214;
                     }
                 }
 
@@ -430,8 +430,8 @@ The tests will be implemented under the VS environment and will be placed - [son
 
 VS test cases:
 - create NVGRE Tunnel
-	- create a tunnel with invalid source IP address
-	- create a tunnel with valid params
+  - create a tunnel with invalid source IP address
+  - create a tunnel with valid params
 - remove NVGRE Tunnel
   - remove existing tunnel
   - remove unexisting tunnel
@@ -446,5 +446,10 @@ VS test cases:
   - remove unexisting tunnel
 
 #### System Test cases
+
+NVGRE decap:
+- apply NVGRE config
+- send encapsulated traffic
+- validate if decapsulation processed correctly
 
 ### Open/Action items
