@@ -73,6 +73,9 @@ classes defined in ACLOrch is also a subject to be changed due to the new concep
 
 No new CLI nor other user interface for creating custom ACL table types is covered by this document.
 
+Currently supported table types (L3, L3V6, MIRROR, etc.) are still built-in in orchagent as they require special handling,
+specifically tables of type MIRROR/MIRRORV6.
+
 ### Architecture Design
 
 No SONiC architecture changes are required.
@@ -104,7 +107,7 @@ Example:
 ```json
 {
     "ACL_TABLE_TYPE": {
-        "L3": {
+        "CUSTOM_L3": {
             "MATCHES": [
                 "IN_PORTS",
                 "OUT_PORTS",
@@ -123,7 +126,7 @@ Example:
     "ACL_TABLE": {
         "DATAACL": {
             "STAGE": "INGRESS",
-            "TYPE": "L3",
+            "TYPE": "CUSTOM_L3",
             "PORTS": [
                 "Ethernet0",
                 "PortChannel1"
@@ -147,7 +150,7 @@ container ACL_TABLE_TYPE {
     list ACL_TABLE_TYPE_LIST {
         key "ACL_TABLE_TYPE_NAME";
 
-        leaf ACK_TABLE_TYPE_NAME {
+        leaf ACL_TABLE_TYPE_NAME {
             type string;
         }
 
@@ -184,8 +187,12 @@ container ACL_TABLE {
         }
 
         leaf type {
-            type leafref {
-                path "/acl:sonic-acl/acl:ACL_TABLE_TYPE/acl:ACL_TABLE_TYPE_LIST/acl:ACL_TABLE_TYPE_NAME";
+            mandatory true;
+            type union {
+                type leafref {
+                    path "/acl:sonic-acl/acl:ACL_TABLE_TYPE/acl:ACL_TABLE_TYPE_LIST/acl:ACL_TABLE_TYPE_NAME";
+                }
+                type stypes:acl_table_type;
             }
         }
     }
@@ -210,25 +217,6 @@ Control plane table are moved to its own table in CONFIG DB to not overlap with 
     }
 }
 ```
-
-### Initial CONFIG DB
-
-The following existing table types defined in init_cfg.json:
-
-- L3
-- L3V6
-- MIRROR
-- MIRRORV6
-- MIRRORV4V6
-- MIRROR_DSCP
-- DTEL_FLOW_WATCHLIST
-- DTEL_DROP_WATCHLIST
-- MCLAG
-
-The init_cfg.json.j2 creates some table types only for platforms that support a particular feature (like in band telemetry).
-The list of matches, bind point types and actions is copied from orchagent code.
-
-DTEL table is created in the init_cfg.json on a platform supporting it.
 
 ### STATE DB
 
@@ -297,73 +285,6 @@ private:
 Orchagent's AclRule::make_shared makes decision which AclRule child instance to create based on table type.
 Since orchagent does not know all the table types there should be single AclRule handling all the matches
 and actions and perform validation against the table type configuration.
-
-#### Mirror table type: combined/separated table
-
-Orchagent has a special treatment for tables of type MIRROR and MIRRORV6
-based on the ASIC platform it is running on. There is either a "combined" or
-"seperated" mode for MIRROR tables.
-
-```
-+-------------------+------------------------------+
-|                   |   CONFIG DB  |   ASIC DB     |
-+-------------------+--------------+---------------+
-|  combined         |   MIRROR     | Single mirror |
-|                   +--------------+ table in HW   |
-|                   |   MIRRORV6   | V4 + V6 keys  |
-+-------------------+--------------+---------------+
-|  seperated        |   MIRROR     | Mirror V4     |
-|                   +--------------+---------------+
-|                   |   MIRRORV6   | Mirror V6     |
-+-------------------+--------------+---------------+
-```
-
-This special handling has also the following limitations:
-    - Only 1 ACL table of type MIRROR and 1 ACL table of type MIRRORV6 can exist and must be of the same stage
-    - Modifying ACL table configuration for V4 mirror table, e.g: bind ports results in silent modification of a V6 table.
-
-This does not play well with the new concept of user defined table types.
-To solve this we have few options:
-
-1. Reflecting exact CONFIG DB configuration: Let the CONFIG DB table maps 1:1 in ASIC DB table.
-User is able to configure either two tables types, one for IPv4, one for IPv6 or single
-with IPv4 and IPv6 keys.
-
-2. Maintaing the current behaviour. Orchagent should have the knowledge to act in either
-*combined* or *separeted* mode if the table type is named "MIRROR" or "MIRRORV6". 
-
-3. Put this as a configuration in CONFIG DB. E.g, for certain two table types define "combined_v4_v6_mode". This configuration can come from init_cfg.json at start as well
-as default table types.
-
-e.g:
-
-```json
-{
-    "DEVICE_METADATA": {
-        "localhost": {
-            "combined_v4_v6_mode": [
-                "MIRROR",
-                "MIRRORV6"
-            ]
-        }
-    }
-}
-```
-
-In this design option 1 is chosen due to transparency and simplicity. The mode is exposed by orchagent in STATE DB by orchagent.
-
-```
-
-127.0.0.1:6379[6]> hgetall SWITCH_CAPABILITY|switch
-1) mirror_mode
-2) combined
-```
-
-The user or controller needs to read this value and decide whether to create two ACL tables for IPv4 and IPv6 (separated) or single ACL table for both IPv4 and IPv6 (combined). 
-
-#### DB migration
-
-The DB migrator script updated with a logic to move ACL rules for particular platforms supporting combined mirror mode to a table MIRRORV4V6 and for platforms where separated mode is used ACL rules are moved into corresponding MIRROR or MIRRORV6.
 
 #### ACL rule object model
 
@@ -489,7 +410,7 @@ tables referencing it.
 ### Open questions
 
 - What kind of level of YANG validation is required?
-  - Have matches and actions as enumeration (needs to be updated every time new match/action is introduced in SONiC) or could it be just of a type of string?
+  - Have matches and actions need to be of enumeration type (needs to be updated every time new match/action is introduced in SONiC) or could it be just of a type of string?
   - Does YANG infrastructure in SONiC supports validation against STATE DB information (e.g. is_action_list_mandatory)?
 - Does this feature needs a similar capability table for match fields? What is the SAI API to query it?
   - Currently SAI object API allows to query for an ACL table attributes CREATE, SET, GET operations implementation availability (sai_query_attribute_capability, sai_attr_capability_t),
