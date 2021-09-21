@@ -1,8 +1,8 @@
-# MPLS EXP to TC map
+# MPLS TC to TC map
 
 ## 1. Table of Content
 
-- [MPLS EXP to TC map](#mpls-exp-to-tc-map)
+- [MPLS TC to TC map](#mpls-tc-to-tc-map)
   - [1. Table of Content](#1-table-of-content)
   - [2. Revision](#2-revision)
   - [3. Scope](#3-scope)
@@ -32,10 +32,11 @@
 | Rev |     Date    |       Author            | Change Description                         |
 |:---:|:-----------:|:-----------------------:|--------------------------------------------|
 | 0.1 | 16/08/2021  |     Alexandru Banu      | Initial version                            |
+| 0.2 | 21/09/2021  |     Alexandru Banu      | Renamed MPLS EXP to MPLS TC per RFC 5462   |
 
 ## 3. Scope
 
-This HLD extends SONiC to support MPLS EXP to TC mappings.
+This HLD extends SONiC to support MPLS TC to TC mappings.
 
 ## 4. Definitions/Abbreviations
 
@@ -44,11 +45,11 @@ QoS = Quality of Service
 
 ## 5. Overview
 
-This new enhancement adds support to SONiC for MPLS EXP to TC map which allows QoS to work on MPLS packets.
+This new enhancement adds support to SONiC for MPLS TC to TC map which allows QoS to work on MPLS packets.
 
 ## 6. Requirements
 
-User can configure MPLS EXP to TC map at start-of-day via configuration file. CLI support will exist to offer the same amount of support as for DSCP to TC map.
+User can configure MPLS TC to TC map at start-of-day via configuration file. CLI support will exist to offer the same amount of support as for DSCP to TC map.
 
 ## 7. Architecture Design
 
@@ -58,19 +59,19 @@ The overall SONiC architecture will not be changed and no new sub-modules will b
 
 ### 8.1. DB
 
-The CONFIG DB will be updated to include a new "MPLS_EXP_TO_TC_MAP_TABLE" similar to the existing "DSCP_TO_TC_MAP_TABLE". This will have the following format:
+The CONFIG DB will be updated to include a new "MPLS_TC_TO_TC_MAP_TABLE" similar to the existing "DSCP_TO_TC_MAP_TABLE". This will have the following format:
 ```
-### MPLS_EXP_TO_TC_MAP_TABLE
-    ; MPLS EXP to TC map
+### MPLS_TC_TO_TC_MAP_TABLE
+    ; MPLS TC to TC map
     ;SAI mapping - qos_map object with SAI_QOS_MAP_ATTR_TYPE == sai_qos_map_type_t::SAI_QOS_MAP_MPLS_EXP_TO_TC
-    key        = "MPLS_EXP_TO_TC_MAP_TABLE:"name
+    key        = "MPLS_TC_TO_TC_MAP_TABLE:"name
     ;field    value
-    mpls_exp_value = 1*DIGIT
-    tc_value       = 1*DIGIT
+    mpls_tc_value = 1*DIGIT
+    tc_value      = 1*DIGIT
 
     Example:
-    127.0.0.1:6379> hgetall "MPLS_EXP_TO_TC_MAP_TABLE:AZURE"
-     1) "3" ;mpls exp
+    127.0.0.1:6379> hgetall "MPLS_TC_TO_TC_MAP_TABLE:AZURE"
+     1) "3" ;mpls tc
      2) "3" ;tc
      3) "6"
      4) "5"
@@ -80,11 +81,11 @@ The CONFIG DB will be updated to include a new "MPLS_EXP_TO_TC_MAP_TABLE" simila
 
 ### 8.2. sonic-swss-common
 
-sonic-swss-common's schema will be updated to include a CFG_MPLS_EXP_TO_TC_MAP_TABLE_NAME define for the new table name.
+sonic-swss-common's schema will be updated to include a CFG_MPLS_TC_TO_TC_MAP_TABLE_NAME define for the new table name.
 
 ### 8.3. sonic-swss
 
-sonic-swss's QoS orch will be updated to include a new handler for MPLS EXP to TC map, similar to the existing DSCP to TC map but with extra input validations, checking that the values are in the correct numeric range and that no MPLS EXP value is mapped to more than one TC value. Among debugging logs, appropriate error logs will be introduced to let the user know if they miss-configured a map.
+sonic-swss's QoS orch will be updated to include a new handler for MPLS TC to TC map, similar to the existing DSCP to TC map but with extra input validations, checking that the values are in the correct numeric range and that no MPLS TC value is mapped to more than one TC value. Among debugging logs, appropriate error logs will be introduced to let the user know if they miss-configured a map.
 
 ### 8.4. sonic-utilities
 
@@ -92,17 +93,17 @@ sonic-utilities will be updated to offer the same amount of support for CLI comm
 
 ### 8.5. Other implications
 
-There are no other implications. SAI and sairedis already support for MPLS EXP to TC map. In terms of warm restart / fastboot / scalability / performance and so on, this should not represent an impact.
+There are no other implications. SAI and sairedis already support for MPLS TC to TC map. In terms of warm restart / fastboot / scalability / performance and so on, this should not represent an impact.
 
 ## 9. SAI API
 
-MPLS EXP to TC map are already supported in SAI.
+MPLS TC to TC map are already supported in SAI.
 
 ## 10. Configuration and management
 
 ### 10.1. CLI/YANG model Enhancements
 
-CLI config commands will be updated to include the same level of support for MPLS EXP to TC maps as for DSCP to TC maps. Namely, `config reload` and `config clear` will be updated to include the new mapping table as well.
+CLI config commands will be updated to include the same level of support for MPLS TC to TC maps as for DSCP to TC maps. Namely, `config reload` and `config clear` will be updated to include the new mapping table as well.
 
 ### 10.2. Config DB Enhancements
 
@@ -114,13 +115,13 @@ Not impacted by the changes.
 
 ## 12. Restrictions/Limitations
 
-User can't configure MPLS EXP to TC map via CLI (only via reload command).
+User can't configure MPLS TC to TC map via CLI (only via reload command).
 
 ## 13. Testing Requirements/Design
 
 ### 13.1. Unit Test cases
 
-The QoS UTs present in sonic-swss will be extended to accommodate the new MPLS EXP to TC map. These will largely follow the DSCP to TC map example but will add input validation checks as well. The new code will have full code coverage as far as the UT framework allows it.
+The QoS UTs present in sonic-swss will be extended to accommodate the new MPLS TC to TC map. These will largely follow the DSCP to TC map example but will add input validation checks as well. The new code will have full code coverage as far as the UT framework allows it.
 
 ### 13.2. System Test cases
 
