@@ -218,6 +218,10 @@ Control plane table are moved to its own table in CONFIG DB to not overlap with 
 }
 ```
 
+### Initial CONFIG
+
+Table types that need to be available by default can be defined in the init_cfg.json. Later on some of the pre-defined tables types (L3, L3V6, etc.) in CONFIG DB can be put in init_cfg.json.
+
 ### STATE DB
 
 ACL stage capabilities are queried by reading SAI_SWITCH_ATTR_ACL_STAGE_INGRESS and SAI_SWITCH_ATTR_ACL_STAGE_EGRESS
@@ -296,6 +300,11 @@ other orchs to override the behavior.
 <img src="img/acl-rule-object-model.svg" alt="Figure 1. ACL rule model">
 </p>
 
+The polymorphism of existing AclRule derivatives AclRuleL3, AclRuleL3V6, etc is in the validation methods.
+E.g. AclRuleL3's validateAddMatch() method checks wether the match is one of the L3 table type matches.
+This can be consolidated into single generic validate() method that validations ACL Rule configuration
+by checking AclRule SAI matches and SAI actions against AclTable SAI attributes.
+
 #### ACLOrch public API
 
 ACL rule base class declaration:
@@ -331,6 +340,8 @@ bool removeAclTable(string aclTableName);
 bool updateAclTable(shared_ptr<AclTable> aclTable);
 ```
 
+NOTE: Updating ACL table allows only for updating ports bound to it.
+
 ACL Rule methods declaration:
 ```c++
 bool addAclRule(shared_ptr<AclRule> aclRule, string aclTableName);
@@ -338,10 +349,15 @@ bool removeAclRule(string aclTableName, string aclRuleName);
 bool updateAclRule(shared_ptr<AclRule> updatedAclRule);
 ```
 
+##### ACL rule update
+
 While add and remove are known and already implemented today in orchagent, update for ACLRule iterates over the diff between old and new
 member fields m_matches, m_actions and sets the corresponding attribute of an ACL Rule.
 
-Updating ACL table allows only for updating ports bound to it.
+Besides attributes of ACL rule itself, ACL rule owns an ACL counter object and ACL range objects.
+By comparing the m_createCounter boolean flag and ranges defined for old and new ACL rule these objects
+are removed/created based on the difference calculation.
+
 
 NOTE: ACL rules coming from CONFIG DB are updated by removal and re-creation, an updateAclRule is mostly used for other orch's use cases.
 
