@@ -1,4 +1,4 @@
-# SONiC TACACS+ improve
+# SONiC TACACS+ improvement
 
 # Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -56,9 +56,9 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
 # 1 Functional Requirement
 ## 1.1 User command authorization
  - Authorization when user run any executable file or script on SONiC host.
-   - The full path and parameters will be send to TACACS+ server side for authorization.
+   - The full path and parameters will be sent to TACACS+ server side for authorization.
    - For recursive command/script, only the top level command have authorization.
-   - No authorization for  bash built-in command and bash function, but if a bash function call any executable file or script, those executable file or script will have authorization.
+   - No authorization for bash built-in command and bash function, but if a bash function call any executable file or script, those executable file or script will have authorization.
 
  - TACACS+ authorization is configurable:
    - TACACS+ authorization can be enable/disable.
@@ -81,8 +81,9 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
    - Command start event.
    - Command finish event.
 
- - User command in Docker will not be accounted.
-   - User command in docker actually run by docker service, so we can't identify if command are run by user or system service.
+ - User command inside docker container will not be accounted.
+   - User command inside docker container actually run by docker service, so we can't identify if command are run by user or system service.
+   - The 'docker exec <container> <process>' command will be accounted because it's not run inside docker container.
 
  - Support TACACS+ accounting and local accounting:
    - TACACS+ will send event to TACACS+ server, and communication will be encrypted, for more detail please check [RFC8907](#rfc8907).
@@ -110,13 +111,13 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
 ## 2.1 SONiC CLI
  - Enable/Disable TACACS Authorization/Accounting command
 ```
-	config aaa authorization {local | tacacs+}
+    config aaa authorization {local | tacacs+}
     config aaa accounting {local | tacacs+ | disable}
 ```
 
  - Counter command
 ```
-    show tacacs counter
+    show tacacs+ counter
     sonic-clear tacacscounters
 ```
 
@@ -124,9 +125,9 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
  - TACACS AAA are fully configurable by config DB.
 
 ## 2.3 Counter
- - Support  AAA counter, this will be low priority:
+ - Support AAA counter, this will be low priority:
 ```
-    show tacacs counter
+    show tacacs+ counter
     
         server1: 10.1.1.45
         Messages sent: 24
@@ -151,19 +152,19 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
  	- When user user a command longer than 240 bytes, only commands within 240 bytes will send to TACACS server. which means Accounting may lost some user input. and Authorization check can only partly check user input.
 
 ## 3.2 Server count
- - Max TACACS server  count was hardcoded, default count is 8.
+ - Max TACACS server count was hardcoded, default count is 8.
 
 ## 3.3 Local authorization
  - Operation system limitation: SONiC based on Linux system, so permission to execute local command are managed by Linux file permission control. This means when enable both TACACS+ authorization and local authorization, local authorization will always happen after TACACS+ authorization.
 
 ## 3.4 Docker support
- - Any command run inside docker container will not covered by Authorization and Accounting.
+ - Any command run inside a shell in a docker container will not covered by Authorization and Accounting.
  - Docker exec command will be covered by Authorization and Accounting. 
  - Administrator may setup TACACS+ rules to block docker exec command for RO user:
-   - user can start a interactive shell on the docker container, then run command inside container to evade TACACS+ authorization and accounting.
+   - user can start an interactive shell on the docker container, then run command inside container to evade TACACS+ authorization and accounting.
 
 ## 3.5 Recursive commands
-  - Many linux command allow user start a harmless process and run another command from it,  administrator may setup TACACS+ rules from server side to block user from:
+  - Many linux command allow user start a harmless process and run another command from it, administrator may setup TACACS+ rules from server side to block user from:
     - Run another shell.
     - Run interpreter, for example python.
     - Run loader, for example /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
@@ -306,7 +307,7 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
 
 
 ## 4.3 ConfigDB Schema
- - Existing tables, for more detail please check [TACACS+ Authentication](#TACPLUS-Authentication)
+ - Existing tables, for more detail please check [TACACS+ Authentication](https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema)
    - TACPLUS Table
    - TACPLUS_SERVER Table.
    - AAA Table (updated).
@@ -324,10 +325,10 @@ failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
  - Add following command to enable/disable authorization.
 ```
     // authorization with TACACS+ server and local
-    config aaa authorization tacacs local
+    config aaa authorization tacacs+ local
     
     // authorization with TACACS+ server
-    config aaa authorization tacacs
+    config aaa authorization tacacs+
     
     // authorization with local, disable tacacs authorization
     config aaa authorization local
@@ -336,10 +337,10 @@ failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
  - Add following command to enable/disable accounting.
 ```
     // accounting with TACACS+ server and local syslog
-    config aaa accounting tacacs local
+    config aaa accounting tacacs+ local
 
     // accounting with TACACS+ server
-    config aaa accounting tacacs
+    config aaa accounting tacacs+
 
     // accounting with local syslog
     config aaa accounting local
@@ -428,7 +429,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 - config AAA authorization with TACACS+ only:
     - when user login server are accessible.
     - user run some command in whitelist and server are accessible.
-    - then all  server not accessible, and run some command
+    - then all server not accessible, and run some command
 ```
     Verify when server are accessible, TACACS+ user can run command in server side whitelist.
     Verify when server are not accessible, TACACS+ user can't run any command.
@@ -502,6 +503,23 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify syslog not have any command record which not run by user.
 ```
 
+- prevent user bypass TACACS+ authorization test:
+    - Setup TACACS+ server side rules:
+      - Disable user run python, sh command.
+      - Disable user run find with '-exec'
+      - Disable user run /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+```
+    Verify user can't run script with sh/python with following command.
+        python ./testscript.py
+    Verify user can't run 'find' command with '-exec' parameter.
+    Verify user can run 'find' command without '-exec' parameter.
+    Verify user can't run command with loader:
+        /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 sh
+    Verify user can't run command with prefix/quoting:
+        \sh
+        "sh"
+        echo $(sh -c ls)
+```
 
 ## 7.3 Backward compatibility test
 
