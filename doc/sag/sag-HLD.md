@@ -67,6 +67,8 @@ The IP address configured on the VLAN interface is not changed.
 The VLAN interface will use static anycast gateway MAC address to replace CPU MAC address if static anycast gateway MAC address is specified and it's enabled on the VLAN interface.  
 The enable/disable knob on the VLAN interface can let user to determine to use CPU MAC or static anycast gateway MAC address.
 
+In IPv6 link-local address management, the system MAC generated IPv6 link-local to me route is added by RouteOrch in its initialization.  
+If the MAC address is changed between system and SAG, we need to call RouteOrch's API to delete old MAC gerenated IPv6 link-local to me route and then add new MAC generated IPv6 link-local to me route.
 The static anycast gateway on the VLAN interface will be disabled by default.
 
 The following diagram describes the sequence between DBs and modules.
@@ -130,6 +132,8 @@ Options:
 Example:
 admin@edgecore:~$ sudo config static-anycast-gateway mac_address add 00:11:22:33:44:0f
 ```
+
+It doesn't allow to change SAG MAC via this command, the SAG MAC needs to be removed first.
 
 **Delete static anycast gateway MAC address**
 
