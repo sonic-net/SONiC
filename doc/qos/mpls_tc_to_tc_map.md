@@ -33,6 +33,7 @@
 |:---:|:-----------:|:-----------------------:|--------------------------------------------|
 | 0.1 | 16/08/2021  |     Alexandru Banu      | Initial version                            |
 | 0.2 | 21/09/2021  |     Alexandru Banu      | Renamed MPLS EXP to MPLS TC per RFC 5462   |
+| 0.3 | 22/09/2021  |     Alexandru Banu      | Added per-port binding configuration       |
 
 ## 3. Scope
 
@@ -59,18 +60,18 @@ The overall SONiC architecture will not be changed and no new sub-modules will b
 
 ### 8.1. DB
 
-The CONFIG DB will be updated to include a new "MPLS_TC_TO_TC_MAP_TABLE" similar to the existing "DSCP_TO_TC_MAP_TABLE". This will have the following format:
+The CONFIG DB will be updated to include a new "MPLS_TC_TO_TC_MAP" similar to the existing "DSCP_TO_TC_MAP". This will have the following format:
 ```
-### MPLS_TC_TO_TC_MAP_TABLE
+### MPLS_TC_TO_TC_MAP
     ; MPLS TC to TC map
     ;SAI mapping - qos_map object with SAI_QOS_MAP_ATTR_TYPE == sai_qos_map_type_t::SAI_QOS_MAP_MPLS_EXP_TO_TC
-    key        = "MPLS_TC_TO_TC_MAP_TABLE:"name
+    key        = "MPLS_TC_TO_TC_MAP|"name
     ;field    value
     mpls_tc_value = 1*DIGIT
     tc_value      = 1*DIGIT
 
     Example:
-    127.0.0.1:6379> hgetall "MPLS_TC_TO_TC_MAP_TABLE:AZURE"
+    127.0.0.1:6379> hgetall "MPLS_TC_TO_TC_MAP|Mpls_tc_to_tc_map1"
      1) "3" ;mpls tc
      2) "3" ;tc
      3) "6"
@@ -79,6 +80,8 @@ The CONFIG DB will be updated to include a new "MPLS_TC_TO_TC_MAP_TABLE" similar
      6) "5"
 ```
 
+In order to allow a user to bind such a map to a port, the existing `PORT_QOS_MAP` table will be enhanced to allow a new field-value pair, where the field is going to be named `mpls_tc_to_tc_map` and the value will be the `MPLS_TC_TO_TC_MAP.key` of the map to use.
+
 ### 8.2. sonic-swss-common
 
 sonic-swss-common's schema will be updated to include a CFG_MPLS_TC_TO_TC_MAP_TABLE_NAME define for the new table name.
@@ -86,6 +89,8 @@ sonic-swss-common's schema will be updated to include a CFG_MPLS_TC_TO_TC_MAP_TA
 ### 8.3. sonic-swss
 
 sonic-swss's QoS orch will be updated to include a new handler for MPLS TC to TC map, similar to the existing DSCP to TC map but with extra input validations, checking that the values are in the correct numeric range and that no MPLS TC value is mapped to more than one TC value. Among debugging logs, appropriate error logs will be introduced to let the user know if they miss-configured a map.
+
+Also, the QoS orch will be enhanced to configure the new field-value pair in `PORT_QOS_MAP` mentioned at section 8.1.
 
 ### 8.4. sonic-utilities
 
@@ -115,7 +120,8 @@ Not impacted by the changes.
 
 ## 12. Restrictions/Limitations
 
-User can't configure MPLS TC to TC map via CLI (only via reload command).
+- User can't configure MPLS TC to TC map via CLI (only via reload command).
+- User can't configure per-switch or per-inseg MPLS TC to TC maps.
 
 ## 13. Testing Requirements/Design
 
