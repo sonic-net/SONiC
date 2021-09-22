@@ -291,12 +291,10 @@ xcvrd depends on port mapping information to update transceiver information to D
 - Physical port index to logical port name mapping. E.g. {1: "Ethernet0"}
 - Logical port name to ASIC ID mapping. This is useful for multi ASIC platforms.
 
-Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature introduced. Port can be added/created on the fly, xcvrd cannot update transceiver information, DOM information and transceiver status information without knowing the ports change. This causes data in state db not aligned with config db. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly. Observer pattern will be used here to handle port mapping information change:
+Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature introduced. Port can be added/created on the fly, xcvrd cannot update transceiver information, DOM information and transceiver status information without knowing the ports change. This causes data in state db not aligned with config db. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly.
 
-![new_flow](https://github.com/Junchao-Mellanox/SONiC/blob/update-xcvrd/doc/xrcvd/port_config_change_flow.svg)
-
-- Main process works as a "Subject", it selects CONFIG_DB PORT table change and publish port change event.
-- State machine process and DOM sensor update thread work as "Observer", it subscribes port change event and update local port mapping accordingly.
+- Main process need not subscribe port configuration change.
+- State machine process and DOM sensor update thread subscribe port configuration change and update local port mapping accordingly.
 
 Port change event contains following data:
 
@@ -305,7 +303,7 @@ Port change event contains following data:
 - Physic port index. Get from "index" field of PORT table.
 - Event type. Can be "Add" or "Remove".
 
-As port mapping information might be updated during runtime, the global port mapping information cannot be shared properly among main process, state machine process and DOM sensor update thread. A possible solution is to use share memory between different processes, but it will introduce process level lock to many places which is hard to maintain. So, a simple solution is to store local port mapping information in main process, state machine process and DOM sensor update thread and update them via event. In this case, no explicit lock is needed and we can keep the logic as simple as it is. Of course it takes more memory, but port mapping information would be very small which should not cause any memory issue.
+As port mapping information might be updated during runtime, the global port mapping information cannot be shared properly among main process, state machine process and DOM sensor update thread. A possible solution is to use share memory between different processes, but it will introduce process level lock to many places which is hard to maintain. So, a simple solution is to store local port mapping information in main process, state machine process and DOM sensor update thread and update them according to port configuration change. In this case, no explicit lock is needed and we can keep the logic as simple as it is. Of course it takes more memory, but port mapping information would be very small which should not cause any memory issue.
 
 ##### 1.4.3.1 Subscribe CONFIG_DB PORT table change #####
 
@@ -318,13 +316,13 @@ SONiC has implemented a way to "select" data changes from redis. xcvrd should re
 
     - Entry added, trigger a port change event with event type "Add"
     - Entry removed, trigger a port change event with event type "Remove"
-    - Entry updated, skip
+    - Entry updated, if the port logical name to physical index mapping has been changed, trigger a port "Remove" and port "Add" event.
 
-5. Notify observers
+5. Update local port mapping
 
 ##### 1.4.3.2 Handle port change event in state machine process #####
 
-As state machine task is a process, it should use multiprocessing.Queue to receive the port change event. Once a port change event arrives, it should update local port mapping information first, and if it is a remove event, state machine task should remove transceiver information from table TRANSCEIVER_INFO, TRANSCEIVER_STATUS and TRANSCEIVER_DOM_SENSOR; if it is an add event, there could be 4 cases:
+Once a port configuration change detected, it should update local port mapping information first, and if it is a remove event, state machine task should remove transceiver information from table TRANSCEIVER_INFO, TRANSCEIVER_STATUS and TRANSCEIVER_DOM_SENSOR; if it is an add event, there could be 4 cases:
 
 - Transceiver information is already in DB which means that a logical port with the same physical index already exists. Copy the data from DB and create a new entry to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO whose key is the newly added logical port name.
 - Transceiver information is not in DB and transceiver is present with no SFP error. Query transceiver information and DOM sensor information via platform API and update the data to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO.
@@ -333,7 +331,7 @@ As state machine task is a process, it should use multiprocessing.Queue to recei
 
 ##### 1.4.3.2 Handle port change event in DOM sensor update thread #####
 
-DOM sensor update thread should use queue.Queue to receive the port change event. Once a port change event arrives, it should update local port mapping information first and if it is a remove event, it should remove transceiver information from table TRANSCEIVER_DOM_SENSOR; if it is and add event, nothing else need to be done because new port in already in local port mapping and the DOM sensor information will be updated properly.
+Once a port configuration change detected, it should update local port mapping information first and if it is a remove event, it should remove transceiver information from table TRANSCEIVER_DOM_SENSOR; if it is and add event, nothing else need to be done because new port in already in local port mapping and the DOM sensor information will be updated properly.
 
 ##### 1.4.3.3 Recover missing SFP information in DB #####
 
