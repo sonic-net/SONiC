@@ -7,8 +7,7 @@
   * [1.1 User command authorization](#11-user-command-authorization)
   * [1.2 User command accounting](#12-user-command-accounting)
   * [1.3 User script](#13-user-script)
-  * [1.4 Docker support](#14-docker-support)
-  * [1.5 Multiple TACACS server](#15-multiple-tacas-server)
+  * [1.4 Multiple TACACS server](#14-multiple-tacas-server)
 - [2 Configuration and Management Requirements](#2-configuration-and-management-requirements)
   * [2.1 SONiC CLI](#21-sonic-cli)
   * [2.2 Config DB](#22-config-db)
@@ -18,6 +17,8 @@
   * [3.1 Command size](#31-command-size)
   * [3.2 Server count](#32-server-count)
   * [3.3 Local authorization](#32-local-authorization)
+  * [3.4 Docker support](#34-docker-support)
+  * [3.5 Recursive commands](#35-recursive-commands)
 - [4 Design](#design)
   * [4.1 Authentication](#41-authentication)
   * [4.2 Authorization Implementation](#42-authorization-implementation)
@@ -97,14 +98,11 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
  - User may run script with interpreter commands:
    - python ./userscript.txt
    - sh ./usershellscript.txt
- - Allow user create and run script may cause potensial security issue, so TACACS+ server side should setup rules correctly, for example, block RO user run any user script.
+ - Allow user create and run script may cause potensial security issue, so suggest administrator setup rules from TACACS+ server side to block RO user create and run script.
 
-## 1.4 Docker support
- - Docker exec command will be covered by Authorization and Accounting. 
- - Any command run inside docker container will not covered by Authorization and Accounting.
-
-## 1.5 Multiple TACACS server
+## 1.4 Multiple TACACS server
  - Support config multiple TACACS server.
+ - First server in the list will be primary server.
  - When a server not accessible, will try next server as backup.
  - When all server not accessible from SONiC, use native failover solution.
 
@@ -157,6 +155,19 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
 
 ## 3.3 Local authorization
  - Operation system limitation: SONiC based on Linux system, so permission to execute local command are managed by Linux file permission control. This means when enable both TACACS+ authorization and local authorization, local authorization will always happen after TACACS+ authorization.
+
+## 3.4 Docker support
+ - Any command run inside docker container will not covered by Authorization and Accounting.
+ - Docker exec command will be covered by Authorization and Accounting. 
+ - Administrator may setup TACACS+ rules to block docker exec command for RO user:
+   - user can start a interactive shell on the docker container, then run command inside container to evade TACACS+ authorization and accounting.
+
+## 3.5 Recursive commands
+  - Many linux command allow user start a harmless process and run another command from it,  administrator may setup TACACS+ rules from server side to block user from:
+    - Run another shell.
+    - Run interpreter, for example python.
+    - Run loader, for example /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+    - Run find/VI command which can run other commands inside it.
 
 # 4 Design
 ## 4.1 Authorization Implementation
