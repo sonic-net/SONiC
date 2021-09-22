@@ -70,7 +70,9 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
      - Disable local authorization as failover, then user can't run any command.
      - Enable local authorization as failover, then user can run command with local authorization.
      - For local authorization, please check [TACACS+ Authentication](#TACPLUS-Authentication).
-
+   - When user login with local account, TACACS+ authentication and authorization will disabled for current user.
+     - After login, user can run command with local authorization.
+     - When all TACACS+ server not accessible, user can login with this method.
 ## 1.2 User command accounting
  - Accounting is the action of recording what a user is doing, and/or has done.
 
@@ -92,7 +94,10 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
 
 ## 1.3 User script
  - User can create and run their own script. 
- - If user create a script but TACACS+ service side not have configuration to allow user run this script, user script will be blocked by authorization.
+ - User may run script with interpreter commands:
+   - python ./userscript.txt
+   - sh ./usershellscript.txt
+ - Allow user create and run script may cause potensial security issue, so TACACS+ server side should setup rules correctly, for example, block RO user run any user script.
 
 ## 1.4 Docker support
  - Docker exec command will be covered by Authorization and Accounting. 
@@ -303,29 +308,6 @@ fallback             = "True" / "False"  ; fallback mechanism for pam modules
 failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
 ```
 
- - New Tables (low priority)
-   - Bash_Plugin Table schema
-```
-; Key
-plugin_key       = 1*256VCHAR    ; Plugin name.
-; Attributes
-type             = 1*32VCHAR     ; Bash plugin type, currently only support 'execve' plugin.
-path             = 1*4096VCHAR   ; Bash plugin path.
-```
-
-   - Auditd_Syscall_Config Table schema
-```
-; Key
-audit_key        = 1*32VCHAR           ; Audit rule name
-; Attributes
-action           = "always" / "never"  ; Action type, for more detail, please check [Auditd](#auditd).
-list             = LIST(1*32VCHAR)     ; List type, for more detail, please check [Auditd](#auditd).
-syscall          = LIST(1*32VCHAR)     ; Syscall list, for more detail, please check [Auditd](#auditd).
-filter           = LIST(1*32VCHAR)     ; Filter list, for more detail, please check [Auditd](#auditd).
-keyname          = 1*32VCHAR           ; key name, for more detail, please check [Auditd](#auditd).
-```
-
-
 ## 4.4 CLI
  - The existing TACACS+ server config command will not change.
  - Add following command to enable/disable authorization.
@@ -514,12 +496,12 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
 
 - config disable AAA authorization and accounting:
 ```
-    Verify GME user can login to device successfully.
-    Verify GME user can run command if have permission in local.
-    Verify GME user can login to device successfully.
-    Verify admin user can login to device successfully.
-    Verify admin user can run command if have permission in local.
-    Verify admin user can't run command if not have permission in local.
+    Verify domain account can login to device successfully.
+    Verify domain account can run command if have permission in local.
+    Verify domain account can login to device successfully.
+    Verify local admin account can login to device successfully.
+    Verify local admin account can run command if have permission in local.
+    Verify local admin account can't run command if not have permission in local.
 ```
 
 - config enable AAA authorization and accounting, and run all existing AAA authentication test case:
