@@ -7,8 +7,29 @@ Fan control policy for ragile device.
 Rev 0.1
 
 ## Table of Content 
-
-[TOC]
+* [Feature Name](#feature-name)
+   * [High Level Design Document](#high-level-design-document)
+   * [Table of Content](#table-of-content)
+      * [Revision](#revision)
+      * [Scope](#scope)
+      * [Definitions/Abbreviations](#definitionsabbreviations)
+      * [Overview](#overview)
+      * [Requirements](#requirements)
+      * [Design](#design)
+         * [Platform capabilities](#platform-capabilities)
+         * [Platform restrictions](#platform-restrictions)
+         * [Policy](#policy)
+         * [Emergency policy](#emergency-policy)
+      * [SAI API](#sai-api)
+      * [Configuration and management](#configuration-and-management)
+         * [CLI/YANG model Enhancements](#cliyang-model-enhancements)
+         * [Config DB Enhancements](#config-db-enhancements)
+      * [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+      * [Restrictions/Limitations](#restrictionslimitations)
+      * [Testing Requirements/Design](#testing-requirementsdesign)
+         * [Unit Test cases](#unit-test-cases)
+         * [System Test cases](#system-test-cases)
+      * [Open/Action items - if any](#openaction-items---if-any)
 
 ### Revision  
 
