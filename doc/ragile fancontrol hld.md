@@ -1,4 +1,10 @@
-# Ragile Fan control HLD #
+# Feature Name #
+
+Fan control policy for ragile device.
+
+## High Level Design Document
+
+Rev 0.1
 
 ## Table of Content 
 
@@ -6,9 +12,9 @@
 
 ### Revision  
 
-| Rev  | Date | Author | Change Description |
-| ---- | ---- | ------ | ------------------ |
-|      |      |        |                    |
+| Rev  | Date       | Author      | Change Description |
+| ---- | ---------- | ----------- | ------------------ |
+| 0.1  | 09/22/2021 | Ragile Team | Initial version    |
 
 
 ### Scope  
