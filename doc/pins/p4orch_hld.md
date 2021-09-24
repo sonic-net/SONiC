@@ -213,7 +213,9 @@ The P4Orch is designed to meet the SDN requirements. And hence there are some di
 * The P4RT table entry key is used to uniquely identify a request, the producer (P4RT app) must not modify the same request if the previous add/modify is not completed yet.
 * P4Orch does not provide public methods for accessing its internal objects. Other existing orchs cannot refer to the P4RT table objects.
 
-In the initial phase, warmboot and fastboot are not supported as mentioned previously. Restart of the orchagent is also not supported for P4RT tables. In case of orchagent restarts or warmboot, P4RT tables will remain in APPL DB. However, the behavior of P4Orch will be undefined in the initial phase.
+In the initial phase, warmboot and fastboot are not supported as mentioned previously. In case of warmboot, the behavior of P4Orch will be undefined.
+
+Restart of the orchagent is also not supported for P4RT tables in the initial phase. When orchagent restarts, the P4RT tables will not be re-programmed.
 
 ## Testing Requirements/Design
 
