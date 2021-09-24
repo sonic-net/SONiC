@@ -98,6 +98,7 @@ V_{fan} = V_{min} + k(T_{in} - T_{min})
 $$ --> 
 
 <div align="center"><img style="background: white;" src="https://render.githubusercontent.com/render/math?math=V_%7Bfan%7D%20%3D%20V_%7Bmin%7D%20%2B%20k(T_%7Bin%7D%20-%20T_%7Bmin%7D)"></div>
+
 - When <!-- $T_{in} \geq T_{min}$ --> <img style="transform: translateY(0.1em); background: white;" src="https://render.githubusercontent.com/render/math?math=T_%7Bin%7D%20%5Cgeq%20T_%7Bmin%7D"> and device temperature is cooling down, there is two policy:
   - When <!-- $T_{last} - T_{curr} \geq T_{fuse}$ --> <img style="transform: translateY(0.1em); background: white;" src="https://render.githubusercontent.com/render/math?math=T_%7Blast%7D%20-%20T_%7Bcurr%7D%20%5Cgeq%20T_%7Bfuse%7D"> use formula above.
   - Otherwise keep the original speed.
