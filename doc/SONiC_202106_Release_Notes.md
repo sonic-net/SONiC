@@ -170,7 +170,7 @@ The Entity MIB contains several groups of MIB objects: entityPhysical group, ent
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.8.1 Release Notes](https://github.com/kannankvs/md2/wiki/SAI_1.8.1-Release-notes)
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.8.1 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.8.1%20Release%20notes.md)
 
 
 # Contributors 
