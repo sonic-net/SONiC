@@ -45,9 +45,6 @@ Image  : https://sonic-jenkins.westus2.cloudapp.azure.com/  (Example - Image for
 
 2. Plexus-utils fix: CVE-2017-1000487   
 
-3. Docker upgraded from 18.09.2\~3-0\~debian-stretch to 18.09.8\~3-0\~debian-stretch. 
-   Change log: https://docs.docker.com/engine/release-notes/#18098 
-
 
 # Feature List
 
