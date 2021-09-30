@@ -75,18 +75,18 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     module_media_type            = 1*255VCHAR                       ; module media interface ID
     host_electrical_interface    = 1*255VCHAR                       ; host electrical interface ID
     media_interface_code         = 1*255VCHAR                       ; media interface code
-    host_lane_count              = 1*255VCHAR                       ; host lane count
-    media_lane_count             = 1*255VCHAR                       ; media lane count
-    host_lane_assigment_option   = 1*255VCHAR                       ; permissible first host lane number for application
-    media_lane_assigment_option  = 1*255VCHAR                       ; permissible first media lane number for application
-    active_apsel_hostlane1       = 1*255VCHAR                       ; active application selected code assigned to host lane 1
-    active_apsel_hostlane2       = 1*255VCHAR                       ; active application selected code assigned to host lane 2
-    active_apsel_hostlane3       = 1*255VCHAR                       ; active application selected code assigned to host lane 3
-    active_apsel_hostlane4       = 1*255VCHAR                       ; active application selected code assigned to host lane 4
-    active_apsel_hostlane5       = 1*255VCHAR                       ; active application selected code assigned to host lane 5
-    active_apsel_hostlane6       = 1*255VCHAR                       ; active application selected code assigned to host lane 6
-    active_apsel_hostlane7       = 1*255VCHAR                       ; active application selected code assigned to host lane 7
-    active_apsel_hostlane8       = 1*255VCHAR                       ; active application selected code assigned to host lane 8
+    host_lane_count              = INTEGER                          ; host lane count
+    media_lane_count             = INTEGER                          ; media lane count
+    host_lane_assigment_option   = INTEGER                          ; permissible first host lane number for application
+    media_lane_assigment_option  = INTEGER                          ; permissible first media lane number for application
+    active_apsel_hostlane1       = INTEGER                          ; active application selected code assigned to host lane 1
+    active_apsel_hostlane2       = INTEGER                          ; active application selected code assigned to host lane 2
+    active_apsel_hostlane3       = INTEGER                          ; active application selected code assigned to host lane 3
+    active_apsel_hostlane4       = INTEGER                          ; active application selected code assigned to host lane 4
+    active_apsel_hostlane5       = INTEGER                          ; active application selected code assigned to host lane 5
+    active_apsel_hostlane6       = INTEGER                          ; active application selected code assigned to host lane 6
+    active_apsel_hostlane7       = INTEGER                          ; active application selected code assigned to host lane 7
+    active_apsel_hostlane8       = INTEGER                          ; active application selected code assigned to host lane 8
     media_interface_technology   = 1*255VCHAR                       ; media interface technology
     hardwarerev                  = 1*255VCHAR                       ; module hardware revision 
     serialnum                    = 1*255VCHAR                       ; module serial number 
@@ -102,6 +102,10 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     acrive_firmware_minor_rev    = 1*255VCHAR                       ; active firmware minor revision
     inactive_firmware_major_rev  = 1*255VCHAR                       ; inactive firmware major revision
     inacrive_firmware_minor_rev  = 1*255VCHAR                       ; inactive firmware minor revision
+    supported_max_tx_power       = FLOAT                            ; support maximum tx power
+    supported_min_tx_power       = FLOAT                            ; support minimum tx power
+    supported_max_laser_freq     = FLOAT                            ; support maximum laser frequency
+    supported_min_laser_freq     = FLOAT                            ; support minimum laser frequency
 
 ##### 2.1.2 Transceiver DOM sensor Table #####
 
@@ -109,15 +113,10 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value
-    rx1power                     = FLOAT                            ; rx1 power in dbm
-    rx2power                     = FLOAT                            ; rx2 power in dbm
-    rx3power                     = FLOAT                            ; rx3 power in dbm
-    rx4power                     = FLOAT                            ; rx4 power in dbm
-    tx1bias                      = FLOAT                            ; tx1 bias in mA
-    tx2bias                      = FLOAT                            ; tx2 bias in mA
-    tx3bias                      = FLOAT                            ; tx3 bias in mA
-    tx4bias                      = FLOAT                            ; tx4 bias in mA
-    laser_temperature	         = FLOAT                            ; laser temperature value in Celsius
+    txpower                      = FLOAT                            ; tx power in mW
+    rxpower                      = FLOAT                            ; rx power in mW
+    txbias                       = FLOAT                            ; tx bias in mA
+    laser_temperature	           = FLOAT                            ; laser temperature value in Celsius
     prefec_ber                   = FLOAT                            ; prefec ber
     postfec_ber                  = FLOAT                            ; postfec ber
     cd_shortlink                 = FLOAT                            ; chromatic dispersion, high granularity, short link in ps/nm
@@ -135,24 +134,6 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     tx_curr_power                = FLOAT                            ; tx current output power in dbm
     rx_tot_power                 = FLOAT                            ; rx total power in  dbm
     rx_sig_power                 = FLOAT                            ; rx signal power in dbm
-    media_output_loopback        = FLOAT                            ; media side output loopback enable
-    media_input_loopback         = FLOAT                            ; media side input loopback enable
-    host_output_loopback_lane1   = FLOAT                            ; host side output loopback enable lane1
-    host_output_loopback_lane2   = FLOAT                            ; host side output loopback enable lane2
-    host_output_loopback_lane3   = FLOAT                            ; host side output loopback enable lane3
-    host_output_loopback_lane4   = FLOAT                            ; host side output loopback enable lane4
-    host_output_loopback_lane5   = FLOAT                            ; host side output loopback enable lane5
-    host_output_loopback_lane6   = FLOAT                            ; host side output loopback enable lane6
-    host_output_loopback_lane7   = FLOAT                            ; host side output loopback enable lane7
-    host_output_loopback_lane8   = FLOAT                            ; host side output loopback enable lane8
-    host_intput_loopback_lane1   = FLOAT                            ; host side intput loopback enable lane1
-    host_intput_loopback_lane2   = FLOAT                            ; host side intput loopback enable lane2
-    host_intput_loopback_lane3   = FLOAT                            ; host side intput loopback enable lane3
-    host_intput_loopback_lane4   = FLOAT                            ; host side intput loopback enable lane4
-    host_intput_loopback_lane5   = FLOAT                            ; host side intput loopback enable lane5
-    host_intput_loopback_lane6   = FLOAT                            ; host side intput loopback enable lane6
-    host_intput_loopback_lane7   = FLOAT                            ; host side intput loopback enable lane7
-    host_intput_loopback_lane8   = FLOAT                            ; host side intput loopback enable lane8
 
 ##### 2.1.3 Transceiver Status Table #####
 
@@ -272,7 +253,30 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     rx_sig_power_avg             = FLOAT                            ; rx signal power avg
     rx_sig_power_min             = FLOAT                            ; rx signal power min
     rx_sig_power_max             = FLOAT                            ; rx signal power max 
-    
+
+##### 2.1.5 Transceiver Loopback Table #####
+
+    ; Defines Transceiver loopback information for a port
+    media_output_loopback        = FLOAT                            ; media side output loopback enable
+    media_input_loopback         = FLOAT                            ; media side input loopback enable
+    host_output_loopback_lane1   = FLOAT                            ; host side output loopback enable lane1
+    host_output_loopback_lane2   = FLOAT                            ; host side output loopback enable lane2
+    host_output_loopback_lane3   = FLOAT                            ; host side output loopback enable lane3
+    host_output_loopback_lane4   = FLOAT                            ; host side output loopback enable lane4
+    host_output_loopback_lane5   = FLOAT                            ; host side output loopback enable lane5
+    host_output_loopback_lane6   = FLOAT                            ; host side output loopback enable lane6
+    host_output_loopback_lane7   = FLOAT                            ; host side output loopback enable lane7
+    host_output_loopback_lane8   = FLOAT                            ; host side output loopback enable lane8
+    host_intput_loopback_lane1   = FLOAT                            ; host side intput loopback enable lane1
+    host_intput_loopback_lane2   = FLOAT                            ; host side intput loopback enable lane2
+    host_intput_loopback_lane3   = FLOAT                            ; host side intput loopback enable lane3
+    host_intput_loopback_lane4   = FLOAT                            ; host side intput loopback enable lane4
+    host_intput_loopback_lane5   = FLOAT                            ; host side intput loopback enable lane5
+    host_intput_loopback_lane6   = FLOAT                            ; host side intput loopback enable lane6
+    host_intput_loopback_lane7   = FLOAT                            ; host side intput loopback enable lane7
+    host_intput_loopback_lane8   = FLOAT                            ; host side intput loopback enable lane8
+
+
 #### 2.2 Show interfaces transceiver CLI
 Displays diagnostic monitoring information of the transceivers
 
@@ -282,7 +286,7 @@ This command displays information for all the interfaces for the transceiver req
 
 - Usage:
   ```
-  show interfaces transceiver (info | eeprom [-d|--dom] | presence | status | pm) [<interface_name>]
+  show interfaces transceiver (info | eeprom [-d|--dom] | presence | status | pm | loopback) [<interface_name>]
   ```
 - Example (Decode and display general information of the transceiver connected to Ethernet0):
   ```
@@ -310,10 +314,15 @@ This command displays information for all the interfaces for the transceiver req
   Hardware Revision : XX.XX
   Module PN : XXXXXXXXXXX
   Module SN : XXXXXXXXXXX
-  Module Manufacture Date : XXXXXXXX (MMDDYYYY)
+  Module Manufacture Date : XXXXXXXX (MMDDYY)
   Connector Type : LC (Lucent Connector)
   CMIS Revision : X.X
-  Firmware Version :  XXX.XXX
+  Active Firmware Version :  XXX.XXX
+  Inactive Firmware Version :  XXX.XXX
+  Supported Max TX Power : X.X dBm
+  Supported Min TX Power : X.X dBm
+  Supported Max Laser Frequency : XXX.XX THz
+  Supported Min Laser Frequency : XXX.XX THz
   ```
 
 - Example (Decode and display dom information of the transceiver connected to Ethernet0):
@@ -341,10 +350,6 @@ This command displays information for all the interfaces for the transceiver req
   Tx Current Power : -10.00 dBm
   Rx Total Power : -8.00 dBm
   Rx Signal Power : -8.00 dBm
-  Media Output Loopback : False
-  Media Input Loopback : False
-  Host Output Loopback : False
-  Host Input Loopback : False
   ```
 
 - Example (Display presence of SFP transceiver connected to Ethernet0):
@@ -471,7 +476,17 @@ This command displays information for all the interfaces for the transceiver req
   rx_sig_power_min : -8.00 dBm
   rx_sig_power_max : -8.00 dBm
   ```
-  
+
+- Example (Display loopback status of transceiver connected to Ethernet0):
+  ```
+  admin@sonic:~$ show interfaces transceiver loopback Ethernet0
+  Ethernet0:
+  Media Output Loopback : False
+  Media Input Loopback : False
+  Host Output Loopback : False
+  Host Input Loopback : False
+  ```
+
 #### 2.3 Config_DB Schema ####
 ##### 2.3.1 Transceiver Config Table #####
 Stores information for physical switch ports managed by the switch chip. Ports to the CPU (ie: management port) and logical ports (loopback) are not declared in the PORT_TABLE. See INTF_TABLE.
