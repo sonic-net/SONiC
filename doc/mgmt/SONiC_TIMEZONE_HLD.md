@@ -21,6 +21,7 @@ Timezone and System Clock Configuration in Management Framework
 | 0.1 | 07/10/2021 |   Bing Sun         | Initial version                   |
 | 0.2 | 07/19/2021 |   Bing Sun         | address review comments to add timezone offset in the logs |
 | 0.3 | 08/26/2021 |   Bing Sun         | add section for timestamp in CLI/REST output |
+| 0.4 | 09/21/2021 |   Bing Sun         | remove CLI command "show clock timezone" |
       
 
 
@@ -87,23 +88,15 @@ Add/delete timezone in the Redis CONFIG DB. Only one timezone can be configured.
 
 #### 1.1.1.2 Get timezone 
 ```
-show clock timezone
+show clock 
 ```
-Get the local timezone information from timedatectl output. For example,      
+Get the local timezone information from the existing "show clock" command.          
 
     ```
-    sonic# show clock timezone
-      US/Pacific (PDT, -0700)
-    ```    
-
-    ```
-    root@sonic:~# timedatectl
-          Local time: Thu 2021-07-22 21:32:59 PDT
-      Universal time: Fri 2021-07-23 04:32:59 UTC
-            RTC time: Fri 2021-07-23 04:32:59
-           Time zone: US/Pacific (PDT, -0700)
-    ```
-    
+    sonic# show clock    
+    Tue 21 Sep 2021 10:44:25 PM PDT 
+    ```   
+     
 ### 1.1.2 Backend mechanisms to support timezone/clock configuration and query 
 
 #### 1.1.2.1 add/delete timezone 
@@ -232,7 +225,6 @@ The front end code changes in the management-framework container includes:
 - Jinja template to render CLI output (renderer)    
 - front-end code to support "show running-configuration"    
 - OpenConfig YANG model in openconfig-system.yang to set and get configured timezone in the configDB    
-- OpenConfig RPC YANG model to get timezone from timedatectl output, including UTC offset    
 - SONiC clock model in sonic-system-clock.yang to set and get configured timezone in the configDB       
        
 **time and date**   
@@ -255,7 +247,6 @@ Provide CLI, gNMI and REST supports for timezone related configurations.
      
 - transformer functions to    
    * set "system" as key for CLOCK table in CONFIG DB   
-   * rpc function to get output of timedatectl for OpenConfig YANG    
    * subscribe to listen for CLOCK change in CONFIG DB    
    * set local timezone for glog   
 - customer cvl validation function to reject timezone if the timezone name does not exist under /usr/share/zoneinfo. This is for the case when timezone configuration is done from SONiC YANG.     
@@ -320,17 +311,7 @@ Supported yang objects and attributes:
 +         |  +--ro state
 +         |     +--ro timezone-name?   timezone-name-type
 ```
-
-```diff
-+  module: openconfig-system-private.yang
-
-+  rpcs:
-+    +---x get-timezone
-+       +--ro output
-+          +--ro utc-offset?      string
-+          +--ro timezone-abbr?   string
-```
-
+        
 ```diff
 +    module: sonic-system-clock
 +      +--rw sonic-system-clock
@@ -448,20 +429,7 @@ sonic# clock set 10:20:55
 sonic# clock set 10:20:55 2021-07-12
 
 ```
-
-#### 3.6.2.2 Show commands
-
-##### 3.6.2.2.1 show timezone
-```
-sonic# show clock
-  timezone  Show the system clock timezone
-  <cr>
-
-sonic# show clock timezone
- US/Hawaii (HST, -1000)
-
-``` 
-
+    
 ##### 3.6.2.2.2 Show time and date 
 ```
 sonic# show clock
@@ -490,7 +458,6 @@ From shell:
 timedatectl
 
 ls -l /etc/localtime
-ls -l /etc/timezone
 
 zdump -v /etc/localtime | grep 2021
 
