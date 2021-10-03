@@ -125,6 +125,7 @@ when host interface was removed remove this port entry from state db
 
 
 #### SWSS - Portsorch:
+
 •   ADD PORT - Receive new port from port APP table -> create port on SAI -> create host interface -> add Flex counters<br />
 Receive notification from ASIC DB when oper_state is changing, update the port oper_state on APP db.
 •   DEL PORT - Receive del port from port APP table -> remove flex counters -> del port on SAI -> del host interface<br />
@@ -145,33 +146,48 @@ We need to add more port counters that will be add/removed dynamically whenever 
 
 In the current implementation these counters were created for all ports only after init stage is done.
 
+
+** Counters PR: ** <br />
+[https://github.com/Azure/sonic-swss/pull/2019](https://github.com/Azure/sonic-swss/pull/2019)
  
 
 
 #### PortMgrd:
-- ADD Port: Set (admin_status, mtu, learn_mode, tpid) from config db to App db 
-- Del port: Receive del port operation from port config table, remove this port from APP DB.
+- ADD Port: Set (admin_status, mtu, learn_mode, tpid) from config db to App db <br />
+- Del port: Receive del port operation from port config table, remove this port from APP DB.<br />
+
+**No need to change the code**
 
 #### Sflowmgr:
-Add port: Event from config db - Update the speed to sflow internal db.
-Del port: Delete event from config db - remove the speed from sflow internal db.
+Add port: Event from config db - Update the speed to sflow internal db.<br />
+Del port: Delete event from config db - remove the speed from sflow internal db.<br />
+
+**No need to change the code**
 
 #### Teammgrd:
-Listen to events from state db, when entry is added -> add the port to lag
+Listen to events from state db, when entry is added -> add the port to lag<br />
+
+**No need to change the code**
 
 #### Macsecmgr:
-Listen to events on cfg port table – the service will enable or disable macsec if macsec was configured on the port cfg table (using the macsec field)
+Listen to events on cfg port table – the service will enable or disable macsec if macsec was configured on the port cfg table (using the macsec field)<br />
+
+**No need to change the code**
+
+#### snampagent:
+•   Add/remove port has no special treatment.<br />
+each time the snmpagent needs information from ports (oper_state, mtu, speed..) it reads from APP port table. Will be triggered on mib requests.<br />
+
+**No need to change the code**
 
 #### PMON - Xcvrd:
 Listen to events on cfg port table and update transeiver information <br />
+
+implemented on those PRs:
 https://github.com/Azure/sonic-buildimage/pull/8422 <br />
 https://github.com/Azure/sonic-platform-daemons/pull/212
 
-#### snampagent:
-•   Add/remove port has no special treatment.
-each time the snmpagent needs information from ports (oper_state, mtu, speed..) it reads from APP port table. Will be triggered on mib requests.
 
- 
 ## Buffermgrd:
 
 ##### Add port:  
@@ -199,28 +215,27 @@ we may need to consider using pg_profile_lookup.ini for each line card type.<br 
 •   When port is added to the config db – the speed and the admin state is saved on internal db<br />
 •   After port was added the user can add buffer configuration to this port (dynamic or static configuration) and only then the buffermgr will set the buffer configuration on App table<br />
 
-•   We have rare situation of race condition in the add port flow:
+•   We have rare situation of race condition in the add port flow:<br />
 
  ![possible buffermgr race condition](images/buffermgr_possible_race.png)
 
 
- 
- 
 
 ##### Del port:
-•   Before removing a port all buffer configuration needs to be removed
+•   Before removing a port all buffer configuration needs to be removed<br />
 
-We have also possible way for race condition:
+We have also possible way for race condition:<br />
 
  ![possible buffermgr delete port race condition](images/buffermgr_possible_delete_race.png)
 
-•   If the portsyncd is “quicker” than the buffermgr the orchagent will try to remove the port from SAI before the buffer configuration was removed.
-•   Need to test this scenario in order to check if this race condition is reproducing or it’s rare scenario
-•   Solution for this: 
+•   If the portsyncd is “quicker” than the buffermgr the orchagent will try to remove the port from SAI before the buffer configuration was removed.<br />
+•   Need to test this scenario in order to check if this race condition is reproducing or it’s rare scenario<br />
+•   Solution for this: <br />
 Need to add to orchagent the ability to add the buffer configuration of a port and increase a reference counter for each port, in the same way ACL cfg on port is working. We already have infrastructure for this just need to add the buffer cfg to use it. If a port has with buffer cfg on – this port will not be removed.
 
 
-
+** Buffer changes PR: ** <br />
+[https://github.com/Azure/sonic-swss/pull/2022](https://github.com/Azure/sonic-swss/pull/2022)
 
 
 
