@@ -284,34 +284,18 @@ Suggested change:
 
 1.  Basic test (init with full ports): <br />
     - Start the system with full ports on system <br />
-    - Remove all ports <br />
-    - Verify ports were removed properly – show interfaces, sai/sdk dump <br />
-    - Add all ports back to the system <br />
-    - Verify ports were added properly – show interfaces, sai/sdk dump, lldp, snmp walk <br />
+    - Remove one port <br />
+    - Verify port was removed properly <br />
+    - Add the port back to the system <br />
+    - Verify port was added properly <br />
+    - do the above in a loop several times
+    - Run ping and verify basic functionality of ports <br />
+2.  Basic test (init with full ports): <br />
+    - Start the system with full ports on system <br />
+    - Remove all the ports <br />
+    - Verify all ports were removed properly <br />
+    - Add the ports back to the system <br />
+    - Verify ports was added properly <br />
     - Run traffic and verify basic functionality of ports <br />
-2.  Basic test (init with zero ports): <br />
-    - Start the system with zero ports on system <br />
-    - Verify ports not exists– show interfaces, sai/sdk dump <br />
-    - Add all ports <br />
-    - Verify ports were added properly – show interfaces, sai/sdk dump, lldp, snmp walk <br />
-    - Run traffic and verify basic functionality of ports <br />
-    - Remove all ports <br />
-    - Verify ports were removed properly – show interfaces, sai/sdk dump <br />
-    - Add all ports to the system again <br />
-    - Verify ports were added properly – show interfaces, sai/sdk dump, lldp, snmp walk <br />
-    - Run traffic and verify basic functionality of ports <br />
-3.  Error flow - Add more than the max number of ports <br />
-4.  Error flow - Add port with wrong value of lanes <br />
-5.  Remove port and add a port in a loop <br />
-6.  Start the system with zero ports
-     - Add ports<br />
-     - Add acl configuration to several ports from the system <br />
-     - Add vlan configuration to several ports from the system <br />
-     - Add lag configuration to several ports from the system <br />
-     - Add buffer configuration to several ports from the system <br />
-     - Verify all configuration added properly <br />
-
-
-### system level testing
-TBD
-
+    - do the above in a loop several times
+ 
