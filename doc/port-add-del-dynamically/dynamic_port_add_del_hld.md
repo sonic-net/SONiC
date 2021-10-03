@@ -1,4 +1,4 @@
-# Delete or remove ports dynamically
+# Enhancements to add or del ports dynamically
 
 
 # Table of Contents
@@ -67,7 +67,10 @@ The Dynamic port add/remove configuration will be supported for all types of ini
 
 **Note:** This is a new type of init that was never tested and will be supported.<br />
 The zero-port system is a special case of this feature. <br />
-Few PRs were already added in order to support zero ports init.<br />
+Few PRs were already added in order to support zero ports init:<br />
+[PR #7999 Allow cfggen to work on system without ports](https://github.com/Azure/sonic-buildimage/pull/7999)<br />
+[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/Azure/sonic-swss/pull/1860)<br />
+[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/Azure/sonic-swss/pull/1808)<br />
 
 after init stage we can add/remove ports dynamically through redis call to add/remove entry to/from port table on config db ("PORT")
 
@@ -233,7 +236,7 @@ we may need to consider using pg_profile_lookup.ini for each line card type.<br 
 
  ![possible buffermgr race condition](images/buffermgr_possible_race.png)
 
-
+in order to avoid this issue we need to check first if port exist on App db before adding the buffer cfg to the App db.
 
 ##### Del port:
 •   Before removing a port all buffer configuration needs to be removed<br />
