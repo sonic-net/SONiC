@@ -28,6 +28,12 @@ This document provides general information about ports creation or removal in SO
 # Scope                                                                                  
 This document describes the high level design of orchagent and the impact of creating/removing ports dynamically on other services. The design describes the current implementaion and suggestion to changes that needs to be implemented in order to fully support the dynamic create/remove of ports.
 
+## Relevant PRs
+[PR #7999 Allow cfggen to work on system without ports](https://github.com/Azure/sonic-buildimage/pull/7999)<br />
+[PR #1860 Remove buffer drop counter when port is deleted](https://github.com/Azure/sonic-swss/pull/1860)<br />
+[PR #1808 [swss]: Allow portsyncd to run on system without ports](https://github.com/Azure/sonic-swss/pull/1808)<br />
+[PR #2019 [orchagent] add & remove port counters dynamically each time port was added or removed](https://github.com/Azure/sonic-swss/pull/2019)<br />
+[PR #2022 Dynamic port configuration - add port buffer cfg to the port ref counter](https://github.com/Azure/sonic-swss/pull/2022)<br />
 
 ## Design
 
