@@ -60,7 +60,7 @@ Orchagent is waiting for PortConfigDone before continuing to create the ports on
 Xcvrd, buffermgrd, natmgr, natsync – waiting for PortInitDone
 
 ## Init types:
-The Dynamic port add/remove configuration will be supported for both types of init types:<br />
+The Dynamic port add/remove configuration will be supported for all types of init types:<br />
 •   Start the system with full ports on config db <br />
 •   Start the system without some of the ports on config db<br />
 •   Start the system with zero ports on config db<br />
@@ -73,7 +73,6 @@ after init stage we can add/remove ports dynamically through redis call to add/r
 
 ## Init with zero ports:
 Starting with zero ports requires new SKU for zero ports with these changes:<br />
-**Port_confg.ini** – without entries<br />
 **Hwsku.json** – without interfaces<br />
 **Platform.json** – without interfaces<br />
 **Sai xml** file – needs to be without port entries. <br />
@@ -121,7 +120,7 @@ For example: we need to remove the buffer pg that configured to a port and then 
 9.  Portsyncd will remove the port entry from state db
 
 
-## Modules that “listen” to changes on config port table & App port table 
+## Modules that “listen” to changes on config port table, App port table and State port table
 
 #### SWSS - Portsyncd:
 •   ADD PORT - Receive new port from port config table, add the port info to APP DB (update speed, interface_type, autoneg, adv_speeds, adv_interface_types).<br />
@@ -171,7 +170,16 @@ Del port: Delete event from config db - remove the speed from sflow internal db.
 **No need to change the code**
 
 #### Teammgrd:
-Listen to events from state db, when entry is added -> add the port to lag<br />
+Listen to events from config db:
+set event -> add the port to lag (check before if entry exist on state db - host interface exist)<br />
+del event -> remove port from lag<br />
+
+Listen to events from state db:
+set event -> add the port to lag (the below content is taken from the teammgr code to describe this flow):<br /> 
+When a port gets removed and created again, notification is triggered
+when state dabatabase gets updated. In this situation, the port needs
+to be enslaved into the LAG again.
+del event -> do nothing <br />
 
 **No need to change the code**
 
@@ -259,10 +267,14 @@ Need to add to orchagent the ability to add the buffer configuration of a port a
 
 
 
+The Problem:
+-   when a port is added - the lldpcli execution can failed since the host interface is not yet up. oper_state on on APP DB is up but host interface is not up yet.
+-   when lldp is removed immediatly after add the lldpcli command wasn't executed yet, the command is still on pending_cmds, there is treatment to remove a     port, on lldpmgrd, the command for this port will stay forever on the pending_cmds end each 10 seconds (timeout value) the command will be executed and failed since the host interface is no longer exist.
+
 Suggested change:
--   We will use the state DB to trigger the lldpmgr to add a port<br />
--   When the state db entry is added we know for sure that host interface was created properly and the lldpcli command will be executed properly. <br />
-when host interface is not ready yet the lldpcli will be failed.<br />
+-   Before executing lldpcli command we will check if host interface is up by checking the port status on state db<br />
+-   When receiving del event from App db we will remove the command (if exist) from pending_cmds <br />
+-   in the current implementation we receive events on port create/update from config db and app db and later read from config db again - this implementation is unnecessary and can be problematic in several cases.
 -   The lldpcli is a tool that we can use in order to add ports to lldp.<br />
 
  ![add port - LLDP- suggested change](images/lldp_after.png)
