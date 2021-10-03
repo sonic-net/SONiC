@@ -75,8 +75,8 @@ after init stage we can add/remove ports dynamically through redis call to add/r
 Starting with zero ports requires new SKU for zero ports with these changes:<br />
 **Hwsku.json** – without interfaces<br />
 **Platform.json** – without interfaces<br />
-**Sai xml** file – needs to be without port entries. <br />
-Currently SAI is not supporting adding new ports that wasn’t exist on the sai xml file, so our tests will be with full ports on sai xml file and adding/removing ports that were exist on the sai xml.<br />
+**Sai profile** needs to be without port entries. <br />
+
 
 On this zero ports SKU the sonic-cfggen will generate config_db.json file without any ports.<br />
  
