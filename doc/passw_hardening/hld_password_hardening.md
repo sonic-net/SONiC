@@ -138,11 +138,14 @@ Arc design diagram\
 
 	The minimum length of the PW should be subject to a user change.
 
-	The user will be able to change the password minimum length if he has the necessary permissions to change the PW. The CLI command to change the PW:
+	The user will be able to change the password minimum length if he has the necessary permissions to change the PW.
+
+	Implementation:
+	In order to implement it, the cracklib option minlen=N should be set.
 
 
-
-Once the user changed the minimum password length - the settings will be applied to the config node and will be enforced on the next pw change
+	Note:
+	Once the user changed the minimum password length - the settings will be applied to the config node and will be enforced on the next pw change
 
 ##### PW Age
 	Along with every PW set to a user, attached to it is the age of the PW - the amount of time that has passed since a PW change has occurred.
@@ -165,23 +168,25 @@ Once the user changed the minimum password length - the settings will be applied
 
 	To support it, can be use chage option "--warndays"
 
-Notes:
-For implement the "aging" we need to change the /etc/login.def file and set max days and warning days, this changes affection globally, meaning all new users.
-For read the information per user we will use the "chage" library.
-In addition, when we change the file /etc/login.def its change globally by only new users, so basically for change existing users expired day we need to iterate every one of them using the "chage" lib.
+Aging(expire) implementation :
+	For implement the "aging" we need to change the /etc/login.def file and set max days and warning days, this changes affection globally, meaning all new users.
+	For read the information per user we will use the "chage" library.
+	In addition, when we change the file /etc/login.def its change globally by only new users, so basically for change existing users expired day we need to iterate every one of them using the "chage" lib.
 
 
 ##### PW username-match
-By enabling this feature, the user will not be permitted to set the same username & password
+	By enabling this feature, the user will not be permitted to set the same username & password
 
 
 ##### PW Saving
-Saved previous passwords in the DB,  for enable this. is necessary to set how many old password you would like to save.
+	Saved previous passwords in the DB,  for enable this. is necessary to set how many old password you would like to save.
 
-Note: will be support by using pam_pwhistory.so, remmember=N option.
-For saving password with sha512, need to modify the /etc/pam.d/system-auth-a file to contain this line:
+	Implementation: will be support by using pam_pwhistory.so, remmember=N option.
+	
+	Note:
+	For saving password with sha512, need to modify the /etc/pam.d/system-auth-a file to contain this line:
 
-	password    sufficient    pam_unix.so sha512 shadow use_authtok
+		password    sufficient    pam_unix.so sha512 shadow use_authtok
 
 ###  1.8. <a name='SAIAPI'></a>SAI API 
 	no changed.
@@ -642,7 +647,7 @@ Test Objective:
 
 	Admin user is logged in and secure password feature is enabled.
 
-**Setup descriptions and objectives:**
+Setup descriptions and objectives:
 
 	All Switches.
 
@@ -661,7 +666,8 @@ Test Objective:
 ||<p>Perform a show command to verify all above configurations are not set</p><p>[show password security]</p><p></p>|All configurations are not changed|
 ||<p>Try to configure a very long password (above the max, even hundreds of chars)</p><p>[username admin password X]</p>|Should fail – longer than maximum|
 
-
+Note:
+	There are 2 DB to test: CONF_DB and APPL_DB, need to be test both of them in every test case.
 ####  1.13.8. <a name='TestOpenIssues'></a>Test Open Issues
 
 Is this feature support when user uses multiple sessions in same time, i.e:
