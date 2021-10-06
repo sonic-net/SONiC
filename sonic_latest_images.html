@@ -1,0 +1,124 @@
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>SONiC installation images</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+	<!-- INCLUDING JQUERY-->
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+
+	<!-- CSS FOR STYLING THE PAGE -->
+	<style>
+		.list-group {
+		    width: auto;
+		    max-width: 1200px;
+		    margin: 4rem auto;
+		    margin-top:0;
+		    margin-bottom:0;
+		}
+		table,
+		th,
+		td{
+			width: 1200px;
+			text-align: center;
+			border: 2px solid grey;
+		}
+
+		th,td{
+		    padding: 10px;
+		    background-color: none;
+		}
+	</style>
+</head>
+
+<body>
+    <div class="text-center">
+	<img class="d-block mx-auto mb-4" src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/sonic-logo_40percentage.png" alt="SONiC logo">
+    </div>
+    <div class="list-group" id="builds">
+            <table style="width:1200px" border="2" align="center" id="disp_table" >
+		<tr>
+		    <section id="mu-page-breadcrumb">
+			<div class="container">
+			    <div class="row">
+				<div style="text-align: center;">
+					<div>
+						<div class="col-md-12">
+						
+								<h2> Latest Successful Builds </h2>
+						
+						</div>
+					</div>
+				</div>
+			    </div>
+			</div>
+		    </section>
+		</tr>
+		<tr id="branch">
+		    <td style="width: 20%; text-align: center; padding-left: 0.5em; background-color: lightgrey; height: 45px; align: center;">
+			<span style="letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); ">Platform</span></td>
+		</tr>
+	    </table>
+
+	</div>
+	<div class="px-4 text-center">
+	    <div class="col-lg-6 mx-auto">
+		<p class="lead mt-4">
+
+		</p>
+		<p class="mt-4">
+		    <a href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds3 <br>
+		</p>
+
+		</p>
+	    </div>
+	</div>
+    </div>
+
+    <script>
+	$(document).ready(function () {
+	    $.getJSON("sonic_image_links.json", 
+		function(data) {
+		    dbs = data;
+		    branches = Object.keys(data);
+		    image_data = [];
+		    for (let i = branches.length - 1 ; i >= 0; i--) {
+			display_data = "<td style=\" text-align: center; padding-left: 0.5em; background-color: lightgrey; height: 45px; align: center;\"><span style=\"letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); \">" + branches[i].toUpperCase() +"</span></td>";
+			$("#branch").append(display_data);
+			images = Object.keys(data[branches[i]]);
+			for (let j = 0; j < images.length; j++) {
+			    image_name = images[j];
+			    image = data[branches[i]][images[j]];
+			    image_platform = image_name.split(".")[0];
+			    if(image_platform.length == 1){
+				platform = ""
+			    }else{
+				platform = image_platform.split("sonic-")[1];
+				if(platform.length == 1){
+				    platform = ""
+				}
+			    }
+			    image_avail = true;
+			    image_url = image['url'];
+			    if(image_url === 'null' || image_url === ""){
+				image_avail = false;
+			    }
+			    if ( !$("#"+platform).length ){
+				platform_column = "<tr id=\""+ platform +"\"><td style=\" text-align: center; \"><strong>"+ platform.toUpperCase()+"</strong></td></tr>";
+				$("#disp_table").append(platform_column);
+			    }
+			    if (image_avail)
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+image_name+"</a></span></td>";
+			    else
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
+
+			    $("#"+platform).append(image_column);
+			}
+		    }
+
+		});
+	});
+    </script>
+
+</body>
+</html>
