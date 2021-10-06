@@ -509,3 +509,58 @@ Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those
 |"/openconfig-system:system/dns/servers/server[address={}]/config"|y|
 |"/openconfig-system:system/dns/state"|n|
 |"/openconfig-system:system/dns/servers/server[address={}]/state"|n|
+
+# QoS OC-Paths for ONCHANGE and Wildcard
+
+QoS on change support has been provided for openconfig-qos.yang model by Dell.
+The following RedisDB config tables are monitored to provide the ON_CHANGE support for various QoS configuration.
+1. 	PORT:
+2.      PORT_QOS_MAP
+3.      SCHEDULER
+4.      QUEUE
+5.      PFC_WD
+6.      WRED_PROFILE
+7.      DSCP_TO_TC_MAP
+8.      DOT1P_TO_TC_MAP
+9.      TC_TO_QUEUE_MAP
+10.     TC_TO_PRIORITY_GROUP_MAP
+11.     MAP_PFC_PRIORITY_TO_QUEUE
+12.     TC_TO_DOT1P_MAP
+13.     TC_TO_DSCP_MAP
+
+Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those not-supporting ON_CHANGE. The supported path refers to the parent node and all child nodes under it will support on_change. All the children under a supported path will not be mentioned. User can be referred from the open-config-yang model tree for a complete list of children nodes. If a node is mentioned to not-support ON_CHANGE , all child node under it will also not support on_change.
+
+
+
+|     Paths                                                                        | ON_CHANGE Supported yes(y)/no(n)  |  
+| ---------------------------------------------------------------------------      | -------------|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/input"| n|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/output/config"| n|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/output/state"| n|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/output/queues"| n|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/output/scheduler-policy"| y|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/config"| y|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/state"| y|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/pfc-priorities"| y|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/watchdog"| y|
+|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/queue"| n |
+|"/openconfig-qos:interfaces/interface[interface-id=*]/oc-qos-maps-ext:interface-maps"| y |
+|"/openconfig-qos:forwarding-groups"| n |
+|"/openconfig-qos:queues/queue[name=*]/config"| n |
+|"/openconfig-qos:queues/queue[name=*]/state"| n |
+|"/openconfig-qos:queues/queue[name=*]/red"| n |
+|"/openconfig-qos:queues/queue[name=*]/wred"| y |
+|"/openconfig-qos:scheduler-policies/scheduler-policy[name=*]"| y |
+|"/openconfig-qos:pfc-watchdog"| n |
+|"/openconfig-qos:watermark"| n |
+|"/openconfig-qos:telemetry-watermark"| n |
+|"/openconfig-qos:thresholds"| n |
+|"/openconfig-qos:threshold-breaches"| n |
+|"/openconfig-qos:wred-profiles/wred-profile[name=*]"| y |
+|"/openconfig-qos:oc-qos-maps-ext:dscp-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:dot1p-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-queue-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-dscp-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-dot1p-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-priority-group-maps"| y |
+|"/openconfig-qos:oc-qos-maps-ext:pfc-priority-queue-maps"| y |
