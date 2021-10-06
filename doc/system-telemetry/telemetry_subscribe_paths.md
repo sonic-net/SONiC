@@ -510,7 +510,7 @@ Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those
 
 QoS on change support has been provided for openconfig-qos.yang model by Dell.
 The following RedisDB config tables are monitored to provide the ON_CHANGE support for various QoS configuration.
-1. 	PORT:
+1.      PORT
 2.      PORT_QOS_MAP
 3.      SCHEDULER
 4.      QUEUE
