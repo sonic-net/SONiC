@@ -84,16 +84,17 @@ TBD - Note: BFD session via Config_DB is not considered for first phase. A BFD m
 ## 2.2 APP DB
 
 ```
-BFD_SESSION:{{ifname}}:{{ipaddr}}
+BFD_SESSION:{{vrf}}:{{ifname}}:{{ipaddr}}
     "tx_interval": {{interval}} (OPTIONAL) 
     "rx_interval": {{interval}} (OPTIONAL)  
     "multiplier": {{detection multiplier}} (OPTIONAL) 
     "shutdown": {{false}} 
     "multihop": {{false}} 
-    "local_addr": {{ipv4/v6}} (OPTIONAL) 
+    "local_addr": {{ipv4/v6}}
     "type": {{string}} (active/passive..) 
 ; Defines APP DB schema to initiate BFD session.
 
+'vrf' is mandatory key and if not intended, provide name as 'default'
 'ifname' is mandatory key and if not intended by user (e.g: multihop session), provide the name as 'default'
 'ipaddr' is mandatory key and user must provide the specific ipaddr value (IPv4 or IPv6)
 
