@@ -144,9 +144,9 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     error                        = 1*255VCHAR                       ; module error (N/A or a string consisting of error descriptions joined by "|", like "error1 | error2" )
     module_state                 = 1*255VCHAR                       ; current module state (ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault)
     module_fault_cause           = 1*255VCHAR                       ; reason of entering the module fault state
-    datapath_firmware_fault      = 1*255VCHAR                       ; datapath (DSP) firmware fault
-    module_firmware_fault        = 1*255VCHAR                       ; module firmware fault
-    module_state_changed         = 1*255VCHAR                       ; module state changed
+    datapath_firmware_fault      = BOOLEAN                          ; datapath (DSP) firmware fault
+    module_firmware_fault        = BOOLEAN                          ; module firmware fault
+    module_state_changed         = BOOLEAN                          ; module state changed
     datapath_hostlane1           = 1*255VCHAR                       ; data path state indicator on host lane 1
     datapath_hostlane2           = 1*255VCHAR                       ; data path state indicator on host lane 2
     datapath_hostlane3           = 1*255VCHAR                       ; data path state indicator on host lane 3
@@ -155,13 +155,13 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     datapath_hostlane6           = 1*255VCHAR                       ; data path state indicator on host lane 6
     datapath_hostlane7           = 1*255VCHAR                       ; data path state indicator on host lane 7
     datapath_hostlane8           = 1*255VCHAR                       ; data path state indicator on host lane 8
-    txoutput_status              = 1*255VCHAR                       ; tx output status
-    rxoutput_status              = 1*255VCHAR                       ; rx output status
-    txfault                      = 1*255VCHAR                       ; tx fault flag
-    txlos                        = 1*255VCHAR                       ; tx loss of signal flag
-    txcdrlol                     = 1*255VCHAR                       ; tx clock and data recovery loss of lock
-    rxlos                        = 1*255VCHAR                       ; rx loss of signal flag
-    rxcdrlol                     = 1*255VCHAR                       ; rx clock and data recovery loss of lock
+    txoutput_status              = BOOLEAN                          ; tx output status
+    rxoutput_status              = BOOLEAN                          ; rx output status
+    txfault                      = BOOLEAN                          ; tx fault flag
+    txlos                        = BOOLEAN                          ; tx loss of signal flag
+    txcdrlol                     = BOOLEAN                          ; tx clock and data recovery loss of lock
+    rxlos                        = BOOLEAN                          ; rx loss of signal flag
+    rxcdrlol                     = BOOLEAN                          ; rx clock and data recovery loss of lock
     config_state_hostlane1       = 1*255VCHAR                       ; configuration status for the data path of host line 1
     config_state_hostlane2       = 1*255VCHAR                       ; configuration status for the data path of host line 2
     config_state_hostlane3       = 1*255VCHAR                       ; configuration status for the data path of host line 3
@@ -170,45 +170,45 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     config_state_hostlane6       = 1*255VCHAR                       ; configuration status for the data path of host line 6
     config_state_hostlane7       = 1*255VCHAR                       ; configuration status for the data path of host line 7
     config_state_hostlane8       = 1*255VCHAR                       ; configuration status for the data path of host line 8
-    dpinit_pending_hostlane1     = 1*255VCHAR                       ; data path configuration updated on host lane 1 
-    dpinit_pending_hostlane2     = 1*255VCHAR                       ; data path configuration updated on host lane 2
-    dpinit_pending_hostlane3     = 1*255VCHAR                       ; data path configuration updated on host lane 3
-    dpinit_pending_hostlane4     = 1*255VCHAR                       ; data path configuration updated on host lane 4
-    dpinit_pending_hostlane5     = 1*255VCHAR                       ; data path configuration updated on host lane 5
-    dpinit_pending_hostlane6     = 1*255VCHAR                       ; data path configuration updated on host lane 6
-    dpinit_pending_hostlane7     = 1*255VCHAR                       ; data path configuration updated on host lane 7
-    dpinit_pending_hostlane8     = 1*255VCHAR                       ; data path configuration updated on host lane 8
-    tuning_in_progress           = 1*255VCHAR                       ; tuning in progress status
-    wavelength_unlock_status     = 1*255VCHAR                       ; laser unlocked status
-    target_output_power_oor      = 1*255VCHAR                       ; target output power out of range flag
-    fine_tuning_oor              = 1*255VCHAR                       ; fine tuning  out of range flag
-    tuning_not_accepted          = 1*255VCHAR                       ; tuning not accepted flag
-    invalid_channel_num          = 1*255VCHAR                       ; invalid channel number flag
-    tuning_complete              = 1*255VCHAR                       ; tuning complete flag
-    temphighalarm                = 1*255VCHAR                       ; temperature high alarm threshold 
-    temphighwarning              = 1*255VCHAR                       ; temperature high warning threshold
-    templowalarm                 = 1*255VCHAR                       ; temperature low alarm threshold
-    templowwarning               = 1*255VCHAR                       ; temperature low warning threshold
-    vcchighalarm                 = 1*255VCHAR                       ; vcc high alarm threshold
-    vcchighwarning               = 1*255VCHAR                       ; vcc high warning threshold
-    vcclowalarm                  = 1*255VCHAR                       ; vcc low alarm threshold
-    vcclowwarning                = 1*255VCHAR                       ; vcc low warning threshold
-    txpowerhighalarm             = 1*255VCHAR                       ; tx power high alarm threshold
-    txpowerlowalarm              = 1*255VCHAR                       ; tx power low alarm threshold
-    txpowerhighwarning           = 1*255VCHAR                       ; tx power high warning threshold
-    txpowerlowwarning            = 1*255VCHAR                       ; tx power low alarm threshold
-    rxpowerhighalarm             = 1*255VCHAR                       ; rx power high alarm threshold
-    rxpowerlowalarm              = 1*255VCHAR                       ; rx power low alarm threshold
-    rxpowerhighwarning           = 1*255VCHAR                       ; rx power high warning threshold
-    rxpowerlowwarning            = 1*255VCHAR                       ; rx power low warning threshold
-    txbiashighalarm              = 1*255VCHAR                       ; tx bias high alarm threshold
-    txbiaslowalarm               = 1*255VCHAR                       ; tx bias low alarm threshold
-    txbiashighwarning            = 1*255VCHAR                       ; tx bias high warning threshold
-    txbiaslowwarning             = 1*255VCHAR                       ; tx bias low warning threshold
-    lasertemphighalarm           = 1*255VCHAR                       ; laser temperature high alarm threshold
-    lasertemplowalarm            = 1*255VCHAR                       ; laser temperature low alarm threshold
-    lasertemphighwarning         = 1*255VCHAR                       ; laser temperature high warning threshold
-    lasertemplowwarning          = 1*255VCHAR                       ; laser temperature low warning threshold
+    dpinit_pending_hostlane1     = BOOLEAN                          ; data path configuration updated on host lane 1 
+    dpinit_pending_hostlane2     = BOOLEAN                          ; data path configuration updated on host lane 2
+    dpinit_pending_hostlane3     = BOOLEAN                          ; data path configuration updated on host lane 3
+    dpinit_pending_hostlane4     = BOOLEAN                          ; data path configuration updated on host lane 4
+    dpinit_pending_hostlane5     = BOOLEAN                          ; data path configuration updated on host lane 5
+    dpinit_pending_hostlane6     = BOOLEAN                          ; data path configuration updated on host lane 6
+    dpinit_pending_hostlane7     = BOOLEAN                          ; data path configuration updated on host lane 7
+    dpinit_pending_hostlane8     = BOOLEAN                          ; data path configuration updated on host lane 8
+    tuning_in_progress           = BOOLEAN                          ; tuning in progress status
+    wavelength_unlock_status     = BOOLEAN                          ; laser unlocked status
+    target_output_power_oor      = BOOLEAN                          ; target output power out of range flag
+    fine_tuning_oor              = BOOLEAN                          ; fine tuning  out of range flag
+    tuning_not_accepted          = BOOLEAN                          ; tuning not accepted flag
+    invalid_channel_num          = BOOLEAN                          ; invalid channel number flag
+    tuning_complete              = BOOLEAN                          ; tuning complete flag
+    temphighalarm                = BOOLEAN                          ; temperature high alarm threshold 
+    temphighwarning              = BOOLEAN                          ; temperature high warning threshold
+    templowalarm                 = BOOLEAN                          ; temperature low alarm threshold
+    templowwarning               = BOOLEAN                          ; temperature low warning threshold
+    vcchighalarm                 = BOOLEAN                          ; vcc high alarm threshold
+    vcchighwarning               = BOOLEAN                          ; vcc high warning threshold
+    vcclowalarm                  = BOOLEAN                          ; vcc low alarm threshold
+    vcclowwarning                = BOOLEAN                          ; vcc low warning threshold
+    txpowerhighalarm             = BOOLEAN                          ; tx power high alarm threshold
+    txpowerlowalarm              = BOOLEAN                          ; tx power low alarm threshold
+    txpowerhighwarning           = BOOLEAN                          ; tx power high warning threshold
+    txpowerlowwarning            = BOOLEAN                          ; tx power low alarm threshold
+    rxpowerhighalarm             = BOOLEAN                          ; rx power high alarm threshold
+    rxpowerlowalarm              = BOOLEAN                          ; rx power low alarm threshold
+    rxpowerhighwarning           = BOOLEAN                          ; rx power high warning threshold
+    rxpowerlowwarning            = BOOLEAN                          ; rx power low warning threshold
+    txbiashighalarm              = BOOLEAN                          ; tx bias high alarm threshold
+    txbiaslowalarm               = BOOLEAN                          ; tx bias low alarm threshold
+    txbiashighwarning            = BOOLEAN                          ; tx bias high warning threshold
+    txbiaslowwarning             = BOOLEAN                          ; tx bias low warning threshold
+    lasertemphighalarm           = BOOLEAN                          ; laser temperature high alarm threshold
+    lasertemplowalarm            = BOOLEAN                         ; laser temperature low alarm threshold
+    lasertemphighwarning         = BOOLEAN                          ; laser temperature high warning threshold
+    lasertemplowwarning          = BOOLEAN                          ; laser temperature low warning threshold
     
 ##### 2.1.4 Transceiver PM Table #####
 
@@ -257,24 +257,24 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
 ##### 2.1.5 Transceiver Loopback Table #####
 
     ; Defines Transceiver loopback information for a port
-    media_output_loopback        = FLOAT                            ; media side output loopback enable
-    media_input_loopback         = FLOAT                            ; media side input loopback enable
-    host_output_loopback_lane1   = FLOAT                            ; host side output loopback enable lane1
-    host_output_loopback_lane2   = FLOAT                            ; host side output loopback enable lane2
-    host_output_loopback_lane3   = FLOAT                            ; host side output loopback enable lane3
-    host_output_loopback_lane4   = FLOAT                            ; host side output loopback enable lane4
-    host_output_loopback_lane5   = FLOAT                            ; host side output loopback enable lane5
-    host_output_loopback_lane6   = FLOAT                            ; host side output loopback enable lane6
-    host_output_loopback_lane7   = FLOAT                            ; host side output loopback enable lane7
-    host_output_loopback_lane8   = FLOAT                            ; host side output loopback enable lane8
-    host_intput_loopback_lane1   = FLOAT                            ; host side intput loopback enable lane1
-    host_intput_loopback_lane2   = FLOAT                            ; host side intput loopback enable lane2
-    host_intput_loopback_lane3   = FLOAT                            ; host side intput loopback enable lane3
-    host_intput_loopback_lane4   = FLOAT                            ; host side intput loopback enable lane4
-    host_intput_loopback_lane5   = FLOAT                            ; host side intput loopback enable lane5
-    host_intput_loopback_lane6   = FLOAT                            ; host side intput loopback enable lane6
-    host_intput_loopback_lane7   = FLOAT                            ; host side intput loopback enable lane7
-    host_intput_loopback_lane8   = FLOAT                            ; host side intput loopback enable lane8
+    media_output_loopback        = BOOLEAN                          ; media side output loopback enable
+    media_input_loopback         = BOOLEAN                          ; media side input loopback enable
+    host_output_loopback_lane1   = BOOLEAN                          ; host side output loopback enable lane1
+    host_output_loopback_lane2   = BOOLEAN                          ; host side output loopback enable lane2
+    host_output_loopback_lane3   = BOOLEAN                          ; host side output loopback enable lane3
+    host_output_loopback_lane4   = BOOLEAN                          ; host side output loopback enable lane4
+    host_output_loopback_lane5   = BOOLEAN                          ; host side output loopback enable lane5
+    host_output_loopback_lane6   = BOOLEAN                          ; host side output loopback enable lane6
+    host_output_loopback_lane7   = BOOLEAN                          ; host side output loopback enable lane7
+    host_output_loopback_lane8   = BOOLEAN                          ; host side output loopback enable lane8
+    host_intput_loopback_lane1   = BOOLEAN                          ; host side intput loopback enable lane1
+    host_intput_loopback_lane2   = BOOLEAN                          ; host side intput loopback enable lane2
+    host_intput_loopback_lane3   = BOOLEAN                          ; host side intput loopback enable lane3
+    host_intput_loopback_lane4   = BOOLEAN                          ; host side intput loopback enable lane4
+    host_intput_loopback_lane5   = BOOLEAN                          ; host side intput loopback enable lane5
+    host_intput_loopback_lane6   = BOOLEAN                          ; host side intput loopback enable lane6
+    host_intput_loopback_lane7   = BOOLEAN                          ; host side intput loopback enable lane7
+    host_intput_loopback_lane8   = BOOLEAN                          ; host side intput loopback enable lane8
 
 
 #### 2.2 Show interfaces transceiver CLI
@@ -392,16 +392,16 @@ This command displays information for all the interfaces for the transceiver req
   Configuration State Host Lane 6: Config Success
   Configuration State Host Lane 7: Config Success
   Configuration State Host Lane 8: Config Success
-  Datapath Init Pending Host Lane 1: DPInit not pending
-  Datapath Init Pending Host Lane 2: DPInit not pending
-  Datapath Init Pending Host Lane 3: DPInit not pending
-  Datapath Init Pending Host Lane 4: DPInit not pending
-  Datapath Init Pending Host Lane 5: DPInit not pending
-  Datapath Init Pending Host Lane 6: DPInit not pending
-  Datapath Init Pending Host Lane 7: DPInit not pending
-  Datapath Init Pending Host Lane 8: DPInit not pending
-  Tuning In Progress: Tuning Not In Progress
-  Wavelegnth Unlock Status : Wavelength Locked
+  Datapath Init Pending Host Lane 1: False
+  Datapath Init Pending Host Lane 2: False
+  Datapath Init Pending Host Lane 3: False
+  Datapath Init Pending Host Lane 4: False
+  Datapath Init Pending Host Lane 5: False
+  Datapath Init Pending Host Lane 6: False
+  Datapath Init Pending Host Lane 7: False
+  Datapath Init Pending Host Lane 8: False
+  Tuning In Progress: False
+  Wavelegnth Unlock Status : False
   Target Output Power Out Of Range : False
   Fine Tuning Out Of Range : False
   Tuning Not Accepted : False
