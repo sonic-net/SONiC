@@ -1,14 +1,12 @@
 # Overlay ECMP with BFD monitoring
 ## High Level Design Document
-### Rev 1.0
+### Rev 1.1
 
 # Table of Contents
 
   * [Revision](#revision)
 
   * [About this Manual](#about-this-manual)
-
-  * [Scope](#scope)
 
   * [Definitions/Abbreviation](#definitionsabbreviation)
  
@@ -27,15 +25,16 @@
     * [2.7 CLI](#27-cli)
 
 ###### Revision
+
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2021  |     Prince Sunny   | Initial version                   |
 | 1.0 | 09/13/2021  |     Prince Sunny   | Revised                           |
+| 1.1 | 10/08/2021  |     Prince Sunny   | BFD section seperated             |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
-# Scope
-This document describes the high level design of the Overlay ECMP feature and associated BFD support. General BFD support and configurations are beyond the scope of this document. 
+
 
 # Definitions/Abbreviation
 ###### Table 1: Abbreviations
@@ -46,11 +45,21 @@ This document describes the high level design of the Overlay ECMP feature and as
 | VTEP                     | Vxlan Tunnel End Point         |
 | VNet                     | Virtual Network                |
 
+
 # 1 Requirements Overview
 
 ## 1.1 Usecase
 
+Below diagram captures the use-case. In this, ToR is a Tier0 device and Leaf is a Tier1 device. Vxlan tunnel is established from Leaf (Tier1) to a VTEP endpoint. ToR (Tier0), Spine (Tier3) are transit devices. 
+
+
 ![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_UseCase.png)
+
+### Packet flow
+
+- The packets destined to the Tunnel Enpoint shall be Vxlan encapsulated by the Leaf (Tier1).
+- Return packet from the Tunnel Endpoint (LBs) back to Leaf may or may not be Vxlan encapsualted.
+- Some flows e.g. BFD over Vxlan shall require decapsulating Vxlan packets at Leaf. 
 
 ## 1.2 Functional requirements
 
@@ -61,8 +70,8 @@ At a high level the following should be supported:
 - Add/Withdraw Nexthop based on Tunnel or Endpoint health
 
 ## 1.3 CLI requirements
-- User should be able to show the BFD session
 - User should be able to show the Vnet routes
+- This is an enhancement to existing show command
 
 ## 1.4 Warm Restart requirements
 No special handling for Warm restart support.
@@ -129,20 +138,6 @@ PROFILE                  = STRING                    ; profile name to be applie
                                                        string etc (Optional) 
 ```
 
-### BFD
-
-```
-BFD_SESSION:{{ifname}}:{{prefix}}  
-    "tx_interval": {{interval}} (OPTIONAL) 
-    "rx_interval": {{interval}} (OPTIONAL)  
-    "multiplier": {{detection multiplier}} (OPTIONAL) 
-    "shutdown": {{false}} 
-    "multihop": {{false}} 
-    "local_addr": {{ipv4/v6}} (OPTIONAL) 
-    "type": {{string}} (active/passive..) 
-; Defines APP DB schema to initiate BFD session.
-```
-
 ## 2.3 Module Interaction
 
 Overlay routes can be programmed via RestAPI or gNMI/gRPC interface which is not described in this document. A highlevel module interaction is shown below
@@ -188,33 +183,14 @@ VNET_ROUTE_TUNNEL_TABLE can provide monitoring endpoint IPs which can be differe
 - Similar to NHFLAGS handling for existing route ECMP group 
 - Better performance in re-programming routes in ASIC instead of separate process to monitor and modify each route prefix by updating DB entries 
 
-### BfdOrch
-Sonic shall offload the BFD session handling to hardware that has BFD capabilities.  A new module, BfdOrch shall be introduced to handle BFD session to monitoring endpoints and check the health of remote endpoints. BfdOrch shall offload the session initiation/sustenance to hardware via SAI APIs and gets the notifications of session state from SAI. The session state shall be updated in STATE_DB and to any other observer orchestration agents.  
+### Bfd HW offload
 
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_BFD.png)
+This design requires endpoint health monitoring by setting BFD sessions via HW offload. Details of BFD orchagent and HW offloading is captured in this [document](https://github.com/Azure/SONiC/blob/master/doc/bfd/BFD%20HW%20Offload%20HLD.md)
 
-For offloading, the following shall be the SAI attributes programmed by BfdOrch.  
-
-|  Attribute Type          |  Value                         |
-|--------------------------|--------------------------------|
-| SAI_BFD_SESSION_ATTR_TYPE | SAI_BFD_SESSION_TYPE_ASYNC_ACTIVE  |
-| SAI_BFD_SESSION_ATTR_OFFLOAD_TYPE | SAI_BFD_SESSION_OFFLOAD_TYPE_FULL |
-| SAI_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE | SAI_BFD_ENCAPSULATION_TYPE_NONE |
-| SAI_BFD_SESSION_ATTR_SRC_IP_ADDRESS | Loopback0 IPv4 or v6 address |
-| SAI_BFD_SESSION_ATTR_DST_IP_ADDRESS | Remote IPv4 or v6 address |
-| SAI_BFD_SESSION_ATTR_MULTIHOP | True |
-
-Sai shall notify via notification channel on the session state as one of sai_bfd_session_state_t. BfdOrch can listen on these notifications and update the StateDB for the session state.
-
-The flow of BfdOrch is presented in the following figure. BfdOrch subscribes to the BFD_SESSION_TABLE of APPL_DB and send the corresponding request to program the BFD sessions to syncd accordingly. The BfdOrch also creates the STATE_DB entry of the BFD session which includes the BFD parameters and an initial state. Upon receiving bfd session state change notifications from syncd, BfdOrch update the STATE_DB field to update the BFD session state. 
-
-![](https://github.com/Azure/SONiC/blob/master/images/vxlan_hld/OverlayEcmp_BFD_Notification.png)
-
-A Control Plane BFD approach is to use FRR BFD and enable bfdctl module. This shall be part of the Sonic BGP container. For the current usecase, the BFD hw offload is being considered and control plane BFD using FRR is not scoped in this document.
 
 ## 2.5 Monitoring and Health
 
-The routes are programmed based on the health of tunnel endpoints. It is possible that a tunnel endpoint health is monitored via another dedicated “monitoring” endpoint. It is required to have a “keep-alive” mechanism to monitor the health of end point and withdraw or reinstall the route when the endpoint is inactive or active respectively.
+The routes are programmed based on the health of tunnel endpoints. It is possible that a tunnel endpoint health is monitored via another dedicated “monitoring” endpoint. Implementation shall enforce a “keep-alive” mechanism to monitor the health of end point and withdraw or reinstall the route when the endpoint is inactive or active respectively.
 When an endpoint is deemed unhealthy, router shall perform the following actions:
 1.	Remove the nexthop from the ECMP path. If all endpoints are down, the route shall be withdrawn.
 2.	If 50% of the nexthops are down, an alert shall be generated.
@@ -242,7 +218,6 @@ The following commands shall be modified/added :
 ```
 	- show vnet routes all
 	- show vnet routes tunnel
-	- show bfd session <session name>
 ```
 
-Config commands for VNET, VNET Routes and BFD session is not considered in this design. This shall be added later based on requirement. It is taken into consideration of future BFD enhancement to have the sessions created via config_db. 
+Config commands for VNET, VNET Routes and BFD session is not considered in this design. This shall be added later based on requirement. 
