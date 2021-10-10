@@ -357,8 +357,11 @@ The table named PASSW_CONF_TABLE in CONF_DB will hold the follow key-values:
 passw_hardening_enable=True/False   # enable/disable the feature
 passwd_class=lower/lower-upper/lower-upper-digit/lower-upper-digit-special
 passwd_expiration=N
+passwd_expiration/user=N
 passwd_expiration_warining=N
+passwd_expiration_warining/user=N
 passwd_history=N
+passwd_history/user=N
 len_max=N
 len_min=N
 debug=True/False
