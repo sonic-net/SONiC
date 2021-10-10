@@ -1,6 +1,8 @@
 # PW Hardening Design #
 
 ##  1. <a name='TableofContent'></a>Table of Content 
+
+<!-- vscode-markdown-toc -->
 * 1. [Table of Content](#TableofContent)
 	* 1.1. [Revision](#Revision)
 	* 1.2. [Scope](#Scope)
@@ -11,15 +13,16 @@
 	* 1.7. [High-Level Design](#High-LevelDesign)
 		* 1.7.1. [Flow description:](#Flowdescription:)
 		* 1.7.2. [Password Hardening Constrains](#PasswordHardeningConstrains)
-	* 1.8. [SAI API](#SAIAPI)
-	* 1.9. [Configuration and management](#Configurationandmanagement)
-		* 1.9.1. [CLI/YANG model Enhancements](#CLIYANGmodelEnhancements)
-		* 1.9.2. [Config DB Enhancements](#ConfigDBEnhancements)
-		* 1.9.3. [Secure Password Table Schema](#SecurePasswordTableSchema)
-	* 1.10. [3rd Party Components](#rdPartyComponents)
-		* 1.10.1. [pam-cracklib](#pam-cracklib)
-		* 1.10.2. [PW Age](#PWAge)
-		* 1.10.3. [PW History](#PWHistory)
+	* 1.8. [Init Flow](#InitFlow)
+		* 1.8.1. [Compilation](#Compilation)
+		* 1.8.2. [dependencies](#dependencies)
+		* 1.8.3. [Feature default](#Featuredefault)
+		* 1.8.4. [How daemon work internally:](#Howdaemonworkinternally:)
+	* 1.9. [SAI API](#SAIAPI)
+	* 1.10. [Configuration and management](#Configurationandmanagement)
+		* 1.10.1. [CLI/YANG model Enhancements](#CLIYANGmodelEnhancements)
+		* 1.10.2. [Config DB Enhancements](#ConfigDBEnhancements)
+		* 1.10.3. [Secure Password Table Schema](#SecurePasswordTableSchema)
 	* 1.11. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
 	* 1.12. [Restrictions/Limitations](#RestrictionsLimitations)
 	* 1.13. [Test Plan](#TestPlan)
@@ -31,6 +34,17 @@
 		* 1.13.6. [Negative cases](#Negativecases)
 		* 1.13.7. [Case 1: check basic configuration – bad flow with invalid input](#Case1:checkbasicconfigurationbadflowwithinvalidinput)
 		* 1.13.8. [Test Open Issues](#TestOpenIssues)
+	* 1.14. [3rd Party Components](#rdPartyComponents)
+		* 1.14.1. [pam-cracklib](#pam-cracklib)
+		* 1.14.2. [PW Age](#PWAge)
+		* 1.14.3. [PW History](#PWHistory)
+
+<!-- vscode-markdown-toc-config
+	numbering=true
+	autoSave=true
+	/vscode-markdown-toc-config -->
+<!-- /vscode-markdown-toc -->
+
 
 
 ###  1.1. <a name='Revision'></a>Revision  
@@ -68,7 +82,7 @@ Arc design diagram\
 
 	User password as explained before is the first line defence, in order to support it according the requirement section and user preferences, the secure password feature need a strengh-checking for password.
 			
-	The feature will use 3 linux libs: pam-cracklib, chage and pam_pwhistory.so
+	The feature will use 2 linux libs: pam-cracklib, chage and pam_pwhistory.so
 
 	pam-cracklib: This module can be plugged into the password stack of a given application to provide some plug-in strength-checking for passwords.
 
@@ -77,7 +91,7 @@ Arc design diagram\
 
 	chage: support the requirement of PW Aging, change user password expiry information
 
-	pam_pwhistory - PAM module to remember last passwords
+	pam_pwhistory - PAM module to remember last passwords (seen that Debian already supported it without installing this package)
 
 	Note:
 	See linux 3d party component chapter for more description
@@ -128,6 +142,7 @@ Arc design diagram\
 	To request at least one character of every class, the PASSWD daemon will set:
 	pam-cracklib options: lcredit=-1, ucredit=-1, dcredit=-1.
 	(meaning that the user need at least one character of the types.)
+	See explanation of cracklib options in 3rd Party component chapter.
 
 ##### PW Length
 	PW length is a base requirement for the PW.
@@ -181,19 +196,42 @@ Aging(expire) implementation :
 ##### PW Saving
 	Saved previous passwords in the DB,  for enable this. is necessary to set how many old password you would like to save.
 
-	Implementation: will be support by using pam_pwhistory.so, remmember=N option.
+	Implementation: will be support by using pam_pwhistory.so, remember=N option.
+	Seen that in Debian its not necessary to install this package. Its enough to add the remember=N option to the common-password file.
 	
 	Note:
 	For saving password with sha512, need to modify the /etc/pam.d/system-auth-a file to contain this line:
 
 		password    sufficient    pam_unix.so sha512 shadow use_authtok
 
-###  1.8. <a name='SAIAPI'></a>SAI API 
+###  1.8. <a name='InitFlow'></a>Init Flow
+####  1.8.1. <a name='Compilation'></a>Compilation
+	This feature will be disable by default in compilation stage, its meaning that it will be not compile, just in case the user will change the makefile setting to enable, this feature will be compile.
+
+	In addition, the feature will have CLI as "plugin", meaning that when the feature is not compile even the feature CLI will be not appear in the CLI of the switch, and vice versa, when the feature will be compile the feature CLI plugin will be added to the general switch CLI.
+
+####  1.8.2. <a name='dependencies'></a>dependencies
+	service dependencies: SWSS & DB containers.
+	Description:
+	Password Hardening Daemon, the service that trigger this daemon, should start after SWSS & DB containers start.
+
+####  1.8.3. <a name='Featuredefault'></a>Feature default
+	Even when user will decide to add the feature in compilation the feature will be disable by default.
+
+	The feature in general can be enable when changing the CONF_DB of the feature table to passw_hardening_enable=True/False. 
+
+####  1.8.4. <a name='Howdaemonworkinternally:'></a>How daemon work internally:
+	In case the user decided to compile the feature. The password hardening daemon will be started and running always, but it will do nothing, meaning the process will be in sleep mode, until the passw_hardening_enable field in the Redis DB will be changed to enable, then the service will be awake, and will be possible to use.
+
+	Note:
+	This approach can support reset of the system, because the daemon automatly can verify if he should be awake or not.
+
+###  1.9. <a name='SAIAPI'></a>SAI API 
 	no changed.
 
-###  1.9. <a name='Configurationandmanagement'></a>Configuration and management
+###  1.10. <a name='Configurationandmanagement'></a>Configuration and management
 
-####  1.9.1. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
+####  1.10.1. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 
 ##### PW enable 
 
@@ -272,13 +310,13 @@ Once the user changed the minimum password length - the settings will be applied
 ##### CLI permissions
 	The CLI commands should be allowed only to the admin user. Other users should be able to view the parameters but not change them.
 
-####  1.9.2. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
+####  1.10.2. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
 	This DB will include a new table "PASSW_CONF_TABLE" (Secure Password Table)
-####  1.9.3. <a name='SecurePasswordTableSchema'></a>Secure Password Table Schema
+####  1.10.3. <a name='SecurePasswordTableSchema'></a>Secure Password Table Schema
 The table named PASSW_CONF_TABLE in CONF_DB will hold the follow key-values:
 
 ```
-secure_enable=True/False
+passw_hardening_enable=True/False   # enable/disable the feature
 passwd_class=lower/lower-upper/lower-upper-digit/lower-upper-digit-special
 passwd_expiration=N
 passwd_expiration_warining=N
@@ -289,7 +327,7 @@ debug=True/False
 retry=N
 difok=N
 minlen=N
-dcredit=N
+dcredit=N  
 ucredit=N
 lcredit=N
 ocredit=N
@@ -301,196 +339,13 @@ dictpath=<path to cracklib dict>
 ```
 
 Notes:
-
-	Similar option will be saved in PASSW_CONF_TABLE in APPL_CONF.\
+*   More descriptions of the field can be found in 3rd Party Chaper
+* 	Similar option will be saved in PASSW_CONF_TABLE in APPL_CONF.\
 	the main difference is that other applications read from APPL_DB, and not from CONF_DB according Sonic arq. In addition, CONF_DB contain values requested by user, when APPL_DB contain the result values, meaning that if some option fail to set in the linux module the APPL_CONF will have the founded state of the option.
 
-###  1.10. <a name='rdPartyComponents'></a>3rd Party Components
-In this section you can find most of the options of pam-cracklib, chage and pwhistory, we are going to use just the options mention in the Arc chapter, the other option maybe could be use for future features
+*	values like password_expiration, need to be wrote in the DB 		under username, ie: username1/passwd_expiration
+	because different users can have different remain of expiration time.
 
-####  1.10.1. <a name='pam-cracklib'></a>pam-cracklib
-
-Options:
-
-##### debug
-	This option makes the module write information to syslog(3) indicating the behavior of the module (this option does not write password information to the log file).
-##### authtok_type=XXX
-	The default action is for the module to use the following prompts when requesting passwords: "New UNIX password: " and "Retype UNIX password: ". The example word UNIX can be replaced with this option, by default it is empty.
-##### retry=N
-	Prompt user at most N times before returning with error. The default is 1.
-	difok=N
-	This argument will change the default of 5 for the number of character changes in the new password that differentiate it from the old password.
-##### minlen=N
-	The minimum acceptable size for the new password (plus one if credits are not disabled which is the default). In addition to the number of characters in the new password, credit (of +1 in length) is given for each different kind of character (other, upper, lower and digit). The default for this parameter is 9 which is good for a old style UNIX password all of the same type of character but may be too low to exploit the added security of a md5 system. Note that there is a pair of length limits in Cracklib itself, a "way too short" limit of 4 which is hard coded in and a defined limit (6) that will be checked without reference to minlen. If you want to allow passwords as short as 5 characters you should not use this module.
-##### dcredit=N
-	(N >= 0) This is the maximum credit for having digits in the new password. If you have less than or N digits, each digit will count +1 towards meeting the current minlen value. The default for dcredit is 1 which is the recommended value for minlen less than 10.
-	(N < 0) This is the minimum number of digits that must be met for a new password.
-
-##### ucredit=N
-	(N >= 0) This is the maximum credit for having upper case letters in the new password. If you have less than or N upper case letters each letter will count +1 towards meeting the current minlen value. The default for ucredit is 1 which is the recommended value for minlen less than 10.
-	(N < 0) This is the minimum number of upper case letters that must be met for a new password.
-
-##### lcredit=N
-	(N >= 0) This is the maximum credit for having lower case letters in the new password. If you have less than or N lower case letters, each letter will count +1 towards meeting the current minlen value. The default for lcredit is 1 which is the recommended value for minlen less than 10.
-	(N < 0) This is the minimum number of lower case letters that must be met for a new password.
-
-##### ocredit=N
-	(N >= 0) This is the maximum credit for having other characters in the new password. If you have less than or N other characters, each character will count +1 towards meeting the current minlen value. The default for ocredit is 1 which is the recommended value for minlen less than 10.
-	(N < 0) This is the minimum number of other characters that must be met for a new password.
-
-##### minclass=N
-	The minimum number of required classes of characters for the new password. The default number is zero. The four classes are digits, upper and lower letters and other characters. The difference to the credit check is that a specific class if of characters is not required. Instead N out of four of the classes are required.
-	maxrepeat=N
-	Reject passwords which contain more than N same consecutive characters. The default is 0 which means that this check is disabled.
-##### maxsequence=N
-	Reject passwords which contain monotonic character sequences longer than N. The default is 0 which means that this check is disabled. Examples of such sequence are '12345' or 'fedcb'. Note that most such passwords will not pass the simplicity check unless the sequence is only a minor part of the password.
-##### maxclassrepeat=N
-	Reject passwords which contain more than N consecutive characters of the same class. The default is 0 which means that this check is disabled.
-	reject_username
-	Check whether the name of the user in straight or reversed form is contained in the new password. If it is found the new password is rejected.
-##### gecoscheck
-	Check whether the words from the GECOS field (usually full name of the user) longer than 3 characters in straight or reversed form are contained in the new password. If any such word is found the new password is rejected.
-##### enforce_for_root
-	The module will return error on failed check also if the user changing the password is root. This option is off by default which means that just the message about the failed check is printed but root can change the password anyway.
-##### use_authtok
-	This argument is used to force the module to not prompt the user for a new password but use the one provided by the previously stacked password module.
-##### dictpath=/path/to/dict
-	Path to the cracklib dictionaries.
-	Module Types Provided
-	Only the password module type is provided.
-
-##### Return Values
-###### PAM_SUCCESS
-	The new password passes all checks.
-###### PAM_AUTHTOK_ERR
-	No new password was entered, the username could not be determined or the new password fails the strength checks.
-###### PAM_AUTHTOK_RECOVERY_ERR
-	The old password was not supplied by a previous stacked module or got not requested from the user. The first error can happen if use_authtok is specified.
-###### PAM_SERVICE_ERR
-	A internal error occurred.
-
-####  1.10.2. <a name='PWAge'></a>PW Age
-
-![chage options](chage.JPG)
-
-The options which apply to the chage command are:
-
-	-d, --lastday LAST_DAY
-
-	Set the number of days since January 1st, 1970 when the password was last changed. The date may also be expressed in the format YYYY-MM-DD (or the format more commonly used in your area).
-
-	-E, --expiredate EXPIRE_DATE
-
-	Set the date or number of days since January 1, 1970 on which the users account will no longer be accessible. The date may also be expressed in the format YYYY-MM-DD (or the format more commonly used in your area). A user whose account is locked must contact the system administrator before being able to use the system again.
-
-	Passing the number -1 as the EXPIRE_DATE will remove an account expiration date.
-
-	-h, --help
-
-	Display help message and exit.
-
-	-i, --iso8601
-
-	When printing dates, use YYYY-MM-DD format.
-
-	-I, --inactive INACTIVE
-
-	Set the number of days of inactivity after a password has expired before the account is locked. The INACTIVE option is the number of days of inactivity. A user whose account is locked must contact the system administrator before being able to use the system again.
-
-	Passing the number -1 as the INACTIVE will remove an accounts inactivity.
-
-	-l, --list
-
-	Show account aging information.
-
-	-m, --mindays MIN_DAYS
-
-	Set the minimum number of days between password changes to MIN_DAYS. A value of zero for this field indicates that the user may change their password at any time.
-
-	-M, --maxdays MAX_DAYS
-
-	Set the maximum number of days during which a password is valid. When MAX_DAYS plus LAST_DAY is less than the current day, the user will be required to change their password before being able to use their account. This occurrence can be planned for in advance by use of the -W option, which provides the user with advance warning.
-
-	Passing the number -1 as MAX_DAYS will remove checking a passwords validity.
-
-	-R, --root CHROOT_DIR
-
-	Apply changes in the CHROOT_DIR directory and use the configuration files from the CHROOT_DIR directory.
-
-	-W, --warndays WARN_DAYS
-
-	Set the number of days of warning before a password change is required. The WARN_DAYS option is the number of days prior to the password expiring that a user will be warned their password is about to expire.
-
-	If none of the options are selected, chage operates in an interactive fashion, prompting the user with the current values for all of the fields. Enter the new value to change the field, or leave the line blank to use the current value. The current value is displayed between a pair of [ ] marks.
-
-Notes: If we want to do "age" configuration globally and not per user, it necessary to modify this file:  /etc/login.defs, example:
-	
-	PASS_MAX_DAYS 90
-	PASS_WARN_AGE 7
-
-####  1.10.3. <a name='PWHistory'></a>PW History
-pam_pwhistory: PAM module to remember last passwords
-
-##### DESCRIPTION
-
-	This module saves the last passwords for each user in order to force password change history and keep the user from alternating between the same password too frequently.
-
-	This module does not work together with kerberos. In general, it does not make much sense to use this module in conjunction with NIS or LDAP, since the old passwords are stored on the local machine and are not available on another machine for password history checking.
-
-OPTIONS
-
-##### debug
-
-	Turns on debugging via syslog(3).
-	use_authtok
-
-	When password changing enforce the module to use the new password provided by a previously stacked password module (this is used in the example of the stacking of the pam_cracklib module documented below).
-##### enforce_for_root
-	If this option is set, the check is enforced for root, too.
-##### 	remember=N
-
-	The last N passwords for each user are saved in /etc/security/opasswd. The default is 10. Value of 0 makes the module to keep the existing contents of the opasswd file unchanged.
-##### retry=N
-
-	Prompt user at most N times before returning with error. The default is 1.
-	authtok_type=STRING
-
-	See pam_get_authtok(3) for more details.
-	MODULE TYPES PROVIDED
-	Only the password module type is provided.
-
-##### RETURN VALUES
-	PAM_AUTHTOK_ERR
-
-	No new password was entered, the user aborted password change or new password couldn't be set.
-	PAM_IGNORE
-
-	Password history was disabled.
-	PAM_MAXTRIES
-
-	Password was rejected too often.
-	PAM_USER_UNKNOWN
-
-	User is not known to system.
-##### EXAMPLES
-	An example password section would be:
-
-	#%PAM-1.0
-	password     required       pam_pwhistory.so
-	password     required       pam_unix.so        use_authtok
-		
-	In combination with pam_cracklib:
-
-	#%PAM-1.0
-	password     required       pam_cracklib.so    retry=3
-	password     required       pam_pwhistory.so   use_authtok
-	password     required       pam_unix.so        use_authtok
-		
-
-##### FILES
-	/etc/security/opasswd
-
-	File with password history
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
 	Not relevant.
 
@@ -673,4 +528,190 @@ Note:
 Is this feature support when user uses multiple sessions in same time, i.e:
 	Try to set a new password from 2 different sessions at the same time (for the same user).  – do we have a lock mechanism? What do we expect to happen?
 
+
+###  1.14. <a name='rdPartyComponents'></a>3rd Party Components
+In this section you can find most of the options of pam-cracklib, chage and pwhistory, we are going to use just the options mention in the Arc chapter, the other option maybe could be use for future features
+
+####  1.14.1. <a name='pam-cracklib'></a>pam-cracklib
+
+Options:
+
+##### debug
+	This option makes the module write information to syslog(3) indicating the behavior of the module (this option does not write password information to the log file).
+##### authtok_type=XXX
+	The default action is for the module to use the following prompts when requesting passwords: "New UNIX password: " and "Retype UNIX password: ". The example word UNIX can be replaced with this option, by default it is empty.
+##### retry=N
+	Prompt user at most N times before returning with error. The default is 1.
+##### difok=N
+	This argument will change the default of 5 for the number of character changes in the new password that differentiate it from the old password.
+##### minlen=N
+	The minimum acceptable size for the new password (plus one if credits are not disabled which is the default). In addition to the number of characters in the new password, credit (of +1 in length) is given for each different kind of character (other, upper, lower and digit). The default for this parameter is 9 which is good for a old style UNIX password all of the same type of character but may be too low to exploit the added security of a md5 system. Note that there is a pair of length limits in Cracklib itself, a "way too short" limit of 4 which is hard coded in and a defined limit (6) that will be checked without reference to minlen. If you want to allow passwords as short as 5 characters you should not use this module.
+##### dcredit=N
+	(N >= 0) This is the maximum credit for having digits in the new password. If you have less than or N digits, each digit will count +1 towards meeting the current minlen value. The default for dcredit is 1 which is the recommended value for minlen less than 10.
+	(N < 0) This is the minimum number of digits that must be met for a new password.
+
+##### ucredit=N
+	(N >= 0) This is the maximum credit for having upper case letters in the new password. If you have less than or N upper case letters each letter will count +1 towards meeting the current minlen value. The default for ucredit is 1 which is the recommended value for minlen less than 10.
+	(N < 0) This is the minimum number of upper case letters that must be met for a new password.
+
+##### lcredit=N
+	(N >= 0) This is the maximum credit for having lower case letters in the new password. If you have less than or N lower case letters, each letter will count +1 towards meeting the current minlen value. The default for lcredit is 1 which is the recommended value for minlen less than 10.
+	(N < 0) This is the minimum number of lower case letters that must be met for a new password.
+
+##### ocredit=N
+	(N >= 0) This is the maximum credit for having other characters in the new password. If you have less than or N other characters, each character will count +1 towards meeting the current minlen value. The default for ocredit is 1 which is the recommended value for minlen less than 10.
+	(N < 0) This is the minimum number of other characters that must be met for a new password.
+
+##### minclass=N
+	The minimum number of required classes of characters for the new password. The default number is zero. The four classes are digits, upper and lower letters and other characters. The difference to the credit check is that a specific class if of characters is not required. Instead N out of four of the classes are required.
+	maxrepeat=N
+	Reject passwords which contain more than N same consecutive characters. The default is 0 which means that this check is disabled.
+##### maxsequence=N
+	Reject passwords which contain monotonic character sequences longer than N. The default is 0 which means that this check is disabled. Examples of such sequence are '12345' or 'fedcb'. Note that most such passwords will not pass the simplicity check unless the sequence is only a minor part of the password.
+##### maxclassrepeat=N
+	Reject passwords which contain more than N consecutive characters of the same class. The default is 0 which means that this check is disabled.
+	reject_username
+	Check whether the name of the user in straight or reversed form is contained in the new password. If it is found the new password is rejected.
+##### gecoscheck
+	Check whether the words from the GECOS field (usually full name of the user) longer than 3 characters in straight or reversed form are contained in the new password. If any such word is found the new password is rejected.
+##### enforce_for_root
+	The module will return error on failed check also if the user changing the password is root. This option is off by default which means that just the message about the failed check is printed but root can change the password anyway.
+##### use_authtok
+	This argument is used to force the module to not prompt the user for a new password but use the one provided by the previously stacked password module.
+##### dictpath=/path/to/dict
+	Path to the cracklib dictionaries.
+	Module Types Provided
+	Only the password module type is provided.
+
+##### Return Values
+###### PAM_SUCCESS
+	The new password passes all checks.
+###### PAM_AUTHTOK_ERR
+	No new password was entered, the username could not be determined or the new password fails the strength checks.
+###### PAM_AUTHTOK_RECOVERY_ERR
+	The old password was not supplied by a previous stacked module or got not requested from the user. The first error can happen if use_authtok is specified.
+###### PAM_SERVICE_ERR
+	A internal error occurred.
+
+####  1.14.2. <a name='PWAge'></a>PW Age
+
+![chage options](chage.JPG)
+
+The options which apply to the chage command are:
+
+	-d, --lastday LAST_DAY
+
+	Set the number of days since January 1st, 1970 when the password was last changed. The date may also be expressed in the format YYYY-MM-DD (or the format more commonly used in your area).
+
+	-E, --expiredate EXPIRE_DATE
+
+	Set the date or number of days since January 1, 1970 on which the users account will no longer be accessible. The date may also be expressed in the format YYYY-MM-DD (or the format more commonly used in your area). A user whose account is locked must contact the system administrator before being able to use the system again.
+
+	Passing the number -1 as the EXPIRE_DATE will remove an account expiration date.
+
+	-h, --help
+
+	Display help message and exit.
+
+	-i, --iso8601
+
+	When printing dates, use YYYY-MM-DD format.
+
+	-I, --inactive INACTIVE
+
+	Set the number of days of inactivity after a password has expired before the account is locked. The INACTIVE option is the number of days of inactivity. A user whose account is locked must contact the system administrator before being able to use the system again.
+
+	Passing the number -1 as the INACTIVE will remove an accounts inactivity.
+
+	-l, --list
+
+	Show account aging information.
+
+	-m, --mindays MIN_DAYS
+
+	Set the minimum number of days between password changes to MIN_DAYS. A value of zero for this field indicates that the user may change their password at any time.
+
+	-M, --maxdays MAX_DAYS
+
+	Set the maximum number of days during which a password is valid. When MAX_DAYS plus LAST_DAY is less than the current day, the user will be required to change their password before being able to use their account. This occurrence can be planned for in advance by use of the -W option, which provides the user with advance warning.
+
+	Passing the number -1 as MAX_DAYS will remove checking a passwords validity.
+
+	-R, --root CHROOT_DIR
+
+	Apply changes in the CHROOT_DIR directory and use the configuration files from the CHROOT_DIR directory.
+
+	-W, --warndays WARN_DAYS
+
+	Set the number of days of warning before a password change is required. The WARN_DAYS option is the number of days prior to the password expiring that a user will be warned their password is about to expire.
+
+	If none of the options are selected, chage operates in an interactive fashion, prompting the user with the current values for all of the fields. Enter the new value to change the field, or leave the line blank to use the current value. The current value is displayed between a pair of [ ] marks.
+
+Notes: If we want to do "age" configuration globally and not per user, it necessary to modify this file:  /etc/login.defs, example:
 	
+	PASS_MAX_DAYS 90
+	PASS_WARN_AGE 7
+
+####  1.14.3. <a name='PWHistory'></a>PW History
+pam_pwhistory: PAM module to remember last passwords
+
+##### DESCRIPTION
+
+	This module saves the last passwords for each user in order to force password change history and keep the user from alternating between the same password too frequently.
+
+	This module does not work together with kerberos. In general, it does not make much sense to use this module in conjunction with NIS or LDAP, since the old passwords are stored on the local machine and are not available on another machine for password history checking.
+
+OPTIONS
+
+##### debug
+
+	Turns on debugging via syslog(3).
+	use_authtok
+
+	When password changing enforce the module to use the new password provided by a previously stacked password module (this is used in the example of the stacking of the pam_cracklib module documented below).
+##### enforce_for_root
+	If this option is set, the check is enforced for root, too.
+##### 	remember=N
+
+	The last N passwords for each user are saved in /etc/security/opasswd. The default is 10. Value of 0 makes the module to keep the existing contents of the opasswd file unchanged.
+##### retry=N
+
+	Prompt user at most N times before returning with error. The default is 1.
+	authtok_type=STRING
+
+	See pam_get_authtok(3) for more details.
+	MODULE TYPES PROVIDED
+	Only the password module type is provided.
+
+##### RETURN VALUES
+	PAM_AUTHTOK_ERR
+
+	No new password was entered, the user aborted password change or new password couldn't be set.
+	PAM_IGNORE
+
+	Password history was disabled.
+	PAM_MAXTRIES
+
+	Password was rejected too often.
+	PAM_USER_UNKNOWN
+
+	User is not known to system.
+##### EXAMPLES
+	An example password section would be:
+
+	#%PAM-1.0
+	password     required       pam_pwhistory.so
+	password     required       pam_unix.so        use_authtok
+		
+	In combination with pam_cracklib:
+
+	#%PAM-1.0
+	password     required       pam_cracklib.so    retry=3
+	password     required       pam_pwhistory.so   use_authtok
+	password     required       pam_unix.so        use_authtok
+		
+
+##### FILES
+	/etc/security/opasswd
+
+	File with password history
