@@ -206,25 +206,25 @@ Aging(expire) implementation :
 
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
-	This feature will be disable by default in compilation stage, its meaning that it will be not compile, just in case the user will change the makefile setting to enable, this feature will be compile.
+	This feature will be disabled by default in the compilation stage, its meaning that it will be not compiled, only when the user will change the makefile setting to enable, this feature will be compiled.
 
-	In addition, the feature will have CLI as "plugin", meaning that when the feature is not compile even the feature CLI will be not appear in the CLI of the switch, and vice versa, when the feature will be compile the feature CLI plugin will be added to the general switch CLI.
+	In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
 
 ####  1.8.2. <a name='dependencies'></a>dependencies
 	service dependencies: SWSS & DB containers.
 	Description:
-	Password Hardening Daemon, the service that trigger this daemon, should start after SWSS & DB containers start.
+	Password Hardening Daemon, the service that triggers this daemon, should start after SWSS & DB containers start.
 
 ####  1.8.3. <a name='Featuredefault'></a>Feature default
-	Even when user will decide to add the feature in compilation the feature will be disable by default.
+	When a user decides to add the feature in the compilation the feature will be disabled by default.
 
-	The feature in general can be enable when changing the CONF_DB of the feature table to passw_hardening_enable=True/False. 
+	The feature in general can be enabled when changing the CONF_DB of the feature table to passw_hardening_enable=True/False. 
 
-####  1.8.4. <a name='Howdaemonworkinternally:'></a>How daemon work internally:
-	In case the user decided to compile the feature. The password hardening daemon will be started and running always, but it will do nothing, meaning the process will be in sleep mode, until the passw_hardening_enable field in the Redis DB will be changed to enable, then the service will be awake, and will be possible to use.
+####  1.8.4. <a name='Howdaemonworkinternally:'></a>How the daemon works internally:
+	In case the user decides to compile the feature. The password hardening daemon will be started and running always, but it will do nothing. Meaning the process will be in sleep mode, until the passw_hardening_enable field in the Redis DB will be changed to enable, then the service will activate, and will be functional.
 
 	Note:
-	This approach can support reset of the system, because the daemon automatly can verify if he should be awake or not.
+	This approach can support reset of the system, because the daemon can automatically can verify if he should be awake or not.
 
 ###  1.9. <a name='SAIAPI'></a>SAI API 
 	no changed.
@@ -234,9 +234,14 @@ Aging(expire) implementation :
 ####  1.10.1. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 
 ##### PW enable 
-
+Set configuration:
 ```
-password hardening enable
+config passwh enable
+```
+
+Get configuration:
+```
+show passwh 
 ```
 
 ##### PW Class
@@ -266,15 +271,26 @@ password hardening enable
 
 The CLI command to configure the PW class type will be along the following lines:
 
+Set configuration:
 ```
-password complexity-class <lower/lower-upper/lower-upper-digit/lower-upper-digit-special>
+config passwh complexity-class <lower/lower-upper/lower-upper-digit/lower-upper-digit-special>
 ```
-
+Get configuration:
+```
+show passwh complexity-class
+```
 ##### PW Length
 
+Set configuration:
 ```
-password length min <length>
+config passwh length min <length>
 ```
+
+Get configuration:
+```
+show passwh length min
+```
+
 Note: Where length is a number between 0 and 32.
 
 Once the user changed the minimum password length - the settings will be applied to the config node and will be enforced on the next pw change
@@ -283,29 +299,51 @@ Once the user changed the minimum password length - the settings will be applied
 
 * PW age expire
 
-
+	Set configuration:
 	```
-	password age expiration <age>
+	config passwh age expiration <age>
 	```
+	
+	Get configuration:
+	```
+	show passwh age expiration
+	```
+	
 	Notes: Where age is in days and between 1 and 365 days (default 180). 
-
-
 * PW Age Change Warning
 
+	Set configuration:
+	```
+	config passwh age warning <warning_days>
+	```
 
+	Get configuration:
 	```
-	password age warning <warning_days>
+	show passwh age warning
 	```
+
 	Notes: The warning_days can be configured between 1 and 30 days (default 15).
 
 
 ##### PW username-match
 
-	password username-password-match <enable/disable>
+Set configuration:
+
+	config passwh username-password-match <enable/disable>
+
+Get configuration:
+
+	show passwh username-password-match
+
 
 ##### PW Saving
+Set configuration:
 
-	password history <num of old passwords to save>
+	config passwh history <num of old passwords to save>
+
+Get configuration:
+
+	show passwh history
 
 ##### CLI permissions
 	The CLI commands should be allowed only to the admin user. Other users should be able to view the parameters but not change them.
