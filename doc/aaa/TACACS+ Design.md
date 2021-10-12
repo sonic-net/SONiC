@@ -111,7 +111,7 @@ This document is based on [TACACS+ Authentication](#TACPLUS-Authentication), and
 ## 2.1 SONiC CLI
  - Enable/Disable TACACS Authorization/Accounting command
 ```
-    config aaa authorization {local | tacacs+}
+    config aaa authorization {local | tacacs+ | local tacacs+}
     config aaa accounting {local | tacacs+ | disable}
 ```
 
@@ -424,6 +424,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
         If command have local permission, user can run command.
         If command not have local permission, user can't run command.
     Verify TACACS+ user can't run command not in server side whitelist.
+    Verify Local user can't login.
 ```
 
 - config AAA authorization with TACACS+ only:
@@ -441,6 +442,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
         If command have local permission, user can run command.
         If command not have local permission, user can't run command.
     Verify TACACS+ user can't run command not in server side whitelist.
+    Verify Local user can't login.
 ```
 
 - config AAA authorization with TACACS+ and local:
@@ -449,6 +451,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
         If command have local permission, user can run command.
         If command not have local permission, user can't run command.
     Verify TACACS+ user can't run command not in server side whitelist.
+    Verify Local user can't login.
 ```
 
 - config AAA authorization with TACACS+ and local, but server not accessible:
@@ -456,6 +459,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ user can run command not in server side whitelist but have permission in local.
     Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
     Verify Local user can login, and run command with local permission.
+    Verify after Local user login, then server accessible, Local user still can run command with local permission.
 ```
 
 - config AAA authorization with local:
