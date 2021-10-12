@@ -73,10 +73,10 @@
   "date": "2021-09-20T04:00:14.4475288Z"
  },
 "sonic-nephos.bin": {
-  "url": "",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=null&view=results",
-  "build": "null",
-  "date": ""
+  "url": "null",
+  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=43029&view=results",
+  "build": "43029",
+  "date": "2021-10-12T08:00:08.5985608Z"
  }
 },
 "202106": {
@@ -153,10 +153,10 @@
   "date": "2021-10-11T04:00:11.8955609Z"
  },
 "sonic-nephos.bin": {
-  "url": "",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=null&view=results",
-  "build": "null",
-  "date": ""
+  "url": "null",
+  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=43014&view=results",
+  "build": "43014",
+  "date": "2021-10-12T08:00:02.4734155Z"
  }
 },
 "202012": {
@@ -233,10 +233,10 @@
   "date": "2021-10-02T04:00:02.0673151Z"
  },
 "sonic-nephos.bin": {
-  "url": "https://artprodcus3.artifacts.visualstudio.com/Af91412a5-a906-4990-9d7c-f697b81fc04d/be1b070f-be15-4154-aade-b1d3bfb17054/_apis/artifact/cGlwZWxpbmVhcnRpZmFjdDovL21zc29uaWMvcHJvamVjdElkL2JlMWIwNzBmLWJlMTUtNDE1NC1hYWRlLWIxZDNiZmIxNzA1NC9idWlsZElkLzQzMDEyL2FydGlmYWN0TmFtZS9zb25pYy1idWlsZGltYWdlLm5lcGhvcw2/content?format=file&subpath=/target/sonic-nephos.bin",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=43012&view=results",
-  "build": "43012",
-  "date": "2021-10-12T08:00:01.8884136Z"
+  "url": "null",
+  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=42754&view=results",
+  "build": "42754",
+  "date": "2021-10-11T08:00:02.9353299Z"
  }
 },
 "201911": {
@@ -313,10 +313,10 @@
   "date": ""
  },
 "sonic-nephos.bin": {
-  "url": "",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=null&view=results",
-  "build": "null",
-  "date": ""
+  "url": "null",
+  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=42994&view=results",
+  "build": "42994",
+  "date": "2021-10-12T08:00:01.5432027Z"
  }
 },
 "201811": {
@@ -393,10 +393,10 @@
   "date": ""
  },
 "sonic-nephos.bin": {
-  "url": "",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=null&view=results",
-  "build": "null",
-  "date": ""
+  "url": "null",
+  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=42701&view=results",
+  "build": "42701",
+  "date": "2021-10-11T04:00:04.0888168Z"
  }
 }
 }
