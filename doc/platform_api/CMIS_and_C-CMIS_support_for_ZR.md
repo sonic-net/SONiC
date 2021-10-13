@@ -478,14 +478,14 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     host_output_loopback_lane6   = BOOLEAN                          ; host side output loopback enable lane6
     host_output_loopback_lane7   = BOOLEAN                          ; host side output loopback enable lane7
     host_output_loopback_lane8   = BOOLEAN                          ; host side output loopback enable lane8
-    host_intput_loopback_lane1   = BOOLEAN                          ; host side intput loopback enable lane1
-    host_intput_loopback_lane2   = BOOLEAN                          ; host side intput loopback enable lane2
-    host_intput_loopback_lane3   = BOOLEAN                          ; host side intput loopback enable lane3
-    host_intput_loopback_lane4   = BOOLEAN                          ; host side intput loopback enable lane4
-    host_intput_loopback_lane5   = BOOLEAN                          ; host side intput loopback enable lane5
-    host_intput_loopback_lane6   = BOOLEAN                          ; host side intput loopback enable lane6
-    host_intput_loopback_lane7   = BOOLEAN                          ; host side intput loopback enable lane7
-    host_intput_loopback_lane8   = BOOLEAN                          ; host side intput loopback enable lane8
+    host_input_loopback_lane1    = BOOLEAN                          ; host side input loopback enable lane1
+    host_input_loopback_lane2    = BOOLEAN                          ; host side input loopback enable lane2
+    host_input_loopback_lane3    = BOOLEAN                          ; host side input loopback enable lane3
+    host_input_loopback_lane4    = BOOLEAN                          ; host side input loopback enable lane4
+    host_input_loopback_lane5    = BOOLEAN                          ; host side input loopback enable lane5
+    host_input_loopback_lane6    = BOOLEAN                          ; host side input loopback enable lane6
+    host_input_loopback_lane7    = BOOLEAN                          ; host side input loopback enable lane7
+    host_input_loopback_lane8    = BOOLEAN                          ; host side input loopback enable lane8
 
 
 #### 2.2 Show interfaces transceiver CLI
