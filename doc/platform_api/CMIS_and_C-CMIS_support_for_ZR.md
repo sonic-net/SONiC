@@ -1453,11 +1453,11 @@ See [C-CMIS v1.1](https://www.oiforum.com/wp-content/uploads/OIF-C-CMIS-01.1.pdf
 ### 6. Module firmware upgrade using command data block (CDB)
 This section discusses the details of implementing firmware upgrade using CDB message communication. Figure 7-4 in [CMIS](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) defines the flowchart for upgrading the module firmware. 
 
-The first step is to obtain CDB features supported by the module from CDB command 0041h, such as start local payload size, maximum block size, whether extended payload messaging (page 0xA0 - 0xAF) or only local payload is supported. These features are important because the following upgrade with depend on these parameters. 
+The first step is to obtain CDB features supported by the module from CDB command 0041h, such as start header size, maximum block size, whether extended payload messaging (page 0xA0 - 0xAF) or only local payload is supported. These features are important because the following upgrade with depend on these parameters. 
 
-The second step is to start CDB download by writing the first 116 bytes (usually the header) from the designated firmware file to the local payload page 0x9F, with CDB command 0101h. 
+The second step is to start CDB download by writing the header of start header size from the designated firmware file to the local payload page 0x9F, with CDB command 0101h. 
 
-The third step is to repeatedly read from the given firmware file and write to the payload space advertised from the first step. We use CDB command 0103h to write to the local payloadl; we use CDB command 0104h to write to the extended paylaod. This step repeats until it reaches end of the firmware file, or the CDB status failed.
+The third step is to repeatedly read from the given firmware file and write to the payload space advertised from the first step. We use CDB command 0103h to write to the local payload; we use CDB command 0104h to write to the extended paylaod. This step repeats until it reaches end of the firmware file, or the CDB status failed.
 
 The last step is to complete the firmware upgrade with CDB command 0107h. 
 
