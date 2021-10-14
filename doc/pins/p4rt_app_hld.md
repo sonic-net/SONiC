@@ -26,7 +26,7 @@ v0.1 | 06/30/2021 | Google, ONF | Initial Version
 
 ## Scope
 
-This document describes the high-level design for adding a P4Runtime gRPC service into SONiC, and outlines the Application DB changes needed.
+This document describes the high-level design for adding a P4Runtime gRPC service into SONiC which will run on [port 9559](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=9559).
 
 
 ## Definitions/Abbreviations
@@ -149,9 +149,9 @@ OrchAgent added a new orchestrator HashOrch to take care of programming the hash
 
 ### Response path
 
-P4RT application needs a response status for every request (success and failure) that is sent southwards to OrchAgent, this is to ensure that an affirmative or negative GRPC response is sent to the external client that made the request.
+P4RT application needs a response status for every request (success and failure) that is sent southwards to the OrchAgent. This ensures the external client making the request is aware of the status and can respond appropriately.
 
-At a high level, syncd operates in synchronous mode and OrchAgent relays the hardware status of the operation back to P4RT application via a separate notification channel and writes all successful responses into the APPL_STATE_DB. P4RT application uses the APPL_STATE_DB to restore the entry in APPL_DB when a particular request fails. More details on the response path design is captured in the AppDb Shema HLD.
+At a high level, syncd operates in synchronous mode and OrchAgent relays the hardware status of the operation back to P4RT application via a separate notification channel and writes all successful responses into the APPL_STATE_DB. This abstraction differs from the existing STATE_DB which does not provide an application level response. P4RT application uses the APPL_STATE_DB to restore the entry in APPL_DB when a particular request fails. More details on the response path design is captured in the AppDb Shema HLD.
 
 
 ## APPL DB Schema High-Level Design
