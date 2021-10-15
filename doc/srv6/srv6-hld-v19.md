@@ -1,3 +1,13 @@
+
+
+
+
+
+
+
+
+
+
 # Segment Routing over IPv6 (SRv6) HLD  
 
 # Table of Contents
@@ -9,7 +19,7 @@
 - [1 Introuduction and Scope](#1-introuduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
 - [2.1 Functional Requirements](#21-functional-requirements)
-- [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
+- [2.2 Configruation and Managment Requirements](#22-configuration-and-management-requirements)
 - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
 - [3.1 ConfigDB Changes](#31-configdb-changes)
@@ -22,10 +32,11 @@
 
 # Revision
 
-| Rev  |   Date   |           Author           | Change Description |
-| :--: | :------: | :------------------------: | :----------------: |
-| 0.1  | 6/5/2021 | Heidi Ou, Kumaresh Perumal |  Initial version   |
-| 0.2  | 8/24/2021| Dong Zhang                 |  More explanation  |
+| Rev  |   Date    |           Author           | Change Description |
+| :--: | :-------: | :------------------------: | :----------------: |
+| 0.1  | 6/5/2021  | Heidi Ou, Kumaresh Perumal |  Initial version   |
+| 0.2  | 8/24/2021 | Dong Zhang                 |  More explanation  |
+| 0.3  | 10/15/2021| Kumaresh Perumal           |  Minor updates     |
 
 
 # Definition/Abbreviation
@@ -114,7 +125,7 @@ Warm reboot is intended to be supported for planned system, swss and BGP warm re
 
 Before FRR is ready, we will use static configuration to set SIDs and apply policy for TE. It enables basic SRv6 operation and populates SRv6 into ASIC, allows SRv6 data plane forwarding. More complicated SRv6 policy can be enabled when SRv6 is fully supported in FRR and passed from FRR to fpmsyncd.
 
-For Phase#1, Controller will update all related tables in APPL_DB directly. 
+For Phase#1, Controller will update SRV6 related tables in APPL_DB directly using Translib and other SONiC management framework. Sonic-swss python scripts are also used to update SRV6 APPL_DB tables.
 
 ## 3.1 ConfigDB Changes
 
@@ -440,12 +451,12 @@ Struct NextHopKey {
 
   IpAddress ip_address;
 
-
+  ...
   string segment;
 
   string srv6_source;
 
-  …..
+  ...
 
 }
 ```
