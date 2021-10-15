@@ -36,7 +36,6 @@
 | :--: | :------: | :------------------------: | :----------------: |
 | 0.1  | 6/5/2021 | Heidi Ou, Kumaresh Perumal |  Initial version   |
 | 0.2  | 8/24/2021| Dong Zhang                 |  More explanation  |
-| 0.3  |          |                            |                    |
 
 
 # Definition/Abbreviation
@@ -89,7 +88,6 @@ Phase #1
 - Support END.DT46, Endpoint with decapsulation and IP table lookup - IP L3VPN use (equivalent of a per-VRF VPN label)
 - Support H.Encaps.Red, H.Encaps with Reduced Encapsulation
 - Support traffic steering on SID list
-- Support anycast SID
 
 Later phases:
 - Support H.Encaps, SR Headend Behavior with Encapsulation in an SR Policy
@@ -100,6 +98,7 @@ Later phases:
 - Other programming functions
 - Support HMAC option
 - Support sBFD for SRv6 
+- Support anycast SID
 
 This document will focus on Phase #1, while keep the design extendable for future development
 
