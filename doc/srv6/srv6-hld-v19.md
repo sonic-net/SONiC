@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
-
-
-
 # Segment Routing over IPv6 (SRv6) HLD  
 
 # Table of Contents
@@ -19,7 +9,7 @@
 - [1 Introuduction and Scope](#1-introuduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
 - [2.1 Functional Requirements](#21-functional-requirements)
-- [2.2 Configruation and Managment Requirements](#22-configuration-and-management-requirements)
+- [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
 - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
 - [3.1 ConfigDB Changes](#31-configdb-changes)
