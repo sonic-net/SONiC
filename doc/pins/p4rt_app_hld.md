@@ -86,16 +86,16 @@ As part of the P4RT specification, [multiple controllers can connect to the gRPC
 
 The PINS effort will model the SAI pipeline as a P4 program which will be compiled using a [P4 compiler](https://github.com/p4lang/p4c). The compiler generates a P4Info file which describes all parts of the SAI pipeline controllable from the P4RT application (e.g. tables, counters, or groups).
 
-When a SDN controller first connects to the P4RT application, it will push the P4Info. The application verifies the config provided by the P4Info and then realizes it on the data plane. Any failure from P4RT application or a lower layer to realize a part of the config means it will be rejected. Verification will check:
+When a SDN controller first connects to the P4RT application it should push a P4Info. The P4RT App will enforce SONiC requirements needed by any P4Info:
+* PacketIO metadata matches expectations.
+* Field types used by fixed SAI components are supportable.
 
-* Required components are included in the P4Info. For example controller metadata about PacketIO matches expectations.
-* Field Types around Fixed SAI components are supported (e.g. ports or nexthop IDs are passed as strings, etc.).
-* Configurable SAI components (e.g. ACL tables) will write their definitions into the APPL_DB, and the OA layer will tell P4RT application if they are accepted.
+Once the P4RT App has done its validation any configurable information needed by the lower layers will be written into the APPL_DB. Any failures either by the P4RT App itself or the lower layers (reported back through the response path (TODO: reference Response path HLD) will cause the config to be rejected.
 
 
 ### ACL Table Definitions
 
-The configurable parts of the SAI pipeline are switch dependent, and must respect hardware limitations. These limitations can be difficult to verify at the P4 program level, but are much simpler to verify on actual hardware. For example:
+The configurable parts of the SAI pipeline like ACL tables are switch dependent, and must respect hardware limitations. These limitations can be difficult to verify at the P4 program level, but are much simpler to verify on actual hardware. For example:
 
 * ACL table taking up too many resources
 * ACL action or qualifier not available at a specific stage in the pipeline.
@@ -107,7 +107,8 @@ As an example of how the P4 program may model a SAI forwarding action using the 
 ```
 // A SAI forwarding action for use during ACL ingress.
 //
-// The packet is assigned a color to be used by rate limiting checks if needed, and // increments the ACL counter for this rule.
+// The packet is assigned a color to be used by rate limiting checks if needed, and
+// increments the ACL counter for this rule.
  @sai_action(SAI_PACKET_ACTION_FORWARD)
  action forward() {
    acl_ingress_meter.read(local_metadata.color);
@@ -156,7 +157,7 @@ At a high level, syncd operates in synchronous mode and OrchAgent relays the har
 
 ## APPL DB Schema High-Level Design
 
-P4RT application introduces new tables that are written to APPL_DB for the tables it intends to program via the P4Orch. The schema of the P4RT tables and other details are captured in the P4RT DB Schema HLD.
+P4RT application introduces new tables that are written to APPL_DB for the tables it intends to program via the P4Orch. The schema of the P4RT tables and other details are captured in the P4RT DB Schema HLD (TODO: add reference to AppDb Schema HLD).
 
 
 ## Testing Requirements/Design
