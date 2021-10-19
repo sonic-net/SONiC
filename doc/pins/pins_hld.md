@@ -124,7 +124,7 @@ SONiC is structured into various containers that communicate through multiple lo
     https://docs.google.com/drawings/d/1Maxgf2-DyJHi_MpGbYLhgUWnfebJfFHYJPcB8NO_WVE/edit
 -->
 
-The P4RT application listens to a remote SDN controller and creates entries in the APPL and CONFIG databases. Following the SONiC architecture, the P4RT application writes its output to a new table in the APPL database. From there, the new P4Orch picks up the changes and writes the entries into the existing ASIC tables, where they get picked up by syncd. This path is highlighted in green in the PINS Architecture figure.
+The P4RT application listens to a remote SDN controller and creates entries in the APPL and CONFIG databases. Following the SONiC architecture, the P4RT application writes its output to a new table in the APPL database. From there, the new P4Orch picks up the changes and writes the entries into the existing ASIC tables, where they get picked up by syncd. This path is highlighted in green in the PINS Architecture figure. The green path builds a parallel path in the orchagent as the current SWSS does not support (1) Response path - which is required by the P4RT application, (2) Ownership tags - which are required when there are more than one writer to the same table. Over the long term, once such features are supported by the SWSS, the green path can be merged with the existing tables.
 
 The red path is used if a new table, match, or action is being added from the P4RT application into the ASIC DB when this table is not present in the SAI pipeline. More detailed information regarding the red path is provided in the supplementary document: [P4 Extensions for SAI][p4ext-hld].
 
