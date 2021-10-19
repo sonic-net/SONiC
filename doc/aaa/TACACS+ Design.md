@@ -315,10 +315,11 @@ The following figure show how Auditd config an TACACS+ config update by ConfigDB
 ; Key
 aaa_key              = 1*32VCHAR          ; AAA type "authentication"/"authorization"/"accounting"
 ; Attributes
-protocol             = LIST(1*32VCHAR)   ; AAA protocol, now only support (local, tacacs+)
+login                = LIST(1*32VCHAR)   ; AAA protocol, now only support (local, tacacs+)
 fallback             = "True" / "False"  ; fallback mechanism for pam modules
 failthrough          = "True" / "False"  ; failthrough mechanism for pam modules
 ```
+* According to [TACACS+ Authentication](https://github.com/Azure/SONiC/blob/master/doc/aaa/TACACS%2B%20Authentication.md#aaa-table-schema), the 'login' attribute should be 'protocol' attribute , But in current SONiC [yang model](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-system-aaa.yang), this attribute name is 'login'. Because change the attribute name may break backward compatibility, so keep will use 'login' as attribute name.
 
 ## 4.4 CLI
  - The existing TACACS+ server config command will not change.
@@ -459,7 +460,7 @@ Schema in [TACACS+ Authentication](#TACPLUS-Authentication)).
     Verify TACACS+ user can run command not in server side whitelist but have permission in local.
     Verify TACACS+ user can't run command in server side whitelist but not have permission in local.
     Verify Local user can login, and run command with local permission.
-    Verify after Local user login, then server accessible, Local user still can run command with local permission.
+    Verify after Local user login, then server becomes accessible, Local user still can run command with local permission.
 ```
 
 - config AAA authorization with local:
