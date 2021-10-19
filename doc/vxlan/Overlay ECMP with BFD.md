@@ -23,14 +23,16 @@
     * [2.5 Monitoring and Health](#25-monitoring-and-health)
     * [2.6 BGP](#26-bgp)
     * [2.7 CLI](#27-cli)
+    * [2.8 Test Plan](#28-test-plan)
 
 ###### Revision
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2021  |     Prince Sunny   | Initial version                   |
-| 1.0 | 09/13/2021  |     Prince Sunny   | Revised                           |
+| 1.0 | 09/13/2021  |     Prince Sunny   | Revised based on review comments                           |
 | 1.1 | 10/08/2021  |     Prince Sunny   | BFD section seperated             |
+| 1.2 | 10/18/2021  |     Prince Sunny/Shi Su   | Test Plan added            |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -221,3 +223,70 @@ The following commands shall be modified/added :
 ```
 
 Config commands for VNET, VNET Routes and BFD session is not considered in this design. This shall be added later based on requirement. 
+
+## 2.8 Test Plan
+
+Pre-requisite:
+
+Create VNET and Vxlan tunnel as an below:
+
+```
+{ 
+    "VXLAN_TUNNEL": {
+        "tunnel1": {
+            "src_ip": "10.1.0.32"
+        }
+    },
+
+    "VNET": {
+        "Vnet_3000": {
+            "vxlan_tunnel": "tunnel1",
+            "vni": "3000",
+            "scope": "default"
+        }
+    }
+```
+
+For ```default``` scope, no need to associate interfaces to a VNET
+
+VNET tunnel routes must be created as shown in the example below
+
+```
+[
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3000:100.100.2.1/32": { 
+        "endpoint": "1.1.1.2", 
+        "endpoint_monitor": "1.1.2.2"
+    } 
+]
+```
+
+### Test Cases
+
+#### Overlay ECMP 
+
+It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. 
+
+| Step | Goal | Expected results |
+|-|-|-|
+|Create a tunnel route to a single endpoint a. Send packets to the route prefix dst| Tunnel route create |  Packets are received only at endpoint a |
+|Set the tunnel route to another endpoint b. Send packets to the route prefix dst | Tunnel route set | Packets are received only at endpoint b |
+|Remove the tunnel route. Send packets to the route prefix dst | Tunnel route remove |  Packets are not received at any ports with dst IP of b |
+|Create tunnel route 1 with two endpoints A = {a1, a2}. Send packets to the route 1's prefix dst | ECMP route create | Packets are received at either a1 or a2 |
+|Create tunnel route 2 to endpoint group A Send packets to route 2’s prefix dst | ECMP route create | Packets are received at either a1 or a2 |
+|Set tunnel route 2 to endpoint group B = {b1, b2}. Send packets to route 2’s prefix dst | ECMP route set | Packets are received at either b1 or b2 |
+|Send packets to route 1’s prefix dst. By removing route 2 from group A, no change expected to route 1 | NHG modify | Packets are received at either a1 or a2 |
+|Set tunnel route 2 to single endpoint b1. Send packets to route 2’s prefix dst | NHG modify | Packets are recieved at b1 only |
+|Set tunnel route 2 to shared endpoints a1 and b1. Send packets to route 2’s prefix dst | NHG modify | Packets are recieved at a1 or b1 |
+|Remove tunnel route 2. Send packets to route 2’s prefix dst | ECMP route remove | Packets are not recieved at any ports with dst IP of a1 or b1 |
+|Set tunnel route 3 to endpoint group C = {c1, c2, c3}. Ensure c1, c2, and c3 matches to underlay default route. Send 10000 pkt with random hash to route 3's prefix dst | NHG distribution | Packets are distributed equally across c1, c2 and c3 |
+|Modify the underlay default route nexthop/s. Send packets to route 3's prefix dst | Underlay ECMP | No change to packet distribution. Packets are distributed equally across c1, c2 and c3 |
+|Remove the underlay default route. | Underlay ECMP | Packets are not recieved at c1, c2 or c3 |
+|Re-add the underlay default route. | Underlay ECMP | Packets are equally recieved at c1, c2 or c3 |
+
+#### BFD and health monitoring
+
+TBD
+
+#### BGP advertising
+
+TBD
