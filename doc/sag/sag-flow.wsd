@@ -4,7 +4,6 @@ box "Orchagent" #LightGrey
     control IntfMgrD
     control IntfsOrch
     control RouteOrch
-    control VrfOrch
 end box
 participant kernel
 box "DB" #LightBlue
@@ -25,19 +24,12 @@ IntfsOrch <-- APPL_DB
 IntfsOrch -> ASIC_DB: create router interface and change to SAG MAC address
 IntfMgrD -> APPL_DB: config VLAN interface IP
 IntfsOrch <-- APPL_DB
-alt VLAN interface in default VRF
-    IntfsOrch -> RouteOrch: delete system MAC generated IPv6 link-local to me route
-    RouteOrch -> ASIC_DB: remove route entry
+
+loop all existed VRFs
     IntfsOrch -> RouteOrch: add SAG MAC generated IPv6 link-local to me route
     RouteOrch -> ASIC_DB: add route entry
-else VLAN interface in VRF
-    IntfsOrch -> VrfOrch: delete system MAC generated IPv6 link-local to me route
-    VrfOrch -> RouteOrch
-    RouteOrch -> ASIC_DB: remove route entry
-    IntfsOrch -> VrfOrch: add SAG MAC generated IPv6 link-local to me router
-    VrfOrch -> RouteOrch
-    RouteOrch -> ASIC_DB: add route entry
 end
+
 group Disable SAG on the VLAN interface
     UI -> CONFIG_DB: disable SAG on the VLAN interface
     IntfMgrD <-- CONFIG_DB
@@ -45,18 +37,9 @@ group Disable SAG on the VLAN interface
     IntfMgrD -> APPL_DB: Modify INTF_TABLE entry from SAG MAC address to CPU MAC address
     IntfsOrch <-- APPL_DB
     IntfsOrch -> ASIC_DB: change router interface's MAC address to CPU MAC address
-    alt VLAN interface in default VRF
+    loop all existed VRFs
         IntfsOrch -> RouteOrch: delete SAG MAC generated IPv6 link-local to me route
         RouteOrch -> ASIC_DB: remove route entry
-        IntfsOrch -> RouteOrch: add system MAC generated IPv6 link-local to me route
-        RouteOrch -> ASIC_DB: add route entry
-    else VLAN interface in VRF
-        IntfsOrch -> VrfOrch: delete SAG MAC generated IPv6 link-local to me route
-        VrfOrh -> RouteOrch
-        RouteOrch -> ASIC_DB: remove route entry
-        IntfsOrch -> VrfOrch: add system MAC generated IPv6 link-local to me route
-        VrfOrch -> RouteOrch
-        RouteOrch -> ASIC_DB: add route entry
     end
 end
 @enduml

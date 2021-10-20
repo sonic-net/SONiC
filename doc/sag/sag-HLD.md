@@ -30,6 +30,7 @@
 | :---: | :--------- | :---------: | --------------------------------- |
 |  0.1  | 08/13/2021 |  Jimi Chen  | Initial version                   |
 |  0.2  | 08/30/2021 |  Jimi Chen  | Update community review comments  |
+|  0.3  | 10/20/2021 |  Jimi Chen  | Revise after implementation       |
 
 # Scope 
 This HLD extends SONiC to support static anycast gateway
@@ -146,7 +147,7 @@ The format is in the following
 
 ```
 admin@edgecore:~$ sudo config static-anycast-gateway mac_address del -h
-Usage: config static-anycast-gateway mac_address add [OPTIONS] <mac_address>
+Usage: config static-anycast-gateway mac_address del [OPTIONS] <mac_address>
 
   Delete global static-anycast-gateway mac address
 
@@ -247,11 +248,13 @@ Add new yang model to describe static anycast gateway configuration
 ```
 container sonic-static-anycast-gateway {
     container SAG {
-        description "static anycast gateway configuration";
+        container GLOBAL {
+            description "static anycast gateway configuration";
 
-        leaf gwmac {
-            type yang:mac-address;
-        }
+            leaf gwmac {
+                type yang:mac-address;
+            }
+        }        
     }
 }
 
@@ -290,7 +293,7 @@ list VLAN_INTERFACE_LIST {
     }
 
     leaf staic-anycast-gateway {
-        description "Enable/Disable static anycast gateway"
+        description "Enable/disable static anycast gateway for the vlan interface";
         type boolean;
         default false;
     }
