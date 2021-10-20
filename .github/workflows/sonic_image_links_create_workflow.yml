@@ -6,6 +6,9 @@ name: Run the shell script to generate sonic image links in sonic_image_links.js
 on:
   schedule:
     - cron:  '* * * * *'
+    
+  permissions:
+    actions: read|write
 
 jobs:
   build:
