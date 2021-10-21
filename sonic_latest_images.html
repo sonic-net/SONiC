@@ -67,7 +67,7 @@
 
 		</p>
 		<p class="mt-4">
-		    <a href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds3 <br>
+		    <a href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds <br>
 		</p>
 
 		</p>
@@ -77,7 +77,7 @@
 
     <script>
 	$(document).ready(function () {
-	    $.getJSON("sonic_image_links.json", 
+	    $.getJSON("https://raw.githubusercontent.com/Azure/SONiC/sonic_latest_images_links/sonic_image_links.json", 
 		function(data) {
 		    dbs = data;
 		    branches = Object.keys(data);
