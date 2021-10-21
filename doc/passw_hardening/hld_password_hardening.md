@@ -1,6 +1,6 @@
 # PW Hardening Design #
 
-##  1. <a name='TableofContent'></a>Table of Content 
+##  1. <a name='TableofContent'></a>Table of Content
 
 <!-- vscode-markdown-toc -->
 * 1. [Table of Content](#TableofContent)
@@ -42,17 +42,17 @@
 
 
 
-###  1.1. <a name='Revision'></a>Revision  
+###  1.1. <a name='Revision'></a>Revision
 Rev 0.1
-###  1.2. <a name='Scope'></a>Scope  
+###  1.2. <a name='Scope'></a>Scope
 
 This password hardening hld doc described the requirements, arcquitecture and configuration details of password hardening feature in switches Sonic OS based.
 
-###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations 
+###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 	PW - password
 	SPASSWD - secure password daemon
 
-###  1.4. <a name='Overview'></a>Overview 
+###  1.4. <a name='Overview'></a>Overview
 
 Password Hardening, a user password is the key credential used in order to verify the user accessing the switch and acts as the first line of defense in regards of securing the switch.
 The complexity of the password, it's replacement capabilities and change frequency define the security level of the first perimeter of the switch.
@@ -65,18 +65,18 @@ Therefore - in order to further improve and harden the switch - a secure mechani
 | PW Aging | The PW should have an expiration date, after which the user is required to change the PW <br /><br />A warning to change the PW should be presented to the user a fixed time before the expiration date arrives. This warning should appear in every login so long as the PW expiration time <= warning time. |The user should be able to configure the expiration time of the PW.  The user will be able to configure "no aging" for the PW<br /><br />The user should be able to configure the amount of days to present the warning before the PW expires | PW age time is to be between 1 to 365 days (default 180)<br /><br />PW warning show is to be between 1 to 30 days (default 15)
 | PW constraints | The PW class represents the possible characters comprising the PW. There are 4 character classes that can make up the PW:small characters, big characters, numbers and special chars presented on a standard keyboard <br /><br />The account name and PW need to be different <br /><br />The new PW is to be different from current PW|The user should be able to define which characters classes are required for the PW out of the 4 provided<br /><br /><br /><br />The user will be able to enable or disable this feature|Legal special characters `~!@#$%^&*()-_=+\|[{}];:',<.>/? and white space<br /><br /><br /><br />An error will be shown to the user if it tries to set the same PW as the username<br /><br /><br /><br />default - enable, default remember last 10 password
 
-###  1.6. <a name='ArchitectureDesign'></a>Architecture Design 
+###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 Arc design diagram\
 ![passh_arc_sonic](passh_arc_sonic.drawio.png)
 
 (flow description in the chapter below)
 
-###  1.7. <a name='High-LevelDesign'></a>High-Level Design 
+###  1.7. <a name='High-LevelDesign'></a>High-Level Design
 
 In this section we will present the design (as thorough as possible) for the secure PW implementation.
 
 User password as explained before is the first line defence, in order to support it according the requirement section and user preferences, the secure password feature need a strengh-checking for password.
-		
+
 The feature will use 2 linux libs: pam-cracklib, chage and pam_pwhistory.so
 
 pam-cracklib: This module can be plugged into the password stack of a given application to provide some plug-in strength-checking for passwords.
@@ -98,7 +98,7 @@ See linux 3d party component chapter for more description
 
 ####  1.7.1. <a name='Flowdescription:'></a>Flow description:
 Users by using Switch CLI will set new password/password configuration (see PW options below), the input will be saved in CONF_DB in PASSW_CONF_TABLE.\
-The daemon call PASSHD (password hardening daemon) listen to changes, parse the inputs and set the configuration to kernel by using pam-cracklib ,chage, pwhistory linux libs. 
+The daemon call PASSHD (password hardening daemon) listen to changes, parse the inputs and set the configuration to kernel by using pam-cracklib ,chage, pwhistory linux libs.
 After that, it will save the configuration and results in APPL_DB in PASSW_CONF_TABLE.
 
 Note:
@@ -107,7 +107,7 @@ The table PASSW_CONF_TABLE should reduce time consuming when users need to read 
 ####  1.7.2. <a name='PasswordHardeningConstrains'></a>Password Hardening Constrains
 The PW Hardening features will be support different options by encapsulate cracklib, chage and pwhistory options according the constrains definitions below.
 
-##### PW enable 
+##### PW enable
 
 Enable/Disable password hardening feature
 
@@ -207,7 +207,7 @@ This feature will be disabled by default in the compilation stage, its meaning t
 In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
 
 ####  1.8.2. <a name='dependencies'></a>dependencies
-Service dependencies: DB container & INIT_CONF. 
+Service dependencies: DB container & INIT_CONF.
 Description:
 Password Hardening Daemon, the service that triggers this daemon, should start after SWSS & DB containers start.
 
@@ -235,7 +235,7 @@ In case the user decides to compile the feature. The password hardening daemon w
 Note:
 This approach can support reset of the system, because the daemon can automatically can verify if he should be awake or not.
 
-###  1.9. <a name='SAIAPI'></a>SAI API 
+###  1.9. <a name='SAIAPI'></a>SAI API
 no changed.
 
 ###  1.10. <a name='Configurationandmanagement'></a>Configuration and management
@@ -262,23 +262,22 @@ Note: similar table for PASSWH_STATUS in APPL_DB
 
 ```
 ; Defines schema for PASSWH configuration attributes (PASSWH table & PASSW_STATUS table have same schema)
-key                                   = PASSWH:name 			  ;password hardening configuration
+key                                   = PASSWH:name             ;password hardening configuration
 ; field                               = value
-FEATURE_ENABLE                		  = "True" / "False"          ; Feature feature enable/disable
-EXPIRATION                     		  = year					; password expiration 1 year in days units
-year								  = 4DIGIT	   
-EXPIRATION_WARNING                    = month					; password expiration warning  1 year in days units
-month								  = 2DIGIT
-PASSW_HISTORY						  = 2*DIGIT					; number of old password to be stored (0-99)
-LEN_MIN								  = 2*DIGIT 				; max characters in password (0-32 chars)
-LEN_MAX								  = 2*DIGIT 				; min characters in password (64-80 chars)
-USERNAME_PASSW_MATCH				  = "True" / "False"
-LOWER_CLASS            		  		  = "True" / "False"          
-UPPER_CLASS            		  		  = "True" / "False"          
-DIGITS_CLASS           		  		  = "True" / "False"          
-SPECIAL_CLASS          		  		  = "True" / "False"
+FEATURE_ENABLE                        = "True" / "False"        ; Feature feature enable/disable
+EXPIRATION                            = year                    ; password expiration 1 year in days units
+year                                  = 4DIGIT
+EXPIRATION_WARNING                    = month                   ; password expiration warning  1 year in days units
+month                                 = 2DIGIT
+PASSW_HISTORY                         = 2*DIGIT                 ; number of old password to be stored (0-99)
+LEN_MIN                               = 2*DIGIT                 ; max characters in password (0-32 chars)
+LEN_MAX                               = 2*DIGIT                 ; min characters in password (64-80 chars)
+USERNAME_PASSW_MATCH                  = "True" / "False"
+LOWER_CLASS                           = "True" / "False"
+UPPER_CLASS                           = "True" / "False"
+DIGITS_CLASS                          = "True" / "False"
+SPECIAL_CLASS                         = "True" / "False"
 ```
-
 
 
 ####  1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
@@ -369,7 +368,7 @@ module sonic-passwh {
 ```
 
 ##### Config CLI
-###### PW enable 
+###### PW enable
 Set configuration:
 
 ```
@@ -392,7 +391,7 @@ None - Meaning no required classes.
 
 lower- lowerLowercase Characters
 
-upper - Uppercase 
+upper - Uppercase
 
 digit - Numbers
 
@@ -406,10 +405,10 @@ The CLI command to configure the PW class type will be along the following lines
 
 Set configuration:
 ```
-config passwh complexity-class <lower upper digit special>  
-Values in every position are boolean, for example: 
+config passwh complexity-class <lower upper digit special>
+Values in every position are boolean, for example:
 
-config passwh complexity-class <lower upper digit special>  False False True True 
+config passwh complexity-class <lower upper digit special>  False False True True
 ```
 
 Note: Meaning: no must use of lower, no must use of upper, must use digit, must use special characters
@@ -433,8 +432,8 @@ Set configuration:
 ```
 config passwh age expiration <age>
 ```
-	
-Notes: Where age is in days and between 1 and 365 days (default 180). 
+
+Notes: Where age is in days and between 1 and 365 days (default 180).
 * PW Age Change Warning
 
 Set configuration:
@@ -465,17 +464,17 @@ Show command should be extended in order to add "passwh" alias:
 ==========================================
 admin@sonic:~$ show passwh
 PASSWORD HARDENING
-Policies					 status
-------------------- 	    ------------
+Policies                       Status
+-------------------         ------------
 feature state                 enable
-expiration 		  		      30 days
+expiration                    30 days
 expiration warning            10 days
-history					      4
-min length					  30
-max length					  15
-username passw match		  True
-lower class	  				  True
-upper class   			      True
+history                       4
+min length                    30
+max length                    15
+username passw match          True
+lower class                   True
+upper class                   True
 digit class                   True
 special class                 True
 ==========================================
@@ -491,12 +490,12 @@ The ConfigDB will be extended with next objects:
 ```json
 {
 	"PASSWH": {
-		"enable": "True",  // enable/disable the feature
-		"expiration": "30", 	// days unit
-		"expiration_warning": "10", //days unit
-		"history": "10", // num of old password that the system will recorded
+		"enable": "True",
+		"expiration": "30",
+		"expiration_warning": "10",
+		"history": "10",
 		"len_max": "30",
-		"len_min": "15",  // num of min characters in a password
+		"len_min": "15",
 		"username_passw_match": "True",
 		"lower class": "True",
 		"upper class": "True",
@@ -510,12 +509,12 @@ The AppDB will be extended with table PASSW_STATUS with similar objects than PAS
 ```json
 {
 	"PASSWH_STATUS": {
-		"enable": "True",  // enable/disable the feature
-		"expiration": "30", 	// days unit
-		"expiration_warning": "10", //days unit
-		"history": "10", // num of old password that the system will recorded
+		"enable": "True",
+		"expiration": "30",
+		"expiration_warning": "10",
+		"history": "10",
 		"len_max": "30",
-		"len_min": "15",  // num of min characters in a password
+		"len_min": "15",
 		"username_passw_match": "True",
 		"lower class": "True",
 		"upper class": "True",
@@ -534,7 +533,7 @@ the main difference is that other applications read from APPL_DB, and not from C
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
 Not relevant.
 
-###  1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations  
+###  1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
 The secure password feature is not supported on remote AAA.
 
 LDAP/Radius/Tacacs is under customer responsibility.
@@ -560,7 +559,7 @@ LDAP/Radius/Tacacs is under customer responsibility.
    - Configure complexity-class password with random false values
    - Configure history password with random false values
 
-##### Notes: 
+##### Notes:
 - After creating a new policy is necessary to set a new password to a user to verify that the policy match the configured.
 - Valid values: could be random values from valid ranges.
 - The set configuration should be validate using the show command and also should be test from the APPL_DB.
@@ -691,7 +690,7 @@ Set the number of days of warning before a password change is required. The WARN
 If none of the options are selected, chage operates in an interactive fashion, prompting the user with the current values for all of the fields. Enter the new value to change the field, or leave the line blank to use the current value. The current value is displayed between a pair of [ ] marks.
 
 Notes: If we want to do "age" configuration globally and not per user, it necessary to modify this file:  /etc/login.defs, example:
-	
+
 	PASS_MAX_DAYS 90
 	PASS_WARN_AGE 7
 
@@ -745,14 +744,14 @@ An example password section would be:
 	#%PAM-1.0
 	password     required       pam_pwhistory.so
 	password     required       pam_unix.so        use_authtok
-		
+
 	In combination with pam_cracklib:
 
 	#%PAM-1.0
 	password     required       pam_cracklib.so    retry=3
 	password     required       pam_pwhistory.so   use_authtok
 	password     required       pam_unix.so        use_authtok
-		
+
 
 ##### FILES
 File with password history
