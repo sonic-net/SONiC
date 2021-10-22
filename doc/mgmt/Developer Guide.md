@@ -1181,6 +1181,21 @@ type CustValidationCtxt struct {
 	SessCache *CustValidationCache //Session cache, can be used for storing data, persistent in session
 	RClient *redis.Client //Redis client
 }
+
+//CVLErrorInfo CVL Error Structure
+type CVLErrorInfo struct {
+    TableName        string     /* Table having error */
+    ErrCode          CVLRetCode /* CVL Error return Code. */
+    CVLErrDetails    string     /* CVL Error Message details. */
+    Keys             []string   /* Keys of the Table having error. */
+    Value            string     /* Field Value throwing error */
+    Field            string     /* Field Name throwing error . */
+    Msg              string     /* Detailed error message. */
+    ConstraintErrMsg string     /* Constraint error message. */
+    ErrAppTag        string
+}
+
+
 ```
 
 #### 2.7.3 Platform Validation
