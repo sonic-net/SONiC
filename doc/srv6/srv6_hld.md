@@ -534,15 +534,15 @@ CONVERT_STR_TO_IPV6(my_sid_entry.sid, "2001:db8:0:1::1000:0:0:0");
 
 
 
-local_sid_attr[0].id = SAI_MY_SID_ENTRY_ATTR_ENDPOINT_BEHAVIOR
+my_sid_attr[0].id = SAI_MY_SID_ENTRY_ATTR_ENDPOINT_BEHAVIOR
 
-local_sid_attr[0].value = SAI_MY_SID_ENTRY_ENDPOINT_TYPE_DT46
+my_sid_attr[0].value = SAI_MY_SID_ENTRY_ENDPOINT_TYPE_DT46
 
-local_sid_attr[1].id = SAI_MY_SID_ENTRY_ATTR_VRF
+my_sid_attr[1].id = SAI_MY_SID_ENTRY_ATTR_VRF
 
-local_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
+my_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
 
-saistatus = saiv6sr_api->create_local_sid(&my_sid_entry, 2, local_sid_attr)
+saistatus = saiv6sr_api->create_my_sid_entry(&my_sid_entry, 2, my_sid_attr)
 
 
 ## 3.5 YANG Model
@@ -553,8 +553,8 @@ module: sonic-srv6
      |  +--rw SRV6_SID_LIST_LIST* [name]
      |     +--rw name    string
      |     +--rw path*   inet:ipv6-address
-     +--rw SRV6_LOCAL_SID
-     |  +--rw SRV6_LOCAL_SID_LIST* [ip-address]
+     +--rw SRV6_MY_SID
+     |  +--rw SRV6_MY_SID_LIST* [ip-address]
      |     +--rw ip-address    inet:ipv6-address
      |     +--rw block_len?    uint16
      |     +--rw node_len?     uint16
