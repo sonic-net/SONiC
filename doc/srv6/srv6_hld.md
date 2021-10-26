@@ -22,11 +22,12 @@
 
 # Revision
 
-| Rev  |   Date    |           Author           | Change Description |
-| :--: | :-------: | :------------------------: | :----------------: |
-| 0.1  | 6/5/2021  | Heidi Ou, Kumaresh Perumal |  Initial version   |
-| 0.2  | 8/24/2021 | Dong Zhang                 |  More explanation  |
-| 0.3  | 10/15/2021| Kumaresh Perumal           |  Minor updates     |
+| Rev  |   Date    |           Author           | Change Description      |
+| :--: | :-------: | :------------------------: | :---------------------: |
+| 0.1  | 6/5/2021  | Heidi Ou, Kumaresh Perumal |  Initial version        |
+| 0.2  | 8/24/2021 | Dong Zhang                 |  More explanation       |
+| 0.3  | 10/15/2021| Kumaresh Perumal           |  Minor updates          |
+| 0.4  | 10/26/2021| Kumaresh Perumal           |  Update MY_SID table.   |
 
 
 # Definition/Abbreviation
@@ -151,7 +152,7 @@ For example:
     }
 ```
 
-**SRV6_LOCAL_SID_TABLE**
+**SRV6_MY_SID_TABLE**
 
 Description: New table to hold local SID to behavior mapping
 
@@ -161,7 +162,7 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping, allow 1:1 or n:1 mapping
 
-key = SRV6_LOCAL_SID|ipv6address
+key = SRV6_MY_SID_TABLE|ipv6address
 ; field = value
 block_len = blen             ; bit length of block portion in address, default 40
 node_len = nlen              ; bit length of node ID portion in address, default 24
@@ -174,7 +175,7 @@ policy = SRV6_POLICY.key     ; Optional, policy name for END.B6.ENCAP
 source  = address,           ; Optional, list of src addrs for encap for END.B6.ENCAP
 
 For example:
-    "SRV6_LOCAL_SID" : {
+    "SRV6_MY_SID_TABLE" : {
        	"BABA:1001:0:20:F1::" : {
            "action": "end.dt46",
            "vrf":  "VRF-1001"
@@ -271,7 +272,7 @@ key = SRV6_SID_LIST_TABLE:segment_name
 path = SID,                         ; List of SIDs
 ```
 
-**New SRV6_LOCAL_SID_TABLE**
+**New SRV6_MY_SID_TABLE**
 
 Description: New table to hold local SID to behavior mapping
 
@@ -281,7 +282,7 @@ Schema:
 ; New table
 ; holds local SID to behavior mapping
 
-key = SRV6_LOCAL_SID_TABLE:block_len:node_len:func_len:arg_len:ipv6address
+key = SRV6_MY_SID_TABLE:block_len:node_len:func_len:arg_len:ipv6address
 
 ; field = value
 action = behavior                  ; behaviors defined for local SID
@@ -425,7 +426,7 @@ When a route entry is added to ROUTE_TABLE, routeOrchagent calls srv6Orchagent t
 
 
 
-Orchagent listens to LOCAL_SID_TABLE in APP_DB to create SAI objects in ASIC_DB. For LOCAL_SID's END.X action, this orchagent queries the existing IP NextHop and NextHopGroup database and use the existing object handle and update ASIC_DB. When IP NextHop doesn't exist, LOCAL_SID objects are programmed with Drop action and notify NeighOrch to resolve IP NextHop. When that NextHop is resolved, SRV6Orchagent updates LOCAL_SID with valid IP NextHop handle and Forward action. This orchagent creates a new ECMP group when Nexthop exists for all the Nexthop addresses in END.X action and no matching group exists in the DB. For LOCAL_SID's END.DT46 action, orchagent passes the VRF handle associated with VRF name to ASIC_DB. For LOCAL_SID's END.B6 Encaps, orchagent use existing Nexthop/NexthopGroup for the list of segments or create a new NexthopGroup.
+Orchagent listens to SRV6_MY_SID_TABLE in APP_DB to create SAI objects in ASIC_DB. For SRV6_MY_SID_TABLE's END.X action, this orchagent queries the existing IP NextHop and NextHopGroup database and use the existing object handle and update ASIC_DB. When IP NextHop doesn't exist, SRV6_MY_SID_TABLE objects are programmed with Drop action and notify NeighOrch to resolve IP NextHop. When that NextHop is resolved, SRV6Orchagent updates SRV6_MY_SID_TABLE with valid IP NextHop handle and Forward action. This orchagent creates a new ECMP group when Nexthop exists for all the Nexthop addresses in END.X action and no matching group exists in the DB. For SRV6_MY_SID_TABLE's END.DT46 action, orchagent passes the VRF handle associated with VRF name to ASIC_DB. For SRV6_MY_SID_TABLE's END.B6 Encaps, orchagent use existing Nexthop/NexthopGroup for the list of segments or create a new NexthopGroup.
 
 
 
@@ -521,27 +522,27 @@ SR TRansit/Endpoint behavior
 
 
 
-local_sid_entry.switch_id = 0
+my_sid_entry.switch_id = 0
 
-local_sid_entry.vr_id = vr_id_1 // underlay VRF
+my_sid_entry.vr_id = vr_id_1 // underlay VRF
 
-local_sid_entry.locator_len = 64
+my_sid_entry.locator_len = 64
 
-local_sid_entry.function_len = 8
+my_sid_entry.function_len = 8
 
-CONVERT_STR_TO_IPV6(local_sid_entry.sid, "2001:db8:0:1::1000:0:0:0");
+CONVERT_STR_TO_IPV6(my_sid_entry.sid, "2001:db8:0:1::1000:0:0:0");
 
 
 
-local_sid_attr[0].id = SAI_LOCAL_SID_ENTRY_ATTR_ENDPOINT_TYPE
+local_sid_attr[0].id = SAI_MY_SID_ENTRY_ATTR_ENDPOINT_BEHAVIOR
 
-local_sid_attr[0].value = SAI_LOCAL_SID_ENTRY_ENDPOINT_TYPE_DT46
+local_sid_attr[0].value = SAI_MY_SID_ENTRY_ENDPOINT_TYPE_DT46
 
-local_sid_attr[1].id = SAI_LOCAL_SID_ENTRY_ATTR_VRF
+local_sid_attr[1].id = SAI_MY_SID_ENTRY_ATTR_VRF
 
 local_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
 
-saistatus = saiv6sr_api->create_local_sid(&local_sid_entry, 2, local_sid_attr)
+saistatus = saiv6sr_api->create_local_sid(&my_sid_entry, 2, local_sid_attr)
 
 
 ## 3.5 YANG Model
