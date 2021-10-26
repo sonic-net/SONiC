@@ -398,3 +398,4 @@ N/A
 | 8         | Remove a key from an existing table. |
 | 9         | Replace a mandatory item e.g. type under ACL_TABLE. |
 | 10        | Remove an item that has a default value e.g. stage under ACL_TABLE. |
+| 11        | Change applier - with sample data & validators that touch all code paths |
