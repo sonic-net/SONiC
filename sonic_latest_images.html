@@ -45,8 +45,8 @@
 					<div>
 						<div class="col-md-12">
 						
-								<h2> Latest Successful Builds </h2><br>
-								<p style="padding-left: 0.5em; padding-bottom: 0.5em; vertical-align: center; line-height: 1.5m font-weight: bold; "><strong>NOTE:</strong> This page is updated manually once in a while and hence may not be pointing to the latest MASTER image. The current links are based on 16thOct2021 successful builds. To get the latest master image, refer <span style="color: #0000ff;"><a href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">pipelines</a></span> page. 						
+								<h2> Latest Successful Builds </h2>
+						
 						</div>
 					</div>
 				</div>
@@ -67,7 +67,10 @@
 
 		</p>
 		<p class="mt-4">
-		    <a href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds <br>
+		  <b> NOTE: </b> The 5 digit number given in the cells specifies the build Id of the images.
+		</p>
+		<p class="mt-4">
+		    <a  href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds <br>
 		</p>
 
 		</p>
@@ -88,18 +91,21 @@
 			images = Object.keys(data[branches[i]]);
 			for (let j = 0; j < images.length; j++) {
 			    image_name = images[j];
-			    image = data[branches[i]][images[j]];
+				image = data[branches[i]][images[j]];
 			    image_platform = image_name.split(".")[0];
+			    image_platform2 = image_name;
 			    if(image_platform.length == 1){
 				platform = ""
 			    }else{
 				platform = image_platform.split("sonic-")[1];
+				platform2 = image_platform2.split("sonic-")[1];
 				if(platform.length == 1){
 				    platform = ""
 				}
 			    }
 			    image_avail = true;
 			    image_url = image['url'];
+				build_id = image['build'];
 			    if(image_url === 'null' || image_url === ""){
 				image_avail = false;
 			    }
@@ -108,7 +114,7 @@
 				$("#disp_table").append(platform_column);
 			    }
 			    if (image_avail)
-				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+image_name+"</a></span></td>";
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+platform2+"-"+build_id+"</a></span></td>";
 			    else
 				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
 
