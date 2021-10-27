@@ -55,6 +55,7 @@ At a high level the following should be supported:
 - User should be able to create NVGRE tunnel
 - User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
 - Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
+- Only the decapsulation mappers supported
 - YANG model should be created in order to auto-generate CLI by using the [SONiC CLI Auto-generation tool](https://github.com/Azure/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md).
 - CLI for NVGRE tunnel
 
@@ -223,7 +224,7 @@ module sonic-nvgre-tunnel {
 
                 leaf src_ip {
                     mandatory true;
-                    type inet:ip-address;
+                    type inet:ipv4-address;
                 }
 
             }
