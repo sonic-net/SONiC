@@ -187,7 +187,7 @@ module sonic-nvgre-tunnel {
     yang-version 1.1;
 
     namespace "http://github.com/Azure/sonic-nvgre-tunnel";
-    prefix copp;
+    prefix nvgre;
 
     import ietf-inet-types {
         prefix inet;
@@ -199,7 +199,7 @@ module sonic-nvgre-tunnel {
 
     description "NVGRE Tunnel YANG Module for SONiC OS";
 
-    revision 2021-08-31 {
+    revision 2021-10-31 {
         description
             "First Revision";
     }
@@ -260,7 +260,7 @@ module sonic-nvgre-tunnel {
                 }
 
                 leaf vsid {
-                    type uint24 {
+                    type uint32 {
                         range 4096..16777214;
                     }
                 }
