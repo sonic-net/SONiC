@@ -33,6 +33,7 @@
 | 1.0 | 09/13/2021  |     Prince Sunny   | Revised based on review comments                           |
 | 1.1 | 10/08/2021  |     Prince Sunny   | BFD section seperated             |
 | 1.2 | 10/18/2021  |     Prince Sunny/Shi Su   | Test Plan added            |
+| 1.3 | 11/01/2021  |     Prince Sunny  | IPv6 test cases added            |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -68,6 +69,7 @@ Below diagram captures the use-case. In this, ToR is a Tier0 device and Leaf is 
 At a high level the following should be supported:
 
 - Configure ECMP with Tunnel Nexthops (IPv4 and IPv6)
+- Support IPv6 tunnel that can support both IPv4 and IPv6 traffic 
 - Tunnel Endpoint monitoring via BFD
 - Add/Withdraw Nexthop based on Tunnel or Endpoint health
 
@@ -233,19 +235,39 @@ Create VNET and Vxlan tunnel as an below:
 ```
 { 
     "VXLAN_TUNNEL": {
-        "tunnel1": {
+        "tunnel_v4": {
             "src_ip": "10.1.0.32"
         }
     },
 
     "VNET": {
         "Vnet_3000": {
-            "vxlan_tunnel": "tunnel1",
+            "vxlan_tunnel": "tunnel_v4",
             "vni": "3000",
             "scope": "default"
         }
     }
 ```
+Similarly for IPv6 tunnels
+
+```
+{ 
+    "VXLAN_TUNNEL": {
+        "tunnel_v6": {
+            "src_ip": "fc00:1::32"
+        }
+    },
+
+    "VNET": {
+        "Vnet_3001": {
+            "vxlan_tunnel": "tunnel_v6",
+            "vni": "3001",
+            "scope": "default"
+        }
+    }
+```
+
+Note: It can be safely assumed that only one type of tunnel exists - i.e, either IPv4 or IPv6 for this use-case
 
 For ```default``` scope, no need to associate interfaces to a VNET
 
@@ -260,11 +282,26 @@ VNET tunnel routes must be created as shown in the example below
 ]
 ```
 
+With IPv6 tunnels, prefixes can be either IPv4 or IPv6
+
+```
+[
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3001:100.100.2.1/32": { 
+        "endpoint": "fc02:1000::1", 
+        "endpoint_monitor": "fc02:1000::2"
+    },
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3001:20c0:a820:0:80::/64": { 
+        "endpoint": "fc02:1001::1", 
+        "endpoint_monitor": "fc02:1001::2"
+    }
+]
+```
+
 ### Test Cases
 
 #### Overlay ECMP 
 
-It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. 
+It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above
 
 | Step | Goal | Expected results |
 |-|-|-|
