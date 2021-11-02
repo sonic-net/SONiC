@@ -178,21 +178,20 @@ N/A
 
 ## Configuration and management
 
-A new configuration file will be added to enable the response channel and the APPL STATE DB for the selected APPL DB tables. There are two configurations: response channel and APPL STATE DB. They are defined in separate section of the configuration file. The configuration will contain a list of APPL DB table names. Only the tables in the list will have the feature enabled.
+A new attribute, "sync_mode", will be introduced in the APPL DB entries to enable the response channel and the APPL STATE DB. If the value is set to "true", the response channel and the APPL STATE DB will be enabled for that entry. A DEL operation will use the same sync_mode configuration of the last SET. If the attribute does not present or we couldn't get the attribute (such as deleting a key that doesn't exist), sync_mode is disabled.
 
-An example configuration file will look like this:
+With this configuration, new applications (such as P4RT application) that want to use the response channel and the APPL STATE DB can set the "sync_mode" attribute in the APPL DB requests. Existing applications that do not set the attribute will have the feature disabled.
+
+An example in VRF_TABLE in APPL_DB:
 ```
-{
-    "response_channel": [
-        "P4RT",
-        "SWITCH_TABLE",
-        "HASH_TABLE"
-    ],
-    "appl_state_db": [
-        "P4RT",
-        "HASH_TABLE"
-    ]
-}
+VRF_TABLE|vrf_blue
+127.0.0.1:6379> hgetall "VRF_TABLE:vrf_blue"
+1) "v4"
+2) "true"
+3) "v6"
+4) "true"
+5) "sync_mode"
+6) "true"
 ```
 
 ## Warmboot and Fastboot Design Impact
