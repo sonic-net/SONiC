@@ -697,7 +697,7 @@ All DB & Kernel netdev corresponding to the subinterface can be created with sho
 Intfmgrd & IntfsOrch which manages sub-interfaces should be able to fetch  parent interface properties for a given subinterface.
 
 ## 10.1 SWSS CPP Library
-In CPP, applications can use subintf class provided by swss-common library to fetch attributes of subinterface.
+In CPP, applications can use subintf class provided by sonic-swss library to fetch attributes of subinterface.
 
 Subintf class provides below methods:
 
