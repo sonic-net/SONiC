@@ -15,6 +15,7 @@
         - [1.3.7 Application Associations](#137-Application-Associations)
         - [1.3.8 Container](#138-Container)
         - [1.3.9 SAI Overview](#139-SAI-Overview)
+        - [1.3.10 CA Mode](#1310-CA-Mode)
 - [2 Functionality](#2-Functionality)
 - [3 Design](#3-Design)
     - [3.1 Overview](#31-Overview)
@@ -346,6 +347,10 @@ No new containers are introduced for this feature. Existing Mgmt container will 
 ### 1.3.9 SAI Overview
 
 No new or existing SAI services are required.
+
+### 1.3.10 CA Mode
+
+Certificate Management feature will introduce a new mode called CA Mode that allows a certain switch to act as a CA for other switches. In this mode, the CA switch will be able to generate and sign certificates for the services on all the switches. In this mode, the CA will also be able to automatically rotate certificates for the switches, preventing issues with certificate expiration. This mode is similar to how certificates are handled by Kubernetes for each of it's nodes. This makes certificates management easier, since the user does not have to directly deal with generating certificates, signing requests, rotation etc.
 
 # 2 Functionality
 
