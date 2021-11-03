@@ -99,7 +99,7 @@ Unknown-multicast traffic consists of all multicast traffic which donot match an
  2. Support threshold rate configuration in kilo bits per second (kbps) in the range of 0 kbps to 100,000,000 kbps (100Gbps). 
 
 ### 1.1.2 Configuration and Management Requirements
-This feature supports ,SONiC yang, SONiC CLI and mgmt framework interfaces(Klish, REST, gNMI).
+This feature supports SONiC yang, SONiC CLI and mgmt framework interfaces(Klish, REST, gNMI).
  1. Support a CLI to add or delete broadcast, unknown-unicast and unknown-multicast storm-control on a physical interface as described in "Configuration Commands" section below. 
  2. Support show commands to display the storm-control configuration as described in "Show Commands" section below. 
  3. Support debug commands as described in "Debug Commands" section below.
@@ -146,8 +146,6 @@ Refer to section 1.1
 BUM storm control 
 - Configuration is not supported on VLAN and port-channel interfaces. User can configure on physical port which is part of a VLAN / port-channel.
 - Statistics is not supported. 
-- User is expected to remove all storm-control configurations from interface before doing a breakout from Click CLI. 
- 
 
 
 # 3 Design
