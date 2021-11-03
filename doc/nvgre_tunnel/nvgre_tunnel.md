@@ -294,105 +294,76 @@ Commands summary (Phase #2):
 Show command should be extended in order to add "nvgre" alias:
 
 ```
-admin@sonic:~$ show nvgre --help
-Usage: show nvgre [OPTIONS] COMMAND [ARGS]...
-
-Show nvgre related information
-
-Options:
--?, -h, --help Show this message and exit.
-
-Commands:
-  tunnel     Show nvgre tunnel information.
-  tunnel-map Show nvgre tunnel mappings.
+admin@sonic:~$ show nvgre-tunnel
+TUNNEL NAME    SRC IP
+-------------  --------
+tunnel1        10.0.0.1
+tunnel2        2.2.2.2
+tunnel3        3.3.3.3
 
 =============================================
 
-admin@sonic:~$ show nvgre tunnel
-NVGRE TUNNEL NAME   SOURCE IP
-------------------- -----------
-tunnel2             2.2.2.2
-tunnel3             3.3.3.3
-
-=============================================
-
-admin@sonic:~$ show nvgre tunnel-map
-NVGRE TUNNEL NAME   VLAN        VNI
-------------------- ----------- ------------
-tunnel2             2000        2000
-tunnel3             3000        3000
+admin@sonic:~$ show nvgre-tunnel-map
+TUNNEL NAME    VLAN NAME      VLAN ID    VSID
+-------------  -----------  ---------  ------
+tunnel_1       Vlan1000          1000    5000
 ```
 
 ##### Config CLI command
 
-Config command should be extended in order to add "nvgre" alias:
+Config command should be extended in order to add "nvgre-tunnel" and "nvgre-tunnel-map" aliases:
 
 ```
-admin@sonic:~$ config nvgre --help
-Usage: config nvgre [OPTIONS] COMMAND [ARGS]...
+admin@sonic:~$ config nvgre-tunnel --help
+Usage: nvgre-tunnel [OPTIONS] COMMAND [ARGS]...
 
-config nvgre tunnel
+  NVGRE_TUNNEL part of config_db.json
 
 Options:
--?, -h, --help Show this message and exit.
+  --help  Show this message and exit.
 
 Commands:
-  tunnel      config nvgre tunnel.
-  tunnel-map  config nvgre tunnel mappings.
+  add     Add object in NVGRE_TUNNEL.
+  delete  Delete object in NVGRE_TUNNEL.
+  update  Add object in NVGRE_TUNNEL.
 
 =============================================
 
-admin@sonic:~$ config nvgre tunnel --help
-Usage: config nvgre tunnel [OPTIONS] COMMAND [ARGS]...
+admin@sonic:~$ config nvgre-tunnel add --help
+Usage: add [OPTIONS] TUNNEL_NAME
 
-Config nvgre tunnel
+  Add object in NVGRE_TUNNEL.
 
 Options:
-  -?, -h, --help Show this message and exit.
+  --src-ip TEXT  [mandatory]
+  --help         Show this message and exit.
+
+=============================================
+
+admin@sonic:~$ config nvgre-tunnel-map --help
+Usage: nvgre-tunnel-map [OPTIONS] COMMAND [ARGS]...
+
+  NVGRE_TUNNEL part of config_db.json
+
+Options:
+  --help  Show this message and exit.
 
 Commands:
-  add     Add configuration.
-  del     Del configuration.
-  update  Update configuration.
+  add     Add object in NVGRE_TUNNEL_MAP.
+  delete  Delete object in NVGRE_TUNNEL_MAP.
+  update  Add object in NVGRE_TUNNEL_MAP.
 
 =============================================
 
-admin@sonic:~$ config nvgre tunnel add --help
-Usage: config nvgre tunnel add [OPTIONS] <tunnel_name>
+admin@sonic:~$ config nvgre-tunnel-map add --help
+Usage: add [OPTIONS] TUNNEL_NAME VLAN_NAME
 
-Add nvgre tunnel
-
-Options:
-  -?, -h, --help Show this message and exit.
-  --src-ip       Source IP address.
-
-=============================================
-
-admin@sonic:~$ config nvgre tunnel-map --help
-Usage: config nvgre tunnel-map [OPTIONS] COMMAND [ARGS]...
-
-Config nvgre tunnel mapping
+  Add object in NVGRE_TUNNEL_MAP.
 
 Options:
-  -?, -h, --help Show this message and exit.
-
-Commands:
-  add     Add configuration.
-  del     Del configuration.
-  update  Update configuration.
-
-=============================================
-
-admin@sonic:~$ config nvgre tunnel-map add --help
-Usage: config nvgre tunnel-map add [OPTIONS] <tunnel_name> <vlan_name>
-
-Add nvgre tunnel mapping
-
-Options:
-  -?, -h, --help Show this message and exit.
-  --vlan_id  VLAN identifier.
-  --vsid     Virtual Subnet Identifier.
-
+  --vlan-id TEXT
+  --vsid TEXT
+  --help          Show this message and exit.
 ```
 
 #### Config DB Enhancements
