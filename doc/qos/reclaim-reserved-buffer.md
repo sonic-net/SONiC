@@ -680,6 +680,8 @@ In dynamic buffer model
   - Provided as a json file on a per-vendor or per-platform basis.
   - Loaded to buffer manager via CLI option `-z`.
   - Applied to `APPL_DB` when all ports is admin up and one port is about to be shut down.
+
+    All zero profiles and zero pools will be applied into `APPL_DB` in the same order as they are defined in the json file. So vendor should guarantee the order satisfies the dependency, which means the zero pools should be defined ahead of zero profiles.
   - Removed from `APPL_DB` when only one port is admin down and is about to be started up.
   - For each buffer pool, there should be and only be one zero profiles referencing the buffer pool.
 - When a port is shut down/started up, buffer manager will apply zero/normal profiles on all its buffer objects in `APPL_DB` respectively.
@@ -696,7 +698,7 @@ In dynamic buffer model
 
     The zero profiles will be applied on `0-2`, `3-4`, and `5-6`. As queues `7-15` are also supported but not configured, zero profiles will be applied on them by adding an `BUFFER_QUEUE_TABLE|<port>|7-15` item into `APPL_DB`.
 
-    When the admin-down port is started up, such items will be removed from the system. In case removing queues is not supported on a platform, zero profiles will not be applied on `7-15`.
+    When the admin-down port is started up, such items will be removed from the system. In case removing queues is not supported on a platform, zero profiles will not be applied on `7-15`. After that, the reserved buffer size of these queues will be restored to the SDK default value. The reserved buffer can not be completely reclaimed if the SDK default value is not zero and removing items is not supported on the platform.
   - Specific items. A set of IDs of queues or priority groups should be specific in the json file.
     - The zero profiles will be applied on a specific set of IDs regardless of which queues/priority groups are configured.
     - Buffer items on queues/priority groups that are supported on the port but not configured will be removed.
@@ -707,7 +709,7 @@ In dynamic buffer model
     - Priority group `3-4` is configured as lossless.
 
     The zero profile will be applied on `0` and the priority group `3-4` will be removed.
-- The number of PGs and queues supported on the port is pushed to `STATE_DB` by ports orchagent and consued by buffer manager.
+- The number of PGs and queues supported on the port is pushed to `STATE_DB` by ports orchagent and learned by buffer manager.
 - In case the zero profiles are not provided, reserved buffer will be reclaimed by removing PGs and queues.
 
   If removing is not allowed, reserved buffer will not be reclaimed.
@@ -771,7 +773,7 @@ There is also an item containing control fields, including:
 - `queues_to_apply_zero_profile`: Similar to `pgs_to_apply_zero_profile` but for queues.
 - `ingress_zero_profile`: The ingress zero profile, in case the vendor need to specify it explicitly. By default, the zero profile of each buffer pool is the profile in the list and referencing the pool.
 - `egress_zero_profile`: The egress zero profile. It's similar as the ingress one but on egress side.
-- `support_remove_profile`: By default, it is `yes`. In this case, the normal profiles will be removed from the admin down port before applying the zero profiles on all priority groups or queues.
+- `support_removing_buffer_items`: By default, it is `yes`. In this case, the normal profiles will be removed from the admin down port before applying the zero profiles on all priority groups or queues.
 
   In case removing is not supported by vendor, this field should be specified as `no`. In this case, the zero profiles will be applied on all configured priority groups and queues.
 
@@ -869,6 +871,65 @@ Now that we have new way to do it, reserved buffer will be reclaimed by:
 The new flow for admin down handling is:
 
 ![Flow](reclaim-reserved-buffer-images/dynamic-new.jpg "Figure: Reclaim reserved buffer in dynamic model - new flow")
+
+### 8.5 Add a priority group or queue to an admin-down port ###
+
+Currently, only adding a priority group to an admin-down port is supported. It will be extended to support adding priority groups. This flow varies among different scenarios.
+
+#### 8.5.1 Add a priority group or queue to an admin-down port during initialization ####
+
+1. If `pgs_to_apply_zero_profile` or `queues_to_apply_zero_profile` is not empty:
+
+   - Taking priority group as an example, if the items to be configured is not the same as `pgs_to_apply_zero_profile`, remove the item from `APPL_DB`. This is to notify `orchagent` to add the item to the ready list.
+
+2. Otherwise:
+
+   - If there is zero profile defined, apply the zero profile on the priority group in `APPL_DB`.
+   - Otherwise, remove the item from `APPL_DB`. This is to notify `orchagent` to add the item to the ready list.
+
+#### 8.5.2 Add a priority group or queue to an admin-down port after initialization ####
+
+Otherwise, if the system has been initialized, and `pgs_to_apply_zero_profile` or `queues_to_apply_zero_profile` is not empty, which means zero profiles have been applied on all configured queues or priority groups and configured but not supported objects, extra steps should be taken.
+
+Let's take queues as an example to explain the principle. Suppose the queues to be added/set is `N`, currently the configured queues is `M` and the supported but not configured queues is `S`, the idea is:
+
+1. The union of `N`, `M` and `S` should be equal to the set of all supported queues and the intersection of any two set among `N`, `M` and `S` should be empty.
+
+   Eg. currently, queues `3-4` is configured on port `Ethernet0`, queues `0-7` is supported and a user wants to configure queues `6` on top of them. In this case, the supported but not configured queues should be [`0-2`, `5-7`].
+
+2. Iterate the list of supported but not configured queues, and find the slice which equals or contains the queues the user wants to configure.
+
+   In the example, the slice is `5-7` because `5-7` contains `6`.
+
+3. Remove the slice from the supported but not configured queues list.
+
+   In the example, the slice will be split to `5-7` will be removed from the list.
+
+4. If the slice equals the queues to be configured, procedure finished. In this case, no need to apply zero profile again given that it has been applied.
+
+5. Otherwise, meaning the slice contains the queues to be configured, split the slice into 2 or 3 children,
+
+   - One is exactly the queues to be configured, like `6` in the example
+   - The rest are
+     - The queues whose ID is less than queues to be configured, like `5`
+     - And the queues whose ID is greater than queues to be configured, like `7`
+     - Either of above can be empty if the slice shares the upper or lower bound with the queues to be configured. At lease one bound differs otherwise the slice will equal the queues to be configured.
+
+   Remove the slice from the `APPL_DB` as zero profile has been applied on it and reapply zero profiles on all (both) children into `APPL_DB`.
+
+   In the above example, and `BUFFER_QUEUE_TABLE:Ethernet0:5-7` will be removed from `APPL_DB`, and items `BUFFER_QUEUE_TABLE:Ethernet0:5`, `BUFFER_QUEUE_TABLE:Ethernet0:6` and `BUFFER_QUEUE_TABLE:Ethernet0:7` will be reapplied to `APPL_DB`.
+
+Even from ASIC's perspective of view, there is no difference before step 5 and after it, this step must be done because if the system undergoes a warm reboot without step 5 done, it doesn't understand what items have been applied to `APPL_DB` and can introduce various items convering the same queues. In the above example, if there is no step 5, after warm reboot the buffer manager will apply `BUFFER_QUEUE_TABLE:Ethernet0:5`, `BUFFER_QUEUE_TABLE:Ethernet0:6` and `BUFFER_QUEUE_TABLE:Ethernet0:7` to `APPL_DB` with zero profiles. However, the item `BUFFER_QUEUE_TABLE:Ethernet0:5-7`, which was applied before warm reboot, is still there.
+
+In all other scenarios, saving new priority group or queue suffices.
+
+### 8.6 Remove a priority group or queue to an admin-down port ###
+
+If the `pgs_to_apply_zero_profile` or `queues_to_apply_zero_profile` is not empty, no further actions except for removing the items a user wants to remove from the internal data structure. This is because the reclaiming is done by applying zero profiles on designated priority groups or queues and the items to be removed has never been applied to `APPL_DB`.
+
+Otherwise, there are supported but not configured items on which zero profile has been applied. Now that some items which were configured are about to be removed, they should be added to supported but not configured items list and merged with an existing one it the list. There should always be one that is adjacent to the one to be removed and can be merged with.
+
+For example, the configured items are `0` and `3-4` and the supported but not configured items list is [`1-2`, `5-7`]. If a user wants to remove item `0`, the item will be merged with `1-2` and item `0-2` will be generated.
 
 ## 9 SAI API ##
 
