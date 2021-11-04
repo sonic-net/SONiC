@@ -508,9 +508,11 @@ Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those
 
 # Static Route OC-Paths for ON-CHANGE and Wildcard
 
+## Description
+
 Static Route on change support has been provided for openconfig-local-routing.yang mode by Dell.
 RedisDB config table STATIC_ROUTE was monitored to provide the ON-CHANGE support for static route with next-hop configurations.
-Below is the list of openconfig-yang paths supporting ON-CHANGE supscription for static-route feature:
+Below is the list of openconfig-yang paths supporting ON-CHANGE supscription for static-route feature. That includes the root path "/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes" and its children nodes defined in OC-YANG:
 
 |     Paths                                                                        | ON_CHANGE Supported yes(y)/no(n)  |
 | ---------------------------------------------------------------------------      | -------------|
