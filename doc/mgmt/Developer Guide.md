@@ -1,6 +1,6 @@
 # SONiC Management Framework Developer Guide
 
-## Rev 0.9
+## Rev 1.1
 
 ## Table of Contents
 
@@ -33,24 +33,14 @@
         * [2.4.5 Error Response](#245-error-response)
         * [2.4.6 D-Bus messaging](#246-d-bus-messaging)
     * [2.5 Transformer](#25-transformer)
-        * [2.5.1 Annotation File](#251-annotation-file)
-        * [2.5.2 Annotations](#252-annotate-yang-paths)
-            * [2.5.2.1 sonic-ext:table-name](#2521-sonic-exttable-name-table_name)
-            * [2.5.2.2 sonic-ext:field-name](#2522-sonic-extfield-name-field_name)
-            * [2.5.2.3 sonic-ext:key-delimiter](#2523-sonic-extkey-delimiter-delim)
-            * [2.5.2.4 sonic-ext:key-name](#2524-sonic-extkey-name-value)
-            * [2.5.2.5 sonic-ext:key-transformer](#2525-sonic-extkey-transformer-function)
-            * [2.5.2.6 sonic-ext:field-transformer](#2526-sonic-extfield-transformer-function)
-            * [2.5.2.7 sonic-ext:table-transformer](#2527-sonic-exttable-transformer-function)
-            * [2.5.2.8 sonic-ext:subtree-transformer](#2528-sonic-extsubtree-transformer-function)
-            * [2.5.2.9 sonic-ext:db-name](#2529-sonic-extdb-name-name)
-            * [2.5.2.10 sonic-ext:post-transformer](#25210-sonic-extpost-transformer-function)
-            * [2.5.2.11 sonic-ext:get-validate](#25211-sonic-extget-validate-function)
-            * [2.5.2.12 sonic-ext:rpc-callback](#25212-sonic-extrpc-callback-function)
-        * [2.5.3 Guidelines for Choosing Annotation Type](#253-guidelines-for-choosing-annotation-type)
-        * [2.5.4 Manifest file](#254-manifest-file)
-        * [2.5.5 Callback functions](#255-callback-functions)
-        * [2.5.6 Usage Examples](#256-usage-examples)
+      * [2.5.1 Annotation File](#251-annotation-file)
+      * [2.5.2 YANG Extensions](#252-YANG Extensions)
+      * [2.5.3 Guidelines for Choosing Annotation Type](#253-guidelines-for-choosing-annotation-type)
+      * [2.5.4 Manifest file](#254-manifest-file)
+      * [2.5.5 Transformer Callback functions](#255-Transformer Callback functions)
+      * [2.5.6 Transformer Best Practices](#256-Transformer Best Practices)
+      * [2.5.7 Case Examples](#257-Case Examples)
+      * [2.5.8 Query Parameter](#258-Query Parameter)
     * [2.6 App Module](#26-app-module)
     * [2.7 Config Validation Library](#27-config-validation-library)
         * [2.7.1 CVL Schema](#271-cvl-schema)
@@ -90,18 +80,19 @@
 
 ## Revision
 
-| Rev |     Date    |       Author            | Change Description                                                   |
-|:---:|:-----------:|:-----------------------:|----------------------------------------------------------------------|
-| 0.1 | 09/12/2019  | Anand Kumar Subramanian | Initial version                                                      |
-| 0.2 | 09/16/2019  | Prabhu Sreenivasan      | Added references, prerequisites and updated section 2.1.2 SONiC YANG |
-| 0.3 | 09/16/2019  | Partha Dutta            | Updated SONiC YANG Guideline link                                    |
-| 0.4 | 09/18/2019  | Anand Kumar Subramanian | Updated transformer section                                          |
-| 0.5 | 09/20/2019  | Mohammed Faraaz C       | Updated REST Unit testing                                            |
-| 0.6 | 09/20/2019  | Prabhu Sreenivasan      | Updated reference links and yang path                                |
-| 0.7 | 09/23/2019  | Partha Dutta            | Updated SONiC YANG, CVL, gNMI section                                |
-| 0.8 | 06/18/2019  | Kwangsuk Kim            | Updated CLI section                                                  |
-| 0.9 | 06/22/2020  | Sachin Hola             | Incorporated Phase-II changes, with new repo structure.  	     |
-| 1.0 | 10/09/2020  | Anand Kumar Subramanian | Debugging performance issues                                         |
+| Rev  |    Date    |         Author          | Change Description                                           |
+| :--: | :--------: | :---------------------: | ------------------------------------------------------------ |
+| 0.1  | 09/12/2019 | Anand Kumar Subramanian | Initial version                                              |
+| 0.2  | 09/16/2019 |   Prabhu Sreenivasan    | Added references, prerequisites and updated section 2.1.2 SONiC YANG |
+| 0.3  | 09/16/2019 |      Partha Dutta       | Updated SONiC YANG Guideline link                            |
+| 0.4  | 09/18/2019 | Anand Kumar Subramanian | Updated transformer section                                  |
+| 0.5  | 09/20/2019 |    Mohammed Faraaz C    | Updated REST Unit testing                                    |
+| 0.6  | 09/20/2019 |   Prabhu Sreenivasan    | Updated reference links and yang path                        |
+| 0.7  | 09/23/2019 |      Partha Dutta       | Updated SONiC YANG, CVL, gNMI section                        |
+| 0.8  | 06/18/2019 |      Kwangsuk Kim       | Updated CLI section                                          |
+| 0.9  | 06/22/2020 |       Sachin Hola       | Incorporated Phase-II changes, with new repo structure.      |
+| 1.0  | 10/09/2020 | Anand Kumar Subramanian | Debugging performance issues                                 |
+| 1.1  | 08/10/2021 |      Kwangsuk Kim       | Updated Transformer section including query parameter etc.   |
 
 ## About this Manual
 
@@ -355,7 +346,7 @@ A suggested convention is ***xxx-yyy[-config|state|top]***, where xxx is the top
     Example: "interface-common-state", "subinterfaces-config".
 
 - Use standard typedefs as much as possible.
-Most of the common data types are already defined in one of these YANGs.
+  Most of the common data types are already defined in one of these YANGs.
     - openconfig-types.yang
     - openconfig-inet-types.yang
     - openconfig-yang-types.yang
@@ -655,37 +646,10 @@ $ tools/xfmr/annotate.sh
 usage: tools/xfmr/annotate.sh YANG_FILE_NAME...
 
 $ tools/xfmr/annotate.sh openconfig-lldp.yang
-module openconfig-lldp-annot {
-
-    yang-version "1";
-
-    namespace "http://openconfig.net/yang/annotation/oc-lldp-annot";
-    prefix "oc-lldp-annot";
-
-    import openconfig-extensions { prefix oc-ext; }
-    import openconfig-lldp-types { prefix oc-lldp-types; }
-    import openconfig-interfaces { prefix oc-if; }
-    import ietf-yang-types { prefix yang; }
-    import openconfig-lldp { prefix oc-lldp; }
-
-    deviation /oc-lldp:lldp {
-      deviate add {
-      }
-    }
-
-    deviation /oc-lldp:lldp/oc-lldp:state {
-      deviate add {
-      }
-    }
-
-    deviation /oc-lldp:lldp/oc-lldp:state/oc-lldp:system-description {
-      deviate add {
-      }
-    }
     .....
 ```
 
-#### 2.5.2 Annotate YANG Paths
+#### 2.5.2 YANG Extensions
 
 Transformer provides custom YANG statements to specify translation hints.
 They are defined in `sonic-mgmt-common/models/yang/annotations/sonic-extensions.yang` file.
@@ -712,222 +676,302 @@ deviation /oc-lldp:lldp/oc-lldp:config/oc-lldp:hello-timer {
 
 Following annotation statements are supported.
 
-##### 2.5.2.1 sonic-ext:table-name {TABLE_NAME}
+1. ##### sonic-ext:table-name {TABLE_NAME}
 
-Maps a YANG container or list to redis table name.
+   Maps a YANG container or list to redis table name.
 
-The table-name is **inherited** to all descendant nodes unless another one is defined.
+   The table-name is **inherited** to all descendant nodes unless another one is defined.
 
-##### 2.5.2.2 sonic-ext:field-name {FIELD_NAME}
+2. **sonic-ext:field-name {FIELD_NAME}**
 
-Maps a YANG leaf or leaf-list node to redis hash field name.
+   Maps a YANG leaf or leaf-list node to redis hash field name.
 
-##### 2.5.2.3 sonic-ext:key-delimiter {DELIM}
+3. **sonic-ext:key-delimiter {DELIM}**
 
-Override the default delimiter "|" with a custom delimiter.
-This is used to derive the redis table key by concatenating the table name and key components.
+   Override the default delimiter "|" with a custom delimiter.
+   This is used to derive the redis table key by concatenating the table name and key components.
 
-##### 2.5.2.4 sonic-ext:key-name {VALUE}
+4. **sonic-ext:key-name {VALUE}**
 
-Specify the fixed redis key value for singleton tables.
-Useful when top level YANG container is mapped to a redis table.
+   Specify the fixed redis key value for singleton tables.
+   Useful when top level YANG container is mapped to a redis table.
 
-Example: below annotation results is  redis key "UDLD|GLOBAL".
+   Example: below annotation results is  redis key "UDLD|GLOBAL".
 
-```
-deviate add {
-    sonic-ext:table-name "UDLD";
-    sonic-ext:key-name "GLOBAL";
-}
-```
+   ```
+   deviate add {
+       sonic-ext:table-name "UDLD";
+       sonic-ext:key-name "GLOBAL";
+   }
+   ```
 
-##### 2.5.2.5 sonic-ext:key-transformer {FUNCTION}
+5. **sonic-ext:key-transformer {FUNCTION}**
 
-Overloads the default method to generate DB key(s).
-Used when the key values in a YANG list are different from ones in DB table.
+   Overloads the default method to generate DB key(s).
+   Used when the key values in a YANG list are different from ones in DB table.
 
-A pair of Go callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
-Function signatures:
+   A pair of Go callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
+   Function signatures:
 
-```go
-/**
- * KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key 
- * 
- * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
- * Return: Database keys to access db entry, error
- **/
-type KeyXfmrYangToDb func (inParams XfmrParams) (string, error)
+   ```go
+   /**
+    * KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key 
+    * 
+    * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
+    * Return: Database keys to access db entry, error
+    **/
+   type KeyXfmrYangToDb func (inParams XfmrParams) (string, error)
+   
+   /**
+    * KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
+    * 
+    * Param: XfmrParams structure having Database info, operation, Database keys to access db entry
+    * Return: multi dimensional map to hold the yang key attributes of complete xpath, error
+    **/
+   type KeyXfmrDbToYang func (inParams XfmrParams) (map[string]interface{}, error)
+   ```
 
-/**
- * KeyXfmrDbToYang type is defined to use for conversion of DB key to Yang key
- * 
- * Param: XfmrParams structure having Database info, operation, Database keys to access db entry
- * Return: multi dimensional map to hold the yang key attributes of complete xpath, error
- **/
-type KeyXfmrDbToYang func (inParams XfmrParams) (map[string]interface{}, error)
-```
+6. **sonic-ext:field-transformer {FUNCTION}**
 
-##### 2.5.2.6 sonic-ext:field-transformer {FUNCTION}
+   Overloads default method for generating DB field value.
+   Used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
 
-Overloads default method for generating DB field value.
-Used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
+   A pair of callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
+   Function signatures:
 
-A pair of callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
-Function signatures:
+   ```go
+   /**
+    * FieldXfmrYangToDb type is defined to use for conversion of yang Field to DB field
+    * 
+    * Param: Database info, YgotRoot, operation, Xpath
+    * Return: multi dimensional map to hold the DB data, error
+    **/
+   type FieldXfmrYangToDb func (inParams XfmrParams) (map[string]string, error)
+   
+   /**
+    * FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
+    * 
+    * Param: XfmrParams structure having Database info, operation, 
+    *        DB data in multidimensional map, output param YgotRoot
+    * Return: error
+    **/
+   type FieldXfmrDbtoYang func (inParams XfmrParams)  (map[string]interface{}, error)
+   ```
 
-```go
-/**
- * FieldXfmrYangToDb type is defined to use for conversion of yang Field to DB field
- * 
- * Param: Database info, YgotRoot, operation, Xpath
- * Return: multi dimensional map to hold the DB data, error
- **/
-type FieldXfmrYangToDb func (inParams XfmrParams) (map[string]string, error)
+7. **sonic-ext:table-transformer {FUNCTION}**
 
-/**
- * FieldXfmrDbtoYang type is defined to use for conversion of DB field to Yang field
- * 
- * Param: XfmrParams structure having Database info, operation, 
- *        DB data in multidimensional map, output param YgotRoot
- * Return: error
- **/
-type FieldXfmrDbtoYang func (inParams XfmrParams)  (map[string]interface{}, error)
-```
+   Map a YANG container/list to TABLE name(s).
+   Used to dynamically map a YANG list/container to table names based on URI and payload.
 
-##### 2.5.2.7 sonic-ext:table-transformer {FUNCTION}
+   The table-transformer is **inherited** to all descendant nodes until another one is defined
+   or table-name “NONE” is defined.
 
-Map a YANG container/list to TABLE name(s).
-Used to dynamically map a YANG list/container to table names based on URI and payload.
+   This callback can also be used to populate the 
 
-The table-transformer is **inherited** to all descendant nodes until another one is defined
-or table-name “NONE” is defined.
+   Table transformer function signature:
 
-Table transformer function signature:
+   ```go
+   /**
+    * TableXfmrFunc type is defined to use for table transformer function for
+    * dynamic derviation of redis table.
+    *
+    * Param: XfmrParams structure having database pointers, current db, operation,
+    *        DB data in multidimensional map, YgotRoot, uri
+    * Return: List of table names, error
+    **/
+   type TableXfmrFunc func (inParams XfmrParams) ([]string, error)
+   ```
 
-```go
-/**
- * TableXfmrFunc type is defined to use for table transformer function for
- * dynamic derviation of redis table.
- *
- * Param: XfmrParams structure having database pointers, current db, operation,
- *        DB data in multidimensional map, YgotRoot, uri
- * Return: List of table names, error
- **/
-type TableXfmrFunc func (inParams XfmrParams) ([]string, error)
-```
+8. **sonic-ext:subtree-transformer {FUNCTION}**
 
-##### 2.5.2.8 sonic-ext:subtree-transformer {FUNCTION}
+   Overloading default translation method for the current subtree.
+   Allows the callback function to take **full control of translation**.
+   Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
 
-Overloading default translation method for the current subtree.
-Allows the callback function to take **full control of translation**.
-Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective.
+   The subtree-transformer is **inherited** to all descendant nodes unless another one is defined.
+   i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes
+   along the YANG path until a new subtree transformer is annotated.
 
-The subtree-transformer is **inherited** to all descendant nodes unless another one is defined.
-i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes
-along the YANG path until a new subtree transformer is annotated.
+   A pair of callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
+   Function signatures:
 
-A pair of callbacks should be implemented to support 2 way translation - YangToDB_xxx, DbToYang_xxx.
-Function signatures:
+   ```go
+   /**
+    * SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
+    * 
+    * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
+    * Return: multi dimensional map to hold the DB data, error
+    **/
+   type SubTreeXfmrYangToDb func (inParams XfmrParams) (map[string]map[string]db.Value, error)
+   
+   /**
+    * SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
+    * 
+    * Param : XfmrParams structure having Database pointers, current db, operation,
+    *         DB data in multidimensional map, output param YgotRoot, uri
+    * Return :  error
+    **/
+   type SubTreeXfmrDbToYang func (inParams XfmrParams) (error)
+   ```
 
-```go
-/**
- * SubTreeXfmrYangToDb type is defined to use for handling the yang subtree to DB
- * 
- * Param: XfmrParams structure having Database info, YgotRoot, operation, Xpath
- * Return: multi dimensional map to hold the DB data, error
- **/
-type SubTreeXfmrYangToDb func (inParams XfmrParams) (map[string]map[string]db.Value, error)
+9. **sonic-ext:db-name {NAME}**
 
-/**
- * SubTreeXfmrDbToYang type is defined to use for handling the DB to Yang subtree
- * 
- * Param : XfmrParams structure having Database pointers, current db, operation,
- *         DB data in multidimensional map, output param YgotRoot, uri
- * Return :  error
- **/
-type SubTreeXfmrDbToYang func (inParams XfmrParams) (error)
-```
+   Specify DB name to access data from.
+   Valid values are:
 
-##### 2.5.2.9 sonic-ext:db-name {NAME}
+   - CONFIG_DB (default value)
+   - APPL_DB
+   - ASIC_DB
+   - COUNTERS_DB
+   - FLEX_COUNTER_DB
+   - STATE_DB
 
-Specify DB name to access data from.
-Valid values are:
-- CONFIG_DB (default value)
-- APPL_DB
-- ASIC_DB
-- COUNTERS_DB
-- FLEX_COUNTER_DB
-- STATE_DB
+   Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG
 
-Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG
- 
-The db-name is **inherited** to all descendant nodes unless another one.
-It must be defined with the **table-name** annotation.
+   The db-name is **inherited** to all descendant nodes unless another one.
+   It must be defined with the **table-name** annotation.
 
-##### 2.5.2.10 sonic-ext:post-transformer {FUNCTION}
+10. **sonic-ext:pre-transformer {FUNCTION}**
 
-A special hook to update the mapped DB data after all translation is done, but before writing to DB.
-Analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
+    A pre-transformer hook is invoked at the start of the translation within the transaction. This callback will be invoked after resource check for the requested URI. Pre-transformer hook can be used to support certain cases like accessing non-DB data source before proceeding to main translation process;  It is registered only to the top-level container within a YANG module and can be invoked once per transaction.  The following function template definition is used for pre-transformer  callback functions.
 
-This will be useful to add or update additional data to to be written to DB.
-Example: adding the default ACL rule during ACL creation.
+    ```
+    // PreXfmrFunc type is defined to use for handling any default handling operations required as part of the CREATE, UPDATE, REPLACE, DELETE & GET
+     // Transformer function definition.
+     // Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri
+     // Return: error
+    type PreXfmrFunc func (inParams XfmrParams) (error)
+    ```
 
-Post-transformer can be annotated only to the top-level container(s) within each YANG module.
+11. **sonic-ext:post-transformer {FUNCTION}**
 
-Port-transformer callback function signature:
+    A special hook to update the mapped DB data after all translation is done, but before writing to DB.
+    Analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
 
-```go
-/**
- * PostXfmrFunc type is defined to use for handling any default handling operations
- * required as part of the CREATE.
- * 
- * Param: XfmrParams structure having database pointers, current db, operation,
- *        DB data in multidimensional map, YgotRoot, uri
- * Return: Multi dimensional map to hold the DB data Map (tblName, key and Fields), error
- **/
-type PostXfmrFunc func (inParams XfmrParams) (map[string]map[string]db.Value, error)
-```
+    This will be useful to add or update additional data to to be written to DB.
+    Example: adding the default ACL rule during ACL creation.
 
-##### 2.5.2.11 sonic-ext:get-validate {FUNCTION}
+    Post-transformer can be annotated only to the top-level container(s) within each YANG module.
 
-A special hook to validate YANG nodes, to populate data read from database.
+    Port-transformer callback function signature:
 
-Allows developers to instruct the Transformer to choose a YANG node among multiple nodes
-while constructing the response payload.
-Typically used to check the "when" condition.
+    ```go
+    /**
+     * PostXfmrFunc type is defined to use for handling any default handling operations
+     * required as part of the CREATE.
+     * 
+     * Param: XfmrParams structure having database pointers, current db, operation,
+     *        DB data in multidimensional map, YgotRoot, uri
+     * Return: Multi dimensional map to hold the DB data Map (tblName, key and Fields), error
+     **/
+    type PostXfmrFunc func (inParams XfmrParams) (map[string]map[string]db.Value, error)
+    ```
 
-Callback function signature:
+12. **sonic-ext:get-validate {FUNCTION}**
 
-```go
-/**
- * ValidateCallpoint is used to validate a YANG node during data translation
- * back to YANG as a response to GET.
- * 
- * Param : XfmrParams structure having Database pointers, current db, operation,
- *         DB data in multidimensional map, output param YgotRoot, uri
- * Return :  bool
- **/
-type ValidateCallpoint func (inParams XfmrParams) (bool)
-```
+    A special hook to validate YANG nodes, to populate data read from database.
 
-##### 2.5.2.12 sonic-ext:rpc-callback {FUNCTION}
+    Allows developers to instruct the Transformer to choose a YANG node among multiple nodes
+    while constructing the response payload.
+    Typically used to check the "when" condition.
 
-Handler function for YANG custom RPCs and actions.
-Transformer does not process input or output payloads.
+    Callback function signature:
 
-Function signature:
+    ```go
+    /**
+     * ValidateCallpoint is used to validate a YANG node during data translation
+     * back to YANG as a response to GET.
+     * 
+     * Param : XfmrParams structure having Database pointers, current db, operation,
+     *         DB data in multidimensional map, output param YgotRoot, uri
+     * Return :  bool
+     **/
+    type ValidateCallpoint func (inParams XfmrParams) (bool)
+    ```
 
-```go
-/**
- * RpcCallpoint is used to invoke a callback for action
- * 
- * Param : []byte input payload, dbi indices
- * Return :  []byte output payload, error
- **/
-type RpcCallpoint func (body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
-```
+13. **sonic-ext:rpc-callback {FUNCTION}**
+
+    Handler function for YANG custom RPCs and actions.
+    Transformer does not process input or output payloads.
+
+    Function signature:
+
+    ```go
+    /**
+     * RpcCallpoint is used to invoke a callback for action
+     * 
+     * Param : []byte input payload, dbi indices
+     * Return :  []byte output payload, error
+     **/
+    type RpcCallpoint func (body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
+    ```
+
+14. **sonic-ext:virtual-table {boolean}**
+
+    In case there is no table in the DB schema mapped to Openconfig YANG list/container, the `virtual-table` extension can be used to instruct the Transformer to skip checking for resource presence during parent resource check (refer to 2.5.5). By default, the virtual-table is set to `False`.
+
+    e.g. `intf_subintfs_table_xfmr` and `intf_subintfs_xfmr` map to `SUBINTF_TBL` table & `index` key respectively, but this table/key does not reside in CONFIG_DB. In this case, you can set `sonic-ext:virtual-table “True”` to skip the resource check.
+
+    ```
+       deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface {
+         deviate add {
+         	sonic-ext:table-transformer "intf_subintfs_table_xfmr";
+        	sonic-ext:key-transformer "intf_subintfs_xfmr";
+        	sonic-ext:virtual-table “True”
+         }
+       }
+    ```
+
+    ​		e.g. there is no mapping table to /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol
+
+15. **sonic-ext:value-transformer {FUNCTION}**
+
+    This extension is valid only for SONiC yang. Any yang-key-node or leaf-node can be annotated with the value-transformer extension. The value-transformer callback function supports data conversion before writing into the DB for CRUD request and after reading from DB for GET request. The value-transformer annotated for a leaf will also be invoked, for all other leaves having a leaf-ref to it.
+
+    ```
+    // ValueXfmrFunc type is defined to use for conversion of DB field value from one forma to another
+    // Transformer function definition.
+    // Param: XfmrDbParams structure having Database info, operation, db-number, table, key, field, value
+    // Return: value string, error
+    type ValueXfmrFunc func (inParams XfmrDbParams)  (string, error)
+    ```
+
+16. **sonic-ext:table-owner {boolean}**
+    By default, CRUD operation can create, update or delete an entry in the DB table mapped to a certain YANG node. This table-owner extension can be used to explicitly assign an ownership of the given DB Table in the case when multiple OpenConfig YANG nodes are mapped to a single DB Table. In this case, CRUD operation on the node annotated with this extension set to false can modify the fields, but not permitted to delete an entry mapped to the given DB table which is shared by other YANG nodes.
+
+    e.g. Operation on the resource /oc-qos:qos/oc-qos:interfaces/oc-qos:interface is not permitted to delete an entry in the DB table, learned from the callback qos_intf_table_xfmr.
+
+    ```
+        deviation /oc-qos:qos/oc-qos:interfaces/oc-qos:interface {
+          deviate add {
+              sonic-ext:key-transformer "qos_intf_tbl_key_xfmr";
+              sonic-ext:table-transformer "qos_intf_table_xfmr";
+              sonic-ext:table-owner "false";
+          }
+        }
+    ```
+
+     
+
+17. **sonic-ext:cascade-delete {enable|disable}**
+    This extension can be used to de-configure all related nodes from the target resource on DELETE operation. The extension "cascade-delete" enables dependent configuration clean up for a DELETE request, based on DB Table dependency defined in SONiC YANG. 
+
+18. **sonic-ext:subscribe-preference {sample|onchange}**
+    This extension can be used to hint the transformer infra on the preferred subscription type for a yang-node. By default, this will be set to "sample" for all yang nodes. User can override it to "onchange".
+
+19. **sonic-ext:subscribe-on-change {enable|disable}**
+    This extension can be used to hint the transformer infra onchange subscription support in a yang-node. By default, this will be set to "enable" for all yang nodes.
+
+20. **sonic-ext:subscribe-min-interval {interval-in-secs}**
+    Default min-interval is 60secs, set in translib. User can over-ride this value, using "subscribe-min-interval" annotation, if required.
+
+
+
+
 
 #### 2.5.3 Guidelines for Choosing Annotation Type
+
+
 
 1) If the translation is simple mapping between YANG container/list and TABLE, consider using the extensions - table-name, field-name, optionally key-delimiter 
 
@@ -940,6 +984,8 @@ type RpcCallpoint func (body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
 5) In Get operation, you can annotate the subtree-transformer on the node to implement your own data access and translation with DbToYang_xxx function
 
 6) In case of mapping a container to TABLE/KEY you can use the key-name/key-transfomer along with the table-name/table-transformer extension 
+
+
 
 #### 2.5.4 Manifest file
 
@@ -956,22 +1002,22 @@ Example:
 openconfig-lldp.yang
 openconfig-lldp-ext.yang
 openconfig-lldp-annot.yang
-openconfig-interfaces.yang
-openconfig-if-ip.yang
-openconfig-if-ethernet.yang
-openconfig-if-ethernet-ext.yang
-openconfig-if-ethernet-ext2.yang
-openconfig-interfaces-annot.yang
+. . .
 ```
 
-#### 2.5.5 Callback functions
 
-Transformer callback functions should be implemented in Go source files in
-`sonic-mgmt-common/translib/transformer` directory.
+
+#### 2.5.5 Transformer Callback functions
+
+The callback function signatures and xfmrParams strcutures are defined in 
+`sonic-mgmt-common/translib/transformer/xfmr_interface.go` file.
+
+###### 2.5.5.1 registering callbacks
+
+Transformer callback functions can be implemented in Go source files in `sonic-mgmt-common/translib/transformer`  directory.
 It is suggested to have feature and sub-feature specific source files for easy browsing.
 
-Go function for each of the callback names (defined of annotation file) should be registered
-throigh `XlateFuncBind` API call during transformer module initialization.
+Go function for each of the callback names (defined of annotation file) should be registered through `XlateFuncBind` API call, so that those callbacks can be plugged into the transformer infra during transformer module initialization.
 This can be done in the `init()` function of every Go source file where the callback functions are implemented.
 
 Example:
@@ -981,78 +1027,1474 @@ func init () {
     XlateFuncBind("intf_table_xfmr", intf_table_xfmr)
     XlateFuncBind("YangToDb_intf_name_xfmr", YangToDb_intf_name_xfmr)
     XlateFuncBind("DbToYang_intf_name_xfmr", DbToYang_intf_name_xfmr)
+. . .
 }
 ```
 
-Note that [key-transformer](#2525-sonic-extkey-transformer-function),
-[field-transformer](#2526-sonic-extfield-transformer-function) and
-[subtree-transformer](#2528-sonic-extsubtree-transformer-function)
-requires a pair of callbacks - with `YangToDb_` and `DbToYang_` prefix added to
-the function name specified in annotation file.
 
-Only one callback is required for
-[table-transformer](#2527-sonic-exttable-transformer-function),
-[post-transformer](#25210-sonic-extpost-transformer-function), 
-[get-validate](#25211-sonic-extget-validate-function) and
-[rpc-callback](#25212-sonic-extrpc-callback-function).
 
-All the callback functions, except rpc-callback, receive context information
-through a `XfmrParams` object.
+Note that [key-transformer](#2525-sonic-extkey-transformer-function), [field-transformer](#2526-sonic-extfield-transformer-function) and [subtree-transformer](#2528-sonic-extsubtree-transformer-function) requires a pair of callbacks - with `YangToDb_` and `DbToYang_` prefix added to the function name specified in annotation file. They are required to support bi-directional translation from YANG to DB and vice versa, for SET (CRUD) and GET operations.
+
+For the rest of transformer callbacks, you need only one callback : [table-transformer](#2527-sonic-exttable-transformer-function), [post-transformer](#25210-sonic-extpost-transformer-function), [get-validate](#25211-sonic-extget-validate-function) and [rpc-callback](#25212-sonic-extrpc-callback-function) etc.
+
+
+
+###### 2.5.5.2 xfmrParams structure
+
+All the callback functions, except rpc-callback and subscibe-subtree callback, receive context information through a `XfmrParams` object.
 The rpc-callback callback function receives raw bytes sent by the client.
 
 ```go
-// RedisDbMap is map[DB_NUM]map[TABLE]map[KEY]db.Value
-type RedisDbMap = map[db.DBNum]map[string]map[string]db.Value
-
 // XfmrParams contains context, data passed to the callback functions.
-type XfmrParams struct {
-    d *db.DB
-    dbs [db.MaxDB]*db.DB
-    curDb db.DBNum
-
-    // requestUri holds the resource URI specified in client app.
-    // It can be pointing to parent or child node of the node at which
-    // this callback is registered. -- (RO)
-    requestUri string
-
-    // uri contains path to the node where a callback gets invoked.
-    // Functions should use this value to identify target resource. -- (RO)
-    uri string
-
-    // ygRoot is the ygot struct initialized by translib for the requestUri. -- (RW)
-    ygRoot *ygot.GoStruct
-
-    // oper indicates the current operation requested by translib. -- (RO)
-    // 1=GET, 2=CREATE, 3=REPLACE, 4=UPDATE, 5=DELETE
-    oper int
-
-    // key contains the DB key of current node. -- (RO)
-    key string
-
-    // dbDataMap is the internal map referenced by callback. -- (RO)
-    dbDataMap *map[db.DBNum]map[string]map[string]db.Value
-
-    // subOpDataMap is a map[OPCODE]map[DB_NUM]map[TABLE]map[KEY]db.Value -- (RW)
-    // It should be filled by YangToDb_xxx callbacks to record sub-operations.
-    subOpDataMap map[int]*RedisDbMap
-
-    // param is the ygot GoStruct initialized for payload -- (RO)
-    param interface{}
-
-    // txCache is a cache to pass data/state between callbacks. -- (RW)
-    // Scope of this limited to one translib transaction.
-    txCache *sync.Map
-
-    skipOrdTblChk *bool
+ype XfmrParams struct {
+	d *db.DB
+	dbs [db.MaxDB]*db.DB
+	curDb db.DBNum
+	ygRoot *ygot.GoStruct
+	uri string
+	requestUri string //original uri using which a curl/NBI request is made
+	oper int
+	table string
+	key string
+	dbDataMap *map[db.DBNum]map[string]map[string]db.Value
+	subOpDataMap map[int]*RedisDbMap // used to add an in-flight data with a sub-op
+	param interface{}
+	txCache *sync.Map
+	skipOrdTblChk *bool
+	isVirtualTbl *bool
+    pCascadeDelTbl *[] string //used to populate list of tables needed cascade delete by subtree overloaded methods
+    yangDefValMap map[string]map[string]db.Value
 }
 ```
 
-These structures and callback function templates are defined in
-`sonic-mgmt-common/translib/transformer/xfmr_interface.go` file.
+, where each field is used in below. RO - read-only by application. RW - read-write by application 
 
-#### 2.5.6 Usage Examples
+d: (RO) pointer to the CONFIG_DB
 
-TBD
+dbs: (RO) pointer to all the DBs, **used for GET only**
+
+curDB:(RO) DB number which is annotated to the YANG node by  sonic-ext:db-name. By default, it is set to 4, CONFIG_DB. 
+
+ygRoot: (RW for GET operation, RO for SET operation) ygot struct initialized by translib
+
+- For GET operation, during traversal of subtrees which has subtree xfmr annotated, the transformer infra builds the ygRoot tree till the uri which invokes the subtree-xfmr fucntion. Then, the subtree-xfmr fills the ygRoot tree for the subtree pointed by the uri, with result data fetched from data source. At the end of transaction, the ygRoot tree is referenced by the infra to construct the return payload. 
+- For SET, the translib builds the ygRoot tree as taken from the request uri and body.
+
+uri: (RO) current URI pointing to the node where a callback gets invoked
+
+requestUri: (RO) target resource URI specified in client requests
+
+oper: (RO) 1(GET), 2(CREATE), 3(REPLACE), 4(UPDATE), 5 (DELETE)
+
+table: (RO) DB table name of current node
+
+key: (RO) DB key of current node
+
+dbDataMap:  (RW)  For GET operation, the dbDataMap has data fetched from Redis-DB by the transformer infra, optionally filled by transformer callbacks to provide the hint to the infra to traverse subtrees. **Used for GET only**
+
+subOpDataMap: (RW) data map filled by callbacks with the sub-op different from the operation of the request, **used for SET only**
+Note that the final result data map generated by infra gets merged with subOpDataMap before data written to CONFIG_DB 
+
+Param: (RO for SET) placeholder for either YANG node or default value where YANG defval is defined. Applicable to OpenConfig YANG only. **Used for SET only**
+
+txCache: (RW) placeholder pointing to the cache block, to store data between callbacks for further lookup along data tree traversal, Mainly used for optimization
+
+isVirtualTbl: (RW) a flag to tell the infra to avoid resource check
+
+pCascadeDelTbl: (RO) used to populate list of tables needed cascade delete by subtree callbacks, **Used for Delete only**
+
+yangDefValMap: (RW) Map that contains the YANG default values by the infra, and can be referenced by Post-xfmr to alter default values as needed, **Used for SET only**
+
+
+
+###### 2.5.5.3 Subscribe-subtree callback
+
+The subscribe-sbutree callback can be used in two different contexts - Subscribe and Resoure check. The subscribe conext serves the gNMI subscripton request with either on-change or sample, while the resource check is used for CRUD and Get operation.
+
+Below are the fucntion signature and parameter structures for subscribe-sbutree callback.
+
+```
+// SubTreeXfmrSubscribe type is defined to use for handling subscribe(translateSubscribe & processSubscribe) subtree
+// Transformer function definition.
+// Param : XfmrSubscInParams structure having uri, database pointers,  subcribe process(translate/processSusbscribe), DB data in multidimensional map 
+// Return :  XfmrSubscOutParams structure (db data in multiD map, needCache, pType, onChange, minInterval), error
+type SubTreeXfmrSubscribe func (inParams XfmrSubscInParams) (XfmrSubscOutParams, error)
+
+// XfmrSubscInParams represents input to subscribe subtree callbacks - request uri, DBs info access-pointers, DB info for request uri and subscription process type from translib. 
+type XfmrSubscInParams struct {
+    uri string
+    dbs [db.MaxDB]*db.DB
+    dbDataMap RedisDbMap
+    subscProc SubscProcType
+}
+
+type XfmrSubscOutParams struct {
+  dbDataMap RedisDbMap
+  needCache bool
+  onChange bool
+  nOpts *notificationOpts //these can be set regardless of error
+  isVirtualTbl bool //used for RFC parent table check, set to true when no Redis Mapping
+}
+```
+
+
+
+For a request-Uri pointing to a yang-node having a subtree-transformer annotation, the transformer infra supports subscribe-subtree callback. Existing "subtree-transformer" annotation will be used for this. 
+
+Subscription support:
+
+- Infra will invoke subscribe-subtree, similar to YangToDB(for CRUD) and DbToYang(for GET) subtree functions.
+- Subscription type i.e. translate-subscribe & process-subscribe, will be passed as an input parameter to the subscribe-subtree, along with incoming URI. 
+- Depending upon the incoming Uri, the subscribe-subtree callback should return appropriate DB number, table, key, need- cache, subscribe preference type and sampling min interval info.
+- The transformer infra will validate a translate-subscribe request URI and return error if the request-URI-node has child(sub) container/list, since subscribe is supported only for URIs pointing to containers that has terminal nodes, i.e. leaf & leaf-list.
+
+Resource check support:
+
+- for CRUD/Get request, if a subtree xfmr is annotated on the path, you MUST have a subscribe-subtree callback implemented to return the tables mapped at the given URI to perform an existence check. The subscribe-subtree callback is intended for use by the transformer to perform the existence check for the given resource.  
+
+  
+
+  
+
+  ###### 2.5.5.4 callback chains 
+
+​	A series of transformer callback functions can be invoked by the transformer infra while the YANG model trees are traversed to 	execute the the request. Some of callbacks are invoked in precedence to others. 
+
+
+
+	CRUD: 
+
+	NBI request uri with payload(input) 
+	1) *Parent resource check* 
+	2) pre-transformer 
+	3) 
+	{ (recursive call along tree based on annotation) 
+	table-transformer (either at list level or container level)
+	key-transformer (at list instance level with key, or at container level with key if present) 
+	field-transformer
+	subtree-transformer 
+	}
+	4) post-transformer
+	5) value-transformer
+
+	==> dbDataMap(output)
+
+
+
+
+
+	GET:
+
+	1) table-transformer and key-transformer invoked to read DB data into dbdDataMap
+	2) value-transformer if present
+	3) *Parent resource check*
+	4) pre-transformer 
+	5)
+	{ (recursive call along tree based on annotation) 
+	table-transformer (either at list level or container level)
+	key-transformer (at list instance level with key, or at container level with key if present) 
+	field-transformer
+	subtree-transformer 
+	} 
+	6) post-transformer 
+
+	==> response to NBI request(output)
+
+
+​	
+
+	Note here is the callback sequence during Parent resource check -
+	CRUD and GET: table-transformer/key-transformer (at list level with key) ----> value-transformer for transformed DB key at list level (if present) ---> (subscribe-subtree transformer) at list level (if subtree is annotated)
+	DELETE at request URI - table-transformer/key-transformer (at container level with key)
+
+
+#### 2.5.6 Transformer Best Practices
+
+This section illustrates the best practices using transformer callbacks and extensions.
+
+###### 2.5.6.1 List/container 
+
+In general, there is no need to annotate YANG extensions or implement transformer callbacks if you plan to use SONiC yang for northbound API. However, if you use OpenConfig yang, it means that you need to do some tranformation between OC yand and underlying SONic yang to access database and below is a common practice.
+
+Typical OpenConfig yang has a wrapper container on a list which has sub-containers - config and state conatiner.
+
+If a list or container can be statically mapped to a Redis Table, you can simply use the table-name extension annotated to the node. If the mapping is not static, i.e. it requires some checks to deremine a table, you can annotae the table-tarnsformer extension to implement the callback to find the table name corresponding the given node. 
+
+Note that the key-transformer shoud also be provided to translate the key value because the DB keys are constrcuted with a delimeter.
+
+e.g.
+
+```
+/* BGP Neighbors*/
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:neighbors/oc-netinst:neighbor {
+      deviate add {
+        sonic-ext:table-transformer "bgp_nbr_tbl_xfmr";
+        sonic-ext:key-transformer "bgp_nbr_tbl_key_xfmr";
+      }
+    }
+```
+
+
+
+###### 2.5.6.2 Leaf/Leaf-list
+
+As mentioned in 2.5.6.1, there is no need to traslate data between YANG leaf or leaf-list if you plan to use SONiC yang. 
+
+If you use OpenConfig yang, you also need to consider the field transformer if the field value from data source, i.e. DB or other applications, is different from corresponding node, leaf or leaf-list, defined in Openconfig yang.
+
+e.g.
+
+```
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:config/oc-netinst:name {
+      deviate add {
+        sonic-ext:field-transformer "network_instance_name_field_xfmr";
+      }
+    }
+```
+
+
+
+###### 2.5.6.3 Field-transformer at yang list-key
+
+According to OpenConfig modeling guidelines, the key leaf(s) defined in OC yang list is always defined with leafref type to point at the leaf defined in the subcontainer config. 
+
+It is not recommended, for performance reasons,  to have a field-transformer at YANG list key nodes (leaf-nodes directly under list) when there is already a field-name/field-transformer annotation at the **same leaf-nodes**(leaf-referenced by list keys-nodes) in list/config containers of OC-yang. 
+
+```
+E.g. This field transformer is not needed because the interface/config/name already has one 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:name {
+        deviate add {
+            sonic-ext:field-transformer "intf_name_empty_xfmr";
+        }
+    }
+ 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-            intf:name {
+```
+
+​           sonic-ext:field-transformer "intf_name_empty_xfmr";
+
+}
+
+ 
+
+###### 2.5.6.4 More on Table Transformer extension
+
+1) Static virtual table annotation 
+
+Before calling any transform callbacks, the transformer Infra performs the target URI resource check of a gien request to validate all parent resources, i.e. at list instance, as per open-config yang hierarchy. 
+
+The table name mapped at the list level is used for DB resource check. In case the table mapped at the list level is not determined, the virtual-table extension can be annotated to the list on URI to skip the resource check. This would be useful when a list is mapped to no Redis table during resource check.
+
+Eg: there is no redis table that can be mapped at protocol list level in openconfig-network-instances yang. Hence it can be annotated with virtual-table “true”
+
+```
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol {
+        deviate add {
+            sonic-ext:table-transformer "network_instance_protocols_ptotocol_table_name_xfmr";
+            sonic-ext:key-transformer "network_instance_protocol_key_xfmr";
+            sonic-ext:virtual-table "true";
+        }
+}
+```
+
+
+
+2) Dynamic virtual table annotation
+
+When you need to dynamically determine table name, e.g. PORT or VLAN table etc. based on interface type , you need to implement the table transformer. In some cases, you also need to skip the resource check if a table is not known but you want to continue to traverse the tree without returning "resource not found error". In such case, you can use the special flag, isVirtualTbl, set to true in the table transformer to tell the infra to skip resource check.
+
+Eg: bgp_nbr_tbl_xfmr annotated at the below yang path sets the isVirtualTbl flag when there are dynamic entries available.
+
+    /* BGP Neighbors*/
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:neighbors/oc-netinst:neighbor {
+      deviate add {
+        sonic-ext:table-transformer "bgp_nbr_tbl_xfmr";
+        sonic-ext:key-transformer "bgp_nbr_tbl_key_xfmr";
+      }
+    }
+
+```
+/* For dynamic BGP nbrs, if isVirtualTbl not set, infra will try to get from config DB and fails with Resource not found. For now for any specific nbr requests, check and set isVirtualTble. From xfmr infra when parent table key check happens the dbDataMap is nil. So for this condition, and if cache is not updated set the virtual table */
+
+        if (inParams.dbDataMap == nil && !present) {
+            reqUriPath, _ := getYangPathFromUri(inParams.requestUri)
+            if strings.HasPrefix(reqUriPath, "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/neighbors/neighbor") {
+                *inParams.isVirtualTbl = true
+        } 
+        return tblList, nil
+}
+
+```
+
+
+
+###### 2.5.6.5 More on Table Name extension
+
+Table name of current node is inherited to descendant nodes by default, unless specified with a new table name/transformer or NONE. The table-name extension can be used for static mapping from YANG container or list to DB table name, while the table-transformer can be used for dynamic mapping when a callback needs to check a certain condition to determine table name(s).
+
+Table name "NONE" has a special meaning and can be annotated where you want to stop inheritance of the Parent table to its children. When DELETE operation is performed on a YANG container having table-name "NONE" extension, all child tables having  table-name annotation and its entries will be considered for delete.
+
+Eg: 
+
+If the container dynamic-neighbor-prefixes is not annotated with NONE, it derives the table name from its parent in this case BGP_GLOBALS table mapped to /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:global.
+
+If a DELETE operation is performed on the target uri ‘dynamic-neighbor-prefixes’ container, the table name associated with this container is the derived table from its parent. Hence BGP_GLOBALS is considered for the delete processing by the Infra, which is not expected by the DELETE operation on the target uri. 
+
+So, you can avoid this problem using table-name "NONE". If you annotate the table-name to NONE at the container, then the table name inheritance stops from there, and let the infra continue to find the tables mapped to the child nodes.
+
+```
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:global/oc-netinst:dynamic-neighbor-prefixes {
+      deviate add {
+        sonic-ext:table-name "NONE";
+      }
+    }
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:global/oc-netinst:dynamic-neighbor-prefixes/oc-netinst:dynamic-neighbor-prefix {
+      deviate add {
+        sonic-ext:table-name "BGP_GLOBALS_LISTEN_PREFIX";
+        sonic-ext:key-transformer "bgp_dyn_neigh_listen_key_xfmr";
+      }
+    }
+```
+
+
+
+###### 2.5.6.6 Pre-Transformer
+
+Consider using the pre-transformer if you need to prepare some data before starting data translation for the request. The pre-transformer would be useful when you need to perform pre-requisite action, e.g. cacheing data by direct access to data sources, DB or host applications etc.  Note that, if the pre-transformer is defined, it is called only once at the start of the data translation, prior to any other callbacks except subcribe callback which is called during URI (resource) check.
+
+Examples that can be handled in pre transformer are -
+
+- storing the routes data in the txCache by invoking vtysh call to FRR, so this txCache block can be accessed subsequently by the key/subtree/table transformers when invoked during traversal. This would be useful to optimize callback invocations when a callbacks are annotated to the list, where callbacks are invoked per list instance. With this approach, you can avoid the expensive access like vtysh every time the transformer callback is invoked.
+- setup in dbDataMap with anonymous table and dbKey entries that are required for list traversal. 
+
+
+
+###### 2.5.6.7 **Deletion of child tables along OC YANG tree**
+
+When the DELETE operation is requested on the container, all the tables mapped to decendant nodes are also deleted. Below are the cases when it delete tables. 
+
+1) If the child table instances must be deleted based on the parent table key, you can use the post transformer to identify the child table instances that needs to be deleted. 
+
+Eg: Refer to hdl_del_post_xfmr, pim_hdl_post_xfmr
+
+2) If DELETE on a container will result in complete table deletion or will result in empty table name then, transformer infra will delete the annotated static tables (table-name annotated tables) for its children. Note that the transformer will rely on the CVL api provided parent child order to delete the child tables. 
+
+Eg: In the below annotations if a delete is issued at /openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/peer-groups/peer-group/afi-safis, then the child tables annotated with table-name annotation are also deleted, i.e, all instances of BGP_PEER_GROUP_AF.
+
+```
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:peer-groups/oc-netinst:peer-group/oc-netinst:afi-safis {
+      deviate add {
+        sonic-ext:table-name "NONE";
+      }
+    }
+
+/* peer-group->afi-safis->afi-safi */
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:peer-groups/oc-netinst:peer-group/oc-netinst:afi-safis/ocnetinst:afi-safi {
+      deviate add {
+        sonic-ext:db-name "CONFIG_DB";
+        sonic-ext:table-name "BGP_PEER_GROUP_AF";
+        sonic-ext:key-transformer "bgp_af_pgrp_tbl_key_xfmr";
+      }
+    }
+```
+
+
+
+
+
+###### 2.5.6.8 Default Value altered by post-transformer
+
+For CRU operations, the transformer infra fills the default values for all SONIC tables that the payload maps to. If the applications need to alter the default values filled by the transformer infra, the post transformer can be used.
+
+Eg: Refer to hdl_del_post_xfmr
+
+
+
+###### 2.5.6.9 Skip traversal during GET for yang containers/list:
+
+1) get-validate :
+Based on yang hierarchy if some containers/lists are not relevant for traversal on specific parent list instances then the traversal can be controlled by having a get-validate annotation.
+
+Eg-1: For static routes container is relevant only if the protocol list instance is STATIC, for all other protocols, static routes is not relevant. In such cases to avoid traversal of static routes container and its children during GET, get-validate annotation can be used to indicate traversal is required for this subtree or not.
+
+```
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes {
+      deviate add {
+          sonic-ext:get-validate "static_routes_validate_proto";
+      }
+    }
+```
+
+
+
+```
+module: openconfig-network-instance
+  +--rw network-instances
+     +--rw network-instance* [name]
+       +--rw protocols
+        |  +--rw protocol* [identifier name]
+        |     +--rw identifier                            -> ../config/identifier
+        |     +--rw name                                  -> ../config/name
+        |     +--rw config
+        |     +--ro state
+        |     +--rw static-routes
+        |     +--rw bgp
+        |     |  +--rw global
+        |     |  |  +--rw config
+```
+
+
+
+Eg-2: Based on the afi-safi instance the get validate function is used to decide if traversal if the container is required or not for GET.
+
+```
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:neighbors/oc-netinst:neighbor/oc-netinst:afi-safis/oc-netinst:afi-safi/oc-netinst:l2vpn-evpn {
+      deviate add {
+        sonic-ext:get-validate "bgp_validate_nbr_af";
+      }
+    }
+
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:neighbors/oc-netinst:neighbor/oc-netinst:afi-safis/oc-netinst:afi-safi/oc-netinst:ipv4-unicast {
+      deviate add {
+        sonic-ext:get-validate "bgp_validate_nbr_af";
+      }
+    }
+
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:neighbors/oc-netinst:neighbor/oc-netinst:afi-safis/oc-netinst:afi-safi/oc-netinst:ipv6-unicast {
+      deviate add {
+        sonic-ext:get-validate "bgp_validate_nbr_af";
+      }
+    }
+```
+
+
+
+###### 2.5.6.10 Subtree Transformer
+
+Subtree transformer can be used used when there is no one-one mapping between SONiC and OC yang and the mapping to Redis tables is complex or if the DB entries mapped to OC yang are not in stored in RedisDB 
+
+eg: FRR stored data
+
+When annotating with a subtree annotation, if the subtree is annotated at list instance level, care should be taken to make sure that the annotation at list level is done only when essential as this may lead to subtree being invoked for every list instance resulting in increased processing by the infra and hence a hit on performance in a scaled setup. 
+
+Applications can consider annotating the subtree at the container enclosing the list and handling all list instances in a single subtree callback invocation.
+
+Eg: For annotation like below
+
+```
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes {
+      deviate add {
+          sonic-ext:table-name "STATIC_ROUTE";
+          sonic-ext:key-transformer "static_routes_key_xfmr";
+          sonic-ext:get-validate "static_routes_validate_proto";
+      }
+    }
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes/oc-netinst:static/oc-netinst:next-hops/oc-netinst:next-hop {
+      deviate add {
+          sonic-ext:key-transformer "static_routes_key_xfmr";
+          sonic-ext:subtree-transformer "static_routes_nexthop_xfmr";
+      }
+    }
+```
+
+
+
+The subtree can been annotated at "/oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes" because for the above annotation only  key in "static" list will be added by infra and then for each list instance ygot is created and then subtree is called for each instance (ygot creation at each list instance in scaled config will result in a performance hit) Instead the subtree annotation when done like below will result in better performance
+
+```
+    deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes {
+      deviate add {
+          sonic-ext:subtree-transformer "static_routes_subtree_xfmr";
+      }
+```
+
+
+
+
+
+###### 2.5.6.11 Reevaluate the subtree transformer annotated at child- list 
+
+Annotate the subtree-transformer at a wrapper container of parent-list and not at child list-level, if the parent list has only container having just the key leaf, for performance reasons.
+
+e.g.
+
+```
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes/oc-netinst:static/oc-netinst:next-hops/oc-netinst:next-hop 
+      {
+               deviate add {
+                  sonic-ext:key-transformer "static_routes_key_xfmr";
+                  sonic-ext:subtree-transformer "static_routes_nexthop_xfmr";
+               }
+      }
+```
+
+ 
+
+In this example, the subtree transformer should have been annotated at "/oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:static-routes" because the infra was used only for filling the key in "static" list. And then for each list instance, the ygot was created and then subtree callback called for each instance (creating ygot at each list instance in scaled config was a performance hit).
+
++--rw static-routes
+
+​    |   | +--rw static* [prefix]
+
+​    |   |   +--rw prefix    -> ../config/prefix
+
+​    |   |   +--rw config
+
+​    |   |   | +--rw prefix?  inet:ip-prefix
+
+​    |   |   +--ro state
+
+​    |   |   | +--ro prefix?  inet:ip-prefix
+
+​    |   |   +--rw next-hops
+
+​    |   |    +--rw next-hop* [index]
+
+ 
+
+###### 2.5.6.12 Get-validate and subtree transformer at same level
+
+Do not combine the “get-validate” and “subtree-transformer” annotation at same yang node. Instead add the check to validate data at the entry point of subtree transformer.
+
+
+
+
+
+ 
+
+###### 2.5.6.1.13 Target resource check
+
+For target resource check (CRUD/GET context), a rule of thumb is , if a subtree xfmr is annotated on the path, you MUST have a subscribe-subtree callback implemented to return the tables mapped at the given URI to perform an existence check. The subscribe-subtree callback is intended for use by the transformer to perform the existence check for the given resource. Otherwise, either table-transformer/key-transformer or table-name/key-name along with DB number must be there to return table names mapped to the given URI. 
+
+Below is an example code of subscribe-subtree cllback for the given path. The subscribe-subtree callback will be invoked before any other callback by the Transformer to determine the existence for the target resource. The returned **dbDataMap** of XfmrSubscOutParams should have DB number, table and keys specific to the given Uri that can be mapped to Redis table and key.
+
+```
+var Subscribe_ntp_server_subtree_xfmr = func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
+    var err error
+    var result XfmrSubscOutParams
+    result.dbDataMap = make(RedisDbMap)
+ 
+    pathInfo := NewPathInfo(inParams.uri)
+    targetUriPath, _ := getYangPathFromUri(pathInfo.Path)
+    keyName := pathInfo.Var("address") 
+
+    log.Infof("Subscribe_ntp_server_subtree_xfmr path %v key %v ", targetUriPath, keyName)
+    if (keyName != "") {
+        result.dbDataMap =          RedisDbMap{db.ConfigDB:{NTP_SERVER_TABLE_NAME:{keyName:{}}}}
+        log.Infof("Subscribe_ntp_server_subtree_xfmr keyName %v dbDataMap %v ", keyName, result.dbDataMap)
+    } else {
+        result.dbDataMap = RedisDbMap{db.ConfigDB:{NTP_SERVER_TABLE_NAME:{"*":{}}}}
+        log.Infof("Subscribe_ntp_server_subtree_xfmr keyName %v dbDataMap %v ", keyName, result.dbDataMap)
+    }
+    result.isVirtualTbl = false
+    
+    /* subscription context only */
+    result.needCache = true
+    result.nOpts = new(notificationOpts)
+    result.nOpts.mInterval = 15
+    result.nOpts.pType = OnChange
+    
+    log.Info("Returning Subscribe_ntp_server_subtree_xfmr")
+    return result, err
+}
+```
+
+ 
+
+Note that if the URI points to a list without keys, then the key of returned dbDataMap needs to be set to "*".
+Note that if there is no mapping table at all, please refer to the section 3 and 4 below.
+Nota that the request URI contains multiple parent lists, the subscribe-subtree callback will be invoked per parent list.
+Note that the fields - needCache, onChange, nOpts.mInterval, nOpts.pType - are specific to on-change subscription. As of now, on-change subscription is allowed for only container or list that has direct terminal nodes - leaf & leaf-list. Hence, these fields are not applicable to the subscribe-subtree callback associated to non-immediate parent lists.
+
+ 
+
+If multiples keys (instances) are returned from a subscribe-subtree callback, you can return with **"\*"** as Db key.
+
+e.g. /openconfig-qos:qos/scheduler-policies/scheduler-policy has subtree-transformer.
+
+```
+Request path("/openconfig-qos:qos/scheduler-policies/scheduler-policy[**name=sp1**]/schedulers/scheduler[**sequence=2**]/two-rate-three-color/config/cir")
+```
+
+ Note that, in the above example, the key "**sp1**" and "**2**" gets concatenated to make a DB key, **"SCHEDULER|sp1@2"**.
+ The subscribe-subtree callback will be invoked at both scheduler-policy[name=sp1] and scheduler[sequence=2] in this order. At scheduler-policy[name=sp1], the subscribe-subtree callback has to return table="SCHEDULER" and key="sp1*" because the sequence 2 is not known at this level. The infra will perform pattern-based query using "sp1*" to ensure resource existence. Subsequently, at scheduler[sequence=2], the subscribe-xfmr has to return table="SCHEDULER", key="sp1@2".
+
+ 
+
+·    **XfmrSubscOutParams.isVirtualTbl** flag – This flag can be used for following **2 cases** : 
+
+1.)  In order to skip target resource check, when there is no table mapping available for a certain target resource,  subscribe subtree callback, can set the isVirtualTbl flag in the return type XfmrSubscOutParams
+
+```
+type XfmrSubscOutParams struct {
+  dbDataMap RedisDbMap
+  needCache bool
+  onChange bool
+  nOpts *notificationOpts //these can be set regardless of error
+  isVirtualTbl bool //used for RFC parent table check, set to true when no Redis Mapping
+}
+```
+
+**e.g.** below path can be mapped to both Redis table and dataset (e.g. sensor) fetched from Host via DBus. Hence your subscribe callback can set the isVirtualTbl to false if the URI points to the sensor.
+
+```
+  deviation /oc-platform:components/oc-platform:component {
+   deviate add {
+    sonic-ext:subtree-transformer "pfm_components_xfmr";
+   }
+  }
+```
+
+Here is an example code to set the isVirtualTbl flag.
+
+```
+var Subscribe_pfm_components_xfmr SubTreeXfmrSubscribe = func (inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
+  var err error
+  var result XfmrSubscOutParams
+  key := NewPathInfo(inParams.uri).Var("name")
+
+  mstr := strings.ToLower(key)  if key == "" || mstr == "sensor" {
+    /* no need to verify dB data if we are requesting ALL
+      components or if request is for sensor */
+    result.isVirtualTbl = true
+    return result, err
+  }
+
+  result.dbDataMap = make(RedisDbMap)
+  if mstr == "system eeprom" {
+    result.dbDataMap = RedisDbMap{db.StateDB: {EEPROM_TBL:{"*":{}}}}
+  } else if mstr == "software" {
+    /* software component reads from XML file but also
+     \* gets EEPROM information from dB */
+    result.dbDataMap = RedisDbMap{db.StateDB: {EEPROM_TBL:{"*":{}}}}
+  } else if validPsuName(&key) {
+    result.dbDataMap = RedisDbMap{db.StateDB: {PSU_TBL:{key:{}}}}
+  } else if validFanName(&key) {
+    result.dbDataMap = RedisDbMap{db.StateDB: {FAN_TBL:{key:{}}}}
+  } else if validTempName(&key) {
+    result.dbDataMap = RedisDbMap{db.StateDB: {TEMP_TBL:{key:{}}}}
+  } else if validXcvrName(&key) {
+    result.dbDataMap = RedisDbMap{db.StateDB: {TRANSCEIVER_TBL:{key:{}}}}
+  } else {
+    return result, errors.New("Invalid component name")
+  }  return result, err
+}
+```
+
+ 
+
+2.)   For GET case defer target resource check to DbToyang subtree. Since the target resource check happens at list instance level in uri, sometimes an app needs to take decision for list instance based on the child container in Uri. Or in some cases a list instance spans over 2 tables (at child container levels). In such cases app can set isVirtualTbl flag in subscribe subtree and then do the target resource check in their DbToyang subtree and return error from there if resource does not exist.
+
+**Eg**.Targt resource check happens at interface=vlan100 in subscribe subtree. However, this interface list spans over 2 tables depending on child container. igmp-snooping/interfaces/interface=Vlan100/config/mrouter-interface maps to CFG_L2MC_MROUTER_TABLE_TS whereas . igmp-nooping/interfaces/interface=Vlan100/config/ staticgrps maps to CFG_L2MC_STATIC_MEMBER_TABLE_TS/CFG_L2MC_STATIC_GROUP_TABLE.In such case subscribe-subtree can set the isVirtualTbl flag and defer resource check to the DbToYang subtree.
+
+ 
+
+
+
+·    **Debug subscription** - To check if annotation on a yang node is loaded by transformer, look for fields :- 1.) subscribeOnChg(1- enable/0-disable), 2.) subscribeMinIntvl : int value and 3.) hasNonTerminalNode(true/false)  whether yang node has child container/list, in file /tmp/fullSpec.txt, in the mgmt-framework container. For a given URI for subscription , to check for what got registered with translib, look for info logs from common_app.
+
+
+
+###### 2.5.6.14 Subscribe-subtree vs virtual-table annotation
+
+When there is a subtree annotated at a yang node, it is recommended to have a subscribe -subtree implementation to notify on virtual-table, instead of static virtual-table annotation, for target resource check. This is because a subtree callback is inherited to child hierarchy but static annotation of virtual-table is not. If developer still chooses to statically annotate virtual-table then it has to be done at every list level in the yang hierarchy annotated with subtree.
+
+#### 2.5.7 Case Examples
+
+###### 2.5.7.1 **Static mapping: table-name, field-name**
+
+**Usage
+ ** table-name: map a YANG container/list to TABLE name
+  field-name: map a YANG leaf/leaf-list to FIELD name
+
+**YANG annotation
+ **1) maps a YANG list “policy-definition” to Redis table “ROUTE_MAP_SET” 
+
+```
+ deviation /oc-rpol:routing-policy/oc-rpol:policy-definitions/oc-rpol:policy-definition {
+     deviate add {
+       sonic-ext:**table-name** "ROUTE_MAP_SET";
+     }
+   }
+```
+
+2) maps a YANG leaf “call-policy” to Redis field “call_route_map”
+
+```
+deviation /oc-rpol:routing-policy/oc-rpol:policy-definitions/oc-rpol:policy-definition/oc-rpol:statements/oc-rpol:statement/oc-rpol:conditions/oc-rpol:state/oc-rpol:call-policy {
+    deviate add {
+       sonic-ext:**field-name** "call_route_map";
+    }
+   } 
+```
+
+
+
+###### 2.5.7.2 **Field** **Xfmr** **(Interface enabled)**
+
+**Usage
+ ** Convert field-name and/or value to DB field name and value and vice-versa
+
+In the below example, the field transformer is used to convert yang field name “enabled” to Db field name “admin_status” as well as convert the yang value(true/false) to Db format value (up/down) and vice-versa. 
+
+**YANG annotation**
+
+```
+deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:enabled {
+     deviate add {
+       sonic-ext:field-transformer "intf_enabled_xfmr";
+     }
+   }
+```
+
+**SET:** var **YangToDb**_intf_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error)
+
+```
+curl -X PATCH https://10.11.56.28/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet32" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -d "{ \"openconfig-interfaces:interface\": [{\"name\":\"Ethernet32\",\"config\": {\"name\":\"Ethernet32\",\"enabled\":false,\"mtu\": 2500}}]}"
+```
+
+**GET:** var **DbToYang**_intf_enabled_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {}
+
+```
+curl -X GET "https://10.11.56.28/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet32/config/enabled" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -k -u "admin:admin123"
+```
+
+
+
+###### 2.5.7.3 **Key** **Xfmr** **(Annotated at List)**
+
+**Usage**
+
+Convert yang key/field value to DB key value and vice-versa. Can be annotated at list or container level.
+
+**network_instance_table_key_xfmr** – This key transformer is used to convert yang list key “name” to Db table key format and vice-versa. The Db table corresponds to key. If key value is “mgmt” then the DB key is “vrf_global” (in MGMT_VRF_CONFIG); if its default/Vrf* the key value is taken as is for table VRF. If its Vlan* then also key value is taken as is for VLAN table.  
+
+**YANG annotation**
+
+```
+ deviation /oc-netinst:network-instances/oc-netinst:network-instance {
+    deviate add {
+     sonic-ext:table-transformer "network_instance_table_name_xfmr";
+     sonic-ext:key-transformer "**network_instance_table_key_xfmr**";
+    }
+   }
+```
+
+**SET:** var **YangToDb_network_instance_table_key_xfmr** KeyXfmrYangToDb = func(inParams XfmrParams) (string, error)
+
+```
+curl -X POST "https://10.11.56.28/restconf/data/openconfig-network-instance:network-instances/network-instance=mgmt""accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -d "{  \"openconfig-network-instance:config\": {\"name\": \"mgmt\",\"enabled\": true}}"
+```
+
+**GET:** var **DbToYang_network_instance_table_key_xfmr** KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error)
+
+```
+curl -X GET "https://10.11.56.28/restconf/data/openconfig-network-instance:network-instances/network-instance=mgmt/config/enabled" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" 
+```
+
+
+
+###### 2.5.7.4 **Key** **Xfmr** **(Annotated at List)**
+
+**Usage**
+
+ **nat_global_key_xfmr** – This key transformer, annotated at container level, is used to assign NAT_GLOBAL table key value “Values” on Set/Configuration (yangToDb ) and nothing on the Get (DbToYang) side(since there is no corresponding yang field/key to be filled)
+
+**YANG annotation**
+
+```
+ deviation /oc-nat:nat/oc-nat:instances/oc-nat:instance/oc-nat:config {
+    deviate add {
+       sonic-ext:table-name "NAT_GLOBAL";
+       sonic-ext:key-transformer "**nat_global_key_xfmr**";
+     }
+   }
+```
+
+**SET:** var YangToDb_**nat_global_key_xfmr** KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) 
+
+curl -X POST "[https://10.11.56.28/](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[restconf](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[/data/](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[openconfig-nat:nat](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[/instances/instance=1/config](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)" -H "accept: application/yang-data+json” -H "Content-Type: application/yang-data+json" -d "{ \"openconfig-nat:enable\": true, \"openconfig-nat:timeout\": 456, \"openconfig-nat:tcp-timeout\": 567, \"openconfig-nat:udp-timeout\": 333}"
+
+**GET:** var DbToYang_**nat_global_key_xfmr** KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) 
+
+curl -X GET "[https://10.11.56.28/](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[restconf](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[/data/](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[openconfig-nat:nat](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)[/instances/instance=1/config](https://10.11.56.28/restconf/data/openconfig-nat:nat/instances/instance=1/config)" -H "accept: application/yang-data+json" 
+
+
+
+Note that the key-transformer can also be annotated in SONiC yang to support a GET case, where the yang list key-leaves need to be extracted from DBKey string, and Dbkey separator is also present in the key-component value.
+
+e.g. list MCLAG_FDB_TABLE_LIST {  key "vlan mac-address mac-type-str"; }
+In case the Db-key string is "Vlan3195:**00:a0:00:00:01:26**:remote", where the key-separator ":" is also present in the key-value (mac-address). 
+From the above single string value, the YANG based list key-leaves need to be extracted. The key-transformer can be implemented to tokenize the string into populate the YANG data.
+
+
+
+###### 2.5.7.5 **Table** **Xfmr** **(Annotated at List)**
+
+**Usage**
+
+Table xfmr can be used for dynamically deriving the TABLE name based on the URI and key data provided via OC yang request, table-name annotation can be used for static case like OC list maps to particular table in Redis db.
+
+ Example -  
+ openconfig-interfaces.yang is used to support Ethernet, PortChannel, Management and Vlan interface types, but in Redis db. Each interface can be maped to separate TABLE (PORT, PortChannel,MGMT_PORT and VLAN respectively) , Table name changes based on the interface name we are acting on, so table-name annotation can’t be used in this case, it’s a good use case to use table transformer.
+
+**YANG annotation**
+
+```
+deviation /oc-intf:interfaces/oc-intf:interface {    
+   deviate add {      
+     sonic-ext:key-transformer "intf_tbl_key_xfmr";      
+     sonic-ext:table-transformer "**intf_table_xfmr**";    
+   }  
+ }
+```
+
+**xfmr** **callback:** 
+ var **intf_table_xfmr** TableXfmrFunc = func (inParams XfmrParams) ([]string, error)
+
+
+
+###### 2.5.7.6 **Table** **Xfmr** **(Annotated at Container)**
+
+**Usage**
+
+The table transformer shall be used when the yang container/list maps to more than one Redis Tables. e.g: for config node under a server-group, depending on the key value of the server-group, it can be mapped to different tables, i.e. “TACPLUS” table if the key is “TACACS”, or “RADIUS” if the key is RADIUS”. The table transformer can return a list of tables that the yang path maps to in Redis DB, e.g. get all the interfaces. 
+ Note-1: when the yang entry maps to a single table always, the **table-name** annotation can be used.
+ Note-2: a single table-xfmr is used for both set and get. 
+
+**YANG annotation**
+
+```
+ deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:config {
+   deviate add {
+      sonic-ext:key-transformer "global_sg_key_xfmr";
+      sonic-ext:table-transformer "**global_sg_tbl_xfmr**";
+    }
+   }
+```
+
+**xfmr** **callback:** 
+ var **global_sg_tbl_xfmr** TableXfmrFunc = func(inParams XfmrParams) ([]string, error)
+
+**SET:**
+
+```
+ curl -X POST "https://localhost/restconf/data/openconfig-system:system/aaa/server-groups/server-group=TACACS/config" -H "accept: application/yang-data+json" -H "authorization: Basic YWRtaW46c29uaWNAZGVsbA==" -H "Content-Type: application/yang-data+json" -d "{ \"openconfig-system-ext:source-address\": \"1.1.1.1\", \"openconfig-system-ext:auth-type\": \"mschap\", \"openconfig-system-ext:secret-key\": \"secret1\", \"openconfig-system-ext:timeout\": 10, \"openconfig-system-ext:retransmit-attempts\": 10}"
+```
+
+**GET: ** 
+
+```
+curl -X GET "https://localhost/restconf/data/openconfig-system:system/aaa/server-groups/server-group=TACACS/config" -H "accept: application/yang-data+json" -H "authorization: Basic YWRtaW46c29uaWNAZGVsbA=="
+```
+
+
+
+###### 2.5.7.7 **Reset Table** **Xfmr** **inheritance**
+
+**Usage
+** By default, the table transformer gets inherited to children nodes along the hierarchical subtree. It can be reset once the table-name “NONE” is annotated or new table-transformer or table-name is annotated to the descendant nodes. 
+ e.g.
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance {
+    deviate add {
+     **sonic-ext:table-transformer** **"****network_instance_table_name_xfmr****";**
+     sonic-ext:key-transformer "network_instance_table_key_xfmr";
+    }
+   }
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols {
+    deviate add {
+       **sonic-ext:table-name** **"NONE";** **à** **stop inherit**
+     }
+   }
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol {
+     deviate add {
+       **sonic-ext:table-transformer** **"****network_instance_protocols_ptotocol_table_name_xfmr****"; -> new table-transformer**
+       sonic-ext:key-transformer "network_instance_protocol_key_xfmr";**
+**     }
+   }
+
+deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst:bgp/oc-netinst:global {
+     deviate add {
+       **sonic-ext:table-name** **"BGP_GLOBALS"; -> new table-name**
+       sonic-ext:key-transformer "bgp_gbl_tbl_key_xfmr";
+     }
+
+
+
+###### 2.5.7.8 **Subtree** **Xfmr** **(Ip Address)**
+
+**Usage
+** Allows the sub-tree transformer to take full control of translation. Note that, if any other extensions are annotated to the nodes on the subtree, they are not effective. 
+
+Main reason to use subtree transformer in this case was in OC yang only “IP address” is only key attribute but in Redis-db “ipaddress/prefix-length” is the key. So one of the non key and non mandatory attribute in OC yang is used as key attribute in Redis db, so as part of subtree xfmr method added logic to make prefix-length attribute. 
+
+**YANG annotation**
+
+```
+deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses {
+     deviate add {
+       sonic-ext:table-name "NONE";
+       sonic-ext:subtree-transformer "**intf_ip_addr_xfmr**";
+     }
+   }
+```
+
+**SET:** var YangToDb**_intf_ip_addr_xfmr** SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error)
+
+```
+ curl -X POST "https://localhost/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/subinterfaces/subinterface=0/openconfig-if-ip:ipv4/addresses" -H "accept: application/yang-data+json" –H  "Content-Type: application/yang-data+json" -d "{ \"openconfig-if-ip:address\": [  {   \"ip\": \"10.1.1.1\", \"config\": {\"ip\": \"10.1.1.1\", \"prefix-length\": 24}}]}"
+```
+
+
+
+
+
+**GET:** var DbToYang_**intf_ip_addr_xfmr** SubTreeXfmrDbToYang = func (inParams XfmrParams) (error)
+
+```
+ curl -X GET "https://localhost/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0/subinterfaces/subinterface=0/openconfig-if-ip:ipv4/addresses" -H "accept: application/yang-data+json"
+```
+
+
+
+###### 2.5.7.9 **Subtree** **Xfmr** **(IGMP-Snooping)**
+
+**Usage
+** The subtree transformer maps to/from different Redis DB tables depending on the config available in the igmp-snooping subtree. 
+ For both Set and Get Request the data translation is done from the different tables to the corresponding yang constructs.
+
+**YANG annotation
+**
+
+```
+   deviation /oc-netinst:network-instances/oc-netinst:network-instance/oc-netinst:protocols/oc-netinst:protocol/oc-netinst-deviation:igmp-snooping {
+     deviate add {
+  sonic-ext:subtree-transformer "**igmp_snooping_subtree_xfmr**";
+     }
+   }
+```
+
+**SET:** var **YangToDb**_*igmp_snooping_subtree_xfmr* SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error)
+
+```
+curl -X POST "https://localhost/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=IGMP_SNOOPING,IGMP-SNOOPING/openconfig-network-instance-deviation:igmp-snooping" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -d "{\"openconfig-network-instance-deviation:interfaces\":{\"interface\":[{\"config\":{\"enabled\": true,\"last-member-query-interval\":1000,\"name\":\"Vlan1\",\"version\":3},\"name\":\"Vlan1\"},{\"config\":{\"enabled\":true,\"last-member-query-interval\":1000,\"name\":\"Vlan2\",\"version\":3},\"name\":\"Vlan2\"}]}}“
+```
+
+
+ Below is the result map returned from the above subtree callback:
+ \-----------------------------------------------------------------
+
+ Below is the result map returned from the above subtree callback:
+ \-----------------------------------------------------------------
+
+```
+CFG_L2MC_TABLE 
+
+ key : Vlan1
+
+  version :3
+
+  last-member-query-interval :1000
+
+  enabled :true
+
+ key : Vlan2
+
+  version :3
+
+  last-member-query-interval :1000
+
+  enabled :true
+```
+
+e.g. 
+ \- for data in “igmp-snooping/interfaces/interface/config” the corresponding Redis table is CFG_L2MC_TABLE 
+
+\- for data in “igmp-snooping/interfaces/interface/config/mrouter-interface” the corresponding Redis table is CFG_L2MC_MROUTER_TABLE, 
+
+\- for data in “igmp-snooping/interfaces/interface/config/static-multicast-group” the corresponding Redis table is CFG_L2MC_STATIC_MEMBER_TABLE
+
+-for data in “igmp-snooping/interfaces/interface/config/static-multicast-group/outgoing-interface” the corresponding Redis table is CFG_L2MC_STATIC_GROUP_TABLE.
+
+
+
+###### 2.5.7.10 **Subtree** **Xfmr** **(Interface counters)**
+
+**Usage**
+
+**intf_get_counters_xfmr** – This subtree transformer first fetches OID corresponding to queried Interface name. For this it refers to COUNTERS_PORT_NAME_MAP Db table from COUNTERS DB and finds field whose name matches to incoming interface. Once matched the field’s value is the desired OID. This OID is then used as key to find the counters data from COUNTERS table. Once the counters data for an OID is retrieved from Db table its is filled into appropriate yang fields under interfaces/interface[]/state/counters tree. If no interface key is given during query counters data for all interfaces is fetched. 
+
+**YANG annotation**
+
+```
+deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters {
+     deviate add {
+       sonic-ext:subtree-transformer "**intf_get_counters_xfmr**";
+       sonic-ext:db-name "COUNTERS_DB";
+     }
+   }
+```
+
+**SET:** N/A
+
+**GET:** var **DbToYang**_intf_get_counters_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error
+
+```
+curl -X GET "https://10.11.56.28/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet32/state/counters" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json"
+```
+
+
+
+###### 2.5.7.11 **Post** **Xfmr** **(NAT)**
+
+**Usage** 
+
+ The post transformer can be used to handle any transformations required at the end of the transaction after the infra has formed the DBMap, either for SET or GET use cases.
+ Note that the annotation for post transformer is always done at the **module** level and will be invoked **once** for the given transaction for the module.
+
+
+
+**YANG annotation**
+
+```
+deviation /oc-nat:nat {
+   deviate add {
+     sonic-ext:post-transformer "nat_post_xfmr";
+    }
+   }
+```
+
+
+
+###### 2.5.7.12 **SubOpDataMap** **(Ip Address)**
+
+**Usage
+ ** SubOpDataMap map is one of the member in “inParams” parameter to all the xfmr method types, its used as out parameter.
+
+Take case where for an UPDATE operation from user via OC yang,  like configure a same ip address with different prefix length on the Ethernet0, but in Redis -db. prefix-length is part of a key (ipaddress/prefix-length) and it can’t be update as key is different, to solve this  as part of subtree YangtoDb implementation UPDATE operation on OC yang maps to DELETE and CREATE/UPDATE of entries in INTERFACE table. 
+
+To perform multiple and different operation types on DB as part of any CRUD operations, user can make use of subOpDataMap.
+
+
+
+**Example** 
+ xfmr_intf.go:
+
+var **YangToDb_intf_ip_addr_xfmr** SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error) 
+ {
+ . . .
+
+​      subIntfmap_del[tblName] = (map[string]db.Value)
+​       key := ifName + "|" + overlapIP
+​       subIntfmap_del[tblName][key] = value
+​       subOpMap[db.ConfigDB] = subIntfmap_del
+​       log.Info("subOpMap: ", subOpMap)
+​       inParams.subOpDataMap[DELETE] = &subOpMap 
+
+. . .
+
+}
+
+ 
+
+###### 2.5.7.13 **txCache** **(User management)**
+
+**Usage
+** The txCache syncMap is one of the member in “inParams” parameter to all the xfmr method types. It can be used for the case that a callback needs to cache data to the txCache of inParams, and pass to another callback invocation for subsequent use of the same data retrieved from the txCache of the inParams. The txCache is bound to the given transaction scope.
+
+
+
+**Example** 
+ Below example illustrates a username cached in the txCache on the callback invoked on the list user, subsequent callback on the config container reads the username to create a user with the password and role on the host via hamd. 
+
+curl -X POST "https://localhost/restconf/data/openconfig-system:system/aaa/authentication/users" -H "accept: application/yang-data+json" -H "Content-Type: application/yang-data+json" -d "{ \"openconfig-system:user\": [{\"username\": \“sonicadmin\", \"config\": {\"username\": \“sonicadmin\", \"password\": \“AbraCaDaBra\", \"role\": \"admin\"}}]}“
+
+
+
+ deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:users/oc-sys:user {
+
+​    deviate add {
+
+​      sonic-ext:subtree-transformer "sys_aaa_auth_xfmr";
+
+​    }
+
+  }
+
+xfmr_system.go:
+
+var YangToDb_sys_aaa_auth_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value,error) { 
+ {
+ . . .
+
+  if _ , _ok := inParams.txCache.Load(userName);!_ok {
+     inParams.txCache.Store(userName, userName) }
+
+  else {. . .
+
+  } 
+
+. . .
+
+}
+
+
+
+###### 2.5.7.14 **Cascade-delete**
+
+**Usage
+**"cascade-delete" annotation can be used to support cascaded dependent config delete handling for a yang-node. By default, this will be set to false. 
+
+Annotating a yang-node with "cascade-delete: true" will enable dependent config-delete.
+
+Like all other yang annotations, “cascade-delete" will be inherited by the child-yang-nodes. To stop inheritance, “cascade-delete" should be set to "NONE", in the child-yang-node.
+
+ 
+
+**App:** 
+
+New redis-db table-based callback api [ e.g. <table-name>_cascade_cfg_hdl () ] should be written by app-owner for any additional dbDataMap processing, if needed. 
+
+The redis-db table-based callback api will be registered with xfmr-infra, like YangToDb and DbToYang overloaded fns.
+
+ 
+
+**Transformer-infra:** 
+
+For the DELETE operation, an additional table-list ("cascade-del-tbl") will be introduced in the infra, to store cascade-delete enabled tables.
+
+Infra will update this list with the cascade-delete enabled tables referring the xspec-map (created with the help of oc/sonic yang and yang-annot files), during the yang to db data(dbDataMap) conversion.
+
+This table-list will be passed to the overloaded functions, so that the app owners can update(dynamically) this list, with cascade-delete enabled table-names.
+
+ 
+
+**Example Code:**
+
+```
+func init() {
+   XlateFuncBind("ABC_TABLE_cascade_cfg_hdl", ABC_TABLE_cascade_cfg_hdl)
+. . .
+}
+
+var ABC_TABLE _cascade_cfg_hdl XfmrDbTblCbkMethod = func (inParams XfmrDbTblCbkParams) error {
+  log.Infof("ABC_TABLE _cascade_cfg_hdl Received inParams %v ", inParams)
+  if inParams.delDepDataMap != nil {
+    /*
+      Populate what all operations need to be carried out in
+      inParams.delDepDataMap
+    */
+    dbMap := make(map[db.DBNum]map[string]map[string]db.Value)
+    dbMap[db.ConfigDB] = make(map[string]map[string]db.Value)
+    dbMap[db.ConfigDB][" ABC_TABLE "] = make(map[string]db.Value)
+    
+    m := make(map[string]string)
+    value := db.Value{Field:m}
+    dbMap[db.ConfigDB][" ABC_TABLE "][inParams.dbKey] = value
+    inParams.delDepDataMap[DELETE] = &dbMap
+  }
+  return nil
+}
+```
+
+
+
+
+
+###### 2.5.7.15 **Debugging Tips****
+
+1.Delete operation: 
+ /tmp/yangToDbDataDel.txt
+
+2.CRU operation: 
+ /tmp/yangToDbDataCreate.txt
+
+3.Turn on debug log
+
+you can set the log_level in config_db.
+
+```
+hmset REST_SERVER|default log_level <num>
+```
+
+
+
+#### 2.5.8 Query Parameter
+
+Query parameters is supported only for GET request from NBI. The QPs supported by mgmt-framework are depth, content and fields.
+Please refer to the HLD for more details on QP support in mgmt-framework.
+https://github.com/project-arlo/SONiC/blob/master/doc/mgmt/SONiC_QueryParameterForGet_HLD.md
+
+###### 2.5.8.1 Query parameters in Transformer
+
+"QueryParams" struct will be used by the transformer infra to process the Query parameters and will be shared with the app subtree. This will part of "XfmrParams" struct.
+
+The data structures are as below:
+
+```
+type XfmrParams struct {
+    ....
+    queryParams    QueryParams
+}
+const (
+    QUERY_CONTENT_ALL ContentType = iota
+    QUERY_CONTENT_CONFIG
+    QUERY_CONTENT_NONCONFIG
+    QUERY_CONTENT_OPERATIONAL
+)
+type ContentType uint8
+type QueryParams struct {
+    depthEnabled      bool  //flag to indicate if "depth" is enabled
+    curDepth          uint  //current depth, will be decremented at each yang node level
+    content           ContentType   //content type all/config/non-config/operational
+    fields            []string //list of fields(container, leaf/leaflist).List is not allowed.
+    //following attributes are for transformer infra use only
+    fieldsFillAll     bool  //flag to fill all fields in container/list
+    allowFieldsXpath  map[string]bool   //proceed further only if xpath is present in this set
+    tgtFieldsXpathMap map[string][]string   //process & fill data only if xpath is present in this map.
+}
+```
+
+
+
+- Depth:
+  For processing the depth QP, the inParams.queryParams.curDepth will be referenced by the subtree.
+  The value in the curdepth indicates how much depth is yet to be traversed by the subtree.
+
+  Eg: 
+  If the curDepth is 3, the subtree needs to fill the ygot upto 3 levels of depth in the yang subtree.
+  The curDepth value is decremented by 1 for every level processed and once the curDepth value becomes 0, 
+  the subtree can stop the GET processing for subtree below it.
+
+  
+
+- Content:
+  For processing the content QP, the inParams.queryParams.content will be used.
+  The subtree shall fill the ygot based on the content field in the yang subtree
+  Refer the below table for supported content types and what needs to filled by the subtree
+
+  | Value       | Description                                                  |
+  | ----------- | ------------------------------------------------------------ |
+  | config      | Populate only configuration descendant data nodes (RW nodes) |
+  | non config  | Populate only non-configuration descendant data nodes (RO nodes) |
+  | operational | Populate data in “non-config” & not in “config”.(applicable only for OC yang) (RO nodes) |
+  | all         | Populate all descendant data nodes (RW and RO nodes)         |
+
+  
+
+- Fields:
+  For processing the fields QP, the inParams.queryParams.fields can be referenced by the subtree.
+  The fields will have the list of relative xpath of the fields that needs to be filled by the subtree. 
+  The relative xpath is in reference to the requestUri.
+
+
+
+###### 2.5.8.2 Example to support query parameters
+
+Example implementation of subtree callbacks using query parameters can be seen below. Note that the data trees not annotated with subtree callbacks are implicitly handled by transformer core, and they do not require additional code to support query parameters.
+
+```
+ type _xfmr_bgp_rib_key struct {
+        niName           string
+        afiSafiName      string
+        prefix           string
+        origin           string
+        pathId           uint32
+        pathIdKey        string
+        nbrAddr          string
+        queryParamDepth  uint
+        queryParamFields []string
+}
+
+var DbToYang_bgp_routes_get_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
+
+        var err error
+        oper_err := errors.New("Operational error")
+        cmn_log := "GET: xfmr for BGP-RIB"
+    
+        var bgp_obj *ocbinds.OpenconfigNetworkInstance_NetworkInstances_NetworkInstance_Protocols_Protocol_Bgp
+        var rib_key _xfmr_bgp_rib_key
+    
+        bgp_obj, rib_key.niName, err = getBgpRoot(inParams)
+        if err != nil {
+                log.Errorf("%s failed !! Error:%s", cmn_log, err)
+                return oper_err
+        }
+    
+        bgpRib_obj := bgp_obj.Rib
+        if bgpRib_obj == nil {
+                log.Errorf("%s failed !! Error: BGP RIB container missing", cmn_log)
+                return oper_err
+        }
+    
+        pathInfo := NewPathInfo(inParams.uri)
+        targetUriPath, _ := getYangPathFromUri(pathInfo.Path)
+    
+        rib_key.afiSafiName = pathInfo.Var("afi-safi-name")
+        rib_key.prefix = pathInfo.Var("prefix")
+        rib_key.origin = pathInfo.Var("origin")
+        rib_key.pathIdKey = pathInfo.Var("path-id")
+        _pathId, _ := strconv.Atoi(pathInfo.Var("path-id"))
+        rib_key.pathId = uint32(_pathId)
+        rib_key.nbrAddr = pathInfo.Var("neighbor-address")
+    
+        if inParams.queryParams.depthEnabled {
+                rib_key.queryParamDepth = inParams.queryParams.curDepth
+        }
+        // Rib container level, for content (inParams.queryParams.content) - all, no action is required
+        // and config & operational informations are not available and
+        // what we have is only non-config (state) and all & non-config are same,
+        // so, no action is required.
+        rib_key.queryParamFields = inParams.queryParams.fields
+    	
+        var fall_through bool = false
+    	
+        switch targetUriPath {
+        case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/rib":
+                fallthrough
+    	case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/openconfig-rib-bgp:rib":
+                fall_through = true
+                fallthrough
+        case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/rib/afi-safis":
+                if fall_through {
+                        if rib_key.queryParamDepth != 0 {
+                                // Reduce the depth for afi-safis and afi-safi
+                                if rib_key.queryParamDepth < 4 {
+                                        return nil
+                                }
+                                rib_key.queryParamDepth -= 2
+                        } else if len(rib_key.queryParamFields) > 0 {
+                                for i, field := range rib_key.queryParamFields {
+                                        log.Infof("queryParamFields %s", field)
+                                        rib_key.queryParamFields[i] = strings.TrimPrefix(field, "afi-safis/afi-safi")
+                                        log.Infof("queryParamFields %s", rib_key.queryParamFields[i])
+                                }
+                        }
+                } else if rib_key.queryParamDepth != 0 {
+                        if rib_key.queryParamDepth < 3 {
+                                return nil
+                        }
+                        // Reduce the depth for afi-safi
+                        rib_key.queryParamDepth -= 1
+                } else if len(rib_key.queryParamFields) > 0 {
+                        for i, field := range rib_key.queryParamFields {
+                                log.Infof("queryParamFields %s", field)
+                                rib_key.queryParamFields[i] = strings.TrimPrefix(rib_key.queryParamFields[i], "afi-safi")
+                                log.Infof("queryParamFields %s", rib_key.queryParamFields[i])
+    
+                        }
+                }
+                err = get_all_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                if err != nil {
+                        return oper_err
+                }
+    	case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/rib/afi-safis/afi-safi":
+                if rib_key.afiSafiName == "" {
+                        err = get_all_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                        if err != nil {
+                                return oper_err
+                        }
+                } else {
+                        if rib_key.queryParamDepth != 0 {
+                                // Reduce the depth for afi-safis and afi-safi
+                                if rib_key.queryParamDepth < 6 {
+                                        return nil
+                                }
+                        }
+                        switch rib_key.afiSafiName {
+                        case "IPV4_UNICAST":
+                                err = get_all_ipv4_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                                if err != nil {
+                                        return oper_err
+                                }
+                        case "IPV6_UNICAST":
+                                err = get_all_ipv6_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                                if err != nil {
+                                        return oper_err
+                                }
+                        }
+                }
+        case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/rib/afi-safis/afi-safi/ipv4-unicast":
+                if rib_key.afiSafiName == "IPV4_UNICAST" {
+                        if rib_key.queryParamDepth != 0 {
+                                // Reduce the depth for afi-safis and afi-safi
+                                if rib_key.queryParamDepth < 5 {
+                                        return nil
+                                }
+                        }
+                        err = get_all_ipv4_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                        if err != nil {
+                                return oper_err
+                        }
+                }
+       case "/openconfig-network-instance:network-instances/network-instance/protocols/protocol/bgp/rib/afi-safis/afi-safi/ipv6-unicast":
+                if rib_key.afiSafiName == "IPV6_UNICAST" {
+                        if rib_key.queryParamDepth != 0 {
+                                // Reduce the depth for afi-safis and afi-safi
+                                if rib_key.queryParamDepth < 5 {
+                                        return nil
+                                }
+                        }
+                        err = get_all_ipv6_bgp_rib_objs(bgpRib_obj, &rib_key, &dbg_log)
+                        if err != nil {
+                                return oper_err
+                        }
+                }
+       }
+    
+        return err
+
+}
+
+func get_all_bgp_rib_objs(bgpRib_obj *ocbinds.OpenconfigNetworkInstance_NetworkInstances_NetworkInstance_Protocols_Protocol_Bgp_Rib,
+        rib_key *_xfmr_bgp_rib_key, dbg_log *string) error {
+        var err error
+        oper_err := errors.New("Opertational error")
+
+        if rib_key.queryParamDepth != 0 {
+                // valid data present only at the depth level 5, so, return from here if the depth is < 5
+                if rib_key.queryParamDepth < 5 {
+                        var ribAfiSafis_obj *ocbinds.OpenconfigNetworkInstance_NetworkInstances_NetworkInstance_Protocols_Protocol_Bgp_Rib_AfiSafis
+                        if ribAfiSafis_obj = bgpRib_obj.AfiSafis; ribAfiSafis_obj == nil {
+                                var _ribAfiSafis ocbinds.OpenconfigNetworkInstance_NetworkInstances_NetworkInstance_Protocols_Protocol_Bgp_Rib_AfiSafis
+                                bgpRib_obj.AfiSafis = &_ribAfiSafis
+                                ribAfiSafis_obj = bgpRib_obj.AfiSafis
+                        }
+    
+                        var ok bool
+                        afiSafiType := ocbinds.OpenconfigBgpTypes_AFI_SAFI_TYPE_IPV4_UNICAST
+                        if _, ok = ribAfiSafis_obj.AfiSafi[afiSafiType]; !ok {
+                                ribAfiSafis_obj.NewAfiSafi(afiSafiType)
+                        }
+                        afiSafiType = ocbinds.OpenconfigBgpTypes_AFI_SAFI_TYPE_IPV6_UNICAST
+                        if _, ok = ribAfiSafis_obj.AfiSafi[afiSafiType]; !ok {
+                                ribAfiSafis_obj.NewAfiSafi(afiSafiType)
+                        }
+                        return nil
+                }
+        }
+    
+        err = get_all_ipv4_bgp_rib_objs(bgpRib_obj, rib_key, dbg_log)
+        if err != nil {
+                return oper_err
+        }
+        err = get_all_ipv6_bgp_rib_objs(bgpRib_obj, rib_key, dbg_log)
+        if err != nil {
+                return oper_err
+        }
+        return err
+
+}
+```
+
+
+
+
 
 ### 2.6 App Module
 
@@ -1066,7 +2508,7 @@ Example:
         pathInfo   *PathInfo
         ygotRoot   *ygot.GoStruct
         ygotTarget *interface{}
-
+    
         aclTs  *db.TableSpec
         ruleTs *db.TableSpec
     
@@ -1087,7 +2529,7 @@ Example:
         if err != nil {
             log.Fatal("Register ACL App module with App Interface failed with error=", err)
         }
-
+        
         err = appinterface.AddModel(&gnmi.ModelData{Name:"openconfig-acl",
                                                     Organization:"OpenConfig working group",
                                                     Version:"1.0.2"})
@@ -1181,6 +2623,21 @@ type CustValidationCtxt struct {
 	SessCache *CustValidationCache //Session cache, can be used for storing data, persistent in session
 	RClient *redis.Client //Redis client
 }
+
+//CVLErrorInfo CVL Error Structure
+type CVLErrorInfo struct {
+    TableName        string     /* Table having error */
+    ErrCode          CVLRetCode /* CVL Error return Code. */
+    CVLErrDetails    string     /* CVL Error Message details. */
+    Keys             []string   /* Keys of the Table having error. */
+    Value            string     /* Field Value throwing error */
+    Field            string     /* Field Name throwing error . */
+    Msg              string     /* Detailed error message. */
+    ConstraintErrMsg string     /* Constraint error message. */
+    ErrAppTag        string
+}
+
+
 ```
 
 #### 2.7.3 Platform Validation
@@ -1275,7 +2732,7 @@ Example:
 ```
 
 2. Write/Update an actioner script: The actioner script prepares the message body having the JSON request and invokes the REST client API. The actioner script is invoked by the klish and the input parameters are passed to it from the XML file.
-Actioner can be defined with the <ACTION> tag in the XML file. 
+   Actioner can be defined with the <ACTION> tag in the XML file. 
 
    There are three different methods available to implement the Actioner: sub-shell, clish_restcl and clish_pyobj. Sub-shell is spawned by Klish to run the script defined in <ACTION> tag. Both clish_pyobj and clish_restcl methods are part of Klish built-in fucntions and invoked by Klish. The built-in fucntions can be used for commands that would reduce time taken to execute a command by eliminating the sub-shell interpreter overhead.
 
@@ -1330,10 +2787,10 @@ Actioner can be defined with the <ACTION> tag in the XML file.
     />
 ```
 3. Write/Update Renderer scripts and templates. 
-The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. 
-The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output.
-Please use [JSON tool](#297-tool-for-json-navigation-in-jinja-templates) to efficiently access the JSON data.
-Refer files in the below path for an example of usage 
+   The JSON response from the swagger client API is received by the actioner and passes the response to the renderer script. 
+   The renderer script will invoke the jinja2 template with the JSON response. The template will parse the JSON response and generate the CLI output.
+   Please use [JSON tool](#297-tool-for-json-navigation-in-jinja-templates) to efficiently access the JSON data.
+   Refer files in the below path for an example of usage 
 
     **Renderer path**:
     sonic-mgmt-framework/CLI/renderer
@@ -1449,7 +2906,7 @@ Additional enhancements can be done to open source klish as below. Enhancements 
             <xs:enumeration value="FEATURE_A"/>
             </xs:restriction>
         </xs:simpleType>
-
+    
         <xs:simpleType name="entityname_t">
         <xs:annotation>
                 <xs:documentation>This contains the allowed feature-value names for any platform specific customizable feature-value
@@ -1697,7 +3154,7 @@ Following are the APIs exposed by the tool
     return value
         On success returns True
         on Failure returns False
-        
+
 ##### Example:
 
 ```code
@@ -1818,7 +3275,7 @@ docker exec -it telemetry gnmi_get -xpath /openconfig-interfaces:interfaces/inte
 
 ```	
 docker exec -it telemetry gnmi_cli -capabilities -insecure -logtostderr -address 127.0.0.1:8080
-```		 
+```
 * Use 'gnmi_cli' to perform subscription request. For sample subscribe request and response, refer to https://github.com/project-arlo/sonic-telemetry/blob/master/test/ethernet_oper_status_subscribe.test and https://github.com/project-arlo/sonic-telemetry/blob/master/test/ethernet_oper_status_subscribe.result respectively. 
 
 #### 2.13.3 Spytest
@@ -2190,3 +3647,6 @@ For debugging performance issues we need to collect the profiling numbers which 
 8. To generate the report in pdf format (command:  go tool pprof --pdf ./rest_server ./ cpu.pprof.1 > report.pdf)
 
 The generated pdf will give the profiling information of all the calls in the REST server during the REST query or KLISH CLI. From this data we will come to know which function in the REST server is consuming more time during the execution.
+
+
+

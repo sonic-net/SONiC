@@ -1,7 +1,7 @@
 # LDAP Name Service
 
 ## High Level Design Document
-#### Rev 0.13
+#### Rev 0.14
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -51,24 +51,24 @@
 
 # Revision
 
-| Rev | Date         |  Author            | Change Description                |
-|:---:|:------------:|:------------------:|-----------------------------------|
-| 0.1 | 03/20/2020   |  Arun Barboza      | Initial version                   |
-| 0.2 | 03/23/2020   |  Arun Barboza      | After Internal Review             |
-| 0.3 | 04/03/2020   |  Arun Barboza      | First External Review             |
-| 0.4 | 04/29/2020   |  Arun Barboza      | Detail Config DB Table schema     |
-| 0.5 | 04/30/2020   |  Arun Barboza      | Updated Unit Test Details         |
-| 0.6 | 05/04/2020   |  Arun Barboza      | Fixed typos, omissions, examples  |
-| 0.7 | 05/06/2020   |  Arun Barboza      | Updates for Future Release        |
-| 0.8 | 05/07/2020   |  Arun Barboza      | Annotations in LDAP table         |
-| 0.9 | 05/11/2020   |  Arun Barboza      | LDAP New Mgmt if- Balachandar M.  |
-|     |              |                    | Update for VRF, SRC IP - Suresh R.|
-| 0.10| 05/17/2020   |  Arun Barboza      | KLISH show aaa|ldap output draft. |
-|     |              |                    | Added missing retry to ldap host. |
-| 0.11| 05/17/2020   |  Arun Barboza      | Update the UT with KLISH examples.|
-| 0.12| 05/20/2020   |  Arun Barboza      | IIFR, clarifications, OCYang, Maps|
-| 0.13| 06/22/2020   |  Arun Barboza      | project-arlo review updates       |
-|     |              |                    |                                   |
+| Rev | Date         |  Author            | Change Description                                         |
+|:---:|:------------:|:------------------:|------------------------------------------------------------|
+| 0.1 | 03/20/2020   |  Arun Barboza      | Initial version                                            |
+| 0.2 | 03/23/2020   |  Arun Barboza      | After Internal Review                                      |
+| 0.3 | 04/03/2020   |  Arun Barboza      | First External Review                                      |
+| 0.4 | 04/29/2020   |  Arun Barboza      | Detail Config DB Table schema                              |
+| 0.5 | 04/30/2020   |  Arun Barboza      | Updated Unit Test Details                                  |
+| 0.6 | 05/04/2020   |  Arun Barboza      | Fixed typos, omissions, examples                           |
+| 0.7 | 05/06/2020   |  Arun Barboza      | Updates for Future Release                                 |
+| 0.8 | 05/07/2020   |  Arun Barboza      | Annotations in LDAP table                                  |
+| 0.9 | 05/11/2020   |  Arun Barboza      | LDAP New Mgmt if- Balachandar M.                           |
+|     |              |                    | Update for VRF, SRC IP - Suresh R.                         |
+| 0.10| 05/17/2020   |  Arun Barboza      | KLISH show aaa|ldap output draft.                          |
+|     |              |                    | Added missing retry to ldap host.                          |
+| 0.11| 05/17/2020   |  Arun Barboza      | Update the UT with KLISH examples.                         |
+| 0.12| 05/20/2020   |  Arun Barboza      | IIFR, clarifications, OCYang, Maps                         |
+| 0.13| 06/22/2020   |  Arun Barboza      | project-arlo review updates                                |
+| 0.14| 31/08/2021   |  Asha Behera       | Adding Holdoff timer to delay and consolidate config update|
 
 # Overview
 
@@ -843,6 +843,12 @@ $ show ldap
 
 
 Similar to KLISH, but config, and show utilities.
+
+Note:
+
+1. AAA has a holdoff timer of 3 seconds to decrease the frequency of time intensive operation 
+   of updating AAA configuration files. Hence, AAA configurations will be updated in the respective
+   configuration files after a minimum of 3 seconds after UI configurations.
 
 ## Known Issues and Notes
 
