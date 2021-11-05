@@ -283,15 +283,15 @@ module sonic-nvgre-tunnel {
 Commands summary (Phase #2):
 
 ```
-	- config nvgre tunnel add/del/update <nvgre_tunnel_name> --src-ip <src_ip>
-	- config nvgre tunnel-map add/del/update <nvgre_tunnel_name> --vlan_id <vlan_id> --vsid <vsid_id>
-	- show nvgre tunnel
-	- show nvgre tunnel-map
+	- config nvgre-tunnel add/del <nvgre_tunnel_name> --src-ip <src_ip>
+	- config nvgre-tunnel-map add/del <nvgre_tunnel_name> <vlan_name> --vlan_id <vlan_id> --vsid <vsid_id>
+	- show nvgre-tunnel
+	- show nvgre-tunnel-map
 ```
 
 ##### Show CLI command
 
-Show command should be extended in order to add "nvgre" alias:
+Show command should be extended in order to add "nvgre-tunnel" and "nvgre-tunnel-map" aliases:
 
 ```
 admin@sonic:~$ show nvgre-tunnel
@@ -304,9 +304,9 @@ tunnel3        3.3.3.3
 =============================================
 
 admin@sonic:~$ show nvgre-tunnel-map
-TUNNEL NAME    VLAN NAME      VLAN ID    VSID
+TUNNEL NAME    VLAN NAME    VLAN ID    VSID
 -------------  -----------  ---------  ------
-tunnel_1       Vlan1000          1000    5000
+tunnel_1       Vlan1000     1000       5000
 ```
 
 ##### Config CLI command
@@ -325,7 +325,6 @@ Options:
 Commands:
   add     Add object in NVGRE_TUNNEL.
   delete  Delete object in NVGRE_TUNNEL.
-  update  Add object in NVGRE_TUNNEL.
 
 =============================================
 
@@ -335,15 +334,15 @@ Usage: add [OPTIONS] TUNNEL_NAME
   Add object in NVGRE_TUNNEL.
 
 Options:
-  --src-ip TEXT  [mandatory]
-  --help         Show this message and exit.
+  --src-ip  Source IP address[mandatory]
+  --help    Show this message and exit.
 
 =============================================
 
 admin@sonic:~$ config nvgre-tunnel-map --help
 Usage: nvgre-tunnel-map [OPTIONS] COMMAND [ARGS]...
 
-  NVGRE_TUNNEL part of config_db.json
+  NVGRE_TUNNEL_MAP part of config_db.json
 
 Options:
   --help  Show this message and exit.
@@ -351,7 +350,6 @@ Options:
 Commands:
   add     Add object in NVGRE_TUNNEL_MAP.
   delete  Delete object in NVGRE_TUNNEL_MAP.
-  update  Add object in NVGRE_TUNNEL_MAP.
 
 =============================================
 
@@ -361,9 +359,9 @@ Usage: add [OPTIONS] TUNNEL_NAME VLAN_NAME
   Add object in NVGRE_TUNNEL_MAP.
 
 Options:
-  --vlan-id TEXT
-  --vsid TEXT
-  --help          Show this message and exit.
+  --vlan-id  VLAN identifier[mandatory]
+  --vsid     Virtual Subnet Identifier[mandatory]
+  --help     Show this message and exit.
 ```
 
 #### Config DB Enhancements
