@@ -97,10 +97,6 @@ The duration of the CMIS application initialization greatly differs from transce
 to transceivers, while some take 3 seconds for activating the 4x100G mode, some require 15 seconds.
 Hence it's mandatory to support parallel processing.
 
-## Configuration and Management Requirements
-
-1. Show commands to display the  EEPROM and DOM information, as described in **Show Commands** section below.
-
 ## Warm Boot Requirements
 
 Functionality should continue to work across warm boot. 
@@ -119,19 +115,13 @@ should display the advertised applications of the transceiver.
 
 # Design
 
-## Overview
-
-![](images/001.png)
-
-## Code Changes
-
-### sonic-platform-daemons/sonic-xcvrd (modified)
+## sonic-platform-daemons/sonic-xcvrd (modified)
 
 The transceiver daemon will be enhanced as below:
 
 - Post the CMIS application advertisement into the **STATE_DB**  
-  The **application_advertisement** of **TRANSCEIVER_INFO** is as follow:  
-  - **CMIS transceiver**  
+  In the case of CMIS transceiver, the **application_advertisement** of **TRANSCEIVER_INFO** is as follow:  
+
 ```
   "TRANSCEIVER_INFO|Ethernet0": {
     "type": "hash",
@@ -143,21 +133,11 @@ The transceiver daemon will be enhanced as below:
   ...... omitted ......
 ```  
 
-  - **Non-CMIS transceiver**  
-```
-  "TRANSCEIVER_INFO|Ethernet0": {
-    "type": "hash",
-    "value": {
-      "application_advertisement": "N/A",
-      ...... omitted ......
-    }
-  },
-  ...... omitted ......
-```
+- Add a CMIS manager class to handle the application initializations in parallel  
 
-- Add a CMIS manager class to handle the application initializations in parallel
+  ![](images/001.png)
 
-### sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
+## sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
 
 Add the following stub routines for the CMIS transceiver
 - get_cmis_application_selected(self)  
@@ -167,28 +147,28 @@ Retrieves the matched application code by the host interface config
 - set_cmis_application(self, host_speed, host_lanes)  
 Updates the application selection of this CMIS transceiver
 
-### sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cmis.py (modified)
 
 - Add support for software reset
 - Add support for activating the CMIS application base on the host port mode.
 
-### sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py (modified)
 
 - Add register definitions for CMIS application initialization
 
-### sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/public/cmis.py (modified)
 
 - Add support for parsing CMIS application advertisement
 
-### sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py (modified)
 
 - Add the meory map for the CMIS registers which is necessary for application initialization
 
-### sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py (modified)
 
 - Add support for CMIS application initialization
 
-### sonic-utilities/sfputil (modified)
+## sonic-utilities/sfputil (modified)
 
 - Add supprot to show the CMIS application advertisement
 
