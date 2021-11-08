@@ -23,7 +23,7 @@
     * [2.1 App DB](#21-app-db)
     * [2.2 Orchestration Agent](#24-orchestration-agent)
     * [2.3 Backward Compatibility](#25-backward-compatibility)
-  * [4 Test Plan](#3-test-plan)
+  * [3 Test Plan](#3-test-plan)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -129,7 +129,7 @@ To maintain backward compatibility this feature will only be functionally enable
 if SAI enum capability query support for SAI_NEXTHOP_GROUP object for attribute SAI_NEXT_HOP_GROUP_ATTR_TYPE return “DYNAMIC_ORDERED_ECMP” as supported. 
 Otherwise, we will mark the feature as disable (control by global flag) and fall back to existing Unordered ECMP group behavior.
 
-# 7 Test Plan
+# 3 Test Plan
 The following testing is planned for this feature:
 - SWSS unit tests via virtual switch testing
 - Data Plane tests via pytest + PTF
@@ -144,5 +144,5 @@ Test details(Applies to all Route/OverlayECMP/NexthopGroup OA):
 A new Pytest and PTF test will be created for Ordered ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
 
 Test details:
-- To verify flow is load-balance as per of next-hop sequence for add/remove/add-memeber/remove-memeber case.
+- To verify flow is load-balance as per the next-hop sequence in ecmp group for add/remove/add-memeber/remove-memeber case.
 - Preserve the test result { flow to nexthop-mapping } so that in case entropy is changed across SONiC/SAI release we can catch/notify about it.
