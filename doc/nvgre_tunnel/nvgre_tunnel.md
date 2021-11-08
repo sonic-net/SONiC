@@ -223,8 +223,10 @@ module sonic-nvgre-tunnel {
                 }
 
                 leaf src_ip {
+                    description "Source IP address";
+
                     mandatory true;
-                    type inet:ipv4-address;
+                    type inet:ip-address;
                 }
 
             }
@@ -235,33 +237,43 @@ module sonic-nvgre-tunnel {
 
         container NVGRE_TUNNEL_MAP {
 
-            description "NVGRE_TUNNEL part of config_db.json";
+            description "NVGRE_TUNNEL_MAP part of config_db.json";
 
             list NVGRE_TUNNEL_MAP_LIST {
 
                 key "tunnel_name vlan_name";
 
                 leaf tunnel_name {
+                    description "NVGRE Tunnel name";
+
                     type leafref {
                         path /nvgre:sonic-nvgre-tunnel/nvgre:NVGRE_TUNNEL/nvgre:NVGRE_TUNNEL_LIST/nvgre:tunnel_name;
                     }
                 }
 
                 leaf vlan_name {
+                    description "VLAN name";
+
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name;
                     }
                 }
 
                 leaf vlan_id {
+                    description "VLAN identifier";
+
+                    mandatory true;
                     type uint16 {
                         range 1..4094;
                     }
                 }
 
                 leaf vsid {
+                    description "Virtual Subnet Identifier";
+
+                    mandatory true;
                     type uint32 {
-                        range 4096..16777214;
+                        range 0..16777214;
                     }
                 }
 
