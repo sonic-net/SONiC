@@ -184,18 +184,17 @@ Ethernet0: SFP EEPROM detected
         Application Advertisement:
                 1: 400GAUI-8 C2M (Annex 120E) | 400GBASE-DR4 (Cl 124)
                 2: 100GAUI-2 C2M (Annex 135G) | 100G-FR/100GBASE-FR1 (Cl 140)
-        Connector: SN (Mini CS)
-        Identifier: QSFP56-DD
-        Implemented Memory Pages:
-                Bank 0 Implemented
-                Diagnostic Pages Implemented
-                Page 03h Implemented
-        Length SMF(km): 0.0
-        Module State: Ready State
-        Revision Compliance: 4.0
+        Connector: SN optical connector
+        Encoding: N/A
+        Extended Identifier: Power Class 6 (12.0W Max)
+        Extended RateSelect Compliance: N/A
+        Identifier: QSFP-DD Double Density 8X Pluggable Transceiver
+        Length cable Assembly(m): 0.0
+        Nominal Bit Rate(100Mbs): 0
+        Specification compliance: sm_media_interface
         Vendor Date Code(YYYY-MM-DD Lot): 2020-10-07
         Vendor Name: AVAGO
-        Vendor OUI: 00-17-6A
+        Vendor OUI: 00-17-6a
         Vendor PN: AFCT-93DRPHZ-AZ2
         Vendor Rev: 01
         Vendor SN: FD2038FG0FY
