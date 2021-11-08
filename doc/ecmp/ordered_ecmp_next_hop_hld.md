@@ -50,11 +50,9 @@ With this feature enable even if flow land's on different T1's (which is common 
 ECMP memeber being ordered will use same nexthop (T0) and thus same appliace.
 
 Below diagram captures the use-case (Traffic is flowing from T1 <-> T0 <-> Appliance)
-
 ![](../../images/ecmp/order_ecmp_pic.png)
-
 ## 1.2 Acheiving Order Nexthop member in ECMP
-1. Nexthop's will be sorted based on their IP address to get thir order within the ECMP group. 
+1. Nexthop's will be sorted based on their IP address to get their order within the ECMP group. 
 In typical data-center ip address allocation scheme all T1’s in a given podset/cluster have the same order for P2P v4/v6 IP Address for all downstream T0's.
 2. This feature/enhacement assumes entropy calculation will be same for a given flow on each devices that have set set of nexthop in the ECMP Group.
 3. This feature/enhancement is best effort in nature where if the Links/Bgp between pair of devices are not in same state (either Up/Down) then flow can take different path.
