@@ -51,7 +51,7 @@ ECMP memeber being ordered will use same nexthop (T0) and thus same appliace.
 
 Below diagram captures the use-case (Traffic is flowing from T1 <-> T0 <-> Appliance)
 
-![](../../images/ecmp/orch_flow.png)
+![](../../images/ecmp/order_ecmp_pic.png)
 
 ## 1.2 Acheiving Order Nexthop member in ECMP
 1. Nexthop's will be sorted based on their IP address to get thir order within the ECMP group. 
