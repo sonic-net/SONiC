@@ -505,3 +505,42 @@ Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those
 |"/openconfig-system:system/dns/servers/server[address={}]/config"|y|
 |"/openconfig-system:system/dns/state"|n|
 |"/openconfig-system:system/dns/servers/server[address={}]/state"|n|
+
+# Static Route OC-Paths for ON-CHANGE and Wildcard
+
+## Description
+
+Static Route on change support has been provided for openconfig-local-routing.yang mode by Dell.
+RedisDB config table STATIC_ROUTE was monitored to provide the ON-CHANGE support for static route with next-hop configurations.
+Below is the list of openconfig-yang paths supporting ON-CHANGE supscription for static-route feature. That includes the root path "/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes" and its children nodes defined in OC-YANG:
+
+|     Paths                                                                        | ON_CHANGE Supported yes(y)/no(n)  |
+| ---------------------------------------------------------------------------      | -------------|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/prefix| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/config| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/config/prefix| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/state| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/state/prefix| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/index| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/index| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/next-hop| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/metric| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/tag| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/track| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/network-instance| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/config/blackhole| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/index| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/next-hop| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/metric| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/tag| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/track| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/network-instance| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/state/blackhole| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/openconfig-interfaces:interface-ref/config/interface| y|
+|/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=STATIC][name=static]/static-routes/static[prefix=*]/next-hops/next-hop[index=*]/openconfig-interfaces:interface-ref/state/interface| y|
