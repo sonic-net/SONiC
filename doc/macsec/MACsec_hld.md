@@ -17,6 +17,7 @@
     - [Phase I](#phase-i)
     - [Phase II](#phase-ii)
     - [Phase III](#phase-iii)
+    - [Phase IV](#phase-iv)
 - [2 Architecture Design](#2-architecture-design)
 - [3 Modules Design](#3-modules-design)
   - [3.1 Config DB](#31-config-db)
@@ -68,6 +69,7 @@
   - [4.8 Remove Ingress/Egress SC](#48-remove-ingressegress-sc)
   - [4.9 MACsec Deinit](#49-macsec-deinit)
   - [4.10 Deinit Port](#410-deinit-port)
+- [5 CLI](#5-cli)
 
 ## About this Manual
 
@@ -107,16 +109,22 @@ At a high level the following should be supported:
 
 #### Phase II
 
+** ETA: 202112**
 - MACsec can support Extension packet number(XPN), which means to support Cipher Suites: GCM-AES-XPN-128 and GCM-AES-XPN-256
 - SAK can be refreshed proactively.
-- Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
 - Enable or disable the XPN feature by the wpa_cli
-- Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
+- CLI commands to configure MACsec
 - CLI command `show macsec` to monitor mka session and statistics of MACsec
+- MACsec with PFC. A global flag controls sending PFCs with encrypted or clear. Reacting to PFCs both encrypted and clear.
 
 #### Phase III
 
-- CLI commands to configure MACsec
+** ETA: 202206 **
+- Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
+
+#### Phase IV
+
+- Parameters of wpa_supplicant, send_sci, replay_protect, replay_window_size and rekey_period, can be updated on the fly
 
 ## 2 Architecture Design
 
@@ -199,6 +207,9 @@ replay_window               = DIGITS                   ; Replay window size that
 send_sci                    = "true" / "false"         ; Whether send SCI. Default true
 rekey_period                = DIGITS                   ; The period of proactively refresh (Unit second).
                                                        ; Default 0 which means never proactive refresh SAK.
+
+send_encrypted_pfc          = bool                     ; Default true
+receive_clear_pfc           = bool                     ;
 ; The profile cannot be deleted if it has been used by a port.
 ```
 
@@ -805,3 +816,7 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 ### 4.10 Deinit Port
 
 ![deinit port](images/deinit_port.png)  
+
+## 5 CLI
+
+PFC: config macsec pfc encrypted/clear
