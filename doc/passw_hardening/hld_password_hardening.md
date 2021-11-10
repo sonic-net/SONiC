@@ -26,13 +26,14 @@
 		* 1.10.4. [Config DB Enhancements](#ConfigDBEnhancements)
 	* 1.11. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
 	* 1.12. [Restrictions/Limitations](#RestrictionsLimitations)
-	* 1.13. [Test Plan](#TestPlan)
-		* 1.13.1. [Unit Test cases](#UnitTestcases)
-		* 1.13.2. [System Test cases](#SystemTestcases)
-	* 1.14. [3rd Party Components](#rdPartyComponents)
-		* 1.14.1. [pam-cracklib](#pam-cracklib)
-		* 1.14.2. [PW Age/History](#PWAgeHistory)
-		* 1.14.3. [PW History](#PWHistory)
+	* 1.13. [Upgrade Flow](#UpgradeFlow)
+	* 1.14. [Test Plan](#TestPlan)
+		* 1.14.1. [Unit Test cases](#UnitTestcases)
+		* 1.14.2. [System Test cases](#SystemTestcases)
+	* 1.15. [3rd Party Components](#rdPartyComponents)
+		* 1.15.1. [pam-cracklib](#pam-cracklib)
+		* 1.15.2. [PW Age/History](#PWAgeHistory)
+		* 1.15.3. [PW History](#PWHistory)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
@@ -43,10 +44,13 @@
 
 
 ###  1.1. <a name='Revision'></a>Revision
-Rev 0.1
+|  Rev  |  Date   |      Author      | Change Description |
+| :---: | :-----: | :--------------: | ------------------ |
+|  0.1  | 11/2020 |   David Pilnik   | Phase 1 Design     |
+
 ###  1.2. <a name='Scope'></a>Scope
 
-This password hardening hld doc described the requirements, arcquitecture and configuration details of password hardening feature in switches Sonic OS based.
+This password hardening hld doc described the requirements, architecture and configuration details of password hardening feature in switches Sonic OS based.
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 	PW - password
@@ -54,7 +58,7 @@ This password hardening hld doc described the requirements, arcquitecture and co
 
 ###  1.4. <a name='Overview'></a>Overview
 
-Password Hardening, a user password is the key credential used in order to verify the user accessing the switch and acts as the first line of defense in regards of securing the switch.
+Password Hardening, a user password is the key credential used in order to verify the user accessing the switch and acts as the first line of defense in regards to securing the switch.
 The complexity of the password, it's replacement capabilities and change frequency define the security level of the first perimeter of the switch.
 Therefore - in order to further improve and harden the switch - a secure mechanism is required to enforce PW policies.
 
@@ -75,14 +79,14 @@ Arc design diagram\
 
 In this section we will present the design (as thorough as possible) for the secure PW implementation.
 
-User password as explained before is the first line defence, in order to support it according the requirement section and user preferences, the secure password feature need a strengh-checking for password.
+User password as explained before is the first line defence, in order to support it according to the requirement section and user preferences, the secure password feature needs a strength-checking for password.
 
 The feature will use 2 linux libs: pam-cracklib, chage and pam_pwhistory.so
 
 pam-cracklib: This module can be plugged into the password stack of a given application to provide some plug-in strength-checking for passwords.
 
 The action of this module is to prompt the user for a password and check its strength against a system dictionary and a set of rules for identifying poor choices.
-This module support many options, including the requirements of PW Length & PW constraints. (see option strengh-checking below)
+This module supports many options, including the requirements of PW Length & PW constraints. (see option strength-checking below)
 
 chage: support the requirement of PW Aging, change user password expiry information
 
@@ -99,13 +103,13 @@ See linux 3d party component chapter for more description
 ####  1.7.1. <a name='Flowdescription:'></a>Flow description:
 Users by using Switch CLI will set new password/password configuration (see PW options below), the input will be saved in CONF_DB in PASSW_CONF_TABLE.\
 The daemon call PASSHD (password hardening daemon) listen to changes, parse the inputs and set the configuration to kernel by using pam-cracklib ,chage, pwhistory linux libs.
-After that, it will save the configuration and results in APPL_DB in PASSW_CONF_TABLE.
+After that, it will save the configuration and results in STATE_DB in PASSW_CONF_TABLE.
 
 Note:
 The table PASSW_CONF_TABLE should reduce time consuming when users need to read configuration, because it will avoid to make additional calls to kernel.
 
 ####  1.7.2. <a name='PasswordHardeningConstrains'></a>Password Hardening Constrains
-The PW Hardening features will be support different options by encapsulate cracklib, chage and pwhistory options according the constrains definitions below.
+The PW Hardening features will support different options by encapsulating cracklib, chage and pwhistory options according to the constrains definitions below.
 
 ##### PW enable
 
@@ -136,7 +140,7 @@ i.e:
 
 To request at least one character of every class, the PASSWD daemon will set:
 pam-cracklib options: lcredit=-1, ucredit=-1, dcredit=-1.
-(meaning that the user need at least one character of the types.)
+(meaning that the user needs at least one character of the types.)
 See explanation of cracklib options in 3rd Party component chapter.
 
 ##### PW Length
@@ -172,7 +176,7 @@ This PW change can either be from the initial config wizard or from the CLI.
 	To support it, can be use chage lib option "--maxdays"
 
 * PW Age Change Warning
-	The switch will provide a warning for PW change beforehand (this is to allow a sufficient warning for upgrading the PW which might by relevant to numerous switches).
+	The switch will provide a warning for PW change before and (this is to allow a sufficient warning for upgrading the PW which might be relevant to numerous switches).
 
 	Along with this warning - the user will also be able to control how long before the PW expiration this warning will appear.
 
@@ -190,10 +194,10 @@ By enabling this feature, the user will not be permitted to set the same usernam
 
 
 ##### PW Saving
-Saved previous passwords in the DB,  for enable this. is necessary to set how many old password you would like to save.
+Saved previous passwords in the DB to verify that the user cannot used old password
 
-Implementation: will be support by using pam_pwhistory.so, remember=N option.
-Seen that in Debian its not necessary to install this package. Its enough to add the remember=N option to the common-password file.
+Implementation: will be supported by using pam_pwhistory.so, remember=N option (N- number of old passwords to be saved).
+See that in Debian it's not necessary to install this package. It's enough to add the remember=N option to the common-password file.
 
 Note:
 For saving password with sha512, need to modify the /etc/pam.d/system-auth-a file to contain this line:
@@ -204,14 +208,15 @@ For saving password with sha512, need to modify the /etc/pam.d/system-auth-a fil
 ####  1.8.1. <a name='Compilation'></a>Compilation
 This feature will be disabled by default in the compilation stage, its meaning that it will be not compiled, only when the user will change the makefile setting to enable, this feature will be compiled.
 
-In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
+In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled it will not appear in the CLI of the switch, and vice versa.
 
-####  1.8.2. <a name='dependencies'></a>dependencies
-Service dependencies: DB container & INIT_CONF.
+####  1.8.2. <a name='Dependencies'></a>Dependencies
+Service dependencies: DB container, INIT_CONF and NTP service.
 Description:
-Password Hardening Daemon, the service that triggers this daemon, should start after SWSS & DB containers start.
+Password Hardening Daemon, the service that triggers this daemon, should start after DB containers start.
+NTP service should be secure, because it can influence expiration time of some policies.
 
-####  1.8.3. <a name='Featuredefault'></a>Feature default
+####  1.8.3. <a name='FeatureDefault'></a>Feature Default
 When a user decides to add the feature in the compilation the feature will be enabled by default.
 
 Description of default values in init_cfg.json regarding Password Hardening:
@@ -228,12 +233,16 @@ upper class: True
 digit class: True
 special class: True
 ```
-
+Notes:
+-  Old users (existing users before feature was enabled) will not be influenced by this feature, only new users will have to set passwords according to the password hardening policies, or old user when changing to new password will be force to be according the new policies.
+-  Default password of the system will remained with default value even when the feature is enable. It will be secure password only when the user decide to change the password.
 ####  1.8.4. <a name='Howthedaemonworksinternally:'></a>How the daemon works internally:
-In case the user decides to compile the feature. The password hardening daemon will be started and running always, but it will do nothing. Meaning the process will be in sleep mode, until the passw_hardening_enable field in the Redis DB will be changed to enable, then the service will activate, and will be functional.
+In case the user decides to compile the feature, the password hardening daemon will be started and running always as a service.
+The process/daemon always running, but can be in sleep mode, the process is checking that the "enable" field in CONF_DB table PASSWH is "True", this value it was assign in the init flow by default, so only in case that the user change the field "enable" to "False" the process will be in sleep, waiting to be "awake" when the field will be change back to enable.
 
-Note:
-This approach can support reset of the system, because the daemon can automatically can verify if he should be awake or not.
+Notes:
+-  The service/process will be run from the host (not in a docker).
+-  This approach can support reset of the system, because the daemon can automatically verify if he should be awake or not.
 
 ###  1.9. <a name='SAIAPI'></a>SAI API
 no changed.
@@ -256,7 +265,7 @@ PASSWH:
 	"digit_class": {{True/False}}
 	"special_class": {{True/False}}
 ```
-Note: similar table for PASSWH_STATUS in APPL_DB
+Note: similar table for PASSWH_STATUS in STATE_DB
 
 ####  1.10.2. <a name='ConfigDBschemas'></a>ConfigDB schemas
 
@@ -265,10 +274,8 @@ Note: similar table for PASSWH_STATUS in APPL_DB
 key                                   = PASSWH:name             ;password hardening configuration
 ; field                               = value
 FEATURE_ENABLE                        = "True" / "False"        ; Feature feature enable/disable
-EXPIRATION                            = year                    ; password expiration 1 year in days units
-year                                  = 4DIGIT
-EXPIRATION_WARNING                    = month                   ; password expiration warning  1 year in days units
-month                                 = 2DIGIT
+EXPIRATION                            = 3*DIGIT                    ; password expiration in days units, should be 365 days max
+EXPIRATION_WARNING                    = 2*DIGIT                   ; password expiration warning  1 month(30 days) in days units
 PASSW_HISTORY                         = 2*DIGIT                 ; number of old password to be stored (0-99)
 LEN_MIN                               = 2*DIGIT                 ; max characters in password (0-32 chars)
 LEN_MAX                               = 2*DIGIT                 ; min characters in password (64-80 chars)
@@ -286,80 +293,87 @@ SPECIAL_CLASS                         = "True" / "False"
 module sonic-passwh {
     yang-version 1.1;
     namespace "http://github.com/Azure/sonic-passwh";
+	prefix passwh;
+
     description "PASSWORD HARDENING YANG Module for SONiC OS";
-    revision 2021-10-12 {
+
+	revision 2021-10-12 {
         description
             "First Revision";
     }
-	import sonic-types {
-		prefix stypes;
-    }
+    typedef feature_state {
+        type enumeration {
+			enum enabled;
+			enum disabled;
+		}
+	}
+
     container sonic-passwh {
 		container PASSWH {
 			description "PASSWORD HARDENING part of config_db.json";
 			leaf state {
-					description "state of the feature";
-					type stypes:feature_state;
-					default "enabled";
+				description "state of the feature";
+				type feature_state;
+				default "enabled";
 			}
 			leaf expiration {
 				description "expiration time (days unit)";
-				default: 180
+				default 180;
 				type uint32 {
-					length 1..365;
+					range 1..365;
 				}
 			}
 			leaf expiration_warning {
 				description "expiration warning time (days unit)";
-				default: 15
+				default 15;
 				type uint8 {
 					range 1..30;
 				}
 			}
 			leaf history {
-				description "num of old password that the system will recorded"
-				default: 10
+				description "num of old password that the system will recorded";
+				default 10;
 				type uint8 {
 					range 1..100;
 				}
 			}
 			leaf len_max {
-				description "password max length"
-				default: 64
+				description "password max length";
+				default 64;
 				type uint8 {
 					range 64..80;
 				}
 			}
 			leaf len_min {
-				description "password min length"
-				default: 8
+				description "password min length";
+				default 8;
 				type uint8 {
 					range 1..32;
 				}
 			}
 			leaf username_passw_match{
-				description "username password match"
-				default: True;
+				description "username password match";
+				default "true";
 				type boolean;
 			}
-			leaf lower class{
-				description "password lower chars policy"
-				default: True;
+			leaf lower_class{
+				description "password lower chars policy";
+				default "true";
 				type boolean;
 			}
-			leaf upper class{
-				description "password upper chars policy"
-				default: True;
+			leaf upper_class{
+				description "password upper chars policy";
+				default "true";
 				type boolean;
 			}
-			leaf digits class{
-				description "password digits chars policy"
-				default: True;
+			leaf digits_class{
+				description "password digits chars policy";
+				default "true";
 				type boolean;
 			}
-			leaf special class{
-				description "password special chars policy"
-				default: True;
+			leaf special_class{
+				description "password special chars policy";
+				default "true";
 				type boolean;
 			}
 		} /* PASSWH table */
@@ -399,7 +413,7 @@ special - Special symbols (seen in requirement chapter)
 
 multiple char enforcement
 
-There will be no enforcement of multiple characters from a specific class or a specific characters (be either letter or symbol) to appear in the PW.
+There will be no enforcement of multiple characters from a specific class or a specific character (be either letter or symbol) to appear in the PW.
 
 The CLI command to configure the PW class type will be along the following lines:
 
@@ -504,7 +518,7 @@ The ConfigDB will be extended with next objects:
 	}
 }
 ```
-The AppDB will be extended with table PASSW_STATUS with similar objects than PASSWH table:
+The StateDB will be extended with table PASSW_STATUS with similar objects than PASSWH table:
 
 ```json
 {
@@ -526,8 +540,10 @@ The AppDB will be extended with table PASSW_STATUS with similar objects than PAS
 
 Notes:
 
-Similar fields will be saved in PASSW_TABLE than in PASSWH_STATUS_TABLE in APPL_DB.\
-the main difference is that other applications read from APPL_DB, and not from CONF_DB according Sonic architecture. In addition, CONF_DB contain values requested by user, when APPL_DB contain the result values, meaning that if some option fail to set in the linux module the APPL_CONF will have the founded state of the option.
+Similar fields will be saved in PASSW_TABLE in CONF_DB than in PASSWH_STATUS_TABLE in STATE_DB.\
+The main difference is that CONF_DB contains values requested by the user, when STATE_DB contain the values after getting the status from kernel.
+So when user will use "show" cli commands most of them will get the answer from STATE_DB, instead to do a system call again.
+For example, if some configuration set by the user fail to be configured in the linux kernel the STATE_DB will have the actual status/(state) of the configuration, and CONF_DB will still have the user configuration value requested.
 
 
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
@@ -538,9 +554,16 @@ The secure password feature is not supported on remote AAA.
 
 LDAP/Radius/Tacacs is under customer responsibility.
 
+###  1.13. <a name='UpgradeFlow'></a>Upgrade Flow
+When user with the correspond permission is doing upgrade from image with password hardening enable to password enable as well, the configuration related to the feature should be remain the same as was set before the update.
 
-###  1.13. <a name='TestPlan'></a>Test Plan
-####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases
+When user is doing upgrade from image with password hardening feature disable to enable, old password will remain exactly as was set before, the feature is setting rules/policies to new passwords or to new users, so old passwords will remained as was set before.
+
+Note:
+First time, the default password will remained the same, even when the feature is enabled, and if the user will like to have a secure password he will need to change it, and in result that the feature is enabled the current policies will required an strong password this time.
+
+###  1.14. <a name='TestPlan'></a>Test Plan
+####  1.14.1. <a name='UnitTestcases'></a>Unit Test cases
 - Configuration – good flow
   - Enable/Disable feature
   - Perform show command
@@ -562,19 +585,19 @@ LDAP/Radius/Tacacs is under customer responsibility.
 ##### Notes:
 - After creating a new policy is necessary to set a new password to a user to verify that the policy match the configured.
 - Valid values: could be random values from valid ranges.
-- The set configuration should be validate using the show command and also should be test from the APPL_DB.
+- The set configuration should be validate using the show command and also should be test from the STATE_DB.
 
-####  1.13.2. <a name='SystemTestcases'></a>System Test cases
+####  1.14.2. <a name='SystemTestcases'></a>System Test cases
 - Test all passwh policies together
   - Configure all the passwh options.
   - Create a new user and change an existing user password.
   - Validate that policies match the configured
 
 
-###  1.14. <a name='rdPartyComponents'></a>3rd Party Components
+###  1.15. <a name='rdPartyComponents'></a>3rd Party Components
 In this section you can find most of the options of pam-cracklib, chage and pwhistory, we are going to use just the options mention in the Arc chapter, the other option maybe could be use for future features
 
-####  1.14.1. <a name='pam-cracklib'></a>pam-cracklib
+####  1.15.1. <a name='pam-cracklib'></a>pam-cracklib
 
 Options:
 
@@ -635,7 +658,7 @@ The old password was not supplied by a previous stacked module or got not reques
 ###### PAM_SERVICE_ERR
 A internal error occurred.
 
-####  1.14.2. <a name='PWAgeHistory'></a>PW Age/History
+####  1.15.2. <a name='PWAgeHistory'></a>PW Age/History
 
 ![chage options](chage.JPG)
 
@@ -694,7 +717,7 @@ Notes: If we want to do "age" configuration globally and not per user, it necess
 	PASS_MAX_DAYS 90
 	PASS_WARN_AGE 7
 
-####  1.14.3. <a name='PWHistory'></a>PW History
+####  1.15.3. <a name='PWHistory'></a>PW History
 pam_pwhistory: PAM module to remember last passwords
 
 ##### DESCRIPTION
