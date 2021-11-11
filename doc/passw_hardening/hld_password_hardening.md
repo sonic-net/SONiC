@@ -311,85 +311,94 @@ module sonic-passwh {
     container sonic-passwh {
 		container PASSWH {
 			description "PASSWORD HARDENING part of config_db.json";
-			leaf state {
-				description "state of the feature";
-				type feature_state;
-				default "enabled";
-			}
-			leaf expiration {
-				description "expiration time (days unit)";
-				default 180;
-				type uint32 {
-					range 1..365;
+			container POLICIES {
+				leaf state {
+					description "state of the feature";
+					type feature_state;
+					default "enabled";
 				}
-			}
-			leaf expiration_warning {
-				description "expiration warning time (days unit)";
-				default 15;
-				type uint8 {
-					range 1..30;
+				leaf expiration {
+					description "expiration time (days unit)";
+					default 180;
+					type uint32 {
+						range 1..365;
+					}
 				}
-			}
-			leaf history {
-				description "num of old password that the system will recorded";
-				default 10;
-				type uint8 {
-					range 1..100;
+				leaf expiration_warning {
+					description "expiration warning time (days unit)";
+					default 15;
+					type uint8 {
+						range 1..30;
+					}
 				}
-			}
-			leaf len_max {
-				description "password max length";
-				default 64;
-				type uint8 {
-					range 64..80;
+				leaf history {
+					description "num of old password that the system will recorded";
+					default 10;
+					type uint8 {
+						range 1..100;
+					}
 				}
-			}
-			leaf len_min {
-				description "password min length";
-				default 8;
-				type uint8 {
-					range 1..32;
+				leaf len_max {
+					description "password max length";
+					default 64;
+					type uint8 {
+						range 64..80;
+					}
 				}
-			}
-			leaf username_passw_match{
-				description "username password match";
-				default "true";
-				type boolean;
-			}
-			leaf lower_class{
-				description "password lower chars policy";
-				default "true";
-				type boolean;
-			}
-			leaf upper_class{
-				description "password upper chars policy";
-				default "true";
-				type boolean;
-			}
-			leaf digits_class{
-				description "password digits chars policy";
-				default "true";
-				type boolean;
-			}
-			leaf special_class{
-				description "password special chars policy";
-				default "true";
-				type boolean;
-			}
-		} /* PASSWH table */
+				leaf len_min {
+					description "password min length";
+					default 8;
+					type uint8 {
+						range 1..32;
+					}
+				}
+				leaf username_passw_match{
+					description "username password match";
+					default "true";
+					type boolean;
+				}
+				leaf lower_class{
+					description "password lower chars policy";
+					default "true";
+					type boolean;
+				}
+				leaf upper_class{
+					description "password upper chars policy";
+					default "true";
+					type boolean;
+				}
+				leaf digits_class{
+					description "password digits chars policy";
+					default "true";
+					type boolean;
+				}
+				leaf special_class{
+					description "password special chars policy";
+					default "true";
+					type boolean;
+				}
+			}/*container policies */
+		} /* container PASSWH  */
     }/* container sonic-passwh */
 }/* end of module sonic-passwh */
 ```
 
 ##### Config CLI
 ###### PW enable
-Set configuration:
+
+Passwoed Hardening enable feature, set configuration:
 
 ```
-config passwh enable/disable
+root@r-panther-13:/home/admin# config passwh policies state --help
+Usage: config passwh policies state [OPTIONS] STATE
+
+  state of the feature
+
+Options:
+  -?, -h, --help  Show this message and exit.
 ```
 
-PW Class:
+PW Classes:
 
 PW class is the type of characters the user is required to enter when setting/updating a PW.
 
@@ -417,21 +426,56 @@ There will be no enforcement of multiple characters from a specific class or a s
 
 The CLI command to configure the PW class type will be along the following lines:
 
-Set configuration:
+Set classes configuration:
 ```
-config passwh complexity-class <lower upper digit special>
-Values in every position are boolean, for example:
+==============================================================================
+root@r-panther-13:/home/admin# config passwh policies lower-class --help
+Usage: config passwh policies lower-class [OPTIONS] LOWER_CLASS
 
-config passwh complexity-class <lower upper digit special>  False False True True
+  password lower chars policy
+
+Options:
+  -?, -h, --help  Show this message and exit.
+==============================================================================
+root@r-panther-13:/home/admin# config passwh policies upper-class --help
+Usage: config passwh policies upper-class [OPTIONS] UPPER_CLASS
+
+  password upper chars policy
+
+Options:
+  -h, -?, --help  Show this message and exit.
+==============================================================================
+root@r-panther-13:/home/admin# config passwh policies digits-class --help
+Usage: config passwh policies digits-class [OPTIONS] DIGITS_CLASS
+
+  password digits chars policy
+
+Options:
+  -h, -?, --help  Show this message and exit.
+==============================================================================
+root@r-panther-13:/home/admin# config passwh policies special-class --help
+Usage: config passwh policies special-class [OPTIONS] SPECIAL_CLASS
+
+  password special chars policy
+
+Options:
+  -?, -h, --help  Show this message and exit.
+==============================================================================
 ```
 
 Note: Meaning: no must use of lower, no must use of upper, must use digit, must use special characters
 
 ###### PW Length
 
-Set configuration:
+Set len-min configuration:
 ```
-config passwh length min <length>
+root@r-panther-13:/home/admin# config passwh policies len-min --help
+Usage: config passwh policies len-min [OPTIONS] LEN_MIN
+
+  password min length
+
+Options:
+  -?, -h, --help  Show this message and exit.
 ```
 
 Note: Where length is a number between 0 and 32.
@@ -444,16 +488,28 @@ Once the user changed the minimum password length - the settings will be applied
 
 Set configuration:
 ```
-config passwh age expiration <age>
+root@r-panther-13:/home/admin# config passwh policies expiration --help
+Usage: config passwh policies expiration [OPTIONS] EXPIRATION
+
+  expiration time (days unit)
+
+Options:
+  -h, -?, --help  Show this message and exit.
 ```
 
 Notes: Where age is in days and between 1 and 365 days (default 180).
 * PW Age Change Warning
 
 Set configuration:
-	```
-	config passwh age warning <warning_days>
-	```
+```
+root@r-panther-13:/home/admin# config passwh policies expiration-warning --help
+Usage: config passwh policies expiration-warning [OPTIONS] EXPIRATION_WARNING
+
+  expiration warning time (days unit)
+
+Options:
+  -?, -h, --help  Show this message and exit.
+```
 
 Notes: The warning_days can be configured between 1 and 30 days (default 15).
 
@@ -462,36 +518,38 @@ Notes: The warning_days can be configured between 1 and 30 days (default 15).
 
 Set configuration:
 
-	config passwh username-password-match <enable/disable>
+```
+root@r-panther-13:/home/admin# config passwh policies username-passw-match --help
+Usage: config passwh policies username-passw-match [OPTIONS]
+                                                   USERNAME_PASSW_MATCH
 
+  username password match
+
+Options:
+  -h, -?, --help  Show this message and exit.
+```
 
 ###### PW Saving
 Set configuration:
 
-	config passwh history <num of old passwords to save>
+```
+root@r-panther-13:/home/admin# config passwh policies history --help
+Usage: config passwh policies history [OPTIONS] HISTORY
 
+  num of old password that the system will recorded
+
+Options:
+  -h, -?, --help  Show this message and exit.
+```
 ##### Show CLI
 
 Show command should be extended in order to add "passwh" alias:
 
 ```
-==========================================
-admin@sonic:~$ show passwh
-PASSWORD HARDENING
-Policies                       Status
--------------------         ------------
-feature state                 enable
-expiration                    30 days
-expiration warning            10 days
-history                       4
-min length                    30
-max length                    15
-username passw match          True
-lower class                   True
-upper class                   True
-digit class                   True
-special class                 True
-==========================================
+root@r-panther-13:/home/admin# show passwh policies
+STATE    EXPIRATION    EXPIRATION WARNING    HISTORY    LEN MAX    LEN MIN    USERNAME PASSW MATCH    LOWER CLASS    UPPER CLASS    DIGITS CLASS    SPECIAL CLASS
+-------  ------------  --------------------  ---------  ---------  ---------  ----------------------  -------------  -------------  --------------  ---------------
+enabled      30           10                   4         100        30               false                 true            true            true          true
 ```
 
 ##### CLI permissions
