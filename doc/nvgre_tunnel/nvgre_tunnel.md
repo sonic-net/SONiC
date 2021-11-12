@@ -71,7 +71,7 @@ The new tables will be added to Config DB. Unless otherwise stated, the attribut
 NVGRE_TUNNEL|{{tunnel_name}} 
     "src_ip": {{ip_address}} 
 
-NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
+NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{vlan_name}}
     "vsid": {{vsid_id}}
     "vlan": {{vlan_id}}
 ```
@@ -80,24 +80,24 @@ NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map}}
 
 ```
 ; Defines schema for NVGRE Tunnel configuration attributes
-key                                   = NVGRE_TUNNEL:name             ; NVGRE tunnel configuration
+key                                   = NVGRE_TUNNEL|tunnel_name      ; NVGRE tunnel configuration
 ; field                               = value
-SRC_IP                                = ipv4                          ; IPv4 source address
+src_ip                                = ipv4                          ; IPv4 source address
 
 ;value annotations
 ipv4          = dec-octet "." dec-octet "." dec-octet "." dec-octet
 dec-octet     = DIGIT                     ; 0-9  
-                  / %x31-39 DIGIT         ; 10-99  
-                  / "1" 2DIGIT            ; 100-199  
-                  / "2" %x30-34 DIGIT     ; 200-249
+                / %x31-39 DIGIT           ; 10-99
+                / "1" 2DIGIT              ; 100-199
+                / "2" %x30-34 DIGIT       ; 200-249
 ```
 
 ```
 ; Defines schema for NVGRE Tunnel map configuration attributes
-key                                   = NVGRE_TUNNEL:tunnel_name:name ; NVGRE tunnel configuration
+key                                   = NVGRE_TUNNEL|tunnel_name|vlan_name ; NVGRE tunnel configuration
 ; field                               = value
-VSID                                  = DIGITS                        ; 1 to 16 million values
-VLAN                                  = 1\*4DIGIT                     ; 1 to 4094 Vlan id
+vsid                                  = DIGITS                             ; 1 to 16 million values
+vlan                                  = 1\*4DIGIT                          ; 1 to 4094 Vlan id
 ```
 
 #### Orchestration agent
