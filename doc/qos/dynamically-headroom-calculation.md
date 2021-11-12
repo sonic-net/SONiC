@@ -786,7 +786,9 @@ Therefore, headroom is calculated as the following:
 - `cell occupancy` = (100 - `small packet percentage` + `small packet percentage` * `worst case factor`) / 100
 - `kb on cable` = `cable length` / `speed of light in media` * `port speed`
 - `kb on gearbox` = `port speed` * `gearbox delay` / 8 / 1024
-- `peer response` = (`number of pause_quanta` * 512) / 8
+- `peer response` = 
+  - if can get a valid pause quanta, `peer response` = (`number of pause_quanta` * 512) / 8
+  - otherwise, use the default value, `peer response`: ASIC_TABLE|\<asic name\>|peer_response_time
 - `propagation delay` = `port mtu` + 2 * (`kb on cable` + `kb on gearbox`) + `mac/phy delay` + `peer response`
 - `Xon` = `pipeline latency`
 - `Xoff` = `lossless mtu` + `propagation delay` * `cell occupancy`
@@ -801,6 +803,7 @@ The values used in the above procedure are fetched from the following table:
 - `port mtu`: PORT|\<port name\>|mtu, default value is `9100`
 - `gearbox delay`: PERIPHERIAL_TABLE|\<gearbox name\>|gearbox_delay
 - `mac/phy delay`: ASIC_TABLE|\<asic name\>|mac_phy_delay
+- `peer response`: ASIC_TABLE|\<asic name\>|peer_response_time
 - `cell`: ASIC_TABLE|\<asic name\>|cell_size
 - `small packet percentage`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|small_packet_percentage
 - `lossless mtu`: LOSSLESS_TRAFFIC_PATTERN|\<name\>|mtu
