@@ -82,14 +82,25 @@ NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{vlan_name}}
 ; Defines schema for NVGRE Tunnel configuration attributes
 key                                   = NVGRE_TUNNEL|tunnel_name      ; NVGRE tunnel configuration
 ; field                               = value
-src_ip                                = ipv4                          ; IPv4 source address
+src_ip                                = ipv4 or ipv6                  ; IP source address
 
 ;value annotations
-ipv4          = dec-octet "." dec-octet "." dec-octet "." dec-octet
-dec-octet     = DIGIT                     ; 0-9  
-                / %x31-39 DIGIT           ; 10-99
-                / "1" 2DIGIT              ; 100-199
-                / "2" %x30-34 DIGIT       ; 200-249
+h16        = 1*4HEXDIG
+ls32       = h16 ":" h16
+dec-octet  = DIGIT                     ; 0-9
+             / %x31-39 DIGIT           ; 10-99
+             / "1" 2DIGIT              ; 100-199
+             / "2" %x30-34 DIGIT       ; 200-249
+ipv4       = dec-octet "." dec-octet "." dec-octet "." dec-octet
+ipv6       = 6( h16 ":" ) ls32
+             /                       "::" 5( h16 ":" ) ls32
+             / [               h16 ] "::" 4( h16 ":" ) ls32
+             / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+             / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+             / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+             / [ *4( h16 ":" ) h16 ] "::"              ls32
+             / [ *5( h16 ":" ) h16 ] "::"              h16
+             / [ *6( h16 ":" ) h16 ] "::"
 ```
 
 ```
