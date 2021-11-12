@@ -120,8 +120,21 @@ should display the advertised applications of the transceiver.
 The transceiver daemon will be enhanced as below:
 
 - Post the CMIS application advertisement into the **STATE_DB**  
-  In the case of CMIS transceiver, the **application_advertisement** of **TRANSCEIVER_INFO** is as follow:  
+  In the case of CMIS transceiver, the **application_advertisement** of **TRANSCEIVER_INFO**
+is updated from plain test into json dictionary format:  
 
+**Original:**  
+```
+  "TRANSCEIVER_INFO|Ethernet0": {
+    "type": "hash",
+    "value": {
+      "application_advertisement": "400GAUI-8 C2M (Annex 120E) - 400GBASE-DR4 (Cl 124)\n        100GAUI-2 C2M (Annex 135G) - 100G-FR/100GBASE-FR1 (Cl 140)",
+      ...... omitted ......
+    }
+  },
+```
+
+**Modified:**  
 ```
   "TRANSCEIVER_INFO|Ethernet0": {
     "type": "hash",
@@ -133,9 +146,58 @@ The transceiver daemon will be enhanced as below:
   ...... omitted ......
 ```  
 
+- Add **CMIS_MEDIA_SETTINGS** to the media_settings.json for custom CMIS controls
+
+**Format:**
+```
+{
+    "CMIS_MEDIA_SETTINGS":{
+        "<VENDOR_NAME>#<PART_NUMBER>": {
+            "application_selection": true|false
+        }
+    }
+}
+```
+
+**Example:**
+```
+{
+    "CMIS_MEDIA_SETTINGS":{
+        "AVAGO#AFCT-93DRPHZ-AZ2": {
+            "application_selection": true
+        },
+        "Amphenol#NDYYYF-0001": {
+            "application_selection": false
+        },
+        "DELL EMC#6MGDY": {
+            "application_selection": true
+        },
+        "DELL EMC#DH11M": {
+            "application_selection": false
+        }
+    }
+}
+```
+  As of now, only **application_selection** is supported, and it defaults to **True** if unspecified
+
 - Add a CMIS manager class to handle the application initializations in parallel  
 
   ![](images/001.png)
+
+- Add **PortChangeEvent.PORT_SET** and **PortChangeEvent.PORT_DEL** events to **xcvrd_utilities/port_mapping.py**  
+  - PortChangeEvent.PORT_SET  
+    Invoke the event callbacks upon **SET** operations, it includes all the port config updates,
+not just the port add/remove events.
+  - PortChangeEvent.PORT_DEL  
+    Invoke the event callbacks upon **DEL** operations.
+
+- As of now, the number of CmisManagerTask is hard coded to 4  
+  - Task 0 is dedicated to listen for **PortChangeEvent.PORT_SET** events, and put requests into the shared message queue
+  - Task 1-N are responsible for handling the CMIS application initializations in parallel,
+  since all the requests are from the shared message queue, only one request will be processed
+  by a certain task at a time.
+
+  ![](images/002.png)
 
 ## sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
 
@@ -151,6 +213,8 @@ Updates the application selection of this CMIS transceiver
 
 - Add support for software reset
 - Add support for activating the CMIS application base on the host port mode.
+- Detailed CMIS application initialization sequence is available in **Appendix D** of
+[Common Management Interface Specification Rev. 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 
 ## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py (modified)
 
@@ -167,6 +231,12 @@ Updates the application selection of this CMIS transceiver
 ## sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py (modified)
 
 - Add support for CMIS application initialization
+  - get_cmis_application_selected()
+  - get_cmis_application_matched()
+  - set_cmis_application()
+- Add mutex lock to the follow routines to serialize CMIS application initializations  
+  - reset()
+  - set_cmis_application()
 
 ## sonic-utilities/sfputil (modified)
 
