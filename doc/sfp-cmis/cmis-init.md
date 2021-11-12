@@ -274,6 +274,7 @@ Ethernet0: SFP EEPROM detected
 
 The legacy **sfputil show error-status** is also enhanced to detect CMIS failures
 
+Example:
 ```
 admin@sonic:~$ sudo sfputil show error-status
 Port         Error Status
@@ -283,4 +284,18 @@ Ethernet8    CMIS datapath error
 Ethernet16   CMIS config error
 Ethernet24   Unplugged
 Ethernet32   Unplugged
+```
+
+Please use **show logging xcvrd | grep CMIS** for the logs of CMIS Manager
+
+Example:
+```
+admin@sonic:~$ show logging xcvrd | grep CMIS
+Nov 12 07:37:26.176160 sonic NOTICE pmon#xcvrd[36]: CMIS: Starting...
+Nov 12 07:37:26.176513 sonic NOTICE pmon#xcvrd[37]: CMIS: Starting...
+Nov 12 07:37:26.178932 sonic NOTICE pmon#xcvrd[38]: CMIS: Starting...
+Nov 12 07:37:26.180756 sonic NOTICE pmon#xcvrd[42]: CMIS: Starting...
+Nov 12 07:37:26.180882 sonic NOTICE pmon#xcvrd[40]: CMIS: Starting...
+Nov 12 07:37:27.317755 sonic NOTICE pmon#xcvrd[37]: CMIS: Ethernet32: application update for 400G, 8-lanes
+Nov 12 07:37:27.388256 sonic NOTICE pmon#xcvrd[37]: CMIS: Ethernet32: application update ... ok
 ```
