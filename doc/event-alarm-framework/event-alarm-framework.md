@@ -134,7 +134,7 @@ In addition to the above tables, the framework maintains various statisitcs.
 
 As mentioned above, each event has an important characteristic: severity. SONiC uses following severities for events and alarms as defined in opeconfig alarm yang.
 
-- CRITICAL : Requires immediate action. An critical event may trigger if one or more hardware components fail, or one or more hardware components exceed temperature thresholds.
+- CRITICAL : Requires immediate action. A critical event may trigger if one or more hardware components fail, or one or more hardware components exceed temperature thresholds.
   ( maps to log-alert )
 - MAJOR : Requires escalation or notification. For example, a major alarm may trigger if an interface failure occurs, such as a port channel being down.
   ( maps to log-critical )
