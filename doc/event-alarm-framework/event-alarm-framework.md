@@ -508,15 +508,15 @@ send it to syslog.
 ``` 
 An example of syslog message generated for an event raised when user selects a custom event profile.
 ```
-May 19 21:22:07.122786 2021 sonic WARNING eventd#eventd[2419]: [EVENT], %CUSTOM_EVPROFILE_CHANGE :- handle_custom_evprofile: Custom Event Profile myprofile.json is applied.. Custom Event Profile is selected by user.
+May 19 21:22:07.122786 2021 sonic WARNING eventd#eventd[2419]: [EVENT], %CUSTOM_EVPROFILE_CHANGE : handle_custom_evprofile: Custom Event Profile myprofile.json is applied.. Custom Event Profile is selected by user.
 ```
 Syslog message for an alarm raised by a sensor:
 ```
-May 19 21:42:14.373410 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (RAISE), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees. 
+May 19 21:42:14.373410 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (RAISE), %TEMPERATURE_EXCEEDED : temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees. 
 ```
 Syslog message when alarm is clared is as follows:
 ```
-May 19 21:46:34.373693 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (CLEAR), %TEMPERATURE_EXCEEDED :- temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees. Temperature threshold is 75 degrees.
+May 19 21:46:34.373693 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (CLEAR), %TEMPERATURE_EXCEEDED : temperatureCrossedThreshold: Current temperature of sensor/2 is 70 degrees. Temperature threshold is 75 degrees.
 ```
 Syslog message when alarm with id=4 is acknowledged is as follows:
 ```
@@ -705,7 +705,7 @@ severity        : Severity of the event {string}
 
 127.0.0.1:6379[6]> hgetall "EVENT|1"
  1) "text"
- 2) ":- handle_custom_evprofile: Custom Event Profile x.json is applied."
+ 2) "handle_custom_evprofile: Custom Event Profile x.json is applied."
  3) "type-id"
  4) "CUSTOM_EVPROFILE_CHANGE"
  5) "id"
@@ -1045,13 +1045,13 @@ sonic# show event
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-1            -               WARNING    CUSTOM_EVPROFILE_CHANGE        2021-05-19T21:38:27.455Z    :- handle_custom_evprofile: Custom Event Profile x.json is applied.
-2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    :- signalHandler: Raising simulated alarm         
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    :- signalHandler: Clearing simulated alarm        
-4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    :- signalHandler: Raising simulated alarm         
+1            -               WARNING    CUSTOM_EVPROFILE_CHANGE        2021-05-19T21:38:27.455Z    handle_custom_evprofile: Custom Event Profile x.json is applied.
+2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    signalHandler: Raising simulated alarm         
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm        
+4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    signalHandler: Raising simulated alarm         
 5            ACKNOWLEDGE     CRITICAL   DUMMY_ALARM                    2021-05-19T21:48:05.845Z    Alarm id 4 ACKNOWLEDGE.                           
 6            UNACKNOWLEDGE   CRITICAL   DUMMY_ALARM                    2021-05-19T21:53:24.484Z    Alarm id 4 UNACKNOWLEDGE.                         
-7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    :- signalHandler: Clearing simulated alarm        
+7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    signalHandler: Clearing simulated alarm        
 
 sonic# show event details 
 ----------------------------------------------
@@ -1062,7 +1062,7 @@ Action:              -
 Severity:            WARNING 
 Type:                CUSTOM_EVPROFILE_CHANGE 
 Timestamp            2021-05-19T21:38:27.455Z 
-Description:         :- handle_custom_evprofile: Custom Event Profile x.json is applied. 
+Description:         handle_custom_evprofile: Custom Event Profile x.json is applied. 
 Source:              /etc/evprofile/x.json 
  
 ----------------------------------------------
@@ -1073,7 +1073,7 @@ Action:              RAISE
 Severity:            CRITICAL 
 Type:                DUMMY_ALARM 
 Timestamp            2021-05-19T21:39:31.622Z 
-Description:         :- signalHandler: Raising simulated alarm 
+Description:         signalHandler: Raising simulated alarm 
 Source:              simulation 
  
 ----------------------------------------------
@@ -1084,7 +1084,7 @@ Action:              CLEAR
 Severity:            CRITICAL 
 Type:                DUMMY_ALARM 
 Timestamp            2021-05-19T21:42:34.371Z 
-Description:         :- signalHandler: Clearing simulated alarm 
+Description:         signalHandler: Clearing simulated alarm 
 Source:              simulation 
 
 sonic# show event summary
@@ -1100,23 +1100,23 @@ sonic# show event severity critical
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    :- signalHandler: Raising simulated alarm         
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    :- signalHandler: Clearing simulated alarm        
-4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    :- signalHandler: Raising simulated alarm         
+2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    signalHandler: Raising simulated alarm         
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm        
+4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    signalHandler: Raising simulated alarm         
 5            ACKNOWLEDGE     CRITICAL   DUMMY_ALARM                    2021-05-19T21:48:05.845Z    Alarm id 4 ACKNOWLEDGE.                           
 6            UNACKNOWLEDGE   CRITICAL   DUMMY_ALARM                    2021-05-19T21:53:24.484Z    Alarm id 4 UNACKNOWLEDGE.                         
-7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    :- signalHandler: Clearing simulated alarm
+7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    signalHandler: Clearing simulated alarm
 
 sonic# show event recent 24hr 
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    :- signalHandler: Raising simulated alarm         
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    :- signalHandler: Clearing simulated alarm        
-4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    :- signalHandler: Raising simulated alarm         
+2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    signalHandler: Raising simulated alarm         
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm        
+4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    signalHandler: Raising simulated alarm         
 5            ACKNOWLEDGE     CRITICAL   DUMMY_ALARM                    2021-05-19T21:48:05.845Z    Alarm id 4 ACKNOWLEDGE.                           
 6            UNACKNOWLEDGE   CRITICAL   DUMMY_ALARM                    2021-05-19T21:53:24.484Z    Alarm id 4 UNACKNOWLEDGE.                         
-7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    :- signalHandler: Clearing simulated alarm
+7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    signalHandler: Clearing simulated alarm
 
 sonic# show event id 2
 ----------------------------------------------
@@ -1127,23 +1127,23 @@ Action:              RAISE
 Severity:            CRITICAL 
 Type:                DUMMY_ALARM 
 Timestamp            2021-05-19T21:39:31.622Z 
-Description:         :- signalHandler: Raising simulated alarm 
+Description:         signalHandler: Raising simulated alarm 
 Source:              simulation 
 
 sonic# show event from 2 to 5
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    :- signalHandler: Raising simulated alarm         
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    :- signalHandler: Clearing simulated alarm        
-4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    :- signalHandler: Raising simulated alarm         
+2            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:39:31.622Z    signalHandler: Raising simulated alarm         
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm        
+4            RAISE           CRITICAL   DUMMY_ALARM                    2021-05-19T21:46:14.371Z    signalHandler: Raising simulated alarm         
 5            ACKNOWLEDGE     CRITICAL   DUMMY_ALARM                    2021-05-19T21:48:05.845Z    Alarm id 4 ACKNOWLEDGE.
 
 sonic# show event start 2021-05-19T21:39:31.622Z end 2021-05-19T21:46:14.371Z
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    :- signalHandler: Clearing simulated alarm 
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm 
 
 sonic# show alarm [ acknowledged | all | detail | summary | severity <sev> | id <seq-id> | start <from-ts> end <to-ts> | recent <5min|1hr|1day> | from <from-seq> to <to-seq> ]
 
@@ -1153,16 +1153,16 @@ sonic# show alarm
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
+14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
 16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    :- /psu/2 has experienced a fault 
 
 sonic# show alarm all
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
-15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    :- signalHandler: Raising simulated alarm         
-16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    :- /psu/2 has experienced a fault 
+14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
+15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    signalHandler: Raising simulated alarm         
+16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault 
   
 
 sonic# show alarm detail 
@@ -1183,9 +1183,9 @@ sonic# show alarm from 14 to 16
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    :- temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
-15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    :- signalHandler: Raising simulated alarm         
-16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    :- /psu/2 has experienced a fault 
+14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
+15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    signalHandler: Raising simulated alarm         
+16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault 
 
 sonic# show alarm summary
 Alarm summary
