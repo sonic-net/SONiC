@@ -52,7 +52,7 @@ This section describes the SONiC requirements for NVGRE feature.
 
 At a high level the following should be supported:
 
-- User should be able to create NVGRE tunnel
+- User should be able to create NVGRE tunnel (L2 over L3 tunnel)
 - User should be able to create VLAN to VSID mapper entries for the NVGRE tunnel
 - Both VLAN and Bridge to VSID mappers should be supported by the NVGRE tunnel
 - Only the decapsulation mappers supported
