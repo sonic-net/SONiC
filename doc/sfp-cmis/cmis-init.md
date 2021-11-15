@@ -51,8 +51,11 @@ This document provides general information about the CMIS application initializa
 This document describes functional behavior of the CMIS application initialization support in SONiC.
 
 The Common Management Interface Specification (CMIS) provides a variety of features
-and support for different transceiver form factors. A 
-CMIS transceiver may support multiple application, and the application initialization sequence is now mandatory for the dynamic port breakout mode to correctly update the active CMIS application based on the desired port mode. Otherwise the link will be down if the host port mode does not match the selected application on the CMIS transceiver.
+and support for different transceiver form factors. A CMIS transceiver may support
+multiple application, and the application initialization sequence is now mandatory
+for the dynamic port breakout mode to correctly update the active CMIS application
+based on the desired port mode. Otherwise the link will be down if the host port mode
+does not match the selected application on the CMIS transceiver.
 
 The feature is built on top of SONiC **sfp-refactor** framework to provide a platform-independent
 solution, and the individual platforms could easily enable this feaure by having its **Sfp** inherited from **SfpOptoeBase**.
@@ -78,6 +81,13 @@ class Sfp(SfpOptoeBase):
 
 The scope of this feature is as follow:
 
+- **CMIS application initialization for dynamic port breakout operations.**  
+  - All the lanes of the CMIS module will be reconfigured to use
+exactly the same application. Mixed application mode is outside the scope of this document.
+  - Only staged control set 0 will be supported
+  - No speed negotiation.
+  - No custom signal integrity settings
+  - Implement the procedures defined in Appendix D.1.3 and D.2.2 of [CMIS 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 - **sonic-platform-common**  
   - Enhance the **sonic-xcvr** to support CMIS application advertising and initialization
 - **sonic-platform-daemons**  
@@ -213,8 +223,8 @@ Updates the application selection of this CMIS transceiver
 
 - Add support for software reset
 - Add support for activating the CMIS application base on the host port mode.
-- Detailed CMIS application initialization sequence is available in **Appendix D** of
-[Common Management Interface Specification Rev. 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
+- Detailed CMIS application initialization sequence is available in **Appendix D.1.3 and D.2.2** of
+[CMIS 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 
 ## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py (modified)
 
