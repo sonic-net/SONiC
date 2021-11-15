@@ -160,15 +160,15 @@ admin@edgecore:~$ sudo config static-anycast-gateway mac_address del 00:11:22:33
 
 **Enable static anycast gateway on VLAN interface**
 ```
-config vlan static-anycast-gateway add <vlan_id>
+config vlan static-anycast-gateway enable <vlan_id>
 ```
 * vlan_id: mandatory, the VLAN ID of the interface
 
 The format is in the following
 
 ```
-admin@edgecore:~$ sudo config vlan static-anycast-gateway add -h
-Usage: config vlan static-anycast-gateway add [OPTIONS] <vlan_id>
+admin@edgecore:~$ sudo config vlan static-anycast-gateway enable -h
+Usage: config vlan static-anycast-gateway enable [OPTIONS] <vlan_id>
 
   Enable static-anycast-gateway on VLAN interface
 
@@ -176,20 +176,20 @@ Options:
   -?, -h, --help  Show this message and exit.
 
 Example:
-admin@edgecore:~$ sudo config vlan static-anycast-gateway add 100
+admin@edgecore:~$ sudo config vlan static-anycast-gateway enable 100
 ```
 
 **Disable static anycast gateway on VLAN interface**
 ```
-config vlan static-anycast-gateway del <vlan_id>
+config vlan static-anycast-gateway disable <vlan_id>
 ```
 * vlan_id: mandatory, the VLAN ID of the interface
 
 The format is in the following
 
 ```
-admin@edgecore:~$ sudo config vlan static-anycast-gateway del -h
-Usage: config vlan static-anycast-gateway del [OPTIONS] <vlan_id>
+admin@edgecore:~$ sudo config vlan static-anycast-gateway disable -h
+Usage: config vlan static-anycast-gateway disable [OPTIONS] <vlan_id>
 
   Disable static-anycast-gateway on VLAN interface
 
@@ -197,7 +197,7 @@ Options:
   -?, -h, --help  Show this message and exit.
 
 Example:
-admin@edgecore:~$ sudo config vlan static-anycast-gateway del 100
+admin@edgecore:~$ sudo config vlan static-anycast-gateway disable 100
 ```
 **Display static anycast gateway configuration**
 ```
@@ -206,12 +206,11 @@ show static-anycast-gateway
 
 The display format is in the following
 ```
-admin@edgecore:~$ show sag
 Static Anycast Gateway Information
-
-MacAddress         
------------------
-00:11:22:33:44:55 
+MacAddress         Interfaces
+-----------------  ------------
+00:11:22:33:44:55  Vlan100
+                   Vlan200
 ```
 
 **Display enable/disable on the VLAN interface**
@@ -251,7 +250,7 @@ container sonic-static-anycast-gateway {
         container GLOBAL {
             description "static anycast gateway configuration";
 
-            leaf gwmac {
+            leaf gateway_mac {
                 type yang:mac-address;
             }
         }        
@@ -292,7 +291,7 @@ list VLAN_INTERFACE_LIST {
         default "0";
     }
 
-    leaf staic-anycast-gateway {
+    leaf static_anycast_gateway {
         description "Enable/disable static anycast gateway for the vlan interface";
         type boolean;
         default false;
