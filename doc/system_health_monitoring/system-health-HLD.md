@@ -12,22 +12,22 @@
 
 System health monitor is intended to monitor both critical services/processes and peripheral device status and leverage system log, system status LED to and CLI command output to indicate the system status.
 
-In current SONiC implementation, monit service can monitor the file system as well as customized check script status, system health monitor can rely on Monit service to monit these items. There are also a set of daemons(psud, thermaltcld, etc.) inside PMON collecting the peripheral devices status.
+In current SONiC implementation, Monit service can monitor the file system as well as customized script status, system health monitor can rely on Monit service to monitor these items. There are also a set of daemons such as psud, thermaltcld inside PMON to collect the peripheral devices status.
 
-System health monitor needs to monitor the critical service/processes status and reuse the result of Monit service/PMON daemons to summary the current status and decide the color of the system health LED.
+System health monitor needs to monitor the critical service/processes status and borrow the result of Monit service/PMON daemons to summarize the current status and decide the color of the system health LED.
 
 ### 1.1 Monitor critical services/processes
 
 #### 1.1.1 Monitor critical services
 
-1. Read FEATURE table in CONFIG_DB, any feature with state "enabled" or "always_enabled" is expected to run in the system
+1. Read FEATURE table in CONFIG_DB, any service whose "STATE" field was configured with "enabled" or "always_enabled" is expected to run in the system
 2. Get running services via docker tool (Use python docker library to get running containers)
 3. Compare result of #1 and result of #2, any difference will be considered as fault condition
 
 #### 1.1.2 Monitor critical processes
 
-1. Read FEATURE table in CONFIG_DB, any feature with state "enabled" or "always_enabled" is expected to run in the system
-2. Get critical process list for each running service by reading file /etc/supervisor/critical_processes (Use `docker inspect <container_name> --format "{{.GraphDriver.Data.MergedDir}}"` to get base director for a container)
+1. Read FEATURE table in CONFIG_DB, any service whose "STATE" field was configured with "enabled" or "always_enabled" is expected to run in the system
+2. Get critical processes of each running service by reading file /etc/supervisor/critical_processes (Use `docker inspect <container_name> --format "{{.GraphDriver.Data.MergedDir}}"` to get base director for a container)
 3. For each container, use "supervisorctl status" to get its critical process status, any critical process is not in "RUNNING" status will be considered as fault condition.
 
 ### 1.2 Services under Monit monitoring
@@ -49,16 +49,16 @@ Monit 5.20.0 uptime: 22h 56m
  container_memory_telemetry       Status ok                   Program
 ```
 
-By default any above programs or file systems is not in good status will be considered as fault condition.
+By default any service is not in expected status will be considered as fault condition.
 
 ### 1.3 Peripheral devices status which could impact the system health status
 
 -  Any fan is missing/broken
--  Fan speed is below minimal range
+-  Fan speed is lower than minimal value
 -  PSU power voltage is out of range
--  PSU temperature is too hot
+-  PSU temperature is higher than threshold
 -  PSU is in bad status
--  ASIC temperature is too hot
+-  ASIC temperature is higher than threshold
 
 ### 1.4 Customization of monitored critical services and devices
 
@@ -90,8 +90,8 @@ The default filter is to filter nothing. Unknown filters will be silently ignore
 
 This configuration file will be platform specific and shall be added to the platform folder(/usr/share/sonic/device/{platform_name}/system_health_monitoring_config.json).
 
-#### 1.4.2 Extend the monitoring with adding user specific program to Monitor
-Monit support to check program(scripts) exit status, if user want to monitor something that beyond critical services or some special device not included in the above list, they can provide a specific scripts and add it to Monit check list, then the result can also be collected by the system health monitor. It requires 2 steps to add an external checker.
+#### 1.4.2 Extend the monitoring with adding user specific program to monitor
+Monit supports to check program(scripts) exit status, if user wants to monitor something that beyond critical services or some special device not included in the above list, they can provide specific scripts and add them to Monit checking list. Then the result can also be collected by the system health monitor. It requires two steps to add an external checker.
 
 1. Prepare program whose command line output must qualify:
 
@@ -151,14 +151,14 @@ Considering that different vendors platform may have different LED color capabil
 
 ## 2. System health monitor service business logic
 
-System health monitor daemon will running on the host, periodically(every 60s) check critical services/processes status, the "monit summary" command output and PSU, fan, thermal status which stored in the state DB, if anything wrong with them, system status LED will be set to fault status. When fault condition relieved, system status will be set to normal status.
+System health monitor daemon will run on the host, and periodically (every 60 seconds) check critical services, processes status, output of the command "monit summary", PSU, Fan, and thermal status which is stored in the state DB. If anything is abnormal, system status LED will be set to fault status. When fault condition relieved, system status will be set to normal status.
 
-Before the switch boot up finish, the system health monitoring service shall get the monit service startup delay and make sure monit service run first.
+Since system health is depending on Monit service, it shall start after Monit service. Before the switch boot up finish, the system health monitoring service shall get the monit service startup delay and make sure monit service run first.
 
 Empty FEATURE table will be considered as fault condition.
-A service with invalid critical_processes file will be considered as fault condition.
-If monit service is not available, will consider system in fault condition.
-FAN/PSU/ASIC data not available will also considered as fault condition.
+A service whose critical_processes file cannot be parsed will be considered as fault condition. Empty or absence of critical_processes file is not a fault condition and shall be skipped.
+If Monit service is not running or in dead state, the system will be considered in fault condition.
+If FAN/PSU/ASIC data is not available, this will be considered as fault condition.
 Incomplete data in the DB will also be considered as fault condition, e.g., PSU voltage data is there but threshold data not available.
 
 Monit, thermalctld and psud will raise syslog when fault condition encountered, so system health monitor will only generate some general syslog on these situation to avoid redundant. For example, when fault condition meet, "system health status change to fault" can be print out, "system health status change to normal" when it recovered.
