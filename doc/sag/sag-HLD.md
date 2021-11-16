@@ -14,6 +14,8 @@
   - [sonic-swss](#sonic-swss)
   - [sonic-utilities](#sonic-utilities)
   - [DB](#db)
+    - [CONFIG_DB](#config_db)
+    - [APPL_DB](#appl_db)
   - [SAI API](#sai-api)
 - [Configuration and management](#configuration-and-management)
 - [CLI/YANG model Enhancements](#cliyang-model-enhancements)
@@ -80,6 +82,7 @@ sonic-utilities will be updated to offer the following CLI commands for the user
 * Enable/Disable to use static anycast gateway MAC address on the VLAN interface
 
 ## DB 
+### CONFIG_DB
 The CONFIG_DB will be updated to include a new **SAG**.  
 This will have the following format:
 ```
@@ -87,11 +90,11 @@ This will have the following format:
     ; SAG global configuration
     key    = "SAG|GLOBAL"
     ; field = value
-    gwmac  = mac_address 
+    gateway_mac  = mac_address 
 
 Example:
 127.0.0.1:6379[4]> hgetall "SAG|GLOBAL"
-1) "gwmac"
+1) "gateway_mac"
 2) "00:11:22:33:44:0f"
 ```
 
@@ -106,6 +109,22 @@ Example:
 3) "static_anycast_gateway"
 4) "false"
 ```
+
+### APPL_DB
+The APPL_DB will be updated to include a new **SAG_TALBE**
+This will have the following format:
+```
+### SAG_TABLE
+    ; SAG global configuration
+    key     = "SAG_TABLE|GLOBAL"
+    ; field = value
+    gateway_mac   = mac_address
+```
+
+Example:
+127.0.0.1:6379[0]> hgetall "SAG_TABLE|GLOBAL"
+1) "gateway_mac"
+2) "00:11:22:33:44:0f"
 # SAI API
 There are no changes to SAI headers/implementation to support this feature.
 
