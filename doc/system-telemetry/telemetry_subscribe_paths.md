@@ -530,36 +530,36 @@ Below is the list of openconfig-yang  paths supporting  ON_CHANGE and also those
 
 |     Paths                                                                        | ON_CHANGE Supported yes(y)/no(n)  |  
 | ---------------------------------------------------------------------------      | -------------|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/input"| n|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/output/config"| n|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/output/state"| n|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/output/queues"| n|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/output/scheduler-policy"| y|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/config"| y|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/state"| y|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/pfc-priorities"| y|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/watchdog"| y|
-|"/openconfig-qos:interfaces/interface[interface-id=*]/pfc/queue"| n |
-|"/openconfig-qos:interfaces/interface[interface-id=*]/oc-qos-maps-ext:interface-maps"| y |
-|"/openconfig-qos:forwarding-groups"| n |
-|"/openconfig-qos:queues/queue[name=*]/config"| n |
-|"/openconfig-qos:queues/queue[name=*]/state"| n |
-|"/openconfig-qos:queues/queue[name=*]/red"| n |
-|"/openconfig-qos:queues/queue[name=*]/wred"| y |
-|"/openconfig-qos:scheduler-policies/scheduler-policy[name=*]"| y |
-|"/openconfig-qos:pfc-watchdog"| n |
-|"/openconfig-qos:watermark"| n |
-|"/openconfig-qos:telemetry-watermark"| n |
-|"/openconfig-qos:thresholds"| n |
-|"/openconfig-qos:threshold-breaches"| n |
-|"/openconfig-qos:wred-profiles/wred-profile[name=*]"| y |
-|"/openconfig-qos:oc-qos-maps-ext:dscp-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:dot1p-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-queue-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-dscp-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-dot1p-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:forwarding-group-priority-group-maps"| y |
-|"/openconfig-qos:oc-qos-maps-ext:pfc-priority-queue-maps"| y |
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/input"| n|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/output/config"| n|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/output/state"| n|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/output/queues"| n|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/output/scheduler-policy"| y|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/pfc/config"| y|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/pfc/state"| y|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/pfc/pfc-priorities"| y|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/pfc/watchdog"| y|
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/pfc/queue"| n |
+|"/openconfig-qos:qos/interfaces/interface[interface-id=*]/oc-qos-maps-ext:interface-maps"| y |
+|"/openconfig-qos:qos/forwarding-groups"| n |
+|"/openconfig-qos:qos/queues/queue[name=*]/config"| n |
+|"/openconfig-qos:qos/queues/queue[name=*]/state"| n |
+|"/openconfig-qos:qos/queues/queue[name=*]/red"| n |
+|"/openconfig-qos:qos/queues/queue[name=*]/wred"| y |
+|"/openconfig-qos:qos/scheduler-policies/scheduler-policy[name=*]"| y |
+|"/openconfig-qos:qos/pfc-watchdog"| n |
+|"/openconfig-qos:qos/watermark"| n |
+|"/openconfig-qos:qos/telemetry-watermark"| n |
+|"/openconfig-qos:qos/thresholds"| n |
+|"/openconfig-qos:qos/threshold-breaches"| n |
+|"/openconfig-qos:qos/wred-profiles/wred-profile[name=*]"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:dscp-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:dot1p-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:forwarding-group-queue-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:forwarding-group-dscp-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:forwarding-group-dot1p-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:forwarding-group-priority-group-maps"| y |
+|"/openconfig-qos:qos/openconfig-qos-maps-ext:pfc-priority-queue-maps"| y |
 
 # Static Route OC-Paths for ON-CHANGE and Wildcard
 
