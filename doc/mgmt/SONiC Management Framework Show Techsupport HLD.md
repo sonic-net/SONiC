@@ -21,9 +21,7 @@ Diagnostic information aggregated presentation
       + [1.2.3 SAI Overview](#123-sai-overview)
   - [2 Functionality](#2-functionality)
     * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
-    * [2.2 Functional Description](#22-functional-description)    
-    * [2.3 Functionality Caveats](#23-functionality-caveats)
-      + [2.3.1 Effect on execution of other Commands](#231-effect-on-execution-of-other-commands)
+    * [2.2 Functional Description](#22-functional-description)
   - [3 Design](#3-design)
     * [3.1 Overview](#31-overview)
     * [3.2 DB Changes](#32-db-changes)
@@ -43,6 +41,7 @@ Diagnostic information aggregated presentation
         - [3.6.2.1 Configuration Commands](#3621-configuration-commands)
         - [3.6.2.2 Show Commands](#3622-show-commands)
         - [3.6.2.3 Debug Commands](#3623-debug-commands)
+        - [3.6.2.4 IS-CLI Compliance](#3624-is-cli-compliance)
       + [3.6.3 REST API Support](#363-rest-api-support)
   - [4 Flow Diagrams](#4-flow-diagrams)
     * [4.1 Show Techsupport Process Flow](#41-show-techsupport-process-flow)
@@ -64,8 +63,6 @@ Diagnostic information aggregated presentation
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/06/2019  |   Kerry Meyer      | Initial version                   |
-| 0.2 | 04/02/2021  |   Kerry Meyer      | Revised for submission in SONiC community PR https://github.com/Azure/SONiC/pull/756                                      |
-
 
 # About this Manual
 This manual describes the user interface for obtaining aggregated diagnostic information for the SONiC subsystem via the Management Framework infrastructure.
@@ -77,15 +74,19 @@ The scope of the information contained in this document is the high level design
 # 1 Feature Overview
 
 Provide Management Framework functionality to process the "show techsupport" command:
-
-    - Create an aggregated file containing the information items needed for
-      analysis and diagnosis of problems occurring during switch operations.
-    - Support reduction of aggregated log file information via an
-      optional "--since" parameter specifying the desired logging start time.
+    - Create an aggregated file containing the information items needed for analysis and diagnosis of problems occurring during switch operations.
+    - Support reduction of aggregated log file information via an optional "--since" parameter specifying the desired logging start time.
 
 NOTE: The underlying feature for which this Management Framework feature provides "front end" client interfaces is unchanged by the addition of these interfaces. (The "since <date>" option available through these interfaces, however, is restricted to the IETF/YANG date/time format.) Please refer to the following document for a description of the "show techsupport" base feature:
 
-https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#troubleshooting-commands    
+https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#troubleshooting-commands
+
+DEPENDENCY ON SONIC-HOSTSERVICES:
+
+For details, Please refer to:
+
+[3.3.2 Other Process](#332-other-process)
+
 
 ## 1.1 Requirements
 
@@ -142,7 +143,6 @@ To view the contents of the file, the user must copy it to a local file in the c
 `
 tar xvzf filename.tar.gz
 `
-
 The files are extracted to a directory tree, organized based on the type of information contained in the files. Example file categories for which sub-directories are provided in the output file tree include:
 
 - log files ("log" directory )
@@ -156,19 +156,12 @@ To extract the file contents to an alternate location, the following form of the
 `
  tar xvzf filename.tar.gz -C /path/to/destination/directory
 `
-
 Some of the larger "extracted" files are compressed in gzip format. This includes log files and core files and also includes other files containing a large amount of output (e.g. a dump of all BGP tables). These files have a ".gz" file type. They can be extracted using:
 
 `
 gunzip <filename.gz>
 `
-## 2.3 Functionality Caveats
 
-The current implementation of the "show techsupport" command has the following limitations. The user should be aware of these limitations when using the command.
-
-### 2.3.1 Effect on execution of other Commands
-
-During execution of the "show techsupport" command, execution of many of the other Management Framework commands is delayed. It is possible to issue and initate all other Management Framework commands in parallel with "show techsupport" command execution via other Management Framework sessions. However, completion of execution for commands requiring inter-process or external docker communication is delayed until after completion of "show techsupport" command execution. This is a result of serialization of these commands via a global resource lock. This limitation is not specific to the "show techsupport" command, but is a generic limitation of the current Management Framework implementation.
 
 # 3 Design
 ## 3.1 Overview
@@ -188,7 +181,21 @@ N/A
 N/A
 ### 3.3.1 Orchestration Agent
 ### 3.3.2 Other Process
-The "show techsupport" feature requires RPC support in a process running within the host context. The host process handling the RPC is the SONiC Host Services D-Bus server. It is responsible for dispatching "show techsupport" requests from the management framework container to a SONiC Host Services D-Bus “servlet” for the “show techsupport” command to trigger allocation of an output file, gathering and packing of the required information into the output file, and sending of a response to the management framework RPC agent to specify the name and path of the output file.
+The "show techsupport" feature requires RPC support in a process running within the host context. The host process handling the RPC is responsible for dispatching "show techsupport" requests from the management framework container to trigger allocation of an output file, gathering and packing of the required information into the output file, and sending a response to the management framework RPC agent to specify the name and path of the output file.
+
+To enable this functionality, The "sonic-hostservices" service must be operational in the host context. If the "Active:" status for the service is not "active" within the host, the user must activate it before attempting to use the Management Framework front end for the "show techsupport" facility.
+
+The status can be queried from the host via:
+
+`
+systemctl status sonic-hostservices
+`
+
+The service can be activated via:
+
+`
+systemctl start sonic-hostservices
+`
 
 ## 3.4 SyncD
 N/A
@@ -200,17 +207,14 @@ N/A
 ### 3.6.1 Data Models
 The following Sonic Yang model is used for implementation of this feature:
 
-```
-module: sonic-show-techsupport
+```module: sonic-show-techsupport
 
-rpcs:
-  +---x sonic-show-techsupport-info
-     +---w input
-     |  +---w date?   yang:date-and-time
-     +--ro output
-        +--ro output-status?     string
-        +--ro output-filename?   string
-
+  rpcs:
+    +---x sonic-show-techsupport-info
+       +---w input
+       |  +---w date?   yang:date-and-time
+       +--ro output
+          +--ro output-filename?   string
 ```
 
 
@@ -223,7 +227,7 @@ N/A
 Command syntax summary:
 
 `
-show techsupport [since <DateTime>]
+show techsupport [since <DateTime\>]
 `
 
 Command Description:
@@ -235,7 +239,7 @@ Syntax Description:
 
 |    Keyword    | Description |
 |:--------------|:----------- |
-| since \<DateTime\> | This option uses a text string containing the desired starting Date/Time for collected log files and core files. The format of the Date/Time in the string is defined by the Yang/IETF date-and-time specification (REF http://www.netconfcentral.org/modules/ietf-yang-types, based on http://www.ietf.org/rfc/rfc6020.txt). If "since \<DateTime\>" is specified, this value  is passed to the host process for use during invocation of the applicable log/core file gathering sub-functions.|
+| since <DateTime\> | This option uses a text string containing the desired starting Date/Time for collected log files and core files. The format of the Date/Time in the string is defined by the Yang/IETF date-and-time specification (REF http://www.netconfcentral.org/modules/ietf-yang-types, based on http://www.ietf.org/rfc/rfc6020.txt). If "since <DateTime> is specified, this value  is passed to the host process for use during invocation of the applicable log/core file gathering sub-functions.|
 
 Command Mode: User EXEC
 
@@ -253,9 +257,9 @@ Output file name sub-fields are defined a follows:
 - YYYY = Year
 - MM = Month (numeric)
 - DD = Day of the Month
-- HH = hour of the current time (based on execution of the Linux "date" command) at the start of command execution
-- MM = minute of the current time (based on execution of the Linux "date" command) at the start of command execution
-- SS = second of the current time (based on execution of the Linux "date" command) at the start of command execution
+- HH = hour of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+- MM = minute of the current time (based on execution of the Linux "**date**" command) at the start of command execution
+- SS = second of the current time (based on execution of the Linux "**date**" command) at the start of command execution
 ```
 
 Command execution example (basic command):
@@ -306,8 +310,7 @@ Response Body:
 
 {
   "sonic-show-techsupport:output": {
-    "output-status": "Success",
-    "output-filename": "/var/dump/sonic_dump_sonic_20191128_013141.tar.gz",
+    "output-filename": "/var/dump/sonic_dump_sonic_20191128_013141.tar.gz"
   }
 }
 ```
@@ -317,23 +320,27 @@ Command execution example invocation via gNOI API:
 ```
 root@sonic:/usr/sbin# ./gnoi_client -module Sonic -rpc showtechsupport -jsonin "{\"input\":{\"date\":\"2019-11-27T22:02:00Z\"}}" -insecure
 Sonic ShowTechsupport
-{"sonic-show-techsupport:output":{"output-status": "Success","output-filename":"/var/dump/sonic_dump_sonic_20191202_194856.tar.gz"}}
+{"sonic-show-techsupport:output":{"output-filename":"/var/dump/sonic_dump_sonic_20191202_194856.tar.gz"}}
 ```
 
 NOTE: See section 3.6.1 for a description of the limitations of the current implementation. A supplementary capability to transfer the tech support file and other diagnostic information files to the client via the Management Framework interface is highly desirable for a future release.
 
 #### 3.6.2.3 Debug Commands
 N/A
+#### 3.6.2.4 IS-CLI Compliance
+The current Management Framework implementation differs from the IS-CLI.
+
+ Instead of dumping the technical support information to the output buffer,  this implementation dumps the information to a compressed "tar" file and sends the name of the file to the output buffer. This implementation matches the current SONiC host implementation. A supplementary capability to enable transfer of the specified file to the client is highly desirable for full functionality of this command when using a REST API or gNMI/gNOI client interface. Without this capability, it is necessary to open a shell on the host and use the SONiC host CLI interface to transfer the file.
 
 ### 3.6.3 REST API Support
 REST API support is provided. The REST API corresponds to the SONiC Yang model described in section 3.6.1.
 
 # 4 Flow Diagrams
 ## 4.1 Show Techsupport Process Flow
-![ShowTechsupport process flow](images/showtech-flow-diagram.JPG)
+![ShowTechsupport process flow](showtech_flow_diagram.jpg)
 
 # 5 Error Handling
-in the event of a command timeout or a crash during execution due to a resource shortage, the user can retry after the failure/reboot that occurred during the first execution. Also, in some cases, the tar file will be available, despite the failure, in the host /var/dump directory.
+N/A
 
 # 6 Serviceability and Debug
 Any errors encountered during execution of the "show tech-support" command that prevent retrieval or saving of information are reported in the command output at completion of the operation.
@@ -369,4 +376,4 @@ The Management Framework container (a Docker container) uses the SONiC D-Bus RPC
  Execution in the SONiC Management Framework docker of the "show tech-support" CLI command or the equivalent REST/gNOI invocation causes the corresponding "actioner" script to be run from the context of the Management Framework docker. This script invokes the REST API generated from the "show tech-support" Yang definition. The corresponding API handler function, registered as a SONiC D-Bus client, initiates an asynchronous D-Bus host query and relays the response, containing the location of a "techsupport bundle" file if execution is successful, back to the Management Framework interface (CLI, REST, or gNOI) from which the request was received. (In the event of an error, it instead returns the error message received from the "show techsupport" servlet running within the context of the server process for the SONiC D-Bus host services object.)
 
 ## 10.3 Host Context
-Within the SONiC host context, execution of the "show techsupport" command is initiated when the SONiC D-Bus host facility dispatches a request received from the Management Framework docker by invoking a script (servlet) registered with the SONiC D-Bus host server for handling of the "show techsupport" command. This servlet invokes the "generate_dump" Bash script, spawning a process that collects a "bundle" of items providing diagnostic information for processes running on the switch, packs the collected information into a compressed .tar file, and returns the location of the resulting file to the "show techsupport" D-Bus servlet script on successful completion. (In the event of an error, it instead returns an error message describing the error.) The servlet, via the SONiC host services D-Bus server, then sends the resulting RPC response back to the "show techsupport" client in the SONiC Management Framework docker via the SONiC D-Bus RPC infrastructure.
+Within the SONiC host context, execution of the "show techsupport" command is initiated when the SONiC D-Bus host facility dispatches a request received from the Management Framework docker by invoking a script (servlet) registered with the SONiC D-Bus host server for handling of the "show techsupport" command. This servlet invokes the "generate_dump" Bash script, spawning a process that collects a "bundle" of items providing diagnostic information for processes running on the switch, packs the collected information into a compressed .tar file, and returns the location of the resulting file to the "show techsupport" D-Bus servlet script on successful completion. (In the event of an error, it instead returns an error message describing the error.) The servlet, via the SONiC host services D-Bus server, then sends the resulting RPC response back to the "show techsupport" client in the SONiC Management Framework docker via the SONic D-Bus RPC infrastructure.
