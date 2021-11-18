@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 0.9
+#### Rev 1.0
 
 # Table of Contents
 
@@ -28,7 +28,11 @@
     - [COUNTER_DB](#counter_db-changes)
   - [4.3 Modules Design and Flows](#43-modules-design-and-flows)
     - [4.3.1 Tunnel Creation](#431-tunnel-auto-discovery-and-creation)
+      - [4.3.1.1 P2P Tunnel Creation](#4311-p2p-tunnel-creation)
+      - [4.3.1.2 P2MP Tunnel Creation](#4312-p2mp-tunnel-creation)
     - [4.3.2 Tunnel Deletion](#432-tunnel-deletion)
+      - [4.3.2.1 P2P Tunnel Deletion](#4321-p2p-tunnel-deletion)
+      - [4.3.2.2 P2MP Tunnel Deletion](#4322-p2mp-tunnel-deletion)
     - [4.3.3 Mapper Handling](#433-per-tunnel-mapper-handling)
     - [4.3.4 VXLAN State DB Changes](#434-vxlan-state-db-changes)
     - [4.3.5 Tunnel ECMP](#435-support-for-tunnel-ecmp)
@@ -69,6 +73,7 @@
 | 0.7  |  | Rajesh Sankaran | Click and SONiC CLI added |
 | 0.8 | | Hasan Naqvi | Linux kernel section and fdbsyncd testcases added |
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
+| 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
 
 # Definition/Abbreviation
 
@@ -87,7 +92,8 @@
 | VRF      | Virtual Routing and Forwarding            |
 | VTEP     | VXLAN Tunnel End point                    |
 | VXLAN    | Virtual Extended LAN                      |
-
+| P2P      | Point to Point Tunnel                     |
+| P2MP     | Point to MultiPoint Tunnel                |
 # About this Manual
 
 This document provides general information about the EVPN VXLAN feature implementation based on RFC 7432 and 8365 in SONiC. 
@@ -623,6 +629,9 @@ In the current implementation, Tunnel Creation handling in the VxlanMgr and Vxla
 The VTEP is represented by a VxlanTunnel Object created as above with the DIP as 0.0.0.0 and 
 SAI object type as TUNNEL. This SAI object is P2MP.
 
+Some vendors support P2P Tunnels to handle Layer2 extension and fdb learning while some vendors support using existing P2MP for handling Layer2 scenarios. The difference between the two approaches is the way in which the remote end point flooding is done. In P2P tunnel based approach, for every end point discovered from IMET a P2P tunnel object is created in the hardware and the bridge port created with this tunnel object is added as a VLAN member to the VLAN. In P2MP tunnel based approach, when an IMET route is received the remote end point along with local P2MP tunnel bridge port is added as L2MC group member along for the L2MC group associated with the VLAN. In order to handle both scenarios, evpn_remote_vni orch which currently handles remote VNI is split into two types - evpn_remote_vni_p2p to handle the flow involving the P2P tunnel creation and evpn_remote_vni_p2mp to handle the flow for using the existing P2MP tunnel. The decision to chose which orch to use is dependent on the SAI enum query capability for the attribute SAI_TUNNEL_ATTR_PEER_MODE. If the vendors have SAI_TUNNEL_PEER_MODE_P2P listed, then evpn_remote_vni_p2p orch will be used, else evpn_remote_vni_p2mp will be used. These enhancements abstract the two different modes that can be used to program the SAI. For an external user, there will be no changes from usability perspective since the schema is unchanged.
+
+#### 4.3.1.1 P2P Tunnel creation
 In this feature enhancement, the following events result in remote VTEP discovery and trigger tunnel creation. These tunnels are referred to as dynamic tunnels and are P2P.
 
 - IMET route rx 
@@ -643,10 +652,15 @@ For every dynamic tunnel discovered, the following processing occurs.
 The creation sequence assuming only IMET rx is depicted in the diagram below.
 
 ![Tunnel Creation](images/tunnelcreate.PNG "Figure : Tunnel Creation")
-__Figure 5: EVPN Tunnel Creation__
+__Figure 5.1: EVPN P2P Tunnel Creation__
+
+#### 4.3.1.2 P2MP Tunnel Creation
+In the current implementation P2MP tunnel creation flow exist with the exception of a bridgeport not created for P2MP tunnel. To support using P2MP tunnel for L2 purposes a bridge port is created for the P2MP tunnel object.
+![P2MP Tunnel Creation](images/p2mptunnelcreate.jpg "Figure : P2MP Tunnel Creation")
+__Figure 5.2: EVPN P2MP Tunnel Creation__
 
 ### 4.3.2 Tunnel Deletion
-
+#### 4.3.2.1 P2P Tunnel Deletion
 EVPN Tunnel Deletion happens when the refcnt goes down to zero. So depending on the last route being deleted (IMET, MAC or IP prefix) the tunnel is deleted. 
 
 sai_tunnel_api remove calls are incompletely handled in the current implementation. 
@@ -655,6 +669,9 @@ The following will be added as part of tunnel deletion.
 - sai_tunnel_remove_map_entry when an entry from CFG_VXLAN_TUNNEL_MAP is removed.
 - sai_tunnel_remove_map, sai_tunnel_remove_tunnel_termination, sai_tunnel_remove_tunnel when the tunnel is to be removed on account of the last entry being removed. 
 - VxlanTunnel object will be deleted.
+
+#### 4.3.2.2 P2MP Tunnel Deletion
+In case of P2MP tunnels, the flow is same as the existing flow where the tunnel is deleted after last vxlan-vni map or vrf-vni map is deleted. Additionally before the tunnel deletion, the bridge port created is deleted.
 
 ### 4.3.3 Per Tunnel Mapper handling
 
@@ -698,6 +715,7 @@ It is proposed to handle these variances in the SAI implementation.
 
 ### 4.3.6 IMET route handling
 
+#### 4.3.6.1 P2P Tunnel Vlan extension
 The IMET route is used in EVPN to specify how BUM traffic is to be handled. This feature enhancement supports only ingress replication as the method to originate BUM traffic. 
 
 The VLAN, Remote IP and VNI to be used is encoded in the IMET route. 
@@ -707,7 +725,15 @@ The VLAN, Remote IP and VNI to be used is encoded in the IMET route.
 The IMET rx processing sequence is depicted in the diagram below. 
 
 ![Vlan extension](images/vlanextend.PNG "Figure : VLAN Extension")
-__Figure 6: IMET route processing VLAN extension__
+__Figure 6.1: IMET route processing P2P Tunnel VLAN extension__
+
+#### 4.3.6.2 P2MP Tunnel Vlan extension
+
+Similar to P2P tunnel scenario, the feature supports only the ingress replication. However the remote end points are added to VLAN as follows. In SONiC VLAN is created currently using SAI_VLAN_FLOOD_CONTROL_TYPE_ALL(default). To support flooding in P2MP based tunnels, the VLAN's flood control type is set to SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED which would support flooding to local ports as well as an additional multicast group. When type 2 prefixs are received, the remote end points are added to VLAN by creating a L2MC group and setting it to VLAN created in combined mode, and adding one L2MC group member per remote end point as shown in the flow below
+
+![P2MP Vlan extension](images/p2mpvlanextension.jpg "Figure : P2MP VLAN Extension")
+__Figure 6.2: IMET route processing P2MP TunnelVLAN extension__
+
 
 ##### FRR processing
 When remote IMET route is received, fdbsyncd will install entry in REMOTE_VNI_TABLE in APP_DB:
@@ -1078,10 +1104,20 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    | Vrf-1 |   104 |
    +-------+-------+
    Total count : 1
-
+  
 4. show vxlan tunnel
+   +-----------------------+---------------+------------------+------------------+---------------------------------+
+   | vxlan tunnel name     | source ip     | destination ip   | tunnel map name  | tunnel map mapping(vni -> vlan) |
+   +=======================+===============+==================+==================+=================================+
+   | Vtep1                 | 4.4.4.4       |                  | map_50_Vlan5     |    50 -> 5                      |
+   +-----------------------+---------------+------------------+------------------+---------------------------------+
+   | Vtep1                 | 4.4.4.4       |                  | map_100_Vlan10   |    100 -> 10                    |
+   +-----------------------+---------------+------------------+------------------+---------------------------------+   
+   
+5. show vxlan remotevtep
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
+   - Since P2P tunnels are not created in the hardware on the flow where P2MP tunnel itself is used flooding using L2MC group, this table will not be populated.
 
    +---------+---------+-------------------+--------------+
    | SIP     | DIP     | Creation Source   | OperStatus   |
@@ -1092,7 +1128,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+---------+-------------------+--------------+
    Total count : 2
 
-5. show vxlan remote_mac <remoteip/all> 
+6. show vxlan remote_mac <remoteip/all> 
    - lists all the MACs learnt from the specified remote ip or all the remotes for all vlans. (APP DB view) 
    - VLAN, MAC, RemoteVTEP,  VNI,  Type are the columns.
 
@@ -1125,7 +1161,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    Total count : 2
 
 
-6. show vxlan remote_vni <remoteip/all> 
+7. show vxlan remote_vni <remoteip/all> 
    - lists all the VLANs learnt from the specified remote ip or all the remotes.  (APP DB view) 
    - VLAN, RemoteVTEP, VNI are the columns
 
@@ -1147,7 +1183,35 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+--------------+-------+
    Total count : 1
 
+8. show vxlan counters(P2MP Tunnel)
+   +--------+---------+----------+--------+---------+----------+--------+
+   | Tunnel | RX_PKTS | RX_BYTES | RX_PPS | TX_PKTS | TX_BYTES | TX_PPS |
+   +========+=========+==========+========+=========+==========+========+
+   | Vtep1  |    1234 |  1512034 |   10/s |    2234 |  2235235 |   23/s |
+   +--------+---------+----------+--------+---------+----------+--------+
+  
+9. show vxlan counters(P2P Tunnels)
+   +--------------+---------+----------+--------+---------+----------+--------+
+   | Tunnel       | RX_PKTS | RX_BYTES | RX_PPS | TX_PKTS | TX_BYTES | TX_PPS |
+   +==============+=========+==========+========+=========+==========+========+
+   | EVPN_2.2.2.2 |    1234 |  1512034 |   10/s |    2234 |  2235235 |   23/s |
+   +--------------+---------+----------+--------+---------+----------+--------+
+   | EVPN_3.2.3.2 |    2344 |   162034 |   15/s |     200 |    55235 |    2/s |
+   +--------------+---------+----------+--------+---------+----------+--------+
+   | EVPN_2.2.2.2 |    9853 |  9953260 |   27/s |    8293 |  7435211 |   18/s |
+   +--------------+---------+----------+--------+---------+----------+--------+
 
+  
+10. show vxlan counters EVPN_5.1.6.8 (Per P2P Tunnel)
+  EVPN_5.1.6.8
+  ---------
+
+        RX:
+                13 packets
+               N/A bytes
+        TX:
+             1,164 packets
+               N/A bytes  
 ```
 
 ### 5.2 KLISH CLI
@@ -1385,18 +1449,26 @@ To support warm boot, all the sai_objects must be uniquely identifiable based on
    - Verify that there is a SAI_OBJECT_TYPE_BRIDGE_PORT pointing to the above created P2P tunnel.
    - Verify that there is a SAI_OBJECT_TYPE_VLAN_MEMBER entry for the vlan corresponding to the VNI created and pointing to the above bridge port.
 7. Add more REMOTE_VNI table entries to different Remote IP.
-   - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created.
+   - Verify that additional SAI_OBJECT_TYPE_TUNNEL, BRIDGEPORT and VLAN_MEMBER objects are created in case of platforms that create dynamic P2P tunnels on type 3 routes.
+   - Verify that vlan flood type is set to SAI_VLAN_FLOOD_CONTROL_TYPE_COMBINED. Verify that L2MC group is created and SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER with end point IP and P2MP bridge port is created and set in vlan's unknown unicast and broadcast flood group in case of platforms that use P2MP tunnel on type 3 routes.
 8. Add more REMOTE_VNI table entries to the same Remote IP.
-   - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip.
-9. Remove the additional entries created above and verify that the created VLAN_MEMBER entries are deleted.
-10. Remove the last REMOTE_VNI entry for a DIP and verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted.
+   - Verify that additional SAI_OBJECT_TYPE_VLAN_MEMBER entries are created pointing to the already created BRIDGEPORT object per remote ip in case of platforms that create dynamic P2P tunnels on type 3 routes.
+   - Verify that additional SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER entries are created per remote ip with P2MP bridge port in case of platforms that use P2MP tunnel on type 3 routes.
+9. Remove the additional entries created above
+  - Verify that the created VLAN_MEMBER entries are deleted in case of platforms that create VLAN_MEMBER. 
+  - Verify that L2MC_GROUP_MEMBER entries are deleted in case of platforms creating SAI_OBJECT_TYPE_L2MC_GROUP_MEMBER per end point IP. 
+10. Remove the last REMOTE_VNI entry for a DIP
+  - Verify that the created VLAN_MEMBER, TUNNEL, BRIDGEPORT ports are deleted for platforms that use P2P Tunnels.
+  - Verify that L2MC_GROUP_MEMBERS are removed, L2MC_GROUP is deleted and vlan's flood group are set to null object as well as vlan's flood type is updated to SAI_VLAN_FLOOD_CONTROL_TYPE_ALL in case of platforms that use P2MP tunnel.
 
 ### 8.2 FdbOrch
 
 1. Create a VXLAN_REMOTE_VNI entry to a remote destination IP.
 2. Add VXLAN_REMOTE_MAC entry to the above remote IP and VLAN.
    
-   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information.
+   - Verify ASIC DB table fdb entry is created with remote_ip and bridgeport information. 
+   - In case of platforms that use P2P tunnel, verify that P2P tunnel's bridgeport is used. 
+   - In case of platforms that use P2MP tunnel, verify that P2MP tunnel's bridge port is used.
 3. Remove the above MAC entry and verify that the corresponding ASIC DB entry is removed.
 4. Repeat above steps for remote static MACs.
 5. Add MAC in the ASIC DB and verify that the STATE_DB MAC_TABLE is updated.
