@@ -72,6 +72,8 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver information for a port
     key                          = TRANSCEIVER_INFO|ifname          ; information for module on port
     ; field                      = value
+    type                         = 1*255VCHAR                       ; module type full name(QSFP-DD, OSFP, etc)
+    type_abbrv_name              = 1*255VCHAR                       ; module type abbreviated name(QSFP-DD, OSFP, etc)
     module_media_type            = 1*255VCHAR                       ; module media interface ID
     host_electrical_interface    = 1*255VCHAR                       ; host electrical interface ID
     media_interface_code         = 1*255VCHAR                       ; media interface code
@@ -88,15 +90,18 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     active_apsel_hostlane7       = INTEGER                          ; active application selected code assigned to host lane 7
     active_apsel_hostlane8       = INTEGER                          ; active application selected code assigned to host lane 8
     media_interface_technology   = 1*255VCHAR                       ; media interface technology
-    hardwarerev                  = 1*255VCHAR                       ; module hardware revision 
-    serialnum                    = 1*255VCHAR                       ; module serial number 
-    manufacturename              = 1*255VCHAR                       ; module venndor name
-    modelname                    = 1*255VCHAR                       ; module model name
+    hardware_rev                 = 1*255VCHAR                       ; module hardware revision 
+    serial                       = 1*255VCHAR                       ; module serial number 
+    manufacturer                 = 1*255VCHAR                       ; module venndor name
+    model                        = 1*255VCHAR                       ; module part number
     vendor_rev                   = 1*255VCHAR                       ; module vendor revision
     vendor_oui                   = 1*255VCHAR                       ; vendor organizationally unique identifier
     vendor_date                  = 1*255VCHAR                       ; module manufacture date
-    connector_type               = 1*255VCHAR                       ; connector type
-    specification_compliance     = 1*255VCHAR                       ; electronic or optical interfaces that supported
+    connector                    = 1*255VCHAR                       ; connector type
+    encoding                     = 1*255VCHAR                       ; N/A
+    specification_compliance     = 1*255VCHAR                       ; module media type
+    application_advertisement    = 1*255VCHAR                       ; N/A
+    cmis_rev                     = 1*255VCHAR                       ; CMIS revision that the module complies to
     active_firmware              = 1*255VCHAR                       ; active firmware
     inactive_firmware            = 1*255VCHAR                       ; inactive firmware
     supported_max_tx_power       = FLOAT                            ; support maximum tx power
@@ -109,11 +114,36 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver DOM sensor information for a port
     key                          = TRANSCEIVER_DOM_SENSOR|ifname    ; information module DOM sensors on port
     ; field                      = value
+    rx_los                       = BOOLEAN                          ; RX LOS state
+    tx_fault                     = BOOLEAN                          ; TX fault state
+    tx_disable                   = BOOLEAN                          ; TX disable state
+    tx_disabled_channel          = INTEGER                          ; TX disable field
     temperature                  = FLOAT                            ; temperature value in Celsius
     voltage                      = FLOAT                            ; voltage value in V
-    txpower                      = FLOAT                            ; tx power in mW
-    rxpower                      = FLOAT                            ; rx power in mW
-    txbias                       = FLOAT                            ; tx bias in mA
+    tx1power                     = FLOAT                            ; tx 1 power in dBm
+    tx2power                     = FLOAT                            ; tx 2 power in dBm
+    tx3power                     = FLOAT                            ; tx 3 power in dBm
+    tx4power                     = FLOAT                            ; tx 4 power in dBm
+    tx5power                     = FLOAT                            ; tx 5 power in dBm
+    tx6power                     = FLOAT                            ; tx 6 power in dBm
+    tx7power                     = FLOAT                            ; tx 7 power in dBm
+    tx8power                     = FLOAT                            ; tx 8 power in dBm
+    rx1power                     = FLOAT                            ; rx 1 power in dBm
+    rx2power                     = FLOAT                            ; rx 2 power in dBm
+    rx3power                     = FLOAT                            ; rx 3 power in dBm
+    rx4power                     = FLOAT                            ; rx 4 power in dBm
+    rx5power                     = FLOAT                            ; rx 5 power in dBm
+    rx6power                     = FLOAT                            ; rx 6 power in dBm
+    rx7power                     = FLOAT                            ; rx 7 power in dBm
+    rx8power                     = FLOAT                            ; rx 8 power in dBm
+    tx1bias                      = FLOAT                            ; tx 1 bias in mA
+    tx2bias                      = FLOAT                            ; tx 2 bias in mA
+    tx3bias                      = FLOAT                            ; tx 3 bias in mA
+    tx4bias                      = FLOAT                            ; tx 4 bias in mA
+    tx5bias                      = FLOAT                            ; tx 5 bias in mA
+    tx6bias                      = FLOAT                            ; tx 6 bias in mA
+    tx7bias                      = FLOAT                            ; tx 7 bias in mA
+    tx8bias                      = FLOAT                            ; tx 8 bias in mA
     laser_temperature	         = FLOAT                            ; laser temperature value in Celsius
     prefec_ber                   = FLOAT                            ; prefec ber
     postfec_ber                  = FLOAT                            ; postfec ber
@@ -152,14 +182,14 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     vcchighwarning               = FLOAT                            ; vcc high warning threshold in V
     vcclowalarm                  = FLOAT                            ; vcc low alarm threshold in V
     vcclowwarning                = FLOAT                            ; vcc low warning threshold in V
-    txpowerhighalarm             = FLOAT                            ; tx power high alarm threshold in mW
-    txpowerlowalarm              = FLOAT                            ; tx power low alarm threshold in mW
-    txpowerhighwarning           = FLOAT                            ; tx power high warning threshold in mW
-    txpowerlowwarning            = FLOAT                            ; tx power low alarm threshold in mW
-    rxpowerhighalarm             = FLOAT                            ; rx power high alarm threshold in mW
-    rxpowerlowalarm              = FLOAT                            ; rx power low alarm threshold in mW
-    rxpowerhighwarning           = FLOAT                            ; rx power high warning threshold in mW
-    rxpowerlowwarning            = FLOAT                            ; rx power low warning threshold in mW
+    txpowerhighalarm             = FLOAT                            ; tx power high alarm threshold in dBm
+    txpowerlowalarm              = FLOAT                            ; tx power low alarm threshold in dBm
+    txpowerhighwarning           = FLOAT                            ; tx power high warning threshold in dBm
+    txpowerlowwarning            = FLOAT                            ; tx power low alarm threshold in dBm
+    rxpowerhighalarm             = FLOAT                            ; rx power high alarm threshold in dBm
+    rxpowerlowalarm              = FLOAT                            ; rx power low alarm threshold in dBm
+    rxpowerhighwarning           = FLOAT                            ; rx power high warning threshold in dBm
+    rxpowerlowwarning            = FLOAT                            ; rx power low warning threshold in dBm
     txbiashighalarm              = FLOAT                            ; tx bias high alarm threshold in mA
     txbiaslowalarm               = FLOAT                            ; tx bias low alarm threshold in mA
     txbiashighwarning            = FLOAT                            ; tx bias high warning threshold in mA
@@ -258,14 +288,14 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     datapath_firmware_fault      = BOOLEAN                          ; datapath (DSP) firmware fault
     module_firmware_fault        = BOOLEAN                          ; module firmware fault
     module_state_changed         = BOOLEAN                          ; module state changed
-    datapath_hostlane1           = 1*255VCHAR                       ; data path state indicator on host lane 1
-    datapath_hostlane2           = 1*255VCHAR                       ; data path state indicator on host lane 2
-    datapath_hostlane3           = 1*255VCHAR                       ; data path state indicator on host lane 3
-    datapath_hostlane4           = 1*255VCHAR                       ; data path state indicator on host lane 4
-    datapath_hostlane5           = 1*255VCHAR                       ; data path state indicator on host lane 5
-    datapath_hostlane6           = 1*255VCHAR                       ; data path state indicator on host lane 6
-    datapath_hostlane7           = 1*255VCHAR                       ; data path state indicator on host lane 7
-    datapath_hostlane8           = 1*255VCHAR                       ; data path state indicator on host lane 8
+    DP1State                     = 1*255VCHAR                       ; data path state indicator on host lane 1
+    DP2State                     = 1*255VCHAR                       ; data path state indicator on host lane 2
+    DP3State                     = 1*255VCHAR                       ; data path state indicator on host lane 3
+    DP4State                     = 1*255VCHAR                       ; data path state indicator on host lane 4
+    DP5State                     = 1*255VCHAR                       ; data path state indicator on host lane 5
+    DP6State                     = 1*255VCHAR                       ; data path state indicator on host lane 6
+    DP7State                     = 1*255VCHAR                       ; data path state indicator on host lane 7
+    DP8State                     = 1*255VCHAR                       ; data path state indicator on host lane 8
     txoutput_status              = BOOLEAN                          ; tx output status on media lane
     rxoutput_status_hostlane1    = BOOLEAN                          ; rx output status on host lane 1
     rxoutput_status_hostlane2    = BOOLEAN                          ; rx output status on host lane 2
@@ -468,24 +498,31 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     ; Defines Transceiver loopback information for a port
     key                          = TRANSCEIVER_PM|ifname            ; information of loopback on port
     ; field                      = value 
-    media_output_loopback        = BOOLEAN                          ; media side output loopback enable
-    media_input_loopback         = BOOLEAN                          ; media side input loopback enable
-    host_output_loopback_lane1   = BOOLEAN                          ; host side output loopback enable lane1
-    host_output_loopback_lane2   = BOOLEAN                          ; host side output loopback enable lane2
-    host_output_loopback_lane3   = BOOLEAN                          ; host side output loopback enable lane3
-    host_output_loopback_lane4   = BOOLEAN                          ; host side output loopback enable lane4
-    host_output_loopback_lane5   = BOOLEAN                          ; host side output loopback enable lane5
-    host_output_loopback_lane6   = BOOLEAN                          ; host side output loopback enable lane6
-    host_output_loopback_lane7   = BOOLEAN                          ; host side output loopback enable lane7
-    host_output_loopback_lane8   = BOOLEAN                          ; host side output loopback enable lane8
-    host_input_loopback_lane1    = BOOLEAN                          ; host side input loopback enable lane1
-    host_input_loopback_lane2    = BOOLEAN                          ; host side input loopback enable lane2
-    host_input_loopback_lane3    = BOOLEAN                          ; host side input loopback enable lane3
-    host_input_loopback_lane4    = BOOLEAN                          ; host side input loopback enable lane4
-    host_input_loopback_lane5    = BOOLEAN                          ; host side input loopback enable lane5
-    host_input_loopback_lane6    = BOOLEAN                          ; host side input loopback enable lane6
-    host_input_loopback_lane7    = BOOLEAN                          ; host side input loopback enable lane7
-    host_input_loopback_lane8    = BOOLEAN                          ; host side input loopback enable lane8
+    simultaneous_host_media_loopback_supported  = BOOLEAN                          ; simultaneous host and media loopback support
+    per_lane_media_loopback_supported           = BOOLEAN                          ; per lane media loopback support
+    per_lane_host_loopback_supported            = BOOLEAN                          ; per lane host loopback support
+    host_side_input_loopback_supported          = BOOLEAN                          ; host input loopback support
+    host_side_output_loopback_supported         = BOOLEAN                          ; host output loopback support
+    media_side_input_loopback_supported         = BOOLEAN                          ; media input loopback support
+    media_side_output_loopback_supported        = BOOLEAN                          ; media output loopback support
+    media_output_loopback                       = BOOLEAN                          ; media side output loopback enable
+    media_input_loopback                        = BOOLEAN                          ; media side input loopback enable
+    host_output_loopback_lane1                  = BOOLEAN                          ; host side output loopback enable lane1
+    host_output_loopback_lane2                  = BOOLEAN                          ; host side output loopback enable lane2
+    host_output_loopback_lane3                  = BOOLEAN                          ; host side output loopback enable lane3
+    host_output_loopback_lane4                  = BOOLEAN                          ; host side output loopback enable lane4
+    host_output_loopback_lane5                  = BOOLEAN                          ; host side output loopback enable lane5
+    host_output_loopback_lane6                  = BOOLEAN                          ; host side output loopback enable lane6
+    host_output_loopback_lane7                  = BOOLEAN                          ; host side output loopback enable lane7
+    host_output_loopback_lane8                  = BOOLEAN                          ; host side output loopback enable lane8
+    host_input_loopback_lane1                   = BOOLEAN                          ; host side input loopback enable lane1
+    host_input_loopback_lane2                   = BOOLEAN                          ; host side input loopback enable lane2
+    host_input_loopback_lane3                   = BOOLEAN                          ; host side input loopback enable lane3
+    host_input_loopback_lane4                   = BOOLEAN                          ; host side input loopback enable lane4
+    host_input_loopback_lane5                   = BOOLEAN                          ; host side input loopback enable lane5
+    host_input_loopback_lane6                   = BOOLEAN                          ; host side input loopback enable lane6
+    host_input_loopback_lane7                   = BOOLEAN                          ; host side input loopback enable lane7
+    host_input_loopback_lane8                   = BOOLEAN                          ; host side input loopback enable lane8
 
 
 #### 2.2 Show interfaces transceiver CLI
@@ -752,88 +789,82 @@ configure privisioning settings of the transceivers
 
 - Usage:
     ```
-    show interfaces transceiver (firmware version | firmware download_status) [<interface_name>]
-    configure interfaces transceiver (firmware download <bin_file> | firmware abort | firmware commit | firmware run | firmware upgrade <bin_file>) [<interface_name>]
+    show interfaces transceiver (firmware version) [<interface_name>]
+    configure interfaces transceiver (firmware download <bin_file> | firmware commit | firmware run | firmware upgrade <bin_file> | firmware switch) [<interface_name>]
     ```
 
 - Example (show module firmware version):
     ```
     admin@sonic:~$ show interfaces transceiver firmware version Ethernet0 
     Ethernet0:
-    Firmware A: xxx.xxx.xxx
-    Firmware B: xxx.xxx.xxx
-    Firmware Running: A
-    Firmware Commited: A
-    Firmware Validity: A B
-    ```
-
-- Example (show module firmware download status):
-    ```
-    admin@sonic:~$ show interfaces transceiver firmware download_status Ethernet0 
-    Ethernet0:
-    Download progress: xx%
+    Get module FW info
+    Image A Version: xxx.xxx.xxx
+    Image B Version: xxx.xxx.xxx
+    Running Image: A; Committed Image: A
+    Get module FW info time: 0.15 s
     ```
     
 - Example (configure module firmware download):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware download qsfp_dd_ver_xx_xx_xx.bin Ethernet0
-    Module firmware download starts...
-    ```
-
-- Example (configure module firmware download abort):
-    ```
-    admin@sonic:~$ configure interfaces transceiver firmware abort Ethernet0
-    Module firmware download aborted
+    Start FW downloading
+    Start module FW download: Success
+    Start module FW download time: 0.10 s
+    Total size: 1234567 start bytes: 67 remaining: 1234500
+    Module FW download complete: Success
+    Complete module FW download time: 500.00 s
     ```
     
 - Example (configure module firmware run):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware run Ethernet0
-    Running module firmware
-    Done
+    Module FW run: Success
+    Module FW run time: 2.00 s
     ```
     
 - Example (configure module firmware commit):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware commit Ethernet0
-    Commiting module firmware...
-    Done
+    Module FW commit: Success
+    Module FW commit time: 2.00 s
     ```
 
 - Example (configure module firmware upgrade, which combines the show FW version, configure download, show download status, configure commit and run and show version in the end):
     ```
     admin@sonic:~$ configure interfaces transceiver firmware upgrade qsfp_dd_ver_xx_xx_xx.bin Ethernet0
     Ethernet0:
-    Firmware A: xxx.xxx.xxx
-    Firmware B: xxx.xxx.xxx
-    Firmware Running: A
-    Firmware Commited: A
-    Firmware Validity: A B
+    Start FW downloading
+    Start module FW download: Success
+    Start module FW download time: 0.10 s
+    Total size: 1234567 start bytes: 67 remaining: 1234500
+    Module FW download complete: Success
+    Complete module FW download time: 500.00 s
     
-    Module firmware download starts...
-    Download progress: 1%
-    Download progress: 10%
-    Download progress: 20%
-    Download progress: 30%
-    Download progress: 40%
-    Download progress: 50%
-    Download progress: 60%
-    Download progress: 70%
-    Download progress: 80%
-    Download progress: 90%
-    Download progress: 100%
+    Module FW run: Success
+    Module FW run time: 2.00 s
     
-    Running module firmware
-    Done
-    
-    Commiting module firmware...
-    Done
+    Module FW commit: Success
+    Module FW commit time: 2.00 s
   
-    Firmware A: xxx.xxx.xxx
-    Firmware B: xxx.xxx.xxx
-    Firmware Running: B
-    Firmware Commited: B
-    Firmware Validity: A B  
+    Before switch Image A: xxx.xxx.xxx; Run: 1 Commit: 1, Valid: 0
+    Before switch Image B: xxx.xxx.xxx; Run: 0 Commit: 0, Valid: 0
+    Image A: xxx.xxx.xxx; Run: 0 Commit: 0, Valid: 0
+    Image B: xxx.xxx.xxx; Run: 1 Commit: 1, Valid: 0
+    ```
+
+- Example (configure module firmware switch):
+    ```
+    admin@sonic:~$ configure interfaces transceiver firmware switch Ethernet0
+    Module FW run: Success
+    Module FW run time: 2.00 s
+    
+    Module FW commit: Success
+    Module FW commit time: 2.00 s
+  
+    Before switch Image A: xxx.xxx.xxx; Run: 1 Commit: 1, Valid: 0
+    Before switch Image B: xxx.xxx.xxx; Run: 0 Commit: 0, Valid: 0
+    Image A: xxx.xxx.xxx; Run: 0 Commit: 0, Valid: 0
+    Image B: xxx.xxx.xxx; Run: 1 Commit: 1, Valid: 0
     ```
 
 ### 3. High level functions
