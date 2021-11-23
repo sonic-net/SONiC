@@ -336,8 +336,7 @@ The format of the file would be:
 {
   "tables: {
     "<TABLE-NAME>": {
-      "services-to-restart": ["<SERVICE1>", "<SERVICE2>" ...],
-      "services-to-validate": ["<SERVICE1>", "<SERVICE2>" ...]
+        "services-to-validate": ["<SERVICE1>", "<SERVICE2>" ...]
     },
     .
     .
@@ -345,7 +344,6 @@ The format of the file would be:
   },
   "services": {
     "<SERVICE-NAME>": {
-      "restart-command": "<CLI-COMMAND>",
       "validate-commands": "<CLI-COMMAND1>, <CLI-COMMAND2>, ..."
     },
     .
