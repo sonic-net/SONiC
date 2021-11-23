@@ -214,8 +214,8 @@ A custom hashing can be configured for Regular/FG ECMP and LAG.
 A `PbhOrch` class with a set of data structures will be implemented to handle PBH feature.  
 OA will be extended with a new PBH Config DB/State DB schema and SAI FG Hash API support.  
 PBH table/rule/hash/hash-field updates will be processed by OA based on Config DB changes.  
-Each update operation will be verified against vendor specific capabilities.  
-Vendor specific capabilities will be stored in State DB after OA init is done.  
+Each update operation will be verified against generic/vendor specific capabilities.  
+Generic/Vendor specific capabilities by default will be stored in State DB by OA.  
 Some object updates will be handled and some will be considered as invalid.
 
 ### 2.3.2 PBH orch
@@ -254,6 +254,19 @@ method `PbhOrch::doPbhHashFieldTask()` will be called to process the change.
 On hash field create, `PbhOrch` will verify if the hash field already exists. Creating the hash field which is already  
 exists will be treated as an update. Regular hash field add/remove will update the internal class structures  
 and appropriate SAI objects will be created or deleted.
+
+PBH object modification concept allows to do a fine-grained field/value tuple management.  
+For that purpose a PBH capabilities table will be introduced. Each PBH key will have it's own set of  
+field capabilities defined in a State DB.
+
+PBH capabilities:
+1. ADD - field can be set to the redis hash in case it does not exist yet
+2. UPDATE - field can be set to the redis hash in case it already exists
+3. REMOVE - field can be deleted from the redis hash in case it does exist
+
+In general, PBH capabilities represent a mix of SAI interface/vendor restrictions.  
+When special policy is not required, a generic SAI-based implementation will be used by OA.  
+Platform/Vendor identification will be done via `platform` environment variable.
 
 **Skeleton code:**
 ```cpp
