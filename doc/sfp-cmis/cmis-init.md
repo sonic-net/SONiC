@@ -166,6 +166,32 @@ to the json format:
   ...... omitted ......
 ```  
 
+- **xcvrd_utilities/port_mapping.py**: Add support for **APPL_DB** and **STATE_DB**
+  - **subscribe_port_update_event(db_list=['APPL_DB', 'STATE_DB'])** subscribes to both **APPL_DB** and **STATE_DB** by default.
+
+  - **handle_port_update_event(sel, asic_context, stop_event, logger, handler)** is the wrapper for port update event handler,
+    and the handler routines will be invoked upon all the database SET/DEL commands as follows  
+    - **PortChangeEvent.PORT_SET**  
+      The event for database **SET** operations.
+    - **PortChangeEvent.PORT_DEL**  
+      The event for database **DEL** operations.
+
+  - The port table names associated with the database are as follows  
+
+    | Database  |      Table Name        |
+    |:--------- |:---------------------- |
+    | APPL_DB   | PORT_TABLE             |
+    | CONFIG_DB | PORT                   |
+    | STATE_DB  | TRANSCEIVER_INFO       |
+
+  - The port update events from **APPL_DB** should be interpreted as the port config update
+    notifications from the **swss#orchagent**
+  - The port update events from **STATE_DB** should be interpreted as the transceiver insertion
+    and removal notifications from the **xcvrd#SfpStateUpdateTask**
+  - Upon **WARM-REBOOT** and **pmon** restart, these events will always be replayed to the
+    **CmisManagerTask** and the initialization sequence will be skipped if the desired application
+    is already in place and ready. (For more details, please refer to the summary of **xcvrd.py** below)
+
 - **xcvrd.py**: Add **CmisManagerTask** for the state-based CMIS application initialization
 to support multiple CMIS transceivers in one single thread.  
   - The CMIS states are listed below  
@@ -183,37 +209,37 @@ to support multiple CMIS transceivers in one single thread.
     | FAILED    | Initialization failed | N/A             |
 
   - At each loop iteration of CmisManagerTask.task_worker(), the state will only be advanced by 1 and only 1 state upon success.
-  - Prior to advancing the state, CmisManagerTask should always double-check the hardware module and datapath states.
-  - The state transition diagram  
+  - Prior to advancing the state, CmisManagerTask should always double-check the hardware module and datapath states.  
+    - Prior to handling the CMIS state transitions, the following checkers are always performed  
+      - **Check for the transceiver presence** via sfp.get_presence(),
+        abort the initialization sequence if it's no loner present
+      - **Validate the transceiver module type** via sfp.get_transceiver_info()['type_abbrv_name'],
+        abort the initialization sequence if it's not a QSFP-DD
+      - **Validate the transceiver memory type** via sfp.get_transceiver_info()['memory_type'],
+        abort the initialization sequence if the **Paged** memory is not available.
+    - From **INSERTED** to **DP_DEINIT**  
+      Skip the initialization sequence by having the state transitioned to **READY**
+      if no application code updates and DataPath state is 4 (i.e. DataPathActivated) and
+      Config state is 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_stop()
+      and have the state transitioned to **DP_DEINIT**
+    - From **DP_DEINIT** to **AP_CONFIGURED**  
+      Skip the initialization sequence by staying at **DP_DEINIT** state
+      if module state != **ModuleReady**, otherwise invoke sfp.set_cmis_application_apsel() and
+      have the state transitioned to **AP_CONFIGURED**
+    - From **AP_CONFIGURED** to **DP_INIT**  
+      Skip the initialization sequence by staying at **AP_CONFIGURED** state
+      if Config state != 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_start()
+      and have the state transitioned to **DP_INIT**
+    - From **DP_INIT** to **DP_TXON**  
+      Skip the initialization sequence by staying at **DP_INIT** state
+      if DataPath state != 7 (i.e. DataPathInitialized), otherwise invoke sfp.set_cmis_application_txon()
+      and have the state transitioned to **DP_TXON**
+    - From **DP_TXON** to **READY**  
+      Stay at **DP_TXON** state if DataPath state != 4 (i.e. DataPathActivated), otherwise have the
+      state transitioned to **READY**
+  - The CMIS state transition diagram  
   ![](images/001.png)
 
-
-
-- **xcvrd_utilities/port_mapping.py**: Add support for **APPL_DB** and **STATE_DB**
-  - **subscribe_port_update_event(db_list=['APPL_DB', 'STATE_DB'])** subscribes to both **APPL_DB** and **STATE_DB** by default.
-
-  - **handle_port_update_event(sel, asic_context, stop_event, logger, handler)** is the wrapper for port update event handler,
-    and the handler routines will be invoked upon all the database SET/DEL commands as follows  
-    - **PortChangeEvent.PORT_SET**  
-      The event for database **SET** operations.
-    - **PortChangeEvent.PORT_DEL**  
-      The event for database **DEL** operations.
-
-  - The port table names associated with the database is as follows  
-
-    | Database  |      Table Name        |
-    |:--------- |:---------------------- |
-    | APPL_DB   | PORT_TABLE             |
-    | CONFIG_DB | PORT                   |
-    | STATE_DB  | TRANSCEIVER_INFO       |
-
-  - The port update events from **APPL_DB** should be interpreted as the port config update
-    notifications from the **swss#orchagent**
-  - The port update events from **STATE_DB** should be interpreted as the transceiver insertion
-    and removal notifications from the **xcvrd#SfpStateUpdateTask**
-  - Upon **WARM-REBOOT** and **pmon** restart, these events will always be replayed to the
-    **CmisManagerTask** and the initialization sequence will be skipped if the desired application
-    is already in place and ready
 
 ## sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
 
@@ -293,7 +319,7 @@ This utility is now updated as below.
 ```
 admin@sonic:~$ show interfaces transceiver eeprom Ethernet0
 Ethernet0: SFP EEPROM detected
-        Application Advertisement: {1: {'ap_sel_code_id': 1, 'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400GBASE-DR4 (Cl 124)', 'host_lane_count': 8, 'media_lane_count': 4, 'host_lane_assignment_options': 1, 'media_lane_assignment_options': None}, 2: {'ap_sel_code_id': 2, 'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)', 'module_media_interface_id': '100G-FR/100GBASE-FR1 (Cl 140)', 'host_lane_count': 2, 'media_lane_count': 1, 'host_lane_assignment_options': 85, 'media_lane_assignment_options': None}}
+        Application Advertisement: {1: {'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400GBASE-DR4 (Cl 124)', 'host_lane_count': 8, 'media_lane_count': 4, 'host_lane_assignment_options': 1, 'media_lane_assignment_options': None}, 2: {'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)', 'module_media_interface_id': '100G-FR/100GBASE-FR1 (Cl 140)', 'host_lane_count': 2, 'media_lane_count': 1, 'host_lane_assignment_options': 85, 'media_lane_assignment_options': None}}
         Connector: SN optical connector
         Encoding: N/A
         Extended Identifier: Power Class 6 (12.0W Max)
@@ -341,7 +367,7 @@ This utility is now updated as below.
 ```
 admin@sonic:~$ sudo sfputil show eeprom -p Ethernet0
 Ethernet0: SFP EEPROM detected
-        Application Advertisement: {1: {'ap_sel_code_id': 1, 'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400GBASE-DR4 (Cl 124)', 'host_lane_count': 8, 'media_lane_count': 4, 'host_lane_assignment_options': 1, 'media_lane_assignment_options': None}, 2: {'ap_sel_code_id': 2, 'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)', 'module_media_interface_id': '100G-FR/100GBASE-FR1 (Cl 140)', 'host_lane_count': 2, 'media_lane_count': 1, 'host_lane_assignment_options': 85, 'media_lane_assignment_options': None}}
+        Application Advertisement: {1: {'host_electrical_interface_id': '400GAUI-8 C2M (Annex 120E)', 'module_media_interface_id': '400GBASE-DR4 (Cl 124)', 'host_lane_count': 8, 'media_lane_count': 4, 'host_lane_assignment_options': 1, 'media_lane_assignment_options': None}, 2: {'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)', 'module_media_interface_id': '100G-FR/100GBASE-FR1 (Cl 140)', 'host_lane_count': 2, 'media_lane_count': 1, 'host_lane_assignment_options': 85, 'media_lane_assignment_options': None}}
         Connector: SN optical connector
         Encoding: N/A
         Extended Identifier: Power Class 6 (12.0W Max)
