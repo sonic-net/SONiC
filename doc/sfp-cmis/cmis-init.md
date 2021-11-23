@@ -80,7 +80,17 @@ class Sfp(SfpOptoeBase):
         return "/sys/bus/i2c/devices/{}-0050/eeprom".format(bus_id)
 ```
 
-The scope of this feature is as follow:
+This feature could also be disabled by the platform-specific **pmon_daemon_control.json**
+
+**Example:**  
+```
+$ cat sonic-buildimage/device/VENDOR/PLATFORM/pmon_daemon_control.json
+{
+    "skip_xcvrd_cmis_manager": true
+}
+```
+
+The scope of this feature are as follows:
 
 - **CMIS software initialization for the default application.**  
   - All the lanes of the CMIS module will be reconfigured to use the default application.
@@ -156,15 +166,40 @@ to the json format:
   ...... omitted ......
 ```  
 
-- Add **CmisManagerTask** for the state-based CMIS application initialization to support
-multiple CMIS transceivers in one single thread.
+- **xcvrd.py**: Add **CmisManagerTask** for the state-based CMIS application initialization
+to support multiple CMIS transceivers in one single thread.  
+  - The CMIS states are listed below  
 
+    |  State    | Description     |      Next State       |
+    |:--------- |:----------------|:----------------------|
+    | UNKNOWN   | Unknown state   | N/A                   |
+    | INSERTED  | Module is newly inserted | DP_DEINIT    |
+    | DP_DEINIT | DatPath is de-initialized with tx-power turned off | AP_CONFIGURED |
+    | AP_CONFIGURED | Application configured | DP_INIT    |
+    | DP_INIT   | DatPath is initialized with tx-power turned off | DP_TXON |
+    | DP_TXON   | DatPath is initialized with tx-power turned on | READY |
+    | READY     | Transceiver is ready in the new application mode | N/A |
+    | REMOVED   | Module is removed  | N/A                |
+    | FAILED    | Initialization failed | N/A             |
+
+  - At each loop iteration of CmisManagerTask.task_worker(), the state will only be advanced by 1 and only 1 state upon success.
+  - Prior to advancing the state, CmisManagerTask should always double-check the hardware module and datapath states.
+  - The state transition diagram  
   ![](images/001.png)
 
-- Enhance **xcvrd_utilities/port_mapping.py** with **APPL_DB** and **STATE_DB** support
-  - **port_mapping.subscribe_port_config_change()** only listens to **CONFIG_DB** by default.
-  - **port_mapping.subscribe_port_config_change(['APPL_DB', 'STATE_DB'])** listens to both **APPL_DB** and **STATE_DB**.
-  - The port table name associated with the database  
+
+
+- **xcvrd_utilities/port_mapping.py**: Add support for **APPL_DB** and **STATE_DB**
+  - **subscribe_port_update_event(db_list=['APPL_DB', 'STATE_DB'])** subscribes to both **APPL_DB** and **STATE_DB** by default.
+
+  - **handle_port_update_event(sel, asic_context, stop_event, logger, handler)** is the wrapper for port update event handler,
+    and the handler routines will be invoked upon all the database SET/DEL commands as follows  
+    - **PortChangeEvent.PORT_SET**  
+      The event for database **SET** operations.
+    - **PortChangeEvent.PORT_DEL**  
+      The event for database **DEL** operations.
+
+  - The port table names associated with the database is as follows  
 
     | Database  |      Table Name        |
     |:--------- |:---------------------- |
@@ -172,11 +207,13 @@ multiple CMIS transceivers in one single thread.
     | CONFIG_DB | PORT                   |
     | STATE_DB  | TRANSCEIVER_INFO       |
 
-- Introduce the following additional events into **xcvrd_utilities/port_mapping.py**  
-  - **PortChangeEvent.PORT_SET**  
-    The event callbacks for database **SET** operations.
-  - **PortChangeEvent.PORT_DEL**  
-    The event callbacks for database **DEL** operations.
+  - The port update events from **APPL_DB** should be interpreted as the port config update
+    notifications from the **swss#orchagent**
+  - The port update events from **STATE_DB** should be interpreted as the transceiver insertion
+    and removal notifications from the **xcvrd#SfpStateUpdateTask**
+  - Upon **WARM-REBOOT** and **pmon** restart, these events will always be replayed to the
+    **CmisManagerTask** and the initialization sequence will be skipped if the desired application
+    is already in place and ready
 
 ## sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
 
@@ -214,7 +251,7 @@ Add the following stub routines
 ## sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py (modified)
 
 - Add the following routines for CMIS application initialization
-  - **get_cmis_application_update(self, host_speed, host_lanes)**  
+  - **has_cmis_application_update(self, host_speed, host_lanes)**  
     Check for CMIS updates and the new application if an update if necessary
   - **set_cmis_application_stop(self, host_lanes)**  
     A non-blocking routine to deinitialize DataPath, put the CMIS module into low-power mode
