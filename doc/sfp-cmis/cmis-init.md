@@ -220,20 +220,17 @@ to support multiple CMIS transceivers in one single thread.
     - From **INSERTED** to **DP_DEINIT**  
       Skip the initialization sequence by having the state transitioned to **READY**
       if no application code updates and DataPath state is 4 (i.e. DataPathActivated) and
-      Config state is 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_stop()
+      config state is 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_stop()
       and have the state transitioned to **DP_DEINIT**
     - From **DP_DEINIT** to **AP_CONFIGURED**  
-      Skip the initialization sequence by staying at **DP_DEINIT** state
-      if module state != **ModuleReady**, otherwise invoke sfp.set_cmis_application_apsel() and
-      have the state transitioned to **AP_CONFIGURED**
+      Stay at **DP_DEINIT** state if module state != **ModuleReady**, otherwise invoke
+      sfp.set_cmis_application_apsel() and have the state transitioned to **AP_CONFIGURED**
     - From **AP_CONFIGURED** to **DP_INIT**  
-      Skip the initialization sequence by staying at **AP_CONFIGURED** state
-      if Config state != 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_start()
-      and have the state transitioned to **DP_INIT**
+      Stay at **AP_CONFIGURED** state if config state != 1 (i.e. ConfigSuccess), otherwise
+      invoke sfp.set_cmis_application_start() and have the state transitioned to **DP_INIT**
     - From **DP_INIT** to **DP_TXON**  
-      Skip the initialization sequence by staying at **DP_INIT** state
-      if DataPath state != 7 (i.e. DataPathInitialized), otherwise invoke sfp.set_cmis_application_txon()
-      and have the state transitioned to **DP_TXON**
+      Stay at **DP_INIT** state if DataPath state != 7 (i.e. DataPathInitialized), otherwise
+      invoke sfp.set_cmis_application_txon() and have the state transitioned to **DP_TXON**
     - From **DP_TXON** to **READY**  
       Stay at **DP_TXON** state if DataPath state != 4 (i.e. DataPathActivated), otherwise have the
       state transitioned to **READY**
