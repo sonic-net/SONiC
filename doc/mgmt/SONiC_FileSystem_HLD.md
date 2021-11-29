@@ -77,9 +77,20 @@ __Figure 3: Event Flow Diagram__
 
 ## User Context
 All the filesystem commands will have user context passed down from Xfmr to the Host Service. The "curl" utility will be run in the context of the user passed down to the Host Service.
-The "home:" shortcut will be expanded to the appropriate home directory(/home/$USERNAME). The user will be able execute to dir/copy/delete filesystem commands on the the appropritate files/directories according to the user privilage and group.
+The "home:" shortcut will be expanded to the appropriate home directory(/home/$USERNAME). The user will be able execute to dir/copy/delete filesystem commands on the the appropritate files/directories according to the user privilage and group. For "admin" role users, the commands will be executed with "sudo" utility.
 
 All the "admin" role users will be added to "adm" group by default.
+
+* Admin Role Users
+  * Allowed to change running-configuration
+  * Allowed to change startup-configuration
+  * Allowed to  edit/delete files in home, config, coredump, event-profile & supportbundle - except log directory
+  * Admin cannot delete syslog and should not be allowed to do so.
+  * Allowed to take backup of the config, coredump, log, event-profile & supportbundle into their home directory
+  * Allowed to take backup of the config, coredump, log, event-profile & supportbundle into remote server using ftp, scp & http
+* Operator Role Users
+  * Allowed write only to home directory from remote server
+  * Allowed to write to remote server from home directory
 
 ## Module changes
 * sonic-mgmt-common
