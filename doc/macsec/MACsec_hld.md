@@ -3,9 +3,10 @@
 
 ***Revision***
 
-|  Rev  | Date  | Author | Change Description |
-| :---: | :---: | :----: | ------------------ |
-|  0.1  |       | Ze Gan | Initial version    |
+|  Rev  | Date  | Author | Change Description      |
+| :---: | :---: | :----: | ----------------------- |
+|  0.1  |       | Ze Gan | Initial version         |
+|  0.2  |       | Ze Gan | MACsec with PFC and CLI |
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -115,7 +116,7 @@ At a high level the following should be supported:
 - Enable or disable the XPN feature by the wpa_cli
 - CLI commands to configure MACsec
 - CLI command `show macsec` to monitor mka session and statistics of MACsec
-- MACsec with PFC. A global flag controls sending PFCs with encrypted or clear. Reacting to PFCs both encrypted and clear.
+- MACsec with PFC. PFC frames can be controlled to encrypted or clear.
 
 #### Phase III
 
@@ -207,10 +208,13 @@ replay_window               = DIGITS                   ; Replay window size that
 send_sci                    = "true" / "false"         ; Whether send SCI. Default true
 rekey_period                = DIGITS                   ; The period of proactively refresh (Unit second).
                                                        ; Default 0 which means never proactive refresh SAK.
-
-send_encrypted_pfc          = bool                     ; Default true
-receive_clear_pfc           = bool                     ;
-; The profile cannot be deleted if it has been used by a port.
+pfc                         = "bypass" / "encrypt" / "strict"
+                                                       ; The behavior to PFC frames.
+                                                       ; "bypass": react clear and encrypted PFC frames, send clear PFC frames.
+                                                       ; "encrypt": react clear and encrypted PFC frames, send encrypted PFC frames.
+                                                       ; "strict": only react encrypted PFC frames, send encrypted PFC frames.
+                                                       ; If the specified mode cannot be supported by the platform, record an error in the log file.
+                                                       ; Default "bypass".
 ```
 
 #### 3.1.2 Port Table
@@ -684,7 +688,7 @@ MACsec SECY Table
     "InPktsUnknownSCI":{{InPktsUnknownSCI}} # the number of the received frame with unknown SCI
     "InPktsNoSCI":{{InPktsNoSCI}}           # the number of the received frame without SCI (those frames will be passed to uncontrolled port)
     "InPktsOverrun":{{InPktsOverrun}}       # the number of the received frame that was discarded because the validation capabilities of the Cipher Suite cannot support current rate
-
+    "InPktsDroppedPFC"                      # the number of dropped clear PFC in the strict mode.
 ```
 
 ###### 3.4.4.2.2 Interval
@@ -818,5 +822,3 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 ![deinit port](images/deinit_port.png)  
 
 ## 5 CLI
-
-PFC: config macsec pfc encrypted/clear
