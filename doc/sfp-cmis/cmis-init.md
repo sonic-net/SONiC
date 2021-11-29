@@ -8,16 +8,32 @@ CMIS Application Initialization
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [About This Manual](#about-this-manual)
-  * [Scope](#scope)
   * [Abbreviation](#abbreviation)
   * [References](#references)
-  * [Requirement Overview](#requirement-overview)
+  * [Requirement](#requirement)  
+    * [Overview](#overview)
+    * [Functional Requirements](#functional-requirements)
+    * [Warm Boot Requirements](#warm-boot-requirements)
   * [Functional Description](#functional-description)
-  * [Design](#design)
+  * [Design](#design)  
+    * [sonic-platform-daemons/sonic-xcvrd](#sonic-platform-daemonssonic-xcvrd)  
+      * [Conditions for Datapath init](#conditions-for-datapath-init)
+    * [sonic-platform-common/sonic_platform_base/sfp_base.py](#sonic-platform-commonsonic_platform_basesfp_base.py)
+    * [sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cmis.py](#sonic-platform-commonsonic_platform_basesonic_xcvrapipubliccmis.py)
+    * [sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py](#sonic-platform-commonsonic_platform_basesonic_xcvrfieldsconsts.py)
+    * [sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/public/cmis.py](#sonic-platform-commonsonic_platform_basesonic_xcvrfieldspubliccmis.py)
+    * [sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py](#sonic-platform-commonsonic_platform_basesonic_xcvrmem_mapspubliccmis.py)
+    * [sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py](#sonic-platform-commonsonic_platform_basesonic_xcvrsfp_optoe_base.py)
+    * [sonic-utilities/sfputil](#sonic-utilitiessfputil)
+    * [CLI commands](#cli-commands)  
+      * [CLI Show Commands](#cli-show-commands)
+      * [CLI Debug Commands](#cli-debug-commands)
 
 # List of Tables
   * [Table 1: Definitions](#table-1-definitions)
   * [Table 2: References](#table-2-references)
+  * [Table 3: Port Table Name Mappings](#table-3-port-table-name-mappings)
+  * [Table 4: CMIS State Table](#table-4-cmis-state-table)
 
 # Revision
 | Rev |     Date    |       Author        | Change Description                        |
@@ -46,7 +62,9 @@ support for SONiC.
 |---------------------------------------------------------|---------------|
 | CMIS v5 | [CMIS5p0.pdf](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) |
 
-# Requirement Overview
+# Requirement
+
+## Overview
 
 This document describes functional behavior of the CMIS application initialization
 support in SONiC.
@@ -78,16 +96,6 @@ class Sfp(SfpOptoeBase):
         # platform-specific per-port I2C bus
         bus_id = 32 + self.index
         return "/sys/bus/i2c/devices/{}-0050/eeprom".format(bus_id)
-```
-
-This feature could also be disabled by the platform-specific **pmon_daemon_control.json**
-
-**Example:**  
-```
-$ cat sonic-buildimage/device/VENDOR/PLATFORM/pmon_daemon_control.json
-{
-    "skip_xcvrd_cmis_manager": true
-}
 ```
 
 The scope of this feature are as follows:
@@ -136,7 +144,7 @@ is in place and ready.
 
 # Design
 
-## sonic-platform-daemons/sonic-xcvrd (modified)
+## sonic-platform-daemons/sonic-xcvrd
 
 The transceiver daemon will be enhanced as below:
 
@@ -178,6 +186,7 @@ to the json format:
 
   - The port table names associated with the database are as follows  
 
+    ### Table 3 Port Table Name Mappings
     | Database  |      Table Name        |
     |:--------- |:---------------------- |
     | APPL_DB   | PORT_TABLE             |
@@ -196,6 +205,7 @@ to the json format:
 to support multiple CMIS transceivers in one single thread.  
   - The CMIS states are listed below  
 
+    ### Table 4 CMIS State Table
     |  State    | Description     |      Next State       |
     |:--------- |:----------------|:----------------------|
     | UNKNOWN   | Unknown state   | N/A                   |
@@ -223,22 +233,38 @@ to support multiple CMIS transceivers in one single thread.
       config state is 1 (i.e. ConfigSuccess), otherwise invoke sfp.set_cmis_application_stop()
       and have the state transitioned to **DP_DEINIT**
     - From **DP_DEINIT** to **AP_CONFIGURED**  
-      Stay at **DP_DEINIT** state if module state != **ModuleReady**, otherwise invoke
+      Stay at **DP_DEINIT** state if module state != **ModuleReady(3)**, otherwise invoke
       sfp.set_cmis_application_apsel() and have the state transitioned to **AP_CONFIGURED**
     - From **AP_CONFIGURED** to **DP_INIT**  
-      Stay at **AP_CONFIGURED** state if config state != 1 (i.e. ConfigSuccess), otherwise
+      Stay at **AP_CONFIGURED** state if config state != **ConfigSuccess(1)**, otherwise
       invoke sfp.set_cmis_application_start() and have the state transitioned to **DP_INIT**
     - From **DP_INIT** to **DP_TXON**  
-      Stay at **DP_INIT** state if DataPath state != 7 (i.e. DataPathInitialized), otherwise
+      Stay at **DP_INIT** state if DataPath state != **DataPathInitialized(7)**, otherwise
       invoke sfp.set_cmis_application_txon() and have the state transitioned to **DP_TXON**
     - From **DP_TXON** to **READY**  
-      Stay at **DP_TXON** state if DataPath state != 4 (i.e. DataPathActivated), otherwise have the
+      Stay at **DP_TXON** state if DataPath state != **DataPathActivated(4)**, otherwise have the
       state transitioned to **READY**
   - The CMIS state transition diagram  
   ![](images/001.png)
 
+  ### Conditions for Datapath init
 
-## sonic-platform-common/sonic_platform_base/sfp_base.py (modified)
+  The datapath should be re-initialized in the following scenarios
+
+  - Transceiver insertion
+  - Port mode update that requires a CMIS application code update (e.g Dynamic Port Breakout,
+  outside the scope of this document)
+  - Port speed update that requires a CMIS application code update
+
+  When the CMIS is in **INSERTED** state, the datapath re-initialization should be skipped
+  and transitioned to **READY** state if all the following checkers are positive
+
+  - The operational application code matches the desired application mode derived from
+  the port configurations in the CONFIG_DB/APPL_DB
+  - The datapath state is **DataPathActivated(4)**
+  - The configuration error is **ConfigSuccess(1)**
+
+## sonic-platform-common/sonic_platform_base/sfp_base.py
 
 Add the following macro constants to differentiate the port/cage type from the media type fetched from the transceiver
 - SFP_PORT_TYPE_UNSPECIFIED
@@ -250,7 +276,7 @@ Add the following stub routines
 - get_port_type(self)  
   Retrieves the port/cage type of this SFP
 
-## sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cmis.py
 
 - Add support for low-power mode controls
 - Add support for reporting CMIS application advertisement
@@ -259,19 +285,19 @@ Add the following stub routines
   For more details, please refer to **Appendix D.1.3 and D.2.2** of
 [CMIS 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 
-## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py
 
 - Add register definitions for CMIS application initialization
 
-## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/public/cmis.py
 
 - Add support for parsing CMIS application advertisement
 
-## sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py
 
 - Add support for CMIS registers those are necessary for application initialization
 
-## sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py (modified)
+## sonic-platform-common/sonic_platform_base/sonic_xcvr/sfp_optoe_base.py
 
 - Add the following routines for CMIS application initialization
   - **has_cmis_application_update(self, host_speed, host_lanes)**  
@@ -300,7 +326,7 @@ Add the following stub routines
   - **get_module_state(self)**  
     Retrieve the CMIS module state
 
-## sonic-utilities/sfputil (modified)
+## sonic-utilities/sfputil
 
 - Add supprot to show the CMIS application advertisement
 
