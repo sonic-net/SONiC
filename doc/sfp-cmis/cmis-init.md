@@ -12,6 +12,8 @@ CMIS Application Initialization
   * [References](#references)
   * [Requirement](#requirement)  
     * [Overview](#overview)
+    * [Scope](#scope)
+    * [Outside the Scope](#outside-the-scope)
     * [Functional Requirements](#functional-requirements)
     * [Warm Boot Requirements](#warm-boot-requirements)
   * [Functional Description](#functional-description)
@@ -98,6 +100,8 @@ class Sfp(SfpOptoeBase):
         return "/sys/bus/i2c/devices/{}-0050/eeprom".format(bus_id)
 ```
 
+## Scope
+
 The scope of this feature are as follows:
 
 - **CMIS software initialization for the default application.**  
@@ -105,11 +109,24 @@ The scope of this feature are as follows:
   - Only staged control set 0 will be supported
   - No speed negotiation.
   - No custom signal integrity settings
-  - Implement the procedures defined in Appendix D.1.3 and D.2.2 of [CMIS 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
+  - Implement the procedures defined in Appendix D.1.3 and D.2.2 of [CMIS v5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 - **sonic-platform-common**: Update **sonic-xcvr** for CMIS application advertising and initialization
 - **sonic-platform-daemons**: Update **sonic-xcvrd** for state-based CMIS application initialization
 to support multiple CMIS transceivers in one single thread
 - **sonic-utilities**: Update the **sfputil** and **sfpshow** for CMIS application advertisement
+
+## Outside the Scope
+
+The following items are outside the scope of this document:
+
+- The synchronization between syncd and xcvrd  
+  The datapath initialization should happen only when the Tx signals from the ASIC/MAC towards
+  the optics is valid and good for the selected application (i.e. 6.3.3.5 DPInit State of [CMIS v5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf))
+  Currently, **pmon#xcvrd** do not have any means to know this at runtime whether the port breakout
+  configuration is done or ASIC/MAC is ready in the desired mode.
+- The non-default application is not supported  
+  Only application 1 (i.e. default application) is supported, the port configurations that
+  require non-default application code may experience link failures on CMIS v4/v5 optics.
 
 ## Functional Requirements
 
@@ -251,18 +268,17 @@ to support multiple CMIS transceivers in one single thread.
 
   The datapath should be re-initialized in the following scenarios
 
-  - Transceiver insertion
-  - Port mode update that requires a CMIS application code update (e.g Dynamic Port Breakout,
-  outside the scope of this document)
-  - Port speed update that requires a CMIS application code update
-
-  When the CMIS is in **INSERTED** state, the datapath re-initialization should be skipped
-  and transitioned to **READY** state if all the following checkers are positive
-
-  - The operational application code matches the desired application mode derived from
-  the port configurations in the CONFIG_DB/APPL_DB
-  - The datapath state is **DataPathActivated(4)**
-  - The configuration error is **ConfigSuccess(1)**
+  - Transceiver insertion detection  
+    When a CMIS transceiver insertion is detected, it will be placed in **INSERTED** state,
+    the datapath re-initialization should be skipped and directly transitioned to **READY** state
+    if all the following checkers are positive  
+    - The operational application code matches the desired application mode derived from
+      the current port configurations in the CONFIG_DB/APPL_DB
+    - The datapath state is **DataPathActivated(4)**
+    - The configuration error is **ConfigSuccess(1)**
+  - Port mode changes that require a CMIS application code update (e.g Dynamic Port Breakout,
+    outside the scope of this document)
+  - Port speed changes that require a CMIS application code update
 
 ## sonic-platform-common/sonic_platform_base/sfp_base.py
 
@@ -283,7 +299,7 @@ Add the following stub routines
 - Add support for reporting CMIS application initialization failures
 - Add support for CMIS application initialization  
   For more details, please refer to **Appendix D.1.3 and D.2.2** of
-[CMIS 5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
+[CMIS v5](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf)
 
 ## sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/consts.py
 
