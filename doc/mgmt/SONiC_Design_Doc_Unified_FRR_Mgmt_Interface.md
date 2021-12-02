@@ -59,6 +59,7 @@
 | 0.2 | 10/30/2019  | Venkatesan Mahalingam | Config DB schema changes |
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
 | 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
+| 0.5 | 11/29/2021 | Sucheta Mahara | Enable BGP with link local only using v6only|
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -279,7 +280,7 @@ peer_group_name = 1*64VCHAR ; Peer group this listen prefix is associated with
 
 key                                = BGP_NEIGHBOR|vrf|neighbor_ip ;
 vrf                                = 1\*15VCHAR ; VRF name
-neighbor_ip                        = IPv4Prefix / IPv6prefix ;
+neighbor                           = IPv4Prefix / IPv6prefix Ethernet / PortChannel / Vlan ;
 local_asn                          = 1*10DIGIT ; Local ASN for the BGP neighbor
 name                               = 1*64VCHAR ; BGP neighbor description
 asn                                = 1*10DIGIT; Remote ASN value
@@ -308,6 +309,7 @@ override-capability                = "true" / "false" ; Override capability nego
 peer-port                          = 1*5DIGIT ; {0..65535} Neighbor's BGP port
 shutdown-message                   = "true" / "false" ; Add a shutdown message
 strict-capability-match            = "true" / "false" ; Strict capability negotiation match
+v6only                             = "true" / "false" ; Establish BGP session with Link local only.
 
 ```
 #### 3.2.1.5 BGP_NEIGHBOR_AF
@@ -716,6 +718,7 @@ module: openconfig-routing-policy
 | Solo peer - part of its own update group |sonic(config-router-bgp-neighbor)# solo |
 | Strict capability negotiation match |sonic(config-router-bgp-neighbor)# strict-capability-match |
 | |sonic(config-router-bgp-neighbor)# ttl-security hops \<val>  |
+| Enable v6only for BGP neighbor interface|sonic(config-router-bgp-neighbor)# v6only |
 
 ##### 3.6.2.1.4 BGP Neighbor Address family mode commands
 |Command Description |CLI Command    |
@@ -815,10 +818,10 @@ module: openconfig-routing-policy
 #### 3.6.2.2 Show Commands
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP routes information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } |
+|Display BGP routes information | show bgp {ipv4 unicast \| ipv6 unicast} [vrf vrf-name] |
 
 ```
-sonic# show ip bgp
+sonic# show bgp ipv4 unicast
 BGP routing table information for VRF default
 Router identifier 20.0.0.1, local AS number 100
 Route status codes: * - valid, > - active, e - ECMP
@@ -834,10 +837,10 @@ AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL Nexthop - Li
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display summary of all BGP neighbors information |show ip bgp [vrf \<name>] { ipv4 \| ipv6 } summary|
+|Display summary of all BGP neighbors information |show bgp {ipv4 unicast \| ipv6 unicast} [vrf vrf-name] summary|
 
 ```
-sonic#show ip bgp summary
+sonic#show bgp ipv4 unicast summary
 BGP summary information for VRF default
 Router identifier 20.0.0.1, local AS number 100
   Neighbor         V  AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down  State   PfxRcd PfxAcc
@@ -847,10 +850,10 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP specific route information|show ip bgp [vrf \<name>] { ipv4 \| ipv6 } \<prefix> |
+|Display BGP specific route information| show bgp {ipv4 unicast \| ipv6 unicast} \<prefix>|
 
 ```
-Router# show ip bgp 30.0.0.0/24
+Router# show bgp ipv4 unicast 30.0.0.0/24
 
 BGP routing table entry for 30.0.0.0/24, version 35
 Paths: (3 available, best #2, table default)
@@ -873,16 +876,16 @@ Flag: 0x860
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP neighbor information | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors [\<nbr-ip>] |
+|Display BGP neighbor information | show bgp {ipv4 unicast \| ipv6 unicast} [vrf \<name>]  neighbors [\<nbr-ip>] |
 
 ```
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display BGP neighbor received/advertised routes | show ip bgp [vrf \<name>] { ipv4 \| ipv6 } neighbors \<nbr-ip> { received-routes \| advertised-routes }|
+| Display BGP neighbor received/advertised routes | show bgp {ipv4 unicast \| ipv6 unicast} [vrf \<name>] neighbors \<nbr-ip> { received-routes \| advertised-routes }|
 
 ```
-sonic#show ip bgp neighbors 10.3.0.103 advertised-routes
+sonic#show bgp ipv4 unicast neighbors 10.3.0.103 advertised-routes
 BGP routing table information for VRF default
 Router identifier 10.0.0.102, local AS number 64500
 Route status codes: s - suppressed, * - valid, > - active, # - not installed, E - ECMP head, e - ECMP
@@ -905,10 +908,10 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display peer-group information | show ip bgp [vrf \<name>] peer-group [\<pg-name>]|
+| Display peer-group information | show bgp all [vrf vrf-name] peer-group [\<pg-name>]|
 
 ```
-sonic#show ip bgp peer-group
+sonic#show bgp all peer-group
 BGP peer-group is EXTERNAL
   BGP version 4
   Static peer-group members:
@@ -931,11 +934,6 @@ BGP peer-group is INTERNAL
     VRF default:
 sonic#
 
-```
-|Command Description|CLI Command      |
-|:------------------|:-----------------|
-
-```
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
@@ -1066,4 +1064,43 @@ This enhancement to FRR-BGP Unified management framework does not disrupt data p
 
 # 9 Unit Test
 Testing of the configuration changes is manual and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template.
+
+## 9.1 Test case for v6only:
+When v6 is enabled on an BGP neighbor (interface), BGP session is establised on link local address only and not the IP address specified for the interface.
+
+Test CASE 1 : Configure BGP neighbor.
+
+|Command Executed | Result /Notes     |
+|:------------------|:-----------------|
+|sonic(config-router-bgp)# exit| |
+|sonic(config)# interface Ethernet 0||
+|sonic(config)# ipv6 enable||
+|sonic(conf-if-Ethernet0)# no shutdown| |
+|sonic(conf-if-Ethernet0)# ip address 1.1.1.2/30|The netmask is 30 or 31 |
+|sonic(conf-if-Ethernet0)# exit| |
+|sonic(config)# router bgp 101| |
+|sonic(config-router-bgp)# neighbor interface Ethernet 0| |
+|sonic(config-router-bgp-neighbor)# address-family ipv4 unicast| |
+|sonic(config-router-bgp-neighbor-af)# activate| |
+|sonic(config-router-bgp-neighbor-af)# exit| |
+|sonic(config-router-bgp-neighbor)# remote-as external||
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on IPV4|
+
+TEST CASE 2
+
+|Command Executed | Result      |
+|:------------------|:-----------------|
+|sonic(config-router-bgp-neighbor)# v6only| BGP session is re-established on Link local|
+
+
+TEST CASE 3
+
+|Command Executed | Result      |
+|:------------------|:-----------------|
+|sonic(config-router-bgp-neighbor)# no v6only| BGP Session is re-established on IPV4|
+
+v6only can be set with REST/gnmi.
+
+Example rest URI:-
+/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=BGP,bgp/bgp/neighbors/neighbor=Ethernet0/config/openconfig-bgp-ext:v6only
 # 10 Appendix
