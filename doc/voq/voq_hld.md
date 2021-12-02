@@ -1,6 +1,6 @@
 # VOQ SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -61,8 +61,8 @@
 | Rev |     Date    |       Author                                                                       | Change Description                |
 |:---:|:-----------:|:----------------------------------------------------------------------------------:|-----------------------------------|
 | 1.0 | 06/29/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) | Initial public version            |
-| 1.1 | 09/08/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) | Updates after reviews             |
-|     |             | Eswaran Bhaskaran, Kartik Chandran (Arista Networks)                               |                                   |
+| 1.1 | 09/08/2020  | Sureshkannan Duraisamy, Srikanth Keesara, Vedavinayagam Ganesan (Nokia Sonic Team) Eswaran Bhaskaran, Kartik Chandran (Arista Networks) | Updates after reviews             |
+| 1.2 | 06/14/2021  | Vedavinayagam Ganesan (Nokia)                                                      | Updates for cli commands, Inband interface port name change      |
 
 # About this Manual
 This document describes the design details for supporting SONiC on a Distributed VOQ System. It aligns with the SONiC Distributed VOQ-Architecture and should be read in conjunction with that document. It also adopts the SONiC Multi-ASIC architecture is adopted - which allows each asic within an FSI to be controlled independently by a separate instance of the "SONiC Network Stack" (comprising bgp, swss, syncd, lldp, teamd etc ..).
@@ -477,7 +477,97 @@ The system port configuration has the parameters listed below.
 
 ## 2.7 CLI
 
-TO BE COMPLETED.
+CLI commands for VOQ chassis are for system ports and system neighbors. There are only show commands for these objects. As mentioned earlier, for now, since system ports are not dynamically configured and are required to be statically supplied before boot up there is no configuration commands for system ports. Since system neigobors also do not have any configurations there is no configuration commands for system neighbors. 
+
+The show commands are under **show chassis** commands group as shown below
+
+**Help info of show chassis command group**
+```
+admin@Linecard2:~$ show chassis -h
+Usage: show chassis [OPTIONS] COMMAND [ARGS]...
+
+  Chassis commands group
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  modules           Show chassis-modules information
+  system-neighbors  Show VOQ system neighbors information
+  system-ports      Show VOQ system ports information
+admin@Linecard2:~$ 
+```
+### 2.7.1 System ports show command
+The information for the system ports are taken from the **SYSTEM_PORT_TABLE** of **APPL_DB** from a specific namespace 
+#### Syntax
+```
+admin@Linecard2:~$ show chassis system-ports -h
+Usage: show chassis system-ports [OPTIONS] [SYSTEMPORTNAME]
+
+  Show VOQ system ports information
+
+Options:
+  -n, --namespace TEXT   Namespace name or all  [required]
+  --verbose              Enable verbose output
+  -h, -?, --help         Show this message and exit.
+admin@Linecard2:~$
+```
+#### Sample output
+```
+admin@Linecard2:~$ show chassis system-ports -n asic0
+            System Port Name    Port Id    Switch Id    Core    Core Port    Speed
+----------------------------  ---------  -----------  ------  -----------  -------
+       Linecard2|Asic0|Asic0        192            6       0            0      10G
+   Linecard2|Asic0|Ethernet0        193            6       0            1     100G
+   Linecard2|Asic0|Ethernet1        194            6       0            2     100G
+   Linecard2|Asic0|Ethernet2        195            6       0            3     100G
+Linecard2|Asic0|Ethernet-IB0        229            6       1           37      10G
+.
+.
+.
+       Linecard4|Asic0|Asic0        576           18       0            0      10G
+   Linecard4|Asic0|Ethernet0        577           18       0            1     100G
+   Linecard4|Asic0|Ethernet1        578           18       0            2     100G
+   Linecard4|Asic0|Ethernet2        579           18       0            3     100G
+Linecard4|Asic0|Ethernet-IB0        613           18       1           37      10G
+.
+.
+.
+```
+**Note:**
+
+   - In multi asic voq systems, for system ports since the configurations in all asics are required to be identical, the output of show for a system port is expected to be same in all the namespaces
+
+### 2.7.2 System neighbors show command
+The information for the system neighbors are taken from the **SYSTEM_NEIGH_TABLE** of **CHASSIS_APP_DB** in the supervisor card. 
+#### Syntax
+```
+admin@Linecard2:~$ show chassis system-neighbors -h
+Usage: show chassis system-neighbors [OPTIONS] [IPADDRESS]
+
+  Show VOQ system neighbors information
+
+Options:
+  -x, --asicname TEXT   Asic name
+  --verbose             Enable verbose output
+  -h, -?, --help        Show this message and exit.
+admin@Linecard2:~$ 
+```
+#### Sample output
+```
+admin@Linecard2:~$ show chassis system-neighbors 
+       System Port Interface    Neighbor                MAC    Encap Index
+----------------------------  ----------  -----------------  -------------
+  Linecard2|Asic0|Ethernet21    10.0.0.5  fa:6e:44:e3:cf:30     1074790407
+  Linecard2|Asic0|Ethernet21     fc00::a  fa:6e:44:e3:cf:30     1074790406
+Linecard2|Asic0|Ethernet-IB0     3.3.3.4  40:55:82:a1:fa:c5     1074790404
+Linecard2|Asic0|Ethernet-IB0   3333::3:4  40:55:82:a1:fa:c5     1074790405
+  Linecard4|Asic0|Ethernet25   10.0.0.11  42:f4:47:d7:71:45     1074790407
+  Linecard4|Asic0|Ethernet25    fc00::16  42:f4:47:d7:71:45     1074790406
+Linecard4|Asic0|Ethernet-IB0    3.3.3.10  40:55:82:a1:fb:21     1074790404
+Linecard4|Asic0|Ethernet-IB0  3333::3:10  40:55:82:a1:fb:21     1074790405
+admin@Linecard2:~$
+```
 
 ## 2.8 VOQ Monitoring and Telemetry
 In a distributed VOQ System, queue and buffer utilization statistics for a port are collected separately on all the asics in the system. There may be a need to aggregate these statistics in order to have a view of the statistics against a port. This section will be updated once the scope of such requirements is clear.
@@ -517,7 +607,9 @@ Example coniguration for voq inband interface type "port" is presented
         "localhost": {
 	   "switch_type": "voq",
 	   "switch_id": "0",
-	   "max_cores": "48"
+	   "max_cores": "48",
+	   "asic_name": "Asci0",
+	   "hostname": "Slot1"
 	}
      },
      "INTERFACE": {
@@ -529,10 +621,10 @@ Example coniguration for voq inband interface type "port" is presented
          "Ethernet3"|"30.0.0.1/16": {}
      },
      "VOQ_INBAND_INTERFACE": {
-        "Inband0": {
+        "Ethernet-IB0": {
 	   "inband_type": "port",
 	},
-	"Inband0|3.3.3.1/32": {}
+	"Ethernet-IB0|3.3.3.1/32": {}
      }
      "PORT": {
          "Ethernet1": {
@@ -558,6 +650,14 @@ Example coniguration for voq inband interface type "port" is presented
             "lanes": "24,25,26,27,28,29,30,31",
             "mtu": "1500",
             "speed": "400000"
+        },
+	 "Ethernet-IB0": {
+            "admin_status": "up",
+            "alias": "Rcy-Asic0",
+            "index": "4",
+            "lanes": "133",
+            "mtu": "1500",
+            "speed": "10000"
         },
 	.
 	.
@@ -585,12 +685,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband0": {
+	 "Slot1|Asic0|Ethernet-IB0": {
              "system_port_id": "63",
              "switch_id": "0",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          },
 	 .
 	 .
@@ -616,12 +716,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband1": {
+	 "Slot1|Asic1|Ethernet-IB1": {
              "system_port_id": "77",
              "switch_id": "2",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          }
      }
  }
@@ -635,7 +735,9 @@ Example coniguration for voq inband interface type "port" is presented
         "localhost": {
 	   "switch_type": "voq",
 	   "switch_id": "2",
-	   "max_cores": "48"
+	   "max_cores": "48",
+	   "asic_name": "Asic1",
+	   "hostname": "Slot1"
 	}
      },
       "INTERFACE": {
@@ -647,10 +749,10 @@ Example coniguration for voq inband interface type "port" is presented
          "Ethernet3"|"30.1.0.1/16": {}
      },
      "VOQ_INBAND_INTERFACE": {
-        "Inband1": {
+        "Ethernet-IB1": {
 	   "inband_type": "port",
 	},
-	"Inband1|3.3.3.2/32": {}
+	"Ethernet-IB1|3.3.3.2/32": {}
      },
      "PORT": {
          "Ethernet1": {
@@ -676,6 +778,14 @@ Example coniguration for voq inband interface type "port" is presented
             "lanes": "24,25,26,27,28,29,30,31",
             "mtu": "1500",
             "speed": "400000"
+        },
+	 "Ethernet-IB1": {
+            "admin_status": "up",
+            "alias": "Rcy-Asic1",
+            "index": "3",
+            "lanes": "133",
+            "mtu": "1500",
+            "speed": "10000"
         },
 	.
 	.
@@ -703,12 +813,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband0": {
+	 "Slot1|Asic0|Ethernet-IB0": {
              "system_port_id": "63",
              "switch_id": "0",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          },
 	 .
 	 .
@@ -734,12 +844,12 @@ Example coniguration for voq inband interface type "port" is presented
              "core_port_index": "3",
              "speed": "400000"
          },
-	 "Inband1": {
+	 "Slot1|Asic1|Ethernet-IB1": {
              "system_port_id": "77",
              "switch_id": "2",
              "core_index": "1",
              "core_port_index": "6",
-             "speed": "400000"
+             "speed": "10000"
          }
      }
  }
@@ -750,8 +860,8 @@ Example coniguration for voq inband interface type "port" is presented
 ```
 {
    "SYSTEM_INTERFACE": {
-      "Inband0": {},
-      "Inband1": {},
+      "Slot1|Asic0|Ethernet-IB0": {},
+      "Slot1|Asic1|Ethernet-IB1": {},
       "Slot1|Asic0|Ethernet1": {},
       "Slot1|Asic0|Ethernet2": {},
       "Slot1|Asic0|Ethernet3": {},
@@ -768,7 +878,7 @@ Example coniguration for voq inband interface type "port" is presented
          "neigh": "02:01:00:00:00:02",
 	 "encap_index": "8194",
       },
-      "Inband0:3.3.3.1": {
+      "Slot1|Asic0|Ethernet-IB0:3.3.3.1": {
          "neigh": "02:01:00:00:00:00",
 	 "encap_index": "8195",
       },
@@ -780,7 +890,7 @@ Example coniguration for voq inband interface type "port" is presented
          "neigh": "02:01:01:00:00:02",
 	 "encap_index": "8194",
       },
-      "Inband1:3.3.3.2": {
+      "Slot1|Asic1|Ethernet-IB1:3.3.3.2": {
          "neigh": "02:01:01:00:00:00",
 	 "encap_index": "8195",
       }

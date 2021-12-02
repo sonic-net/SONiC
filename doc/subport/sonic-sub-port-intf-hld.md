@@ -9,9 +9,10 @@
   * [1 Requirements](#1-requirements)
   * [2 Schema design](#2-schema-design)
     * [2.1 Configuration](#21-configuration)
-        * [2.1.1 config_db.json](#211-config-db-json)
-        * [2.1.2 CONFIG_DB](#212-config-db)
-        * [2.1.3 CONFIG_DB schemas](#213-config-db-schemas)
+        * [2.1.1 Naming Convention for sub-interfaces](#211-naming-convention-for-sub-interfaces)
+        * [2.1.2 config_db.json](#211-config-db-json)
+        * [2.1.3 CONFIG_DB](#212-config-db)
+        * [2.1.4 CONFIG_DB schemas](#213-config-db-schemas)
     * [2.2 APPL_DB](#22-appl-db)
     * [2.3 STATE_DB](#23-state-db)
     * [2.4 SAI](#24-sai)
@@ -27,6 +28,7 @@
     * [3.1 Sub port interface creation](#31-sub-port-interface-creation)
     * [3.2 Sub port interface runtime admin status change](#32-sub-port-interface-runtime-admin-status-change)
     * [3.3 Sub port interface removal](#33-sub-port-interface-removal)
+    * [3.4 Sub port MTU Configuration](#34-sub-port-mtu-configuration)
   * [4 CLI](#4-cli)
     * [4.1 Config commands](#41-config-commands)
         * [4.1.1 Config a sub port interface](#411-config-a-sub-port-interface)
@@ -44,19 +46,23 @@
         * [6.3.2 Remove all IP addresses from a sub port interface](#632-remove-all-ip-addresses-from-a-sub-port-interface)
         * [6.3.3 Remove a sub port interface](#633-remove-a-sub-port-interface)
   * [7 Scalability](#7-scalability)
-  * [8 Port channel renaming](#8-port-channel-renaming)
+  * [8 upgrade and downgrade considerations](#8-upgrade-and-downgrade-considerations)
   * [9 Appendix](#9-appendix)
     * [9.1 Difference between a sub port interface and a vlan interface](#91-difference-between-a-sub-port-interface-and-a-vlan-interface)
-  * [10 Open questions](#10-open-questions)
-  * [11 Acknowledgment](#11-acknowledgment)
-  * [12 References](#12-references)
+  * [10 API Library](#10-api-library)
+    * [10.1 SWSS CPP Library](#101-swss-cpp-library)
+    * [10.2 Python Library](#102-python-library)
+  * [11 Open questions](#11-open-questions)
+  * [12 Acknowledgment](#12-acknowledgment)
+  * [13 References](#13-references)
 
 <!-- /TOC -->
 
 # Revision history
-| Rev |    Date     |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                   |
+| Rev |    Date     |       Author       | Change Description                                      |
+|:---:|:-----------:|:------------------:|---------------------------------------------------------|
+| 0.1 | 07/01/2019  | Wenda Ni           | Initial version                                         |
+| 0.2 | 12/17/2020  | Broadcom           | Subinterface naming convention changes and enhancements |
 
 # Scope
 A sub port interface is a logical interface that can be created on a physical port or a port channel.
@@ -96,8 +102,14 @@ A sub port interface shall support the following features:
 * VRF
 * RIF counters
 * QoS setting inherited from parent physical port or port channel
-* mtu inherited from parent physical port or port channel
+* MTU: 
+  MTU of the subinterface is inherited from the parent interface (physical or portchannel)
+  If subinterface MTU is configured, MTU on subinterface will be configured with:
+  - If Subinterface MTU <= parent port MTU, configured subinterface MTU will be applied.
+  - If Subinterface MTU > parent port MTU, parent port MTU will be applied.
 * Per sub port interface admin status config
+  - Kernel subinterface netdev admin UP can be performed only if parent interface netdev is admin UP.
+    Hence subinterface admin UP is performed only after parent interface is admin UP.
 
 # 2 Schema design
 
@@ -105,19 +117,48 @@ We introduce a new table "VLAN_SUB_INTERFACE" in the CONFIG_DB to host the attri
 For APPL_DB and STATE_DB, we do not introduce new tables for sub port interfaces, but reuse existing tables to host sub port interface keys.
 
 ## 2.1 Configuration
-### 2.1.1 config_db.json
+### 2.1.1 Naming Convention for sub-interfaces:
+
+Since Kernel has netdevice name length restriction to 15, Physical sub-interfaces(in case interface number > 99) and port channel sub-interfaces cannot follow the same nomenclature as physical interfaces.
+Hence short name convention needs to be supported for subinterfaces.
+
+All DB & kernel netdevice corresponding to the sub-interface will be created based on user configuration. 
+- If user configures subinterfaces in short name format, all DB & kernel netdevices will be created in short name format. 
+- If user configures subinterfaces in existing long name format, all DB & netdevices will be created with existing long name format. 
+
+Short naming conventions for sub-interfaces will have Ethxxx.yyyy, Poxxx.yyyy format.
+Long naming conventions for sub-interfaces will have Ethernetxx.yyyy. 
+Physical subinterfaces on interface number exceeding 2 digits and PortChannel subinterfaces in long name format were not supported earlier and will NOT be supported due to name length restriction.
+
+Intfmgrd & IntfsOrch which manages sub-interfaces should be aware of this mapping to get parent interface properties.
+
+SWSS CPP library & Click Python API library will be provided to perform short name to long name conversion and vice versa.
+Please refer to the API library section for details.
+
+All click config CLIs for sub-interfaces will be enhanced to accept both long name & short name format for subinterfaces.
+
+### 2.1.2 config_db.json
 ```
 "VLAN_SUB_INTERFACE": {
-    "{{ port_name }}.{{ vlan_id }}": {
-        "admin_status" : "{{ adminstatus }}"
+    "{{ port_name }}.{{ subinterface_id }}": {
+        "vlan" : <1-4094>,
+        "admin_status" : "{{ adminstatus }}",
+        "vrf_name" : <vrf-name>
     },
-    "{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}": {}
+    "{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}": {}
 },
 ```
 A key in the VLAN_SUB_INTERFACE table is the name of a sub port, which consists of two sections delimited by a "." (symbol dot).
-The section before the dot is the name of the parent physical port or port channel. The section after the dot is the dot1q encapsulation vlan id.
+The section before the dot is the name of the parent physical port or port channel. The section after the dot is a unique number which uniquely identifies the sub-interface on the parent interface. 
+Sub-interface id value represents vlan id in long name format. 
+Sub-interface id value in short name format uniqeuly identifies subinterface under the parent interface. It can be in range 1-99999999(Subinterface ID cannot exceed 8 digits).
 
-mtu of a sub port interface is inherited from its parent physical port or port channel, and is not configurable in the current design.
+vlan field is applicable only for short name format subinterfaces.
+vlan field identifies the vlan to which the sub-interface is associated using .1Q trunking.
+Note that subinterface_id and vlan_id for a subinterface can be different in short name format.
+
+In Click CLI, user will be able to configure the vlan id associated with the sub-interface in short name format.
+In existing long name format Sub-interface id is used as vlan id.
 
 admin_status of a sub port interface can be either up or down.
 In the case field "admin_status" is absent in the config_db.json file, a sub port interface is set admin status up by default at its creation.
@@ -125,34 +166,48 @@ In the case field "admin_status" is absent in the config_db.json file, a sub por
 Example configuration:
 ```
 "VLAN_SUB_INTERFACE": {
-    "Ethernet64.10": {
+    "Ethernet0.100": {
         "admin_status" : "up"
     },
-    "Ethernet64.10|192.168.0.1/21": {},
-    "Ethernet64.10|fc00::/7": {}
+    "Ethernet0.100|192.0.0.1/21": {},
+    "Ethernet0.100|fc0a::/112": {}
+    "Eth64.10": {
+        “vlan” : 100,
+        "admin_status" : "up"
+    },
+    "Eth64.10|192.168.0.1/21": {},
+    "Eth64.10|fc00::/7": {}
 },
 ```
 
-### 2.1.2 CONFIG_DB
+### 2.1.3 CONFIG_DB
 ```
-VLAN_SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}
+VLAN_SUB_INTERFACE|{{ port_name }}.{{ subinterface_id }}
+    "vlan" : "{{ vlan-id }}"
     "admin_status" : "{{ adminstatus }}"
 
-VLAN_SUB_INTERFACE|{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}
+VLAN_SUB_INTERFACE|{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}
     "NULL" : "NULL"
 ```
 
-### 2.1.3 CONFIG_DB schemas
+### 2.1.4 CONFIG_DB schemas
 ```
 ; Defines for sub port interface configuration attributes
 key             = VLAN_SUB_INTERFACE|subif_name      ; subif_name is the name of the sub port interface
 
 ; subif_name annotations
-subif_name      = port_name "." vlan_id         ; port_name is the name of parent physical port or port channel
-                                                ; vlanid is DIGIT 1-4094
+subif_name      = port_name "." subinterface_id         ; port_name is the name of parent physical port or port channel
+                                                ; In short name format subinterface_id is DIGIT 1-99999999
+                                                ; In long name format subinterface_id is vlan id.
 
 ; field         = value
 admin_status    = up / down                     ; admin status of the sub port interface
+
+; field = value
+vlan = <1-4094>                              ; Vlan id in range <1-4094>
+
+; field = value
+vrf_name = <vrf-name>                           ; Name of the Vrf
 ```
 
 ```
@@ -183,24 +238,40 @@ ls32            = ( h16 ":" h16 ) / IPv4address
 
 Example:
 ```
-VLAN_SUB_INTERFACE|Ethernet64.10
+VLAN_SUB_INTERFACE|Ethernet0.100
     "admin_status" : "up"
 
-VLAN_SUB_INTERFACE|Ethernet64.10|192.168.0.1/21
+VLAN_SUB_INTERFACE|Ethernet0.100|192.0.0.1/21
     "NULL" : "NULL"
 
-VLAN_SUB_INTERFACE|Ethernet64.10|fc00::/7
+VLAN_SUB_INTERFACE|Ethernet0.100|fc0a::/112
+    "NULL" : "NULL"
+
+VLAN_SUB_INTERFACE|Eth64.10
+    "vlan" : 100,
+    "admin_status" : "up"
+
+VLAN_SUB_INTERFACE|Eth64.10|192.168.0.1/21
+    "NULL" : "NULL"
+
+VLAN_SUB_INTERFACE|Eth64.10|fc00::/7
     "NULL" : "NULL"
 ```
 
 ## 2.2 APPL_DB
 ```
-INTF_TABLE:{{ port_name }}.{{ vlan_id }}
+INTF_TABLE:{{ port_name }}.{{ subinterface_id }}
+    "vlan" : "{{ vlan id }}"
     "admin_status" : "{{ adminstatus }}"
 
 ; field         = value
 admin_status    = up / down             ; admin status of the sub port interface
 
+; field = value
+vlan = <1-4094>                      ; Vlan id in range <1-4094>
+
+; field = value
+vrf_name = <vrf-name>                   ; Name of the Vrf
 
 INTF_TABLE:{{ port_name }}.{{ vlan_id }}:{{ ip_prefix }}
     "scope" : "{{ visibility_scope }}"
@@ -213,14 +284,26 @@ family          = IPv4 / IPv6           ; address family
 
 Example:
 ```
-INTF_TABLE:Ethernet64.10
+INTF_TABLE:Ethernet0.100
     "admin_status" : "up"
 
-INTF_TABLE:Ethernet64.10:192.168.0.1/24
+INTF_TABLE:Ethernet0.100:192.0.0.1/24
     "scope" : "global"
     "family": "IPv4"
 
-INTF_TABLE:Ethernet64.10:fc00::/7
+INTF_TABLE:Ethernet0.100:fc0a::/112
+    "scope" : "global"
+    "family": "IPv6"
+
+INTF_TABLE:Eth64.10
+    "vlan" : 100
+    "admin_status" : "up"
+
+INTF_TABLE:Eth64.10:192.168.0.1/24
+    "scope" : "global"
+    "family": "IPv4"
+
+INTF_TABLE:Eth64.10:fc00::/7
     "scope" : "global"
     "family": "IPv6"
 ```
@@ -229,29 +312,42 @@ INTF_TABLE:Ethernet64.10:fc00::/7
 
 Following the current schema, sub port interface state of a physical port is set to the PORT_TABLE, while sub port interface state of a port channel is set to the LAG_TABLE.
 ```
-PORT_TABLE|{{ port_name }}.{{ vlan_id }}
+PORT_TABLE|{{ port_name }}.{{ subinterface_id }}
     "state" : "ok"
 ```
 ```
-LAG_TABLE|{{ port_name }}.{{ vlan_id }}
+LAG_TABLE|{{ port_name }}.{{ subinterface_id }}
     "state" : "ok"
 ```
 ```
-INTERFACE_TABLE|{{ port_name }}.{{ vlan_id }}|{{ ip_prefix }}
+INTERFACE_TABLE|{{ port_name }}.{{ subinterface_id }}|{{ ip_prefix }}
     "state" : "ok"
 ```
 
 Example:
 ```
-PORT_TABLE|Ethernet64.10
+PORT_TABLE|Ethernet0.100
     "state" : "ok"
 ```
 ```
-INTERFACE_TABLE|Ethernet64.10|192.168.0.1/21
+INTERFACE_TABLE|Ethernet0.100|192.0.0.1/21
     "state" : "ok"
 ```
 ```
-INTERFACE_TABLE|Ethernet64.10|fc00::/7
+INTERFACE_TABLE|Ethernet0.100|fc0a::/112
+    "state" : "ok"
+```
+
+```
+PORT_TABLE|Eth64.10
+    "state" : "ok"
+```
+```
+INTERFACE_TABLE|Eth64.10|192.168.0.1/21
+    "state" : "ok"
+```
+```
+INTERFACE_TABLE|Eth64.10|fc00::/7
     "state" : "ok"
 ```
 
@@ -335,23 +431,28 @@ sai_status_t status = remove_router_interface(rif_id);
 
 Inside SONiC, we use iproute2 package to manage host sub port interfaces.
 Specifically, we use `ip link add link <parent_port_name> name <subif_name> type vlan id <vlan_id>` to create a host sub port interface.
-This command implies the dependancy that a parent host interface must be created before the creation of a host sub port interface.
+This command implies the dependency that a parent host interface must be created before the creation of a host sub port interface.
 
 Example:
 ```
-ip link add link Ethernet64 name Ethernet64.10 type vlan id 10
-ip link set Ethernet64.10 mtu 9100
-ip link set Ethernet64.10 up
+ip link add link Ethernet0 name Ethernet0.100 type vlan id 100
+ip link set Ethernet0.100 mtu 9100
+ip link set Ethernet0.100 up
+ip link add link Ethernet64 name Eth64.10 type vlan id 100
+ip link set Eth64.10 mtu 9100
+ip link set Eth64.10 up
 ```
 ```
-ip link del Ethernet64.10
+ip link del Ethernet0.100
+ip link del Eth64.10
 ```
 
 We use `ip address` and `ip -6 address` to add and remove ip adresses on a host sub port interface.
 
 Example:
 ```
-ip address add 192.168.0.1/24 dev Ethernet64.10
+ip address add 192.0.0.1/24 dev Ethernet0.100
+ip address add 192.168.0.1/24 dev Eth64.10
 ```
 
 Please note that the use of iproute2 package is internal to SONiC, specifically IntfMgrd.
@@ -369,13 +470,41 @@ Internally, a sub port interface is represented as a Port object to be perceived
 
 # 3 Event flow diagrams
 ## 3.1 Sub port interface creation
-![](sub_intf_creation_flow.png)
+![](sub_intf_creation_flow_version_2.png)
+
+* Field vlan added to config_db carries vlan id associated to the subinterface.
+* Sub Interface will be created and treated ready only if vlan corresponding to subinterface is configured.
 
 ## 3.2 Sub port interface runtime admin status change
-![](sub_intf_set_admin_status_flow.png)
+![](sub_intf_set_admin_status_flow_version_2.png)
+
+Admin status of the subinterface is tied to its parent interface admin status:
+* Kernel does not allow subinterface netdev UP until its parent netdev is UP.
+* IntfMgrd looks up the admin status of parent interface from STATE_DB|PORT_TABLE.
+    - OP: admin UP of subinterface: If Parent interface is admin UP, subinterface admin UP is performed.
+    - OP: admin down of subinterface: No dependency on parent interface admin status. Subinterface admin down performed.
+* IntfMgrd also subscribes to STATE_DB|PORT_TABLE and APPL_DB|LAG_TABLE for parent interface admin status change to update associated subinterface admin status.
 
 ## 3.3 Sub port interface removal
 ![](sub_intf_removal_flow.png)
+
+## 3.4 Sub port MTU Configuration
+![](sub_intf_set_mtu_flow_version_2.png)
+
+MTU on subinterface has dependency on MTU configured on parent interface.
+
+* Kernel does not allow subinterface netdev MTU to exceed its parent netdev MTU.
+* By default kernel inherits subinterface netdev MTU from parent netdev.
+* If Parent netdev MTU is updated to lower value than any of its subinterface netdev MTU, kernel updates subinterface netdev MTU to parent netdev MTU. But, kernel does NOT restore previous subinterface MTU if parent netdev MTU is configured > subinterface MTU.
+
+To solve above dependency:
+
+* Whenever MTU is updated on subinterface
+    - If configured MTU <= Parent MTU, update subinterface MTU.
+    - If configured MTU > Parent interface MTU, do not update subinterface MTU and cache the configured MTU.
+* IntfMgrd subscribes to STATE_DB|PORT_TABLE & APPL_DB|LAG_TABLE.
+    - If Parent interface MTU is changed to < subinterface MTU, APPL_DB|INTF_TABLE for subinterface is updated to parent interface MTU.
+    - If Parent interface MTU is changed to > subinterface MTU, update subinterface MTU to user configured subinterface MTU.
 
 # 4 CLIs
 ## 4.1 Config commands
@@ -409,7 +538,7 @@ Commands:
   del       Remove a sub port interface
 ```
 ```
-Usage: config subinterface add <sub_port_interface_name>
+Usage: config subinterface add <sub_port_interface_name> [vlan <1-4094>]
 ```
 ```
 Usage: config subinterface del <sub_port_interface_name>
@@ -477,7 +606,8 @@ Example:
 ```
 Sub port interface    Speed    MTU    Vlan    Admin                 Type
 ------------------  -------  -----  ------  -------  -------------------
-     Ethernet64.10     100G   9100      10       up  dot1q-encapsulation
+     Eth64.10          100G   9100    100       up  dot1q-encapsulation
+     Ethernet0.100     100G   9100    100       up  dot1q-encapsulation
 ```
 No operational status is defined on RIF (sub port interface being a type of RIF) in SAI spec.
 
@@ -551,10 +681,8 @@ We enforce a minimum scalability requirement on the number of sub port interface
 | Number of sub port interfaces per physical port or port channel   | 250                       |
 | Number of sub port interfaces per switch                          | 750                       |
 
-# 8 Port channel renaming
-Linux has the limitation of 15 characters on an interface name.
-For sub port interface use cases on port channels, we need to redesign the current naming convention for port channels (PortChannelXXXX, 15 characters) to take shorter names (such as, PoXXXX, 6 characters).
-Even when the parent port is a physical port, sub port interface use cases, such as Ethernet128.1024, still exceed the 15-character limit on an interface name.
+# 8 Upgrade and Downgrade considerations
+Since subinterface are supported in existing long name CONFIG_DB format, Upgrade and downgrade will be seamless with no impact to subinterface functionality.
 
 # 9 Appendix
 ## 9.1 Difference between a sub port interface and a vlan interface
@@ -564,7 +692,48 @@ Vlan interface is a router interface (RIF type vlan Vlan#) facing a .1Q bridge. 
 ![](vlan_intf_rif.png "Fig. 3: Vlan interface")
 __Fig. 3: Vlan interface__
 
-# 10 Open questions:
+# 10 API Library
+All DB & Kernel netdev corresponding to the subinterface can be created with short name & existing long name format.
+Intfmgrd & IntfsOrch which manages sub-interfaces should be able to fetch  parent interface properties for a given subinterface.
+
+## 10.1 SWSS CPP Library
+In CPP, applications can use subintf class provided by sonic-swss library to fetch attributes of subinterface.
+
+Subintf class provides below methods:
+
+1. isValid()
+This method returns true if the subinterface is valid.
+Subinterface will be considered valid if it follows format Ethxxx.yyyy, Poxxx.yyyy & Ethernetxx.yyyy.
+
+2. subIntfIdx()
+Returns a subinterface index as an integer type.
+
+3. longName()
+Returns subinterface name in longname format.
+
+4. shortName()
+Returns subinterface name in shortname format.
+
+5. parentIntfLongName()
+Returns parent interface name in longname format.
+
+6. parentIntfShortName()
+Returns parent interface in shortname format.
+
+
+## 10.2 Python Library
+In Python, applications can use interface library in utilities_common  to perform conversion to longname or shortname.
+
+1. intf_get_longname()
+Returns interface in longname format. 
+It returns a longname format for both subinterface and parent interface depending on what argument is being passed.
+
+2. intf_get_shortname()
+Returns interface in shortname format. 
+It returns a shortname format for both subinterface and parent interface depending on what argument is being passed.
+
+
+# 11 Open questions:
 1. Miss policy to be defined in SAI specification
 
     When a 802.1q tagged packet is received on a physical port or a port channel, it will go to the sub port interface that matches the VLAN id inside the packet.
@@ -573,10 +742,10 @@ __Fig. 3: Vlan interface__
     As shown in Fig. 1, there is possiblity that a physical port or a port channel may not have a RIF type port created.
     In this case, if an untagged packet is received on the physical port or port channel, what is the policy on handling the untagged packet?
 
-# 11 Acknowledgment
+# 12 Acknowledgment
 Wenda would like to thank his colleagues with Microsoft SONiC team, Shuotian, Prince, Pavel, and Qi in particular, Itai with Mellanox for all discussions that shape the design proposal, and community members for comments and feedbacks that improve the design.
 
-# 12 References
+# 13 References
 [1] SAI_Proposal_Bridge_port_v0.9.docx https://github.com/opencomputeproject/SAI/blob/master/doc/bridge/SAI_Proposal_Bridge_port_v0.9.docx
 
 [2] Remove the need to create an object id for vlan in creating a sub port router interface https://github.com/opencomputeproject/SAI/pull/998

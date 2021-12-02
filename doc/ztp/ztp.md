@@ -715,7 +715,7 @@ If user does not provide both DHCP option 67 or DHCP option 239, ZTP service con
 
 Following is the order in which DHCP options are processed:
 
-1. The ZTP JSON file specified in pre-defined location as part of the image Local file on disk */host/ztp/ztp_local_data.json*.
+1. The ZTP JSON file specified in pre-defined location as part of the image Local file on disk */host/ztp/ztp_data_local.json*.
 2. ZTP JSON URL specified via DHCP Option-67
 3. ZTP JSON URL constructed using  DHCP Option-66 TFTP server name, DHCP Option-67 file path on TFTP server
 4. ZTP JSON URL specified via DHCPv6 Option-59
