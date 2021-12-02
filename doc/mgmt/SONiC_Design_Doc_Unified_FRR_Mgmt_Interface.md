@@ -1,6 +1,6 @@
 # SONiC FRR-BGP Extended Unified Configuration Management Framework
 ## High Level Design Document
-### Rev 0.4
+### Rev 0.9
 
 ## Table of Contents
   * [List of Tables](#list-of-tables)
@@ -59,7 +59,11 @@
 | 0.2 | 10/30/2019  | Venkatesan Mahalingam | Config DB schema changes |
 | 0.3 | 11/20/2019  | Venkatesan Mahalingam | Added various fields in config DB |
 | 0.4 | 12/18/2019  | Venkatesan Mahalingam | Addressed the comments on error handling and method of testing |
-| 0.5 | 11/29/2021 | Sucheta Mahara | Enable BGP with link local only using v6only|
+| 0.5 | 05/29/2020  | Venkatesan Mahalingam | Addressed the comments and added the new fields |
+| 0.6 | 07/17/2020  | Eddy Lem | Update to new show bgp command syntax |  
+| 0.7 | 08/10/2020  | Venkatesan Mahalingam | Added a requirement to indicate that this document intends to cover non-template based FRR configurations i.e solely based on configurations from config DB |
+| 0.8 | 01/28/2021  | Zhenhong Zhao & Venkatesan Mahalingam | Changed daemon name from bgpcfgd to frrcfgd and added some missed table and field descriptions |
+| 0.9 | 03/05/2021 | Venkatesan Mahalingam | Added a field 'frr_mgmt_framework_config' field in DEVICE_METADATA config-DB schema to start frrcfgd daemon and table name change for PREFIX table |
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -73,17 +77,16 @@ This document describes the high level design of FRR-BGP Extended Unified Config
 |--------------------------|-------------------------------------|
 | FRR                      | Free Range Routing Stack            |
 | CVL                      | Config Validation Library           |
-| VRF                      | Virtual routing forwarding          |
+| VRF                      | Virtual Routing and Forwarding          |
 | RIB                      | Routing Information Base            |
-| PBR                      | Policy based routing                |
+| PBR                      | Policy Based Routing                |
 | NBI                      | North Bound Interface               |
 
 
 
 # 1 Feature Overview
 
-This feature extends and provides unified configuration and management capability for FRR-BGP features used in SONiC. This allows the user to configure & manage FRR-BGP using SONiC Management Framework with Open Config data models via REST, gNMI and also provides access via SONiC Management Framework CLI as well.
-
+This feature extends and provides unified configuration and management capability for FRR-BGP features used in SONiC. This allows the user to configure & manage FRR-BGP using SONiC Management Framework with Open Config data models via REST, gNMI and provides access via SONiC Management Framework CLI.
 
 ## 1.1 Requirements
 
@@ -91,13 +94,15 @@ This feature extends and provides unified configuration and management capabilit
 ### 1.1.1 Functional Requirements
 
   1. Extend Unified mode for full FRR-BGP config and management in SONiC
-  2. Extend sonic-cfggen, bgpcfgd and integrate with FRR-BGP for features supported in SONiC
+  2. Ability to start frrcfgd (new FRR config deamon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on frr_mgmt_framework_config field with "true"/"false" in DEVICE_METADATA table
+  3. Add frrcfgd daemon (sonic-buildimage/src/sonic-frr-mgmt-framework) and integrate with FRR-BGP for features supported in SONiC
   3. Support for retrieval of FRR-BGP state and statistics information
   4. For backward compatibility retain access to FRR UI (vtysh) for managing features that are NOT in conflict with SONiC features
+  5. Configure FRR solely based on configurations from config DB (refer various config DB schemas given in this document) i.e not based on fixed/template based FRR configurations from frrcfgd with minimal configurations from config DB.
 
 ### 1.1.2 Configuration and Management Requirements
 
-1. Support Open Config data models for BGP config and Management
+1. Support [Open Config data models for BGP](https://github.com/openconfig/public/tree/master/release/models/bgp) config and Management
 2. Provide IS-CLI/gNMI/REST support for config and management of FRR-BGP features used in SONIC
 3. Enhance with Custom YANG models for features used in BGP that are not supported via Open Config data model
 4. Define ABNF schema for BGP features used in SONiC
@@ -109,8 +114,8 @@ N/A
 As state and statistics information is retrieved from FRR-BGP on demand there is no Warm Boot specific requirements for this feature.
 
 ## 1.2 Design Overview
-SONiC FRR-BGP Extended Unified config and management capability makes use of Management framework to implement the backend and transformer methods to support Open Config data models for BGP and route policy feature. The backend converts the incoming request to Redis ABNF schema format and writes the configuration to Redis DB. Then from DB events, bgpcfgd will configure FRR-BGP using FRR CLI commands.
-It also uses management framework's transformer methods to do syntactic and semantic validation of the requests using ABNF JSON before writing them into the Redis DB.
+SONiC FRR-BGP Extended Unified config and management capability makes use of Management framework to implement the backend and transformer methods to support Open Config data models for BGP and route policy feature. The backend converts the incoming request to Redis ABNF schema format and writes the configuration to Redis DB. Then from DB events, frrcfgd will configure FRR-BGP using FRR CLI commands.
+It also uses management framework's transformer methods to do syntactic and semantic YANG validation of the requests using ABNF JSON before writing them into the Redis DB.
 
 ### 1.2.1 Basic Approach
 
@@ -128,7 +133,7 @@ It also uses management framework's transformer methods to do syntactic and sema
 
 There will be changes in following containers,
 * sonic-mgmt-framework
-* sonic-frr
+* bgp
 
 ### 1.2.3 SAI Overview
 N/A - software feature
@@ -148,19 +153,17 @@ The extended unified config and management framework for FRR-BGP in SONiC is rep
 
 ![FRR-BGP Unified Mgmt Framework](images/FRR-BGP-Unified-mgmt-frmwrk.png)
 
-1. Transformer common app owns the Open config data models related to BGP (which means no separate app module required for handling BGP open-config and augmented YANG objects).
+1. Provide annotations for openconfig YANG to SONiC YANG objects mapping so that transformer and CVL will take care of processing the requests and updating the config DB.
 
-2. Provide annotations for required objects so that transformer core and common app will take care of handling them.
+2. Provide transformer methods as per the annotations defined to take care of model specific logics and validations.
 
-3. Provide transformer methods as per the annotations defined to take care of model specific logics and validations.
+3. Define SONiC YANG and Redis ABNF schema for the supported Open Config BGP models & objects.
 
-4. Define SONiC YANG and Redis ABNF schema for the supported Open Config BGP models & objects.
+4. KLISH CLI and REST clients provide extensive BGP configurations and hence there should not be any need for BGP configurations via vtysh.
 
-5. KLISH CLI and REST clients provide extensive BGP configurations and hence there should not be any need for BGP configurations via vtysh.
+5. In frrcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP, similarly, the config daemon could configure other features like OSPF, BFD, static route..etc
 
-6. In bgpcfgd register for Redis DB events for the BGP and other related objects, so as to translate the Redis DB events to FRR-BGP CLI commands to configure FRR-BGP, similarly, separate config daemons can be present to configure individual features like OSPF, BFD..etc
-
-7. Update /usr/share/sonic/templates/bgpd.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate /etc/frr/bgpd.conf file.
+6. Update /usr/local/sonic/frrcfgd/bgpd.conf.j2 template for new FRR-BGP configurations supported in SONiC which will be used by sonic-cfggen to generate /etc/frr/bgpd.conf file.
 
 ## 3.2 DB Changes
 Following section describes the changes to DB.
@@ -173,12 +176,14 @@ Added new tables to configure following information:
   * BGP neighbor & address family configurations
   * BGP peer group & address family configurations
   * BGP listen prefix configuration for peer group
+  * BGP aggregate entries address family configuration
+  * BGP network address family configuration
   * Route map configurations
   * Route redistribute configurations
-  * Route policy sets (prefix list/community/ext-community/as-path/neighbor-set/tag-set configurations
+  * Route policy sets (prefix/community/ext-community/as-path/neighbor/tag/nexthop) configurations
 
 Enhanced following table to configure additional attributes:
-
+  * DEVICE_METADATA
   * BGP Neighbor table
 
 #### 3.2.1.1 BGP_GLOBALS
@@ -187,40 +192,32 @@ Enhanced following table to configure additional attributes:
 ;
 ;Status: stable
 
-key                                  = BGP_GLOBALS|vrf ;
-vrf                                  = 1\*15VCHAR ; VRF name
-local_asn                            = 1*10DIGIT ; Local ASN for the BGP instance
+key                                  = BGP_GLOBALS|vrf_name ;
+vrf_name                             = 1\*15VCHAR ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
 router_id                            = \*IPv4prefix ; Router ID IPv4 address
-load_balance_mp_relax                = "true" / "false" ;
-grace_restart                        = "true" / "false" ;
-always_compare_med                   = "true" / "false" ;
-load_balance_mp_relax                = "true" / "false" ;
-graceful_restart_enable              = "true" / "false" ;
-gr_restart_time                      = 1*4DIGIT ; {1..3600 };
-gr_stale_routes_time                 = 1*4DIGIT ; {1..3600 };
-ebgp_route_distance                  = 1*2DIGIT ; {1..255 };
-ibgp_route_distance                  = 1*2DIGIT ; {1..255 };
-external_compare_router_id           = "true" / "false" ;
-ignore_as_path_length                = "true" / "false" ;
-log_nbr_state_changes                = "true" / "false" ;
+local_asn                            = 1*10DIGIT ; Local ASN for the BGP instance
+always_compare_med                   = "true" / "false" ; Allow comparing MED from different neighbors
+load_balance_mp_relax                = "true" / "false" ; Allow load sharing across routes that have different AS paths (but same length)
+graceful_restart_enable              = "true" / "false" ; Graceful restart status
+gr_preserve_fw_state                 = "true" / "false" ; Sets F-bit indication that fib is preserved while doing Graceful Restart
+gr_restart_time                      = 1*4DIGIT ; {1..3600 };  Set the time to wait to delete stale routes before a BGP open message is received
+gr_stale_routes_time                 = 1*4DIGIT ; {1..3600 }; Set the max time to hold onto restarting peer's stale paths
+external_compare_router_id           = "true" / "false" ; Compare router-id for identical EBGP paths
+ignore_as_path_length                = "true" / "false" ; Ignore as-path length in selecting a route
+log_nbr_state_changes                = "true" / "false" ; Log neighbor up/down and reset reason
 rr_cluster_id                        = 1*64VCHAR ; Route reflector cluster id
 rr_allow_out_policy                  = "true" / "false" ; Router reflector allow outbound Policy
-disable_ebgp_connected_rt_check      = "true" / "false" ;
-fast_external_failover               = "true" / "false" ;
-network_import_check                 = "true" / "false" ;
-graceful_shutdown                    = "true" / "false" ;
-route_flap_dampen                    = "true" / "false" ;
-route_flap_dampen_half_life          = 1*2DIGIT; {1..45}
-route_flap_dampen_reuse_threshold    = 1*5DIGIT; {1..20000}
-route_flap_dampen_suppress_threshold = 1*5DIGIT; {1..20000}
-route_flap_dampen_max_suppress       = 1*3DIGIT; {1..255}
-rr_clnt_to_clnt_reflection           = "true" / "false" ;
-max_dynamic_neighbors                = 1*4DIGIT; {1..5000}
-read_quanta                          = 1*2DIGIT; {1..10} Indicates how many packets to read from peer socket per I/O cycle
-write_quanta                         = 1*2DIGIT; {1..10} Indicates how many packets to write to peer socket per run
+disable_ebgp_connected_rt_check      = "true" / "false" ; Disable checking if nexthop is connected on ebgp sessions
+fast_external_failover               = "true" / "false" ; Immediately reset session if a link to a directly connected external peer goes down
+network_import_check                 = "true" / "false" ; Check BGP network route exists in IGP
+graceful_shutdown                    = "true" / "false" ; Graceful shutdown status
+rr_clnt_to_clnt_reflection           = "true" / "false" ; Configure client to client route reflection
+max_dynamic_neighbors                = 1*4DIGIT; {1..5000}; Maximum number of BGP Dynamic Neighbors that can be created
+read_quanta                          = 1*2DIGIT; {1..10}; Indicates how many packets to read from peer socket per I/O cycle
+write_quanta                         = 1*2DIGIT; {1..10}; Indicates how many packets to write to peer socket per run
 coalesce_time                        = 1*10DIGIT; Subgroup coalesce timer value in milli-sec
-route_map_process_delay              = 1*3DIGIT; { 0..600}
-deterministic_med                    = "true" / "false" ;
+route_map_process_delay              = 1*3DIGIT; { 0..600}; Time in secs to wait before processing route-map changes
+deterministic_med                    = "true" / "false" ; Pick the best-MED path among paths advertised from the neighboring AS
 med_confed                           = "true" / "false" ; Compare MED among confederation paths when set to true
 med_missing_as_worst                 = "true" / "false" ; Treat missing MED as the least preferred one when set to true
 compare_confed_as_path               = "true" / "false" ; Compare path lengths including confederation sets & sequences in selecting a route
@@ -229,11 +226,18 @@ default_ipv4_unicast                 = "true" / "false" ; Activate ipv4-unicast 
 default_local_preference             = "true" / "false" ; Configure default local preference value
 default_show_hostname                = "true" / "false" ; Show hostname in BGP dumps
 default_shutdown                     = "true" / "false" ; Apply administrative shutdown to newly configured peers
-default_subgroup_pkt_queue_max       = 1*2DIGIT; {20..100} Configure subgroup packet queue max
-max_med_time                         = 1*5DIGIT; {5..86400} Time (seconds) period for max-med
+default_subgroup_pkt_queue_max       = 1*3DIGIT; {20..100}; Configure subgroup packet queue max
+max_med_time                         = 1*5DIGIT; {5..86400}; Time (seconds) period for max-med
 max_med_val                          = 1*10DIGIT; Max MED value to be used
-max_delay                            = 1*4DIGIT; {0..3600} Maximum delay for best path calculation
-establish_wait                       = 1*5DIGIT; {Maximum delay for updates}
+max_med_admin                        = "true" / "false" ; Advertise routes with max-med, administratively applied,  for an indefinite period
+max_med_admin_val                    = 1*10DIGIT; Max MED value to be used
+max_delay                            = 1*4DIGIT; {0..3600}; Maximum delay for best path calculation
+establish_wait                       = 1*4DIGIT; {1..3600}; Maximum delay for updates
+confed_id                            = 1*10DIGIT; AS confederation identifier
+confed_peers                         = 1*10DIGIT; Peer ASs in BGP confederation
+keepalive                            = 1*5DIGIT; {0..65535}; Keepalive interval
+holdtime                             = 1*5DIGIT; {0..65535}; Holdtime
+
 ```
 #### 3.2.1.2 BGP_GLOBALS_AF
 ```JSON
@@ -241,60 +245,88 @@ establish_wait                       = 1*5DIGIT; {Maximum delay for updates}
 ;
 ;Status: stable
 
-key                       = BGP_GLOBALS_AF|vrf|af_name ;
-vrf                       = 1\*15VCHAR ; VRF name
-af_name                   = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
-max_ebgp_paths            = 1*3DIGIT ; {1..256}
-max_ibgp_paths            = 1*3DIGIT ; {1..256}
-aggregate_prefix          = IPv4Prefix / IPv6prefix ;
-aggregate_as_set          = "true" / "false" ;
-aggregate_summary_only    = "true" / "false" ;
-network_prefix            = IPv4Prefix / IPv6prefix ;
-network_policy            = 1*64VCHAR ;
-network_backdoor          = "true" / "false" ;
-route_download_filter     = 1*64VCHAR ;
-ebgp_route_distance       = 1*3DIGIT; { 1.255}
-ibgp_route_distance       = 1*3DIGIT; { 1.255}
-ibgp_equal_cluster_length = "true" / "false" ;
+key                                  = BGP_GLOBALS_AF|vrf_name|afi_safi ;
+vrf_name                             = 1\*15VCHAR ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
+afi_safi                             = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
+max_ebgp_paths                       = 1*3DIGIT ; {1..256}; Number of eBGP paths
+max_ibgp_paths                       = 1*3DIGIT ; {1..256}; Number of iBGP paths
+import_vrf                           = 1\*15VCHAR ; VRF name to import the routes from
+import_vrf_route_map                 = 1*64VCHAR ; route map name
+route_download_filter                = 1*64VCHAR ; route map name to filter routes from VRF
+ebgp_route_distance                  = 1*3DIGIT; { 1.255}; Distance for routes external to the AS
+ibgp_route_distance                  = 1*3DIGIT; { 1.255}; Distance for routes internal to the AS
+local_route_distance                 = 1*3DIGIT; { 1.255}; Administrative distance for local routes
+ibgp_equal_cluster_length            = "true" / "false" ; Match the cluster length for iBGP paths
+route_flap_dampen                    = "true" / "false" ; Route-flap dampening status
+route_flap_dampen_half_life          = 1*2DIGIT; {1..45}; Half-life time for the penalty
+route_flap_dampen_reuse_threshold    = 1*5DIGIT; {1..20000}; Value to start reusing a route
+route_flap_dampen_suppress_threshold = 1*5DIGIT; {1..20000}; Value to start suppressing a route
+route_flap_dampen_max_suppress       = 1*3DIGIT; {1..255}; Maximum duration to suppress a stable route
 
 ```
+#### 3.2.1.3 BGP_GLOBALS_AF_AGGREGATE_ADDR
+```JSON
+;Defines BGP Address family aggregate address table
+;
+;Status: stable
 
-#### 3.2.1.3 BGP_LISTEN_PREFIX
+key                       = BGP_GLOBALS_AF_AGGREGATE_ADDR|vrf_name|afi_safi|ip_prefix;
+vrf_name                  = 1\*15VCHAR ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
+afi_safi                  = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
+ip_prefix                 = IPv4Prefix / IPv6prefix ; Aggregate prefix
+as_set                    = "true" / "false" ; Generate AS set path information
+summary_only              = "true" / "false" ; Filter more specific routes from updates
+policy                    = 1*64VCHAR ; Apply route map to aggregate network
+```
+#### 3.2.1.4 BGP_GLOBALS_AF_NETWORK
+```JSON
+;Defines BGP Address family network address table
+;
+;Status: stable
+
+key                       = BGP_GLOBALS_AF_NETWORK|vrf_name|afi_safi|ip_prefix;
+vrf_name                  = 1\*15VCHAR ; VRF name should be "default" or prefixed with "Vrf" for user VRFs
+afi_safi                  = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
+ip_prefix                 = IPv4Prefix / IPv6prefix ; Network address to announce via BGP
+policy                    = 1*64VCHAR ; Route-map to modify the attributes
+backdoor                  = "true" / "false" ; Backdoor route
+```
+
+#### 3.2.1.5 BGP_LISTEN_PREFIX
 ```JSON
 ;Defines BGP Listen Prefix table
 ;
 ;Status: stable
 
-key             = BGP_GLOBALS_LISTEN_PREFIX|vrf|IPprefix ;
-vrf             = 1\*15VCHAR ; VRF name
-IPprefix        = IPv4Prefix / IPv6prefix ;
-peer_group_name = 1*64VCHAR ; Peer group this listen prefix is associated with
+key             = BGP_GLOBALS_LISTEN_PREFIX|vrf_name|ip_prefix ;
+vrf_name        = 1\*15VCHAR ; VRF name
+ip_prefix       = IPv4Prefix / IPv6prefix ;
+peer_group      = 1*64VCHAR ; Peer group this listen prefix is associated with
 ```
 
-#### 3.2.1.4 BGP_NEIGHBOR
+#### 3.2.1.6 BGP_NEIGHBOR
 
 ```JSON
 ;Defines BGP neighbor table
 ;
 ;Status: stable
 
-key                                = BGP_NEIGHBOR|vrf|neighbor_ip ;
-vrf                                = 1\*15VCHAR ; VRF name
-neighbor                           = IPv4Prefix / IPv6prefix Ethernet / PortChannel / Vlan ;
+key                                = BGP_NEIGHBOR|vrf_name|neighbor ;
+vrf_name                           = 1\*15VCHAR ; VRF name
+neighbor                           = IPv4Prefix / IPv6prefix / 1*64VCHAR ; IPv4/IPv6 address/Interface name
+peer_group_name                    = 1*64VCHAR ; peer group name
 local_asn                          = 1*10DIGIT ; Local ASN for the BGP neighbor
 name                               = 1*64VCHAR ; BGP neighbor description
 asn                                = 1*10DIGIT; Remote ASN value
+peer_type                          = "internal" / "external" Internal/External BGP peer
 ebgp_multihop                      = "true" / "false" ; Allow EBGP neighbors not on directly connected networks
 ebgp_multihop_ttl                  = 1*3DIGIT ; {1..255} EBGP multihop count
 auth_password                      = STRING ; Set a password
-enabled                            = "true" / "false" ; Neighbor admin status
-keepalive_intvl                    = 1*4DIGIT ; {1..3600} keepalive interval
-hold_time                          = 1*4DIGIT ; {1..3600}  hold time
-local_address                      = IPprefix ; local IP address
-peer_group_name                    = 1*64VCHAR ; peer group name
-peer_type                          = "internal" / "external" Internal/External BGP peer
+keepalive                          = 1*4DIGIT ; {1..3600} keepalive interval
+holdtime                           = 1*4DIGIT ; {1..3600}  hold time
 conn_retry                         = 1*5DIGIT ; {1..65535} Connection retry timer
 min_adv_interval                   = 1*3DIGIT ; {1..600} Minimum interval between sending BGP routing updates
+local_addr                         = IPprefix ; local IP address
 passive_mode                       = "true" / "false" ; Don't send open messages
 capability_ext_nexthop             = "true" / "false" ; Advertise extended next-hop capability
 disable_ebgp_connected_route_check = "true" / "false" ; one-hop away EBGP peer using loopback address
@@ -302,27 +334,30 @@ enforce_first_as                   = "true" / "false" ; Enforce the first AS for
 solo_peer                          = "true" / "false" ; Solo peer - part of its own update group
 ttl_security_hops                  = 1*3DIGIT ; {1.254} BGP ttl-security parameters
 bfd                                = "true" / "false" ; Enable BFD support
-capability-dynamic                 = "true" / "false" ; Advertise dynamic capability
-dont-negotiate-capability          = "true" / "false" ; Do not perform capability negotiation
-enforce-multihop                   = "true" / "false" ; Allow EBGP neighbors not on directly connected networks
-override-capability                = "true" / "false" ; Override capability negotiation result
-peer-port                          = 1*5DIGIT ; {0..65535} Neighbor's BGP port
-shutdown-message                   = "true" / "false" ; Add a shutdown message
-strict-capability-match            = "true" / "false" ; Strict capability negotiation match
-v6only                             = "true" / "false" ; Establish BGP session with Link local only.
+bfd_check_ctrl_plane_failure       = "true" / "false" ; Link dataplane status with BGP controlplane
+capability_dynamic                 = "true" / "false" ; Advertise dynamic capability
+dont_negotiate_capability          = "true" / "false" ; Do not perform capability negotiation
+enforce_multihop                   = "true" / "false" ; Allow EBGP neighbors not on directly connected networks
+override_capability                = "true" / "false" ; Override capability negotiation result
+peer_port                          = 1*5DIGIT ; {0..65535} Neighbor's BGP port
+shutdown_message                   = "true" / "false" ; Add a shutdown message
+strict_capability_match            = "true" / "false" ; Strict capability negotiation match
+admin_status                       = "true" / "false" ; Neighbor admin status
+local_as_no_prepend                = "true" / "false" ; Do not prepend local-as to updates from ebgp peers
+local_as_replace_as                = "true" / "false" ; Do not prepend local-as to updates from ibgp peers
 
 ```
-#### 3.2.1.5 BGP_NEIGHBOR_AF
+#### 3.2.1.7 BGP_NEIGHBOR_AF
 ```JSON
 ;Defines BGP Neighbor table at an address family level
 ;
 ;Status: stable
 
-key                            = BGP_NEIGHBOR_AF|vrf|neighbor_ip|af_name ;
-vrf                            = 1\*15VCHAR ; VRF name
-neighbor_ip                    = IPv4Prefix / IPv6prefix ;
-af_name                        = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
-enabled                        = "true" / "false" ; Neighbor admin status
+key                            = BGP_NEIGHBOR_AF|vrf_name|neighbor|afi_safi ;
+vrf_name                       = 1\*15VCHAR ; VRF name
+neighbor                       = IPv4Prefix / IPv6prefix ;
+afi_safi                       = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
+admin_status                   = "true" / "false" ; Neighbor admin status
 send_default_route             = "true" / "false" ;
 default_rmap                   = 1*64VCHAR ; Filter sending default routes bsaed on this route map.    
 max_prefix_limit               = 1*10DIGIT; Maximum number of prefixes to accept from this peer
@@ -333,34 +368,31 @@ route_map_in                   = 1*64VCHAR ; Apply route map on incoming routes 
 route_map_out                  = 1*64VCHAR ; Apply route map on outgoing routes to neighbor
 soft_reconfiguration_in        = "true" / "false" ; Per neighbor soft reconfiguration
 unsuppress_map_name            = 1*64VCHAR ; Route-map to selectively un-suppress suppressed routes        
-route_reflector_client         = "true" / "false" ; Configure a neighbor as Route Reflector client
+rrclient                       = "true" / "false" ; Configure a neighbor as Route Reflector client
 weight                         = 1*5DIGIT ; {0..65535} Set default weight for routes from this neighbor
 as_override                    = "true" / "false" ;  Override ASNs in outbound updates if aspath equals remote-as
 send_community                 = "standard" / "extended" / "both" / "none" ; Send Community attribute to this neighbor
-add_path_tx_all                = "true" / "false" ;
-add_path_tx_bestpath           = "true" / "false" ;
-unchanged_as_path              = "true" / "false" ;
-unchanged_med                  = "true" / "false" ;
-unchanged_nexthop              = "true" / "false" ;      
-filter_list_name               = 1*64VCHAR ;
-filter_list_direction          = "inbound" / "outbound";
-nexthop_self_enabled           = "true" / "false" ;
-nexthop_self_force             = "true" / "false" ;       
-prefix_list_name               = 1*64VCHAR ;
-prefix_list_direction          = "inbound" / "outbound";
-remove_private_as_enabled      = "true" / "false" ;
-replace_private_as             = "true" / "false" ;
-remove_private_as_all          = "true" / "false" ;  
+tx_add_paths                   = "tx_all_paths" / "tx_best_path_per_as" ; Advertise all paths to a neighbor / Send only best path per AS to a neighbor
+unchanged_as_path              = "true" / "false" ; AS-PATH attribute is propagated unchanged to a neighbor
+unchanged_med                  = "true" / "false" ; MED attribute is propagated unchanged to a neighbor
+unchanged_nexthop              = "true" / "false" ; Nexthop attribute is propagated unchanged to a neighbor   
+filter_list_in                 = 1*64VCHAR ; AS Path filter for incoming routes
+filter_list_out                = 1*64VCHAR ; AS path Filter for outgoing routes
+nhself                         = "true" / "false" ; Disable the next hop calculation for this neighbor
+nexthop_self_force             = "true" / "false" ;  Set the next hop to self for reflected routes     
+prefix_list_in                 = 1*64VCHAR ;  Prefix list to apply on incoming routes
+prefix_list_out                = 1*64VCHAR ; Prefix list to apply on outcoming routes
+remove_private_as_enabled      = "true" / "false" ; Remove private ASNs in outbound updates
+replace_private_as             = "true" / "false" ; Replace private ASNs with our ASN in outbound update
+remove_private_as_all          = "true" / "false" ;  Apply to all AS numbers
+allow_as_in                     = "true" / "false" ;  Accept as-path with my AS present in it
 allow_as_count                 = 1*3DIGIT ;  Number of occurences of AS number
-allow_asin                     = "true" / "false" ;  Accept as-path with my AS present in it
 allow_as_origin                = "true" / "false" ; Only accept my AS in the as-path if the route was originated in my AS
-capability_orf_send            = "true" / "false" ; Capability to receive the outbound route filtering from this neighbor
-capability_orf_receive         = "true" / "false" ; Capability to send the outbound route filtering to this neighbor
-capability_orf_both            = "true" / "false" ; Capability to send and receive the outbound route filtering to/from this neighbor
-route-server-client            = "true" / "false" ; Configure a neighbor as Route Server client
+cap_orf                        = "send" / "receive" / "both" ; Outbound route filtering capability
+route_server_client            = "true" / "false" ; Configure a neighbor as Route Server client
 ```
 
-#### 3.2.1.6 BGP_PEER_GROUP
+#### 3.2.1.8 BGP_PEER_GROUP
 The existing BGP_PEER_RANGE (peer group) table does not have vrf-name as the key (but added as the field in the table as per VRF HLD) but FRR and open config models have the peer-group under VRF context, so, the new table BGP_PEER_GROUP has been introduced for configurations from management framework (This is not a backward compatible change, expecting the user to migrate to this table in the near future).
 
 ```JSON
@@ -368,23 +400,21 @@ The existing BGP_PEER_RANGE (peer group) table does not have vrf-name as the key
 ;
 ;Status: stable
 
-key                                = BGP_PEER_GROUP|vrf|pgrp_name ;
-vrf                                = 1\*15VCHAR ; VRF name
-pgrp_name                          = 1*64VCHAR ; alias name for the peer group , must be unique
+key                                = BGP_PEER_GROUP|vrf_name|peer_group_name ;
+vrf_name                           = 1\*15VCHAR ; VRF name
+peer_group_name                    = 1*64VCHAR ; alias name for the peer group , must be unique
 local_asn                          = 1*10DIGIT ; Local ASN for the BGP neighbor
 name                               = 1*64VCHAR ; BGP neighbor description
 asn                                = 1*10DIGIT; Remote ASN value
+peer_type                          = "internal" / "external" Internal/External BGP peer
 ebgp_multihop                      = "true" / "false" ; Allow EBGP neighbors not on directly connected networks
 ebgp_multihop_ttl                  = 1*3DIGIT ; {1..255} EBGP multihop count
 auth_password                      = STRING ; Set a password
-enabled                            = "true" / "false" ; Neighbor admin status
-keepalive_intvl                    = 1*4DIGIT ; {1..3600} keepalive interval
-hold_time                          = 1*4DIGIT ; {1..3600}  hold time
-local_address                      = IPprefix ; local IP address
-peer_group_name                    = 1*64VCHAR ; peer group name
-peer_type                          = "internal" / "external" Internal/External BGP peer
+keepalive                          = 1*4DIGIT ; {1..3600} keepalive interval
+holdtime                           = 1*4DIGIT ; {1..3600}  hold time
 conn_retry                         = 1*5DIGIT ; {1..65535} Connection retry timer
 min_adv_interval                   = 1*3DIGIT ; {1..600} Minimum interval between sending BGP routing updates
+local_address                      = IPprefix ; local IP address
 passive_mode                       = "true" / "false" ; Don't send open messages
 capability_ext_nexthop             = "true" / "false" ; Advertise extended next-hop capability
 disable_ebgp_connected_route_check = "true" / "false" ; one-hop away EBGP peer using loopback address
@@ -392,6 +422,7 @@ enforce_first_as                   = "true" / "false" ; Enforce the first AS for
 solo_peer                          = "true" / "false" ; Solo peer - part of its own update group
 ttl_security_hops                  = 1*3DIGIT ; {1.254} BGP ttl-security parameters
 bfd                                = "true" / "false" ; Enable BFD support
+bfd_check_ctrl_plane_failure       = "true" / "false" ; Link dataplane status with BGP controlplane
 capability-dynamic                 = "true" / "false" ; Advertise dynamic capability
 dont-negotiate-capability          = "true" / "false" ; Do not perform capability negotiation
 enforce-multihop                   = "true" / "false" ; Allow EBGP neighbors not on directly connected networks
@@ -399,20 +430,22 @@ override-capability                = "true" / "false" ; Override capability nego
 peer-port                          = 1*5DIGIT ; {0..65535} Neighbor's BGP port
 shutdown-message                   = "true" / "false" ; Add a shutdown message
 strict-capability-match            = "true" / "false" ; Strict capability negotiation match
+admin_status                       = "true" / "false" ; Neighbor admin status
+local_as_no_prepend                = "true" / "false" ; Do not prepend local-as to updates from ebgp peers
+local_as_replace_as                = "true" / "false" ; Do not prepend local-as to updates from ibgp peers
 ```
-#### 3.2.1.7 BGP_PEER_GROUP_AF
+#### 3.2.1.9 BGP_PEER_GROUP_AF
 
 ```JSON
 ;Defines BGP per address family peer group table
 ;
 ;Status: stable
 
-key                            = BGP_PEER_GROUP_AF|vrf|pgrp_name|af_name" ;
+key                            = BGP_PEER_GROUP_AF|vrf_name|peer_group_name|afi_safi" ;
 vrf                            = 1\*15VCHAR ; VRF name
-af_name                        = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
-pgrp_name                      = 1*64VCHAR ; alias name for the peer group template, must be unique
-af_name                        = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
-enabled                        = "true" / "false" ; Neighbor admin status
+peer_group_name                = 1*64VCHAR ; alias name for the peer group template, must be unique
+afi_safi                       = "ipv4_unicast" / "ipv6_unicast" / "l2vpn_evpn"  ; address family
+admin_status                   = "true" / "false" ; Neighbor admin status
 send_default_route             = "true" / "false" ;
 default_rmap                   = 1*64VCHAR ; Filter sending default routes bsaed on this route map.    
 max_prefix_limit               = 1*10DIGIT; Maximum number of prefixes to accept from this peer
@@ -423,132 +456,162 @@ route_map_in                   = 1*64VCHAR ; Apply route map on incoming routes 
 route_map_out                  = 1*64VCHAR ; Apply route map on outgoing routes to neighbor
 soft_reconfiguration_in        = "true" / "false" ; Per neighbor soft reconfiguration
 unsuppress_map_name            = 1*64VCHAR ; Route-map to selectively un-suppress suppressed routes        
-route_reflector_client         = "true" / "false" ; Configure a neighbor as Route Reflector client
+rrclient                       = "true" / "false" ; Configure a neighbor as Route Reflector client
 weight                         = 1*5DIGIT ; {0..65535} Set default weight for routes from this neighbor
 as_override                    = "true" / "false" ;  Override ASNs in outbound updates if aspath equals remote-as
 send_community                 = "standard" / "extended" / "both" / "none" ; Send Community attribute to this neighbor
-add_path_tx_all                = "true" / "false" ;
-add_path_tx_bestpath           = "true" / "false" ;
-unchanged_as_path              = "true" / "false" ;
-unchanged_med                  = "true" / "false" ;
-unchanged_nexthop              = "true" / "false" ;      
-filter_list_name               = 1*64VCHAR ;
-filter_list_direction          = "inbound" / "outbound";
-nexthop_self_enabled           = "true" / "false" ;
-nexthop_self_force             = "true" / "false" ;       
-prefix_list_name               = 1*64VCHAR ;
-prefix_list_direction          = "inbound" / "outbound";
-remove_private_as_enabled      = "true" / "false" ;
-replace_private_as             = "true" / "false" ;
-remove_private_as_all          = "true" / "false" ;  
+tx_add_paths                   = "tx_all_paths" / "tx_best_path_per_as" ; Advertise all paths to a neighbor / Send only best path per AS to a neighbor
+unchanged_as_path              = "true" / "false" ; AS-PATH attribute is propagated unchanged to a neighbor
+unchanged_med                  = "true" / "false" ; MED attribute is propagated unchanged to a neighbor
+unchanged_nexthop              = "true" / "false" ; Nexthop attribute is propagated unchanged to a neighbor   
+filter_list_in                 = 1*64VCHAR ; AS Path filter for incoming routes
+filter_list_out                = 1*64VCHAR ; AS path Filter for outgoing routes
+nhself                         = "true" / "false" ; Disable the next hop calculation for this neighbor
+nexthop_self_force             = "true" / "false" ;  Set the next hop to self for reflected routes     
+prefix_list_in                 = 1*64VCHAR ;  Prefix list to apply on incoming routes
+prefix_list_out                = 1*64VCHAR ; Prefix list to apply on outcoming routes
+remove_private_as_enabled      = "true" / "false" ; Remove private ASNs in outbound updates
+replace_private_as             = "true" / "false" ; Replace private ASNs with our ASN in outbound update
+remove_private_as_all          = "true" / "false" ;  Apply to all AS numbers
+allow_as_in                     = "true" / "false" ;  Accept as-path with my AS present in it
 allow_as_count                 = 1*3DIGIT ;  Number of occurences of AS number
-allow_asin                     = "true" / "false" ;  Accept as-path with my AS present in it
 allow_as_origin                = "true" / "false" ; Only accept my AS in the as-path if the route was originated in my AS
-capability_orf_send            = "true" / "false" ; Capability to receive the outbound route filtering from this neighbor
-capability_orf_receive         = "true" / "false" ; Capability to send the outbound route filtering to this neighbor
-capability_orf_both            = "true" / "false" ; Capability to send and receive the outbound route filtering to/from this neighbor
-route-server-client            = "true" / "false" ; Configure a neighbor as Route Server client
+cap_orf                        = "send" / "receive" / "both" ; Outbound route filtering capability
+route_server_client            = "true" / "false" ; Configure a neighbor as Route Server client
 ```
-#### 3.2.1.8 ROUTE_MAP
+
+### 3.2.1.10 ROUTE_MAP_SET
+```JSON
+;Defines route map set table
+;
+;Status: stable
+
+key           = ROUTE_MAP_SET|name          ; route map set name must be unique
+name          = 1*255VCHAR ; route map set name  
+
+```
+
+#### 3.2.1.10.1 ROUTE_MAP
 ```JSON
 ;Defines route map table
 ;
 ;Status: stable
 
-key                      = ROUTE_MAP|route_map_name|stmt_name ;
-route_map_name           = 1*64VCHAR ; route map name
-stmt_name                = 1*64VCHAR ; statment name
-route_operation          = "ACCEPT" / "REJECT"
-match_interface          = 1*64VCHAR ; Match interface name
-match_prefix_set         = 1*64VCHAR ; Match prefix sets
-match_med                = 1*10DIGIT ; Match metric of route
-match_origin             = 1*64VCHAR ; Match BGP origin code
-match_local_pref         = 1*64VCHAR ; Match local-preference of route
-match_community          = 1*64VCHAR ; Match BGP community list
-match_ext_community      = 1*64VCHAR ; Match BGP/VPN extended community list
-match_as_path            = 1*64VCHAR ; Match BGP AS path list
-call_route_map           = 1*64VCHAR ; Jump to another Route-Map after match+set
+key                             = ROUTE_MAP|route_map_name|stmt_name ;
+route_map_name                  = 1*64VCHAR ; route map name
+stmt_name                       = 1*64VCHAR ; statment name
+route_operation                 = "ACCEPT" / "REJECT"; Permit/Deny operation
+match_interface                 = 1*64VCHAR ; Match interface name
+match_prefix_set                = 1*64VCHAR ; Match prefix sets
+match_protocol                  = "bgp" / "ospf" / "ospf3" / "static" / "connected";Match protocol via which the route was learnt
+match_next_hop_set              = 1*64VCHAR ; ;Match next-hop present in prefix list
+match_src_vrf                   = 1*15VCHAR ; Match source VRF name
+match_neighbor                  = IPv4Prefix / IPv6prefix ; Match neighbor IP
+match_tag                       = 1*10DIGIT ; Match tag value
+match_med                       = 1*10DIGIT ; Match metric of route
+match_origin                    = 1*64VCHAR ; Match BGP origin code
+match_local_pref                = 1*64VCHAR ; Match local-preference of route
+match_community                 = 1*64VCHAR ; Match BGP community list
+match_ext_community             = 1*64VCHAR ; Match BGP/VPN extended community list
+match_as_path                   = 1*64VCHAR ; Match BGP AS path list
+call_route_map                  = 1*64VCHAR ; Jump to another Route-Map after match+set
 
-set_origin               = 1*64VCHAR ; Set BGP origin code
-set_local_pref           = 1*64VCHAR ; Set BGP local preference path attribute
-set_next_hop             = 1*64VCHAR ; Set IP address of next hop
-set_med                  = 1*64VCHAR ; Set Metric value for destination routing protocol
-set_repeat_asn           = 1*3DIGIT  ; NO of times the set_asn number to be repeated
-set_asn                  = 1*10DIGIT ; Set ASN number
-set_community_inline     = 1*64VCHAR ; Set BGP community attribute inline
-set_community_ref        = 1*64VCHAR ; Refer BGP community attribute from community table
-set_ext_community_inline = 1*64VCHAR ; Set BGP extended community attribute inline
-set_ext_community_ref    = 1*64VCHAR ; Refer BGP extended community attribute from extended community table
+set_origin                      = 1*64VCHAR ; Set BGP origin code
+set_local_pref                  = 1*64VCHAR ; Set BGP local preference path attribute
+set_next_hop                    = 1*64VCHAR ; Set IP address of next hop
+set_med                         = 1*64VCHAR ; Set Metric value for destination routing protocol
+set_ipv6_next_hop_global        = IPv6prefix ; Set IPv6 address of next hop
+set_ipv6_next_hop_prefer_global = "true" / "false" ; Prefer global over link-local if both exist
+set_repeat_asn                  = 1*3DIGIT  ; NO of times the set_asn number to be repeated
+set_asn                         = 1*10DIGIT ; Set ASN number
+set_community_inline            = 1*64VCHAR ; Set BGP community attribute inline
+set_community_ref               = 1*64VCHAR ; Refer BGP community attribute from community table
+set_ext_community_inline        = 1*64VCHAR ; Set BGP extended community attribute inline
+set_ext_community_ref           = 1*64VCHAR ; Refer BGP extended community attribute from extended community table
+set_metric_action               = "METRIC_SET_VALUE"/"METRIC_ADD_VALUE"/"METRIC_SUBSTRACT_VALUE"/"METRIC_SET_RTT"/"METRIC_ADD_RTT"/"METRIC_SUBSTRACT_RTT" ; Set action type for handling metric value
+set_metric                      = 1*10DIGIT ; Metric value for given set metric action
+set_asn_list                    = number list ; Set BGP prepended AS-path attribute
+                                              ; Acceptable List of ASN number "ASN, ASN"
 ```
-#### 3.2.1.8 ROUTE_REDISTRIBUTE
+#### 3.2.1.11 ROUTE_REDISTRIBUTE
 ```JSON
 ;Defines route redistribution table
 ;
 ;Status: stable
 
-key                      = ROUTE_REDISTRIBUTE|vrf|src_protocol|dst_protocol|addr_family ;
-vrf                      = 1\*15VCHAR ; VRF name
-src_protocol             = "connected" / "static" / "ospf" / "ospf3"
-dst_protocol             = "bgp"
-addr_family              = "ipv4" / "ipv6"   
+key                      = ROUTE_REDISTRIBUTE|vrf_name|src_protocol|dst_protocol|addr_family ;
+vrf                      = 1*15VCHAR ; VRF name
+src_protocol             = "connected" / "static" / "ospf" / "ospf3"; Source protocol
+dst_protocol             = "bgp" ; Destination protocol
+addr_family              = "ipv4" / "ipv6" ; Address family
 route_map                = 1*64VCHAR ; route map filter to apply for redistribution
+metric                   = 1*10DIGIT ; Metric value
 ```
 
-### 3.2.1.9 IP_PREFIX_SET
+### 3.2.1.12 PREFIX_SET
 ```JSON
 ;Defines prefix set table
 ;
 ;Status: stable
 
-key           = IP_PREFIX_SET:name          ; prefix_set_name must be unique
+key           = PREFIX_SET|name          ; prefix_set_name must be unique
 name          = 1*255VCHAR ; community set name  
 mode          = "IPv4"/"IPv6" ; mode of prefix set.
 
-````
-#### 3.2.1.9.1 IP_PREFIX
+```
+#### 3.2.1.12.1 PREFIX
 ```JSON
 ;Defines prefix table
 ;
 ;Status: stable
-key              = IP_PREFIX:set_name:ip_prefix:masklength_range; an instance of this key will be repeated for each prefix
+key              = PREFIX|set_name|ip_prefix|masklength_range; an instance of this key will be repeated for each prefix
                                                              ;  an instance of this key/value pair will be repeated for each prefix
 set_name         = 1*255VCHAR ; community set name                                                             
 ip_prefix        = IPv4prefix / IPv6prefix   ; prefix, example 1.1.1.1/32              
 masklength_range = 1*255VCHAR                ; exact or (masklength_range..low-masklength_range_high). example 8..16 or exact
+action           = "PERMIT" / "DENY"   ; Actions
 ```
-### 3.2.1.10 BGP_COMMUNITY_SET
+### 3.2.1.13 COMMUNITY_SET
 ```JSON
 ;Defines community table
 ;
 ;Status: stable
-key              = BGP_COMMUNITY_SET|name  ; name must be unique
-set_type          = "STANDARD"/"EXPANDED"
-match_action      = "ANY/ALL"
+key              = COMMUNITY_SET|name  ; name must be unique
+set_type         = "STANDARD"/"EXPANDED"
+match_action     = "ANY/ALL"
 community_member = string list ; community member list
                                ; Acceptable List of communities as ("AA:NN","local-AS", "no-advertise", "no-export" | regex)
 
-````
-### 3.2.1.11 BGP_EXT_COMMUNITY_SET
+```
+### 3.2.1.14 EXTENDED_COMMUNITY_SET
 ```JSON
 ;Defines extended community table
 ;
 ;Status: stable
-key               = BGP_EXT_COMMUNITY_SET|name          ; name must be unique
+key               = EXTENDED_COMMUNITY_SET|name          ; name must be unique
 set_type          = "STANDARD"/"EXPANDED"
 match_action      = "ANY/ALL"
-community_member = string list; community member list
-                              ; Acceptable List of communities as ("route-target/route-origin:AA:NN" or "IP_Address" or regex)
-````
-### 3.2.1.12 BGP_AS_PATH_SET
+community_member  = string list ; community member list
+                                ; Acceptable List of communities as ("route-target/route-origin:AA:NN" or "IP_Address" or regex)
+```
+### 3.2.1.15 AS_PATH_SET
 ```JSON
 ;Defines extended community table
 ;
 ;Status: stable
-key           = AS_PATH_SET|name          ; name must be unique
+key                = AS_PATH_SET|name          ; name must be unique
+as_path_set_member = string list ; AS path list
+                                 ; Acceptable List of as paths "string, string"
+```
 
-as_path_member = string list; AS path list
-                            ;Acceptable List of as paths "string, string"
-````
+### 3.2.1.16 DEVICE_METADATA
+```JSON
+; Ability to start frrcfgd (new FRR config deamon fully based on config-DB events) or bgpcfgd (template based legacy daemon) based on 'frr_mgmt_framework_config' field with "true"/"false"
+;
+;Status: stable
+key                         = localhost          ; name must be unique
+frr_mgmt_framework_config   = "true" / "false" ;
+```  
 
 ### 3.2.2 APP DB
 N/A
@@ -641,9 +704,9 @@ module: openconfig-routing-policy
 
   5. For show commands that requires retrieval of the data that doesn't contain any state information (information only based on the configuration), the backend callback will fetch the data from CONFIG_DB.
 
-  6. For show commands that requires retrieval of state or statistics information the backend, managemnt framework executes the FRR CLI using "docker exec bgp vtysh -c <cmds>" to fetch the data in JSON format from FRR-BGP.
+  6. For show commands that requires retrieval of state or statistics information the backend, management framework executes the FRR CLI using "docker exec bgp vtysh -c <cmds>" to fetch the data in JSON format from FRR-BGP.
 
-  7. At transformer the JSON output (retrived from FRR BGP) is converted back to corresponding open config objects and returned to the caller.
+  7. At transformer the JSON output (retrieved from FRR BGP) is converted back to corresponding open config objects and returned to the caller.
 
   8. For CLI show, the output returned in object format is then translated back to CLI Jinga template for output display in CLI.
 
@@ -671,7 +734,7 @@ module: openconfig-routing-policy
 | Enable route-flap dampening | sonic(config-router-bgp)# dampening \<half-time> \<reuse-time> \<supp-route-time>  |
 | Disable checking if nexthop is connected on ebgp sessions | sonic(config-router-bgp)# disable-ebgp-connected-route-check |
 | Graceful shutdown parameters | sonic(config-router-bgp)# graceful-shutdown |
-| Configure BGP defaults | sonic(config-router-bgp)# bgp listen \{ limit \<val> \| range \<IP-prefix> } |
+| BGP Dynamic Neighbors listen commands | sonic(config-router-bgp)# bgp listen \{ limit \<val> \| range \<IP-prefix> } |
 | Advertise routes with max-med | sonic(config-router-bgp)# max-med on-startup [\<time>] [\<max-med-val>] |
 | Configure BGP defaults | sonic(config-router-bgp)# default { ipv4-unicast \|  local-preference \<val> \| show-hostname \| shutdown \| subgroup-pkt-queue-max \<val> }|
 | Immediately reset session if a link to a directly connected external peer goes down | sonic(config-router-bgp)# fast-external-failover |
@@ -718,7 +781,6 @@ module: openconfig-routing-policy
 | Solo peer - part of its own update group |sonic(config-router-bgp-neighbor)# solo |
 | Strict capability negotiation match |sonic(config-router-bgp-neighbor)# strict-capability-match |
 | |sonic(config-router-bgp-neighbor)# ttl-security hops \<val>  |
-| Enable v6only for BGP neighbor interface|sonic(config-router-bgp-neighbor)# v6only |
 
 ##### 3.6.2.1.4 BGP Neighbor Address family mode commands
 |Command Description |CLI Command    |
@@ -818,7 +880,7 @@ module: openconfig-routing-policy
 #### 3.6.2.2 Show Commands
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP routes information | show bgp {ipv4 unicast \| ipv6 unicast} [vrf vrf-name] |
+|Display BGP routes information |show bgp { ipv4 unicast \| ipv6 unicast } [vrf \<name>] |
 
 ```
 sonic# show bgp ipv4 unicast
@@ -837,7 +899,7 @@ AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL Nexthop - Li
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display summary of all BGP neighbors information |show bgp {ipv4 unicast \| ipv6 unicast} [vrf vrf-name] summary|
+|Display summary of all BGP neighbors information |show bgp { ipv4 unicast \| ipv6 unicast } [vrf \<name>] summary|
 
 ```
 sonic#show bgp ipv4 unicast summary
@@ -850,7 +912,7 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP specific route information| show bgp {ipv4 unicast \| ipv6 unicast} \<prefix>|
+|Display BGP specific route information|show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] \<prefix> |
 
 ```
 Router# show bgp ipv4 unicast 30.0.0.0/24
@@ -876,13 +938,13 @@ Flag: 0x860
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-|Display BGP neighbor information | show bgp {ipv4 unicast \| ipv6 unicast} [vrf \<name>]  neighbors [\<nbr-ip>] |
+|Display BGP neighbor information | show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] neighbors [\<nbr-ip>] |
 
 ```
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display BGP neighbor received/advertised routes | show bgp {ipv4 unicast \| ipv6 unicast} [vrf \<name>] neighbors \<nbr-ip> { received-routes \| advertised-routes }|
+| Display BGP neighbor received/advertised routes | show bgp { ipv4 unicast \| ipv6 unicast } [vrf <name>] neighbors \<nbr-ip> { received-routes \| advertised-routes }|
 
 ```
 sonic#show bgp ipv4 unicast neighbors 10.3.0.103 advertised-routes
@@ -908,7 +970,7 @@ sonic#
 ```
 |Command Description|CLI Command      |
 |:------------------|:-----------------|
-| Display peer-group information | show bgp all [vrf vrf-name] peer-group [\<pg-name>]|
+| Display peer-group information | show bgp all [vrf \<name>] peer-group [\<pg-name>]|
 
 ```
 sonic#show bgp all peer-group
@@ -935,7 +997,7 @@ BGP peer-group is INTERNAL
 sonic#
 
 ```
-|Command Description|CLI Command      |
+|Command Description |CLI Command      |
 |:------------------|:-----------------|
 | Display route map information | show route-map |
 
@@ -1028,27 +1090,27 @@ Various REST operations (POST/PUT/PATCH/GET/DELETE) are supported for the BGP an
 
 ## 4.1 Configuration Sequence
 
-![FRR-BGP-CONFIG-SEQUENCE](images/frr-bgp-config-sequence.jpg)
+![FRR-BGP-CONFIG-SEQUENCE](images/frr-bgp-config-sequence.png)
 
 ## 4.2 CLI Show Command Sequence
 
 ### 4.2.1 CLI Show Sequence - Config information
-![FRR-BGP-CLI-SHOW-SEQUENCE1](images/frr-bgp-cli-show-sequence11.jpg)
+![FRR-BGP-CLI-SHOW-SEQUENCE1](images/frr-bgp-cli-show-sequence11.png)
 
 ### 4.2.2 CLI Show Sequence - State/Statistics
-![FRR-BGP-CLI-SHOW-SEQUENCE2](images/frr-bgp-cli-show-sequence22.jpg)
+![FRR-BGP-CLI-SHOW-SEQUENCE2](images/frr-bgp-cli-show-sequence22.png)
 
 ## 4.3 REST Get Sequence
 
 ### 4.3.1 REST Get Sequence - Config information
-![FRR-BGP-REST-GET-SEQUENCE1](images/frr-bgp-rest-get-sequence1.jpg)
+![FRR-BGP-REST-GET-SEQUENCE1](images/frr-bgp-rest-get-sequence1.png)
 
 ### 4.3.2 REST Get Sequence - State/Statistics
-![FRR-BGP-REST-GET-SEQUENCE2](images/frr-bgp-rest-get-sequence2.jpg)
+![FRR-BGP-REST-GET-SEQUENCE2](images/frr-bgp-rest-get-sequence2.png)
 
 # 5 Error Handling
 
-The complete validation of BGP parameters is performed in the SONiC management framework based on open config BGP/Routing policy YANGs and against corresponding SONiC YANGs. Appropriate error code is returned for invalid configurations or on failures due to a dependency from management framework and bgpcfgd modules and the same is logged into the syslog, it is not expected for bgpcfgd (FRR CLI command execution) to return validation errors. However, such errors are logged into syslog for debugging purposes.
+The complete validation of BGP parameters is performed in the SONiC management framework based on open config BGP/Routing policy YANGs and against corresponding SONiC YANGs. Appropriate error code is returned for invalid configurations or on failures due to a dependency from management framework and frrcfgd modules and the same is logged into the syslog, it is not expected for frrcfgd (FRR CLI command execution) to return validation errors. However, such errors are logged into syslog for debugging purposes.
 
 # 6 Serviceability and Debug
 
@@ -1063,44 +1125,5 @@ This enhancement to FRR-BGP Unified management framework does not disrupt data p
 # 8 Scalability
 
 # 9 Unit Test
-Testing of the configuration changes is manual and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template.
-
-## 9.1 Test case for v6only:
-When v6 is enabled on an BGP neighbor (interface), BGP session is establised on link local address only and not the IP address specified for the interface.
-
-Test CASE 1 : Configure BGP neighbor.
-
-|Command Executed | Result /Notes     |
-|:------------------|:-----------------|
-|sonic(config-router-bgp)# exit| |
-|sonic(config)# interface Ethernet 0||
-|sonic(config)# ipv6 enable||
-|sonic(conf-if-Ethernet0)# no shutdown| |
-|sonic(conf-if-Ethernet0)# ip address 1.1.1.2/30|The netmask is 30 or 31 |
-|sonic(conf-if-Ethernet0)# exit| |
-|sonic(config)# router bgp 101| |
-|sonic(config-router-bgp)# neighbor interface Ethernet 0| |
-|sonic(config-router-bgp-neighbor)# address-family ipv4 unicast| |
-|sonic(config-router-bgp-neighbor-af)# activate| |
-|sonic(config-router-bgp-neighbor-af)# exit| |
-|sonic(config-router-bgp-neighbor)# remote-as external||
-|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on IPV4|
-
-TEST CASE 2
-
-|Command Executed | Result      |
-|:------------------|:-----------------|
-|sonic(config-router-bgp-neighbor)# v6only| BGP session is re-established on Link local|
-
-
-TEST CASE 3
-
-|Command Executed | Result      |
-|:------------------|:-----------------|
-|sonic(config-router-bgp-neighbor)# no v6only| BGP Session is re-established on IPV4|
-
-v6only can be set with REST/gnmi.
-
-Example rest URI:-
-/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=BGP,bgp/bgp/neighbors/neighbor=Ethernet0/config/openconfig-bgp-ext:v6only
+Testing of the configuration changes are automated i.e all the config DB changes for BGP fields will be checked against FRR BGP commands and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template during configuration restore.
 # 10 Appendix
