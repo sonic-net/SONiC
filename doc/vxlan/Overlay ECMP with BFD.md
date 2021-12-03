@@ -15,6 +15,7 @@
     * [1.2 Functional requirements](#12-functional-requirements)
     * [1.3 CLI requirements](#13-cli-requirements)
     * [1.4 Warm Restart requirements ](#14-warm-restart-requirements)
+    * [1.5 Scaling requirements ](#15-scaling-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
     * [2.2 App DB](#22-app-db)
@@ -30,10 +31,11 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 09/09/2021  |     Prince Sunny   | Initial version                   |
-| 1.0 | 09/13/2021  |     Prince Sunny   | Revised based on review comments                           |
+| 1.0 | 09/13/2021  |     Prince Sunny   | Revised based on review comments  |
 | 1.1 | 10/08/2021  |     Prince Sunny   | BFD section seperated             |
 | 1.2 | 10/18/2021  |     Prince Sunny/Shi Su   | Test Plan added            |
-| 1.3 | 11/01/2021  |     Prince Sunny  | IPv6 test cases added            |
+| 1.3 | 11/01/2021  |     Prince Sunny  | IPv6 test cases added              |
+| 1.4 | 12/03/2021  |     Prince Sunny  | Added scaling section, extra test cases  |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -79,6 +81,17 @@ At a high level the following should be supported:
 
 ## 1.4 Warm Restart requirements
 No special handling for Warm restart support.
+
+## 1.5 Scaling requirements
+At a minimum level, the following are the estimated scale numbers
+
+| Item                     | Expected value              |
+|--------------------------|-----------------------------|
+| ECMP groups              | 512                         |
+| ECMP group member        | 128                         |
+| Tunnel (Overlay) routes  | 16k                         |
+| Tunnel endpoints         | 4k                          |
+| BFD monitoring           | 4k                          |
 
 # 2 Modules Design
 
@@ -308,8 +321,8 @@ It is assumed that the endpoint IPs may not have exact match underlay route but 
 |Create a tunnel route to a single endpoint a. Send packets to the route prefix dst| Tunnel route create |  Packets are received only at endpoint a |
 |Set the tunnel route to another endpoint b. Send packets to the route prefix dst | Tunnel route set | Packets are received only at endpoint b |
 |Remove the tunnel route. Send packets to the route prefix dst | Tunnel route remove |  Packets are not received at any ports with dst IP of b |
-|Create tunnel route 1 with two endpoints A = {a1, a2}. Send packets to the route 1's prefix dst | ECMP route create | Packets are received at either a1 or a2 |
-|Create tunnel route 2 to endpoint group A Send packets to route 2’s prefix dst | ECMP route create | Packets are received at either a1 or a2 |
+|Create tunnel route 1 with two endpoints A = {a1, a2}. Send multiple packets (varying tuple) to the route 1's prefix dst. | ECMP route create | Packets are received at both a1 and a2 |
+|Create tunnel route 2 to endpoint group A Send multiple packets (varying tuple) to route 2’s prefix dst | ECMP route create | Packets are received at both a1 and a2 |
 |Set tunnel route 2 to endpoint group B = {b1, b2}. Send packets to route 2’s prefix dst | ECMP route set | Packets are received at either b1 or b2 |
 |Send packets to route 1’s prefix dst. By removing route 2 from group A, no change expected to route 1 | NHG modify | Packets are received at either a1 or a2 |
 |Set tunnel route 2 to single endpoint b1. Send packets to route 2’s prefix dst | NHG modify | Packets are recieved at b1 only |
@@ -319,6 +332,15 @@ It is assumed that the endpoint IPs may not have exact match underlay route but 
 |Modify the underlay default route nexthop/s. Send packets to route 3's prefix dst | Underlay ECMP | No change to packet distribution. Packets are distributed equally across c1, c2 and c3 |
 |Remove the underlay default route. | Underlay ECMP | Packets are not recieved at c1, c2 or c3 |
 |Re-add the underlay default route. | Underlay ECMP | Packets are equally recieved at c1, c2 or c3 |
+|Bring down one of the port-channels. | Underlay ECMP | Packets are equally recieved at c1, c2 or c3 |
+|Create a more specific underlay route to c1. | Underlay ECMP | Verify c1 packets are received only on the c1's nexthop interface |
+|Create tunnel route 4 to endpoint group A Send packets (fixed tuple) to route 4’s prefix dst | Vxlan Entropy | Verify Vxlan entropy|
+|Change the udp src port of original packet to route 4’s prefix dst | Vxlan Entropy | Verify Vxlan entropy is changed|
+|Change the udp dst port of original packet to route 4’s prefix dst | Vxlan Entropy | Verify Vxlan entropy is changed|
+|Change the src ip of original packet to route 4’s prefix dst | Vxlan Entropy | Verify Vxlan entropy is changed|
+|Create/Delete overlay routes to 16k with unique endpoints upto 4k | CRM  | Verify crm resourse for route (ipv4/ipv6) and nexthop (ipv4/ipv6) |
+|Create/Delete overlay nexthop groups upto 512  | CRM  | Verify crm resourse for nexthop_group |
+|Create/Delete overlay nexthop group members upto 128  | CRM  | Verify crm resourse for nexthop_group_member |
 
 #### BFD and health monitoring
 
