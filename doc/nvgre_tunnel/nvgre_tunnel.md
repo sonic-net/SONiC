@@ -252,7 +252,7 @@ module sonic-nvgre-tunnel {
 
             list NVGRE_TUNNEL_MAP_LIST {
 
-                key "tunnel_name vlan_name";
+                key "tunnel_name tunnel_map_name";
 
                 leaf tunnel_name {
                     description "NVGRE Tunnel name";
@@ -262,11 +262,11 @@ module sonic-nvgre-tunnel {
                     }
                 }
 
-                leaf vlan_name {
-                    description "VLAN name";
+                leaf tunnel_map_name {
+                    description "NVGRE Tunnel map name";
 
-                    type leafref {
-                        path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name;
+                    type string {
+                        length 1..255;
                     }
                 }
 
@@ -307,7 +307,7 @@ Commands summary (Phase #2):
 
 ```
 	- config nvgre-tunnel add/del <nvgre_tunnel_name> --src-ip <src_ip>
-	- config nvgre-tunnel-map add/del <nvgre_tunnel_name> <vlan_name> --vlan_id <vlan_id> --vsid <vsid_id>
+	- config nvgre-tunnel-map add/del <nvgre_tunnel_name> <tunnel_map_name> --vlan_id <vlan_id> --vsid <vsid_id>
 	- show nvgre-tunnel
 	- show nvgre-tunnel-map
 ```
@@ -327,9 +327,9 @@ tunnel3        3.3.3.3
 =============================================
 
 admin@sonic:~$ show nvgre-tunnel-map
-TUNNEL NAME    VLAN NAME    VLAN ID    VSID
--------------  -----------  ---------  ------
-tunnel_1       Vlan1000     1000       5000
+TUNNEL NAME    TUNNEL MAP NAME    VLAN ID    VSID
+-------------  -----------------  ---------  ------
+tunnel_1       Vlan1000           1000       5000
 ```
 
 ##### Config CLI command
@@ -377,7 +377,7 @@ Commands:
 =============================================
 
 admin@sonic:~$ config nvgre-tunnel-map add --help
-Usage: add [OPTIONS] TUNNEL_NAME VLAN_NAME
+Usage: add [OPTIONS] TUNNEL_NAME TUNNEL_MAP_NAME
 
   Add object in NVGRE_TUNNEL_MAP.
 
