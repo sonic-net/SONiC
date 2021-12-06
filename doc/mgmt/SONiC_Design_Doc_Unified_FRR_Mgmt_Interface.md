@@ -1133,13 +1133,12 @@ Testing of the configuration changes are automated i.e all the config DB changes
 ## 9.1 Test case for v6only:
 When v6 is enabled on an BGP neighbor (interface), BGP session is establised on link local address only and not the IPV4 address specified for the interface.
 
-Test CASE 1 : Configure BGP for IPV4 neighbor
+Test CASE 1 : Configure BGP for IPV4 neighbor on 2 switches.
 
 |Command Executed | Result /Notes     |
 |:------------------|:-----------------|
 |sonic(config-router-bgp)# exit| |
 |sonic(config)# interface Ethernet 0||
-|sonic(config)# ipv6 enable||
 |sonic(conf-if-Ethernet0)# no shutdown| |
 |sonic(conf-if-Ethernet0)# ip address 1.1.1.2/30|The netmask is 30 or 31 |
 |sonic(conf-if-Ethernet0)# exit| |
@@ -1151,10 +1150,11 @@ Test CASE 1 : Configure BGP for IPV4 neighbor
 |sonic(config-router-bgp-neighbor)# remote-as external||
 |sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on IPV4|
 
-TEST CASE 2 : Enable v6only option
+TEST CASE 2 : Enable v6only and link local address on interface of the switches.
 
 |Command Executed | Result      |
 |:------------------|:-----------------|
+|sonic(conf-if-Ethernet0)# ipv6 enable| BGP session stays on IPV4 address|
 |sonic(config-router-bgp-neighbor)# v6only| BGP session is re-established on Link local|
 
 
