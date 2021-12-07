@@ -1131,40 +1131,42 @@ This enhancement to FRR-BGP Unified management framework does not disrupt data p
 # 9 Unit Test
 Testing of the configuration changes are automated i.e all the config DB changes for BGP fields will be checked against FRR BGP commands and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template during configuration restore.
 ## 9.1 Test case for v6only:
-When v6 is enabled on an BGP neighbor (interface), BGP session is establised on link local address only and not the IPV4 address specified for the interface.
 
-Test CASE 1 : Configure BGP for IPV4 neighbor on 2 switches.
+
+Test CASE 1 : Configure BGP for interface neighbor
 
 |Command Executed | Result /Notes     |
 |:------------------|:-----------------|
-|sonic(config-router-bgp)# exit| |
 |sonic(config)# interface Ethernet 0||
+|sonic(conf-if-Ethernet0)# ipv6 enable||
 |sonic(conf-if-Ethernet0)# no shutdown| |
-|sonic(conf-if-Ethernet0)# ip address 1.1.1.2/30|The netmask is 30 or 31 |
 |sonic(conf-if-Ethernet0)# exit| |
+|sonic(config)# interface Loopback 0| |
+|sonic(conf-if-lo0)# ip address 10.0.1.1/32| |
+|sonic(conf-if-lo0)# exit| |
 |sonic(config)# router bgp 101| |
+|sonic(conf-router-bgp)# router-id 10.0.1.1| |
 |sonic(config-router-bgp)# neighbor interface Ethernet 0| |
 |sonic(config-router-bgp-neighbor)# address-family ipv4 unicast| |
 |sonic(config-router-bgp-neighbor-af)# activate| |
 |sonic(config-router-bgp-neighbor-af)# exit| |
 |sonic(config-router-bgp-neighbor)# remote-as external||
-|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on IPV4|
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on link local |
 
-TEST CASE 2 : Enable v6only and link local address on interface of the switches.
+Test CASE 2 : Add ipv4 address and session goes down i.e from Established to Active
 
-|Command Executed | Result      |
+|Command Executed | Result /Notes     |
 |:------------------|:-----------------|
-|sonic(conf-if-Ethernet0)# ipv6 enable| BGP session stays on IPV4 address|
-|sonic(config-router-bgp-neighbor)# v6only| BGP session is re-established on Link local|
+|sonic(conf-if-Ethernet0)# ip address 1.1.1.1/31|  |
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|session is down |
 
+Test CASE 3 : Add v6only and session is Established on link local address.
 
-TEST CASE 3 : Disable v6only option
-
-|Command Executed | Result      |
+|Command Executed | Result /Notes     |
 |:------------------|:-----------------|
-|sonic(config-router-bgp-neighbor)# no v6only| BGP Session is re-established on IPV4|
-
-TEST CASE 4 : Repeat the above 3 test cases with peer-group as well. 
+|sonic(config)# interface Ethernet 0| |
+|sonic(config-router-bgp-neighbor)# v6only| |
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors| session Established |
 
 v6only can be set with REST/gnmi.
 
