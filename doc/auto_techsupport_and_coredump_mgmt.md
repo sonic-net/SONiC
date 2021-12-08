@@ -380,3 +380,85 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 The default config required for auto_techsupport is present in the init_cfg.json. Therefore, when a clean installation of SONiC is performed, the configuration is found in the config DB and the feature is active. 
 
 However, in the case of SONiC-SONiC upgrade, the previous config_db.json is migrated and init_cfg.json is not involved. In that case, it is the responsibility of the admin to provide the config, if the admin wants to leverage this feature. 
+
+Load this Example config provided below to enable the feature. Each of the fields are explained in Section 4 and can be modified accordingly
+
+```
+{
+   "AUTO_TECHSUPPORT": {
+       "GLOBAL": {
+           "state": "enabled",
+           "rate_limit_interval": "180",
+           "max_techsupport_limit": "10.0",
+           "max_core_limit": "5.0",
+           "since": "2 days ago"
+       }
+   },
+   "AUTO_TECHSUPPORT_FEATURE": {
+       "bgp": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "database": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "lldp": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "pmon": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "radv": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "snmp": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "swss": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "syncd": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "teamd": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "dhcp_relay": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "mgmt-framework": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "mux": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "nat": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "sflow": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "macsec": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       },
+       "telemetry": {
+           "state": "enabled",
+           "rate_limit_interval": "600"
+       }
+   }
+}
+
