@@ -69,10 +69,11 @@
 
 ### Revision
 |  Rev  |  Date       |  Author  | Change Description |
-| :---: | :---------: | :------: | :----------------: |
+| :---  | :---------  | :------  | :----------------  |
 |  0.1  | Jan-10-2021 | A Pokora | Initial version    |
 |  0.2  | Jan-19-2021 | A Pokora | Updates from MPLS sub-community review |
 |  0.3  | Jun-14-2021 | A Pokora | Updates from MPLS sub-community code-review |
+|  1.0  | Dec-08-2021 | A Pokora | Final updates to reflect committed changes |
 
 ### Scope
 
@@ -80,11 +81,12 @@ This document provides general information about the initial support for MPLS in
 
 ### Definitions/Abbreviations
 | Abbreviation | Description                           |
-| :----------: | :-----------------------------------: |
+| :----------  | :-----------------------------------  |
 | CRM          | Critical Resource Monitoring          |
 | cRPD         | Containerized Routing Protocol Daemon |
 | LSP          | Label-Switched Path                   |
 | MPLS         | Multi-Protocol Label Switching        |
+| RIF          | Router Interface                      |
 
 ### Overview
 This document provides general information about the initial support for MPLS in SONiC infrastructure.
@@ -93,7 +95,7 @@ This document provides general information about the initial support for MPLS in
 This section describes the requirements for the initial support for MPLS in SONiC infrastructure.
 
 #### Functional requirements
-- Support for MPLS enable/disable per Router Interface.
+- Support for MPLS enable/disable per RIF.
 - Support for MPLS Push, Pop, and Swap label operations, including MPLS implicit-null and explicit-null behavior.
 - Support for bulk MPLS in-segment entry SAI programming.
 - Support for MPLS type next-hop SAI programming.
@@ -101,10 +103,10 @@ This section describes the requirements for the initial support for MPLS in SONi
 - Support for VS platform SAI for test purposes.
 
 #### Configuration and Management requirements
-- SONiC CLI support for configuring MPLS enable/disable per Router Interface.
-- SONiC CLI support for displaying MPLS state per Router Interface.
+- SONiC CLI support for configuring MPLS enable/disable per RIF.
+- SONiC CLI support for displaying MPLS state per RIF.
 - SONiC CLI support for configuring CRM thresholds for MPLS in-segment entries and MPLS type next-hops.
-- SONiC CLI support for displaying CRM thresholds and accouting for MPLS in-segment entries and MPLS type next-hops.
+- SONiC CLI support for displaying CRM thresholds and accounting for MPLS in-segment entries and MPLS type next-hops.
 
 #### Scalability Requirements
 - Up to max ASIC capable MPLS in-segment entries are supported.
@@ -119,10 +121,10 @@ This section describes the requirements for the initial support for MPLS in SONi
 #### Future Requirements
 - SONiC CLI support for MPLS operational commands.
 - FRR Zebra FPM support for MPLS in-segment entries and MPLS next-hops.
-- Support for VRFs
+- Support for VRFs.
 
 ### Architecture Design
-For MPLS, SONiC SwSS infrastructure Route and Next Hop support is extended to include optional MPLS label stack in addition to the existing IPv4/IPv6 address information.
+For MPLS, SONiC SwSS infrastructure route and next-hop support is extended to include optional MPLS label stack in addition to the existing IPv4/IPv6 address information.
 
 ### High-Level Design
 
@@ -150,9 +152,9 @@ mpls         = "enable" / "disable"  ; Enable/disable MPLS function. Default "di
 ```
 
 ###### ROUTE TABLE
-The existing ROUTE_TABLE for IPv4/IPv6 prefix routes in the APPL_DB is enhanced to accept an optional "mpls_nh" attribute that is applicable when a MPLS push operation is configured.  The format of the "mpls_nh" attribute string for IPv4/IPv6 prefix routes is: "push+label0/.../labelN".
+The existing ROUTE_TABLE for IPv4/IPv6 prefix routes in the APPL_DB is enhanced to accept an optional "mpls_nh" attribute that is applicable when a MPLS push operation is configured.  The format of the "mpls_nh" attribute string for IPv4/IPv6 prefix routes is: "push\<label0\>/.../\<labelN\>".
 
-For IP forward-only next-hops, the "mpls_nh" attribute is not applicable.  If the IPv4/IPv6 prefix route is associated with a single IP forward-only next-hop or a next-hop group consisting only of these hext-hops, then the "mpls_nh" attribute will not be present.  If the IPv4/IPv6 prefix route is associated with a next-hop group with a mix of MPLS push and IP forward-only next-hops, then each IP forward-only nexthop will be represented by "na" in the "mpls_nh" attribute.
+For IP forward-only next-hops, the "mpls_nh" attribute is not applicable.  If the IPv4/IPv6 prefix route is associated with a single IP forward-only next-hop or a next-hop group consisting only of these hext-hops, then the "mpls_nh" attribute will not be present.  If the IPv4/IPv6 prefix route is associated with a next-hop group with a mix of MPLS push and IP forward-only next-hops, then each IP forward-only next-hop will be represented by "na" in the "mpls_nh" attribute.
 
 For all next-hop types, the formats of the "nexthop" and "ifname" attributes are unchanged from previous releases.
 
@@ -177,7 +179,7 @@ The LABEL_ROUTE_TABLE accepts the same attributes as ROUTE_TABLE:
 - A "ifname" attribute containing a list of interfaces.
 - A "mpls_nh" attribute containing a list MPLS next-hop info.
 
-For MPLS in-segment routes, the "mpls_nh" attribute is applicable when a MPLS swap operation is configured.  The format of the "mpls_nh" attribute for MPLS in-segment routes is: "swap+label0/../labelN".
+For MPLS in-segment routes, the "mpls_nh" attribute is applicable when a MPLS swap operation is configured.  The format of the "mpls_nh" attribute for MPLS in-segment routes is: "swap\<label0\>/../\<labelN\>".
 
 For MPLS pop and IP forward-only operations, the "mpls_nh" attribute is not applicable.  If the MPLS in-segment entry is associated with a single MPLS pop or IP forward-only next-hop or a next-hop group consisting only of htese next-hops, then the "mpls_nh" attribute will not be present.  If the MPLS in-segment etry is associated with a next-hop group with a mix of MPLS swap and MPLS pop/IP forward-only next-hops, then each MPLS pop/IP forward-only next-hop will be represented by "na" in the "mpls_nh" attribute.
 
@@ -187,7 +189,7 @@ For all next-hop types, the formats of the "nexthop" and "ifname" attributes are
 
 For MPLS "implicit-null" operations, the "mpls_nh" attribute is not present and the expected  "mpls_pop" attribute value is "1" (ie, it is a MPLS pop next-hop)
 
-For MPLS "explicit-null" operations, the expected "mpls_nh" attribute value is "swap+0" and the expected "mpls_pop" attribute value is "1" (ie, it is a special case of a MPLS swap next-hop).
+For MPLS "explicit-null" operations, the expected "mpls_nh" attribute value is "swap0" and the expected "mpls_pop" attribute value is "1" (ie, it is a special case of a MPLS swap next-hop).
 
 ```
 "LABEL_ROUTE_TABLE":{{mpls_label}}
@@ -280,13 +282,13 @@ mpls_nexthop_low_threshold   = UINT32             ; Low threshold. Default value
 #### ASIC DB
 
 ##### ROUTER INTERFACE
-Support for a new attribute is introduced to the ASIC_DB for the existing ROUTER_INTERFACE object type:
+Support for a new attribute is introduced to the ASIC_DB for the existing ROUTER_INTERFACE object type:  SAI_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE.  The definition of this attribute can be found in sairouterinterface.h.
 
 ##### INSEG ENTRY
-Support for a new object type INSEG_ENTRY is introduced to the ASIC_DB:
+Support for a new object type is introduced to the ASIC_DB:  SAI_OBJECT_TYPE_INSEG_ENTRY.  The full definition of this object type can be found in saimpls.h.
 
 ##### NEXT HOP
-Support for new attributes are introduced to the ASIC_DB for the existing NEXT_HOP object type:
+Support for new attributes are introduced to the ASIC_DB for the existing NEXT_HOP object type:  SAI_NEXT_HOP_ATTR_LABELSTACK and SAI_NEXT_HOP_ATTR_OUTSEG_TYPE.  The definition of these attributes can be found in sainexthop.h.
 
 #### Software Modules
 This section describes modifications to SONiC infrastructure software modules to support MPLS.
@@ -331,7 +333,7 @@ The following are new functions for fpmsyncd:
 ```
 
 ##### IntfsOrch
-IntfsOrch is an existing component of the OrchAgent daemon in the SWSS container.  IntfsOrch monitors operations on Interface related tables in APPL_DB and converts those operations into SAI commands to manage the Router Interface object.
+IntfsOrch is an existing component of the OrchAgent daemon in the SWSS container.  IntfsOrch monitors operations on Interface related tables in APPL_DB and converts those operations into SAI commands to manage the RIF object.
 
 For MPLS, IntfsOrch has been extended to detect the new per-RIF "mpls" enable/disable attribute in the APPL_DB and propagate this configuration to the ASIC_DB via SAI_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE.  This MPLS behavior parallels the existing IntfsOrch behavior of SAI_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE and SAI_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE for IPv4/IPv6.
 ###### Functions
@@ -345,7 +347,7 @@ The following are new functions for IntfsOrch:
 RouteOrch is an existing component of the OrchAgent daemon in the SWSS container.  RouteOrch monitors operations on Route related tables in APPL_DB and converts those operations in SAI commands to manage IPv4/IPv6 route and MPLS in-segment entries.  Additionally RouteOrch coordinates next-hop object operations with NeighOrch and converts operations into SAI commands to manage next-hop group objects.
 
 For MPLS, RouteOrch was modified to monitor updates to the new APPL_DB LABEL_ROUTE_TABLE.  RouteOrch translates all updates to LABEL_ROUTE_TABLE to equivalent SAI requests for SAI MPLS inseg API.
-NextHop processing for updates from both the new LABEL_ROUTE_TABLE and the existing ROUTE_TABLE has been extended to detect possible MPLS attributes and propagate this additional information to NeighOrch for SAI handling.
+Next-hop processing for updates from both the new LABEL_ROUTE_TABLE and the existing ROUTE_TABLE has been extended to detect possible MPLS attributes and propagate this additional information to NeighOrch for SAI handling.
 ###### Functions
 The following are new functions for RouteOrch:
 ```
@@ -379,32 +381,36 @@ No new functions were required for CrmOrch MPLS in-segment entry and next-hop su
 
 ##### Label/LabelStack
 Label and LabelStack are new type utilities of the OrchAgent daemon in the SWSS container.
-These types are introduced to represent the MPLS label or label stack when found in an in-segment entry or next hop.
+These types are introduced to represent the MPLS label or label stack when found in an MPLS in-segment entry or next-hop.
 ```
 typedef uint32_t Label;
-class LabelStack
+struct LabelStack
 {
-    ... class definition abbreviated ...
-private:
-    std::set<Label> m_labelstack;
+    std::vector<Label> m_labelstack;
+    sai_outseg_type_t  m_outseg_type;    // MPLS out-segment type (swap | push)
+
+    ... struct definition abbreviated ...
 };
 ```
 ##### NextHopKey
 NextHopKey is an existing utility of the OrchAgent daemon in the SWSS container.  NextHopKey is used by both RouteOrch and NeighOrch to coordinate next-hop operations.
 
-For MPLS, the NextHopKey struct is modified to include a sai_next_hop_type_t of SAI_NEXT_HOP_TYPE_MPLS, LabelStack field and sai_outseg_type_t field.
+For MPLS, the NextHopKey struct is modified to include a LabelStack field and functions to identify and process the LabelStack field.
 ```
 struct NextHopKey
 {
-    sai_next_hop_type_t nh_type;        // next-hop type
     IpAddress           ip_address;     // neighbor IP address
     string              alias;          // incoming interface alias
     LabelStack          label_stack;    // MPLS label stack
-    sai_outseg_type_t   outseg_type;    // MPLS out-segment type (swap | push)
+
+    bool isMplsNextHop() const;
+    std::string parseMplsNextHop(const std::string& str);
+    std::string formatMplsNextHop() const;
+
     ... struct definition abbreviated ...
 };
 ```
-The LabelStack and sai_outseg_type_t fields in NextHopKey are not applicable for NextHopKey with sai_next_hop_type_t value other than SAI_NEXT_HOP_TYPE_MPLS.
+The LabelStack field in NextHopKey is not applicable for NextHopKey associated with next-hop with sai_next_hop_type_t value other than SAI_NEXT_HOP_TYPE_MPLS.
 
 ##### Syncd
 Syncd is an existing daemon of the Syncd container which handles all events driven by the ASIC_DB.
@@ -575,7 +581,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/sainexthop.h
 
 No modifications were made to the current SAI Next Hop API definition.
 
-The following existing attributes are now introduced to SONiC orchagent to facilitate MPLS NextHop functionality:
+The following existing attributes are now introduced to SONiC orchagent to facilitate MPLS next-hop functionality:
 ```
     /**
      * @brief Push label
@@ -749,13 +755,13 @@ container sonic-crm {
 This SONiC infrastructure support for MPLS is an enhancement of existing IPv4/IPv6 routing infrastructure which allows it to make use of existing warmboot and fastboot handling.  For this reason, MPLS design will not affect warmboot or fastboot design.
 
 ### Restrictions/Limitations
-- No support for programming default MPLS routes for IPv4/IPv6 Explicit NULL from SONiC infrastructure. These default MPLS routes must be programmed/handled by vendor SAI implementation.  This limitation is due to lack of support for Route Table as valid Next Hop entity in SAI MPLS definition.
 - Outermost ingress MPLS label will always be popped.  This limitation is due to implicit pop in Linux/Netlink implementation.
 
 ### Testing Requirements/Design
 An external routing controller is used to set up static LSP route for push/pop/swap operation on MPLS traffic and verify traffic is passing.
 
 #### Unit Test cases
+A new suite of testcases is added to sonic-swss/tests for vstest:
 - Add/remove IPv4 route entry with associated MPLS push next-hop.
 - Add/remove MPLS in-segment entry with associated MPLS swap next-hop.
 - Add/remove MPLS in-segment entry with associated MPLS implicit-null (pop) next-hop.
@@ -763,9 +769,9 @@ An external routing controller is used to set up static LSP route for push/pop/s
 - Add/remove IPv4 route entry with associated next-hop group of two MPLS push next-hops.
 - Add/remove MPLS in-segment entry with associated next-hop group of two MPLS swap next-hops.
 - Add/remove MPLS in-segment entry with associated next-hop group of two MPLS implicit-null (pop) next-hops.
-- Add/remove IPv4 route entry with associated next-hop group of one MPLS push and one IPv4 forward-only nexthop.
-- Add/remove MPLS in-segment entry with associated next-hop group of one MPLS swap and one MPLS implicit-null (pop) nexthop.
-- Add/remove MPLS in-segment entry with unresolved MPLS swap next-hop.  Verify both in-segment and next-hop are not programmed until next-hop is resolved.
+- Add/remove IPv4 route entry with associated next-hop group of one MPLS push and one IPv4 forward-only next-hop.
+- Add/remove MPLS in-segment entry with associated next-hop group of one MPLS swap and one MPLS implicit-null (pop) next-hop.
+- Add/remove MPLS in-segment entry with unresolved MPLS swap next-hop.  Verify both in-segment entry and next-hop are not programmed until next-hop is resolved.
 
 #### System Test cases
 - Add IPv4 route entry with associated MPLS push next-hop.  Verify ingress IP traffic and egress MPLS traffic with correct MPLS label.
