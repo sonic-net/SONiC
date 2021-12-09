@@ -3,10 +3,10 @@
 
 ***Revision***
 
-|  Rev  | Date  | Author | Change Description      |
-| :---: | :---: | :----: | ----------------------- |
-|  0.1  |       | Ze Gan | Initial version         |
-|  0.2  |       | Ze Gan | MACsec with PFC and CLI |
+|  Rev  |    Date    | Author | Change Description |
+| :---: | :--------: | :----: | ------------------ |
+|  0.1  | 07/11/2020 | Ze Gan | Initial version    |
+|  0.2  | 12/10/2021 | Ze Gan | MACsec with PFC    |
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -59,6 +59,9 @@
       - [Egress Flow](#egress-flow)
       - [State Change Actions](#state-change-actions)
       - [MACsec Actions](#macsec-actions)
+    - [3.4.6 PFC with MACsec](#346-pfc-with-macsec)
+      - [3.4.6.1 ACL Actions](#3461-acl-actions)
+      - [3.4.6.2 ACL Entry table](#3462-acl-entry-table)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
@@ -70,7 +73,6 @@
   - [4.8 Remove Ingress/Egress SC](#48-remove-ingressegress-sc)
   - [4.9 MACsec Deinit](#49-macsec-deinit)
   - [4.10 Deinit Port](#410-deinit-port)
-- [5 CLI](#5-cli)
 
 ## About this Manual
 
@@ -208,13 +210,6 @@ replay_window               = DIGITS                   ; Replay window size that
 send_sci                    = "true" / "false"         ; Whether send SCI. Default true
 rekey_period                = DIGITS                   ; The period of proactively refresh (Unit second).
                                                        ; Default 0 which means never proactive refresh SAK.
-pfc                         = "bypass" / "encrypt" / "strict"
-                                                       ; The behavior to PFC frames.
-                                                       ; "bypass": react clear and encrypted PFC frames, send clear PFC frames.
-                                                       ; "encrypt": react clear and encrypted PFC frames, send encrypted PFC frames.
-                                                       ; "strict": only react encrypted PFC frames, send encrypted PFC frames.
-                                                       ; If the specified mode cannot be supported by the platform, record an error in the log file.
-                                                       ; Default "bypass".
 ```
 
 #### 3.1.2 Port Table
@@ -228,6 +223,13 @@ key                         = PORT:name               ; Interface name
 ; field                     = value
 macsec                      = profile                 ; MACsec profile name. if this filed is empty or isn't existed,
                                                       ; the MACsec function is disable.
+pfc_encryption_mode         = "bypass" / "encrypt" / "strict_encrypt"
+                                                       ; The behavior to PFC frames.
+                                                       ; "bypass": react clear and encrypted PFC frames, send clear PFC frames.
+                                                       ; "encrypt": react clear and encrypted PFC frames, send encrypted PFC frames.
+                                                       ; "strict": only react encrypted PFC frames, send encrypted PFC frames.
+                                                       ; If the specified mode cannot be supported by the platform, record an error in the log file.
+                                                       ; Default "bypass".
 ```
 
 ### 3.2 App DB
@@ -777,6 +779,50 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 ***MACsec egress sc will be automatically created/delete when the MACsec port is created/deleted***
 
+#### 3.4.6 PFC with MACsec
+
+To leverage the capability of ACL to bypass or drop the PFC and pause frames like what EAPOL did.
+
+##### 3.4.6.1 ACL Actions
+
+- Identify the pause and PFC frames
+
+``` c
+EAPOL_ETHER_TYPE = 0x8808
+attr.id = SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE;
+attr.value.aclfield.data.u16 = EAPOL_ETHER_TYPE;
+attr.value.aclfield.mask.u16 = 0xFFFF;
+attr.value.aclfield.enable = true;
+```
+
+- Bypass frames
+
+``` c
+attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
+attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_FORWARD;
+attr.value.aclaction.enable = true;
+```
+
+- Drop frames
+
+``` c
+attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
+attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_DROP;
+attr.value.aclaction.enable = true;
+```
+
+##### 3.4.6.2 ACL Entry table
+
+To create the ACL entry in the following table and to add it into the corresponding ACL table. `"InPktsDroppedPFC"` mentioned in the [3.4.4.2.1 Counter List](#34421-counter-list) will count the dropped frames.
+
+|  Mode   | Ingress ACL entry | Egress ACL entry  |
+| :-----: | :---------------: | :---------------: |
+| bypass  | Identify + Bypass | Identify + Bypass |
+| encrypt | Identify + Bypass |     No action     |
+| strict  |  Identify + Drop  |     No action     |
+
+***Identify means to identify pause and PFC frames***
+
 ## 4 Flow
 
 ### 4.1 Init Port
@@ -820,5 +866,3 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 ### 4.10 Deinit Port
 
 ![deinit port](images/deinit_port.png)  
-
-## 5 CLI
