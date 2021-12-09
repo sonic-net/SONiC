@@ -23,7 +23,7 @@
     * [2.1 App DB](#21-app-db)
     * [2.2 Orchestration Agent](#24-orchestration-agent)
     * [2.3 Backward Compatibility](#25-backward-compatibility)
-  * [4 Test Plan](#3-test-plan)
+  * [3 Test Plan](#3-test-plan)
 
 ###### Revision
 | Rev |     Date    |       Author       | Change Description                |
@@ -51,11 +51,9 @@ With this feature enable even if flow land's on different T1's (which is common 
 ECMP memeber being ordered will use same nexthop (T0) and thus same appliace.
 
 Below diagram captures the use-case (Traffic is flowing from T1 <-> T0 <-> Appliance)
-
 ![](../../images/ecmp/order_ecmp_pic.png)
-
 ## 1.2 Acheiving Order Nexthop member in ECMP
-1. Nexthop's will be sorted based on their IP address to get thir order within the ECMP group. 
+1. Nexthop's will be sorted based on their IP address to get their order within the ECMP group. 
 In typical data-center ip address allocation scheme all T1’s in a given podset/cluster have the same order for P2P v4/v6 IP Address for all downstream T0's.
 2. This feature/enhacement assumes entropy calculation will be same for a given flow on each devices that have set set of nexthop in the ECMP Group.
 3. This feature/enhancement is best effort in nature where if the Links/Bgp between pair of devices are not in same state (either Up/Down) then flow can take different path.
@@ -129,7 +127,7 @@ To maintain backward compatibility this feature will only be functionally enable
 if SAI enum capability query support for SAI_NEXTHOP_GROUP object for attribute SAI_NEXT_HOP_GROUP_ATTR_TYPE return “DYNAMIC_ORDERED_ECMP” as supported. 
 Otherwise, we will mark the feature as disable (control by global flag) and fall back to existing Unordered ECMP group behavior.
 
-# 7 Test Plan
+# 3 Test Plan
 The following testing is planned for this feature:
 - SWSS unit tests via virtual switch testing
 - Data Plane tests via pytest + PTF
@@ -144,5 +142,5 @@ Test details(Applies to all Route/OverlayECMP/NexthopGroup OA):
 A new Pytest and PTF test will be created for Ordered ECMP testing. The Pytest is responsible for creating/deploying the device configuration, and will invoke PTF test to run the data plane scenario test
 
 Test details:
-- To verify flow is load-balance as per of next-hop sequence for add/remove/add-memeber/remove-memeber case.
+- To verify flow is load-balance as per the next-hop sequence in ecmp group for add/remove/add-memeber/remove-memeber case.
 - Preserve the test result { flow to nexthop-mapping } so that in case entropy is changed across SONiC/SAI release we can catch/notify about it.
