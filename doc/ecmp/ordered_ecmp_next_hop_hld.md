@@ -29,6 +29,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 11/05/2021  |    Abhishek Dosi   | Initial version                   |
+| 0.2 | 12/09/2021  |    Abhishek Dosi   | Address SONiC Community Feedback  |
 
 # About this Manual
 This document talks about use-case to support ECMP with Ordered Nexthop and changes needed in SONiC to support same.
@@ -70,11 +71,12 @@ Phase #1
 - Maintain Backward Compatible if given SAI Vendor can not support ordered ecmp
 - Should work with Overlay ECMP.
 - Handling linkdown/linkup scenarios which triggers nexthop withdrawal/addition to nexthop group.
-- Changes shoud work Nexthop Group OA .
 
-Phase #2
+Phase #2 (Not commited as of now)
 - Init time knob to configure key/parameter to use for creating ordered nexthop (default being nexthop ip address)
 - Warm restart support (if/when enable on T0)
+- Config DB based knob to enable/disable order ecmp feature. This might need system reboot
+- Nexthop Group OA
 
 # 2 Modules Design
 
@@ -95,7 +97,6 @@ Following orchagents shall be modified.
 - switchorch
 - routeorch
 - overlayecmporch
-- nexthopgrouporch
 
 ### SwitchOrch
 
@@ -122,9 +123,6 @@ Following orchagents shall be modified.
 Above point discussed for Route OA (w.r.t Single Level Underlay ECMP) applies and will be done for Overlay ECMP Route OA also. 
 Overlay ECMP Route OA will make sure nexthop will be added into nexthop group set with sorted on the Tunnel Endpoint IP Address. 
 SAI API changes for Overlay ECMP also will be same as Route OA.
-
-### NexthopGroup Orch
-Nexthop Group OA will be modified similar to Route OA.
 
 ## 2.3 Backward Compatibility
 To maintain backward compatibility this feature will only be functionally enabled (even if config wise enable in APP_DB SWITCH_TABLE) 
