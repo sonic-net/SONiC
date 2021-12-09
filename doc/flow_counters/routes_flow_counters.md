@@ -38,6 +38,11 @@ This document focus on route counter.
 - Statistics shall be configured (enabled/disabled)  and cleared using the CLI commands
 - Statistics shall be provided as a number of hit/use of a specific resource and number of bytes in packets sent via configured routes
 - When a prefix pattern is removed, Flow Counters on all routes matching the configured pattern shall be removed
+- Adding route entry shall be automatically bound to counter if counter is enabled and pattern matches
+- Removing route entry shall be automatically unbound if the entry is previously bound
+- Removing route entry shall not trigger route pattern search
+- Decreasing max allowed match count shall not trigger removing of existing bound counters
+- Increasing max allowed match count shall not trigger route pattern search
 
 ### Architecture Design
 
@@ -118,10 +123,6 @@ Route Orch shall be extended to handle following cases:
 6. Route entry removed from ROUTE_TABLE.
 
 ![route-removed](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_removed.svg).
-
-7. Max allowed match count updated.
-
-![user-set-max-allowed-match](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/user_set_max_allowed_match.svg).
 
 For binding route entry to a counter:
 
