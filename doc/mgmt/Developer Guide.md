@@ -2493,7 +2493,29 @@ func get_all_bgp_rib_objs(bgpRib_obj *ocbinds.OpenconfigNetworkInstance_NetworkI
 ```
 
 
+###### 2.5.8.3 Pruning API for Subtree callbacks
 
+In many cases, subtree transformers may want the query parameter support to be done by the infrastructure by pruning the (ygot) data tree. This support for pruning in the infrastructure should only be used if:
+
+- The time to compute the data tree is not significant. (i.e. where it is ok to have the overhead of building the tree, before pruning it for query parameter support by the infrastructure)
+- The time to prune the data tree is not significant.
+- The pruning API supports all the data types in the data tree being pruned.
+
+By default, the infrastructure will prune data trees created by subtree transformer callbacks. If a subtree callback desires to implement query parameter support itself, it indicates this by setting the *pruneDone flag to true in the inParams.
+
+```
+type XfmrParams struct {
+...
+    queryParams    QueryParams
+    pruneDone      *bool
+...
+}
+```
+
+Follow is a partial list of unsupported data types, features.
+
+- nonconfig (config=false) lists which have no keys defined.
+- ...
 
 
 ### 2.6 App Module
