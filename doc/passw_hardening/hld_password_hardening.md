@@ -71,7 +71,7 @@ Therefore - in order to further improve and harden the switch - a secure mechani
 
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 Arc design diagram\
-![passh_arc_sonic](passh_arc_sonic.drawio.png)
+![passh_arc_sonic](passh_arc_sonic.jpg)
 
 (flow description in the chapter below)
 
@@ -101,13 +101,15 @@ See linux 3d party component chapter for more description
 ![password hardening flow](ph_diagram.jpg)
 
 ####  1.7.1. <a name='Flowdescription:'></a>Flow description:
-Users by using Switch CLI will set new password/password configuration (see PW options below), the input will be saved in CONF_DB in PASSW_CONF_TABLE.\
-The daemon call PASSHD (password hardening daemon) listen to changes, parse the inputs and set the configuration to kernel by using pam-cracklib ,chage, pwhistory linux libs.
-After that, it will save the configuration and results in STATE_DB in PASSW_CONF_TABLE.
+When the feature is enabled, Users by using Sonic CLI will set new password policies/configuration (see PW options below) saving those in CONF_DB in PASSWH_TABLE.
+
+The daemon named hostcfgd daemon will be extended to listen to password hardening policies/configurations from PASSWH table, parse the inputs and set the new policies to PAM lib using pam-cracklib, chage, pwhistory libs.
 
 Note:
-The table PASSW_CONF_TABLE should reduce time consuming when users need to read configuration, because it will avoid to make additional calls to kernel.
 
+The Daemon is running in the host (without container) that matches this feature, because it is basically writing policies at PAM lib installed in the host.
+
+In addition, hostcfgd will avoid future conflicts with other feature related to PAM lib, because this daemon is also writing to PAM files for support other features, so it is better to save this convention and also manage the password hardening policies in this daemon.
 ####  1.7.2. <a name='PasswordHardeningConstrains'></a>Password Hardening Constrains
 The PW Hardening features will support different options by encapsulating cracklib, chage and pwhistory options according to the constrains definitions below.
 
@@ -206,14 +208,20 @@ For saving password with sha512, need to modify the /etc/pam.d/system-auth-a fil
 
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
-This feature will be disabled by default in the compilation stage, its meaning that it will be not compiled, only when the user will change the makefile setting to enable, this feature will be compiled.
+This feature will be disabled by default in the compilation stage, this means that it will be not compiled and will be added only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWD" in sonic-buildimage/rules/config file.
 
-In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled it will not appear in the CLI of the switch, and vice versa.
+In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
+
+Feature enable details:
+If the user added the compilation flag to the image, a user can still enable or disable this feature.
+By default if the feature was compiled, the feature status will be enabled, meaning that the switch will boot with the feature enable.
+the enable default configuration can be founded in init_cfg.json.j2 file.
+In case, the user want to disable the feature it can be done by using the Sonic CLI (details in CLI chapter).
 
 ####  1.8.2. <a name='Dependencies'></a>Dependencies
-Service dependencies: DB container, INIT_CONF and NTP service.
-Description:
-Password Hardening Daemon, the service that triggers this daemon, should start after DB containers start.
+Service dependencies: same dependencies as HOSTCFGD, INIT_CONF and NTP service.
+
+Note:
 NTP service should be secure, because it can influence expiration time of some policies.
 
 ####  1.8.3. <a name='FeatureDefault'></a>Feature Default
@@ -236,13 +244,6 @@ special class: True
 Notes:
 -  Old users (existing users before feature was enabled) will not be influenced by this feature, only new users will have to set passwords according to the password hardening policies, or old user when changing to new password will be force to be according the new policies.
 -  Default password of the system will remained with default value even when the feature is enable. It will be secure password only when the user decide to change the password.
-####  1.8.4. <a name='Howthedaemonworksinternally:'></a>How the daemon works internally:
-In case the user decides to compile the feature, the password hardening daemon will be started and running always as a service.
-The process/daemon always running, but can be in sleep mode, the process is checking that the "enable" field in CONF_DB table PASSWH is "True", this value it was assign in the init flow by default, so only in case that the user change the field "enable" to "False" the process will be in sleep, waiting to be "awake" when the field will be change back to enable.
-
-Notes:
--  The service/process will be run from the host (not in a docker).
--  This approach can support reset of the system, because the daemon can automatically verify if he should be awake or not.
 
 ###  1.9. <a name='SAIAPI'></a>SAI API
 no changed.
@@ -265,12 +266,10 @@ PASSWH:
 	"digit_class": {{True/False}}
 	"special_class": {{True/False}}
 ```
-Note: similar table for PASSWH_STATUS in STATE_DB
-
 ####  1.10.2. <a name='ConfigDBschemas'></a>ConfigDB schemas
 
 ```
-; Defines schema for PASSWH configuration attributes (PASSWH table & PASSW_STATUS table have same schema)
+; Defines schema for PASSWH configuration attributes in PASSWH table:
 key                                   = PASSWH:name             ;password hardening configuration
 ; field                               = value
 FEATURE_ENABLE                        = "True" / "False"        ; Feature feature enable/disable
@@ -576,32 +575,6 @@ The ConfigDB will be extended with next objects:
 	}
 }
 ```
-The StateDB will be extended with table PASSW_STATUS with similar objects than PASSWH table:
-
-```json
-{
-	"PASSWH_STATUS": {
-		"enable": "True",
-		"expiration": "30",
-		"expiration_warning": "10",
-		"history": "10",
-		"len_max": "30",
-		"len_min": "15",
-		"username_passw_match": "True",
-		"lower class": "True",
-		"upper class": "True",
-		"digit class": "True",
-		"special class": "True",
-	}
-}
-```
-
-Notes:
-
-Similar fields will be saved in PASSW_TABLE in CONF_DB than in PASSWH_STATUS_TABLE in STATE_DB.\
-The main difference is that CONF_DB contains values requested by the user, when STATE_DB contain the values after getting the status from kernel.
-So when user will use "show" cli commands most of them will get the answer from STATE_DB, instead to do a system call again.
-For example, if some configuration set by the user fail to be configured in the linux kernel the STATE_DB will have the actual status/(state) of the configuration, and CONF_DB will still have the user configuration value requested.
 
 
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
@@ -616,6 +589,9 @@ LDAP/Radius/Tacacs is under customer responsibility.
 When user with the correspond permission is doing upgrade from image with password hardening enable to password enable as well, the configuration related to the feature should be remain the same as was set before the update.
 
 When user is doing upgrade from image with password hardening feature disable to enable, old password will remain exactly as was set before, the feature is setting rules/policies to new passwords or to new users, so old passwords will remained as was set before.
+
+Upgrade image from feature enable to image with feature disable, from the security POV should assume that the user that is doing this image update have the corresponding permissions.
+From the feature POV, old password records that were set using the feature will remain the same, and new passwords will be set without the password hardening policies, because the feature is disable in the new image.
 
 Note:
 First time, the default password will remained the same, even when the feature is enabled, and if the user will like to have a secure password he will need to change it, and in result that the feature is enabled the current policies will required an strong password this time.
@@ -643,7 +619,7 @@ First time, the default password will remained the same, even when the feature i
 ##### Notes:
 - After creating a new policy is necessary to set a new password to a user to verify that the policy match the configured.
 - Valid values: could be random values from valid ranges.
-- The set configuration should be validate using the show command and also should be test from the STATE_DB.
+- The set configuration should be validate using the show command.
 
 ####  1.14.2. <a name='SystemTestcases'></a>System Test cases
 - Test all passwh policies together
