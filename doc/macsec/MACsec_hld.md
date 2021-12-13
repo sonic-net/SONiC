@@ -1,12 +1,17 @@
+1. Ingress/Egress MACsec latency 
+2. Forward SAI attributes of Gearbox in orchagent
+3. Can Gearbox support per Q PFC dropped count?
+
+
 <!-- omit in toc -->
 # MACsec SONiC High Level Design Document
 
 ***Revision***
 
-|  Rev  |    Date    | Author | Change Description |
-| :---: | :--------: | :----: | ------------------ |
-|  0.1  | 07/11/2020 | Ze Gan | Initial version    |
-|  0.2  | 12/10/2021 | Ze Gan | MACsec with PFC    |
+|  Rev  | Date  | Author | Change Description      |
+| :---: | :---: | :----: | ----------------------- |
+|  0.1  |       | Ze Gan | Initial version         |
+|  0.2  |       | Ze Gan | MACsec with PFC and CLI |
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -59,9 +64,11 @@
       - [Egress Flow](#egress-flow)
       - [State Change Actions](#state-change-actions)
       - [MACsec Actions](#macsec-actions)
-    - [3.4.6 PFC with MACsec](#346-pfc-with-macsec)
-      - [3.4.6.1 ACL Actions](#3461-acl-actions)
-      - [3.4.6.2 ACL Entry table](#3462-acl-entry-table)
+  - [3.5 Function Modules](#35-function-modules)
+    - [3.5.1 PFC with MACsec](#351-pfc-with-macsec)
+      - [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration)
+      - [3.5.1.2 PFC mode](#3512-pfc-mode)
+      - [3.5.1.3 PFC counter](#3513-pfc-counter)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
@@ -690,7 +697,6 @@ MACsec SECY Table
     "InPktsUnknownSCI":{{InPktsUnknownSCI}} # the number of the received frame with unknown SCI
     "InPktsNoSCI":{{InPktsNoSCI}}           # the number of the received frame without SCI (those frames will be passed to uncontrolled port)
     "InPktsOverrun":{{InPktsOverrun}}       # the number of the received frame that was discarded because the validation capabilities of the Cipher Suite cannot support current rate
-    "InPktsDroppedPFC"                      # the number of dropped clear PFC in the strict mode.
 ```
 
 ###### 3.4.4.2.2 Interval
@@ -779,25 +785,58 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 ***MACsec egress sc will be automatically created/delete when the MACsec port is created/deleted***
 
-#### 3.4.6 PFC with MACsec
+### 3.5 Function Modules
 
-To leverage the capability of ACL to bypass or drop the PFC and pause frames like what EAPOL did.
+#### 3.5.1 PFC with MACsec
 
-##### 3.4.6.1 ACL Actions
+*Due the the link delay should be considered as the PFC configuration, the extra delay of data frames **MUST NOT** be more than **1 microsecond**. (Will confirm with vendors).*
 
-- Identify the pause and PFC frames
+- To leverage the capability of ACL to bypass or drop the PFC and frames like what EAPOL did and all ACL entries for PFC are kept into the same ACL table of EAPOL. ***The EAPOL design is [here](https://github.com/opencomputeproject/SAI/blob/master/doc/macsec-gearbox/SAI_MACsec_API_Proposal-v1.4.docx).***
 
-``` c
-EAPOL_ETHER_TYPE = 0x8808
+
+
+- The ACL table is processed at the beginning of the MACsec stage. So, the configuration of ACL entry to PFC mentioned in [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration) will be executed before the frame into the MACsec secy.
+
+``` c++
+sai_attribute_t attr;
+std::vector<sai_attribute_t> attrs;
+// To egress MACsec port
+attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+attr.value.s32 = SAI_ACL_STAGE_EGRESS_MACSEC;
+attrs.push_back(attr);
+// To ingress MACsec port
+// attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+// attr.value.s32 = SAI_ACL_STAGE_EGRESS_MACSEC;
+// attrs.push_back(attr);
+attr.id = SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE;
+attr.value.booldata = true;
+attrs.push_back(attr);
+...
+sai_acl_api->create_acl_table(table_id, switch_id, static_cast<std::uint32_t>(attrs.size()), attrs.data());
+```
+
+
+- In the Gearbox mode, the ACL table lives in the gearbox. Meanwhile, the gearbox will not react PFC and frames but directly forward the frame to the client side (To ingress, the client side is the system side. To egress, the client side is the line side).
+
+Pic: Gearbox PFC
+
+##### 3.5.1.1 ACL entry configuration
+
+The following configuration to ACL entry can be used to identify PFC frame and do the expected action to the frame.
+
+- Identify the PFC frames
+
+``` c++
+PAUSE_ETHER_TYPE = 0x8808
 attr.id = SAI_ACL_ENTRY_ATTR_FIELD_ETHER_TYPE;
-attr.value.aclfield.data.u16 = EAPOL_ETHER_TYPE;
+attr.value.aclfield.data.u16 = PAUSE_ETHER_TYPE;
 attr.value.aclfield.mask.u16 = 0xFFFF;
 attr.value.aclfield.enable = true;
 ```
 
 - Bypass frames
 
-``` c
+``` c++
 attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
 attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_FORWARD;
 attr.value.aclaction.enable = true;
@@ -805,23 +844,45 @@ attr.value.aclaction.enable = true;
 
 - Drop frames
 
-``` c
+``` c++
 attr.id = SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION;
 attr.value.aclaction.parameter.s32 = SAI_PACKET_ACTION_DROP;
 attr.value.aclaction.enable = true;
 ```
 
-##### 3.4.6.2 ACL Entry table
+- **React encrypted ingress PFC frame**: The default behavior of MACsec engine should decrypt encrypted frames and forward it to the upper layer. So, there is no extra configuration to encrypted ingress PFC frame.
+- **React clear ingress PFC frame**: We don't want to assume an implicit default behavior to clear PFC frames in different MACsec engines. So, the ACL entry should has explicit configuration of **identify PFC frames** and **bypass frames** if we want to accept clear ingress PFC frames.
+- **Deny clear ingress PFC**: Due to the same reason with **Send clear ingress PFC frame**, the ACl entry should has explicit configuration of **identify PFC frames** and **Drop frames** if we want to deny clear ingress PFC frames.
+- **Send encrypted egress PFC frame**: The default behavior of MACsec engine should encrypt all frames and forward it to the peer side. So, there is no extra configuration to egress PFC frame.
+- **Send clear egress PFC frame**: If the switch want to send clear egress PFC frames, the PFC frames should bypass the MACsec engine. The ACL entry should **identify PFC Frames** first and **bypass frames**.
 
-To create the ACL entry in the following table and to add it into the corresponding ACL table. `"InPktsDroppedPFC"` mentioned in the [3.4.4.2.1 Counter List](#34421-counter-list) will count the dropped frames.
+##### 3.5.1.2 PFC mode
 
-|  Mode   | Ingress ACL entry | Egress ACL entry  |
-| :-----: | :---------------: | :---------------: |
-| bypass  | Identify + Bypass | Identify + Bypass |
-| encrypt | Identify + Bypass |     No action     |
-| strict  |  Identify + Drop  |     No action     |
+- **Bypass mode**: The switch should react clear and encrypted ingress PFC frames and should send clear egress PFC frames.
+- **Encrypt mode**: The switch should react clear and encrypted PFC frames, send encrypted PFC frames.
+- **Strict mode**: The switch should only react encrypted PFC frames, send encrypted PFC frames.
 
-***Identify means to identify pause and PFC frames***
+***Why encrypt mode? If the peer switch can only send clear PFC but react both, Encrypt mode is safer than Bypass mode.***
+
+##### 3.5.1.3 PFC counter
+
+To count the dropped ingress clear PFC frames in the Strict mode and the counter will be added into the PFC ACL entry mentioned above.
+
+``` c++
+sai_attribute_t attr;
+vector<sai_attribute_t> counter_attrs;
+
+attr.id = SAI_ACL_COUNTER_ATTR_TABLE_ID;
+attr.value.oid = acl_table_oid;
+counter_attrs.push_back(attr);
+
+attr.id = SAI_ACL_COUNTER_ATTR_ENABLE_PACKET_COUNT;
+attr.value.booldata = true;
+counter_attrs.push_back(attr);
+
+// If in Gearbox mode, the switch_id is the gearbox id, otherwise it's the asic switch id
+sai_acl_api->create_acl_counter(&counter_id, switch_id, (uint32_t)counter_attrs.size(), counter_attrs.data());
+```
 
 ## 4 Flow
 
