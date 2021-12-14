@@ -2501,7 +2501,7 @@ In many cases, subtree transformers may want the query parameter support to be d
 - The time to prune the data tree is not significant.
 - The pruning API supports all the data types in the data tree being pruned.
 
-By default, the infrastructure will prune data trees created by subtree transformer callbacks. If a subtree callback desires to implement query parameter support itself, it indicates this by setting the *pruneDone flag to true in the inParams.
+By default, the infrastructure will prune data trees created by subtree transformer callbacks. A subtree callback function may handle query parameters for it's section of the data tree. If a subtree callback desires to prune it's section of the data trees itself, it should tell the infra to skip pruning by setting the *pruneDone flag to true in the inParams.
 
 ```
 type XfmrParams struct {
