@@ -95,10 +95,9 @@ A new class Route pattern orch shall be added to orchagent to handle route patte
 
 ##### Route Orch
 
-Two new cache shall be added to Route Orch as data members:
+A ew cache shall be added to Route Orch as data members:
 
 - Cache for those routes which match the prefix pattern and are bound to counters (Bound Cache).
-- Cache for those routes which match the prefix pattern and are not bound to counters (UnBound Cache).
 
 Route Orch shall be extended to handle following cases:
 
