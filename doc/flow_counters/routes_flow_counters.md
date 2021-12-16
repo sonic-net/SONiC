@@ -31,18 +31,15 @@ This document focus on route counter.
 
 - Generic Counters shall be used as Flow Counters introduced by the feature
 - CLI shall be used for configuration, showing and clearing of statistics
-- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (prefix:vrf)
-- In Phase 1 the number of configured route patterns shall be limited to 1 (enforcement shall be done during configuration via CLI)
+- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (vrf:prefix). The VRF term can be skipped if it is default VRF.
+- In Phase 1 the number of configured route patterns shall be limited to 2 (IPv4/IPv6 pattern) (enforcement shall be done during configuration via CLI)
 - In Phase 1 the number of matching routes shall be limited to the pre-configured value (default value - 30), after reboot it is not ensured that the same set of matching routes will be used for counting
 - Flow Counters shall be bound the matching routes regardless how these routes are added - manually (static) or via FRR
 - Statistics shall be configured (enabled/disabled)  and cleared using the CLI commands
 - Statistics shall be provided as a number of hit/use of a specific resource and number of bytes in packets sent via configured routes
-- When a prefix pattern is removed, Flow Counters on all routes matching the configured pattern shall be removed
 - Adding route entry shall be automatically bound to counter if counter is enabled and pattern matches
 - Removing route entry shall be automatically unbound if the entry is previously bound
-- Removing route entry shall not trigger route pattern search
-- Decreasing max allowed match count shall not trigger removing of existing bound counters
-- Increasing max allowed match count shall not trigger route pattern search
+- To support default route, pattern "0.0.0.0" and "::" shall be treated as exact match instead of pattern match
 
 ### Architecture Design
 
@@ -51,7 +48,7 @@ Flow counter shall utilize the following existing infrastructure:
 - Generic Counters API - defined in https://github.com/opencomputeproject/SAI/blob/master/doc/SAI-Proposal-Generic-Counters.md and already supported by the SAI layer. This feature shall support binding/unbinding of these Generic counters to/from relevant SONIC objects
 - Flex Counters framework - used for background polling and pushing the statistic information to COUNTER DB for later use (e.g. by CLI). A introduction to flex counter can be found at: https://github.com/Azure/SONiC/pull/858.
 
-![architecture](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_flow_counter_architecture.png).
+![architecture](/doc/flow_counters/route_flow_counter_architecture.png).
 
 ### High-Level Design
 
@@ -60,6 +57,10 @@ Changes shall be made to sonic-utilities, sonic-swss sub-modules to support this
 > Note: Code present in this design document is only for demonstrating the design idea, it is not production code.
 
 #### sonic-swss
+
+##### SAI Capability Query
+
+orchagent shall query the SAI capability and save it to STATE DB so that CLI consumes the capability and tell user whether this feature is enabled on current platform.
 
 ##### Flex Counter Orch
 
@@ -95,33 +96,38 @@ A new class Route pattern orch shall be added to orchagent to handle route patte
 
 ##### Route Orch
 
-A ew cache shall be added to Route Orch as data members:
+Two new caches shall be added to Route Orch as data members:
 
 - Cache for those routes which match the prefix pattern and are bound to counters (Bound Cache).
+- Cache for those routes which match the prefix pattern and are not bound to counters (Unbound Cache).
 
 Route Orch shall be extended to handle following cases:
 
 1. Route flow counter enabled
 
-![route-flow-counter-enabled](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_flow_counter_enabled.svg).
+![route-flow-counter-enabled](/doc/flow_counters/route_flow_counter_enabled.svg).
 
 2. Route flow counter disabled
 
-![route-flow-counter-disabled](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_flow_counter_disabled.svg).
+![route-flow-counter-disabled](/doc/flow_counters/route_flow_counter_disabled.svg).
 
 3. Route pattern created or updated.
 
-![user-set-route-pattern](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/user_set_route_pattern.svg).
+![user-set-route-pattern](/doc/flow_counters/user_set_route_pattern.svg).
 
 4. Route pattern removed. Route orch shall unbind previous matched routes from counters and clear cache.
 
 5. New route entry in ROUTE_TABLE.
 
-![route-learned](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_learned.svg).
+![route-learned](/doc/flow_counters/route_learned.svg).
 
 6. Route entry removed from ROUTE_TABLE.
 
-![route-removed](https://github.com/Junchao-Mellanox/SONiC/blob/route-flow-counter/doc/flow_counters/route_removed.svg).
+![route-removed](/doc/flow_counters/route_removed.svg).
+
+7. Max allowed match count updated
+
+![max_allowed_updated](/doc/user_set_max_allowed_match.svg).
 
 For binding route entry to a counter:
 
@@ -151,8 +157,8 @@ Example:
 
 ```
 COUNTERS_ROUTE_NAME_MAP: {
-"1.1.1.0/24:Vrf_default":"oid:0x1500000000034e"
-"1.1.7.7/32:Vrf_default":"oid:0x1500000000035e"
+"1.1.1.0/24":"oid:0x1500000000034e"
+"Vrf_1:1.1.7.7/32":"oid:0x1500000000035e"
 }
 ```
 
@@ -168,8 +174,8 @@ Example:
 
 ```
 COUNTERS_ROUTE_TO_PATTERN_MAP: {
-"1.1.1.0/24:Vrf_default":"1.1.0.0/16:Vrf_default"
-"1.1.7.7/32:Vrf_default":"1.1.0.0/16:Vrf_default"
+"1.1.1.0/24":"1.1.0.0/16"
+"Vrf_1:1.1.7.7/32":"Vrf_1:1.1.0.0/16"
 }
 ```
 
@@ -224,7 +230,7 @@ Example:
 admin@sonic:~$ counterpoll show
 Type                              Interval (in ms)          Status
 --------------------------        ------------------        --------
-FLOW_CNT_ROUTE_STAT               default(1000)             disable
+FLOW_CNT_ROUTE_STAT               default(10000)            disable
 ```
 
 Config route pattern:
@@ -232,10 +238,10 @@ Config route pattern:
 ```
 config flowcnt-route pattern <add | remove> [--vrf <vrf>] [--max <route-max>] <prefix-pattern>    // configure route pattern
 Example:
-admin@sonic:~$ config flowcnt-route pattern add --vrf Vrf_management --max 50 2.2.0.0/16
+admin@sonic:~$ config flowcnt-route pattern add --vrf Vrf_1 --max 50 2.2.0.0/16
 Route Pattern Flow Counter configuration is successful
 
-admin@sonic:~$ config flowcnt-route pattern remove --vrf Vrf_management 2.2.0.0/16
+admin@sonic:~$ config flowcnt-route pattern remove --vrf Vrf_1 2.2.0.0/16
 Route Pattern Flow Counter configuration is successful
 ```
 
@@ -247,7 +253,7 @@ Example:
 admin@sonic:~$ show flowcnt-route config
 Route pattern          VRF                 Max
 -----------------------------------------------
-3.3.0.0/16             Vrf_default         50
+3.3.0.0/16             default             50
 ```
 
 Show counters value:
@@ -258,7 +264,7 @@ Example:
 admin@sonic:~$ show flowcnt-route stats
 Route pattern       VRF               Matched routes           Packets          Bytes
 --------------------------------------------------------------------------------------
-3.3.0.0/16          Vrf_default       3.3.1.0/24               100              4543
+3.3.0.0/16          default           3.3.1.0/24               100              4543
                                       3.3.2.3/32               3443             929229
                                       3.3.0.0/16               0                0
 
@@ -268,16 +274,16 @@ Example:
 admin@sonic:~$ show flowcnt-route stats pattern 3.3.0.0/16
 Route pattern       VRF               Matched routes           Packets          Bytes
 --------------------------------------------------------------------------------------
-3.3.0.0/16          Vrf_default       3.3.1.0/24               100              4543
+3.3.0.0/16          default           3.3.1.0/24               100              4543
                                       3.3.2.3/32               3443             929229
                                       3.3.0.0/16               0                0
 
 show flowcnt-route stats route [<prefix> [ --vrf <vrf>] ]             // show statistics of the specific route matching the configured route pattern
 Example:
-admin@sonic:~$ show flowcnt-route stats route 3.3.3.2/32 --vrf Vrf_management
+admin@sonic:~$ show flowcnt-route stats route 3.3.3.2/32 --vrf Vrf_1
 Route                     VRF              Route Pattern           Packets          Bytes
 -----------------------------------------------------------------------------------------
-3.3.3.2/32                Vrf_management   3.3.0.0/16              100              4543
+3.3.3.2/32                Vrf_1            3.3.0.0/16              100              4543
 ```
 
 Clear counters:
@@ -290,18 +296,18 @@ Route Flow Counters were successfully cleared
 
 sonic-clear flowcnt-route pattern  [<prefix-pattern> [ --vrf <vrf>] ]   // clear flow counters of all routes matching the configured route pattern
 Example:
-admin@sonic:~$ sonic-clear flowcnt-route pattern 3.3.0.0/16 --vrf Vrf_management
+admin@sonic:~$ sonic-clear flowcnt-route pattern 3.3.0.0/16 --vrf Vrf_1
 Flow Counters of all routes matching the configured route pattern were successfully cleared
 
 sonic-clear flowcnt-route route [<prefix> [ --vrf <vrf>] ]  // clear flow counters of the specific route matching the configured prefix
 Example:
-admin@sonic:~$ sonic-clear flowcnt-route route 3.3.3.2/32 --vrf Vrf_management
+admin@sonic:~$ sonic-clear flowcnt-route route 3.3.3.2/32 --vrf Vrf_1
 Flow Counters of the specified route were successfully cleared
 ```
 
 ##### YANG model
 
-A new container shall be added to sonic-flex_counter.yang:
+A new container of FLEX_COUNTER_TABLE shall be added to sonic-flex_counter.yang:
 
 ```yang
 ...
@@ -309,6 +315,38 @@ container FLOW_CNT_ROUTE {
     /* ROUTE_FLEX_COUNTER_GROUP */
     leaf FLEX_COUNTER_STATUS {
         type flex_status;
+    }
+    leaf FLEX_COUNTER_DELAY_STATUS {
+        type flex_delay_status;
+    }
+    leaf POLL_INTERVAL {
+        type poll_interval;
+    }
+}
+...
+```
+
+A new container FLOW_COUNTER_ROUTE_PATTERN_TABLE shall be added to sonic-flex_counter.yang:
+
+```yang
+...
+container FLOW_COUNTER_ROUTE_PATTERN_TABLE {
+    description "Flow counter route pattern of config_db.json";
+
+    list PATTERN_LIST {
+
+        key "pattern";
+
+        leaf pattern {
+            type sonic-route-pattern;
+        }
+
+        leaf max_match_count {
+            type uint32 {
+                range 1..50;
+            }
+        }
+
     }
 }
 ...
@@ -319,7 +357,7 @@ container FLOW_CNT_ROUTE {
 A new table FLOW_COUNTER_ROUTE_PATTERN_TABLE shall be added to CONFIG DB.
 
     ; Defines schema for route flow counter table
-    key                  = "FLOW_COUNTER_ROUTE_PATTERN_TABLE|prefix:vrf"      ; Route pattern (prefix + vrf)
+    key                  = "FLOW_COUNTER_ROUTE_PATTERN_TABLE|vrf|prefix"      ; Route pattern (vrf + prefix)
     ; field              = value
     ...
     max_match_count      = Integer                                            ; Max allowed match count for this pattern, default 30, value range [1, 50]
@@ -327,7 +365,11 @@ A new table FLOW_COUNTER_ROUTE_PATTERN_TABLE shall be added to CONFIG DB.
 Example:
 
 ```
-127.0.0.1:6379[4]> hgetall FLOW_COUNTER_ROUTE_PATTERN_TABLE|3.3.1.0/24:Vrf_management
+127.0.0.1:6379[4]> hgetall FLOW_COUNTER_ROUTE_PATTERN_TABLE|Vrf_1|3.3.1.0/24
+1) "max_match_count"
+2) "30"
+
+127.0.0.1:6379[4]> hgetall FLOW_COUNTER_ROUTE_PATTERN_TABLE|3.3.1.0/24
 1) "max_match_count"
 2) "30"
 ```
@@ -347,10 +389,15 @@ Example:
 ### Warmboot and Fastboot Design Impact
 As this is a debugging feature, basically, user should not enable this counter during warmboot or fastboot.
 
-However, if user did it by mistake, there is already a mechanism that delays flex counter, nothing needs to be done here. See PR https://github.com/Azure/sonic-swss/pull/1877.
+However, if user did it by mistake:
+
+- For fastboot, there is already a mechanism that delays flex counter, nothing needs to be done here. See PR https://github.com/Azure/sonic-swss/pull/1877.
+- For warmboot, routeorch does not handle any DB change except the "resync" during warmboot, it means that route flow counter will not be enabled until warmboot finish. No change is required in this feature.
+
+Based on the above, this feature shall not introduce any delay in fastboot or warmboot, and this shall be verified by test.
 
 ### Restrictions/Limitations
-N/A
+SONiC supports a few different route types such as normal route, overlay route, srv6 route, but a vendor might not support all of them. So, whether a route can be bound to generic counter depends on vendor SAI implementation. If vendor SAI does not support a specific route type, the bound SAI call shall return an error, swss shall clear the resource associated to the generic counter.
 
 ### Testing Requirements/Design
 
