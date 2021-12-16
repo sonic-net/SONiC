@@ -17,7 +17,6 @@
 		* 1.8.1. [Compilation](#Compilation)
 		* 1.8.2. [dependencies](#dependencies)
 		* 1.8.3. [Feature default](#Featuredefault)
-		* 1.8.4. [How the daemon works internally:](#Howthedaemonworksinternally:)
 	* 1.9. [SAI API](#SAIAPI)
 	* 1.10. [Configuration and management](#Configurationandmanagement)
 		* 1.10.1. [PASSWH configDB table](#PASSWHconfigDBtable)
@@ -54,7 +53,7 @@ This password hardening hld doc described the requirements, architecture and con
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 	PW - password
-	SPASSWD - secure password daemon
+	PASSWH - Password Hardening
 
 ###  1.4. <a name='Overview'></a>Overview
 
