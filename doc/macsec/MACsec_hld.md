@@ -1,8 +1,3 @@
-1. Ingress/Egress MACsec latency 
-2. Forward SAI attributes of Gearbox in orchagent
-3. Can Gearbox support per Q PFC dropped count?
-
-
 <!-- omit in toc -->
 # MACsec SONiC High Level Design Document
 
@@ -69,6 +64,7 @@
       - [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration)
       - [3.5.1.2 PFC mode](#3512-pfc-mode)
       - [3.5.1.3 PFC counter](#3513-pfc-counter)
+      - [3.5.1.4 PFC test](#3514-pfc-test)
 - [4 Flow](#4-flow)
   - [4.1 Init Port](#41-init-port)
   - [4.2 MACsec Init](#42-macsec-init)
@@ -119,7 +115,7 @@ At a high level the following should be supported:
 
 #### Phase II
 
-** ETA: 202112**
+**ETA: 202112**
 - MACsec can support Extension packet number(XPN), which means to support Cipher Suites: GCM-AES-XPN-128 and GCM-AES-XPN-256
 - SAK can be refreshed proactively.
 - Enable or disable the XPN feature by the wpa_cli
@@ -129,7 +125,7 @@ At a high level the following should be supported:
 
 #### Phase III
 
-** ETA: 202206 **
+**ETA: 202206**
 - Primary and Fallback secure Connectivity Association Key can be supported simultaneously.
 
 #### Phase IV
@@ -793,8 +789,6 @@ All boxes with black edge are components of virtual SAI and all boxes with purpl
 
 - To leverage the capability of ACL to bypass or drop the PFC and frames like what EAPOL did and all ACL entries for PFC are kept into the same ACL table of EAPOL. ***The EAPOL design is [here](https://github.com/opencomputeproject/SAI/blob/master/doc/macsec-gearbox/SAI_MACsec_API_Proposal-v1.4.docx).***
 
-
-
 - The ACL table is processed at the beginning of the MACsec stage. So, the configuration of ACL entry to PFC mentioned in [3.5.1.1 ACL entry configuration](#3511-acl-entry-configuration) will be executed before the frame into the MACsec secy.
 
 ``` c++
@@ -815,10 +809,21 @@ attrs.push_back(attr);
 sai_acl_api->create_acl_table(table_id, switch_id, static_cast<std::uint32_t>(attrs.size()), attrs.data());
 ```
 
+- In the Gearbox mode, the ACL table lives in the gearbox. Meanwhile, the gearbox will not react PFC and frames but forward the frame to the client side (To ingress, the client side is the system side. To egress, the client side is the line side).
 
-- In the Gearbox mode, the ACL table lives in the gearbox. Meanwhile, the gearbox will not react PFC and frames but directly forward the frame to the client side (To ingress, the client side is the system side. To egress, the client side is the line side).
+![gearbox_pfc](images/gearbox_pfc.png)  
 
-Pic: Gearbox PFC
+``` c++
+sai_attribute_t attr;
+// Enable Forward pause frame
+attr.id = SAI_PORT_ATTR_GLOBAL_FLOW_CONTROL_FORWARD;
+attr.value.booldata = true;
+sai_port_api->set_port_attribute(port_id, &attr); // port_id is the id of lineside port in gearbox
+// Enable Forward PFC frame
+attr.id = SAI_PORT_ATTR_PRIORITY_FLOW_CONTROL_FORWARD;
+attr.value.booldata = true;
+sai_port_api->set_port_attribute(port_id, &attr); // port_id is the id of lineside port in gearbox
+```
 
 ##### 3.5.1.1 ACL entry configuration
 
@@ -859,14 +864,22 @@ attr.value.aclaction.enable = true;
 ##### 3.5.1.2 PFC mode
 
 - **Bypass mode**: The switch should react clear and encrypted ingress PFC frames and should send clear egress PFC frames.
+
+![pfc_bypass_mode](images/pfc_bypass_mode.png)  
+
 - **Encrypt mode**: The switch should react clear and encrypted PFC frames, send encrypted PFC frames.
+
+![pfc_encrypt_mode](images/pfc_encrypt_mode.png)  
+
 - **Strict mode**: The switch should only react encrypted PFC frames, send encrypted PFC frames.
+
+![pfc_strict_mode](images/pfc_strict_mode.png)  
 
 ***Why encrypt mode? If the peer switch can only send clear PFC but react both, Encrypt mode is safer than Bypass mode.***
 
 ##### 3.5.1.3 PFC counter
 
-To count the dropped ingress clear PFC frames in the Strict mode and the counter will be added into the PFC ACL entry mentioned above.
+in the Strict mode, to count the dropped ingress clear PFC frames per port and the counter will be added into the PFC ACL entry mentioned above.
 
 ``` c++
 sai_attribute_t attr;
@@ -883,6 +896,12 @@ counter_attrs.push_back(attr);
 // If in Gearbox mode, the switch_id is the gearbox id, otherwise it's the asic switch id
 sai_acl_api->create_acl_counter(&counter_id, switch_id, (uint32_t)counter_attrs.size(), counter_attrs.data());
 ```
+
+***Per queue counter of PFC needs to be discussed with vendors further.***
+
+##### 3.5.1.4 PFC test
+
+Please see the [MACsec test plan](https://github.com/Pterosaur/sonic-mgmt/blob/macsec_platform/docs/testplan/MACsec-test-plan.md#pfc-in-macsec) in sonic-mgmt.
 
 ## 4 Flow
 
