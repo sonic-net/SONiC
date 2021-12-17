@@ -2517,6 +2517,23 @@ Follow is a partial list of unsupported data types, features.
 - nonconfig (config=false) lists which have no keys defined.
 - ...
 
+Feature developers may use the output of the REST (or Telemetry) server log files, to assist with making the determination for a subtree callback to prune their section of the tree themselves. Lines containing the following markers can be used:
+
+- xfmrPruneQP: func
+- xfmrPruneQP: Totals:
+
+For example:
+
+```
+...
+IDec 17 22:46:33.135333+00:00 2021  157611 xlate_xfmr_handler.go:51] xfmrPruneQP: func ntp_server_subtree_xfmr uri /openconfig-system:system/ntp/servers/server, requestUri /openconfig-system:system/ntp/servers
+...
+IDec 17 22:46:33.136191+00:00 2021  157611 xlate_prune.go:76] xfmrPruneQP: Totals:      LastTime: 724.669µs LastUri: /openconfig-system:system/ntp/servers/server Hits: 1 TotalTime: 724.669µs PeakTime: 724.669µs PeakUri: /openconfig-system:system/ntp/servers/server
+...
+
+```
+
+In the above example, the *func* gives the subtree transformer function name, and the *LastTime* gives the time taken in the infra to prune the section of the data tree handled by that subtree transformer.
 
 ### 2.6 App Module
 
