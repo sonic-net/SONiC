@@ -31,9 +31,9 @@ This document focus on route counter.
 
 - Generic Counters shall be used as Flow Counters introduced by the feature
 - CLI shall be used for configuration, showing and clearing of statistics
-- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (vrf:prefix). The VRF term can be skipped if it is default VRF.
+- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (vrf|prefix). The VRF term can be skipped if it is default VRF.
 - In Phase 1 the number of configured route patterns shall be limited to 2 (IPv4/IPv6 pattern) (enforcement shall be done during configuration via CLI)
-- In Phase 1 the number of matching routes shall be limited to the pre-configured value (default value - 30), after reboot it is not ensured that the same set of matching routes will be used for counting
+- In Phase 1 the number of matching routes for each pattern shall be limited to the pre-configured value (default value - 30, max value - 50)after reboot it is not ensured that the same set of matching routes will be used for counting
 - Flow Counters shall be bound the matching routes regardless how these routes are added - manually (static) or via FRR
 - Statistics shall be configured (enabled/disabled)  and cleared using the CLI commands
 - Statistics shall be provided as a number of hit/use of a specific resource and number of bytes in packets sent via configured routes
@@ -134,7 +134,7 @@ For binding route entry to a counter:
 1. Request Flow Counter Handler to create a generic counter
 2. Bind the counter to the route
 3. Request FlexCounterManager to set the counter Id list to FLEX_COUNTER_TABLE so that syncd knows how to query the stats
-4. Save a new entry {<prefix_str>:<counter_id>} and {<prefix_str>:<route_pattern>} to COUNTERS DB so that CLI knows how to display the statistic.
+4. Save a new entry {<prefix_str>|<counter_id>} and {<prefix_str>|<route_pattern>} to COUNTERS DB so that CLI knows how to display the statistic.
 
 For unbinding route entry from a counter:
 
@@ -158,7 +158,7 @@ Example:
 ```
 COUNTERS_ROUTE_NAME_MAP: {
 "1.1.1.0/24":"oid:0x1500000000034e"
-"Vrf_1:1.1.7.7/32":"oid:0x1500000000035e"
+"Vrf_1|1.1.7.7/32":"oid:0x1500000000035e"
 }
 ```
 
@@ -175,7 +175,7 @@ Example:
 ```
 COUNTERS_ROUTE_TO_PATTERN_MAP: {
 "1.1.1.0/24":"1.1.0.0/16"
-"Vrf_1:1.1.7.7/32":"Vrf_1:1.1.0.0/16"
+"Vrf_1|1.1.7.7/32":"Vrf_1|1.1.0.0/16"
 }
 ```
 
