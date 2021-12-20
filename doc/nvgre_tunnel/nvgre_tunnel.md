@@ -71,7 +71,7 @@ The new tables will be added to Config DB. Unless otherwise stated, the attribut
 NVGRE_TUNNEL|{{tunnel_name}} 
     "src_ip": {{ip_address}} 
 
-NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{vlan_name}}
+NVGRE_TUNNEL_MAP|{{tunnel_name}}|{{tunnel_map_name}}
     "vsid": {{vsid_id}}
     "vlan": {{vlan_id}}
 ```
@@ -105,7 +105,7 @@ ipv6       = 6( h16 ":" ) ls32
 
 ```
 ; Defines schema for NVGRE Tunnel map configuration attributes
-key                                   = NVGRE_TUNNEL|tunnel_name|vlan_name ; NVGRE tunnel configuration
+key                                   = NVGRE_TUNNEL|tunnel_name|tunnel_map_name ; NVGRE tunnel configuration
 ; field                               = value
 vsid                                  = DIGITS                             ; 1 to 16 million values
 vlan                                  = 1\*4DIGIT                          ; 1 to 4094 Vlan id
