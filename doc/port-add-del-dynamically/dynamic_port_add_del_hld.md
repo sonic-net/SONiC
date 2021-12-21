@@ -250,6 +250,7 @@ We have also possible way for race condition:<br />
 •   Solution for this: <br />
 Need to add to orchagent the ability to add the buffer configuration of a port and increase a reference counter for each port, in the same way ACL cfg on port is working. We already have infrastructure for this just need to add the buffer cfg to use it. If a port has with buffer cfg on – this port will not be removed.
 
+If we will not use this mechanism we will get a lot of SAI error and with this ref counter method we will receive only one warning. Also we wanted the buffer configuration to be the same as ACL/VLAN/INTERFACE configuration, which uses the ref counter for the dependencies, and before removing a port we check this ref counter.
 
 ** Buffer changes PR: ** <br />
 [https://github.com/Azure/sonic-swss/pull/2022](https://github.com/Azure/sonic-swss/pull/2022)
