@@ -183,10 +183,10 @@ The NVGRE Tunnel feature require at least `SAI 1.9` or above.
 | NVGRE component | SAI attribute |
 |--------------|---------------------------------------|
 | NVGRE tunnel type | SAI_TUNNEL_TYPE_NVGRE |
-| Encap mapper | SAI_TUNNEL_MAP_TYPE_VLAN_ID_TO_VSID |
 | Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_VLAN_ID |
-| Encap mapper | SAI_TUNNEL_MAP_TYPE_BRIDGE_IF_TO_VSID |
 | Decap mapper | SAI_TUNNEL_MAP_TYPE_VSID_TO_BRIDGE_IF |
+| NVGRE tunnel termination entry type | SAI_TUNNEL_TERM_TABLE_ENTRY_TYPE_P2MP |
+
 
 ### CLI/YANG model Enhancements 
 
