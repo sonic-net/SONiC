@@ -127,7 +127,7 @@ Route Orch shall be extended to handle following cases:
 
 7. Max allowed match count updated
 
-![max_allowed_updated](/doc/user_set_max_allowed_match.svg).
+![max_allowed_updated](/doc/flow_counters/user_set_max_allowed_match.svg).
 
 For binding route entry to a counter:
 
