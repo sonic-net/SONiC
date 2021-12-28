@@ -1,6 +1,6 @@
 # SONiC Management Framework Developer Guide
 
-## Rev 1.1
+## Rev 1.3
 
 ## Table of Contents
 
@@ -32,6 +32,7 @@
         * [2.4.4 Logging](#244-logging)
         * [2.4.5 Error Response](#245-error-response)
         * [2.4.6 D-Bus messaging](#246-d-bus-messaging)
+        * [2.4.7 Redaction API](#247-redaction-api)
     * [2.5 Transformer](#25-transformer)
       * [2.5.1 Annotation File](#251-annotation-file)
       * [2.5.2 YANG Extensions](#252-YANG Extensions)
@@ -93,6 +94,8 @@
 | 0.9  | 06/22/2020 |       Sachin Hola       | Incorporated Phase-II changes, with new repo structure.      |
 | 1.0  | 10/09/2020 | Anand Kumar Subramanian | Debugging performance issues                                 |
 | 1.1  | 08/10/2021 |      Kwangsuk Kim       | Updated Transformer section including query parameter etc.   |
+| 1.2  | 12/10/2021 |      Arun Barboza       | Added Pruning API description.                              |
+| 1.3  | 12/28/2021 |      Arun Barboza       | Added Redaction API description.                             |
 
 ## About this Manual
 
@@ -531,6 +534,7 @@ This style of logging is called verbose logging and they are not enabled by defa
 Program should be started with a command line argument "-v" to enable verbosity levels.
 - Use `glog.V(2).Infof()` for more verbose developer traces.
 - Avoid using higer verbosity levels, fatal logs, `fmt.Printf()` and other logging libraries.
+- Avoid logging sensitive information (like passwords, keys, ...). Please see [section 2.4.7](#247-redaction-api) for help with redacting logs.
 
 Examples:
 
@@ -608,6 +612,43 @@ Error types defined in `sonic-mgmt-common/translib/tlerr/tlerr.go` are reserved 
 #### 2.4.6 D-Bus messaging
 
 TODO
+
+#### 2.4.7 Redaction API
+
+Ideally, sensitive information like passwords, protocol-keys, and confidential data should not be logged to debug log files. To this end, all developers must strive to avoid logging such material intentionally. On the other hand, debugging requires that information be logged to the debug log files. To this end, we'd like to propose that at default debugging log levels no sensitive data be logged.
+
+Sometimes, this data comes from the user and, at the time it is logged, hasn't been identified as sensitive information. The Redaction API provides an interface, for developers implementing translib golang functions, to log such data with redaction.
+
+Example Usage:
+
+```
+
+...
+
+log.Info("Update request received with payload =",
+    string((utils.GRedactor.DoRedact(payload, nil, nil)).([]byte)))
+
+...
+
+```
+
+Example Log:
+
+```
+
+...
+
+IDec 28 22:11:26.904868+00:00 2021      20 translib.go:311] Update request received with payload =REDACTED: {"openconfig-system:server-groups": {"openconfig-system:server-group": [{"openconfig-system:name": "RADIUS", "openconfig-system:config": {"openconfig-system:name": "RADIUS", "openconfig-system:secret-key": "************", "openconfig-system:encrypted": false}}]}}
+
+...
+
+```
+
+Limitations:
+
+- The Redaction API currently has support for JSON payloads only (but it can be extended, if needed).
+- Developers need to provide the list (or patterns) of sensitive JSON keys. A starter set of keys has been provided (but it can be extended, trivially, if needed).
+
 
 ### 2.5 Transformer
 
