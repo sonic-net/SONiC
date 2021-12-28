@@ -2493,8 +2493,47 @@ func get_all_bgp_rib_objs(bgpRib_obj *ocbinds.OpenconfigNetworkInstance_NetworkI
 ```
 
 
+###### 2.5.8.3 Pruning API for Subtree callbacks
 
+In many cases, subtree transformers may want the query parameter support to be done by the infrastructure by pruning the (ygot) data tree. This support for pruning in the infrastructure should only be used if:
 
+- The time to compute the data tree is not significant. (i.e. where it is ok to have the overhead of building the tree, before pruning it for query parameter support by the infrastructure)
+- The time to prune the data tree is not significant.
+- The pruning API supports all the data types in the data tree being pruned.
+
+By default, the infrastructure will prune data trees created by subtree transformer callbacks. A subtree callback function may handle query parameters for it's section of the data tree. If a subtree callback desires to prune it's section of the data trees itself, it should tell the infra to skip pruning by setting the *pruneDone flag to true in the inParams.
+
+```
+type XfmrParams struct {
+...
+    queryParams    QueryParams
+    pruneDone      *bool
+...
+}
+```
+
+Follow is a partial list of unsupported data types, features.
+
+- nonconfig (config=false) lists which have no keys defined.
+- ...
+
+Feature developers may use the output of the REST (or Telemetry) server log files, to assist with making the determination for a subtree callback to prune their section of the tree themselves. Lines containing the following markers can be used:
+
+- xfmrPruneQP: func
+- xfmrPruneQP: Totals:
+
+For example:
+
+```
+...
+IDec 17 22:46:33.135333+00:00 2021  157611 xlate_xfmr_handler.go:51] xfmrPruneQP: func ntp_server_subtree_xfmr uri /openconfig-system:system/ntp/servers/server, requestUri /openconfig-system:system/ntp/servers
+...
+IDec 17 22:46:33.136191+00:00 2021  157611 xlate_prune.go:76] xfmrPruneQP: Totals:      LastTime: 724.669µs LastUri: /openconfig-system:system/ntp/servers/server Hits: 1 TotalTime: 724.669µs PeakTime: 724.669µs PeakUri: /openconfig-system:system/ntp/servers/server
+...
+
+```
+
+In the above example, the *func* gives the subtree transformer function name, and the *LastTime* gives the time taken in the infra to prune the section of the data tree handled by that subtree transformer.
 
 ### 2.6 App Module
 
