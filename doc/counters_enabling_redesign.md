@@ -56,15 +56,11 @@ FlexCountersOrch daemon will be refactored to do the following:
 
 Eventually, when the list is empty, enable the counters.
 
-- The daemon will also start a timer in order to be able to enable counters even if one of the ports is not stable.
-If after 3 minutes (180 seconds), the counters were not enabled yet, enable counters.
+- The daemon will also wait for a timer in order to be able to enable counters even if one of the ports is not stable.
+    
+    If after 3 minutes (180 seconds), the counters were not enabled yet, enable counters.
 
-    The timer will be running in a thread doing the following:
+    The daemon will create a SelectableTimer and wait for the it to poke.
 
-    - Initialize a wait_time to 180 seconds.
-    - Sleep 10 seconds.
-    - Check if the counters were already enabled using a common boolean.
-        - If boolean == True, stop running.
-        - else, continue with loop.
-
-    - If after 3 minutes the boolean == False, enable counters.
+    When doTask(SelectableTimer*) function will be triggered, it will check if the counters are already enabled.
+    If not, enable them.
