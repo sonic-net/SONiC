@@ -207,7 +207,7 @@ For saving password with sha512, need to modify the /etc/pam.d/system-auth-a fil
 
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
-This feature will be disabled by default in the compilation stage, this means that it will be not compiled and will be added only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWD" in sonic-buildimage/rules/config file.
+This feature will be disabled by default in the compilation stage, this means that it will be not compiled and will be added only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWH" in sonic-buildimage/rules/config file.
 
 In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
 
@@ -252,24 +252,27 @@ no changed.
 ####  1.10.1. <a name='PASSWHconfigDBtable'></a>PASSWH configDB table
 
 ```
-PASSWH:
-	"enable": {{True/False}}
-	"expiration": {{days}}
-	"expiration_warning": {{days}}
-	"history": {{num_passw_history}}
-	"len_max": {{num}}
-	"len_min": {{num}}
-	"username_passw_match": {{True/False}}
-	"lower_class": {{True/False}}
-	"upper_class": {{True/False}}
-	"digit_class": {{True/False}}
-	"special_class": {{True/False}}
+PASSWH:{
+	policies:{
+		"enable": {{True/False}}
+		"expiration": {{days}}
+		"expiration_warning": {{days}}
+		"history": {{num_passw_history}}
+		"len_max": {{num}}
+		"len_min": {{num}}
+		"username_passw_match": {{True/False}}
+		"lower_class": {{True/False}}
+		"upper_class": {{True/False}}
+		"digit_class": {{True/False}}
+		"special_class": {{True/False}}
+	}
+}
 ```
 ####  1.10.2. <a name='ConfigDBschemas'></a>ConfigDB schemas
 
 ```
 ; Defines schema for PASSWH configuration attributes in PASSWH table:
-key                                   = PASSWH:name             ;password hardening configuration
+key                                   = "POLICIES"             ;password hardening configuration
 ; field                               = value
 FEATURE_ENABLE                        = "True" / "False"        ; Feature feature enable/disable
 EXPIRATION                            = 3*DIGIT                    ; password expiration in days units, should be 365 days max
@@ -560,17 +563,19 @@ The ConfigDB will be extended with next objects:
 ```json
 {
 	"PASSWH": {
-		"enable": "True",
-		"expiration": "30",
-		"expiration_warning": "10",
-		"history": "10",
-		"len_max": "30",
-		"len_min": "15",
-		"username_passw_match": "True",
-		"lower class": "True",
-		"upper class": "True",
-		"digit class": "True",
-		"special class": "True",
+		"policies":{
+			"enable": "True",
+			"expiration": "30",
+			"expiration_warning": "10",
+			"history": "10",
+			"len_max": "30",
+			"len_min": "15",
+			"username_passw_match": "True",
+			"lower class": "True",
+			"upper class": "True",
+			"digit class": "True",
+			"special class": "True",
+		}
 	}
 }
 ```
