@@ -30,6 +30,7 @@
 - [Restrictions/Limitations](#restrictionslimitations)
 - [Testing Requirements/Design](#testing-requirementsdesign)
   - [System Test Cases](#system-test-cases)
+- [Future Work](#future-work)
 
 # List of Tables
 
@@ -479,7 +480,7 @@ module sonic-vlan-stacking {
 
                 ext:key-regex-yang-to-configdb "<INTERFACE_NAME>|<STAGE>|<VLAN_ID>";
 
-                leaf INTERFACE_NAME {
+                leaf interface_name {
                     type union {
                         type leafref {
                             path /port:sonic-port/port:PORT/port:PORT_LIST/port:port_name;
@@ -490,25 +491,27 @@ module sonic-vlan-stacking {
                     }
                 }
 
-                leaf STAGE {
+                leaf stage {
                     type string {
                         pattern 'ingress|egress';
                     }
                 }
 
-                leaf VLAN_ID {
+                leaf vlan_id {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
                 }
 
                 leaf action {
+                    mandatory true;
                     type string {
                         pattern 'push|pop|swap';
                     }
                 }
 
                 leaf s_vlanid {
+                    /* S-VLAN ID for push and swap action */  
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
@@ -632,4 +635,8 @@ There is no restriction or limitation.
   * C-VLAN: One and multiple C-VLANs
   * S-VLAN: One and multiple S-VLANs
   * Interface for C-VLAN and S-VLAN as Ethernet port and channel port.
+
+# Future Work
+
+The values of TPID and COS in the adding outer VLAN are configurable. For example, TPID may be configured as 0x88a8 which is defined in IEEE or other values. For the COS value, it may be able to configure to extract from the COS value of the original VLAN.
  
