@@ -230,7 +230,7 @@ pfc_encryption_mode         = "bypass" / "encrypt" / "strict_encrypt"
                                                        ; The behavior to PFC frames.
                                                        ; "bypass": react clear and encrypted PFC frames, send clear PFC frames.
                                                        ; "encrypt": react clear and encrypted PFC frames, send encrypted PFC frames.
-                                                       ; "strict": only react encrypted PFC frames, send encrypted PFC frames.
+                                                       ; "strict_encrypt": only react encrypted PFC frames, send encrypted PFC frames.
                                                        ; If the specified mode cannot be supported by the platform, record an error in the log file.
                                                        ; Default "bypass".
 ```
@@ -800,7 +800,7 @@ attr.value.s32 = SAI_ACL_STAGE_EGRESS_MACSEC;
 attrs.push_back(attr);
 // To ingress MACsec port
 // attr.id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
-// attr.value.s32 = SAI_ACL_STAGE_EGRESS_MACSEC;
+// attr.value.s32 = SAI_ACL_STAGE_INGRESS_MACSEC;
 // attrs.push_back(attr);
 attr.id = SAI_ACL_TABLE_ATTR_FIELD_ETHER_TYPE;
 attr.value.booldata = true;
@@ -871,15 +871,15 @@ attr.value.aclaction.enable = true;
 
 ![pfc_encrypt_mode](images/pfc_encrypt_mode.png)  
 
-- **Strict mode**: The switch should only react encrypted PFC frames, send encrypted PFC frames.
+- **Strict Encrypt mode**: The switch should only react encrypted PFC frames, send encrypted PFC frames.
 
-![pfc_strict_mode](images/pfc_strict_mode.png)  
+![pfc_strict_encrypt_mode](images/pfc_strict_mode.png)  
 
 ***Why encrypt mode? If the peer switch can only send clear PFC but react both, Encrypt mode is safer than Bypass mode.***
 
 ##### 3.5.1.3 PFC counter
 
-in the Strict mode, to count the dropped ingress clear PFC frames per port and the counter will be added into the PFC ACL entry mentioned above.
+In the strict encrypt mode, to count the dropped ingress clear PFC frames per port and the counter will be added into the PFC ACL entry mentioned above.
 
 ``` c++
 sai_attribute_t attr;
