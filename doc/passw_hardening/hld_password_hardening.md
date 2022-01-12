@@ -189,6 +189,30 @@ For implement the "aging" we need to change the /etc/login.def file and set max 
 For read the information per user we will use the "chage" library.
 In addition, when we change the file /etc/login.def its change globally by only new users, so basically for change existing users expired day we need to iterate every one of them using the "chage" lib.
 
+See the example below regarding global expiration time and warning time:
+
+	# /etc/login.def
+	# Password aging controls:
+	#
+	#       PASS_MAX_DAYS   Maximum number of days a password may be used.
+	#       PASS_MIN_DAYS   Minimum number of days allowed between password changes.
+	#       PASS_WARN_AGE   Number of days warning given before a password expires.
+	#
+	PASS_MAX_DAYS   1
+	PASS_MIN_DAYS   0
+	PASS_WARN_AGE   7
+
+As a result of the changes above, new users will have an expiration time of 1 day, so warning time notification will be prompt in the terminal:
+
+	root@arc-switch1004:/home/admin# adduser test_user1
+	root@arc-switch1004:/home/admin# su test_user1
+	Warning: your password will expire in 1 day
+
+Regaring the policy when expiration time end (PASS_MAX_DAYS):
+
+The maximum number of days a password may be used. If the
+password is older than this, a password change will be
+forced. In other words, the user remained block until he update a new password.
 
 ##### PW username-match
 By enabling this feature, the user will not be permitted to set the same username & password
@@ -207,15 +231,15 @@ For saving password with sha512, need to modify the /etc/pam.d/system-auth-a fil
 
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
-This feature will be disabled by default in the compilation stage, this means that it will be not compiled and will be added only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWH" in sonic-buildimage/rules/config file.
+This feature will be enabled by default in the compilation stage, this means that it will be compiled, and will be not compiled only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWH=n" in sonic-buildimage/rules/config file.
 
 In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
 
 Feature enable details:
-If the user added the compilation flag to the image, a user can still enable or disable this feature.
-By default if the feature was compiled, the feature status will be enabled, meaning that the switch will boot with the feature enable.
-the enable default configuration can be founded in init_cfg.json.j2 file.
-In case, the user want to disable the feature it can be done by using the Sonic CLI (details in CLI chapter).
+when compilation flag is enabled(default value), users can still enable or disable this feature in runtime.
+By default if the feature was compiled, the feature status will be disabled, meaning that the switch will boot with the feature compiled, but disable.
+the disable default configuration can be founded in init_cfg.json.j2 file.
+In case, the user want to enable the feature it can be done by using the Sonic CLI (details in CLI chapter).
 
 ####  1.8.2. <a name='Dependencies'></a>Dependencies
 Service dependencies: same dependencies as HOSTCFGD, INIT_CONF and NTP service.
@@ -316,7 +340,7 @@ module sonic-passwh {
 				leaf state {
 					description "state of the feature";
 					type feature_state;
-					default "enabled";
+					default "disabled";
 				}
 				leaf expiration {
 					description "expiration time (days unit)";
@@ -355,27 +379,27 @@ module sonic-passwh {
 				}
 				leaf username_passw_match{
 					description "username password match";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf lower_class{
 					description "password lower chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf upper_class{
 					description "password upper chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf digits_class{
 					description "password digits chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf special_class{
 					description "password special chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 			}/*container policies */

@@ -23,7 +23,7 @@ module sonic-passwh {
 				leaf state {
 					description "state of the feature";
 					type feature_state;
-					default "enabled";
+					default "disabled";
 				}
 				leaf expiration {
 					description "expiration time (days unit)";
@@ -62,27 +62,27 @@ module sonic-passwh {
 				}
 				leaf username_passw_match{
 					description "username password match";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf lower_class{
 					description "password lower chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf upper_class{
 					description "password upper chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf digits_class{
 					description "password digits chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 				leaf special_class{
 					description "password special chars policy";
-					default "true";
+					default true;
 					type boolean;
 				}
 			}/*container policies */
