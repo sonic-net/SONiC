@@ -1,6 +1,6 @@
 !/usr/bin/env bash
-git config --global user.email "kannan_kvs@dell.com"
-git config --global user.name "kannankvs"
+git config --global user.email "xinxliu@microsoft.com"
+git config --global user.name "xinliu-seattle"
 
 
 #set -euo pipefail
