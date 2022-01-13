@@ -40,26 +40,24 @@ This document provides a detailed description on the new features for:
  - Can set max login session count per user/group/system.
  - When exceed maximum login count, login failed with error message.
 
-## 1.2 Limit memory usage per user/group/system
- - Can set max memory usage per user/group/system.
- - When exceed maximum memory usage, the OOM process will be paused or terminated.
+## 1.2 Limit memory usage with user space OOM daemon
+ - Can set max memory utilization.
+ - Can set memory protect policy:
+    - Can set user/group list, their process can be terminate safely.
+    - Can set terminate policy, terminate user login session or only terminate the top memory consumption process to free enough memory. 
+ - When exceed maximum memory utilization, terminate domain user process to free memory and protect device from OOM happen.
 
 ## 1.3 Default limitation by memory size
-- Default login session by device hatdware and software information.
-- For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the pipeline change.
+- Default login session by device hardware and software information.
+- Default max memory utilization for OOM daemon.
+- For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the customer side change.
 
 # 2 Configuration and Management Requirements
 ## 2.1 SONiC CLI
  - Manage login session or memory  limit settings
 ```
-    config limit { login | memory } { add | del } {user | group | global} <name> <number>
+    config limit login { add | del } {user | group | global} <name> <number>
 ```
- - Manage default limit settings
-```
-    config limit login parameter totalmemoryfactor <number>
-    config limit login parameter usermemory <number>
-```
-
  - Show limit
 ```
     show limit {login | memory}
