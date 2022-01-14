@@ -132,7 +132,7 @@ In addition to the above tables, the framework maintains various statisitcs.
    When the alarm is cleared or acknowledged, the corresponding severity counter will be reduced by 1.
    This table categorizes "active" alarms per severity.
 
-As mentioned above, each event has an important characteristic: severity. SONiC uses following severities for events and alarms as defined in opeconfig alarm yang.
+As mentioned above, each event has an important characteristic: severity. SONiC uses following severities as defined in opeconfig alarm yang.
 
 - CRITICAL : Requires immediate action. A critical event may trigger if one or more hardware components fail, or one or more hardware components exceed temperature thresholds.
   ( maps to log-alert )
