@@ -71,9 +71,9 @@ It is not in the scope of the framework to update ANY of the applications to rai
 
 # 1 Feature Overview
 
-The Event and Alarm Framework feature provides a centralized framework for applications in SONiC to raise notifications and store them for NBIs to listen and fetch to monitor the device.
+The Event and Alarm Framework feature provides a centralized framework for applications in SONiC to raise notifications and store them for north bound interfaces to listen and fetch to monitor the device.
 
-Events and Alarms are means to indicate a change in the state of the system that operator may be interested in. 
+Events and Alarms are notifications to indicate a change in the state of the system that operator may be interested in. 
 Such a change has an important metric called *severity* to indicate how critical it is to the health of the system. 
 
 *  Events
@@ -112,7 +112,7 @@ Both events and alarms get recorded in a new DB called EVENT DB in a new redis i
 
    All events with an action field of *RAISE* get recorded in a table, by name, "ALARM" in addition to getting recorded in Event Table ( only events corresponding to an alarm has action field ).
    When an application that raised the alarm clears it ( by sending an event with action *CLEAR* ), the alarm record is removed from ALARM table.
-   An user acknowledging a particular alarm will NOT remove that alarm record from this table; only when application clears it, the alarm is removed from ALARM table.
+   A user acknowledging a particular alarm will NOT remove that alarm record from this table; only when application clears it, the alarm is removed from ALARM table.
    
    In effect, ALARM table contains outstanding alarms that need to be cleared by those applications who raised them.
    This table is NOT persisted and its contents are cleared with a reload.
@@ -123,7 +123,7 @@ In addition to the above tables, the framework maintains various statisitcs.
 
 1. Event Statistics Table
 
-   Statistics on number of events and alarms are maintained in EVENT_STATS table.
+   Statistics on number of events are maintained in EVENT_STATS table.
 
 2. Alarm Statistics Table
 
