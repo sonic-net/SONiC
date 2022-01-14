@@ -127,7 +127,8 @@ In addition to the above tables, the framework maintains various statisitcs.
 
 2. Alarm Statistics Table
 
-   Statistics on number of alarms per severity are maintained in ALARM_STATS table.
+   Statistics on number of alarms per severity are maintained in ALARM_STATS table. 
+   ALARM_STATS table is not persistent as conditions that triggers an alarm gets cleared on bootup.
    When application raises an alarm, the counter corresponding to that alarm's severity is increased by 1.
    When the alarm is cleared or acknowledged, the corresponding severity counter will be reduced by 1.
    This table categorizes "active" alarms per severity.
