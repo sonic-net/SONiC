@@ -31,7 +31,7 @@ This document focus on route counter.
 
 - Generic Counters shall be used as Flow Counters introduced by the feature
 - CLI shall be used for configuration, showing and clearing of statistics
-- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (vrf|prefix). The VRF term can be skipped if it is default VRF.
+- Flow Counters for routes shall be configured using prefix patterns. The flow counter shall be bound to all routes matching the configured pattern (vrf|prefix). For VNET, the pattern shall be (vnet|prefix). The VRF term can be skipped if it is default VRF.
 - In Phase 1 the number of configured route patterns shall be limited to 2 (IPv4/IPv6 pattern) (enforcement shall be done during configuration via CLI)
 - In Phase 1 the number of matching routes for each pattern shall be limited to the pre-configured value (default value - 30, max value - 50)after reboot it is not ensured that the same set of matching routes will be used for counting
 - Flow Counters shall be bound the matching routes regardless how these routes are added - manually (static) or via FRR
@@ -129,6 +129,10 @@ Route Orch shall be extended to handle following cases:
 
 ![max_allowed_updated](/doc/flow_counters/user_set_max_allowed_match.svg).
 
+8. VRF/VNET create. Route orch shall search existing route pattern and create route flow counters if it matches the newly created VRF/VNET name.
+
+9. VRF/VNET remove. Route orch shall remove all the route flow counters and caches related to the removed VRF/VNET
+
 For binding route entry to a counter:
 
 1. Request Flow Counter Handler to create a generic counter
@@ -205,6 +209,10 @@ SAI attributes shall be used in this feature:
 #### CLI/YANG model Enhancements
 
 ##### CLI
+
+```
+Note: for below CLI commands which has a "vrf" option, the vrf option can accept either a VRF name or a VNET name.
+```
 
 Enable/disable configuration:
 
@@ -335,10 +343,19 @@ container FLOW_COUNTER_ROUTE_PATTERN_TABLE {
 
     list PATTERN_LIST {
 
-        key "pattern";
+        key "vrf_name ip_prefix";
 
-        leaf pattern {
-            type sonic-route-pattern;
+        leaf vrf_name {
+            type string {
+                length 0..16;
+            }
+        }
+
+        leaf ip_prefix {
+            type union {
+                type stypes:sonic-ip4-prefix;
+                type stypes:sonic-ip6-prefix;
+            }
         }
 
         leaf max_match_count {
@@ -349,6 +366,7 @@ container FLOW_COUNTER_ROUTE_PATTERN_TABLE {
 
     }
 }
+/* end of container FLOW_COUNTER_ROUTE_PATTERN_TABLE */
 ...
 ```
 
@@ -357,7 +375,7 @@ container FLOW_COUNTER_ROUTE_PATTERN_TABLE {
 A new table FLOW_COUNTER_ROUTE_PATTERN_TABLE shall be added to CONFIG DB.
 
     ; Defines schema for route flow counter table
-    key                  = "FLOW_COUNTER_ROUTE_PATTERN_TABLE|vrf|prefix"      ; Route pattern (vrf + prefix)
+    key                  = "FLOW_COUNTER_ROUTE_PATTERN_TABLE|vrf|prefix"      ; Route pattern (vrf/vnet + prefix)
     ; field              = value
     ...
     max_match_count      = Integer                                            ; Max allowed match count for this pattern, default 30, value range [1, 50]
@@ -392,7 +410,7 @@ As this is a debugging feature, basically, user should not enable this counter d
 However, if user did it by mistake:
 
 - For fastboot, there is already a mechanism that delays flex counter, nothing needs to be done here. See PR https://github.com/Azure/sonic-swss/pull/1877.
-- For warmboot, routeorch does not handle any DB change except the "resync" during warmboot, it means that route flow counter will not be enabled until warmboot finish. No change is required in this feature.
+- For warmboot, routeorch does not handle any DB change except the "resync" during warmboot, it means that route flow counter will not be enabled until warmboot finish. So, no change is required in this feature.
 
 Based on the above, this feature shall not introduce any delay in fastboot or warmboot, and this shall be verified by test.
 
@@ -497,19 +515,16 @@ System test cases shall be implemented in sonic-mgmt. A few new test cases shall
 1. TestRouteCounter::test_add_remove_route
     - Configure route pattern
     - Advertise route to DUT
-    - Send traffic that matches the route
-    - Verify the counter
+    - Verify the counter is created
     - Withdraw route
     - Verify the counter no longer exist
 
 2. TestRouteCounter::test_update_route_pattern
     - Advertise route a and b to DUT
     - Configure route pattern that matches a
-    - Send traffic that matches both a and b
-    - Verify the counter only count packets count for a
+    - Verify the counter for a is created
     - Configure route pattern that matches b
-    - Send traffic that matches both a and b
-    - Verify the counter only count packets count for b
+    - Verify the counter for a is removed, verify the counter for b is created
 
 3. TestRouteCounter::test_max_match_count
     - Advertise 3 routes to DUT
@@ -520,3 +535,8 @@ System test cases shall be implemented in sonic-mgmt. A few new test cases shall
     - Verify that 2 counters are created
     - Configure max match count to 1
     - Verify that 1 counter is created
+
+4. Extend existing test case to verify route flow counter for different route type:
+    - For bgp route, extend test_bgp_speaker_announce_routes and test_bgp_speaker_announce_routes_v6
+    - For VNET route, extend test_vnet_vxlan
+    - For static route, extend test_static_route, test_static_route_v6, test_static_route_ecmp, test_static_route_ecmp_v6
