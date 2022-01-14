@@ -15,8 +15,6 @@ only:
 - AS7816-64x
 - AS7326-56x
 
-This feature includes API support only.  It does not include PDDF support.
-
 ### Overview
 
 This feature required adds/modifications to the following areas in the
@@ -80,6 +78,7 @@ hardware design
 3. Update pmon process control
 4. Update installer.conf
 5. Update pmon_daemon_control.json
+6. Update stable_size where appropriate
 
 #### platform/broadcom/sonic-platform-modules-accton/ Updates
 
