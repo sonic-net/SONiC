@@ -1,0 +1,67 @@
+module sonic-system-oomd {
+	namespace "http://github.com/Azure/sonic-oomd";
+	prefix soomd;
+	yang-version 1.1;
+
+    revision 2022-01-18 {
+        description "Initial revision.";
+    }
+    
+    container sonic-system-oomd {
+
+        typedef terminate_scope_type {
+            type enumeration {
+                enum process;
+                enum session;
+            }
+        }
+
+        container oomd {
+            container policies {
+                leaf enable {
+                    type boolean;
+                    description "OOMD enable status";
+                    default true;
+                }
+                leaf high_water_mark {
+                    description "Memory utilzation high-water mark";
+                    default 90;
+                    type uint32 {
+                        range 50..100;
+                    }
+                }
+                leaf low_water_mark {
+                    description "Memory utilzation low-water mark";
+                    default 90;
+                    type uint32 {
+                        range 0..100;
+                    }
+                }
+                leaf domain_account {
+                    type boolean;
+                    description "OOMD will terminate process run by domain account";
+                    default true;
+                }
+                leaf terminate_scope {
+                    type terminate_scope_type;
+                    description "OOMD will terminate process or session";
+                    default process;
+                }
+                list allow_user_list {
+                    key name;
+                    description "User name list";
+                    leaf name {
+                        type string;
+                    }
+                }
+                list allow_group_list {
+                    key name;
+                    description "Group name list";
+                    leaf name {
+                        type string;
+                    }
+                }
+            }
+        }
+    }
+}

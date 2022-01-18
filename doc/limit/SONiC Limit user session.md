@@ -126,7 +126,7 @@ sequenceDiagram
  - Limit enable table:
 ```
 ; Key
-limit_enable_key       = 1*32VCHAR         ; setting name, format is "limit_enable_" + resource type
+name                   = 1*32VCHAR         ; setting name, format is "limit_enable_" + resource type
 ; Attributes
 resource_type          = LIST(1*32VCHAR)   ; Limit resource type, now only support (login)
 enable                 = Boolean           ; Enable status, true for enable.
@@ -135,71 +135,14 @@ enable                 = Boolean           ; Enable status, true for enable.
  - Limit setting table:
 ```
 ; Key
-limit_key              = 1*32VCHAR         ; setting name, format is resource type + limit scope + limit name
+policy_name            = 1*32VCHAR         ; policy name, format is resource type + limit scope
 ; Attributes
 resource_type          = LIST(1*32VCHAR)   ; Limit resource type, now only support (login)
 scope                  = LIST(1*32VCHAR)   ; Limit scope, now only support (global, group, user)
 value                  = Number  ; limit value, for login this is max login session count, for memory this is memory side in byte.
 ```
- - Yang model:
-```
-module sonic-system-limit {
-	namespace "http://github.com/Azure/sonic-limit";
-	prefix slimit;
-	yang-version 1.1;
+ - Yang model: [sonic-system-limit.yang](./sonic-system-limit.yang)
 
-    revision 2022-01-12 {
-        description "Initial revision.";
-    }
-    
-    container sonic-system-limit {
-        container limit {
-            list limit_enable_list {
-                key "limit_enable_key";
-
-                leaf resource_type {
-                    type enumeration {
-                        enum login;
-                    }
-                    description "Resource type";
-                }
-
-                leaf enable {
-                    type boolean;
-                    description "Enable status";
-                    default true;
-                }
-            }
-            
-            list limit_list {
-                key "limit_key";
-
-                leaf resource_type {
-                    type enumeration {
-                        enum login;
-                    }
-                    description "Resource type";
-                }
-
-                leaf scope {
-                    type enumeration {
-                        enum global;
-                        enum group;
-                        enum user;
-                    }
-                    description "Resource limit scope - global/group/user";
-                }
-
-                leaf value {
-                    type uint64;
-                    description "Limit value, for login this is max login session count.";
-                    default 3;
-                }
-            }
-        }
-    }
-}
-```
 
 ## 3.4 CLI
 

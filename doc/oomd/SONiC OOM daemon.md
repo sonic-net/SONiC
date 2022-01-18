@@ -70,7 +70,7 @@ This document provides a detailed description on the new features for:
  - Login limit and memory limit are fully configurable by config DB.
 
 # 3 Design
- - Design diagram:
+ - High-level design diagram:
 
 ```mermaid
 graph TD;
@@ -90,7 +90,7 @@ systemd --> OOMD;
 CGROUP(cgroup) -. memory utilzation event .-> OOMD; 
 
 %% OOMD get user info from /etc/passwd
-passwd(/etc/passwd) -- user information --> OOMD;
+passwd(/etc/passwd) -. user information .-> OOMD;
 
 %% OOMD terminate user session/procress when memory utilzation reach high-water mark
 OOMD -- terminate signal --> process[process]
@@ -115,7 +115,7 @@ OOMD -- terminate signal --> process[process]
 graph TD;
 %% USER information provider response for get user information from /etc/passwd
 passwd(/etc/passwd) -. read user info .-> userinfoprovider[UserInfoProvider];
-userinfoprovider -. update .-> oomhandler[OomHandler];
+userinfoprovider -- update --> oomhandler[OomHandler];
 
 %% Memory monitor response for minitor memory utilzation
 cgroup(cgroup) -. subscribe event .-> memmonitor[MemMonitor]
@@ -127,7 +127,7 @@ confprovider --> memmonitor
 confprovider --> oomhandler
 
 %% OOM handler will terminate process
-oomhandler -- signal--> process[process]
+oomhandler -- SIG_TERM--> process[process]
 
 ```
 ### Other solution for user space OOMD
@@ -148,68 +148,20 @@ oomhandler -- signal--> process[process]
 - Terminate domain user process by default.
 
 ## 3.4 ConfigDB Schema
- - OOMD enable/disable table.
-```
-; Key
-oomd_key               = 1*32VCHAR           ; setting name, value is "oomd_enable"
-; Attributes
-enable                 = Boolean             ; Enable status, true for enable.
-```
  - OOMD setting table.
 ```
 ; Key
-setting_key              = 1*32VCHAR          ; setting key, format is "oomd_" + setting name + setting value
+key                      = "policies"         ; OOMD policies
 ; Attributes
-setting                  = LIST(1*32VCHAR)    ; setting name, now only support (highwatermark, lowwatermark, user, group, domainaccount, terminatescope)
-value                    = LIST(1*128VCHAR)   ; setting value.
+enable                   = Boolean            ; Enable status, true for enable.
+high_water_mark          = 3*DIGIT            ; Memory utilzation high-water mark
+low_water_mark           = 3*DIGIT            ; Memory utilzation low-water mark
+domain_account           = Boolean            ; OOMD will terminate process run by domain account
+terminate_scope          = LIST(1*32VCHAR)    ; OOMD terminate scope: "process" or "session"
+allow_user_list          = LIST(string)    ; OOMD can terminate process start by users in this list 
+allow_group_list         = LIST(string)    ; OOMD can terminate process start by group users in this list 
 ```
- - Yang model:
-```
-module sonic-system-oomd {
-	namespace "http://github.com/Azure/sonic-oomd";
-	prefix soomd;
-	yang-version 1.1;
-
-    revision 2022-01-18 {
-        description "Initial revision.";
-    }
-    
-    container sonic-system-oomd {
-        container oomd {
-            list oomd_enable_list {
-                key "oomd_enable";
-
-                leaf enable {
-                    type boolean;
-                    description "Enable status";
-                    default true;
-                }
-            }
-            
-            list oomd_setting_list {
-                key "setting_key";
-
-                leaf setting {
-                    type enumeration {
-                        enum highwatermark;
-                        enum lowwatermark;
-                        enum user;
-                        enum group;
-                        enum domainaccount;
-                        enum terminatescope;
-                    }
-                    description "Setting type.";
-                }
-
-                leaf value {
-                    type string;
-                    description "Setting value.";
-                }
-            }
-        }
-    }
-}
-```
+ - Yang model: [sonic-system-oomd.yang](./sonic-system-oomd.yang)
 
 ## 3.5 CLI
  - Add following command to change OOMD setting.

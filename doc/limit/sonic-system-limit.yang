@@ -1,0 +1,64 @@
+module sonic-system-limit {
+	namespace "http://github.com/Azure/sonic-limit";
+	prefix slimit;
+	yang-version 1.1;
+
+    revision 2022-01-12 {
+        description "Initial revision.";
+    }
+    
+    container sonic-system-limit {
+
+        typedef limit_resource_type {
+            type enumeration {
+                enum login_session;
+            }
+        }
+
+        typedef limit_scope {
+            type enumeration {
+                enum global;
+                enum group;
+                enum user;
+            }
+        }
+
+        container limit {
+
+            list limit_enable_list {
+                key name;
+
+                leaf resource_type {
+                    type limit_resource_type;
+                    description "Limit resource type";
+                }
+
+                leaf enable {
+                    type boolean;
+                    description "Enable status";
+                    default true;
+                }
+            }
+            
+            list limit_policy_list {
+                key policy_name;
+
+                leaf resource_type {
+                    type limit_resource_type;
+                    description "Limit resource type";
+                }
+
+                leaf scope {
+                    type limit_scope;
+                    description "Resource limit scope";
+                }
+
+                leaf value {
+                    type uint64;
+                    description "Limit value, for login this is max login session count.";
+                    default 3;
+                }
+            }
+        }
+    }
+}
