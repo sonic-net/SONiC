@@ -1,21 +1,19 @@
-# SONiC Limit user session
+# SONiC Limit user login session
 
 # Table of Contents
 - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
 - [1 Functional Requirements](#1-functional-requirement)
-  * [1.1 Limit the number of logins per user/group/system](#11-limit-the-number-of-logins-per-user/group/system)
-  * [1.2 Limit memory usage per user/group/system](#12-limit-memory-usage-per-user/group/system)
-  * [1.3 Default limitation by memory size](#13-default-limitation-by-memory-size)
+  * [1.1 Limit the login session per user/group/system](#11-limit-the-login-session-per-user/group/system)
+  * [1.3 Default limitation](#13-default-limitation)
 - [2 Configuration and Management Requirements](#2-configuration-and-management-requirements)
   * [2.1 SONiC CLI](#21-sonic-cli)
   * [2.2 Config DB](#22-config-db)
 - [3 Design](#design)
   * [3.1 Login Limit Implementation](#31-login-limit-implementation)
-  * [3.2 Memory Limit Implementation](#32-memory-limit-implementation)
-  * [3.3 Default memory limitation Implementation](#33-default-memory-limitation-Implementation)
-  * [3.4 ConfigDB Schema](#34-configdb-schema)
-  * [3.5 CLI](#35-cli)
+  * [3.2 Default login session limitation Implementation](#32-default-login-session-limitation-Implementation)
+  * [3.3 ConfigDB Schema](#33-configdb-schema)
+  * [3.4 CLI](#34-cli)
 - [4 Error handling](#error-handling)
 - [5 Serviceability and Debug](#serviceability-and-debug)
 - [6 Unit Test](#unit-test)
@@ -26,12 +24,12 @@
 This document provides a detailed description on the new features for:
  - Limit the number of logins per user/group/system.
  - Default limit user login session by device information.
- - Design a scalable framework of config command and ConfigDB to support more resource type, for example limit user CPU/memory by cgroup.
+ - Design a scalable framework of config command and ConfigDB to support more resource type, for example limit user CPU/memory by cgroup and systemd user.slices.
 
 ## SONiC memory issue sloved by this feature.
- - Currenly SONiC enabled OOM killer, and set 2 to /proc/sys/vm/panic_on_oom, which will trigger kernal panic when OOM. This is by design to protect SONiC key procress and container.
- - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system procress. so there will be 2 GB free memory for user. also sonic not enable swap for most device.
- - When user run some command trigger OOM, SONiC will kernal panic. for example:
+ - Currenly SONiC enabled OOM killer, and set 2 to /proc/sys/vm/panic_on_oom, which will trigger kernel panic when OOM. This is by design to protect SONiC key process and container.
+ - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. also sonic not enable swap for most device.
+ - When user run some command trigger OOM, SONiC will kernel panic. for example:
    - Multiple user login to device, some service may create 10+ concurrent sesstion login to device.
    - Some user script/command take too much memory, currently 'show' command will take 60 MB memory.
 
@@ -40,7 +38,7 @@ This document provides a detailed description on the new features for:
  - Can set max login session count per user/group/system.
  - When exceed maximum login count, login failed with error message.
 
-## 1.2 Default limitation by memory size
+## 1.2 Default limitation
 - Default login session by device hardware and software information.
 - For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the customer side change.
 
@@ -48,6 +46,7 @@ This document provides a detailed description on the new features for:
 ## 2.1 SONiC CLI
  - Manage login session or memory  limit settings
 ```
+    config limit login { enable | disable }
     config limit login { add | del } {user | group | global} <name> <number>
 ```
  - Show limit
@@ -107,7 +106,7 @@ sequenceDiagram
 		 deactivate  pam_limits.so
 	 deactivate  SSHD
 ```
-### Other solution for Linux login session limit
+ #### Other solution for Linux login session limit
 
 |                   | How                                                | Pros                                                         | Cons                       |
 | ----------------- | -------------------------------------------------- | ------------------------------------------------------------ | -------------------------- |
@@ -119,32 +118,24 @@ sequenceDiagram
 
 
 
-## 3.3 Default login session limitation Implementation
-- Max number of logins by memory size:
-  - Max number of logins = memory size * factor / max memory per-user.
-- Default factor by OS version, device type and vendor, which is based on history data of SONiC memory utilization:
-  - Celestica:
-    - M0: 0.4
-    - T0 & T1: 0.6
-  - Mellanox & Nexus:
-    - T0 & T1: 0.6
-  - Nokia:
-    - M0: 0.6
-  - Arista:
-    - T0: 0.7
-    - T1: 0.6
-  - Dell & Firce10
-    - T0 & T1: 0.7
-  - For all other device, default factor is 0.4
-- Max memory per-user is hardcode config. Default value is 200 MB, because 'show' command will take 70 MB memory, and we plan support user will run 3 commands concurrently.
-  - If user want run a script/command which take more than 200MB memory and been blocked by this feature, user can modify the per-user limit with the config command.
-- For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the pipeline change.
+## 3.2 Default login session limitation Implementation
+- Global max login sessions: 10
+- Max login sessions per-user: 3
 
-## 3.4 ConfigDB Schema
+## 3.3 ConfigDB Schema
+ - Limit enable table:
+```
+; Key
+limit_enable_key       = 1*32VCHAR         ; setting name, format is "limit_enable_" + resource type
+; Attributes
+resource_type          = LIST(1*32VCHAR)   ; Limit resource type, now only support (login)
+enable                 = Boolean           ; Enable status, true for enable.
+```
+
  - Limit setting table:
 ```
 ; Key
-limit_key              = 1*32VCHAR          ; setting name, format is resource type + limit scope + limit name
+limit_key              = 1*32VCHAR         ; setting name, format is resource type + limit scope + limit name
 ; Attributes
 resource_type          = LIST(1*32VCHAR)   ; Limit resource type, now only support (login)
 scope                  = LIST(1*32VCHAR)   ; Limit scope, now only support (global, group, user)
@@ -163,6 +154,23 @@ module sonic-system-limit {
     
     container sonic-system-limit {
         container limit {
+            list limit_enable_list {
+                key "limit_enable_key";
+
+                leaf resource_type {
+                    type enumeration {
+                        enum login;
+                    }
+                    description "Resource type";
+                }
+
+                leaf enable {
+                    type boolean;
+                    description "Enable status";
+                    default true;
+                }
+            }
+            
             list limit_list {
                 key "limit_key";
 
@@ -170,7 +178,7 @@ module sonic-system-limit {
                     type enumeration {
                         enum login;
                     }
-                    description "Limit type login";
+                    description "Resource type";
                 }
 
                 leaf scope {
@@ -193,10 +201,13 @@ module sonic-system-limit {
 }
 ```
 
-## 3.5 CLI
+## 3.4 CLI
 
  - Add following command to set/remove limit setting.
 ```
+    // enable/disable login limit
+    config limit login {enable | disable}
+    
     // set global login limit
     config limit login add global <max session count>
 
@@ -214,12 +225,6 @@ module sonic-system-limit {
 
     // remove user login limit
     config limit login del user <user name>
-
-    // set the 'memory factor' parameter for calculate default max login count
-    config limit login parameter memoryfactor <number>
-
-    // set the 'user memory' parameter for calculate default max login count
-    config limit login parameter usermemory <number>
 ```
 
  - Add following command to show limit setting.
@@ -236,40 +241,35 @@ module sonic-system-limit {
 
 # 6 Unit Test
 
-## 6.1 Default login session limit test
+## 6.1 Login session enable/disable test
 
-  - config memory factor and check the default login session limit config updated correctly:
+  - Enable login session limit and check the login session limit config updated correctly:
   ```
       Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+      Verify the device can't login when login session reach the max global login session count. 
+      Verify the device can't login with same user count when login session reach the max per-user login session count. 
   ```
 
-  - config memory factor to 0 and check the config command result:
+  - Disable login session limit and check the login session limit config updated correctly:
   ```
       Verify the config config command failed with warning message.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+      Verify the device can login more login sessions coording to the max global login session count. 
+      Verify the device can login with same user count when login session reach the max per-user login session count. 
   ```
 
-  - config max memory per-user setting and check the default login session limit config updated correctly:
+## 6.2 Max login session test
+  - Config global max login session count and check the login session limit config updated correctly:
   ```
       Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+      Verify the device can't login when login session reach the max global login session count. 
   ```
 
-  - config max memory per-user to INT MAX and check the config command result:
-  ```
-      Verify the config config command failed with warning message.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
-  ```
-
-## 6.2 Login session limit test
-
-  - Change the per-user/per-group/global login session limit setting:
+  - Config per-user max login session count and check the login session limit config updated correctly:
   ```
       Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
-      Verify the setting can be delete by config command.
+      Verify the device can't login with same user count when login session reach the max per-user login session count. 
   ```
+
 
 # 7 References
 ## pam_limits.so

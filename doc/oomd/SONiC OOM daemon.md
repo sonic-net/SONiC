@@ -1,4 +1,4 @@
-# SONiC Limit user session and memory
+# SONiC OOM daemon
 
 # Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -24,43 +24,46 @@
 
 # About this Manual
 This document provides a detailed description on the new features for:
- - Limit the number of logins per user/group/system.
- - Limit memory usage per user/group membership.
- - Default limit user login session and memory by device information.
+ - Protect SONiC system memory by OOM daemon.
+ - OOM daemon config command.
+ - OOM daemon high level design.
+ - OOM daemon ConfigDB schema
 
 ## SONiC memory issue sloved by this feature.
- - Currenly SONiC enabled OOM killer, and set 2 to /proc/sys/vm/panic_on_oom, which will trigger kernal panic when OOM. This is by design to protect SONiC key procress and container.
- - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system procress. so there will be 2 GB free memory for user. also sonic not enable swap for most device.
- - When user run some command trigger OOM, SONiC will kernal panic. for example:
-   - Multiple user login to device, some service may create 10+ concurrent sesstion login to device.
-   - Some user script/command take too much memory, currently 'show' command will take 60 MB memory.
+ - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
+ - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. 
+ - sonic not enable swap for most device.
+ - When user run some command trigger OOM, SONiC will kernel panic. for example:
+   - Multiple user login to device, some service may create 10+ concurrent sessions login to device.
+   - Some user script/command take too much memory, currently 'show' command will take 70 MB memory.
+ - To fix this issue, we need 2 feature: login session limit and OOM daemon.
 
 # 1 Functional Requirement
-## 1.1 Limit the login session per user/group/system
- - Can set max login session count per user/group/system.
- - When exceed maximum login count, login failed with error message.
+ - When exceed memory high-water mark, terminate user process to free memory and protect device from OOM happen.
 
-## 1.2 Limit memory usage with user space OOM daemon
- - Can set max memory utilization.
+ - Can set system memory high-water mark and low-water mark.
  - Can set memory protect policy:
-    - Can set user/group list, their process can be terminate safely.
-    - Can set terminate policy, terminate user login session or only terminate the top memory consumption process to free enough memory. 
- - When exceed maximum memory utilization, terminate domain user process to free memory and protect device from OOM happen.
+    - User/group list, their process can be terminate safely.
+    - Terminate policy: terminate user session or terminate user process.
 
-## 1.3 Default limitation by memory size
-- Default login session by device hardware and software information.
-- Default max memory utilization for OOM daemon.
-- For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the customer side change.
+- All process start by local user will not be terminate by OOMD, unless they add to user/group list.
+- Provide default setting to minimize customer side change.
+  - Customers may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most scenario to minimize the customer side change.
 
 # 2 Configuration and Management Requirements
 ## 2.1 SONiC CLI
  - Manage login session or memory  limit settings
 ```
-    config limit login { add | del } {user | group | global} <name> <number>
+    # config OOMD enable/disable status
+    config oomd { enable/disable}
+    
+    # config oomd policy
+    config oomd policy { policyname } { add|del } <value>
 ```
- - Show limit
+ - Show oomd config
 ```
-    show limit {login | memory}
+    show oomd policy
+    show oomd status
 ```
 
 ## 2.2 Config DB
@@ -72,252 +75,232 @@ This document provides a detailed description on the new features for:
 ```mermaid
 graph TD;
 %% SONiC CLI update config DB
-CLI[SONiC CLI] -- update limit setting --> CONFDB[(Config DB)];
+CLI[SONiC CLI] -- update OOMD config --> CONFDB[(Config DB)];
 
 
-%% HostCfgd subscribe config DB change
+%% HostCfgd/OOMD subscribe config DB change
 CONFDB -.-> HOSTCFGD[Hostcfgd];
+CONFDB -. config change event .-> OOMD[OOMD];
 
-%% HostCfgd Update config files
-HOSTCFGD -- update limits.conf --> PAMCFG[limits.conf];
+%% HostCfgd start/stop OOMD
+HOSTCFGD -- start/stop OOMD --> systemd[systemd];
+systemd --> OOMD;
 
-%% pam_limits.so will handle login limit
-PAMCFG -.-> LIMITLIB[pam_limits.so];
-LIMITLIB -- login --- USERSESSION(user session);
+%% OOMD subscript memory utilzation event from cgroup
+CGROUP(cgroup) -. memory utilzation event .-> OOMD; 
+
+%% OOMD get user info from /etc/passwd
+passwd(/etc/passwd) -- user information --> OOMD;
+
+%% OOMD terminate user session/procress when memory utilzation reach high-water mark
+OOMD -- terminate signal --> process[process]
 
 
-%% pam_exec script read config DB
-CONFDB -.-> LoginScript[pam_exec script];
-
-%% pam_exec script generate user silices config
-LoginScript -- update user.slices --> USERSLICES[user-*.slices];
-
-%% systemd will manage user slices
-USERSLICES -.-> SYSTEMD[systemd];
-
-%% cgroup check memory limit and trigger OOM killer
-SYSTEMD -.-> CGROUP[cgroup];
-CGROUP -- OOM killer --- APP(user process);
 ```
 
-## 3.1 Login limit Implementation
- - Enable PAM plugin pam_limits.so to support login limit.
- - When login limit exceed, pam_limits.so will terminate login session with error message.
+## 3.1 OOMD Implementation
+ - OOMD will be a service managed by systemd.
+ - Get system memory information from /proc/meminfo.
+ - Subscript cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
+ - Get user information from /etc/passwd.
+ - OOMD will send SIGKILL/SIGTERM to kill/terminate process.
+ - OOMD can config to terminate user session, this is because when swap not enabled, Linux system may enters a livelocked state much more quickly and may prevent oomd from responding in a reasonable amount of time. 
+ - The following diagram show how OOMD work:
+    - UserInfoProvider will get user information from /etc/passwd
+    - ConfigProvider will subscript config DB change event and update OOMD config.
+    - MemMonitor will monitor cgroup event and trigger OomHandler.
+    - When memory utilization reach high-water mark, OomHandler will terminate user process to prevent OOM happen. 
 
 ```mermaid
-sequenceDiagram  
+graph TD;
+%% USER information provider response for get user information from /etc/passwd
+passwd(/etc/passwd) -. read user info .-> userinfoprovider[UserInfoProvider];
+userinfoprovider -. update .-> oomhandler[OomHandler];
 
-%% user login without exceed the limit
- SSH/Console->>SSHD  : login
-	 activate  SSHD
-	 SSHD->>pam_limits.so: check login limit
-		 activate  pam_limits.so
-		 pam_limits.so->>bash: not exceed the limit
-			 activate  bash
-			 bash->>SSH/Console: login success
-			 deactivate  bash
-	 SSH/Console->>SSHD  : logout
-	 deactivate  SSHD
- 
-%% user login exceed the limit
- SSH/Console->>SSHD  : login
-	 activate  SSHD
-	 SSHD->>pam_limits.so: check login limit
-		 activate  pam_limits.so
-		 pam_limits.so->>SSH/Console: exceed the limit
-		 deactivate  pam_limits.so
-	 deactivate  SSHD
+%% Memory monitor response for minitor memory utilzation
+cgroup(cgroup) -. subscribe event .-> memmonitor[MemMonitor]
+memmonitor -- reach high-water mark --> oomhandler[OomHandler]
+
+%% Config provider response for monitor and get latest OOMD config
+confdb[(Config DB)] -. config change event .-> confprovider[ConfigProvider]
+confprovider --> memmonitor
+confprovider --> oomhandler
+
+%% OOM handler will terminate process
+oomhandler -- signal--> process[process]
+
 ```
-### Other solution for Linux login session limit
+### Other solution for user space OOMD
 
-|                   | How                                                | Pros                                                         | Cons                       |
-| ----------------- | -------------------------------------------------- | ------------------------------------------------------------ | -------------------------- |
-| PAM limit         | Change PAM setting file: /etc/security/limits.conf | Support per-user/per-group/global limit. Only need change config file. |                            |
-| Bash login script | Call script when user login                        |                                                              | Need develop new script.   |
-| SSHD config       | Change SSHD setting file: /etc/sshd_config         |                                                              | Only support global limit. |
-
-- SONiC will create new user when domain user login, PAM limit support config limit to a not existed user.
-
-
-## 3.2 Memory limit Implementation
- - Memory limit managed by systemd user slices.
- - pam_exec.so plugin will create user slices when user login.
- - cgroup will monitor cgroups resource usage, and trigger OOM killer when exceeds limit.
- - OOM killer will terminate/pause procress.
-
-```mermaid
-flowchart  TB  
-%% pam_exec.so plugin will create user slices when user login and cleanup when user logout
- pam_exec.so-- create when user login -->user-*.slices
- 
-%% systemd will manage cgroup and migrate process by uid
- systemd-- manage -->user-*.slices
- user-*.slices-.->procress
- 
-%% cgroup will monitor cgroups
- cgroup-- monitor cgroups -->user-*.slices
-
-%% when resource exceed limit, cgroup will trigger OOM killer
- cgroup-- trigger when exceed -->OOMkiller[OOM Killer]
- OOMkiller -- terminate/pause --> procress((procress))
-```
-
-### Other solution for Linux memory limit
-
-|              | How                                           | Pros                                            | Cons                           | Per-user                    | Per-group member | per-group | Global |
-| ------------ | --------------------------------------------- | ----------------------------------------------- | ------------------------------ | --------------------------- | ---------------- | --------- | ------ |
-| rlimit       | PAM plugin                                    |                                                 | Only per-procress control.     | per-user per-group control. | NO               | NO        | NO     |
-| cgroup-tools | daemon manage/migrate user process to cgroups | Cross procress control. Support user group.     | Not support domain user.       | Yes                         | NO               | Yes       |        |
-| systemd      | Manage cgroups with systemd user.slices       | Cross procress control. Support slice template. | Not support per-group control. | Yes                         | Yes              | No        | Yes    |
-
-- rlimit only support per-procress control.
-- cgroup-tools not support domain user, this is because SONiC will create new user when domain user login, but cgroup-tools only support existed user.
-- systemd have good support to domain user, but not support per-group limit.
+|                      | Cons                                                         | URL                                                          |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| earlyoom             | Designed to free swap, SONiC not have swap.                  | [rfjakob/earlyoom: earlyoom - Early OOM Daemon for Linux (github.com)](https://github.com/rfjakob/earlyoom) |
+| oomd                 | Developed by Facebook, Highly customizable by support plugin. Too heavy for SONiC. | [facebookincubator/oomd: A userspace out-of-memory killer (github.com)](https://github.com/facebookincubator/oomd) |
+| systemd-oomd.service | Require cgroupv2, not scalable, can't customize to only termi. | [systemd-oomd.service(8) - Linux manual page (man7.org)](https://man7.org/linux/man-pages/man8/systemd-oomd.service.8.html) |
 
 
 
-## 3.3 Default memory limitation Implementation
-- Max number of logins by memory size:
-  - Max number of logins = memory size * factor / max memory per-user.
-- Default factor by OS version, device type and vendor, which is based on history data of SONiC memory utilization:
-  - Celestica:
-    - M0: 0.4
-    - T0 & T1: 0.6
-  - Mellanox & Nexus:
-    - T0 & T1: 0.6
-  - Nokia:
-    - M0: 0.6
-  - Arista:
-    - T0: 0.7
-    - T1: 0.6
-  - Dell & Firce10
-    - T0 & T1: 0.7
-  - For all other device, default factor is 0.4
-- Max memory per-user is hardcode config. Default value is 200 MB, because 'show' command will take 70 MB memory, and we plan support user will run 3 commands concurrently.
-  - If user want run a script/command which take more than 200MB memory and been blocked by this feature, user can modify the per-user limit with the config command.
-- For customer, they may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most case to minimize the pipeline change.
+## 3.3 Default OOMD config
+- OOMD will be enabled by default.
+- Default high-water mark: 90
+- Default low-water mark: 60
+- Default user/group list is empty.
+- Terminate domain user process by default.
 
 ## 3.4 ConfigDB Schema
- - Limit setting table.
+ - OOMD enable/disable table.
 ```
 ; Key
-limit_key              = 1*32VCHAR          ; setting name, format is resource type + limit scope + limit name
+oomd_key               = 1*32VCHAR           ; setting name, value is "oomd_enable"
 ; Attributes
-resource_type          = LIST(1*32VCHAR)   ; Limit resource type, now only support (login, memory)
-scope                  = LIST(1*32VCHAR)   ; Limit scope, now only support (global, group, user)
-value                  = Number  ; limit value, for login this is max login session count, for memory this is memory side in byte.
+enable                 = Boolean             ; Enable status, true for enable.
+```
+ - OOMD setting table.
+```
+; Key
+setting_key              = 1*32VCHAR          ; setting key, format is "oomd_" + setting name + setting value
+; Attributes
+setting                  = LIST(1*32VCHAR)    ; setting name, now only support (highwatermark, lowwatermark, user, group, domainaccount, terminatescope)
+value                    = LIST(1*128VCHAR)   ; setting value.
+```
+ - Yang model:
+```
+module sonic-system-oomd {
+	namespace "http://github.com/Azure/sonic-oomd";
+	prefix soomd;
+	yang-version 1.1;
+
+    revision 2022-01-18 {
+        description "Initial revision.";
+    }
+    
+    container sonic-system-oomd {
+        container oomd {
+            list oomd_enable_list {
+                key "oomd_enable";
+
+                leaf enable {
+                    type boolean;
+                    description "Enable status";
+                    default true;
+                }
+            }
+            
+            list oomd_setting_list {
+                key "setting_key";
+
+                leaf setting {
+                    type enumeration {
+                        enum highwatermark;
+                        enum lowwatermark;
+                        enum user;
+                        enum group;
+                        enum domainaccount;
+                        enum terminatescope;
+                    }
+                    description "Setting type.";
+                }
+
+                leaf value {
+                    type string;
+                    description "Setting value.";
+                }
+            }
+        }
+    }
+}
 ```
 
 ## 3.5 CLI
- - Add following command to set/remove limit setting.
+ - Add following command to change OOMD setting.
 ```
-    // set global login limit
-    config limit login add global <max session count>
-
-    // remove global login limit
-    config limit login del global
-
-    // add group login limit
-    config limit login add group <group name> <max session count>
-
-    // remove group login limit
-    config limit login del group <group name>
-
-    // add user login limit
-    config limit login add user <user name> <max session count>
-
-    // remove user login limit
-    config limit login del user <user name>
-
-    // add group membership memory limit
-    config limit memory add group <group name> <memory side in byte>
-
-    // remove group membership memory limit
-    config limit memory del group <group name>
-
-    // add user memory limit
-    config limit memory add user <user name> <memory side in byte>
-
-    // remove user memory limit
-    config limit memory del user <user name>
+    // config OOMD enable/disable status
+    config oomd { enable/disable}
     
-    // set the 'memory factor' parameter for calculate default max login count
-    config limit login parameter memoryfactor <number>
+    // config OOMD high-water mark and low-water mark, number are memory utilzation percentage.
+    config oomd policy { highwatermark|lowwatermark } <number>
+    
+    // config which user/group can be terminate
+    config oomd policy { users|groups } { add|del } <name>
+    
+    // config if OOMD can terminate domain account process/session
+    config oomd policy domainaccount { enable|disable }
+    
+    // config OOMD terminate user session or process
+    config oomd policy terminatescope { session|process }
+    
+    // config OOMD log level
+    config oomd policy loglevel { debug|standard }
 
-    // set the 'user memory' parameter for calculate default max login count
-    config limit login parameter usermemory <number>
 ```
 
- - Add following command to show limit setting.
+ - Add following command to show OOMD setting.
 ```
-    // show login limit setting
-    show limit login
+    // show oomd setting
+    show oomd policy
 
-    // show memory limit setting
-    show limit memory
+    // show oomd enable/disable status
+    show oomd status
 ```
 
 # 4 Error handling
- - pam_limits.so will return errors as per [PAM](#pam) respectively.
+ - OOMD will write errors to syslog.
 
 # 5 Serviceability and Debug
- - pam_limits.so can be debugged by enabling the debug flag in PAM config file.
- - cgroup cgrulesengd can be debugged by enabling the CGROUP_LOGLEVEL environment variable.
+ - OOMD  can be debugged by enabling the debug flag OOMD config.
 
 # 6 Unit Test
 
-## 6.1 Default login session limit test
+## 6.1 Enable/disable OOMD test
 
-  - config memory factor and check the default login session limit config updated correctly:
+  - Enable/disable OOMD and check the OOMD service status:
   ```
-      Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
-  ```
-
-  - config memory factor to 0 and check the config command result:
-  ```
-      Verify the config config command failed with warning message.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+      Verify the OOMD service started when OOMD enabled.
+      Verify the OOMD service stopped when OOMD disabled.
   ```
 
-  - config max memory per-user setting and check the default login session limit config updated correctly:
+## 6.2 OOMD policy test
+
+  - Change OOMD high-water/low-water mark and check the OOMD will be triggered correctly:
   ```
-      Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+      Verify when system memory utilzation reach high-water mark OOMD triggered.
+      Verify when OOMD triggered, procress been terminated to free enough memory to low-water mark.
+      Verify when OOMD triggered, the system procress are healthy.
   ```
 
-  - config max memory per-user to INT MAX and check the config command result:
+  - Change OOMD user/group config and check the OOMD terminate process correctly:
+
   ```
-      Verify the config config command failed with warning message.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
+    Verify when OOMD triggered, the procresses run by target user been terminated correctly.
+    Verify when OOMD triggered, the procresses not run by target user are healthy.
   ```
 
-## 6.2 Login session limit test
+  - Change OOMD terminate domain account config and check the OOMD terminate process correctly:
 
-  - Change the per-user/per-group/global login session limit setting:
   ```
-      Verify the config in /set/security/limits.conf updated correctly.
-      Verify the device can login with mutiple login sessions coording to the default limit. 
-      Verify the setting can be delete by config command.
+    Verify when OOMD triggered, the procresses run by domain account been terminated correctly.
   ```
 
-## 6.3 Memory limit test
+  - Change OOMD terminate process/session config and check the OOMD terminate process/session correctly:
 
-  - Change the per-user/per-group/global memory limit setting:
   ```
-      Verify the user.slices template updated correctly.
-      Verify user command success when command memory consumption is smaller than the limit.
-      Verify user command failed when memory consumption is bigger than the limit.
-      Verify the setting can be delete by config command.
+    Verify when OOMD triggered, and config is terminate process, the user process been terminated correctly.
+    Verify when OOMD triggered, and config is terminate session, the user session been terminated correctly.
   ```
+
+  - Change OOMD log level config and check the OOMD write system log correctly:
+
+  ```
+    Verify when log level set to debug, syslog contains OOMD debug information.
+    Verify when log level set to standard, syslog not contains OOMD debug information.
+  ```
+
+
 
 # 7 References
-## pam_limits.so
-https://man7.org/linux/man-pages/man8/pam_limits.8.html
-## pam_exec.so
-https://linux.die.net/man/8/pam_exec
+## Linux OOM
+https://www.kernel.org/doc/gorman/html/understand/understand016.html
+
 ## cgroup
 https://man7.org/linux/man-pages/man7/cgroups.7.html
-## user.slice
-https://man7.org/linux/man-pages/man5/systemd.slice.5.html
 
