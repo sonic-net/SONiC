@@ -24,7 +24,7 @@ There are unavoidable error conditions, like hardware errors or software bugs, t
 
 * Restarting certain containers/processes might cause packet drop.
 * The controller should be fully aware of the system state of the switch. Auto recovery can cause inconsistency between the controller and the switch.
-* Auto restart might erase the error state, which will lose the chance of debugging the root cause.
+* Auto restart will modify the switch's state before a human even has the option of analyzing the switch to triage the problem.
 * Little indication to the external world on what has happened when the restart recovery occurs.
 
 In this HLD, we propose a different error handling mechanism, the critical state feature. In short summary, when a critical error happens, the system will:
@@ -33,7 +33,7 @@ In this HLD, we propose a different error handling mechanism, the critical state
 * Not attempt to self recover.
 * Enter the critical state, which indicates that a critical error has occurred.
 * Preserve the current state as much as possible. Stop further programming into hardware.
-* Continue to forward packets with programmed rules.
+* Continue to forward packets based on the existing rules.
 * Raise an alarm to notify external entities, so that external entities can decide further actions (recover, debug etc).
 
 There is an on-going [proposal](https://github.com/Azure/SONiC/pull/761) on the SONiC event and alarm framework, which can provide the alarm raising feature for critical state. As the event and alarm framework design and implementation are still under review, this HLD will propose orthogonal gNMI alarm raising. When the event and alarm framework is ready, the critical state library can use the new alarm framework to raise gNMI alarms.
