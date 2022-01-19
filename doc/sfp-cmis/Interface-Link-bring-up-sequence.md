@@ -106,9 +106,13 @@ Recommend following this high-level work-flow sequence to accomplish the Objecti
 - xcvrd to subscribe to a new field “host_tx_ready” in port table state-DB
 - Orchagent will set the “host_tx_ready” to true/false based on the SET_ADMIN_STATE attribute return status to syncd/gbsyncd. (As part of SET_ADMIN_STATE attribute enable, the NPU Tx is enabled)
 - xcvrd process the “host_tx_ready” value change event and do optics datapath init / de-init using CMIS API
-- Recommendation is to follow this proposal for all the known interface speeds - 400G/100G/40G/25G/10G
+- Recommendation is to follow this proposal for all the known interfaces - 400G/100G/40G/25G/10G. Reason being: 
   - 400G - as mentioned above the CMIS spec to be followed
-  - 100G/40G/25G/10G - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
+  - 100G/40G/25G/10G - 
+    - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
+    - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+> if this 'deterministic approach' is not followed
+    - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is acheived by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
+    - Additionally provides uniform workflow across all interface types instead of just 400G
   - This synchronization will also benefit native 10G SFPs interfaces as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
 # Proposed Work-Flows
