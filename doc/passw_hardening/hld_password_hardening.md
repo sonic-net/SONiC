@@ -356,7 +356,7 @@ module sonic-passwh {
 						range 1..30;
 					}
 				}
-				leaf history {
+				leaf history_cnt {
 					description "num of old password that the system will recorded";
 					default 10;
 					type uint8 {
