@@ -24,11 +24,12 @@ Deterministic Approach for Interface Link bring-up sequence
 | Rev |     Date    |       Author                       | Change Description           |
 |:---:|:-----------:|:----------------------------------:|------------------------------|
 | 0.1 | 08/16/2021  | Shyam Kumar                        | Initial version                       
-| 0.2 | 12/13/2021  | Shyam Kumar,  Jaganathan Anbalagan | Added uses-cases, workflows  |
+| 0.2 | 12/13/2021  | Shyam Kumar,  Jaganathan Anbalagan | Added uses-cases, workflows  
+| 0.3 | 01/19/2022  | Shyam Kumar                        | Addressed review-comments    |
 
 
 # About this Manual
-Its a high-level design document describing the need to have determinstic approach for
+This is a high-level design document describing the need to have determinstic approach for
 Interface link bring-up sequence and workflows for use-cases around it 
 
 # Abbreviation
@@ -110,9 +111,10 @@ Recommend following this high-level work-flow sequence to accomplish the Objecti
   - 400G - as mentioned above the CMIS spec to be followed
   - 100G/40G/25G/10G - 
     - deterministic approach to bring the interface will eliminate any link stability issue which will be difficult to chase in the production network
+      e.g. If there is a PHY device in between, and this 'deterministic approach' is not followed, PHY may adapt to a bad signal or interface flaps may occur when the optics tx/rx  enabled during PHY initialization. 
     - there is a possibility of interface link flaps with non-quiescent optical modules <QSFP+/SFP28/SFP+> if this 'deterministic approach' is not followed
     - It helps bring down the optical module laser when interface is adminstiratively shutdown. Per the workflow here, this is acheived by xcvrd listening to host_tx_ready field from PORT_TABLE of STATE_DB. Turning the laser off would reduce the power consumption and avoid any lab hazard
-    - Additionally provides uniform workflow across all interface types instead of just 400G
+    - Additionally provides uniform workflow (from SONiC NOS) across all interface types instead of just 400G
   - This synchronization will also benefit native 10G SFPs interfaces as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
 # Proposed Work-Flows
@@ -136,5 +138,23 @@ Please refer to the  flow/sequence diagrams which covers the following required 
 ![LC boot-up sequence - 'admin disable' Config gets applied](https://user-images.githubusercontent.com/69485234/147166884-92c9af48-2d64-4e67-8933-f80531d821b4.png)
 
 
+# Out of Scope 
+Following items are not in the scope of this document. They would be taken up separately
+1. xcvrd restart 
+   - If the xcvrd goes for restart, then all the DB events will be replayed. 
+     Here the Datapath init/activate (for 400G), tx-disable register set (for 100G), will be a no-op if the optics is already in that state
+     
+2. syncd/gbsyncd/swss docker container restart
+   - Cleanup scenario - the host_tx_ready field in STATE-DB should be updated to “False” to respective ports that a PHY/NPU interface with
+   -
+3. CMIS API feature is not part of this design and the APIs will be used in this design. For CMIS HLD, Please refer to:
+   https://github.com/Azure/SONiC/blob/9d480087243fd1158e785e3c2f4d35b73c6d1317/doc/sfp-cmis/cmis-init.md
+   
+4. Error handling of SAI attributes
+   a) At present, If there is a set attribute failure, orch agent will exit. 
+      Refer the error handling API : https://github.com/Azure/sonic-swss/blob/master/orchagent/orch.cpp#L885
+   b) Error handling for SET_ADMIN_STATUS attribute will be added in future.
+   c) A propabale way to handle the failure is to set a error handling attribute to respective container syncd/GBsyncd with attribute that is failed. 
+      The platform layer knows the error better and it will try to recover.
 
 
