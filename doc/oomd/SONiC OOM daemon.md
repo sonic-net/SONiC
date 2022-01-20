@@ -4,18 +4,14 @@
 - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
 - [1 Functional Requirements](#1-functional-requirement)
-  * [1.1 Limit the number of logins per user/group/system](#11-limit-the-number-of-logins-per-user/group/system)
-  * [1.2 Limit memory usage per user/group/system](#12-limit-memory-usage-per-user/group/system)
-  * [1.3 Default limitation by memory size](#13-default-limitation-by-memory-size)
 - [2 Configuration and Management Requirements](#2-configuration-and-management-requirements)
   * [2.1 SONiC CLI](#21-sonic-cli)
   * [2.2 Config DB](#22-config-db)
 - [3 Design](#design)
-  * [3.1 Login Limit Implementation](#31-login-limit-implementation)
-  * [3.2 Memory Limit Implementation](#32-memory-limit-implementation)
-  * [3.3 Default memory limitation Implementation](#33-default-memory-limitation-Implementation)
-  * [3.4 ConfigDB Schema](#34-configdb-schema)
-  * [3.5 CLI](#35-cli)
+  * [3.1 OOMD Implementation](#31-oomd-Implementation)
+  * [3.2 Default OOMD config](#32-default-oomd-config)
+  * [3.3 ConfigDB Schema](#34-configdb-schema)
+  * [3.4 CLI](#35-cli)
 - [4 Error handling](#error-handling)
 - [5 Serviceability and Debug](#serviceability-and-debug)
 - [6 Unit Test](#unit-test)
@@ -29,7 +25,7 @@ This document provides a detailed description on the new features for:
  - OOM daemon high level design.
  - OOM daemon ConfigDB schema
 
-## SONiC memory issue sloved by this feature.
+### SONiC memory issue sloved by this feature.
  - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
  - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. 
  - sonic not enable swap for most device.
@@ -67,7 +63,8 @@ This document provides a detailed description on the new features for:
 ```
 
 ## 2.2 Config DB
- - Login limit and memory limit are fully configurable by config DB.
+ - OOMD feature can be enable/disable by config DB
+ - OOMD policy are fully configurable by config DB.
 
 # 3 Design
  - High-level design diagram:
@@ -140,14 +137,14 @@ oomhandler -- SIG_TERM--> process[process]
 
 
 
-## 3.3 Default OOMD config
+## 3.2 Default OOMD config
 - OOMD will be enabled by default.
 - Default high-water mark: 90
 - Default low-water mark: 60
 - Default user/group list is empty.
 - Terminate domain user process by default.
 
-## 3.4 ConfigDB Schema
+## 3.3 ConfigDB Schema
  - OOMD setting table.
 ```
 ; Key
@@ -163,7 +160,7 @@ allow_group_list         = LIST(string)    ; OOMD can terminate process start by
 ```
  - Yang model: [sonic-system-oomd.yang](./sonic-system-oomd.yang)
 
-## 3.5 CLI
+## 3.4 CLI
  - Add following command to change OOMD setting.
 ```
     // config OOMD enable/disable status

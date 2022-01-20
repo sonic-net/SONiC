@@ -17,6 +17,8 @@
 - [4 Error handling](#error-handling)
 - [5 Serviceability and Debug](#serviceability-and-debug)
 - [6 Unit Test](#unit-test)
+  * [6.1 Login session enable/disable test](#61-login-session-enable-disable-test)
+  * [6.2 Max login session test](#62-max-login-session-test)
 - [8 References](#references)
 
 
