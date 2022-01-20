@@ -1,22 +1,23 @@
 module sonic-passwh {
     yang-version 1.1;
     namespace "http://github.com/Azure/sonic-passwh";
-	prefix passwh;
+    prefix passwh;
 
     description "PASSWORD HARDENING YANG Module for SONiC OS";
 
-	revision 2021-10-12 {
-        description
-            "First Revision";
+    revision 2021-10-12 {
+        description "First Revision";
     }
-    typedef feature_state {
-        type enumeration {
-			enum enabled;
-			enum disabled;
-		}
-	}
 
     container sonic-passwh {
+
+        typedef feature_state {
+            type enumeration {
+                enum enabled;
+                enum disabled;
+            }
+        }
+
 		container PASSWH {
 			description "PASSWORD HARDENING part of config_db.json";
 			container POLICIES {
