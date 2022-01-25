@@ -57,7 +57,9 @@ FlexCounterOrch daemon will be refactored to do the following:
     - If a port/portchannel was added, add it to the internal data structure with the proper admin status and empty string in oper status. 
     - If a delete operation was performed to one of the ports inside the internal data structure - remove the port.
 
-Eventually, when the list is empty, enable the counters.
+
+    Eventually, when the list is empty, the daemon will check that each L3 interface has the corresponding neighbor needed to recover the traffic.
+    If so, enable the counters.
 
 - The daemon will also create a timer in order to be able to enable counters even if one of the ports is not stable.
     
@@ -84,4 +86,4 @@ In this design change we have 2 options:
 
 1. Keep using `FLEX_COUNTER_DELAY_STATUS`. It will keep delaying counters only for fast-boot.
 
-2. Remove `FLEX_COUNTER_DELAY_STATUS`. In that case, all boot types will be forced to use a delay, and FlexCounetrOrch will now ignore all events from CONFIG_DB, until counters were enabled (boolean afrom new design is true).
+2. Remove `FLEX_COUNTER_DELAY_STATUS`. In that case, all boot types will be forced to use a delay, and FlexCounetrOrch will now ignore all events from CONFIG_DB, until counters were enabled (boolean from new design equals true).
