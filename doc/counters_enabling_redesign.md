@@ -28,7 +28,7 @@ In addition, enable_counters.py script will be removed, and its logic will now b
 Remove enable_counters.py script and merge the logic into FlexCounterOrch.
 FlexCounterOrch will wait for system to be stable using events from APP DB, then enable the counters using the logic written in enable_counters.py.
 
-We will consider the system as stable when all ports and LAGs are in their expected state taken from CONFIG DB.
+We will consider the system as stable when all ports and LAGs are in their expected state taken from CONFIG DB, and all BGP neighbors have been learned. 
 
 
 ## High-Level Design
@@ -42,12 +42,63 @@ FlexCounterOrch daemon will be refactored to do the following:
     { port: [admin_status, oper_status] }
     for all ports and LAGs exist in config_db. oper_status will be initialized as an empty string.
 
+- Create an internal data structure that will conatin all BGP neighbors (IPv4 & IPv6), with IP neighbors we expect to have on the corresponding port/LAG. 
+
+    - Check in BGP_NEIGHBOR table in CONFIG DB which neighbor IP we expect to have as part of NEIGH_TABLE for the local port and keep the ip for the next step. 
+    
+    - Check in 'INTERFACE', 'PORTCHANNEL_INETRFACE' tables in CONFIG_DB which of the ports & LAGs have an IP address saved in the previous step.
+
+
+    - Add to the internal data structure the port/LAG with the expected neighbor. 
+
+        For example, 
+
+        In BGP_NEIGHBOR table we check the local_addr IP for 10.0.0.57 neighbor. 
+        ```
+        127.0.0.1:6379[4]> hgetall BGP_NEIGHBOR|10.0.0.57
+        1) "admin_status"
+        2) "down"
+        3) "asn"
+        4) "64600"
+        5) "holdtime"
+        6) "10"
+        7) "keepalive"
+        8) "3"
+        9) "local_addr"
+        10) "10.0.0.56"
+        11) "name"
+        12) "ARISTA01T1"
+        13) "nhopself"
+        14) "0"
+        15) "rrclient"
+        16) "0"
+
+        ```
+
+        In Config DB PortChannel101 has 1.0.0.56 IP address. 
+        ```
+        PORTCHANNEL_INTERFACE|PortChannel101|10.0.0.56/31
+        ```
+
+        The new data structure will contain:
+        ```
+        {PortChannel101, 10.0.0.57}
+        ```
+
 - Start listen to events from APP DB - PORT_TABLE, LAG_TABLE.
 
     For each event arriving:
     - If PORT table doesn't have "PortConfigDone" key, delete the event and continue to the next one.
     - If the current oper_status of the port equals to the expected, remove the port from the internal list.
     - Otherwise, continue.
+
+- Listen to events from APP DB - NEIGH_TABLE.
+    For each event arriving:
+    - If a pair from the above neighbor data structure appears in the table, remove it from the list.
+    In the above example:
+        ```
+        NEIGH_TABLE:PortChannel101:10.0.0.57
+        ```
 
 - In order to handle changes of changing port's state, or using DPC capabilities,
     listen to events from config_db, PORT & PORTCHANNEL tables.
@@ -58,8 +109,8 @@ FlexCounterOrch daemon will be refactored to do the following:
     - If a delete operation was performed to one of the ports inside the internal data structure - remove the port.
 
 
-    Eventually, when the list is empty, the daemon will check that each L3 interface has the corresponding neighbor needed to recover the traffic.
-    If so, enable the counters.
+    Eventually, when the ports list  and neighbors list are empty, enable the counters. 
+    
 
 - The daemon will also create a timer in order to be able to enable counters even if one of the ports is not stable.
     
@@ -71,6 +122,9 @@ FlexCounterOrch daemon will be refactored to do the following:
     When doTask(SelectableTimer*) function will be triggered, it will check if the counters are already enabled.
     If not, enable them.
 
+
+
+In warm reboot scenario, flexCounterOrch will only listen to warm reboot finalizer indicator and then enable the counters. 
 
 ## Open Question
 
