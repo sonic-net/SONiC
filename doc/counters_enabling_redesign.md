@@ -6,6 +6,7 @@
 * [Overview](#overview)
 * [Requirements](#requirements)
 * [High-Level Design](#high-level-design)
+* [Open Question](#open-question)
 
 
 ### Revision
@@ -70,8 +71,7 @@ Eventually, when the list is empty, enable the counters.
     If not, enable them.
 
 
-## Previous design improvment
-### Open question
+## Open Question
 
 In Current FlexCounterorch design, the `FLEX_COUNTER_DELAY_STATUS` flag is an indicator in CONFIG DB for counters enabling delay. 
 
