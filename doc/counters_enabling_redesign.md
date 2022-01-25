@@ -29,6 +29,8 @@ FlexCounterOrch will wait for system to be stable using events from APP DB, then
 
 We will consider the system as stable when all ports and LAGs are in their expected state taken from CONFIG DB.
 
+We will count the system as up when all ports are in their expected state, so the counters will be enabled only when all ports are ready. 
+
 ## High-Level Design
 
 FlexCounterOrch daemon will be refactored to do the following:
