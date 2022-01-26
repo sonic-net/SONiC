@@ -20,16 +20,16 @@ This document describes the high-level design of the critical state feature.
 
 ## Overview
 
-There are unavoidable error conditions, like hardware errors or software bugs, that can bring a system into an inconsistent state. In critical error situations (uncatched exception, fatal exit etc), SONiC automatically resolves the error by restarting the containers/processes. When a critical error occurs, the SONiC process will raise an exception and crash or exit with error. The container or the process will be restarted in response, and hopefully the restart could resolve the error. In an SDN environment, such recovery mechanism is not desired for the following reasons:
+There are unavoidable error conditions, like hardware errors or software bugs, that can bring a system into an inconsistent state. In critical error situations (uncaught exception, fatal exit, etc), SONiC automatically resolves the error by restarting the containers/processes. When a critical error occurs, the SONiC process will raise an exception and then crash or exit with error. The container or the process will be restarted in response, and hopefully the restart could resolve the error. In an SDN environment, such recovery mechanism is not desired for the following reasons:
 
 * Restarting certain containers/processes might cause packet drop.
 * The controller should be fully aware of the system state of the switch. Auto recovery can cause inconsistency between the controller and the switch.
 * Auto restart will modify the switch's state before a human even has the option of analyzing the switch to triage the problem.
-* Little indication to the external world on what has happened when the restart recovery occurs.
+* There is little indication to the external world on what has happened when the restart recovery occurs.
 
-In this HLD, we propose a different error handling mechanism, the critical state feature. In short summary, when a critical error happens, the system will:
+In this HLD, we propose a different error handling mechanism: critical state. In short summary, when a critical error happens, the system will:
 
-* Not crash nor exit.
+* Not crash or exit.
 * Not attempt to self recover.
 * Enter the critical state, which indicates that a critical error has occurred.
 * Preserve the current state as much as possible. Stop further programming into hardware.
@@ -127,7 +127,7 @@ To achieve the above behavior, two external facing components will subscribe to 
 
 ### Exiting Critical State
 
-The system can only exit critical state via reboot. Applications cannot clear critical state since critical state implies fatal error. In operation scenarios, when the switch reports critical state in gNMI alarm, SDN controller or network administrator will need to drain the switch. External entities can log into the switch, collect debug information, and finally reboot the switch to exit the critical state.
+The system can only exit critical state via reboot. Applications cannot clear critical state since critical state implies fatal error. In operational scenarios, when the switch reports critical state in gNMI alarm, SDN controller or network administrator will need to drain the switch. External entities can log into the switch, collect debug information, and finally reboot the switch to exit the critical state.
 
 ### DB Schema
 
@@ -209,6 +209,8 @@ class SystemStateHelper {
   static SystemStateHelper& GetInstance();
 
   // Returns true if the system is in critical state.
+  // The system is in critical state if a component is in kError
+  // state or kInactive state.
   bool IsSystemCritical() const;
 
   // Returns a description of why the system is in critical state.
