@@ -218,7 +218,7 @@ fwutil
 |    |--- status
 |    |--- updates -i|--image=<current|next>
 |    |--- updates -z|--fw-image=<fw_package.tar.gz>
-|    |--- update status
+|    |--- update-all-status
 |
 |--- install
 |    |--- chassis
@@ -335,9 +335,9 @@ Chassis1  N/A       CPLD        <fwpackage_path>/cpld.bin      5 / 10           
 ```
 
 **The following command displays the Component FW update satus (only available for `fwutil update all` command):**
-1. update status
+1. update-all-status
 ```bash
-root@sonic:~# fwutil show update status
+root@sonic:~# fwutil show update-all-status
 Firmware auto-update performed for cold reboot
 Component      Version    Status     Info
 -------------  ---------  ---------  --------------------------------------
@@ -576,7 +576,7 @@ New component api is introduced to support the component firmware auto-update as
         """
         raise NotImplementedError
 ```
-The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show update status` command. 
+The return_code of auto_update_firmware() which indicates the firmware auto-update  status, will be logged in "fw_au_status" under "/var/platform/" directory by fwutil and the status file will be used for the `fwutil show update-all-status` command. 
 
 In case that a firmware update needs any additional step to complete the firmware update but the installation time is longer than the boot time requirement, auto-update platform api is expected to install the firmware and perform the complete action during the reboot via `platform_fw_au_reboot_handle` or `platform_reboot` plugin.
 For example, some cpld update needs a power cycle to complete the firmware update and some cpld update needs a register triggered power-cycle to give some refresh time for the new firmware to be effective on the system.
@@ -668,7 +668,7 @@ Automatic FW installation requires default platform_components.json to be create
 _sonic-buildimage/device/<platform_name>/<onie_platform>/platform_components.json_
 Recommended image path is "/lib/firmware/<vendor>".
 
-Here is the /var/platform directory structure while fwutil handles the `fwutil update all fw` and `fwutil show update status` command.
+Here is the /var/platform directory structure while fwutil handles the `fwutil update all fw` and `fwutil show update-all-status` command.
 ```
 /var/platform/
           |--- fw_au_status
