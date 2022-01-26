@@ -1,4 +1,4 @@
- ### Rev 0.1
+ ### Rev 0.2
 
 # Table of Contents
 
@@ -44,8 +44,8 @@
 
 | Rev   |   Date     | Author        | Change Description |
 |:-----:|:----------:|:-------------:|--------------------|
-| 0.1   | 8-Oct-2020 | Tommy Tseng   | Initial version    |
-
+| 0.1   |20-Dec-2021 | Tommy Tseng   | Initial version    |
+| 0.2   |26-Jan-2022 | Tommy Tseng   | Update CLI command |
 # Scope
 
 This document describes the high level design of VLAN stacking feature.
@@ -429,7 +429,73 @@ sai_vlan_api->create_vlan_stack(&vlan_stacking_oid, gSwitchId, (uint32_t)vlan_st
 
 ### CLI
 
-CLI commands for VLAN stacking are not supported yet.
+Add VLAN stacking rule on a physical interface or PortChannel
+
+```json
+config vlan-stacking add <interface_name> <stage> <match_vlan> <action> <apply_vlan>
+  * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
+  * stage         : The traffic direction of the packet, e.g. "ingress" or "egress".
+  * match_vlan    : The VLAN ID on the packet which expected to match the rule(The range is from 1 to 4094).
+  * action        : The action applied to the packet when it matched the rule, e.g. "push", "pop" or "swap".
+  * apply_vlan    : The VLAN ID applied to the packet according to the action field(The range is from 1 to 4094).
+```
+
+The format is in the following
+
+```json
+admin@sonic:~$ sudo config vlan-stacking add -h
+Usage: config vlan-stacking add [OPTIONS] <interface_name> <stage> <match_vlan> <action> <apply_vlan>
+
+  Add vlan stacking rule, examples:
+  - config vlan-stacking add Ethernet0 ingress 100 push 200
+  - config vlan-stacking add Ethernet0 egress 100 pop
+  - config vlan-stacking add Ethernet0 ingress 100 swap 200
+  - config vlan-stacking add Ethernet0 egress 100 swap 200
+
+Options:
+  -?, -h, --help  Show this message and exit.
+```
+
+Delete VLAN stacking rule from a physical interface or PortChannel
+
+```json
+config vlan-stacking del <interface_name> <stage> <match_vlan>
+  * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
+  * stage         : The traffic direction of the packet, e.g. "ingress" or "egress".
+  * match_vlan    : The VLAN ID on the packet which expected to match the rule(The range is from 1 to 4094).
+```
+
+The format is in the following
+
+```json
+admin@sonic:~$ sudo config vlan-stacking del -h
+Usage: config vlan-stacking del [OPTIONS] <interface_name> <stage> <match_vlan>
+
+  Delete vlan stacking rule, examples:
+  - config vlan-stacking del Ethernet0 ingress 100
+  - config vlan-stacking del Ethernet0 egress 100
+
+Options:
+  -?, -h, --help  Show this message and exit.
+```
+
+Display VLAN stacking rule configuration
+
+```json
+show vlan-stacking
+```
+
+The display format is in the following
+
+```json
+admin@root:~# show vlan-stacking
+Interface    Stage      Match VLAN  Action      Apply VLAN
+-----------  -------  ------------  --------  ------------
+Ethernet0    egress            200  pop
+Ethernet0    ingress           100  push               200
+Ethernet4    egress            200  swap               100
+Ethernet4    ingress           100  swap               200
+```
 
 ### Yang model
 
