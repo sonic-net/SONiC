@@ -48,26 +48,26 @@ We need an API in libisai.so to get the API version that this libsai.so implemen
 The proposal is to add such API:
 
 ```c
-+/**
-+ * @brief Retrieve a SAI API version this implementation is aligned to
-+ *
-+ * @param[out] version Version number
-+ *
-+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
-+ */
-+sai_status_t sai_query_api_version(
-+        _Out_ sai_api_version_t *version);
+/**
+ * @brief Retrieve a SAI API version this implementation is aligned to
+ *
+ * @param[out] version Version number
+ *
+ * @return #SAI_STATUS_SUCCESS on success, failure status code on error
+ */
+sai_status_t sai_query_api_version(
+        _Out_ sai_api_version_t *version);
 ```
 
 The implementation is simple:
 
 ```c
-+sai_status_t sai_query_api_version(
-+        _Out_ sai_api_version_t *version)
-+{
-+    *version = SAI_API_VERSION;
-+    return SAI_STATUS_SUCCESS;
-+}
+sai_status_t sai_query_api_version(
+        _Out_ sai_api_version_t *version)
+{
+    *version = SAI_API_VERSION;
+    return SAI_STATUS_SUCCESS;
+}
 ```
  
 This SAI_API_VERSION is the one derived from headers that were used by vendor SAI (headers on the left on the Figure 1.).
