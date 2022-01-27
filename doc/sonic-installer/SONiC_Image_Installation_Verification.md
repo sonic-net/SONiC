@@ -123,7 +123,7 @@ The following figure shows how to intall an image through SONiC CLI.
 ### 4.2.1 Generate platform list
 We need to generate one file `platforms_asic` for each image. This file contains the list of supported platforms and is generated during the process of image build. The file is kept in built image.
 
-Eample `platforms_asic`of broadcom ASIC built image
+Example `platforms_asic`of broadcom ASIC built image
 ```
 x86_64-alphanetworks_snh60a0_320fv2-r0
 x86_64-alphanetworks_snj60d0_320f-r0
@@ -215,7 +215,7 @@ x86_64-accton_as7312_54xs-r0
 x86_64-accton_as9716_32d-r0
 x86_64-accton_as7816_64x-r0
 ```
-Eample `platforms_asic`of mellanox ASIC built image
+Example `platforms_asic`of mellanox ASIC built image
 ```
 x86_64-mlnx_msn4700-r0
 x86_64-mlnx_msn2700-r0
