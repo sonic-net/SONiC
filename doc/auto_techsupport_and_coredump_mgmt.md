@@ -8,8 +8,8 @@
   * [2. High Level Requirements](#2-high-level-requirements)
   * [3. Core Dump Generation in SONiC](#3-core-dump-generation-in-sonic)
   * [4. Schema Additions](#4-schema-additions)
-  * [5. CLI Enhancements](#5-cli-enhancements)
-  * [6. Design](#6-design)
+  * [6. CLI Enhancements](#5-cli-enhancements)
+  * [7. Design](#6-design)
       * [6.1 Modifications to coredump-compress script](#61-Modifications-to-coredump-compress-script)
       * [6.2 coredump_gen_handler script](#62-coredump_gen_handler-script)
       * [6.3 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
@@ -17,8 +17,8 @@
       * [6.5 Warmboot consideration](#65-Warmboot-consideration)
       * [6.6 MultiAsic consideration](#66-MultiAsic-consideration)
       * [6.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#67-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
-  * [7. Test Plan](#7-Test-Plan)
-  * [8. SONiC-to-SONiC Upgrade Considerations](#8-SONiC-to-SONiC-Upgrade-Considerations)
+  * [8. Test Plan](#7-Test-Plan)
+  * [9. SONiC-to-SONiC Upgrade Considerations](#8-SONiC-to-SONiC-Upgrade-Considerations)
 
 
 ### Revision  
@@ -27,6 +27,7 @@
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
 | 1.1 |     TBD     | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
+| 3.0 |     02/2022 | Stepan Blyshchak        | Extending Support for memory leak                             |
 
 ## About this Manual
 This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process inside the docker crashes and a core dump is generated.
@@ -36,6 +37,11 @@ Currently, techsupport is run by invoking `show techsupport` either by orchestra
 
 However if the techsupport invocation can be made event-driven based on core dump generation, that would definitely improve the debuggability. That is the overall idea behind this HLD. All the high-level requirements are summarized in the next section
 
+Another use case is to gather more information about the system in case there is a memory leak.
+SONiC dump generated after system reboots due to out of memory is not enough for debugging the issue
+as all the information about processes and their mem usage, smaps (/proc/PID/smaps) is lost.
+Once the system detects abnormal memory usage SONiC dump is generated automatically. 
+
 ## 2. High Level Requirements
 ### Global Scope
 * Techsupport invocation should also be made event-driven based on core dump generation.
@@ -43,6 +49,8 @@ However if the techsupport invocation can be made event-driven based on core dum
 * init_cfg.json will be enhanced to include the "CONFIG" required for this feature (described in section 4) and is enabled by default.
 * To provide flexibility, a compile time flag "ENABLE_AUTO_TECH_SUPPORT" should be provided to enable/disable the "CONFIG" for this feature. 
 * Users should have the abiliity to enable/disable this capability through CLI.
+* Techsupport invocation should also be made event-driven based on memory usage threshold crossing.
+* The memory usage threshold should be configurable system-wise and per container.
 
 ### Configurable Params
 * A configurable "rate_limit_interval" should be introduced to limit the number consecutive of techsupport invocations.
@@ -68,7 +76,44 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 
 Where `<comm>` value in the command name associated with a process. comm value of a running process can be read from `/proc/[pid]/comm` file
 
-## 4. Schema Additions
+## 4. Memory leak based techsupport invokation
+
+If the following condition resolves to true:
+```
+mem_usage > mem_usage_threshold || ${container}_mem_usage > ${container}_mem_usage_threshold
+```
+
+where ```mem_usage``` is total system memory used (MemAvailable from /proc/meminfo),
+```mem_usage_threshold``` configured threashold,
+```${container}_mem_usage``` used memory by $container ("docker stats --no-stream --format {{.MemUsage}}" $container),
+```${container}_mem_usage_threshold``` configured memory threshold for $contianer, 
+
+the SONiC techsupport is automatically generated.
+
+The check will be implemented as a script that is ran by monit periodically:
+
+```
+check program mem_checker with path "/usr/bin/mem_check"
+    if status != 0 for 10 times within 20 cycles then exec /usr/local/bin/coredumpgen_handler"
+```
+
+The action is going to be ran only once the mem_check script detects memory usage above threshold.
+
+The "10 times within 20 cycles" part is kept in sync with mem_usage alert from sonic-host monit configuration.
+It is possible to make those values configurable however, only the threshold value is considered to be configurable.
+
+The rate limit as well as techsupport maximum limit is applicable to techsupports generated by memory check.
+
+#### 202106 and older
+
+To support thechsupport generation on memory leaks a simple rule to monit is added:
+
+```
+check system $HOST
+    if memory usage > 90% for 10 times within 20 cycles then exec /usr/bin/generate_dump
+```
+
+## 5. Schema Additions
 
 ### Config DB
 
@@ -76,6 +121,7 @@ Where `<comm>` value in the command name associated with a process. comm value o
 ```
 key                    = "AUTO_TECHSUPPORT|global"  
 state                  = "enabled" / "disabled"    ; Enable this to make the Techsupport Invocation event driven based on core-dump generation
+mem_threshold          = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak.
 rate_limit_interval    = 1*5DIGIT                  ; Minimum Time in seconds, between two successive techsupport invocations.
                                                      Manual Invocations will be considered as well in the calculation. 
                                                      Configure 0 to explicitly disable
@@ -99,6 +145,7 @@ since                  = 1*32VCHAR;                ; This limits the auto-invoke
 ```
 key                    = feature name                
 state                  = "enabled" / "disabled"    ; Enable auto techsupport invocation on the critical processes running inside this feature
+mem_threashold         = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak in this container.
 rate_limit_interval    = 1*5DIGIT                  ; Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
@@ -141,6 +188,11 @@ module sonic-auto_techsupport {
                     leaf state {
                         description "Knob to make techsupport invocation event-driven based on core-dump generation";
                         type stypes:admin_mode;
+                    }
+
+                    leaf mem_threashold {
+                        description "Enable techsupport invokation on used memory threshold crossing; 0 to disable"
+                        type decimal-repr;
                     }
 
                     leaf rate_limit_interval  {
@@ -206,6 +258,11 @@ module sonic-auto_techsupport {
                     type stypes:admin_mode;
                 }
 
+                leaf mem_threashold {
+                    description "Enable techsupport invokation on used memory threshold crossing; 0 to disable"
+                    type decimal-repr;
+                }
+
                 leaf rate_limit_interval {
                     description "Rate limit interval for the corresponding feature. Configure 0 to explicitly disable";
                     type uint16;
@@ -226,27 +283,42 @@ module sonic-auto_techsupport {
 #### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
 key                 = Techsupport Dump Name 
+event_type          = "core" / "mem_threshold" ; Type of event caused techsupport invokation
 core_dump           = 1*64VCHAR                ; Core Dump Name
 timestamp           = 1*12DIGIT                ; epoch of this record creation
-container_name      = 1*64VCHAR                ; Container in which the process crashed
+container_name      = 1*64VCHAR                ; Container in which the process crashed/mem threashold. Unset when triggered from host.
+```
 
 Eg:
 
+```
 hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
-1) "core_dump"
-2) "orchagent.1599047232.39.core"
+1) "event_type"
+2) "core"
+2) "core_dump"
+3) "orchagent.1599047232.39.core"
+4) "timestamp"
+5) "1599047233"
+6) "container_name"
+7) "swss"
+```
+
+```
+hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223123"
+1) "event_type"
+2) "mem_threshold"
 3) "timestamp"
-4) "1599047233"
+4) "1612045251"
 5) "container_name"
 6) "swss"
 ```
 
-
-## 5. CLI Enhancements.
+## 6. CLI Enhancements.
 
 ### config cli
 ```
 config auto-techsupport global state <enabled/disabled>
+config auto-techsupport global mem-techsupport <float upto two decimal places>
 config auto-techsupport global rate-limit-interval <uint16>
 config auto-techsupport global max-techsupport-limit <float upto two decimal places>
 config auto-techsupport global max-core-limit <float upto two decimal places>
@@ -261,26 +333,26 @@ config auto-techsupport-feature delete restapi
 
 ```
 admin@sonic:~$ show auto-techsupport global
-STATE      RATE LIMIT INTERVAL (sec)    MAX TECHSUPPORT LIMIT (%)    MAX CORE SIZE (%)       SINCE
--------  ---------------------------   --------------------------    ------------------  ----------
-enabled                          180                        10.0                   5.0   2 days ago
+STATE      RATE LIMIT INTERVAL (sec)    MAX TECHSUPPORT LIMIT (%)    MAX CORE SIZE (%)   MEM THRESHOLD (%)       SINCE
+-------  ---------------------------   --------------------------    ------------------  ------------------  ----------
+enabled                          180                        10.0                   5.0                 90.0   2 days ago
 
 admin@sonic:~$ show auto-techsupport-feature 
-FEATURE NAME    STATE       RATE LIMIT INTERVAL (sec)
---------------  --------  --------------------------
-bgp             enabled                          600
-database        enabled                          600
-dhcp_relay      enabled                          600
-lldp            enabled                          600
-macsec          enabled                          600
-mgmt-framework  enabled                          600
-nat             enabled                          600
-pmon            enabled                          600
-radv            enabled                          600
-restapi         disabled                         800
-sflow           enabled                          600
-snmp            enabled                          600
-swss            disabled                         800
+FEATURE NAME    STATE     MEM THRESHOLD (%)     RATE LIMIT INTERVAL (sec)
+--------------  --------  ------------------  --------------------------
+bgp             enabled                 90.0                         600
+database        enabled                 90.0                         600
+dhcp_relay      enabled                 90.0                         600
+lldp            enabled                 90.0                         600
+macsec          enabled                 90.0                         600
+mgmt-framework  enabled                 90.0                         600
+nat             enabled                 90.0                         600
+pmon            enabled                 90.0                         600
+radv            enabled                 90.0                         600
+restapi         disabled                90.0                         800
+sflow           enabled                 90.0                         600
+snmp            enabled                 90.0                         600
+swss            disabled                90.0                         800
 
 
 admin@sonic:~$ show auto-techsupport history
@@ -374,7 +446,7 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |  2   | Check if the techsupport cleanup is working as expected                                                                                 |
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
-
+|  5   | Check if the core-dump generated when reaching memory threshold                                                                                   |
 ## 8. SONiC-to-SONiC Upgrade Considerations
 
 The default config required for auto_techsupport is present in the init_cfg.json. Therefore, when a clean installation of SONiC is performed, the configuration is found in the config DB and the feature is active. 
@@ -391,6 +463,7 @@ Load this Example config provided below to enable the feature. Each of the field
            "rate_limit_interval": "180",
            "max_techsupport_limit": "10.0",
            "max_core_limit": "5.0",
+           "mem_threshold": "90.0",
            "since": "2 days ago"
        }
    },
