@@ -18,9 +18,14 @@ module sonic-system-oomd {
 
         container oomd {
             container policies {
-                leaf enable {
+                leaf enable_memory_monitor {
                     type boolean;
-                    description "OOMD enable status";
+                    description "OOMD memory monitor enable status";
+                    default true;
+                }
+                leaf enable_container_monitor {
+                    type boolean;
+                    description "OOMD memory monitor enable status";
                     default true;
                 }
                 leaf high_water_mark {

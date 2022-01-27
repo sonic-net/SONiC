@@ -21,6 +21,7 @@
 # About this Manual
 This document provides a detailed description on the new features for:
  - Protect SONiC system memory by OOM daemon.
+ - Re-start docker container when container in OOM.
  - OOM daemon config command.
  - OOM daemon high level design.
  - OOM daemon ConfigDB schema
@@ -35,14 +36,17 @@ This document provides a detailed description on the new features for:
  - To fix this issue, we need 2 feature: login session limit and OOM daemon.
 
 # 1 Functional Requirement
- - When exceed memory high-water mark, terminate user process to free memory and protect device from OOM happen.
-
- - Can set system memory high-water mark and low-water mark.
- - Can set memory protect policy:
-    - User/group list, their process can be terminate safely.
-    - Terminate policy: terminate user session or terminate user process.
-
-- All process start by local user will not be terminate by OOMD, unless they add to user/group list.
+ - Monitor docker OOM status and re-start docker when OOM happen.
+     - Some docker container will set memory limit and disable trigger system OOM killer.
+     - These docker container will hang when OOM happen.
+     - OOMD will subscribe OOM event of these docker, and re-start container when container OOM happen.
+ - Monitor system memory utilization, protect system by terminate user process:
+     - When exceed memory high-water mark, terminate user process to free memory and protect device from OOM happen.
+     - Can set system memory high-water mark and low-water mark.
+     - Can set memory protect policy:
+        - User/group list, their process can be terminate safely.
+        - Terminate policy: terminate user session or terminate user process.
+    - All process start by local user will not be terminate by OOMD, unless they add to user/group list.
 - Provide default setting to minimize customer side change.
   - Customers may have pipelines to initialize device configuration, because this feature add new commands, the pipeline may need update. The default limitation is designed to cover most scenario to minimize the customer side change.
 
@@ -86,26 +90,36 @@ systemd --> OOMD;
 %% OOMD subscript memory utilzation event from cgroup
 CGROUP(cgroup) -. memory utilzation event .-> OOMD; 
 
+%% OOMD subscript oom_control event from cgroup
+DOCKERCGROUP(docker cgroup) -. oom_control event .-> OOMD; 
+
 %% OOMD get user info from /etc/passwd
 passwd(/etc/passwd) -. user information .-> OOMD;
 
 %% OOMD terminate user session/procress when memory utilzation reach high-water mark
 OOMD -- terminate signal --> process[process]
 
+%% OOMD re-start docker container when container OOM happen
+OOMD -- restart container --> container[container]
 
 ```
 
 ## 3.1 OOMD Implementation
  - OOMD will be a service managed by systemd.
- - Get system memory information from /proc/meminfo.
- - Subscript cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
- - Get user information from /etc/passwd.
- - OOMD will send SIGKILL/SIGTERM to kill/terminate process.
- - OOMD can config to terminate user session, this is because when swap not enabled, Linux system may enters a livelocked state much more quickly and may prevent oomd from responding in a reasonable amount of time. 
+ - System memory monitor and protect
+     - Get system memory information from /proc/meminfo.
+     - Subscript cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
+     - Get user information from /etc/passwd.
+     - OOMD will send SIGKILL/SIGTERM to kill/terminate process.
+     - OOMD can config to terminate user session, this is because when swap not enabled, Linux system may enters a livelocked state much more quickly and may prevent oomd from responding in a reasonable amount of time. 
+ - Docker container monitor and re-start
+     - Subscript docker container OOM event from memory.oom_control
+     - OOMD will run 'docker restart' command to restart docker container
  - The following diagram show how OOMD work:
     - UserInfoProvider will get user information from /etc/passwd
     - ConfigProvider will subscript config DB change event and update OOMD config.
     - MemMonitor will monitor cgroup event and trigger OomHandler.
+    - ContainerMonitor will monitor container OOM event and re-start container
     - When memory utilization reach high-water mark, OomHandler will terminate user process to prevent OOM happen. 
 
 ```mermaid
@@ -118,10 +132,15 @@ userinfoprovider -- update --> oomhandler[OomHandler];
 cgroup(cgroup) -. subscribe event .-> memmonitor[MemMonitor]
 memmonitor -- reach high-water mark --> oomhandler[OomHandler]
 
+%% Container monitor response for minitor memory utilzation
+containercgroup(container cgroup) -. subscribe OOM event .-> containermonitor[ContainerMonitor]
+containermonitor -- restart container --> docker[Docker]
+
 %% Config provider response for monitor and get latest OOMD config
 confdb[(Config DB)] -. config change event .-> confprovider[ConfigProvider]
 confprovider --> memmonitor
 confprovider --> oomhandler
+confprovider --> containermonitor
 
 %% OOM handler will terminate process
 oomhandler -- SIG_TERM--> process[process]
@@ -143,6 +162,7 @@ oomhandler -- SIG_TERM--> process[process]
 - Default low-water mark: 60
 - Default user/group list is empty.
 - Terminate domain user process by default.
+- Monitor all container with memory limit and disable OOM.
 
 ## 3.3 ConfigDB Schema
  - OOMD setting table.
@@ -150,7 +170,8 @@ oomhandler -- SIG_TERM--> process[process]
 ; Key
 key                      = "policies"         ; OOMD policies
 ; Attributes
-enable                   = Boolean            ; Enable status, true for enable.
+enable_memory_monitor    = Boolean            ; Enable status, true for enable.
+enable_container_monitor = Boolean            ; Enable status, true for enable.
 high_water_mark          = 3*DIGIT            ; Memory utilzation high-water mark
 low_water_mark           = 3*DIGIT            ; Memory utilzation low-water mark
 domain_account           = Boolean            ; OOMD will terminate process run by domain account
@@ -164,7 +185,8 @@ allow_group_list         = LIST(string)    ; OOMD can terminate process start by
  - Add following command to change OOMD setting.
 ```
     // config OOMD enable/disable status
-    config oomd { enable/disable}
+    config oomd memory    { enable/disable}
+    config oomd container { enable/disable}
     
     // config OOMD high-water mark and low-water mark, number are memory utilzation percentage.
     config oomd policy { highwatermark|lowwatermark } <number>
@@ -244,6 +266,12 @@ allow_group_list         = LIST(string)    ; OOMD can terminate process start by
     Verify when log level set to standard, syslog not contains OOMD debug information.
   ```
 
+  - Trigger docker container OOM, check the docker container restarted:
+
+  ```
+    Verify when enable container monitor, docker container restarted.
+    Verify when disable container monitor, docker container not restart.
+  ```
 
 
 # 7 References
