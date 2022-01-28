@@ -1,0 +1,24 @@
+```mermaid
+sequenceDiagram  
+
+%% user login without exceed the limit
+ SSH/Console->>SSHD  : login
+	 activate  SSHD
+	 SSHD->>pam_limits.so: check login limit
+		 activate  pam_limits.so
+		 pam_limits.so->>bash: not exceed the limit
+			 activate  bash
+			 bash->>SSH/Console: login success
+			 deactivate  bash
+	 SSH/Console->>SSHD  : logout
+	 deactivate  SSHD
+ 
+%% user login exceed the limit
+ SSH/Console->>SSHD  : login
+	 activate  SSHD
+	 SSHD->>pam_limits.so: check login limit
+		 activate  pam_limits.so
+		 pam_limits.so->>SSH/Console: exceed the limit
+		 deactivate  pam_limits.so
+	 deactivate  SSHD
+```

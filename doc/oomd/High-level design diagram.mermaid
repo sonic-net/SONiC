@@ -1,0 +1,31 @@
+
+```mermaid
+graph TD;
+%% SONiC CLI update config DB
+CLI[SONiC CLI] -- update OOMD config --> CONFDB[(Config DB)];
+
+
+%% HostCfgd/OOMD subscribes config DB change
+CONFDB -.-> HOSTCFGD[Hostcfgd];
+CONFDB -. config change event .-> OOMD[OOMD];
+
+%% HostCfgd start/stop OOMD
+HOSTCFGD -- start/stop OOMD --> systemd[systemd];
+systemd --> OOMD;
+
+%% OOMD subscribes memory utilzation event from cgroup
+CGROUP(cgroup) -. memory utilzation event .-> OOMD; 
+
+%% OOMD subscribes oom_control event from cgroup
+DOCKERCGROUP(docker cgroup) -. oom_control event .-> OOMD; 
+
+%% OOMD get user info from /etc/passwd
+passwd(/etc/passwd) -. user information .-> OOMD;
+
+%% OOMD terminate user session/process when memory utilzation reach high-water mark
+OOMD -- terminate signal --> process[process]
+
+%% OOMD re-start docker container when container OOM happen
+OOMD -- restart container --> container[container]
+
+```

@@ -1,0 +1,17 @@
+```mermaid
+graph LR;
+%% SONiC CLI update config DB
+CLI[SONiC CLI] -- update limit setting --> CONFDB[(Config DB)];
+
+
+%% HostCfgd subscribe config DB change
+CONFDB -.-> HOSTCFGD[Hostcfgd];
+
+%% HostCfgd Update config files
+HOSTCFGD -- update limits.conf --> PAMCFG[limits.conf];
+
+%% pam_limits.so will handle login limit
+PAMCFG -.-> LIMITLIB[pam_limits.so];
+LIMITLIB -- login --- USERSESSION(user session);
+
+```

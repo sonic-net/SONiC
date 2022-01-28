@@ -28,12 +28,8 @@ This document provides a detailed description on the new features for:
  - Default limit user login session by device information.
  - Design a scalable framework of config command and ConfigDB to support more resource type, for example limit user CPU/memory by cgroup and systemd user.slices.
 
-## SONiC memory issue sloved by this feature.
- - Currenly SONiC enabled OOM killer, and set 2 to /proc/sys/vm/panic_on_oom, which will trigger kernel panic when OOM. This is by design to protect SONiC key process and container.
- - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. also sonic not enable swap for most device.
- - When user run some command trigger OOM, SONiC will kernel panic. for example:
-   - Multiple user login to device, some service may create 10+ concurrent sesstion login to device.
-   - Some user script/command take too much memory, currently 'show' command will take 60 MB memory.
+## SONiC memory issue solved by this feature.
+ - Please reference "SONiC memory issue solved by this feature" section in [SONiC OOM daemon](../oomd/SONiC OOM daemon.md)
 
 # 1 Functional Requirement
 ## 1.1 Limit the login session per user/group/system
@@ -62,52 +58,14 @@ This document provides a detailed description on the new features for:
 # 3 Design
  - Design diagram:
 
-```mermaid
-graph LR;
-%% SONiC CLI update config DB
-CLI[SONiC CLI] -- update limit setting --> CONFDB[(Config DB)];
-
-
-%% HostCfgd subscribe config DB change
-CONFDB -.-> HOSTCFGD[Hostcfgd];
-
-%% HostCfgd Update config files
-HOSTCFGD -- update limits.conf --> PAMCFG[limits.conf];
-
-%% pam_limits.so will handle login limit
-PAMCFG -.-> LIMITLIB[pam_limits.so];
-LIMITLIB -- login --- USERSESSION(user session);
-
-```
+![Design diagram.PNG](./Design diagram.PNG)
 
 ## 3.1 Login limit Implementation
  - Enable PAM plugin pam_limits.so to support login limit.
  - When login limit exceed, pam_limits.so will terminate login session with error message.
 
-```mermaid
-sequenceDiagram  
+![sequence diagram.PNG](./sequence diagram.PNG)
 
-%% user login without exceed the limit
- SSH/Console->>SSHD  : login
-	 activate  SSHD
-	 SSHD->>pam_limits.so: check login limit
-		 activate  pam_limits.so
-		 pam_limits.so->>bash: not exceed the limit
-			 activate  bash
-			 bash->>SSH/Console: login success
-			 deactivate  bash
-	 SSH/Console->>SSHD  : logout
-	 deactivate  SSHD
- 
-%% user login exceed the limit
- SSH/Console->>SSHD  : login
-	 activate  SSHD
-	 SSHD->>pam_limits.so: check login limit
-		 activate  pam_limits.so
-		 pam_limits.so->>SSH/Console: exceed the limit
-		 deactivate  pam_limits.so
-	 deactivate  SSHD
-```
  #### Other solution for Linux login session limit
 
 |                   | How                                                | Pros                                                         | Cons                       |
@@ -116,12 +74,11 @@ sequenceDiagram
 | Bash login script | Call script when user login                        |                                                              | Need develop new script.   |
 | SSHD config       | Change SSHD setting file: /etc/sshd_config         |                                                              | Only support global limit. |
 
-- SONiC will create new user when domain user login, PAM limit support config limit to a not existed user.
+- SONiC will create new user when domain user login, PAM limit support config limit to a non-existing user.
 
 
 
 ## 3.2 Default login session limitation Implementation
-- Global max login sessions: 10
 - Max login sessions per-user: 3
 
 ## 3.3 ConfigDB Schema

@@ -1,0 +1,25 @@
+
+```mermaid
+graph TD;
+%% USER information provider response for get user information from /etc/passwd
+passwd(/etc/passwd) -. read user info .-> userinfoprovider[UserInfoProvider];
+userinfoprovider -- update --> oomhandler[OomHandler];
+
+%% Memory monitor response for minitor memory utilzation
+cgroup(cgroup) -. subscribe event .-> memmonitor[MemMonitor]
+memmonitor -- reach high-water mark --> oomhandler[OomHandler]
+
+%% Container monitor response for minitor memory utilzation
+containercgroup(container cgroup) -. subscribe OOM event .-> containermonitor[ContainerMonitor]
+containermonitor -- restart container --> docker[Docker]
+
+%% Config provider response for monitor and get latest OOMD config
+confdb[(Config DB)] -. config change event .-> confprovider[ConfigProvider]
+confprovider --> memmonitor
+confprovider --> oomhandler
+confprovider --> containermonitor
+
+%% OOM handler will terminate process
+oomhandler -- SIG_TERM--> process[process]
+
+```
