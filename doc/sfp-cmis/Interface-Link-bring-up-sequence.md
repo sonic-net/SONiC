@@ -13,7 +13,8 @@ Deterministic Approach for Interface Link bring-up sequence
   * [Problem Definition](#problem-definition)
   * [Background](#background)
   * [Objective](#objective)
-  * [Proposal](#proposal)
+  * [Plan](#plan)
+  * [Pre-requisite](#pre-requisite)
   * [Proposed Work-Flows](#proposed-work-flows)
 
 # List of Tables
@@ -27,6 +28,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.2 | 12/13/2021  | Shyam Kumar,  Jaganathan Anbalagan | Added uses-cases, workflows  
 | 0.3 | 01/19/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed review-comments    
 | 0.4 | 01/26/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments 
+| 0.5 | 01/28/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments
 
 
 # About this Manual
@@ -52,6 +54,7 @@ Interface link bring-up sequence and workflows for use-cases around it
 
 | **Document**                                            | **Location**  |
 |---------------------------------------------------------|---------------|
+| CMIS v4 | [QSFP-DD-CMIS-rev4p0.pdf](http://www.qsfp-dd.com/wp-content/uploads/2019/05/QSFP-DD-CMIS-rev4p0.pdf) | 
 | CMIS v5 | [CMIS5p0.pdf](http://www.qsfp-dd.com/wp-content/uploads/2021/05/CMIS5p0.pdf) |
 
 
@@ -119,11 +122,20 @@ Plan is to follow this high-level work-flow sequence to accomplish the Objective
     - Additionally provides uniform workflow (from SONiC NOS) across all interface types with or without module presence. 
   - This synchronization will also benefit SFP+ optical modules as they are "plug N play" and may not have quiescent functionality. (xcvrd can use the optional 'soft tx disable' ctrl reg to disable the tx)
 
+# Pre-requisite
+
+As mentioned above in 'Background' and 'Plan' sections, need to follow specified bring-up sequence.
+Work flows are designed considering SONiC NOS operating in sync mode.
+
+In case SONiC NOS operates in async mode, then expected behavior is - the return status of the set ADMIN_STATE attribute update in ASIC-DB (syncd/GBsyncd) will be treated to set the host_tx_ready in Orchagent.
+
 # Proposed Work-Flows
+
 Please refer to the  flow/sequence diagrams which covers the following required use-cases
   - Transceiver initialization
   - admin enable configurations 
   - admin disable configurations
+  - No transceiver present
 
 # Transceiver Initialization 
   (at platform bootstrap layer)
@@ -138,6 +150,11 @@ Please refer to the  flow/sequence diagrams which covers the following required 
 # Applying 'interface admin shutdown' configuration
 
 ![LC boot-up sequence - 'admin disable' Config gets applied](https://user-images.githubusercontent.com/69485234/147166884-92c9af48-2d64-4e67-8933-f80531d821b4.png)
+
+# No transceiver present
+if transceiver is not present:
+ - All the workflows mentioned above will reamin same ( or get exercised) till host_tx_ready field update
+ - xcvrd will not perform any action on receiving host_tx_ready field update 
 
 
 # Out of Scope 
@@ -156,5 +173,4 @@ Following items are not in the scope of this document. They would be taken up se
    b) Error handling for SET_ADMIN_STATUS attribute will be added in future.
    c) A propabale way to handle the failure is to set a error handling attribute to respective container syncd/GBsyncd with attribute that is failed. 
       The platform layer knows the error better and it will try to recover.
-
 
