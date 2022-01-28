@@ -21,15 +21,43 @@
 # About this Manual
 This document provides a detailed description on the new features for:
  - Protect SONiC system memory by OOM daemon.
+
  - Re-start docker container when container in OOM.
+
  - OOM daemon config command.
+
  - OOM daemon high level design.
+
  - OOM daemon ConfigDB schema
+
+### Linux OOM
+ - OOM: Out Of Memory
+ - OOM Killer: OOM handler in Linux kernel
+     - Customize by /proc/sys/vm/panic_on_oom:
+         - 0: Kill process based on /proc/$PID/oom_score_adj
+         - 1: Kill current process who request for memory
+         - 2: Kernel panic
+     - Known issue:
+         - Can't protect key process:
+             - When panic_on_oom is 0, set oom_score_adj will partially mitigate this issue.
+         - Kernel panic will harm the system stability.
+ - How to trigger OOM:
+      - When system no available memory.
+      - SysRq: Send f to /proc/sysrq-trigger.
+      - Trigger by cgroup:
+           - cgroup can set memory limit.
+           - When cgroup memory usage reach limit, depends on memory.oom_control:
+                - 1: send OOM signal to system.
+                - 0: Hang current request memory process.
+      - Trigger by docker:
+           - Every docker container has a cgroup under: /sys/fs/cgroup/memory/docker/
+           - container can set cgroup policy by 'docker run' parameter.
+           - container cgroup can trigger OOM
 
 ### SONiC memory issue solved by this feature.
  - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
  - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. 
- - sonic does not enable swap for most device.
+ - SONiC does not enable swap for most device. This means when OOM happen, system will not get memory with swap, this means OOM killer will be triggered very fast on SONiC.
  - When user run some command trigger OOM, SONiC will kernel panic. for example:
    - Multiple user login to device, some service may create 10+ concurrent sessions login to device.
    - Some user script/command take too much memory, currently 'show' command will take 70 MB memory.
