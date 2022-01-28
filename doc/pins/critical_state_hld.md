@@ -38,6 +38,19 @@ In this HLD, we propose a different error handling mechanism: critical state. In
 
 There is an on-going [proposal](https://github.com/Azure/SONiC/pull/761) on the SONiC event and alarm framework, which can provide the alarm raising feature for critical state. As the event and alarm framework design and implementation are still under review, this HLD will propose orthogonal gNMI alarm raising. When the event and alarm framework is ready, the critical state library can use the new alarm framework to raise gNMI alarms.
 
+### Non-SDN Applications
+
+In the initial release of the critical state feature, it will mainly target SDN components (such as P4RT and gNMI). However, the feature provides the following advantages, and they can be beneficial to the on-box control plan as well (such as BGP):
+
+* No auto restart to prevent potential packet drop and network disruption.
+* Freeze state on error events to provide debug opportunities.
+* Indication to the external world that an error has occurred by raising alarms.
+
+For an orchestrated system, this feature can be enabled on the non-SDN applications:
+
+* User friendly libraries will be provided in various languages, so that any application can easily report and check critical state.
+* Configuration will be provided to enable/disable the feature on common shared components (such as orchagent).
+
 ## Requirements
 
 ### Functional Requirements
