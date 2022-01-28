@@ -80,7 +80,7 @@ This document provides a detailed description on the new features for:
 # 3 Design
  - High-level design diagram:
 
-![High-level design diagram.PNG](./High-level design diagram.PNG)
+<img src="./High-level design diagram.PNG"/>
 
 ## 3.1 OOMD Implementation
  - OOMD will be a service managed by systemd.
@@ -100,7 +100,7 @@ This document provides a detailed description on the new features for:
     - ContainerMonitor will monitor container OOM event and re-start container
     - When memory utilization reach high-water mark, OomHandler will terminate user process to prevent OOM happen. 
 
-![Detail design.PNG](./Detail design.PNG)
+<img src="./Detail design.PNG"/>
 
 ### Other solution for user space OOMD
 

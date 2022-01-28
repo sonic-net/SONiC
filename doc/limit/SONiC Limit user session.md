@@ -58,13 +58,13 @@ This document provides a detailed description on the new features for:
 # 3 Design
  - Design diagram:
 
-![Design diagram.PNG](./Design diagram.PNG)
+<img src="./Design diagram.PNG"  />
 
 ## 3.1 Login limit Implementation
  - Enable PAM plugin pam_limits.so to support login limit.
  - When login limit exceed, pam_limits.so will terminate login session with error message.
 
-![sequence diagram.PNG](./sequence diagram.PNG)
+<img src="./sequence diagram.PNG"  />
 
  #### Other solution for Linux login session limit
 
