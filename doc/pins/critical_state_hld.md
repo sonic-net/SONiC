@@ -64,7 +64,9 @@ For an orchestrated system, this feature can be enabled on the non-SDN applicati
 
 ![drawing](images/critical_state_hld_architecture_design.png)
 
-Redis DB will be used as the main source of critical state and alarm information. Applications/system will write the critical error information into the DB. External exposing interfaces, such as P4RT and gNMI, will subscribe to the system critical state information. When the system is in critical state, external facing APIs will block further write requests while allowing read requests. The gNMI component will also raise an [OpenConfig alarm](https://github.com/openconfig/public/blob/master/release/models/system/openconfig-alarms.yang) when the system is in critical state.
+Redis DB will be used as the main source of critical state and alarm information. Applications/system will write the critical error information into the DB. Externally exposed interfaces, such as P4RT and gNMI, will subscribe to the system critical state information. When the system is in critical state, external facing APIs will block further write requests while allowing read requests. The gNMI component will also raise an [OpenConfig alarm](https://github.com/openconfig/public/blob/master/release/models/system/openconfig-alarms.yang) when the system is in critical state.
+
+While outside the scope of the initial proposal, it is possible to extend critical state to local control plane components as well. For example, FRR could detect whether the system has entered critical state and avoid writing new routes into the FIB. 
 
 ## High-Level Design
 
@@ -140,7 +142,9 @@ To achieve the above behavior, two external facing components will subscribe to 
 
 ### Exiting Critical State
 
-The system can only exit critical state via reboot. Applications cannot clear critical state since critical state implies fatal error. In operational scenarios, when the switch reports critical state in gNMI alarm, SDN controller or network administrator will need to drain the switch. External entities can log into the switch, collect debug information, and finally reboot the switch to exit the critical state.
+The system can only exit critical state via reboot. Applications cannot clear critical state since critical state implies fatal error. In operational scenarios, when the switch reports critical state in gNMI alarm, SDN controller, network orchestrator, or network administrator will need to drain the switch (rerouting traffic around it before it is rebooted to avoid packet loss). External entities can log into the switch, collect debug information, and finally reboot the switch to exit the critical state.
+
+Critical state works well in orchestrated or supervised networks where there is a service that is actively monitoring and managing the SONiC switches. Network controllers/orchestrators decide what to do with problematic switches and can work around them using other devices in the topology. However, critical state requires operator involvement when errors occur. In deployments where the SONiC switches behave more autonomously, critical state may be less desirable than SONiC’s current “restart on failure” behavior where a brief outage during reboot is better than indefinitely frozen forwarding state.
 
 ### DB Schema
 
