@@ -27,7 +27,7 @@
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
 | 1.1 |     TBD     | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
-| 3.0 |     02/2022 | Stepan Blyshchak        | Extending Support for memory leak                             |
+| 3.0 |     02/2022 | Stepan Blyshchak        | Extending Support for memory usage threshold crossed                             |
 
 ## About this Manual
 This document describes the details of the system which facilitates the auto techsupport invocation support in SONiC. The auto invocation is triggered when any process inside the docker crashes and a core dump is generated.
@@ -37,7 +37,7 @@ Currently, techsupport is run by invoking `show techsupport` either by orchestra
 
 However if the techsupport invocation can be made event-driven based on core dump generation, that would definitely improve the debuggability. That is the overall idea behind this HLD. All the high-level requirements are summarized in the next section
 
-Another use case is to gather more information about the system in case there is a memory leak.
+Another use case is to gather more information about the system in case there is a memory usage threshold crossed.
 SONiC dump generated after system reboots due to out of memory is not enough for debugging the issue
 as all the information about processes and their mem usage, smaps (/proc/PID/smaps) is lost.
 Once the system detects abnormal memory usage SONiC dump is generated automatically. 
@@ -76,7 +76,7 @@ The naming format and compression is governed by the script `/usr/local/bin/core
 
 Where `<comm>` value in the command name associated with a process. comm value of a running process can be read from `/proc/[pid]/comm` file
 
-## 4. Memory leak based techsupport invokation
+## 4. Memory usage based techsupport invokation
 
 If the following condition resolves to true:
 ```
@@ -84,9 +84,9 @@ mem_usage > mem_usage_threshold || ${container}_mem_usage > ${container}_mem_usa
 ```
 
 where ```mem_usage``` is total system memory used (MemAvailable from /proc/meminfo),
-```mem_usage_threshold``` configured threashold,
+```mem_usage_threshold``` configured threashold, (100 - available_mem_threshold),
 ```${container}_mem_usage``` used memory by $container ("docker stats --no-stream --format {{.MemUsage}}" $container),
-```${container}_mem_usage_threshold``` configured memory threshold for $contianer, 
+```${container}_mem_usage_threshold``` configured memory threshold for $contianer, (100 - ${container}available_mem_threshold), 
 
 the SONiC techsupport is automatically generated.
 
