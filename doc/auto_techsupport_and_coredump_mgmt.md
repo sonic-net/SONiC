@@ -190,9 +190,10 @@ module sonic-auto_techsupport {
                         type stypes:admin_mode;
                     }
 
-                    leaf mem_threashold {
-                        description "Enable techsupport invokation on used memory threshold crossing; 0 to disable"
+                    leaf available_mem_threashold {
+                        description "Enable techsupport invokation on available memory threshold crossing; 0 to disable"
                         type decimal-repr;
+                        default 10.0;
                     }
 
                     leaf rate_limit_interval  {
@@ -258,9 +259,10 @@ module sonic-auto_techsupport {
                     type stypes:admin_mode;
                 }
 
-                leaf mem_threashold {
-                    description "Enable techsupport invokation on used memory threshold crossing; 0 to disable"
+                leaf available_mem_threashold {
+                    description "Enable techsupport invokation on available memory threshold crossing; 0 to disable"
                     type decimal-repr;
+                    default 10.0;
                 }
 
                 leaf rate_limit_interval {
@@ -283,10 +285,10 @@ module sonic-auto_techsupport {
 #### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
 key                 = Techsupport Dump Name 
-event_type          = "core" / "mem_threshold" ; Type of event caused techsupport invokation
-core_dump           = 1*64VCHAR                ; Core Dump Name
-timestamp           = 1*12DIGIT                ; epoch of this record creation
-container_name      = 1*64VCHAR                ; Container in which the process crashed/mem threashold. Unset when triggered from host.
+event_type          = "core" / "available_mem_threashold" ; Type of event caused techsupport invokation
+core_dump           = 1*64VCHAR                           ; Core Dump Name
+timestamp           = 1*12DIGIT                           ; epoch of this record creation
+container_name      = 1*64VCHAR                           ; Container in which the process crashed/mem threashold. Unset when triggered from host.
 ```
 
 Eg:
@@ -306,7 +308,7 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 ```
 hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223123"
 1) "event_type"
-2) "mem_threshold"
+2) "available_mem_threashold"
 3) "timestamp"
 4) "1612045251"
 5) "container_name"
@@ -318,7 +320,7 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223123"
 ### config cli
 ```
 config auto-techsupport global state <enabled/disabled>
-config auto-techsupport global mem-techsupport <float upto two decimal places>
+config auto-techsupport global available-mem-threashold <float upto two decimal places>
 config auto-techsupport global rate-limit-interval <uint16>
 config auto-techsupport global max-techsupport-limit <float upto two decimal places>
 config auto-techsupport global max-core-limit <float upto two decimal places>
@@ -335,24 +337,24 @@ config auto-techsupport-feature delete restapi
 admin@sonic:~$ show auto-techsupport global
 STATE      RATE LIMIT INTERVAL (sec)    MAX TECHSUPPORT LIMIT (%)    MAX CORE SIZE (%)   MEM THRESHOLD (%)       SINCE
 -------  ---------------------------   --------------------------    ------------------  ------------------  ----------
-enabled                          180                        10.0                   5.0                 90.0   2 days ago
+enabled                          180                        10.0                   5.0                 10.0   2 days ago
 
 admin@sonic:~$ show auto-techsupport-feature 
 FEATURE NAME    STATE     MEM THRESHOLD (%)     RATE LIMIT INTERVAL (sec)
 --------------  --------  ------------------  --------------------------
-bgp             enabled                 90.0                         600
-database        enabled                 90.0                         600
-dhcp_relay      enabled                 90.0                         600
-lldp            enabled                 90.0                         600
-macsec          enabled                 90.0                         600
-mgmt-framework  enabled                 90.0                         600
-nat             enabled                 90.0                         600
-pmon            enabled                 90.0                         600
-radv            enabled                 90.0                         600
-restapi         disabled                90.0                         800
-sflow           enabled                 90.0                         600
-snmp            enabled                 90.0                         600
-swss            disabled                90.0                         800
+bgp             enabled                 10.0                         600
+database        enabled                 10.0                         600
+dhcp_relay      enabled                 10.0                         600
+lldp            enabled                 10.0                         600
+macsec          enabled                 10.0                         600
+mgmt-framework  enabled                 10.0                         600
+nat             enabled                 10.0                         600
+pmon            enabled                 10.0                         600
+radv            enabled                 10.0                         600
+restapi         disabled                10.0                         800
+sflow           enabled                 10.0                         600
+snmp            enabled                 10.0                         600
+swss            disabled                10.0                         800
 
 
 admin@sonic:~$ show auto-techsupport history
@@ -463,7 +465,7 @@ Load this Example config provided below to enable the feature. Each of the field
            "rate_limit_interval": "180",
            "max_techsupport_limit": "10.0",
            "max_core_limit": "5.0",
-           "mem_threshold": "90.0",
+           "available_mem_threashold": "90.0",
            "since": "2 days ago"
        }
    },
