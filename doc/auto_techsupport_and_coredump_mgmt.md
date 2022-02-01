@@ -465,7 +465,7 @@ Load this Example config provided below to enable the feature. Each of the field
            "rate_limit_interval": "180",
            "max_techsupport_limit": "10.0",
            "max_core_limit": "5.0",
-           "available_mem_threashold": "90.0",
+           "available_mem_threashold": "10.0",
            "since": "2 days ago"
        }
    },
