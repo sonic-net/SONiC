@@ -121,7 +121,7 @@ check system $HOST
 ```
 key                    = "AUTO_TECHSUPPORT|global"  
 state                  = "enabled" / "disabled"    ; Enable this to make the Techsupport Invocation event driven based on core-dump generation
-mem_threshold          = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak.
+available_mem_threashold = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak.
 rate_limit_interval    = 1*5DIGIT                  ; Minimum Time in seconds, between two successive techsupport invocations.
                                                      Manual Invocations will be considered as well in the calculation. 
                                                      Configure 0 to explicitly disable
@@ -145,7 +145,7 @@ since                  = 1*32VCHAR;                ; This limits the auto-invoke
 ```
 key                    = feature name                
 state                  = "enabled" / "disabled"    ; Enable auto techsupport invocation on the critical processes running inside this feature
-mem_threashold         = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak in this container.
+available_mem_threashold = 1*2DIGIT                  ; Memory threashold; 0 to disable techsupport invokation on mem leak in this container.
 rate_limit_interval    = 1*5DIGIT                  ; Rate limit interval for the corresponding feature. Configure 0 to explicitly disable
 ```
 
