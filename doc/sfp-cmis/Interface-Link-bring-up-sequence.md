@@ -29,6 +29,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.3 | 01/19/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed review-comments    
 | 0.4 | 01/26/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments 
 | 0.5 | 01/28/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments
+| 0.6 | 02/02/2022  | Shyam Kumar                        | Added feature-enablement workflow 
 
 
 # About this Manual
@@ -132,11 +133,25 @@ In case SONiC NOS operates in async mode, then expected behavior is - the return
 # Proposed Work-Flows
 
 Please refer to the  flow/sequence diagrams which covers the following required use-cases
+  - Enabling this feature 
   - Transceiver initialization
   - admin enable configurations 
   - admin disable configurations
   - No transceiver present
 
+# Feature enablement
+  This feature (optics Interface Link bring-up sequence) would be enabled on per platform basis.
+  There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
+  In order to avoid any breakage and ensure gradual migration to this model, there would be new config to enable/disable this feature.
+  High-Level workflow:
+  1. Have a new field for this 'link_bringup_sequence' feature in config file
+  2. By default it would be set to FALSE
+  3. xcvrd to subscribe to state-change of this feature
+  4. Platform while booting up, will set this feature to TRUE (as part of platform bootstrap layer)
+  5. xcvrd on receving state-change notification of this feature, would act accordingly i.e.
+     - if the state is found as FALSE, ignore host_tx_ready field state
+     - if the state is found as TRUE, register to host_tx_ready field update notifications
+   
 # Transceiver Initialization 
   (at platform bootstrap layer)
   
