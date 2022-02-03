@@ -2,7 +2,7 @@
 Deterministic Approach for Interface Link bring-up sequence
 
 # High Level Design Document
-#### Rev 0.3
+#### Rev 0.7
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -30,6 +30,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.4 | 01/26/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments 
 | 0.5 | 01/28/2022  | Shyam Kumar,  Jaganathan Anbalagan | Addressed further review-comments
 | 0.6 | 02/02/2022  | Shyam Kumar                        | Added feature-enablement workflow 
+| 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 
 
 # About this Manual
@@ -129,6 +130,11 @@ As mentioned above in 'Background' and 'Plan' sections, need to follow specified
 Work flows are designed considering SONiC NOS operating in sync mode.
 
 In case SONiC NOS operates in async mode, then expected behavior is - the return status of the set ADMIN_STATE attribute update in ASIC-DB (syncd/GBsyncd) will be treated to set the host_tx_ready in Orchagent.
+
+# Breakout Handling
+  - The new 'host_tx_ready' field of Port table in state-DB is created for every interface <regular/breakout interface>.
+  - Xcvrd processes the 'host_tx_ready' change event and is responsible to disable Tx/laser for all optical lanes or respective optical lane that belongs to the interface in case of breakout.
+  - Currently the logical mapping between the interface and optical lane is not present in xcvrd. Creating this logical mapping in xcvrd will address breakout interface handling.
 
 # Proposed Work-Flows
 
