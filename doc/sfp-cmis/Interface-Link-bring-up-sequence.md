@@ -142,20 +142,17 @@ Please refer to the  flow/sequence diagrams which covers the following required 
 # Feature enablement
   This feature (optics Interface Link bring-up sequence) would be enabled on per platform basis.
   There could be cases where vendor(s)/platform(s) may take time to shift from existing codebase to the model (work-flows) described in this document.
-  In order to avoid any breakage and ensure gradual migration to this model, there would be new config to enable/disable this feature.
-  High-Level workflow:
-  1. Have a new field for this 'link_bringup_sequence' feature in config file
-  2. By default it would be set to FALSE
-  3. xcvrd to subscribe to state-change of this feature
-  4. Platform while booting up, will set this feature to TRUE (as part of platform bootstrap layer)
-  5. xcvrd on receving state-change notification of this feature, would act accordingly i.e.
-     - if the state is found as FALSE, ignore host_tx_ready field state
-     - if the state is found as TRUE, register to host_tx_ready field update notifications
-   
+  In order to avoid any breakage and ensure gradual migration of different platforms/vendors to this model, there would be new field (flag) in xcvrd to enable/disable this feature. 
+  When xcvrd spawns on LC/board, it would invoke platform plugin to check with the platform (hwsku) whether this feature is yet supported on underlying platform (board/LC) or not
+  
+  Workflow :
+  ![Enabling 'Interface link bring-up sequence' feature(3)](https://user-images.githubusercontent.com/69485234/152266723-050377ce-d4de-4c67-a405-5acc66474d46.png)
+
+
 # Transceiver Initialization 
   (at platform bootstrap layer)
   
-  ![LC boot-up sequence - optics INIT (platform bootstrap)](https://user-images.githubusercontent.com/69485234/147166795-5665670d-dd2b-4b6f-976c-eabcc65d5448.png)
+![LC boot-up sequence - optics INIT (platform bootstrap)](https://user-images.githubusercontent.com/69485234/152261613-e20dcda9-2adc-42aa-a1f1-4b8a47dd32af.png)
 
 # Applying 'interface admin startup' configuration
 
