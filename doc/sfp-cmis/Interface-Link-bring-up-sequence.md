@@ -15,6 +15,7 @@ Deterministic Approach for Interface Link bring-up sequence
   * [Objective](#objective)
   * [Plan](#plan)
   * [Pre-requisite](#pre-requisite)
+  * [Breakout handling](#breakout-handling)
   * [Proposed Work-Flows](#proposed-work-flows)
 
 # List of Tables
