@@ -49,7 +49,7 @@ Connect the console port of the device and use the 9600 baud rate to access the 
 Users shall use the default username/password "admin/YourPaSsWoRd" to login to the device through the console port.
 
 After logging into the device, SONiC software can be configured in following three methods.
- 1) [Command Line Interface](https://github.com/Azure/SONiC/wiki/Command-Reference)
+ 1) [Command Line Interface](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md)
  2) [config_db.json](https://github.com/Azure/SONiC/wiki/Configuration) 
  3) [minigraph.xml](https://github.com/Azure/SONiC/wiki/Configuration-with-Minigraph-(~Sep-2017))
  
@@ -285,7 +285,7 @@ Before Sep 2017, we were using an XML file named minigraph.xml to configure SONi
  
 SONiC includes commands that allow user to show platform, transceivers, L2, IP, BGP status, etc.
 
-- [Command Reference](Command-Reference.md)
+- [Command Reference](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md)
 
 Note that all the configuration commands need root privileges to execute them and the commands are case-sensitive.
 Show commands can be executed by all users without the root privileges.
@@ -579,11 +579,11 @@ Basic cable connectivity shall be verified by configuring the IP address for the
 
 | # | Module    |  CLI Link | ConfigDB Link |  Remarks |
 | --- | --- | --- | --- | --- |
-| 1 |  Interface |[Interface CLI](Command-Reference.md#Interface-Configuration-And-Show-Commands) | [Interface ConfigDB](Configuration.md)| To view the details about the interface |
-| 2 |  BGP |[BGP CLI](Command-Reference.md#BGP-Configuration-And-Show-Commands) | [BGP ConfigDB](Configuration.md)| To view the details about the BGP |
-| 3 |  ACL |[ACL CLI](Command-Reference.md#ACL-Configuration-And-Show) | [ACL ConfigDB](Configuration.md)| To view the details about the ACL |
+| 1 |  Interface |[Interface CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#Interface-Configuration-And-Show-Commands) | [Interface ConfigDB](Configuration.md)| To view the details about the interface |
+| 2 |  BGP |[BGP CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#BGP-Configuration-And-Show-Commands) | [BGP ConfigDB](Configuration.md)| To view the details about the BGP |
+| 3 |  ACL |[ACL CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#ACL-Configuration-And-Show) | [ACL ConfigDB](Configuration.md)| To view the details about the ACL |
 | 4 |  COPP |COPP CLI Not Available | [COPP ConfigDB](Configuration.md)| To view the details about the COPP |
-| 5 |  Mirroring |[Mirroring CLI](Command-Reference.md#Mirroring-Configuration-And-Show) | [Mirroring ConfigDB](Configuration.md)| To view the details about the Mirroring |
+| 5 |  Mirroring |[Mirroring CLI](https://github.com/Azure/sonic-utilities/blob/master/doc/Command-Reference.md#mirroring-configuration-and-show) | [Mirroring ConfigDB](Configuration.md)| To view the details about the Mirroring |
 
 
 

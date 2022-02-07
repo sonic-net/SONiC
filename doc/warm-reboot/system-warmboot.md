@@ -1,3 +1,4 @@
+
 # System-wide Warmboot
 
 # going down path
@@ -13,10 +14,11 @@
   - set redis flag WARM_RESTART_TABLE:system
   - kill swss dockers
 - save the appdb and asic db into the files.
-  - save applDB db in ```/host/warmboot/appl_db.json``` 
-  - save configDB db in ```/host/warmboot/config_db.json``` 
-  - save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` 
-  - save asicDB in ```/host/warmboot/asic_db.json```
+  - <del>save applDB db in ```/host/warmboot/appl_db.json```</del> 
+  - <del>save configDB db in ```/host/warmboot/config_db.json```</del> 
+  - <del>save stateDB db (only FDB and WARM_RESTART_TABLE) in ```/host/warmboot/state_db.json``` </del> 
+  - <del>save asicDB in ```/host/warmboot/asic_db.json```</del> 
+  - save the whole Redis databse into ```/host/warmboot/dump.rdb```
 - stop syncd docker
   - warm shutdown
   - save the SAI states in ```/host/warmboot/sai-warmboot.bin```
@@ -72,9 +74,9 @@ Assumptions:
 2. Focus on whole system reboot, in future will extend it to container level warm restart
 3. Focus on one image warm reboot, and version upgrading warm reboot. No version downgrading warm reboot.
 
-Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/ansible/doc/README.testbed.Overview.md#sonic-testbed-overview)
-![Physical topology](https://github.com/Azure/sonic-mgmt/raw/master/ansible/doc/img/testbed.png)
-![Testbed server](https://raw.githubusercontent.com/Azure/sonic-mgmt/master/ansible/doc/img/testbed-server.png)
+Structure of testbed: [design doc](https://github.com/Azure/sonic-mgmt/blob/master/docs/testbed/README.testbed.Overview.md#sonic-testbed-overview)
+![Physical topology](img/testbed.png)
+![Testbed server](img/testbed-server.png)
 
 Architect:
   - Both warm-reboot and fast-reboot are written in ansible playbook [advanced-reboot.yml](https://github.com/Azure/sonic-mgmt/blob/master/ansible/roles/test/tasks/advanced-reboot.yml)

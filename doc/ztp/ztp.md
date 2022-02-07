@@ -1,6 +1,6 @@
 # Zero Touch Provisioning (ZTP)
 
-### Rev 0.2
+### Rev 0.9
 
 ## Table of Contents
 - [1. Revision](#1-revision)
@@ -11,11 +11,15 @@
   - [3.3 Dynamic Content](#33-dynamic-content)
   - [3.4 DHCP Options](#34-dhcp-options)
   - [3.5 ZTP Service](#35-ztp-service)
-  - [3.6 Provisioning over in-band network](#36-provisioning-over-in-band-network)
-  - [3.7 Component Interactions](#37-components-interactions)
+  - [3.6 Start and exit conditions](#36-start-and-exit-conditions)
+  - [3.7 Provisioning over in-band network](#37-provisioning-over-in-band-network)
+  - [3.8 Component Interactions](#38-components-interactions)
 - [4. Chronology of Events](#4-chronology-of-events)
+  - [4.1 SONiC ZTP Flow Diagram](#41-sonic-ztp-flow-diagram)
 - [5. Security Considerations](#5-security-considerations)
 - [6. Configuring ZTP](#6-configuring-ztp)
+  - [6.1 Show Commands](#61-show-commands)
+  - [6.2 Configuration Commands](#62-configuration-commands)
 - [7. Code Structure](#7-code-structure)
 - [8. Logging](#8-logging)
 - [9. Debug](#9-debug)
@@ -28,25 +32,35 @@
 |:---:|:------------:|:------------------:|-----------------------------------|
 | v0.1 |   03/06/2019   |   Rajendra Dendukuri   | Initial version                   |
 | v0.2 | 04/17/2019 | Rajendra Dendukuri | Added: suspend-exit-code, in-band provisioning, interaction with updategraph, Test plan |
+| v0.9 | 09/17/2019 | Rajendra Dendukuri | Update the design document as per the ZTP code |
 
 
 ## 2. Requirements
-- When a newly deployed SONiC switch boots for the first time, it should allow automatic setup of the switch without any user intervention. This framework is called  as Zero Touch Provisioning or in short ZTP.
-- DHCP offer sent to a SONiC switch will kickstart ZTP.
-- ZTP should allow users to perform one or more configuration tasks. Data and logic used for these configuration task can be defined by the user. It should also allow ordering of these configuration tasks as defined by the user.
-- ZTP should allow users to suspend a configuration task and move on to the next one. ZTP resumes the incomplete task later after finishing rest of the tasks in the order of execution.
-- Switch reboots during ZTP should be supported. ZTP should resume from where it had left prior to reboot.
-- Configuration tasks should be completely user defined. Few predefined tasks shall be provided as part of default switch image. However, user should be able to override the logic of predefined tasks with user supplied logic (script).
-- Include switch information while requesting for files from a remote provisioning server. This allows remote server to provide switch specific files at runtime.
-- ZTP output and result should be logged through syslog.
-- ZTP is expected to run to completion only after all the configuration tasks are completed. Result is either SUCCESS/FAILED. At this point ZTP exits and does not run again. It requires user intervention to re-enable ZTP.
-- Manual interruption of ZTP service should be allowed. It should result in ZTP to be disabled and user intervention is needed to re-enable it.
-- User should be able to view completion status of each configuration task and ZTP completion status as a whole.
-- ZTP feature should be a build time selection option. By default it is not included in the image.
-- Provide optional security features to allow encryption and authentication while exchanging sensitive information between the switch and remote provisioning server.
-- Example template to demonstrate download, validate and install of a SONiC image file can be provided.
-- ZTP should be able to provisioning the switch over in-band network in addition to out-of-band management network. The first interface to provide provisioning data will be used and any provisioning data provided by other interfaces is ignored.
-- Both IPv4 and IPv6 DHCP discovery and ZTP provisioning should be supported.
+1. When a newly deployed SONiC switch boots for the first time, it must allow automatic setup of the switch without any user intervention. This framework is called  as Zero Touch Provisioning or in short ZTP.
+2. DHCP offer sent to a SONiC switch will kickstart ZTP. Unless ZTP is disabled by user, it must wait forever till provisioning of the switch is completed. 
+3. ZTP must allow users to perform one or more configuration tasks. Data and logic used for these configuration task can be defined by the user. It must also allow ordering of these configuration tasks as defined by the user. This information is represented as in JSON format. DHCP option (67) in the DHCP offer contains the url to the  JSON file. This allows ZTP to download and process the data to execute the described configuration tasks. 
+4. ZTP should allow users to suspend a configuration task and move on to the next one. ZTP resumes the incomplete task later after finishing rest of the tasks in the order of execution. The *suspend-exit-code* object is used to for this feature.
+5. Switch reboots during ZTP must be supported. ZTP should resume from where it had left prior to reboot.
+6. Configuration tasks must be completely user defined. Few predefined tasks shall be provided as part of default switch image. However, user must be able to override the logic of predefined tasks with user supplied logic (script).
+7. Pre-defined configuration tasks to download and apply Config DB JSON, SNMP community string, download, validate and install/remove of a SONiC firmware image must be included as part of ZTP.
+8. ZTP should allow user to download and execute a single provisioning script as a secondary alternative to defining a workflow using  a JSON file.  A different DHCP option (239) should be used to specify the url string for the provisioning script.
+9. ZTP must be backward compatible with the legacy SONiC provisioning solution using updategraph service. It must provide a provision to download and apply minigraph.xml and acl.json.
+10. ZTP service must not block other switch applications from continuing to boot. As part of configuration tasks appropriate action (e.g restart service)  is taken to apply the configuration required by switch applications.
+11. ZTP must include switch information while requesting for files from a remote provisioning server. This allows remote server to provide switch specific files at runtime. The information must include switch Product-Name, switch Serial-Number, SONiC software version running on the switch and Base-MAC-Address. HTTP headers are used to send this information.
+12. While specifying url strings to files that can be downloaded from a remote server, ZTP must allow options to construct url string at runtime using switch information. This allows a switch to request for a file that is appropriate for it from the remote provisioning server. The information used to construct the url string includes switch Product-Name, switch Serial-Number, SONiC software version running on the switch and Base-MAC-Address. The *dynamic-url* object is used to satisfy this requirement.
+13. ZTP must support HTTP, HTTPS, TFTP, FTP and scp protocols over IPv4 and IPv6 transport to request files from a remote provisioning server. This includes JSON file and provisioning scripts.
+14. ZTP output and result must be logged through syslog and a local file. User must be able to configure ZTP in debug mode to see more verbose output of ZTP process.
+15. ZTP is expected to run to completion only after all the configuration tasks are completed. Result is either SUCCESS/FAILED. At this point ZTP exits and does not run again. It requires user intervention to re-enable ZTP.
+16. ZTP must provide an option to user to ignore result of configuration tasks to determine the result (SUCCESS/FAILED) of ZTP. The *ignore-result* object is used to specify this option.
+17. ZTP should provide an option to user to reboot the switch when a configuration task succeeds or fails. The *reboot-on-success* and *reboot-on-failure* objects are used to specify this option.
+18. When an error is encountered in a configuration task, ZTP must provide an option to the user to stop execution of more configuration tasks.  User intervention is required to inspect and re-start ZTP.  The *halt-on-failure* object is used to specify this option.
+19. Manual interruption of ZTP service must be allowed. It must result in ZTP to be disabled and user intervention is needed to re-enable it. The commands ztp enable/ztp disable/ztp run are used to perform this operation.
+20. ZTP status command issue by user must include completion status of each configuration task and ZTP completion status as a whole. A date/timestamp is also recorded when each configuration tasks status has changed.
+21. All files created during a ZTP session must be stored in a persistent location for user to inspect. When a new ZTP session is started, this data is deleted. */var/lib/ztp* is the location where this data is stored.
+22. ZTP feature must be a build time selection option. By default it is not included in the image.
+23. Provide optional security features to allow encryption and authentication while exchanging sensitive information between the switch and remote provisioning server.
+24. ZTP must be able to provisioning the switch over in-band network in addition to out-of-band management network. The first interface to provide provisioning data will be used and any provisioning data provided by other interfaces is ignored. 
+25. Both IPv4 and IPv6 DHCP discovery and ZTP provisioning should be supported.
 
 ## 3. Functional Description
 
@@ -56,7 +70,7 @@ Zero Touch Provisioning (ZTP) service can be used by users to configure a fleet 
 
 SONiC consists of many pre-installed software modules that are part of default image. Some of these modules are network protocol applications (e.g FRR) and some provide support services (e.g syslog, DNS). Data and logic to configure various SONiC modules is encoded in a user defined input file in JSON format. This data file is referred to as ZTP JSON.
 
-When SONiC switch boots for first time, ZTP service checks if there is an existing ZTP JSON file. If no such file exists, DHCP Option 67 value is used to obtain the URL of ZTP JSON file. ZTP service then downloads the ZTP JSON file and processes the file. If DHCP Option 67 value is not available, ZTP service waits till it is provided by the DHCP server.
+When SONiC switch boots for first time, ZTP service checks if there is an existing ZTP JSON file. If no such file exists, DHCP Option 67 value is used to obtain the URL of ZTP JSON file. ZTP service then downloads the ZTP JSON file and processes the file. If DHCP Option 67 value is not available, ZTP service waits forever till it is provided by the DHCP server. Other switch services include SWSS continue to boot.
 
 If a ZTP JSON file is already present on the switch,  ZTP service uses it to perform next steps.
 
@@ -86,17 +100,12 @@ Below is an example configuration section  used for configuring SNMP community s
 ```json
   "snmp": {
     "ignore-result": false,
-    "community-ro": [
-      "public",
-      "local"
-    ],
-    "community-rw": [
-      "private"
-    ]
+    "community-ro":  "public",
+    "snmp-location": "ny-t32-r02"
   }
 ```
 
-Each section has a unique name, *snmp* in above example. It provides sufficient data to configure a single or a set of modules on the switch. In the *snmp* example, a list of read only and read write SNMP community strings are provided as values of the  *community-rw* and *community-ro* objects. ZTP service invokes the logic which takes these values and adds them to "/etc/sonic/snmp.yml" file and restarts SNMP daemon.
+Each section has a unique name, *snmp* in above example. It provides sufficient data to configure a single or a set of modules on the switch. In the *snmp* example, the read write SNMP community string and SNMP location are provided as values of the  *community-ro* and *snmp-location* objects. ZTP service invokes the logic which takes these values and adds them to "/etc/sonic/snmp.yml" file and restarts SNMP daemon.
 
 Also each configuration section of ZTP JSON includes some common objects that are used to influence its execution. They also help track progress of individual section and the entire ZTP activity.
 
@@ -111,11 +120,19 @@ Also each configuration section of ZTP JSON includes some common objects that ar
 
   Default value assumed to be BOOT if the object is not present. ZTP service adds this object to the ZTP JSON file if not found.
 
+- **description**: Optional free from textual string used to describe a configuration section defined in the ZTP JSON file.
+  
+- **exit-code**: Indicates the program exit code obtained after processing the configuration section.
+  
 - **ignore-result** :
+  
   - false  - ZTP service marks status as FAILED if an error is encountered while processing this individual section
-  - true   - ZTP service marks status as SUCCESS even if an error is encountered while processing this individual section
+- true   - ZTP service marks status as SUCCESS even if an error is encountered while processing this individual section
+  
 
-  Default value is assumed to be *false* if the object is not present.
+Default value is assumed to be *false* if the object is not present.
+
+- **start-timestamp** : Specifies the time and date when ZTP service began processing the configuration section. This object is also available for the top level ztp section and it indicates the time and date when ZTP service started. This object is used to calculate the processing time. ZTP service adds this object to the ZTP JSON file 
 
 - **timestamp** : Specifies the time and date when the *status* variable of a section is modified.
 
@@ -144,11 +161,50 @@ Also each configuration section of ZTP JSON includes some common objects that ar
 
   Default value is assumed to be *false* if the object is not present.
 
-- **ztp-json-source** : This object defines the source from which the ZTP JSON file was downloaded from. This object is applicable only for the overarching ztp object and not individual configuration sections. Default value is assumed to be *DHCP* if the object is not present.
+- **restart-ztp-on-failure**:
 
-  - DHCP  - ZTP service downloaded the ZTP JSON file using the URL specified in the DHCP option 67 received by the switch when it obtained an IP address. 
+  - true - ZTP procedure is restarted if the result of ZTP is FAILED after processing all of the configuration sections defined in the ZTP JSON file.
+- false - ZTP service exits after processing all of the configuration sections defined in the ZTP JSON file.
+  
+  Default value is assumed to be false if the object is not present.
+  
+  This object is applicable only for the top level *ztp* object in the ZTP JSON file.
+  
+- **restart-ztp-no-config**:
 
-  - local_fs - This value should be used if the ZTP JSON file has been included in the  SONiC image as part of build. When this value is set, ZTP service ignores the URL provided in DHCP Option 67 and processes only the file on disk. This option can be used in scenarios where some DHCP server is not present or cannot be possible and some initial configuration steps need to be performed on the switch on boot.
+  - true - ZTP procedure is restarted if the configuration file */etc/sonic/config_db.json* is not present after the completion of processing the configuration sections defined in the ZTP JSON file.
+  - false - ZTP service exits after processing all of the configuration sections defined in the ZTP JSON file even if the configuration file  */etc/sonic/config_db.json* is not present.
+
+  Default value is assumed to be true if the object is not present.
+
+  This object is applicable only for the top level *ztp* object in the ZTP JSON file.
+
+- **config-fallback**:
+
+  - true - Factory default configuration is generated if the configuration file */etc/sonic/config_db.json* is not present after the completion of processing the configuration sections defined in the ZTP JSON file.
+- false - ZTP service takes action based on the value of the object *restart-ztp-no-config*.
+  
+  Default value is assumed to be false if the object is not present.
+  
+  This object is applicable only for the top level *ztp* object in the ZTP JSON file.
+  
+- **ztp-json-version**: This object defines the version of the ZTP JSON file. This object can be used in future to perform ZTP JSON data migration between different old and newer versions of sonic-ztp package. If not set by the user, the ZTP service assigns a value to it specifying the version number that is compliant with the current version of the ZTP service. This object is applicable only for the top level *ztp* object in the ZTP JSON file.
+
+- **ztp-json-source** : This object defines the source from which the ZTP JSON file was downloaded from. It also indicates the interface from which ZTP JSON file URL was learnt. This object is applicable only for the top level *ztp* object in the ZTP JSON file. The following are the possible values this object can have:
+
+  - dhcp-opt67  - ZTP service downloaded the ZTP JSON file using the URL specified in the DHCP option 67 received by the switch when it obtained an IP address. 
+
+  - dhcp6-opt59 - ZTP service downloaded the ZTP JSON file using the URL specified in the DHCPv6 option 59 received by the switch when it obtained an IPv6 address.  
+  
+  - dhcp-opt239 - ZTP service downloaded the provisioning script using the URL specified in the DHCP option 239 received by the switch when it obtained an IP address.
+  
+  - dhcp6-opt239 - ZTP service downloaded the provisioning script using the URL specified in the DHCPv6 option 239 received by the switch when it obtained an IPv6 address.
+  
+  - dhcp-opt225-graph-url - ZTP service downloaded the minigraph.xml file using the URL specified in the DHCP option 225 received by the switch when it obtained an IPv6 address.
+  
+  - local-fs - This value indicates that the ZTP JSON file has been included in the  SONiC image as part of the build. This option can be used in scenarios where a DHCP server is not present and initial configuration steps need to be performed on the switch on boot.
+  
+    
 
 
 Configuration sections in ZTP JSON are processed by ZTP service in lexical order of section names. In order to force execution order, names in xxx-name format (e.g 001-firmware) can be used. For predefined plugins leading sequence number is stripped off to find appropriate plugin. So 001-firmware configuration section will be processed internally using firmware plugin. More on plugins in the [*ZTP plugins*](#32-ztp-plugins) section.
@@ -157,13 +213,13 @@ ZTP service exits and marks the status as FAILED if any errors are encountered w
 
 ## 3.2 ZTP Plugins
 
-Each section of ZTP JSON data is processed by corresponding handler which can understand the objects/values of that section using a predefined logic. This handler is referred to as a plugin. Plugins are executable files, mostly scripts, which take  objects/values described in corresponding configuration section as input. For e.g the "snmp" section is processed by the snmp plugin provided by SONiC-ZTP package. For plugins provided by SONiC-ZTP package, it is mandatory that the name of the configuration section matches the plugin file name. Predefined plugins can be found in the directory "/var/lib/ztp/plugins".
+Each section of ZTP JSON data is processed by corresponding handler which can understand the objects/values of that section using a predefined logic. This handler is referred to as a plugin. Plugins are executable files, mostly scripts, which take  objects/values described in corresponding configuration section as input. For e.g the "snmp" section is processed by the snmp plugin provided by SONiC-ZTP package. For plugins provided by SONiC-ZTP package, it is mandatory that the name of the configuration section matches the plugin file name. Predefined plugins can be found in the directory "/usr/lib/ztp/plugins".
 
 ### 3.2.1 User Defined Plugins
 
 SONiC ZTP allows users to specify custom configuration sections and provide corresponding plugin executable. ZTP service downloads the plugin and uses it to process objects/values specified in the configuration section. This allows users to extend ZTP functionality in ways that suit their environment and deployment needs. For better compatibility with input data, users are encouraged to use executables which can process JSON formatted data.
 
-Below is an example section of ZTP JSON data which is used to configure SNMP communities on a switch. The *plugin* object defines the usage of user defined plugin. In this example, user provided *my-snmp.py* file is downloaded using the url indicated by the *plugin.url.source* field. The plugin is copied locally as the file "/var/run/ztp/plugins/my-snmp" on SONiC switch and executed by ZTP service.
+Below is an example section of ZTP JSON data which is used to configure SNMP communities on a switch. The *plugin* object defines the usage of user defined plugin. In this example, user provided *my-snmp.py* file is downloaded using the url indicated by the *plugin.url.source* field. The plugin is copied locally as the file "/var/run/ztp/plugins/my-snmp" on SONiC switch and executed by ZTP service. If *plugin.url.destination* is not provided, the downloaded plugin is saved as */var/lib/ztp/sections/'section-name'/plugin*.
 
 ```json
   "snmp": {
@@ -183,7 +239,7 @@ Below is an example section of ZTP JSON data which is used to configure SNMP com
     ]
   }
 ```
-User defined plugins downloaded by ZTP service are deleted after the configuration section processing is complete.
+User defined plugins are downloaded only once during a ZTP service. If the destination file already exists locally, the plugin is not downloaded again. It is recommended to not use *plugin.url.destination* and allow ZTP to download a plugin file to temporary storage. The temporary storage is cleared when a new ZTP session starts and is also guaranteed not to conflict with plugins used in other configuration sections.
 
 ### 3.2.2 Plugin Exit Code
 
@@ -229,6 +285,7 @@ Following is the list of objects supported by url object. Also provided is brief
 |  curl-arguments | Arguments to curl command used to download the url  | Refer to [curl manual](https://curl.haxx.se/docs/manual.html "curl manual"). | Null string |
 |  encrypted | Indicates the file being downloaded in encrypted format.  | Refer to [Encryption](#511-encryption-and-authentication). | No encryption |
 |  include-http-headers | To enable/disable sending of switch information as part of [HTTP Headers](#331-http-headers).   | true<br>false | true |
+| timeout              | Maximum number of seconds allowed for curl to establish a connection | Valid non-zero integer | 30s |
 
 In case there are no additional fields to be defined in *url* object and only *source* is being defined, *url* can be specified in short hand notation.
 
@@ -264,10 +321,13 @@ In below example, SONiC ZTP package provided *config-db-json* plugin is being us
 Following is the list of objects supported by plugin object. Also provided is brief description of their usage, values that can be assigned and the default value assumed when the object is not used.
 
 |  Object |Usage   |Supported Values| Default Value|
-| ------------ | ------------ | ------------ | ------------ |
+| :----------- | ------------ | ------------ | ------------ |
 | url  | Define the URL string from where plugin has to be downloaded in the form of url object  |Refer to [url object](#url-object)  |Name of enclosing object |
 | dynamic-url  | Define the URL string from where plugin has to be downloaded in the form of url object  |Refer to [dynamic-url object](#332-dynamic-url-object)  |Name of enclosing object |
 |  name | Use a predefined plugin available as part of SONiC ZTP package  | Predefined plugins | Name of enclosing object|
+| shell | Use this to specify if the plugin has to be executed through the shell. For more information refer to the shell option of python [subprocess](https://docs.python.org/3/library/subprocess.html) library. | true <br>false | false |
+| ignore-section-data | Use this to specify if section data read from the configuration section of the plugin should not be passed as the first argument to plugin command | true<br>false | false |
+| args | Defines argument string that can be passed as an argument to the plugin command. The *ignore-section-data* object needs to be set to true if the plugin command is expecting only the argument string as part of the command. | Valid command arguments                                | Null string |
 
 *plugin.dyrnamic-url* takes precedence over *plugin.url* over *plugin.name* if multiple definitions are defined.
 
@@ -275,13 +335,13 @@ A short hand notation is possible using 'plugin': 'name' which is equivalent of 
 
 ```json
     "plugin": {
-      "name": "config-db-json"
+      "name": "configdb-json"
     }
 ```
 can be written in short hand notation as
 
 ```json
-    "plugin": "config-db-json"
+    "plugin": "configdb-json"
 ```
 
 #### configdb-json
@@ -296,6 +356,23 @@ The *configdb-json* plugin is used to download ConfigDB JSON file and apply the 
     }
   }
 ```
+
+
+
+Following is the list of objects supported by the configdb-json object. Also provided is brief description of their usage, values that can be assigned and the default value assumed when the object is not used.
+
+| Object       | Usage                                                        | Supported Values                                       | Default Value |
+| :----------- | ------------------------------------------------------------ | ------------------------------------------------------ | ------------- |
+| url          | Define the URL string from where the config_db.json file has to be downloaded in the form of url object | Refer to [url object](#url-object)                     | N/A           |
+| dynamic-url  | Define the URL string from where the config_db.json file has to be downloaded in the form of dynamic-url object | Refer to [dynamic-url object](#332-dynamic-url-object) | N/A           |
+| clear-config | Use this to specify if the existing configuration has to be cleared before loading the download config_db.json file content to the Config DB. When set to true, *config reload* command is executed. When set to false, *config load* command is executed. | true<br>false                                          | true          |
+| save-config  | Use this to perform a *config save* command after loading the downloaded config_db.json file. | true<br>false                                          | false         |
+
+It is mandatory that either one of the *url* or *dynamic-url* objects are defined in configuration section. 
+
+When configdb-json plugin is executed, the DHCP address assigned during ZTP discovery is released. So it is important that interface IP address assignment is performed as part of the provided *config_db.json* file.
+
+
 
 #### firmware
 
@@ -341,17 +418,65 @@ Example to install a new image only if it satisfies the pre-install verify check
   }
 ```
 
+
+
 Following is the  list of objects supported by the *firmware* plugin. Also provided is brief description of their usage, values that can be assigned and the default value assumed when the object is not used.
+
+
 
 |  Object |Usage   |Supported Values| Default Value|
 | ------------ | ------------ | ------------ | ------------ |
-|  install | Used to install an image using URL | [url](#url-object) <br> [dynamic-url](#332-dynamic-url) <br> pre-check <br> set_default <br>set_next_boot |N/A|
-|  remove | Used to uninstall an existing image  | version <br> pre-check  |N/A|
-|  upgrade_docker | Used install a docker image on the SONiC switch | [url](#url-object)<br> [dynamic-url](#332-dynamic-url)   | N/A   |
+| **install** | Used to install an image using URL |  ||
+| url<br>dynamic-url | Specifies the URL string from where the firmware image file has to be downloaded in the form of url or dynamic-url object | url](#url-object) <br/>[dynamic-url](#332-dynamic-url) ||
+| version | Specifies the version of the SONiC image being installed. This object is optional. | SONiC version string |N/A|
+| set-default | Specifies that the firmware image being installed is selected as the default image to boot the switch from. | true<br>false |true|
+| set-next-boot | Specifies that the firmware image being installed is selected as the image to boot the switch from only for one time on next reboot. | true<br/>false |false|
+| skip-reboot | Specifies if a switch reboot operation is performed immediately after installing a new switch firmware image. | true<br/>false |false|
+| pre-check | Specifies the URL of a user provided script to be executed before installing  the downloaded switch firmware image. The firmware installation is performed only if pre-check script result is success. | [url](#url-object) <br>[dynamic-url](#332-dynamic-url) |               |
+| **remove** | Used to uninstall an existing image on the disk |  ||
+| version | Specifies the version of the SONiC image to be removed. This object is mandatory. | SONiC version string |N/A|
+| pre-check | Specifies the URL of a user provided script to be executed before removing the specified switch firmware image version for the disk. The firmware removal is performed only if pre-check script result is success. | [url](#url-object) <br/>[dynamic-url](#332-dynamic-url) |N/A|
+| **upgrade-docker** | Used install a docker image on the SONiC switch |  |    |
+| url<br>dynamic-url | Specifies the URL string from where the docker image file has to be downloaded in the form of url or dynamic-url object | [url](#url-object)<br/>[dynamic-url](#332-dynamic-url) | |
+| container-name | Name of the docker image being upgrade | Supported docker container names (e.g swss) |  |
+| cleanup-image | Clean up old docker image while installing new docker image | true<br>false | false |
+| enforce-check | Enforce pending task check for docker upgrade | true<br>false | false |
+| tag | Specify a tag to the newly installed docker image | Valid string | Null string |
+| pre-check | Specifies the URL of a user provided script to be executed before installing the specified docker container. The docker image installation is performed only if pre-check script result is success. | [url](#url-object) <br/>[dynamic-url](#332-dynamic-url) | N/A |
 
 The *pre-check* object is used to specify a user provided script to be executed. If the result of the script is successful, the action (install/remove) is performed. Its value is a *url object*.
 
 *firmware.remove* is first processed followed by *firmware.install* if both are defined.
+
+#### connectivity-check
+
+The *connectivity-check* plugin is used to ping a remote host and verify if the switch is able to reach the remote host. It is possible to ping multiple hosts and the plugin result is marked as failed even if ping to one of the specified host fails.
+
+
+
+```json
+     "connectivity-check" : {
+      "ping-hosts" : [ "192.168.1.1", "172.10.1.1" ]
+     }
+```
+
+
+
+Following is the list of objects supported by the connectivity-check plugin. Also provided is brief description of their usage, values that can be assigned and the default value assumed when the object is not used.
+
+
+
+| Object         | Usage                                                        | Supported Values             | Default Value |
+| :------------- | ------------------------------------------------------------ | ---------------------------- | ------------- |
+| ping-hosts     | List of IPv4 hosts to ping                                   | N/A                          | N/A           |
+| ping6-hosts    | List of IPv6 hosts to ping                                   | N/A                          | N/A           |
+| retry-interval | Specify a timeout, in seconds, before retrying ping to a host. | Valid non-zero integer value | 5 seconds     |
+| retry-count    | Stop ping to a ping host and move on to the next host specified in the list. | Valid non-zero integer value | 12            |
+| ping-count     | Stop after sending *count* ECHO_REQUEST packets. With *deadline* option, ping waits for *count* ECHO_REPLY packets, until the timeout expires. | Valid non-zero integer value | 3             |
+| deadline       | Specify a timeout, in seconds, before ping exits regardless of how many packets have been sent or received. In this case ping does not stop after *count* packet are sent, it waits either for *deadline* expire or until *count* probes are answered or for some error notification from network. | Valid non-zero integer value | N/A           |
+| timeout        | Time to wait for a response, in seconds. The option affects only timeout in absense of any responses, otherwise ping waits for two RTTs. | Valid non-zero integer value | N/A           |
+
+
 
 #### snmp
 
@@ -359,13 +484,8 @@ The *snmp* plugin is used to configure SNMP community string on SONiC switch. Th
 
 ```json
   "snmp": {
-    "community-ro": [
-      "public",
-      "local"
-    ],
-    "community-rw": [
-      "private"
-    ]
+    "community-ro": "public",
+    "snmp-location": "dnv-r10-t01"
   }
 ```
 
@@ -373,9 +493,9 @@ Following is the  list of objects supported by the *snmp* plugin. Also provided 
 
 |  Object |Usage   |Supported Values| Default Value|
 | ------------ | ------------ | ------------ | ------------ |
-|  community-ro | Comma separated list of SNMP read only community strings | Syntactically valid SNMP community string  |Null string|
-|  community-rw | Comma separated list of SNMP read write community strings |  Syntactically valid SNMP community string  | Null string|
-|  restart_agent |  | true <br> false | true  |
+|  community-ro | SNMP read only community string | Syntactically valid SNMP community string  |Null string|
+| snmp-location | SNMP location string |  Syntactically valid SNMP location string  | Null string|
+| restart-agent | Restart snmp service after setting specified SNMP parameters | true <br>false | true  |
 
 #### graphservice
 
@@ -385,10 +505,10 @@ Example usage.
 
 ```json
   "graphservice": {
-    "minigraph_url": {
+    "minigraph-url": {
       "url": "http://192.168.1.1:8080/minigraph.xml"
     },
-    "acl_url": {
+    "acl-url": {
       "dynamic-url": {
         "source": {
           "prefix": "http://192.168.1.1:8080/acl_",
@@ -435,8 +555,8 @@ The *prefix*, *identifier* and *suffix* are concatenated to form the url which i
 ##### identifier subobject
 This subobject is used to specify the logic that is executed on the switch to determine the variable portion of the url. Some pre-defined generally used logic are provided. There is also a possibility to provide user-defined logic.
 
-"identifier:": "hostname"
-"identifier:": "hostname-fqdn"
+"identifier": "hostname"
+"identifier": "hostname-fqdn"
 
 Hostname of the switch is used to the identifier. Switches are assigned unique hostnames by the DHCP server. It can be used while naming files corresponding to a particular switch.
 
@@ -452,7 +572,7 @@ In below example all the switch configuration files are stored at the remote ser
       "destination": "/etc/sonic/config_db.json"
     }
 ```
-"identifier:": "serial-number"
+"identifier": "serial-number"
 
 ```json
     "dynamic-url": {
@@ -464,7 +584,7 @@ In below example all the switch configuration files are stored at the remote ser
       "destination": "/etc/sonic/config_db.json"
     }
 ```
-"identifier:": "product-name"
+"identifier": "product-name"
 
 In below example switch model string is used to identify the image that needs to be downloaded.
 
@@ -478,7 +598,7 @@ In below example switch model string is used to identify the image that needs to
     }
 ```
 
-"identifier:": "url"
+"identifier": "url"
 It is not possible to pre-determine the file naming convention using at the server. So a provision for running user-defined logic can be supplied as a url object. In below example user provides a script *config_filename_eval.sh* which is downloaded and executed. The output string returned by the user provided script is used as the switch's configuration file name.
 
 ```json
@@ -505,17 +625,33 @@ Following is the list of objects supported by the *dynamic-url* object. Also pro
 |  curl-arguments | Arguments to curl command used to download the url  | Refer to [curl manual](https://curl.haxx.se/docs/manual.html "curl manual"). | Null string |
 |  encrypted | Indicates the file being downloaded in encrypted format.  | Refer to [Encryption](#511-encryption-and-authentication). | No encryption |
 |  include-http-headers | To enable/disable sending of switch information as part of [HTTP Headers](#331-http-headers).   | true<br>false | true |
+| timeout | Maximum number of seconds allowed for curl to establish a connection | Valid non-zero integer | 30s |
 
 ### 3.4 DHCP Options
-The following are the private DHCP options used by SONiC switch to receive input data for ZTP service and graphservice.
+The following are the DHCP options used by the SONiC switch to receive input provisioning data for ZTP service and graphservice.
 
 | DHCP Option | Name         | Description                                       |
 |:-----------:|:-------------------|:-------------------------------------------------|
-|    224      | snmp_community     | snmpcommunity DHCP hook updates /etc/sonic/snmp.yml file with  provided value |
-|    225      | minigraph_url     | graphserviceurl DHCP hook updates the file /tmp/dhcp_graph_url with the provided url. updategraph service processes uses it for further processing. |
-|    226      | acl_url           | graphserviceurl DHCP hook updates the file /tmp/dhcp_acl_url with the provided url. updategraph service processes uses it for further processing. |
-|    67      | ztp_json_url    | URL for ZTP input data:  All user configurable data that can be input to  ZTP process. This information can be used to access more advanced configuration information.|
+| 61 | dhcp-client-identifier | Used to uniquely identify the switch initiating DHCP request. SONiC switches set this value to "SONiC##*product-name*##*serial-no*". |
+| 66 | tftp-server | TFTP-Server address |
+|    67      | ztp_json_url    | URL to download the ZTP JSON file. It can also specify the ZTP JSON file path on tftp server. |
+| 77 | user-class | Used to optionally identify the type or category of user or    applications it represents. SONiC switches set this value to "SONiC-ZTP". |
+|     224     | snmp_community              | snmpcommunity DHCP hook updates /etc/sonic/snmp.yml file with  provided value |
+|     225     | minigraph_url               | graphserviceurl DHCP hook updates the file /tmp/dhcp_graph_url with the provided url. updategraph service processes uses it for further processing. |
+|     226     | acl_url                     | graphserviceurl DHCP hook updates the file /tmp/dhcp_acl_url with the provided url. updategraph service processes uses it for further processing. |
 |    239      | ztp_provisioning_script_url    | URL for a script which needs to be downloaded and executed by ZTP service on the switch. |
+
+
+
+The following are the DHCPv6 options used by the SONiC switch to receive input provisioning data for ZTP service.
+
+| DHCPv6 Option | Name         | Description                                       |
+|:-----------:|:-------------------|:-------------------------------------------------|
+| 15 | user-class | Used to optionally identify the type or category of user or    applications it represents. SONiC switches set this value to  "SONiC-ZTP". |
+|    59    | boot-file-url | URL to download the ZTP JSON file. |
+|    239      | ztp_provisioning_script_url    | URL for a script which needs to be downloaded and executed by ZTP service on the switch. |
+
+
 
 The use of following DHCP options will be deprecated in future releases of SONiC as its values can be included in the ZTP JSON file whose URL can be obtained via DHCP option 67.
 
@@ -529,6 +665,8 @@ It is recommended to use either ztp_provisioning_script_url or ztp_json_url but 
 
 DHCP hook script */etc/dhcp/dhclient-exit-hooks.d/ztp*  is used to process DHCP option 67 and 239. This script is provided as part of SONiC-ZTP package.
 
+
+
 ## 3.5 ZTP Service
 
 
@@ -539,57 +677,111 @@ DHCP hook script */etc/dhcp/dhclient-exit-hooks.d/ztp*  is used to process DHCP 
 
 
 
-The ZTP service is defined as a systemd service running on native SONiC O/S. It does not run inside a container.  ZTP service starts after *networking.service*, *rc-local.service* and *database.service*. If ZTP is not administratively enabled, the service exits and does not run again until next boot or if user intervenes. Only updategraph.service wants ztp.service. No other services are not blocked for ztp.service to start or exit.
+The ZTP service is defined as a systemd service running on native SONiC O/S. It does not run inside a container.  ZTP service starts after the *interfaces-config.service*, *rc-local.service* and *database.service*. If ZTP is not administratively enabled, the service exits and does not run again until next boot or if user intervenes. No services are not blocked for ztp.service to start or exit.
 
-When management interface obtains IP address via DHCP, URL pointing to ZTP JSON file is provided as value of DHCP option 67. When ZTP service starts, it first checks if there already exists a ZTP JSON file locally and if found loads it. If *ztp.status* field of local file is either SUCCESS, FAILED or DISABLED, ZTP service exits. If *ztp.status* field of local ZTP JSON file is  IN-PROGRESS, local file is used for further processing. If no local ZTP JSON file is found or if the *ztp.status* field of local ZTP JSON file is BOOT, ZTP service downloads the ZTP JSON file using the URL provided by DHCP Option 67 are starts processing it.
 
-If user defines DHCP option 239, ZTP service downloads the provisioning script indicated in the URL and executes it. The exit code returned by the provisioning script is used to indicate whether ZTP has succeeded or failed. Exit code 0 indicates successful execution and any other value is treated as failure. ZTP service exits and does not run again unless user enables it again manually.
 
-It is to be noted that DHCP option 67 takes precedence over DHCP option 239. 
+The switch tries to obtain management connectivity after it has boot up and all the connected ports are linked up. DHCP discovery is performed on all the connected in-band interfaces and the out-of-band management interface. Also, both DHCPv4 and DHCPv6 address discovery is performed. Which ever interface receives the first DHCP offer, is used as primary management interface to obtain user provided provisioning data. 
 
-ZTP service parses the ZTP JSON file and processes individual configuration sections in lexical order of their names. If *status* or *timestamp* fields are missing they are added to it. A local copy of ZTP JSON file is maintained as the file */var/lib/ztp/data/ztp.json*. Individual configuration sections are identified and split into individual files as */var/lib/ztp/data/sections/section-name*. The ztp.json file continues to hold all sections as defined by the user.
 
-This ztp.json file is constantly updated with any changes made during the processing of loaded ZTP data. To begin with *ztp.status* is set to IN-PROGRESS and individual sections are processed in order of their names. The  *status* object of the configuration section being processed is set to 1 In-Progress and corresponding plugin is executed. 
 
-Each section whose *status* value is BOOT or IN-PROGRESS  is processed in order. Corresponding plugin is called with */var/lib/ztp/data/sections/section-name* as argument to it. Exit code of plugin is used to determine the configuration sections *status* as explained in the [*Plugin Exit Code*](#322-plugin-exit-code) section of this document.
+When a management interface obtains IP address via DHCP, a URL pointing to ZTP JSON file is provided as a value of the DHCP option 67. When the ZTP service starts, it first checks if there already exists a ZTP JSON file locally and if found loads it. If *ztp.status* field of local file is either SUCCESS, FAILED or DISABLED, ZTP service exits. If *ztp.status* field of local ZTP JSON file is  IN-PROGRESS or BOOT, local file is used for further processing. If no local ZTP JSON file is found, the ZTP service downloads the ZTP JSON file using the URL provided by the DHCP Option 67 and starts processing it.
+
+
+
+If user defines the DHCP option 239 in the DHCP offer, the ZTP service downloads the provisioning script indicated in the URL and executes it. The exit code returned by the provisioning script is used to indicate whether ZTP has succeeded or failed. Exit code 0 indicates successful execution and any other value is treated as failure.  The ZTP service exits and does not run again unless user enables it again manually. When DHCP Option 239 based provisioning script is used, ZTP service does not restart automatically even if the startup configuration file */etc/sonic/config_db.json* is not created by the user as part of the provisioning script.
+
+
+
+It is to be noted that DHCP option 67 takes precedence over DHCP option 239.  Also in the case of IPv6 based network, DHCPv6 option 59 is used to provide the ZTP JSON file URL.  
+
+
+
+The ZTP service parses the ZTP JSON file and processes individual configuration sections in lexical order of their names. Any missing objects are added after assigning default values to them. A local copy of ZTP JSON file is maintained as the file */host/ztp/ztp_data.json*. Individual configuration sections are identified and split into individual files as */var/lib/ztp/sections/section-name/input.json*. The *ztp_data.json* file continues to hold all sections as defined by the user and is used by the ZTP service.
+
+
+
+This *ztp_data.json* file is constantly updated with any changes made during the processing of loaded ZTP data. To begin with *ztp.status* is set to IN-PROGRESS and individual sections are processed in the order of their names. The  *status* object of the configuration section being processed is set to IN-PROGRESS and corresponding plugin is executed.  Each section whose *status* value is BOOT or IN-PROGRESS  is processed in order. Corresponding plugin is called with */var/lib/ztp/sections/section-name/input.json* as argument to it. Exit code of plugin is used to determine the configuration sections *status* as explained in the [*Plugin Exit Code*](#322-plugin-exit-code) section of this document.
+
+
 
 When all the sections have been processed, *ztp.status* field is updated taking into consideration the result of all individual sections. Sections with disabled *status* and *ignore-status: true* are not considered. *ztp.status* is marked as SUCCESS only if *status* field of all rest of the sections is SUCCESS. ZTP service exits and does not run again unless user enables it again.
 
-If user does not provide both DHCP option 67 or DHCP option 239, ZTP service continues to run and wait for one of these values to be provided to it.
+
+
+If user does not provide both DHCP option 67 or DHCP option 239, ZTP service continues to run and wait forever until one of these values is provided to it.
 
 
 
-### 3.6 Provisioning over in-band network
+Following is the order in which DHCP options are processed:
 
-If there is no */etc/sonic/config_db.json* and */tmp/pending_config_initialization* is set, ZTP service creates a configuration using ztp preset. The *ztp* preset defines a configuration with PORT table and DEVICE_METADATA table. In addition to creating the default configuration, ztp also creates interface files with name *ztp-Ethernetxxx* for all the ports in PORT table. These are added in */var/run/ztp/dhcp/interfaces.d* and *networking.service*  is restarted. This starts DHCP discovery on all in-band interfaces. A dhcp-exit-hook is installed which is used to set the offered IP address in Config DB using the *"config interface interface-name ip  add"* command. At this point, the switch receives DHCP option 67 ZTP JSON and is ready to communicate with remote devices. ZTP JSON file is downloaded and ZTP service start performing configuration tasks described in the ZTP JSON. 
+1. The ZTP JSON file specified in pre-defined location as part of the image Local file on disk */host/ztp/ztp_data_local.json*.
+2. ZTP JSON URL specified via DHCP Option-67
+3. ZTP JSON URL constructed using  DHCP Option-66 TFTP server name, DHCP Option-67 file path on TFTP server
+4. ZTP JSON URL specified via DHCPv6 Option-59
+5. A provisioning script URL specified via DHCP Option-239
+6. A provisioning script URL specified via DHCPv6 Option-239
+7.  Minigraph URL and ACL URL specified via DHCP Option 225, 226
+
+
+
+### 3.6 Start and exit conditions
+
+On a switch bootup, the ZTP service starts and checks for the presence of the startup configuration file */etc/sonic/config_db.json*.  Only if the startup configuration file is not found, the ZTP service starts and performs DHCP discovery to receive information about the location of the ZTP JSON file. If the ZTP admin mode is disabled, the ZTP service exits and the switch proceeds to boot with factory default configuration.
+
+
+
+If a ZTP JSON file is already present on the switch,  the ZTP service continues to process it and does not download a new ZTP JSON. This allows the ZTP service to perform configuration steps which may involve multiple switch reboots.
+
+
+
+The SONiC ZTP service exits only after a ZTP JSON file is downloaded and processed by it. After processing the ZTP JSON file, if the startup configuration file  */etc/sonic/config_db.json* is not found, the ZTP service restarts DHCP discovery again to obtain a new ZTP JSON file and start processing it.
+
+
+
+At any given point of time, user can choose to stop a SONiC ZTP service by executing the *config ztp disable* command. The disable action creates a factory default configuration and saves it as the switch startup configuration.  The switch continues to operate with the loaded factory default configuration.
+
+
+
+There are multiple configuration options available in the ZTP JSON file for the user to influence the exit criteria of the ZTP service. They are defined in the [*ZTP JSON*](#31-ztp-json) section and can also be viewed in the [*SONiC ZTP Flow Diagram*](#41-sonic-ztp-flow-diagram).
+
+
+
+### 3.7 Provisioning over in-band network
+
+If there is no startup configuration file */etc/sonic/config_db.json* , the ZTP service creates a configuration using the ztp config template */usr/lib/ztp/templates/ztp-config.j2*. The *ztp-config.j2* defines a configuration with the PORT table and the DEVICE_METADATA table populated. In addition to this, the */etc/network/interfaces* file creates defines interfaces and dhcp address configuration  for all  the ports in the PORT table and the out of band interface, eth0. The *intefaces-config.service*  is used to dynamically generate the */etc/network/interfaces* file, corresponding */etc/dhcp/dhclient.conf* with appropriate ZTP related DHCP options and then restarts *networking.service* to kick start DHCP on all the interfaces. This starts DHCP discovery on all in-band interfaces and the out of band interface. A dhcp-enter-hook */etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip(6)* is installed which is used to set the offered IP address in Config DB using the *"config interface interface-name ip  add"* command. At this point, the switch receives DHCP option 67 ZTP JSON and is ready to communicate with remote hosts. The ZTP JSON file is downloaded and ZTP service start performing configuration tasks described in the ZTP JSON. 
 
 Since DHCP discovery is performed on all in-band interfaces, there can be a condition where multiple interfaces can get an IP address. Only the first port receiving the DHCP offer along with DHCP Option 67 or/and DHCP Option 239 will be processed. So, care should be taken by the administrator to ensure that only one and also the same DHCP server responds to the DHCP discovery initiated by ZTP.
 
-If ZTP is in completed state or in administratively disabled state, it will not create ZTP preset configuration. Instead, switch will continue to boot with empty configuration. To re-run ZTP user will have to login via console and issue 'ztp enable' and/or 'ztp run' command. There are some other scenarios that are possible when a new SONiC image is installed. They are discussed in the section [*Component Interactions*](#37-component-interactions).
+If ZTP is in completed state or in administratively disabled state, it will not create ZTP configuration. Instead, switch will create a factory default configuration and proceed to boot with it. To re-run ZTP user will have to login via console and issue 'ztp enable' and 'ztp run' command. 
+
+
 
 SONiC ZTP supports reboot and resume while a ZTP session is in progress. To handle these scenarios appropriately, it is recommended that the plugins used for configuration tasks, use sufficient checks to determine that switch is communicating to external devices before executing provisioning steps. Since SONiC ZTP is a framework and does not have knowledge on making a decision on reachability, connectivity checks or sufficient retries need to be included in the plugins scripts as part of the defined workflow. This may not be applicable in the case of first run of ZTP since the ZTP JSON URL is obtained only after establishing connectivity. ZTP service can safely assume connectivity and proceed without any issues. To summarize, when there is a reboot step involved, the configuration section plugins should take care that there may be instances where there can be connectivity loss. Same is the case when a config_db.json file is downloaded and applied to the switch.
 
-A configuration option is provided in the ZTP configuration file *ztp_cfg.json* to enable or disable in-band provisioning feature. Provisioning over in-band network is enabled by default when ZTP package is included.
+
+
+A configuration option is provided in the ZTP configuration file *ztp_cfg.json* to enable or disable in-band provisioning feature. Use *"feat-inband" : false* in */host/ztp/ztp_cfg.json* to disable ZTP in-band provisioning. Provisioning over in-band network is enabled by default when the ZTP package is included.
 
 
 
-### 3.7 Component Interactions
+### 3.8 Component Interactions
 
 ##### updategraph
 
-ZTP and updategraph can co-exist in the same SONiC image. However, updategraph depends on ZTP to provide the values of *graph_url* and *acl_url.* ZTP service processes the DHCP response and updates *src* and *acl_src* values in */etc/sonic/updategraph.conf* file and restarts updategraph service. In the updategraph.service definition file, updategraph.service wants ztp.service. When ZTP feature is available in the build, updategraph does not creates default *''/etc/sonic/config_db.json'* from preset config templates.
+ZTP and updategraph can co-exist in the same SONiC image. However, for updategraph to operate ZTP has to be disbaled. If ZTP is enabled, updategraph gracefully exits and depends on ZTP to process the values of *graph_url* and *acl_url.* The ZTP service processes the DHCP response and downloads the *minigraph.xml* and the *acl.json* files and places them in the */etc/sonic* directory. The *config load_minigraph*  command is then executed to process the downloaded *minigraph.xml* and *acl.json* files.
 
-If */tmp/config_migration* is set, ZTP will not create switch default configuration but wait for config_migration to be completed.
+
 
 **Image Upgrade**
 
-When a new SONiC image is installed, contents of */etc/sonic* directory are migrated to the newly installed directory. ZTP JSON and ZTP configuration files are also migrated as part of this configuration migration step. If the image upgrade happened as part of a ZTP session in progress, after booting the new image, ZTP resumes from the point where it left of prior to image switchover. ZTP service waits for configuration migration to complete before taking any action. If after configuration migration, if */etc/sonic/config_db.json* file is not found, ZTP service creates a ZTP preset configuration that enables all in-band interfaces and performs DHCP discovery on them. This establishes connectivity to external devices for provisioning to be completed. 
+When a new SONiC image is installed, contents of */etc/sonic* directory are migrated to the newly installed directory. ZTP JSON and ZTP configuration files are also available to the new image as they are stored in */host/ztp* directory. If the image upgrade happened as part of a ZTP session in progress, after booting the new image, ZTP resumes from the point where it left of prior to image switchover. ZTP service waits for configuration migration to complete before taking any action. If after configuration migration, if */etc/sonic/config_db.json* file is not found, ZTP service creates a ZTP configuration that enables all in-band interfaces and performs DHCP discovery on them to obtain connectivity and resume processing the ZTP JSON file. This establishes connectivity to external hosts for provisioning to be completed. 
 
-There can also be a scenario where on a switch a ZTP is in completed (SUCCESS/FAILED) state. A new SONiC image is installed and user reboots the switch to boot into new image. Even this scenario, contents of */etc/sonic* and ZTP JSON, ZTP configuration files are migrated to the newly installed image. A new session of ZTP is started using the ZTP JSON file that was migrated. If */etc/sonic/config_db.json* file does not exist, ZTP service creates a ZTP preset configuration that enables all in-band interfaces and performs DHCP discovery on them. This establishes connectivity to external devices for provisioning to be completed. It is to be noted that no new ZTP JSON file is downloaded as it is assumed that in a typical scenarios, a successful ZTP would have generated a *config_db.json* file which is migrated to the new image. By not  performing DHCP discovery again, we are trying to minimize the affect on the network where in connectivity is provided by the migrated switch configuration and ZTP is re-executed to perform all tasks that are needed for the new switch image.
+There can also be a scenario where on a switch a ZTP is in completed (SUCCESS/FAILED) state. A new SONiC image is installed using *sonic_installer* upgrade tool and the user reboots the switch to boot into new image. In this scenario, contents of */host/ztp* and thus ZTP JSON, ZTP configuration file are accessible to the newly installed image. Since ZTP is in completed state, it will not run again. Only if */etc/sonic/config_db.json* file does not exist, ZTP service creates a ZTP configuration and starts the ZTP procedure afresh. It is up to the user to install configuration migration hooks to migrate changes to new image. More information is available in the [SONiC Configuration Setup Service](https://github.com/rajendra-dendukuri/SONiC/blob/config_setup/doc/ztp/SONiC-config-setup.md) design document.
 
 
 
- ### 3.8 ZTP State Transition Diagram
+ ### 3.9 ZTP State Transition Diagram
 
 Below figure explains the events and its effect on ZTP state.
 
@@ -601,17 +793,29 @@ User is expected to use supported installation methods by SONiC to install image
 
 Below is sequence of events that happen in a simple workflow.
 
-1.  SONiC switch boots and ZTP service starts
-2.  DHCP server provides IP connectivity to management interface along with DHCP Option 67 which provides URL to ZTP JSON file
-3. ZTP service downloads ZTP JSON file and processes individual configuration sections in the lexical sorted order of their names, one at a time.
-4. Plugin scripts for each configuration section are executed. If it is user-defined, the plugin is downloaded and then executed.
+1.  The SONiC switch boots and theZTP service starts if there is no startup configuration file */etc/sonic/config_db.json*
+2.  The DHCP server provides IP connectivity to the management interface along with the DHCP Option 67 which provides URL to the ZTP JSON file
+3. The ZTP service downloads the ZTP JSON file and processes all of the individual configuration sections in the lexical sorted order of their names, one after the other.
+4. The plugin scripts for each configuration section are executed. If it is a user-defined, the plugin is downloaded and then executed.
    - If plugin exits with success (= 0), the configuration section is marked SUCCESS and not executed again.
    - If plugin exits with failure (> 0), the configuration section is marked FAILED and not executed again.
    - If plugin exits with *suspend-exit-code* , the configuration section is marked SUSPEND and executed again in next cycle.
 5. ZTP service cycles through all configuration sections multiple times until each and every configuration section is either in SUCCESS or FAILED state. This is to address sections that have returned with (-1) return code.
 6. ZTP result is evaluation based on the result of each configuration section and ZTP service exits and does not run again.
 
-All possible scenarios are not described here as they have been explained in the [ZTP Service](#34-ztp-service) section.
+All possible scenarios are not described here and they have been explained further in the [ZTP Service](#35-ztp-service) section.
+
+
+
+### 4.1 SONiC ZTP Flow Diagram
+
+
+
+Below flow diagram pictorially explains in detail the sequence of events performed by a SONiC switch up on bootup.
+
+![SONiC ZTP Flow Diagram](images/sonic_config_flow.png)
+
+
 
 ## 5. Security Considerations
 
@@ -678,7 +882,7 @@ The RSA public key and AES key need to be included in SONiC switch image at buil
 The security concerns can be solved by using a secure protocol like HTTPS for downloading the contents. Users use https URLs and ZTP service verifies the server certificate against known trusted CA certificates on the switch. Thus a trusted and secure communication is established.
 
 #####  Installing Certificates
-In case of HTTPS URL's, the certificate issuing authority's certificate which issued the server's SSL certificate needs to be installed on the switch as part of default image at build time. */etc/ssl/certs* is the directory to install these certificates. This can be done using organizational extensions or by placing them in the *usr/lib/ztp/certs*  directory inside SONiC ZTP package source code directory.
+In case of HTTPS URL's, the certificate issuing authority's certificate which issued the server's SSL certificate needs to be installed on the switch as part of default image at build time. */etc/ssl/certs* is the directory to install these certificates. This can be done using organizational extensions or by placing them in the */usr/lib/ztp/certs*  directory inside SONiC ZTP package source code directory.
 
 ### 5.2 File Permissions
 
@@ -686,45 +890,247 @@ Only *root* user is allowed to read and modify the files created by ZTP service.
 
 ## 6. Configuring ZTP
 
-Following are the supported ZTP configuration commands. All configurable parameters are found in *ztp_cfg.json*. ZTP service reads the configuration file during initialization.
+This section explains all the Zero Touch Provisioning commands that are supported in SONiC.
 
-### ztp status
+### 6.1 Show commands 
 
-*ztp status* command displays current state of ZTP service and the date/time since it was in the current state. It also displays current status of each configuration section of user provided ZTP JSON and date/time it was last processed.
+**show ztp status**
 
-### ztp enable
-*ztp enable* command is used to administratively enable ZTP. When ZTP feature is included as a build option, ZTP service is configured to be enabled by default. This command is used to re-enable ZTP after it has been disabled by user. It is to be noted that this command will only modify the ZTP configuration file and does not perform any other actions.
+This command displays the current ZTP configuration of the switch. It also displays detailed information about current state of a ZTP session. It displays information related to all configuration sections as defined in the switch provisioning information discovered in a particular ZTP session.
 
-### ztp run
+- Usage:  
+  show ztp status
 
-*ztp run* command is used to restart ZTP of a SONiC switch and initiate intended configuration tasks. Also ZTP service is started if it is not already running. This command is useful to restart ZTP after it has failed or is disabled by user.
+  show ztp status --verbose
 
-### ztp disable
-*ztp disable* command is used to stop and disable ZTP service. If ZTP service is in progress, it is aborted and ZTP status is set to disable in configuration file.  SIGTERM is sent to ZTP service and its sub processes currently under execution. *systemd* defined default time of 90 seconds is provided for them to handle the SIGTERM and take appropriate action and gracefully exit. It is the responsibility of plugins to handle SIGTERM to perform any necessary cleanup or save actions. If the process is still running after 90s the process is killed.
+- Example:
 
-ZTP service does not run if it is disabled even after reboot. User will have to use *ztp enable* for it to enable it administratively again.
+```
+root@B1-SP1-7712:/home/admin# show ztp status
+ZTP Admin Mode : True
+ZTP Service    : Inactive
+ZTP Status     : SUCCESS
+ZTP Source     : dhcp-opt67 (eth0)
+Runtime        : 05m 31s
+Timestamp      : 2019-09-11 19:12:24 UTC
+
+ZTP Service is not running
+
+01-configdb-json: SUCCESS
+02-connectivity-check: SUCCESS
+```
+
+Use the verbose option to display more detailed information.
+
+```
+root@B1-SP1-7712:/home/admin# show ztp status --verbose
+Command: ztp status --verbose
+========================================
+ZTP
+========================================
+ZTP Admin Mode : True
+ZTP Service    : Inactive
+ZTP Status     : SUCCESS
+ZTP Source     : dhcp-opt67 (eth0)
+Runtime        : 05m 31s
+Timestamp      : 2019-09-11 19:12:16 UTC
+ZTP JSON Version : 1.0
+
+ZTP Service is not running
+
+----------------------------------------
+01-configdb-json
+----------------------------------------
+Status          : SUCCESS
+Runtime         : 02m 48s
+Timestamp       : 2019-09-11 19:11:55 UTC
+Exit Code       : 0
+Ignore Result   : False
+
+----------------------------------------
+02-connectivity-check
+----------------------------------------
+Status          : SUCCESS
+Runtime         : 04s
+Timestamp       : 2019-09-11 19:12:16 UTC
+Exit Code       : 0
+Ignore Result   : False
+```
+
+- Description
+  - **ZTP Admin Mode** - Displays if the ZTP feature is administratively enabled or disabled. Possible values are True or False. This value is configurable using "config ztp enabled" and "config ztp disable" commands.
+  - **ZTP Service** - Displays the ZTP service status. The following are possible values this field can display:
+    - *Active Discovery*: ZTP service is operational and is performing DHCP discovery to learn switch provisioning information
+    - *Processing*: ZTP service has discovered switch provisioning information and is processing it
+  - **ZTP Status** - Displays the current state and result of ZTP session. The following are possible values this field can display:
+    - *IN-PROGRESS*: ZTP session is currently in progress. ZTP service is processing switch provisioning information.
+    - *SUCCESS*: ZTP service has successfully processed the switch provisioning information.
+    - *FAILED*:  ZTP service has failed to process the switch provisioning information.
+    - *Not Started*: ZTP service has not started processing the discovered switch provisioning information.
+  - **ZTP Source** - Displays the DHCP option and then interface name from which switch provisioning information has been discovered.
+  - **Runtime** - Displays the time taken for ZTP process to complete from start to finish. For individual configuration sections it indicates the time taken to process the associated configuration section.
+  - **Timestamp** - Displays the date/time stamp when the status field has last changed.
+  - **ZTP JSON Version** - Version of ZTP JSON file used for describing switch provisioning information.
+  - **Status** - Displays the current state and result of a configuration section. The following are possible values this field can display:
+    - *IN-PROGRESS*: Corresponding configuration section is currently being processed.
+    - *SUCCESS*: Corresponding configuration section was processed successfully.
+    - *FAILED*:  Corresponding configuration section failed to execute successfully.
+    - *Not Started*: ZTP service has not started processing the corresponding configuration section.
+    - *DISABLED*: Corresponding configuration section has been marked as disabled and will not be processed.
+  - **Exit Code** - Displays the program exit code of the configuration section executed. Non-zero exit code indicates that the configuration section has failed to execute successfully.
+  - **Ignore Result** - If this value is True, the result of the corresponding configuration section is ignored and not used to evaluate the overall ZTP result.
+  - **Activity String** - In addition to above information an activity string is displayed indicating the current action being performed by the ZTP service and how much time it has been performing the mentioned activity. Below is an example.
+    - (04m 12s) Discovering provisioning data
+
+### 6.2 Configuration commands 
+
+This sub-section explains the list of the configuration options available for ZTP.  Following are the supported ZTP configuration commands. All configurable parameters are found in the *ztp_cfg.json*.  The ZTP service reads the configuration file during initialization.
+
+
+
+**config ztp enable**
+
+The *config ztp enable* command is used to administratively enable ZTP. When ZTP feature is included as a build option, ZTP service is configured to be enabled by default. This command is used to re-enable ZTP after it has been disabled by user. It is to be noted that this command will only modify the ZTP configuration file and does not perform any other actions.
+
+
+
+- Usage:
+
+  config ztp enable
+
+  ztp enable
+
+  
+
+- Example:
+
+```
+root@sonic:/home/admin# config ztp enable
+Running command: ztp enable
+```
+
+
+
+**config ztp disable**
+
+The *config ztp disable* command is used to stop and disable the ZTP service. If the ZTP service is in progress, it is aborted and ZTP status is set to disable in configuration file.  SIGTERM is sent to ZTP service and its sub processes currently under execution. *systemd* defined default time of 90 seconds is provided for them to handle the SIGTERM and take appropriate action and gracefully exit. It is the responsibility of plugins to handle SIGTERM to perform any necessary cleanup or save actions. If the process is still running after 90s,  the process is killed.  After disable ztp mode, if there is no startup configuration file, a factory default switch configuration is created and loaded.
+
+
+
+The ZTP service does not run if it is disabled even after reboot or if startup configuration file is not present. User will have to use *ztp enable* for it to enable it administratively again.  
+
+- Usage:
+  config ztp disable
+
+  config ztp disable -y
+
+  ztp disable
+
+  ztp disable -y
+
+- Example:
+
+```
+root@sonic:/home/admin# config ztp disable
+Active ZTP session will be stopped and disabled, continue? [y/N]: y
+Running command: ztp disable -y
+```
+
+
+
+**config ztp run**
+
+Use this command to manually restart a new ZTP session.  This command deletes the existing */etc/sonic/config_db.json* file and stats ZTP service. It also erases the previous ZTP session data. The ZTP configuration is loaded on to the switch and ZTP discovery is performed. This command is useful to restart ZTP after it has failed or has been disabled by user.
+
+- Usage:
+  config ztp run
+
+  config ztp run -y
+
+  ztp run
+
+  ztp run -y
+
+- Example:
+
+```
+root@sonic:/home/admin# config ztp run
+ZTP will be restarted. You may lose switch data and connectivity, continue? [y/N]: y
+Running command: ztp run -y
+```
+
+
 
 ##  7. Code Structure
 
-Code related to ZTP framework shall be included in azure/sonic-ztp github repository. The package will be named as sonic_ztp_*version*_all.deb.
+Code related to ZTP framework is included in the [azure/sonic-ztp](azure/sonic-ztp) github repository. The compiled package is named as sonic-ztp_version_all.deb.
 
-More information will be added to this section after implementation of SONiC-ZTP is complete.
+
+
+Top level code structure.
+
+
+
+|-- LICENSE
+|-- Makefile
+|-- README.md >> Very brief ZTP user guide
+|-- debian  >> sonic-ztp debian package definitions
+|-- doc   >> doxygen configuration file
+|-- src     >> Source code of ZTP feature
+`-- tests  >> pytest based unit testcases
+
+
+
+src/usr/lib/ztp/
+|-- dhcp            >> DHCP hooks used by ztp
+|-- plugins        >> Location for pre-defined plugins
+|-- sonic-ztp     >> sonic-ztp service launcher file
+|-- templates   >> Jinja2 templates used to create ZTP configuration profile at run time
+|-- ztp-engine.py  >> Core ZTP service execution loop
+`-- ztp-profile.sh  >> Helper script to create/remove ZTP configuration profile
+
+
+
+src/usr/lib/python3/dist-packages/ztp/
+|-- DecodeSysEeprom.py    >> Helper class to read Syseeprom contents
+|-- Downloader.py               >> Helper class used to download a file from remote host
+|-- JsonReader.py                >> Helper class used to read contents of a JSON file as a python dictionary and   |           |                                                   then  write back changes to the JSON file
+|-- Logger.py                      >> Logger API to generate syslogs and console logs at each step of the ZTP service |                                                 execution
+|-- ZTPCfg.py                   >> Helper class to access contents of the ZTP configuration file */host/ztp/ztp_cfg.json*
+|-- ZTPLib.py                    >> Helper API's used across ZTP libs, ZTP engine and ztp command utility
+|-- ZTPObjects.py            >> Class which defiles URL, DynamicURL, Identifier and other ojects used in ZTP 
+
+|                                                JSON 
+|-- ZTPSections.py          >> Class to process ZTP JSON and the Configuration Sections which are part of it
+`-- defaults.py                 >> Factory default values of all variables and constants. These values can be over                  
+
+​                                                ridden by defining them in the ZTP configuration file */host/ztp/ztp_cfg.json*
+
+
+
+src/usr/bin/ztp   >>  ZTP command line utility to interface with the ZTP service
+
+
 
 ## 8. Logging
-All output generated by ZTP service are logged to local syslog and stdout of the service. The *stdout* and *stderr* of executed plugins are are also redirected to syslog and stdout of ZTP service. In addition to this, logs are are also sent to */var/log/ztp.log* file. User can modify */usr/lib/ztp/ztp_cfg.json* to increase or decrease logging priority level. User can also disable logging to file */var/log/ztp.log* or change to which file logs can be written to. Default logging level is assumed to be of level INFO. All messages with severity of INFO or greater are logged.
+All output generated by ZTP service are logged to local syslog and stdout of the service. The *stdout* and *stderr* of executed plugins are are also redirected to syslog and stdout of ZTP service. In addition to this, logs are are also sent to */var/log/ztp.log* file. User can modify */host/ztp/ztp_cfg.json* to increase or decrease logging priority level. User can also disable logging to file */var/log/ztp.log* or change to which file logs can be written to. Default logging level is assumed to be of level INFO. All messages with severity of INFO or greater are logged.
+
+
 
 ## 9. Debug
-ZTP service can be started in optional debug mode providing more verbose information on steps being performed by the service. Set logging level in */usr/lib/ztp/ztp_cfg.json* to 'DEBUG'.
+ZTP service can be started in optional debug mode providing more verbose information on steps being performed by the service. Set logging level in */host/ztp/ztp_cfg.json* to 'DEBUG'.
+
+
 
 ## 10. Examples
 
 ### Example #1
 
-Use this ZTP JSON file which performs following steps on first boot
-1. Install firmware
-2. Push configuration
-3. Run post-provisioning scripts and reboot on success
-4. Run connectivity check scripts
+1. Use below example ZTP JSON file, the following steps are performed on first boot:
+   1. Install SONiC firmware image on to the switch and reboot to start the newly installed image
+   2. Download config_db.json associated with the switch. The file name of the config_db.json associated with the switch is stored as *$hostname_config_db.json* at the webroot of the HTTP server with address 192.168.1.1.
+   3. Download and run post-provisioning script post_install.sh. The switch is rebooted if post_install.sh script exits with successful exit code 0.
+   4. Post boot, connectivity check is performed by pinging hosts 10.1.1.1 and yahoo.com to verify connectivity
 
 
 ```json
@@ -732,34 +1138,26 @@ Use this ZTP JSON file which performs following steps on first boot
   "ztp": {
     "01-firmware": {
       "install": {
-        "url": "http://192.168.1.1:8080/broadcom-sonic-v1.0.bin",
-        "pre-check": {
-          "url": "http://192.168.1.1:8080/firmware_check.sh"
-        },
-        "set-default": true
-      },
-      "reboot-on-success": true
+        "url": "http://192.168.1.1/broadcom-sonic-v1.0.bin"
+      }
     },
     "02-configdb-json": {
       "dynamic-url": {
         "source": {
-          "prefix": "http://192.168.1.1:8080/",
+          "prefix": "http://192.168.1.1/",
           "identifier": "hostname",
           "suffix": "_config_db.json"
-        },
-        "destination": "/etc/sonic/config_db.json"
+        }
       }
     },
     "03-provisioning-script": {
       "plugin": {
-        "url":"http://192.168.1.1:8080/post_install.sh"
+        "url":"http://192.168.1.1/post_install.sh"
       },
       "reboot-on-success": true
     },
-    "04-connectivity-tests": {
-      "plugin": {
-        "url": "http://192.168.1.1:8080/ping_test.sh"
-      }
+    "04-connectivity-check": {
+      "ping-hosts": [ "10.1.1.1", "yahoo.com" ]
     }
   }
 }
@@ -767,7 +1165,8 @@ Use this ZTP JSON file which performs following steps on first boot
 
 ## 11. Future
 
-More predefined plugins can be added as deemed appropriate by wider audience.
+- More predefined plugins can be added as deemed appropriate by wider audience.
+- Automatic port break out of in-band interfaces to detect an active link while performing ZTP discovery.
 
 
 
@@ -777,21 +1176,99 @@ More predefined plugins can be added as deemed appropriate by wider audience.
 
 This test plan describes tests to exercise various capabilities of Zero Touch Provisioning (ZTP). The scope of these tests is limited to testing ZTP and not SONiC protocol applications functionality. Certain central features like loading a switch configuration and applying them on the switch, installing new switch image are also part of this test plan.
 
-### 12.2 Test setup
+
+
+### 12.2 Unit Test Suite
+
+To execute ZTP unit tests which are part of the ZTP source tree, use following instructions
+
+Install pytest on a SONiC switch.
+
+```
+apt-get install -y python3-pytest
+```
+
+
+
+Run unit test suite on the SONiC switch
+
+```
+cd /usr/lib/ztp/tests
+pytest-3 -v
+```
+
+
+
+Run unit test suite with code coverage
+
+```
+# Install code coverage tool
+apt-get install python3-coverage
+
+# Install depdenent libraries for coverage
+apt-get install -y libjs-jquery libjs-jquery-isonscreen \
+              libjs-jquery-tablesorter libjs-jquery-throttle-debounce \
+              libjs-jquery-hotkeys
+
+
+# Run code coverage using pytest module
+cd /usr/lib/ztp/tests
+python3-coverage run --append -m pytest -v
+
+# Generate code coverage report
+python3-coverage report
+python3-coverage html
+```
+
+
+
+Code coverage of the ZTP service code by starting the ZTP service with coverage enabled. Modify /etc/default/ztp to set COVERAGE="yes".
+
+
+
+Below are instructions to generate a combined coverage report of unit tests and the ZTP service
+
+```
+cd /home/admin
+
+# Coverage information for the ZTP service
+cp /.coverage .coverage.service
+
+# Coverage information from ZTP unit tests
+cp /usr/lib/ztp/tests/.coverage .coverage.pytest
+
+# Combine both covreage information and generate a report
+python3-coverage combine
+
+python3-coverage report --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/py/*,*dist-packages/pytest.py,*__init__.py,*testlib.py,testlib.py"
+
+python3-coverage html --omit="*_pytest*,*test_*,*pkg_resources*,*dist-packages/py/*,*dist-packages/pytest.py,*__init__.py,*testlib.py,testlib.py"
+```
+
+
+
+### 12.3 Test setup
 
 - Out-of-band Provisioning
   - DHCP server to assign IP address to management interface (eth0)
   - Web server to host scripts and other relevant files needed for provisioning
+  
 - In-band Provisioning
   - DHCP server to assign IP address to front-panel ports. Ensure that the DHCP server is one hop away and there is a DHCP relay agent to ensure DHCP requests/response are forwarded to next hop.
     - DHCP server <-----> [DHCP Relay agent] <-------------> [DUT] 
   - Web server to host scripts and other relevant files needed for provisioning reachable over front panel interfaces. 
+  
 - Test ZTP JSON files as per test case
+
 - Plugin scripts for processing ZTP JSON
+
 - Switch configuration files (config_db.json, minigraph.xml, acl.json)
+
 - Few different versions of switch firmware images
 
-## 12.3 Test Cases Summary
+  
+
+## 12.4 Test Cases Summary
 
 1. Verify that ZTP can be initiated using ZTP JSON URL provided as part of DHCP Option 67 using out-of-band management network.
 
@@ -837,7 +1314,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 22. Verify that DHCP Option 67 is given precedence over DHCP Option 239 when both of them are provided by the DHCP response. DHCP Option 239 is ignored
 
-23. Verify that ZTP service exits with a failure when ZTP configuration file*/usr/lib/ztp/ztp_cfg.json* is not present or contains incorrect data
+23. Verify that ZTP service exits with a failure when ZTP configuration file*/host/ztp/ztp_cfg.json* is not present or contains incorrect data
 
 24. Verify behavior when a ZTP session is in progress and as part of ZTP, install a new SONiC switch image and reboot to newly installed image
 
@@ -855,7 +1332,7 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
     
 
-### 12.4 Test Cases
+### 12.5 Test Cases
 
 ### Test Case #1
 
@@ -1096,6 +1573,18 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 - "url": "source-string"
 
   - Using shorthand notation of url object uses its value as source string and does not look for sub objects
+
+- Use FTP url string to download plugin stored on an FTP server
+
+  - All configuration sections are executed in order and ZTP is marked as complete
+
+- Use TFTP url string to download plugin stored on an TFTP server
+
+  - All configuration sections are executed in order and ZTP is marked as complete
+
+- Use SFTP/scp url string to download plugin stored on an SFTP/scp server
+
+  - All configuration sections are executed in order and ZTP is marked as complete
 
   
 
@@ -1527,11 +2016,11 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 ### Test Case #23
 
-**Objective:** Verify that ZTP service exits with a failure when ZTP configuration file */usr/lib/ztp/ztp_cfg.json* is not present or contains incorrect data
+**Objective:** Verify that ZTP service exits with a failure when ZTP configuration file */host/ztp/ztp_cfg.json* is not present or contains incorrect data
 
 **Test Steps:**
 
-- Modfy contents with invalid values, incorrect JSON format or delete the file /usr/lib/ztp/ztp_cfg.json
+- Modfy contents with invalid values, incorrect JSON format or delete the file /host/ztp/ztp_cfg.json
 - Start ztp service
 
 **Expected Results:**
@@ -1697,20 +2186,21 @@ This test plan describes tests to exercise various capabilities of Zero Touch Pr
 
 **Additional Tests:**
 
-- Use various levels of severity to log-level-stdout field in /usr/lib/ztp/ztp_cfg.json file
+- Use various levels of severity to log-level-stdout field in /host/ztp/ztp_cfg.json file
   - Messages with severity level equal to or higher than set level show up in /var/log/syslog
-- Use various levels of severity to log-level-file field in /usr/lib/ztp/ztp_cfg.json file
+- Use various levels of severity to log-level-file field in /host/ztp/ztp_cfg.json file
   - Messages with severity level equal to or higher than set level show up in /var/log/ztp.log
 - Use different logging priority level values for log-level-stdout  and  log-level-file
   - Observe that log contents are different based on their set values
 - User invalid logging level string
   - Observe that logging is performed assuming default level as INFO and ignoring the invalid value provided by user
-- Remove "log-level-file" field from /usr/lib/ztp/ztp_cfg.json
+- Remove "log-level-file" field from /host/ztp/ztp_cfg.json
   - Observe that no logs are generated to file ''/var/log/ztp.log'
-- Remove "log-level-stdout" or "log-level-file" fields from /usr/lib/ztp/ztp_cfg.json
+- Remove "log-level-stdout" or "log-level-file" fields from /host/ztp/ztp_cfg.json
   - Observe that logging is performed assuming default level as INFO
 - Issue 'systemctl status -l' command
   - Contents of output are same as the ZTP logs sent to syslog
 - Create a configuration task which generates a huge volume of output continuously and does not exit for a very long time, may be days
   - Ensure that all the volumes of data is logged to /var/log/ztp.log and /var/log/syslog without any interruption to ztp process
   - Run these tests continuously and use logrotate to truncate the log files so that switch does not run out of disk space
+

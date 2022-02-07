@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: snmp-sv2
+spec:
+  template:
+    metadata:
+      labels:
+        name: snmp
+    spec:
+      hostname: sonic
+      hostNetwork: true
+      containers:
+      - name: snmp
+        image: sonicanalytics.azurecr.io/sonic-dockers/any/docker-snmp-sv2:20200824
+        name: snmp
+        tty: true
+        env:
+        - name: OWNER
+          value: "kube"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: sonic
+          mountPath: /etc/sonic
+          readOnly: true
+        - name: python
+          mountPath: /usr/lib/python3/dist-packages/arista
+          readOnly: true
+        - name: hwsku
+          mountPath: /usr/share/sonic/hwsku
+          readOnly: true
+        - name: platform
+          mountPath: /usr/share/sonic/platform
+          readOnly: true
+        - name: redis
+          mountPath: /var/run/redis
+          readOnly: false
+        imagePullPolicy: IfNotPresent
+      volumes:
+      - name: sonic
+        hostPath:
+          path: /etc/sonic
+      - name: python
+        hostPath:
+          path: /usr/lib/python3/dist-packages/arista
+      - name: hwsku
+        hostPath:
+          path: /usr/share/sonic/device/x86_64-dell_s6000_s1220-r0/Force10-S6000
+      - name: platform
+        hostPath:
+          path: /usr/share/sonic/device/x86_64-dell_s6000_s1220-r0
+      - name: redis
+        hostPath:
+          path: /var/run/redis
+      nodeSelector:
+        snmp_enabled: "true"
+        lldp_status: "up"
+  selector:
+    matchLabels:
+      name: snmp
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+
