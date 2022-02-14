@@ -9,7 +9,7 @@
 
 ## Overview
 
-In the current design of Copp Manager, before installing a trap, CoppMgr checks if one of the following requirements is fulfilled:
+In the previous design of Copp Manager, before installing a trap, CoppMgr checks if one of the following requirements is fulfilled:
 
 1. Trap name is in the features table and enabled.
 2. Trap name does not exist in the features table. (e.g. arp, lacp, udld, ip2me).
