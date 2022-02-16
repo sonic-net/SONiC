@@ -6,18 +6,22 @@ passwd(/etc/passwd) -. read user info .-> userinfoprovider[UserInfoProvider];
 userinfoprovider -- update --> oomhandler[OomHandler];
 
 %% Memory monitor response for minitor memory utilzation
-cgroup(cgroup) -. subscribe event .-> memmonitor[MemMonitor]
+cgroup(cgroup) -. memory event .-> memmonitor[MemMonitor]
 memmonitor -- reach high-water mark --> oomhandler[OomHandler]
 
 %% Container monitor response for minitor memory utilzation
-containercgroup(container cgroup) -. subscribe OOM event .-> containermonitor[ContainerMonitor]
+containercgroup(container cgroup) -. OOM event .-> containermonitor[ContainerMonitor]
 containermonitor -- restart container --> docker[Docker]
 
 %% Config provider response for monitor and get latest OOMD config
-confdb[(Config DB)] -. config change event .-> confprovider[ConfigProvider]
-confprovider --> memmonitor
-confprovider --> oomhandler
-confprovider --> containermonitor
+confdb[(Config DB)] -. config change event .-> swsscommon[swsscommon]
+swsscommon --> memmonitor
+swsscommon --> containermonitor
+swsscommon --> oomhandler
+
+%% Config provider response for monitor and get latest OOMD config
+supervisord[supervisord] -. critical pid list .-> CriticalProcessInfoProvider[CriticalProcessInfoProvider]
+CriticalProcessInfoProvider --> oomhandler
 
 %% OOM handler will terminate process
 oomhandler -- SIG_TERM--> process[process]

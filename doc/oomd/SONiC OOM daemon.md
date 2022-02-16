@@ -31,6 +31,8 @@ This document provides a detailed description on the new features for:
  - OOM daemon ConfigDB schema
 
 ### Linux OOM
+<img src="./Linux OOM.PNG"/>
+
  - OOM: Out Of Memory
  - OOM Killer: OOM handler in Linux kernel
      - Customize by /proc/sys/vm/panic_on_oom:
@@ -53,6 +55,10 @@ This document provides a detailed description on the new features for:
            - Every docker container has a cgroup under: /sys/fs/cgroup/memory/docker/
            - container can set cgroup policy by 'docker run' parameter.
            - container cgroup can trigger OOM
+           - Side effect when disable OOM in docker container:
+             - Because every process inside a docker container are inside same cgroup.
+             - Docker command will start process in docker container and allocate memory.
+             - So when OOM happen any docker command also will hang.
 
 ### SONiC memory issue solved by this feature.
  - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
@@ -68,13 +74,16 @@ This document provides a detailed description on the new features for:
      - Some docker container will set memory limit and disable trigger system OOM killer.
      - These docker container will hang when OOM happen.
      - OOMD will subscribe OOM event of these docker, and re-start container when container OOM happen.
- - Monitor system memory utilization, protect system by terminate user process:
+ - Monitor system memory utilization, protect system by terminate non-critical process:
     - Can set system memory high-water mark and low-water mark.
        - high-water mark: when memory utilization reach this threshold, OOMD will be triggered to start terminate process to release memory.
        - low-water mark: when OOMD been triggered, OOMD will release memory to this threshold.
     - Can set allow list for user/group:
-       - Only process run by these users/groups can be terminate by OOMD.
-       - This setting is designed to protect key system process.
+       - Any process run by these users/groups are non-critical process, can be terminate by OOMD.
+       - This setting is designed to protect critical system process.
+    - Can terminate non-critical process run inside docker container:
+       - Any process run inside docker container are run by 'root' account.
+       - SONiC using supervisord to manage docker container process, OOMD can load critical process list from supervisord.
     - Can set terminate policy:
        - Terminate user session or terminate user process.
        - The reason to terminate user session are:
@@ -114,16 +123,16 @@ This document provides a detailed description on the new features for:
  - OOMD will be a service managed by systemd.
  - System memory monitor and protect
      - Get system memory information from /proc/meminfo.
-     - Subscript cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
+     - Subscribes cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
      - Get user information from /etc/passwd.
      - OOMD will send SIGKILL/SIGTERM to kill/terminate process.
      - OOMD can config to terminate user session by kill/terminate process group.
  - Docker container monitor and re-start
-     - Subscript docker container OOM event from memory.oom_control
+     - Subscribes docker container OOM event from memory.oom_control
      - OOMD will run 'docker restart' command to restart docker container
  - The following diagram show how OOMD work:
     - UserInfoProvider will get user information from /etc/passwd
-    - ConfigProvider will subscript config DB change event and update OOMD config.
+    - ConfigProvider will subscribe config DB change event and update OOMD config.
     - MemMonitor will monitor cgroup event and trigger OomHandler.
     - ContainerMonitor will monitor container OOM event and re-start container
     - When memory utilization reach high-water mark, OomHandler will terminate user process to prevent OOM happen. 
@@ -136,7 +145,7 @@ This document provides a detailed description on the new features for:
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | earlyoom             | Designed to free swap, SONiC not have swap.                  | [rfjakob/earlyoom: earlyoom - Early OOM Daemon for Linux (github.com)](https://github.com/rfjakob/earlyoom) |
 | oomd                 | Developed by Facebook, Highly customizable by support plugin. Too heavy for SONiC. | [facebookincubator/oomd: A userspace out-of-memory killer (github.com)](https://github.com/facebookincubator/oomd) |
-| systemd-oomd.service | Depends on cgroupv2, currently SONiC using cgroupv1.  Not scalable, can't customize to protect key system process. | [systemd-oomd.service(8) - Linux manual page (man7.org)](https://man7.org/linux/man-pages/man8/systemd-oomd.service.8.html) |
+| systemd-oomd.service | Depends on cgroupv2, currently SONiC using cgroupv1.  Can't customize to protect critical system process. | [systemd-oomd.service(8) - Linux manual page (man7.org)](https://man7.org/linux/man-pages/man8/systemd-oomd.service.8.html) |
 
 
 

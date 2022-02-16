@@ -22,6 +22,9 @@ DOCKERCGROUP(docker cgroup) -. oom_control event .-> OOMD;
 %% OOMD get user info from /etc/passwd
 passwd(/etc/passwd) -. user information .-> OOMD;
 
+%% OOMD get critical process info from supervisord
+supervisord(supervisord) -. critical process info .-> OOMD;
+
 %% OOMD terminate user session/process when memory utilzation reach high-water mark
 OOMD -- terminate signal --> process[process]
 

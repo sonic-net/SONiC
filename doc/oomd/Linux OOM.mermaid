@@ -1,0 +1,25 @@
+```mermaid
+graph LR;
+%% CGroup may trigger OOM
+CGroup -- memory.oom_control=0 --> HangCurrentProcess(Hang current process);
+CGroup[CGroup] -- memory.oom_control=1 --> OOM[OOM Event];
+
+%% Docker container may trigger OOM
+DockerContainer[DockerContainer] -- default --> OOM[OOM Event];
+DockerContainer -- oom-kill-disable --> HangCurrentProcess;
+
+%% Any process may trigger OOM when no avaliable memory
+Process[Process] -- request memory, no avaliable memory --> OOM[OOM Event];
+
+%% Any process may trigger OOM when no avaliable memory
+SysRq[SysRq] -- send 'f' to sysrq-trigger --> OOM[OOM Event];
+
+%% OOM event will handle by OOM Killer
+OOM -.-> OOMKiller[OOMKiller];
+
+%% OOM Killer behavior depends on /proc/sys/vm/panic_on_oom
+OOMKiller -- panic_on_oom=0 --> KillProcessByOomScore(Kill process by OOM score);
+OOMKiller -- panic_on_oom=1 --> KillCurrentProcess(Kill current process);
+OOMKiller -- panic_on_oom=2 --> KernalPanic(Kernal panic);
+
+```
