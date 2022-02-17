@@ -189,7 +189,7 @@ allow_group_list         = LIST(string)       ; OOMD can terminate process start
     config oomd memory    { enable/disable}
     config oomd container { enable/disable}
     
-    // config OOMD high-water mark and low-water mark, number are memory utilzation percentage.
+    // config OOMD high-water mark and low-water mark, number are free memory in MB.
     config oomd policy { highwatermark|lowwatermark } <number>
     
     // config which user/group can be terminate
@@ -197,6 +197,12 @@ allow_group_list         = LIST(string)       ; OOMD can terminate process start
     
     // config if OOMD can terminate domain account process/session
     config oomd policy domainaccount { enable|disable }
+    
+    // config if OOMD can restart container when container OOM
+    config oomd policy restartcontainer { enable|disable }
+    
+    // config if OOMD can terminate non-critical process run inside container
+    config oomd policy managecontainer { enable|disable }
     
     // config OOMD terminate user session or process
     config oomd policy terminatescope { session|process }
@@ -251,6 +257,18 @@ allow_group_list         = LIST(string)       ; OOMD can terminate process start
 
   ```
     Verify when OOMD triggered, the processes run by domain account been terminated correctly.
+  ```
+
+  - Change OOMD restart container config and check the OOMD restart container correctly:
+
+  ```
+    Verify when container OOM, the container been restart correctly.
+  ```
+
+  - Change OOMD manage container config and check the OOMD terminate non-critical process inside container correctly:
+
+  ```
+    Verify when OOMD triggered, the non-critical processes running inside docker been terminated correctly.
   ```
 
   - Change OOMD terminate process/session config and check the OOMD terminate process/session correctly:
