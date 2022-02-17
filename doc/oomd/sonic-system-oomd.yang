@@ -47,6 +47,16 @@ module sonic-system-oomd {
                     description "OOMD will terminate process run by domain account";
                     default true;
                 }
+                leaf restart_container {
+                    type boolean;
+                    description "OOMD will monitor and restart container when container OOM happen";
+                    default true;
+                }
+                leaf manage_container {
+                    type boolean;
+                    description "OOMD will terminate non-critical process run inside container";
+                    default true;
+                }
                 leaf terminate_scope {
                     type terminate_scope_type;
                     description "OOMD will terminate process or session";

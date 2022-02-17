@@ -1,0 +1,15 @@
+```mermaid
+graph LR;
+
+%% Docker container may trigger OOM
+DockerContainer[Container] -- default --> OOM[OOM Event];
+
+%% Any process may trigger OOM when no avaliable memory
+Process[Process] -- request memory, no avaliable memory --> OOM[OOM Event];
+
+%% OOM event will handle by OOM Killer
+OOM -.-> OOMKiller[OOMKiller];
+
+%% SONiC OOM will trigger kernel panic
+OOMKiller -- panic_on_oom=2 --> KernalPanic(Kernal panic);
+```

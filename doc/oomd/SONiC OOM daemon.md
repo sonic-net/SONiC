@@ -61,13 +61,14 @@ This document provides a detailed description on the new features for:
              - So when OOM happen any docker command also will hang.
 
 ### SONiC memory issue solved by this feature.
+<img src="./SONiC OOM.PNG"/>
+
  - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
  - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. 
  - SONiC does not enable swap for most device. This means when OOM happen, system will not get memory with swap, this means OOM killer will be triggered very fast on SONiC.
  - When user run some command trigger OOM, SONiC will kernel panic. for example:
    - Multiple user login to device, some service may create 10+ concurrent sessions login to device.
    - Some user script/command take too much memory, currently 'show' command will take 70 MB memory.
- - To fix this issue, we need 2 features: login session limit and OOM daemon.
 
 # 1 Functional Requirement
  - Monitor docker OOM status and re-start docker when OOM happen.
@@ -82,8 +83,8 @@ This document provides a detailed description on the new features for:
        - Any process run by these users/groups are non-critical process, can be terminate by OOMD.
        - This setting is designed to protect critical system process.
     - Can terminate non-critical process run inside docker container:
-       - Any process run inside docker container are run by 'root' account.
-       - SONiC using supervisord to manage docker container process, OOMD can load critical process list from supervisord.
+       - Any process run inside docker container are run by 'root' account. also will exist in container's cgroup.
+       - SONiC using supervisord to manage docker container process, OOMD can get critical process list from supervisord.
     - Can set terminate policy:
        - Terminate user session or terminate user process.
        - The reason to terminate user session are:
@@ -125,6 +126,7 @@ This document provides a detailed description on the new features for:
      - Get system memory information from /proc/meminfo.
      - Subscribes cgroup memory utilization event from /sys/fs/cgroup/memory/memory.usage_in_bytes.
      - Get user information from /etc/passwd.
+     - Get critical process list from supervisord.
      - OOMD will send SIGKILL/SIGTERM to kill/terminate process.
      - OOMD can config to terminate user session by kill/terminate process group.
  - Docker container monitor and re-start
@@ -132,6 +134,7 @@ This document provides a detailed description on the new features for:
      - OOMD will run 'docker restart' command to restart docker container
  - The following diagram show how OOMD work:
     - UserInfoProvider will get user information from /etc/passwd
+    - CriticalProcessInfoProvider will get critical process list from supervisord
     - ConfigProvider will subscribe config DB change event and update OOMD config.
     - MemMonitor will monitor cgroup event and trigger OomHandler.
     - ContainerMonitor will monitor container OOM event and re-start container
@@ -168,6 +171,8 @@ enable_container_monitor = Boolean            ; Enable status, true for enable.
 high_water_mark          = 3*DIGIT            ; Memory utilzation high-water mark
 low_water_mark           = 3*DIGIT            ; Memory utilzation low-water mark
 domain_account           = Boolean            ; OOMD will terminate process run by domain account
+restart_container        = Boolean         ; OOMD will monitor and restart container when container OOM happen
+manage_container         = Boolean       ; OOMD will terminate non-critical process run inside container
 terminate_scope          = LIST(1*32VCHAR)    ; OOMD terminate scope: "process" or "session"
 allow_user_list          = LIST(string)    ; OOMD can terminate process start by users in this list 
 allow_group_list         = LIST(string)    ; OOMD can terminate process start by group users in this list 
@@ -211,7 +216,7 @@ allow_group_list         = LIST(string)    ; OOMD can terminate process start by
  - OOMD will write errors to syslog.
 
 # 5 Serviceability and Debug
- - OOMD  can be debugged by enabling the debug flag OOMD config.
+ - OOMD can be debugged by enabling the debug flag OOMD config.
 
 # 6 Unit Test
 
@@ -274,3 +279,5 @@ https://www.kernel.org/doc/gorman/html/understand/understand016.html
 ## cgroup
 https://man7.org/linux/man-pages/man7/cgroups.7.html
 
+## supervisord
+https://http://supervisord.org/
