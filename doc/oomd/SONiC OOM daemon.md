@@ -33,7 +33,7 @@ This document provides a detailed description on the new features for:
 ### Linux OOM
 <img src="./Linux OOM.PNG"/>
 
- - OOM: Out Of Memory
+ - OOM: Out Of Memory, this is a undesired state of Linux system where no available memory can be allocated for program.
  - OOM Killer: OOM handler in Linux kernel
      - Customize by /proc/sys/vm/panic_on_oom:
          - 0: Kill process based on /proc/$PID/oom_score_adj
@@ -77,8 +77,11 @@ This document provides a detailed description on the new features for:
      - OOMD will subscribe OOM event of these docker, and re-start container when container OOM happen.
  - Monitor system memory utilization, protect system by terminate non-critical process:
     - Can set system memory high-water mark and low-water mark.
-       - high-water mark: when memory utilization reach this threshold, OOMD will be triggered to start terminate process to release memory.
+       - high-water mark: when free memory less than this threshold, OOMD will be triggered to start terminate process to release memory.
        - low-water mark: when OOMD been triggered, OOMD will release memory to this threshold.
+    - Critical process include:
+       - Any process start by local user.
+       - Any process start by supervisord in docker container.
     - Can set allow list for user/group:
        - Any process run by these users/groups are non-critical process, can be terminate by OOMD.
        - This setting is designed to protect critical system process.
@@ -86,7 +89,7 @@ This document provides a detailed description on the new features for:
        - Any process run inside docker container are run by 'root' account. also will exist in container's cgroup.
        - SONiC using supervisord to manage docker container process, OOMD can get critical process list from supervisord.
     - Can set terminate policy:
-       - Terminate user session or terminate user process.
+       - Terminate domain user session or terminate user process.
        - The reason to terminate user session are:
          - When kernel receive a allocate memory request, kernel will try find memory by memory swap or release memory used by cache.
          - SONiC not enable swap, when swap not enabled, the kernel will finish the find memory procedure very fast.
@@ -154,8 +157,8 @@ This document provides a detailed description on the new features for:
 
 ## 3.2 Default OOMD config
 - OOMD will be enabled by default.
-- Default high-water mark: 90
-- Default low-water mark: 60
+- Default high-water mark: 400 MB
+- Default low-water mark: 600 MB
 - Default user/group list is empty.
 - Terminate domain user process by default.
 - Monitor all container with memory limit and disable OOM.
@@ -168,14 +171,14 @@ key                      = "policies"         ; OOMD policies
 ; Attributes
 enable_memory_monitor    = Boolean            ; Enable status, true for enable.
 enable_container_monitor = Boolean            ; Enable status, true for enable.
-high_water_mark          = 3*DIGIT            ; Memory utilzation high-water mark
-low_water_mark           = 3*DIGIT            ; Memory utilzation low-water mark
+high_water_mark          = 10*DIGIT           ; Free memory high-water mark in MB
+low_water_mark           = 10*DIGIT           ; Free memory low-water mark in MB
 domain_account           = Boolean            ; OOMD will terminate process run by domain account
-restart_container        = Boolean         ; OOMD will monitor and restart container when container OOM happen
-manage_container         = Boolean       ; OOMD will terminate non-critical process run inside container
+restart_container        = Boolean            ; OOMD will monitor and restart container when container OOM
+manage_container         = Boolean            ; OOMD will terminate non-critical process run inside container
 terminate_scope          = LIST(1*32VCHAR)    ; OOMD terminate scope: "process" or "session"
-allow_user_list          = LIST(string)    ; OOMD can terminate process start by users in this list 
-allow_group_list         = LIST(string)    ; OOMD can terminate process start by group users in this list 
+allow_user_list          = LIST(string)       ; OOMD can terminate process start by users in this list 
+allow_group_list         = LIST(string)       ; OOMD can terminate process start by group users in this list 
 ```
  - Yang model: [sonic-system-oomd.yang](./sonic-system-oomd.yang)
 
@@ -233,8 +236,8 @@ allow_group_list         = LIST(string)    ; OOMD can terminate process start by
   - Change OOMD high-water/low-water mark and check the OOMD will be triggered correctly:
   ```
       Verify when system memory utilzation reach high-water mark OOMD triggered.
-      Verify when OOMD triggered, been terminated to free enough memory to low-water mark.
-      Verify when OOMD triggered, the system process are healthy.
+      Verify when OOMD triggered, non-critical process been terminated to free enough memory to low-water mark.
+      Verify when OOMD triggered, the critical process are healthy.
   ```
 
   - Change OOMD user/group config and check the OOMD terminate process correctly:

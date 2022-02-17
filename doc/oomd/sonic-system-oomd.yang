@@ -29,18 +29,14 @@ module sonic-system-oomd {
                     default true;
                 }
                 leaf high_water_mark {
-                    description "Memory utilzation high-water mark";
-                    default 90;
-                    type uint32 {
-                        range 50..100;
-                    }
+                    description "Free memory high-water mark in MB";
+                    default 400;
+                    type uint32;
                 }
                 leaf low_water_mark {
-                    description "Memory utilzation low-water mark";
-                    default 90;
-                    type uint32 {
-                        range 0..100;
-                    }
+                    description "Free memory low-water mark in MB";
+                    default 600;
+                    type uint32;
                 }
                 leaf domain_account {
                     type boolean;
@@ -49,7 +45,7 @@ module sonic-system-oomd {
                 }
                 leaf restart_container {
                     type boolean;
-                    description "OOMD will monitor and restart container when container OOM happen";
+                    description "OOMD will monitor and restart container when container OOM";
                     default true;
                 }
                 leaf manage_container {
