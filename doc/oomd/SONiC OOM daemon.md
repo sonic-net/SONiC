@@ -63,7 +63,7 @@ This document provides a detailed description on the new features for:
 ### SONiC memory issue solved by this feature.
 <img src="./SONiC OOM.PNG"/>
 
- - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernal panic when OOM. This is by design to protect SONiC key process and container.
+ - Currently SONiC enabled OOM killer, and set /proc/sys/vm/panic_on_oom to 2, which will trigger kernel panic when OOM. This is by design to protect customer traffic, after kernel panic SONiC critical process and container will all restart correctly.
  - A typical switch device have 4 GB memory and sonic usually will use 1.5 GB for dockers, and 500 MB for system process. so there will be 2 GB free memory for user. 
  - SONiC does not enable swap for most device. This means when OOM happen, system will not get memory with swap, this means OOM killer will be triggered very fast on SONiC.
  - When user run some command trigger OOM, SONiC will kernel panic. for example:
@@ -100,7 +100,7 @@ This document provides a detailed description on the new features for:
 
 # 2 Configuration and Management Requirements
 ## 2.1 SONiC CLI
- - Manage login session or memory  limit settings
+ - Change oomd settings
 ```
     # config OOMD enable/disable status
     config oomd { enable/disable}
