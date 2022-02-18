@@ -1,0 +1,180 @@
+# TC remapping for mux tunnel
+
+
+## 1 Table of Content ###
+
+### 1.1 Revision ###
+
+## 2 Scope ##
+
+This document will cover high level design of TC remapping in SONiC.
+
+## 3 Definitions/Abbreviations ##
+
+This section covers the abbreviation if any, used in this high-level design document and its definitions.
+
+| Term | Meaning |
+|:--------:|:---------------------------------------------:|
+| PFC | Priority-based Flow Control  |
+| TC | Traffic class|
+
+## 4 Overview ##
+
+## 5 Design ##
+
+### 5.1 SWSS Schema
+#### 5.1.1 Define new table mapping
+* Table for decap
+
+    DSCP_TO_TC_MAP for mapping DSCP to TC
+    ```json
+    "DSCP_TO_TC_MAP": {
+        "AZURE_TUNNEL": {
+            "0": "1",
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "1",
+            "6": "6",
+            "7": "1",
+            "8": "0",
+            "9": "1",
+            ......
+    }
+    ```
+    TC_TO_PRIORITY_GROUP_MAP for mappping TC to PG
+    ```json
+    "TC_TO_PRIORITY_GROUP_MAP": {
+        "AZURE_TUNNEL": {
+            "0": "0",
+            "1": "0",
+            "2": "0",
+            "3": "2",
+            "4": "6",
+            "5": "0",
+            "6": "0",
+            "7": "7"
+    }
+    ```
+* Table for encap
+
+    TC_TO_QUEUE_MAP for remapping queue
+    ```json
+    "TC_TO_QUEUE_MAP": {
+        "AZURE_TUNNEL": {
+            "0": "0",
+            "1": "1",
+            "2": "1",
+            "3": "2",
+            "4": "6",
+            "5": "5",
+            "6": "1",
+            "7": "7"
+    }
+    ``` 
+    TC_TO_DSCP_MAP for rewriting DSCP
+    ```json
+    "TC_TO_DSCP_MAP": {
+        "AZURE_TUNNEL": {
+            "0": "8",
+            "1": "0",
+            "2": "0",
+            "3": "2",
+            "4": "6",
+            "5": "46",
+            "6": "0",
+            "7": "48"
+    }
+    ```
+
+#### 5.1.2 Update existing TUNNEL table
+1. Change `dscp_mode` from `uniform` to `pipe` for TC remapping
+2. Add TC remapping config if TC remapping is enabled
+
+```json
+    "TUNNEL": {
+        "MuxTunnel0": {
+            "dscp_mode": "pipe",
+            "dst_ip": "10.1.0.32",
+            "ecn_mode": "copy_from_outer",
+            "encap_ecn_mode": "standard",
+            "ttl_mode": "pipe",
+            "tunnel_type": "IPINIP",
+            "decap_dscp_to_tc_map": "[DSCP_TO_TC_MAP|AZURE_TUNNEL]",
+            "decap_tc_to_pg_map": "[TC_TO_PRIORITY_GROUP_MAP|AZURE_TUNNEL]",
+            "encap_tc_to_queue_map": "[TC_TO_QUEUE_MAP|AZURE_TUNNEL]",
+            "encap_tc_color_to_dscp_map": "[TC_TO_DSCP_MAP|AZURE_TUNNEL]"
+        }
+    }
+```
+
+#### 5.1.3 Define new field for extra lossless queues
+Two new fields are added to specify software or hardward PFC watchdog.
+
+* `pfc_wd_sw_enable` Specify the queue(s) to enable software PFC watchdog
+* `pfc_wd_hw_enable` Specify the queue(s) to enable hardware PFC watchdog.
+
+In current version, software PFC watchdog will read field `pfc_enable` to determine PFCWD is enabled on which queue(s). To maintain compatible with current logic, `db_migrator` script is required to be updated.
+
+```json
+"PORT_QOS_MAP": {
+        "Ethernet0": {
+            "dscp_to_tc_map": "[DSCP_TO_TC_MAP|AZURE]",
+            "pfc_enable": "3,4,2,6",
+            "pfc_wd_sw_enable": "3,4",
+            "pfc_wd_hw_enable": "2,6",
+            "pfc_to_queue_map": "[MAP_PFC_PRIORITY_TO_QUEUE|AZURE]",
+            "tc_to_pg_map": "[TC_TO_PRIORITY_GROUP_MAP|AZURE]",
+            "tc_to_queue_map": "[TC_TO_QUEUE_MAP|AZURE]"
+        }
+}
+```
+### 5.2 SAI attribute
+TC remapping requires below SAI attributes change.
+```cpp
+    /**
+     * @brief Enable TC AND COLOR -> DSCP MAP on tunnel at encapsulation (access-to-network) node to remark the DSCP in tunnel header
+     */
+    SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP,
+
+    /**
+     * @brief Enable TC -> Queue MAP on tunnel encap
+     */
+    SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP,
+
+    /**
+     * @brief Enable DSCP -> TC MAP on tunnel at termination (Network-to-access) node. This map if configured overrides the port MAP
+     */
+    SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP,
+
+    /**
+     * @brief Enable TC -> Priority Group MAP. TC is derived from the tunnel MAP
+     */
+    SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP,
+```
+### 5.3 Code change
+1. Update `tunneldecaporch` to read and set new tunnel attributes when creating decap tunnel.
+2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
+
+## 6 Test plan
+* Encap at standby side
+    
+    * Test case 1 Verify DSCP re-writing
+    * test case 2 Verify traffic is egressed at expected queue
+    * Test case 3 Verify PFC frame generation at expected queue
+
+* Decap at active side
+
+    * Test case 1 Verify packets egressed to server at expected queue
+    * Test case 2 Verify PFC pause frame block expected queue
+    * Test case 3 Verify PFC frame generation at expected queue
+
+
+## 7 Questions
+
+## 8 Todos
+1. Update yang model
+2. Confirm the usage of color to DSCP mapping
+3. Confirm `pipe` mode for DSCP at decap on BRCM
+ 
