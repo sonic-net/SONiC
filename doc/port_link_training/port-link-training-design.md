@@ -32,9 +32,12 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             | Dante (Kuo-Jung) Su| Initial version                   |
+ | 0.2 |             | Dante (Kuo-Jung) Su| Addressing code review comments   |
 
 ### Scope
 This document is the design document for port link training feature on SONiC. This includes the requirements, DB schema change, DB migrator change, yang model change and swss change.
+
+The link-training controls in this document is SAI specific, the Gearbox design is outside the scope of this document.
 
 ### Abbreviations
 
@@ -108,8 +111,9 @@ Currently, SAI already defines all the necessary port attributes to support port
 
 Vendor-specific SAI implementation is not in the scope of this document, but there are some common requirements for SAI:
 
-1. SAI implementation must return error code if any of the above attributes is not supported, swss and syncd must not crash.
-2. SAI implementation must keep port link training disabled by default for backward compatible. As long as swss and SAI keep backward compatible, user need not change anything after this feature is implemented and available in SONiC.
+1. swss must check the link-training capabilities before making the corresponding request to syncd.
+2. SAI implementation must return error code if any of the above attributes is not supported, swss and syncd must not crash.
+3. SAI implementation must keep port link training disabled by default for backward compatibility. As long as swss and SAI keep backward compatible, user need not change anything after this feature is implemented and available in SONiC.
 
 ### Configuration and management 
 
@@ -119,32 +123,38 @@ A few new CLI commands are designed to support port link training.
 
 ##### Config link training mode
 
+
 ```
 Format:
-  config interface link-training <interface_name> <mode>
+  config interface link-training <interface_name> <mode> [-f]
 
 Arguments:
-  interface_name: name of the interface to be configured. e.g: Ethernet0
-  mode: link training mode, can be either "auto", "on" or "off"
+  interface_name: [mandatory] name of the interface to be configured. e.g: Ethernet0
+  mode: [mandatory] link training mode, can be either "on" or "off"
+  -f: [optional] forcing link-training configuration on an unsupported transceiver
 
 Example:
   config interface link-training Ethernet0 auto
   config interface link-training Ethernet0 off
 
 Return:
-  error message if interface_name or mode is invalid otherwise empty
+  - error message if interface_name or mode is invalid
+  - error message if the link-training is not supported on the interface
+  - empty upon success
 ```
+
+For deployment considerations, when the link-training is enabled on a transceiver without LT capabilities, the swss#orchagent should log an error into syslog, and the config command should also report the error and get aborted, unless '-f' option is specified.
 
 ##### Show link training status
 
-A new CLI command will be added to display the port link training status. All data of this command are fetched from **APPL_DB**.
+A new CLI command will be added to display the port link training status. All data of this command are fetched from **STATE_DB**.
 
 ```
 Format:
   show interfaces link-training status <interface_name>
 
 Arguments:
-  interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows link training status for all interfaces.
+  interface_name: [optional] Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows link training status for all interfaces.
 
 Example:
   show interfaces link-training status
@@ -154,13 +164,15 @@ Return:
   error message if interface_name is invalid otherwise:
 
 admin@sonic:~$ show interfaces link-training status
-  Interface    LT Oper    LT Admin    LT Failure    LT RxStatus    Oper    Admin
------------  ---------  ----------  ------------  -------------  ------  -------
-  Ethernet0         on          on          none        trained      up       up
-  Ethernet8        off         off             -              -    down       up
- Ethernet16         on        auto          none        trained      up       up
- Ethernet24        off           -             -              -    down       up
- Ethernet32        off           -             -              -    down       up
+  Interface      LT Oper    LT Admin    Oper    Admin        Error Description
+-----------  -----------  ----------  ------  -------  -----------------------
+  Ethernet0      trained          on      up       up  unsupported transceiver
+  Ethernet8          off           -    down       up                        -
+ Ethernet16      trained          on      up       up  unsupported transceiver
+ Ethernet24          off           -    down       up                        -
+ Ethernet32  not trained          on    down       up                        -
+ Ethernet40          off           -    down       up                        -
+ Ethernet48          off           -    down       up                        -
 ```
 
 
@@ -182,11 +194,8 @@ When "link_training" is not specified, the port link training should be disabled
 
  | Mode |     Description                                                 |
  |:----:|:---------------------------------------------------------------:|
- | auto | Enable link-training if applicable to the transceiver attached  |
- | on   | Enable link-training regardless of the transceiver type         |
+ | on   | Enable link-training                                            |
  | off  | Disable link-training                                           |
-
-For deployment considerations, users are encouraged to use only **auto** and **off** for the **link_training**, while the **on** mode is for test purpose, it should only be activated when the transceiver is not correctly identified by the pmon#xcvrd, and forcing link-training enabled is intended.
 
 #### Application DB Enhancements
 
@@ -196,40 +205,62 @@ The following fields will be introduced into **PORT_TABLE** table:
 	key                     = PORT_TABLE:port_name ; configuration of the port
 	; field                 = value
 	...
-	link_training           = STRING               ; operational link training config
-	link_training_status    = STRING               ; operational link training status
-	link_training_failure   = STRING               ; operational link training failure status
-	link_training_rxstatus  = STRING               ; operational link training rx status
+	link_training           = STRING               ; operational link training admin config
 	xcvr_capabilities       = STRING               ; transceiver capabilities
 
 - link_training:  
-String value, the admin port link training config.
-- link_training_status:  
-String value, the operational port link training status. "on" indicates port link training is enabled, otherwise disabled.
-- link_training_failure:  
-String value, the operational port link training failure status. "none" indicates no error is detected, otherwise any of the link training failure status defined in SAI. For example: "none", "lock", "snr" and "timeout".
-- link_training_rxstatus:  
-String value, the operational port link training rx status. any of the link training rx status defined in SAI. For example: "trained", "not-trained".
-- xcvr_capabilities:
-String value, the transceiver capabilities provided by pmon#xcvrd, it's a set of capabilities separated by comma, where "LT" stands for "link training". See detail description in section [PMON xcvrd Considerations](#pmon-xcvrd-considerations)
+String value, the port link training admin config.
+- xcvr_capabilities:  
+String value, the transceiver capabilities provided by pmon#xcvrd, it's a set of capabilities separated by comma, where "LT" stands for "link training". The list of possible values is as follow  
+
+| Capability      | Description           |
+|:---------------:|:----------------------|
+| AN              | Auto Negotiation      |
+| LT              | Link Training         |
 
 To minimize system overhead, instead of periodically fetching the operational link training status, the corresponding fields in the APPL_DB will only be updated in the following events
 
-- Per-Port link status changes  
-In this case, only the **link_training_status** will be updated.
+#### State DB Enhancements
 
-- Explicitly link training status refresh requests via the notification model.  
-In this case, the **link_training_failure** and **link_training_rxstatus** of the selected port will be refreshed. See detail description in section [Link Training Status Refresh](#link-training-status-refresh)
+A new table **LINK_TRAINING** with the following fields will be introduced into STATE_DB:
+
+	; Defines information for port link-training states
+	key             = LINK_TRAINING:port_name ; port link-training states
+	; field         = value
+	status          = STRING                  ; operational link training status
+	err_description = STRING                  ; error description from swss#orchagent
+
+- status:  
+String value, the operational port link training status. The list of possible values is as follow  
+
+  | Status      | Description                                                        |
+  |:-----------:|:------------------------------------------------------------------:|
+  | off         | Disabled                                                           |
+  | on          | Enabled, while the further operational status is not yet available |
+  | trained     | Enabled, while the pre-emphasis is tuned successfully              |
+  | not_trained | Enabled, while the pre-emphasis is not yet tuned, no further failure is available |
+  | frame_lock  | Enabled, while the training frame delineation is detected          |
+  | snr_low     | Enabled, while the SNR low threshold is detected                   |
+  | timeout     | Enabled, while the training process is timed out                   |
+
+- err_description:  
+String value, the error description reported by the swss#orchagent, possible values is as follow  
+
+  | err_description         | Description                                              |
+  |:-----------------------:|:--------------------------------------------------------:|
+  | none                    | None of failure is detected                              |
+  | feature unavailable     | The link-training is not supported by the switch silicon |
+  | internal error          | A software failure is detected in swss, syncd or SAI     |
+  | unsupported transceiver | The link-training is not supported by the transceiver    |
+
+#### SAI attributes
 
 Here is the table to map the fields and SAI attributes:  
 
 | **Parameter**          | **sai_port_attr_t**
 |:-----------------------|:-------------------------------------------|
 | link_training          | SAI_PORT_ATTR_LINK_TRAINING_ENABLE         |
-| link_training_failure  | SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
-| link_training_rxstatus | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS      |
-
-Please note the operational port link training status in the APPL_DB could be different from the administratively configured link training configuration in the CONFIG_DB due to the hardware limitations or vendor-specific SAI software implementations. For example, port link training is only applicable to the ports with speed >= 10G, and it's not applicable for chip-to-module transceivers.
+| link_training_status   | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
 
 #### YANG Model Enhancements
 
@@ -238,7 +269,7 @@ The port yang model needs to update according to DB schema change. The yang mode
 ```
 leaf link_training {
   type string {
-    pattern "auto|on|off";
+    pattern "on|off";
   }
 }
 ```
@@ -268,37 +299,56 @@ port = getPort(alias)
 if autoneg changed:
     setPortAutoNeg(port, autoneg)
 
-if link_training changed and xcvr_capabilities has LT:
+if link_training changed and "LT" in xcvr_capabilities:
+    if (link_training == "on") and (LT not in xcvr_capabilities):
+        log_warn("LT is not applicable to this transceiver")
     setPortLinkTraining(port, link_training)
 ```
 
 ##### Link Training Status Refresh
 
-To refresh the operational link training status in APPL_DB, a new notification handler will be introduced to PortsOrch, the pseudo code is as follow:
+A timer will also be introduced into PortsOrch for polling link-training status:
 
 ```
-portCtrlConsumer = NotificationConsumer("PORT_CTRL")
-if portCtrlConsumer received 'op=port_status_refresh', 'data=EthernetXY' and 'type=link_training':
-    refreshPortLinkTrainingStatus(EthernetXY)
+while PortsOrch is alive:
+    sleep_sec(3)
+    for port in all_port_list:
+        updatePortLinkTrainingStatus(port)
 ```
 
-An example code snippet of initiating status refresh is as follow:
+The updatePortLinkTrainingStatus(port) can be furtherly described in following pseudo code:
 
 ```
-appl_db = daemon_base.db_connect("APPL_DB")
-port_np = swsscommon.NotificationProducer(appl_db, "PORT_CTRL")
+if port is not physical_port:
+    return
 
-fvp = swsscommon.FieldValuePairs([
-    ('type', 'link_training')
-])
-port_np.send('port_state_refresh', port, fvp)
+status = "off"
+if link-training is supported by the SAI and is enabled:
+    status = getLinkTrainingRxStatus(port)
+    if status != trained:
+        error = getLinkTrainingFailure(port)
+        if error != "none":
+            status = error
+        else:
+            status = "not_trained"
+updateLinkTrainingStateDB(port, status)
 ```
 
 #### PMON xcvrd Considerations
 
 Given that port link training shall not be enabled on certain transceivers. For example, a chip-to-module transceiver. It's better to have pmon#xcvrd provide a hint to the swss#orchagent for the advanced link training controls. Hence, **xcvr_capabilities** is introduced into APPL_DB.  
 
-When **link_training=auto**, swss#orchagent should request syncd to enable port link training only if **LT** is specified in **xcvr_capabilities**.
+As of now, only CR transceivers will be identified as link-training capabile, and this will be triggered at the transceiver insertion events, the pseudo code is follow:
+
+```
+def get_media_capability(port):
+    caps = []
+    info = get_transceiver_info(port)
+    if 'GBASE-CR' in info.get('specification_compliance'):
+        caps.append('LT')
+    return ",".join(caps) if len(caps) > 0 else 'N/A'
+```
+
 
 ### Warmboot Design Impact
 
@@ -320,7 +370,7 @@ For **sonic-platform-daemons**, we will leverage the existing [test_xcvrd.py](ht
 
 For **sonic-swss**, we will leverage the existing [test_port.py](https://github.com/Azure/sonic-swss/blob/master/tests/test_port.py) for this. A few new test cases will be added:
 
-1. Test attribute **link_training** on both direct and warm-reboot scenario. Verify SAI_PORT_ATTR_LINK_TRAINING_ENABLE, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS and SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS are in ASIC_DB and has correct value.
+1. Test attribute **link_training** on both direct and warm-reboot scenario. Verify SAI_PORT_ATTR_LINK_TRAINING_ENABLE is in ASIC_DB and has correct value.
 
 For **sonic-utilities**, we will leverage the existing [unit test framework](https://github.com/Azure/sonic-utilities/tree/master/tests) for this. A few new test cases will be added:
 
