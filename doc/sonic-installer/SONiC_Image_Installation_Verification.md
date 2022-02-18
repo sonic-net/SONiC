@@ -1,4 +1,3 @@
-
 # SONiC Image Installation Verification
 
 # High Level Design Document
@@ -17,11 +16,13 @@
 - [2 Functional Requirements](#2-functional-requirements)
 - [3 Configuration and Management Requirements](#3-configuration-and-management-requirements)
 - [4 Design and Flow Diagrams](#4-design-and-flow-diagrams)
-  * [4.1 Flow Diagrams](#41-flow-diagrams)
-  * [4.2 Design](#42-design)
-    + [4.2.1 Generate platform list](#421-generate-platform-list)
-    + [4.2.2 Verification](#422-verification)
-    + [4.2.3 Skip platform check](#423-skip-platform-check)
+  * [4.1 Background](#41-background)
+    + [4.1.1 Design Attempts](#411-design-attempts)
+  * [4.2 Flow Diagrams](#42-flow-diagrams)
+  * [4.3 Design](#43-design)
+    + [4.3.1 Generate platform list](#431-generate-platform-list)
+    + [4.3.2 Verification](#432-verification)
+    + [4.3.3 Skip platform check](#433-skip-platform-check)
 - [5 Error Handling](#5-error-handling)
 - [6 Serviceability and Debug](#6-serviceability-and-debug)
 - [7 Warm Boot Support](#7-warm-boot-support)
@@ -114,16 +115,107 @@ Options:
 
 # 4 Design and Flow Diagrams
 
-## 4.1 Flow Diagrams
+## 4.1 Background
+
+### 4.1.1 Design Attempts
+
+**Trial One: Simply use ASIC as comparison**
+
+In SONiC, the current ASIC info can be accessed from `/etc/sonic/sonic_version.yml`. With that, we can compare the `asic_type` with the to-be-installed image's ASIC and check if they match.
+```
+admin@str-s6000-acs-13:~$ cat /etc/sonic/sonic_version.yml
+...
+asic_type: broadcom                         <======
+```
+Need to mention that, it may prompt false negative message. Assume we have an broadcom switch which has already installed mellanox built image as no ASIC check before. Its `asic_type` will be translated to mellanox. Then it will wrongly report asic doesn't match if we try to install the correct broadcom built image.
+
+In ONiE, that info is not accessible. So we cannot do the ASIC check in ONiE.
+```
+ONIE:/ # cat etc/machine.conf
+onie_version=3.20.1.5
+onie_vendor_id=674
+onie_platform=x86_64-dell_s6000_s1220-r0
+onie_machine=dell_s6000_s1220
+onie_machine_rev=0
+onie_arch=x86_64
+onie_config_version=1
+onie_build_date="2016-02-09T17:14-0800"
+onie_partition_type=gpt
+onie_kernel_version=3.15.10
+onie_firmware=auto
+```
+So we turn to Trial two.
+
+**Trial Two: Build up a mapping for platform string->ASIC**
+
+In both ONiE and SONiC, the platform string is accessible.
+```
+ONIE:/ # cat etc/machine.conf
+...
+onie_platform=x86_64-dell_s6000_s1220-r0    <======
+```
+```
+admin@str-s6000-acs-13:~$ cat /host/machine.conf
+...
+onie_platform=x86_64-dell_s6000_s1220-r0    <======
+```
+The mapping will be carried in our built image and look like this:
+```
+x86_64-dell_s6000_s1220-r0=broadcom
+x86_64-dell_s6100_c2538-r0=broadcom
+x86_64-mlnx_msn2410-r0=mellanox
+x86_64-mlnx_msn2700-r0=mellanox
+...
+```
+Pros:
+ - The mapping fits both ONiE and SONiC installer. During installation, we can derive current platform's expected ASIC type based on the platform string, then compare that with the to-be-installed image's ASIC.
+
+Cons:
+ - It is a static mapping, which means that the mapping need to be kept in all repos and all ASIC build.
+   - Repo may contains different platforms. We need to keep a mapping containing all platforms, or keep custom mapping for each repo.
+   - Image built with one ASIC will contain all other ASIC's platform mapping, which is not necessary.
+
+**Trial Three(Choosen one): Generate platform list based on ASIC type runtime**
+
+We choose to generate the platform list file during the image build process. During image installation, we can just check if the switch's platform is in the `platforms_asic` list file. For example, during `sonic-broadcom.bin` build, a file named `platforms_asic` will be generated containing all applicable platforms that are fit broadcom ASIC build.
+
+Pros:
+ - It fits both ONiE and SONiC installer.
+ - The `platforms_asic` can be generated dynamically based on specific repo and the specific ASIC build. So we don't carry unnecessary info in our list file.
+
+Cons:
+ - We need to know in advance which platform is applicable for which build. So we will add a file `platform_asic` for each platform. But it is just one time effort.
+```
+:~/sonic-buildimage$ find device/ | grep platform_asic$
+...
+device/accton/x86_64-accton_as4630_54pe-r0/platform_asic
+device/accton/x86_64-accton_as4630_54te-r0/platform_asic
+device/accton/x86_64-accton_as9726_32d-r0/platform_asic
+...
+:~/sonic-buildimage$ cat device/accton/x86_64-accton_as4630_54pe-r0/platform_asic
+broadcom
+```
+
+## 4.2 Flow Diagrams
 The following figure shows how to intall an image through SONiC CLI.
 <img src="files/flowchart.png" alt="flowchart" width="1200"/>
 
-## 4.2 Design
+## 4.3 Design
 
-### 4.2.1 Generate platform list
-We need to generate one file `platforms_asic` for each image. This file contains the list of supported platforms and is generated during the process of image build. The file is kept in built image.
+### 4.3.1 Generate platform list
+To generate the `platforms_asic` file, we just loop in the device folder and collect `$TARGET_MACHINE` that matches to our ASIC type build.
+```
+for  d  in  `find -L ./device -maxdepth 2 -mindepth 2 -type d`; do
+	if [ -f $d/platform_asic ]; then
+		if [ "$TARGET_MACHINE" = "generic" ] || grep -Fxq "$TARGET_MACHINE"  $d/platform_asic; then
+			echo  "${d##*/}" >> "$platforms_asic";
+		fi;
+	fi;
+done
+```
+It worth mention that `sonic-broadcom.bin` and `sonic-broadcom-dnx.bin` are built together with `$CONFIGURED_PLATFORM` both set as broadcom. The difference is that they use different Debian package to build. So in upper code we grep with `$TARGET_MACHINE` because it can recognize it is whether broadcom or broadcom-dnx build and generate corresponding `platforms_asic`.
 
-Example `platforms_asic`of broadcom ASIC built image
+Example `platforms_asic`of broadcom ASIC built image using master repo
 ```
 x86_64-alphanetworks_snh60a0_320fv2-r0
 x86_64-alphanetworks_snj60d0_320f-r0
@@ -241,12 +333,17 @@ x86_64-mlnx_msn4700_simx-r0
 x86_64-nvidia_sn4800-r0
 ```
 
-### 4.2.2 Verification
+### 4.3.2 Verification
 To decide whether an image is of a correct type of ASIC during installation, the installer will verify if the current platform is inside to-be-installed image's built-in file `platforms_asic`. If not, verification would fail because it means the current platform is of a different ASIC type from the built image. If yes, it will pass the verification process and do other image checks.
 
-The ways to get the current platform is different between SONiC env and ONIE env. In SONiC env, the current platform can be obtained through function `device_info.get_platform()`. While in ONIE env, the current platform is recorded in `$onie_platform`from `/etc/machine.conf`.
+The ways to get the current platform is different between SONiC env and ONIE env.
 
-### 4.2.3 Skip platform check
+ - In SONiC env, the current platform can be obtained through function `p = device_info.get_platform()`.
+`sed -e '1,/^exit_marker$/d' image_path | tar -xf - platforms_asic -O | grep -Fxq p`
+ - In ONIE env, the current platform is recorded in `$onie_platform`from `/etc/machine.conf`.
+`grep -Fxq "$onie_platform" platforms_asic`
+
+### 4.3.3 Skip platform check
 We also provide a way to bypass the image's platform ASIC type verification. During sonic-installer install process, user can add an 'force install' option to bypass platform ASIC type check if sonic-installer detects that the image is of a different type of ASIC from the current platform.
 
 As `--force` option has been used for image secure boot check, we use  `--skip-platform-check` option to bypass our verification.
