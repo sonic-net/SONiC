@@ -99,8 +99,8 @@ the SONiC techsupport is automatically generated.
 The check will be implemented as a script that is ran by monit periodically:
 
 ```
-check program mem_checker with path "/usr/bin/mem_check"
-    if status != 0 for 10 times within 20 cycles then exec /usr/local/bin/coredumpgen_handler"
+check program mem_checker with path "/usr/bin/mem_threshold_check"
+    if status != 0 for 10 times within 20 cycles then exec /usr/local/bin/mem_threshold_check_handler"
 ```
 
 The action is going to be ran only once the mem_check script detects memory usage above threshold.
@@ -298,7 +298,7 @@ module sonic-auto_techsupport {
 #### AUTO_TECHSUPPORT_DUMP_INFO Table
 ```
 key                 = Techsupport Dump Name 
-event_type          = "core" / "available_mem_threshold" ; Type of event caused techsupport invocation
+event_type          = "core" / "memory" ; Type of event caused techsupport invocation
 core_dump           = 1*64VCHAR                           ; Core Dump Name
 timestamp           = 1*12DIGIT                           ; epoch of this record creation
 container_name      = 1*64VCHAR                           ; Container in which the process crashed/mem threshold. Unset when triggered from host.
@@ -321,7 +321,7 @@ hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223645"
 ```
 hgetall "AUTO_TECHSUPPORT_DUMP_INFO|sonic_dump_sonic_20210412_223123"
 1) "event_type"
-2) "available_mem_threshold"
+2) "memory"
 3) "timestamp"
 4) "1612045251"
 5) "container_name"
