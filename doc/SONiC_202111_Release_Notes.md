@@ -24,7 +24,7 @@ Image  : https://sonic-build.azurewebsites.net/ui/sonic/pipelines  (Example - Im
 |Feature                    | Version  |
 | ------------------------- | --------------- |
 | Linux kernel version      | linux_5.10.0-8-2-$(5.10.46-4)  |
-| SAI   version             | SAI v1.9    |
+| SAI   version             | SAI v1.9.1    |
 | FRR                       | 7.5.1   |
 | LLDPD                     | 1.0.4-1    |
 | TeamD                     | 1.28-1    |
@@ -219,6 +219,6 @@ Please find the list of API's classified along the newly added SAI features. For
 
 # Contributors 
 
-SONiC community would like to thank all the contributors from various companies and the individuals who has contributed for the release. Special thanks to the major contributors - Alibaba, Aviz, Broadcom, DellEMC, Google, Innovium, Intel, Juniper, LinkedIn, Metaswitch, Microsoft & Nvidia.  
+SONiC community would like to thank all the contributors from various companies and the individuals who has contributed for the release. Special thanks to the major contributors - Alibaba, Aviz, Broadcom, DellEMC, Google, Intel, Juniper, LinkedIn, Marvell, Metaswitch, Microsoft & Nvidia.  
 
 <br> 
