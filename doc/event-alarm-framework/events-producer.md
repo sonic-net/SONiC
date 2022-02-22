@@ -13,7 +13,7 @@ This would become even more challenging, when we upgrade individual container im
 The tools that use syslog messages face higher latency, as they have to wait for syslog messages to arrive to an external repository. 
 This latency could run in the order of minutes, oftent 10+.
 
-## Possible solutions
+## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
 2. Push the parsed data as JSON struct of {name: val[, ...]} to a redis DB table.
 3. Now any tool can subscribe to that table for events
