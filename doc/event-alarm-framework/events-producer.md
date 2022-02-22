@@ -43,8 +43,15 @@ This latency could run in the order of minutes, oftent 10+.
 ![image](https://user-images.githubusercontent.com/47282725/155053818-fa50ec78-4e78-425e-be9a-20a851570730.png)
 
 
+# Next Step:
+When alarm-event FW is functional, the plugin would start using the macros provided by the FW.
+The regex inside the continer will match the event/alarm name to regex for that message. This provides the container freedom to evolve w/o updating the central config.
+The additional config supported by the FW like enable/disable, priority, ... will be availablein the centralized per image config file as proposed in the FW.
+
 # CLI
-None
+This work is only a backend support to retrieve message from apps to redis-DB, which is consumed by external tools via gNMI.
+The new FW which offers higher level functionality by qualifying messages as EVENTS & ALARMS will provide the required CLI support for configuration & view.
+
 
 # Test
 We could upgrade existing test cases to additionally look for structured messages in redis for each scenario being tested.
