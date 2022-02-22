@@ -129,7 +129,7 @@ asic_type: broadcom                         <======
 ```
 Need to mention that, it may prompt false negative message. Assume we have an broadcom switch which has already installed mellanox built image as no ASIC check before. Its `asic_type` will be translated to mellanox. Then it will wrongly report asic doesn't match if we try to install the correct broadcom built image.
 
-In ONiE, that info is not accessible. So we cannot do the ASIC check in ONiE.
+In ONIE, that info is not accessible. So we cannot do the ASIC check in ONIE.
 ```
 ONIE:/ # cat etc/machine.conf
 onie_version=3.20.1.5
@@ -148,7 +148,7 @@ So we turn to Trial two.
 
 **Trial Two: Build up a mapping for platform string->ASIC**
 
-In both ONiE and SONiC, the platform string is accessible.
+In both ONIE and SONiC, the platform string is accessible.
 ```
 ONIE:/ # cat etc/machine.conf
 ...
@@ -168,7 +168,7 @@ x86_64-mlnx_msn2700-r0=mellanox
 ...
 ```
 Pros:
- - The mapping fits both ONiE and SONiC installer. During installation, we can derive current platform's expected ASIC type based on the platform string, then compare that with the to-be-installed image's ASIC.
+ - The mapping fits both ONIE and SONiC installer. During installation, we can derive current platform's expected ASIC type based on the platform string, then compare that with the to-be-installed image's ASIC.
 
 Cons:
  - It is a static mapping, which means that the mapping need to be kept in all repos and all ASIC build.
@@ -180,7 +180,7 @@ Cons:
 We choose to generate the platform list file during the image build process. During image installation, we can just check if the switch's platform is in the `platforms_asic` list file. For example, during `sonic-broadcom.bin` build, a file named `platforms_asic` will be generated containing all applicable platforms that are fit broadcom ASIC build.
 
 Pros:
- - It fits both ONiE and SONiC installer.
+ - It fits both ONIE and SONiC installer.
  - The `platforms_asic` can be generated dynamically based on specific repo and the specific ASIC build. So we don't carry unnecessary info in our list file.
 
 Cons:
