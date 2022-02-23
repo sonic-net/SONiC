@@ -38,6 +38,7 @@
 | 2020/10/10 | Xuhui, debootstrap supports reproduceable build |
 | 2020/11/01 | Xuhui, add Golang, component level build description |
 | 2020/11/25 | Xuhui, add Q&A, and simplify web package process |
+| 2022/02/23 | Xuhui, update scopes |
 
 
 # Overview
@@ -61,10 +62,10 @@ In Scopes:
 3. Host image created by debootstrap
 4. Web packages downloaded by wget/curl
 5. Debian package mirror
-6. Pypi package mirror
-7. Docker base images
-8. Source code by git, full commit id
-9. Arch: amd64, arm64, armhf
+6. Docker base images
+7. Source code by git, full commit id
+8. Arch: amd64, arm64, armhf
+9. Branches: 202012/202106/202111, after 202012
 
 Next scopes:
 
@@ -73,6 +74,7 @@ Next scopes:
 Out of Scopes:
 
 1. Golang reproduceable build, suggest to use go.mod to support reproduceable build, see https://github.com/golang/go/wiki/Modules#faqs--gomod-and-gosum.
+2. Pypi package mirror (Multiple versions supported)
 
 # Pypi packages
 
