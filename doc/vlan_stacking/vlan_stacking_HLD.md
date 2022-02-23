@@ -1,4 +1,4 @@
- ### Rev 0.2
+ ### Rev 0.3
 
 # Table of Contents
 
@@ -46,6 +46,7 @@
 |:-----:|:----------:|:-------------:|--------------------|
 | 0.1   |20-Dec-2021 | Tommy Tseng   | Initial version    |
 | 0.2   |26-Jan-2022 | Tommy Tseng   | Update CLI command |
+| 0.2   |23-Feb-2022 | Tommy Tseng   | Modify DB schema   |
 # Scope
 
 This document describes the high level design of VLAN stacking feature.
@@ -160,37 +161,71 @@ struct VlanStack
 A new table `VLAN_STACKING` is added in Config DB.
 
 ```
-VLAN_STACKING|{{interface_name}}|{{stage}}|{{vlanid}}
-"action":     {{action}}
-"s_vlanid":   {{s_vlanid}}  (optional)
+VLAN_STACKING|{{interface_name}}|{{s_vlanid}}
+"c_vlanids":        {{c_vlanids}}
+"s_vlan_priority":  {{s_vlan_priority}}
 ```
 
 ```
-`interface_name`  Ethernet port and and channel port name
-`stage`           Traffic direction
-                  ingress - ingress direction
-                  egress  - egress direction
-`vlanid`          Service VLAN ID
-                  C-VLAN for ingress direction
-                  S-VLAN for egress direction
-`action`          Rewrite action
-                  push - Adds a s_vlanid tag to an ingress packet.
-                  pop  - Pop (remove) the outermost tag.
-                  swap - Swap outermost tag by s_vlanid.
-`s_vlanid`        S-VLAN ID for push and swap action
+`interface_name`  Ethernet port and channel port name
+`s_vlanid`        Service VLAN ID
+                  push VLAN for ingress direction
+                  pop (remove) VLAN for egress direction
+`c_vlanids`       match VLAN IDs on ingress direction of interface
+`s_vlan_priority` VLAN priority of Service VLAN
 ```
 
 DB schema of VLAN_STACKING table:
 
 ```
 ; Defines schema for VLAN_STACKING configuration attributes
-key               = VLAN_STACKING:interface_name:stage:vlanid
-interface_name    = 
-stage             = ingress/egress
-vlanid            = 1*4DIGIT   ; a number between 1 and 4094
-; field           = value
-action            = push/pop/swap
-s_vlanid          = 1*4DIGIT   ; a number between 1 and 4094
+key               = VLAN_STACKING:interface_name:s_vlanid
+interface_name    =
+s_vlanid          = vlan_id                               ; a number between 1 and 4094
+; field           = value
+c_vlanids         = vlan_id-or-range[,vlan_id-or-range]*  ; list of VLAN IDs
+s_vlan_priority   = %x30-37                               ; a number between 0 and 7
+vlan_id           = %x31-39                               ; 1-9
+                  / %x31-39 DIGIT                         ; 10-99
+                  / %x31-39 2DIGIT                        ; 100-999
+                  / "1" 3DIGIT                            ; 1000-1999
+                  / "2" 3DIGIT                            ; 2000-2999
+                  / "3" 3DIGIT                            ; 3000-3999
+                  / "40" DIGIT %x30-34                    ; 4000-4094
+range             = vlan_id..vlan_id
+```
+
+A new table `VLAN_TRANSLATION` is added in Config DB.
+
+```
+VLAN_TRANSLATION|{{interface_name}}|{{s_vlanid}}
+"c_vlanid":        {{c_vlanid}}
+```
+
+```
+`interface_name`  Ethernet port and channel port name
+`s_vlanid`        Service VLAN ID,
+                   swap c_vlanid to s_vlanid for ingress direction
+                   swap s_vlanid to c_vlanid for egress direction
+`c_vlanid`        Customer VLAN ID
+```
+
+DB schema of VLAN_TRANSLATION table:
+
+```
+; Defines schema for  VLAN_TRANSLATION configuration attributes
+key               =  VLAN_TRANSLATION:interface_name:s_vlanid
+interface_name    =
+s_vlanid          = vlan_id            ; a number between 1 and 4094
+; field           = value
+c_vlanid          = vlan_id            ; a number between 1 and 4094
+vlan_id           = %x31-39            ; 1-9
+                  / %x31-39 DIGIT      ; 10-99
+                  / %x31-39 2DIGIT     ; 100-999
+                  / "1" 3DIGIT         ; 1000-1999
+                  / "2" 3DIGIT         ; 2000-2999
+                  / "3" 3DIGIT         ; 3000-3999
+                  / "40" DIGIT %x30-34 ; 4000-4094
 ```
 
 ### APPL_DB
@@ -198,37 +233,71 @@ s_vlanid          = 1*4DIGIT   ; a number between 1 and 4094
 A new table `VLAN_STACKING` is added in APP DB.
 
 ```
-VLAN_STACKING_TABLE:{{interface-name}}:{{stage}}:{{vlanid}}
-"action": {{action}}
-"s_vlanid":   {{s_vlanid}}  (optional)
+VLAN_STACKING_TABLE:{{interface-name}}:{{s_vlanid}}
+"c_vlanids":        {{c_vlanids}}
+"s_vlan_priority":  {{s_vlan_priority}}
 ```
 
-```
-`interface_name`  Ethernet port and and channel port name
-`stage`           Traffic direction
-                  ingress - ingress direction
-                  egress  - egress direction
-`vlanid`          Service VLAN ID
-                  C-VLAN for ingress direction
-                  S-VLAN for egress direction
-`action`          Rewrite action
-                  push -  Adds a s_vlanid tag to an ingress packet.
-                  pop  - Pop (remove) the outermost tag.
-                  swap - Swap outermost tag by s_vlanid.
-`s_vlanid`        S-VLAN ID for push and swap action
+```json
+`interface_name`  Ethernet port and channel port name
+`s_vlanid`        Service VLAN ID
+                  push VLAN for ingress direction
+                  pop (remove) VLAN for egress direction
+`c_vlanids`       match VLAN IDs on ingress direction of interface
+`s_vlan_priority` VLAN priority of Service VLAN
 ```
 
 DB schema of VLAN_STACKING table:
 
+```
+; Defines schema for VLAN_STACKING configuration attributes
+key               = VLAN_STACKING_TABLE:interface_name:s_vlanid
+interface_name    =
+s_vlanid          = vlan_id                               ; a number between 1 and 4094
+; field           = value
+c_vlanids         = vlan_id-or-range[,vlan_id-or-range]*  ; list of VLAN IDs
+s_vlan_priority   = %x30-37                               ; a number between 0 and 7
+vlan_id           = %x31-39                               ; 1-9
+                  / %x31-39 DIGIT                         ; 10-99
+                  / %x31-39 2DIGIT                        ; 100-999
+                  / "1" 3DIGIT                            ; 1000-1999
+                  / "2" 3DIGIT                            ; 2000-2999
+                  / "3" 3DIGIT                            ; 3000-3999
+                  / "40" DIGIT %x30-34                    ; 4000-4094
+range             = vlan_id..vlan_id
+```
+
+A new table `VLAN_TRANSLATION` is added in APP DB.
+
+```
+VLAN_TRANSLATION_TABLE:{{interface_name}}:{{s_vlanid}}
+"c_vlanid":        {{c_vlanid}}
+```
+
 ```json
-; Defines schema for VLAN_STACKING_TABLE configuration attributes
-key                        = VLAN_STACKING_TABLE:interface_name:stage:vlanid
-interface_name             = 
-stage                      = ingress/egress
-vlanid                     = 1*4DIGIT   ; a number between 1 and 4094
-; field                    = value
-action                     = push/pop/swap
-s_vlanid                   = 1*4DIGIT   ; a number between 1 and 4094
+`interface_name`  Ethernet port and channel port name
+`s_vlanid`        Service VLAN ID,
+                   swap c_vlanid to s_vlanid for ingress direction
+                   swap s_vlanid to c_vlanid for egress direction
+`c_vlanid`        Customer VLAN ID
+```
+
+DB schema of VLAN_TRANSLATION table:
+
+```
+; Defines schema for  VLAN_TRANSLATION configuration attributes
+key               =  VLAN_TRANSLATION_TABLE:interface_name:s_vlanid
+interface_name    =
+s_vlanid          = vlan_id            ; a number between 1 and 4094
+; field           = value
+c_vlanid          = vlan_id            ; a number between 1 and 4094
+vlan_id           = %x31-39            ; 1-9
+                  / %x31-39 DIGIT      ; 10-99
+                  / %x31-39 2DIGIT     ; 100-999
+                  / "1" 3DIGIT         ; 1000-1999
+                  / "2" 3DIGIT         ; 2000-2999
+                  / "3" 3DIGIT         ; 3000-3999
+                  / "40" DIGIT %x30-34 ; 4000-4094
 ```
 
 ## SAI API
