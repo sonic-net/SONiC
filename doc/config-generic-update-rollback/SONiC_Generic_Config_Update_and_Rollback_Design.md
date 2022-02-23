@@ -922,6 +922,8 @@ N/A
 | 28        | Updating port-channel interfaces configs. |
 | 29        | Updating loopback interfaces configs. |
 | 30        | Updating BGP prefix hijack configs. |
+| 31        | Updating QoS headroom pool and buffer pool size. |
+| 32        | Add/Remove Rack. |
 
 ## 9.2 Unit Tests for Checkpoint
 | Test Case | Description |

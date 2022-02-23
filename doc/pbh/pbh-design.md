@@ -28,11 +28,19 @@
             - [2.4.1.2 PBH rule](#2412-pbh-rule)
             - [2.4.1.3 PBH hash](#2413-pbh-hash)
             - [2.4.1.4 PBH hash field](#2414-pbh-hash-field)
-        - [2.4.2 Configuration sample](#242-configuration-sample)
+        - [2.4.2 State DB](#242-state-db)
+            - [2.4.2.1 PBH table](#2421-pbh-table)
+            - [2.4.2.2 PBH rule](#2422-pbh-rule)
+            - [2.4.2.3 PBH hash](#2423-pbh-hash)
+            - [2.4.2.4 PBH hash field](#2424-pbh-hash-field)
+        - [2.4.3 Data sample](#243-data-sample)
+        - [2.4.4 Configuration sample](#244-configuration-sample)
     - [2.5 Flows](#25-flows)
-        - [2.5.1 PBH add](#251-pbh-add)
-        - [2.5.2 PBH update](#252-pbh-update)
-        - [2.5.3 PBH remove](#253-pbh-remove)
+        - [2.5.1 Key modification](#251-key-modification)
+            - [2.5.1.1 PBH add](#2511-pbh-add)
+            - [2.5.1.2 PBH remove](#2512-pbh-remove)
+        - [2.5.2 Field modification](#252-field-modification)
+            - [2.5.2.1 PBH update](#2521-pbh-update)
     - [2.6 CLI](#26-cli)
         - [2.6.1 Command structure](#261-command-structure)
         - [2.6.2 Usage examples](#262-usage-examples)
@@ -46,10 +54,11 @@
 
 ## Revision
 
-| Rev | Date       | Author         | Description                                |
-|:---:|:----------:|:--------------:|:-------------------------------------------|
-| 0.1 | 15/03/2021 | Nazarii Hnydyn | Initial version                            |
-| 0.2 | 07/06/2021 | Nazarii Hnydyn | Update DB schema: introduce PBH hash field |
+| Rev | Date       | Author         | Description                                     |
+|:---:|:----------:|:--------------:|:------------------------------------------------|
+| 0.1 | 15/03/2021 | Nazarii Hnydyn | Initial version                                 |
+| 0.2 | 07/06/2021 | Nazarii Hnydyn | Update DB schema: introduce PBH hash field      |
+| 0.3 | 15/11/2021 | Nazarii Hnydyn | PBH modification flows: introduce field set/del |
 
 ## About this manual
 
@@ -96,8 +105,8 @@ This document describes the high level design of PBH feature in SONiC
 [Figure 1: PBH design](#figure-1-pbh-design)  
 [Figure 2: PBH OA design](#figure-2-pbh-oa-design)  
 [Figure 3: PBH add flow](#figure-3-pbh-add-flow)  
-[Figure 4: PBH update flow](#figure-4-pbh-update-flow)  
-[Figure 5: PBH remove flow](#figure-5-pbh-remove-flow)
+[Figure 4: PBH remove flow](#figure-4-pbh-remove-flow)  
+[Figure 5: PBH update flow](#figure-5-pbh-update-flow)
 
 ## List of tables
 
@@ -203,8 +212,10 @@ A custom hashing can be configured for Regular/FG ECMP and LAG.
 ###### Figure 2: PBH OA design
 
 A `PbhOrch` class with a set of data structures will be implemented to handle PBH feature.  
-OA will be extended with a new PBH Config DB schema and SAI FG Hash API support.  
+OA will be extended with a new PBH Config DB/State DB schema and SAI FG Hash API support.  
 PBH table/rule/hash/hash-field updates will be processed by OA based on Config DB changes.  
+Each update operation will be verified against generic/vendor specific capabilities.  
+Generic/Vendor specific capabilities by default will be stored in State DB by OA.  
 Some object updates will be handled and some will be considered as invalid.
 
 ### 2.3.2 PBH orch
@@ -243,6 +254,19 @@ method `PbhOrch::doPbhHashFieldTask()` will be called to process the change.
 On hash field create, `PbhOrch` will verify if the hash field already exists. Creating the hash field which is already  
 exists will be treated as an update. Regular hash field add/remove will update the internal class structures  
 and appropriate SAI objects will be created or deleted.
+
+PBH object modification concept allows to do a fine-grained field/value tuple management.  
+For that purpose a PBH capabilities table will be introduced. Each PBH key will have it's own set of  
+field capabilities defined in a State DB.
+
+PBH capabilities:
+1. ADD - field can be set to the redis hash in case it does not exist yet
+2. UPDATE - field can be set to the redis hash in case it already exists
+3. REMOVE - field can be deleted from the redis hash in case it does exist
+
+In general, PBH capabilities represent a mix of SAI interface/vendor restrictions.  
+When special policy is not required, a generic SAI-based implementation will be used by OA.  
+Platform/Vendor identification will be done via `platform` environment variable.
 
 **Skeleton code:**
 ```cpp
@@ -285,7 +309,7 @@ class AclOrch : public Orch, public Observer
     ...
 
     bool updateAclTable(string table_id, AclTable &table);
-    bool updateAclRule(string table_id, string rule_id, bool enableCounter);
+    bool updateAclRule(shared_ptr<AclRule> updatedAclRule);
 
     ...
 };
@@ -358,7 +382,7 @@ public:
     bool validateAddMatch(const sai_attribute_t &attr);
     bool validateAddAction(const sai_attribute_t &attr);
     bool validate() override;
-    void update(SubjectType, void *) override;
+    void onUpdate(SubjectType, void *) override;
 };
 ```
 
@@ -472,7 +496,245 @@ ip-mask    = ipv4-addr / ipv6-addr
 
 **Note:** field _ip_mask_ is only valid when _hash_field_ equals _INNER_DST/SRC_IPV4_ or _INNER_DST/SRC_IPV6_
 
-### 2.4.2 Configuration sample
+### 2.4.2 State DB
+
+#### 2.4.2.1 PBH table
+```abnf
+; defines schema for PBH table capabilities
+key = PBH_CAPABILITIES|table ; must be unique
+
+; field        = value
+interface_list = capabilities
+description    = capabilities
+
+; value annotations
+capabilities = "" \ "ADD" \ "UPDATE" \ "REMOVE" \
+               "ADD" "," "UPDATE" \
+               "ADD" "," "REMOVE" \
+               "UPDATE" "," "ADD" \
+               "UPDATE" "," "REMOVE" \
+               "REMOVE" "," "ADD" \
+               "REMOVE" "," "UPDATE" \
+               "ADD" "," "UPDATE" "," "REMOVE"
+```
+
+#### 2.4.2.2 PBH rule
+```abnf
+; defines schema for PBH rule capabilities
+key = PBH_CAPABILITIES|rule ; must be unique
+
+; field          = value
+priority         = capabilities
+gre_key          = capabilities
+ether_type       = capabilities
+ip_protocol      = capabilities
+ipv6_next_header = capabilities
+l4_dst_port      = capabilities
+inner_ether_type = capabilities
+hash             = capabilities
+packet_action    = capabilities
+flow_counter     = capabilities
+
+; value annotations
+capabilities = "" \ "ADD" \ "UPDATE" \ "REMOVE" \
+               "ADD" "," "UPDATE" \
+               "ADD" "," "REMOVE" \
+               "UPDATE" "," "ADD" \
+               "UPDATE" "," "REMOVE" \
+               "REMOVE" "," "ADD" \
+               "REMOVE" "," "UPDATE" \
+               "ADD" "," "UPDATE" "," "REMOVE"
+```
+
+#### 2.4.2.3 PBH hash
+```abnf
+; defines schema for PBH hash capabilities
+key = PBH_CAPABILITIES|hash ; must be unique
+
+; field         = value
+hash_field_list = capabilities
+
+; value annotations
+capabilities = "" \ "ADD" \ "UPDATE" \ "REMOVE" \
+               "ADD" "," "UPDATE" \
+               "ADD" "," "REMOVE" \
+               "UPDATE" "," "ADD" \
+               "UPDATE" "," "REMOVE" \
+               "REMOVE" "," "ADD" \
+               "REMOVE" "," "UPDATE" \
+               "ADD" "," "UPDATE" "," "REMOVE"
+```
+
+#### 2.4.2.4 PBH hash field
+```abnf
+; defines schema for PBH hash field capabilities
+key = PBH_CAPABILITIES|hash-field ; must be unique
+
+; field        = value
+hash_field  = capabilities
+ip_mask     = capabilities
+sequence_id = capabilities
+
+; value annotations
+capabilities = "" \ "ADD" \ "UPDATE" \ "REMOVE" \
+               "ADD" "," "UPDATE" \
+               "ADD" "," "REMOVE" \
+               "UPDATE" "," "ADD" \
+               "UPDATE" "," "REMOVE" \
+               "REMOVE" "," "ADD" \
+               "REMOVE" "," "UPDATE" \
+               "ADD" "," "UPDATE" "," "REMOVE"
+```
+
+### 2.4.3 Data sample
+
+**Config DB:**
+```bash
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_ip_proto'
+1) "hash_field"
+2) "INNER_IP_PROTOCOL"
+3) "sequence_id"
+4) "1"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_l4_dst_port'
+1) "hash_field"
+2) "INNER_L4_DST_PORT"
+3) "sequence_id"
+4) "2"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_l4_src_port'
+1) "hash_field"
+2) "INNER_L4_SRC_PORT"
+3) "sequence_id"
+4) "2"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_dst_ipv4'
+1) "hash_field"
+2) "INNER_DST_IPV4"
+3) "ip_mask"
+4) "255.0.0.0"
+5) "sequence_id"
+6) "3"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_src_ipv4'
+1) "hash_field"
+2) "INNER_SRC_IPV4"
+3) "ip_mask"
+4) "0.0.0.255"
+5) "sequence_id"
+6) "3"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_dst_ipv6'
+1) "hash_field"
+2) "INNER_DST_IPV6"
+3) "ip_mask"
+4) "ffff::"
+5) "sequence_id"
+6) "4"
+
+redis-cli -n 4 HGETALL 'PBH_HASH_FIELD|inner_src_ipv6'
+1) "hash_field"
+2) "INNER_SRC_IPV6"
+3) "ip_mask"
+4) "::ffff"
+5) "sequence_id"
+6) "4"
+
+redis-cli -n 4 HGETALL 'PBH_HASH|inner_v4_hash'
+1) "hash_field_list@"
+2) "inner_ip_proto,inner_l4_dst_port,inner_l4_src_port,inner_dst_ipv4,inner_src_ipv4"
+
+redis-cli -n 4 HGETALL 'PBH_HASH|inner_v6_hash'
+1) "hash_field_list@"
+2) "inner_ip_proto,inner_l4_dst_port,inner_l4_src_port,inner_dst_ipv6,inner_src_ipv6"
+
+redis-cli -n 4 HGETALL 'PBH_RULE|pbh_table|nvgre'
+ 1) "ether_type"
+ 2) "0x0800"
+ 3) "flow_counter"
+ 4) "DISABLED"
+ 5) "gre_key"
+ 6) "0x2500/0xffffff00"
+ 7) "hash"
+ 8) "inner_v6_hash"
+ 9) "inner_ether_type"
+10) "0x86dd"
+11) "ip_protocol"
+12) "0x2f"
+13) "packet_action"
+14) "SET_ECMP_HASH"
+15) "priority"
+16) "2"
+
+redis-cli -n 4 HGETALL 'PBH_RULE|pbh_table|vxlan'
+ 1) "ether_type"
+ 2) "0x0800"
+ 3) "flow_counter"
+ 4) "ENABLED"
+ 5) "hash"
+ 6) "inner_v4_hash"
+ 7) "inner_ether_type"
+ 8) "0x0800"
+ 9) "ip_protocol"
+10) "0x11"
+11) "l4_dst_port"
+12) "0x12b5"
+13) "packet_action"
+14) "SET_LAG_HASH"
+15) "priority"
+16) "1"
+
+redis-cli -n 4 HGETALL 'PBH_TABLE|pbh_table'
+1) "description"
+2) "NVGRE and VxLAN"
+3) "interface_list@"
+4) "Ethernet0,Ethernet4,PortChannel0001,PortChannel0002"
+```
+
+**State DB:**
+```bash
+redis-cli -n 6 HGETALL 'PBH_CAPABILITIES|table'
+ 1) "interface_list"
+ 2) "UPDATE"
+ 3) "description"
+ 4) "UPDATE"
+
+redis-cli -n 6 HGETALL 'PBH_CAPABILITIES|rule'
+ 1) "priority"
+ 2) "UPDATE"
+ 3) "ether_type"
+ 4) "ADD,UPDATE,REMOVE"
+ 5) "ip_protocol"
+ 6) "ADD,UPDATE,REMOVE"
+ 7) "ipv6_next_header"
+ 8) "ADD,UPDATE,REMOVE"
+ 9) "l4_dst_port"
+ 10) "ADD,UPDATE,REMOVE"
+ 11) "gre_key"
+ 12) "ADD,UPDATE,REMOVE"
+ 13) "inner_ether_type"
+ 14) "ADD,UPDATE,REMOVE"
+ 15) "hash"
+ 16) "UPDATE"
+ 17) "packet_action"
+ 18) "ADD,UPDATE,REMOVE"
+ 19) "flow_counter"
+ 20) "ADD,UPDATE,REMOVE"
+
+redis-cli -n 6 HGETALL 'PBH_CAPABILITIES|hash'
+ 1) "hash_field_list"
+ 2) "UPDATE"
+
+redis-cli -n 6 HGETALL 'PBH_CAPABILITIES|hash-field'
+ 1) "hash_field"
+ 2) ""
+ 3) "ip_mask"
+ 4) ""
+ 5) "sequence_id"
+ 6) ""
+```
+
+### 2.4.4 Configuration sample
 
 **Inner 5-tuple hashing:**
 ```json
@@ -569,23 +831,27 @@ ip-mask    = ipv4-addr / ipv6-addr
 
 ## 2.5 Flows
 
-### 2.5.1 PBH add
+### 2.5.1 Key modification
+
+#### 2.5.1.1 PBH add
 
 ![PBH add flow](images/pbh_add_flow.svg "Figure 3: PBH add flow")
 
 ###### Figure 3: PBH add flow
 
-### 2.5.2 PBH update
+#### 2.5.1.2 PBH remove
 
-![PBH update flow](images/pbh_update_flow.svg "Figure 4: PBH update flow")
+![PBH remove flow](images/pbh_remove_flow.svg "Figure 4: PBH remove flow")
 
-###### Figure 4: PBH update flow
+###### Figure 4: PBH remove flow
 
-### 2.5.3 PBH remove
+### 2.5.2 Field modification
 
-![PBH remove flow](images/pbh_remove_flow.svg "Figure 5: PBH remove flow")
+#### 2.5.2.1 PBH update
 
-###### Figure 5: PBH remove flow
+![PBH update flow](images/pbh_update_flow.svg "Figure 5: PBH update flow")
+
+###### Figure 5: PBH update flow
 
 ## 2.6 CLI
 
@@ -602,7 +868,10 @@ config
      |
      |--- rule
      |    |--- add <table_name> <rule_name> OPTIONS
-     |    |--- update <table_name> <rule_name> OPTIONS
+     |    |--- update
+     |    |    |--- field
+     |    |         |--- set <table_name> <rule_name> OPTIONS
+     |    |         |--- del <table_name> <rule_name> OPTIONS
      |    |--- delete <table_name> <rule_name>
      |
      |--- hash
@@ -675,7 +944,11 @@ config pbh rule add 'pbh_table' 'nvgre' \
 --hash 'inner_v6_hash' \
 --packet-action 'SET_ECMP_HASH' \
 --flow-counter 'DISABLED'
-config pbh rule update 'pbh_table' 'nvgre' \
+config pbh rule update field del 'pbh_table' 'nvgre' \
+--ip-protocol
+config pbh rule update field set 'pbh_table' 'nvgre' \
+--ether-type '0x86dd' \
+--ipv6-next-header '0x2f' \
 --flow-counter 'ENABLED'
 config pbh rule delete 'pbh_table' 'nvgre'
 ```
@@ -923,6 +1196,11 @@ PBH basic configuration test:
 2. Verify ASIC DB object count after PBH rule creation/removal
 3. Verify ASIC DB object count after PBH hash creation/removal
 4. Verify ASIC DB object count after PBH hash field creation/removal
+
+PBH basic update test:
+1. Verify ASIC DB object state after PBH table update
+2. Verify ASIC DB object state after PBH rule update
+3. Verify ASIC DB object state after PBH hash update
 
 PBH extended configuration test:
 1. Create inner 5-tuple PBH hash fields
