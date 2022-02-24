@@ -1,4 +1,4 @@
-# Coral in SONiC
+# Distributed Data Plane Verification
 # High Level Design Document
 #### Rev 0.1
 
@@ -12,19 +12,17 @@ todo
 |       |       |        |                    |
 
 # About this Manual
-This document describes the design details of Coral feature.
+This document describes the design details of distributed data plane verification feature.
 
 TODO
 
 # Scope
-This document describes the high level design details about how Coral works.
+This document describes the high level design details about how distributed data plane verification works.
 
 # Definitions/Abbreviations
 ###### Table 1: Abbreviations
 | Abbreviation |          Full form          |
 | ------------ | --------------------------- |
-| NAT          | Network Address Translation |
-| ACL          | Access Control List         |
 | FIB          | Forwarding Information Base |
 | CLI          | Command Line Interface      |
 | LEC          | Local Equivalence Class     |
@@ -39,30 +37,27 @@ financial and social consequences. Data plane verification (DPV) is important fo
 Current DPV tools employ a centralized architecture, where a server collects the data planes of all devices and verifies them. 
 Despite substantial efforts on accelerating DPV, this centralized architecture is inherently unscalable. 
 
-In order to tackle the scalability challenge of DPV, Coral is designed, a generic, distributed,
+In order to tackle the scalability challenge of DPV, distributed data plane verification is designed, a generic, distributed,
 on-device DPV framework, which circumvents the scalability bottleneck of centralized design. The key insight is as follows. A
 directed acyclic graph (DAG), which represents all valid paths in
 the network, is called DVNet. The problem of DPV can be transformed into a counting problem in DVNet; the latter can then be decomposed into small tasks at nodes on the DVNet, which can be distributively executed at corresponding network devices, enabling scalability.
 
-The picture below demonstrates the architechture and workflow of Coral.
-<center>
-<img src="./img/architecture.png" width="60%" /><br/>
-Figure 1. The architecture and workflow of Coral.
-</center><br/>
+The picture below demonstrates the architechture and workflow of distributed data plane verification.
+![architecture](img/architecture.png)
 
 Firstly, DVNet is generated based on specified verification requirement and actual network topology. Then, the counting problem is distributed to individual switches. On each switch, counting result is computed depending on received verification messages and delivered to corresponding upstream node on DVNet. Finally, the source switch would be able to determine whether there is an error on data plane according to received verification messages.
-
+The demo of distributed data plane verification can be found at [distributeddpvdemo.tech](distributeddpvdemo.tech).
 
 # 2 Overview
 
 ## 2.1 Functionality Overview
-1. Coral feature allows user to verify a wide range of requirements, e.g., reachability, isolation, loop-freeness, black hole freeness and waypoint reachability.
-2. Coral is able to verify data plane in the scenario of both burst update and incremental update.
-3. Coral is also able to verify RCDC local contracts.
+1. Distributed data plane verification allows user to verify a wide range of requirements, e.g., reachability, isolation, loop-freeness, black hole freeness, waypoint reachability and all shortest-path availability requirement in Azure RCDC [1].
+2. Distributed data plane verification is able to verify data plane in the scenario of both burst update and incremental update.
 ## 2.2 Requirements Overview
-1. In order to compute Local Equivalence Class (LEC) table, Coral needs to have access to FIB stored in kernel.
-2. An agent is needed to deliver verification messages containing counting result to upstream switch.
-3. New CLI commands need to be added to specify data plane verification requirements and show related information, e.g., verification results, counting numbers, and status.
+1. In order to compute Local Equivalence Class (LEC) table, distributed data plane verification needs to have access to FIB stored in database container.
+2. Sockets can be built to receive and deliver verification messages containing counting result.
+3. Java Runtime Environment (JRE) is needed in operation system.
+4. New CLI commands need to be added to specify data plane verification requirements and show related information, e.g., verification results, counting numbers, and status.
 
 # 3 Functionality
 ## 3.1 Functionality Description
@@ -166,3 +161,10 @@ predecessor              = string                 ; List of predecessor
 successor                = string                 ; List of successor
 accepted                 = boolean
 ```
+
+## References
+[1] Karthick Jayaraman, Nikolaj Bjørner, Jitu Padhye, Amar Agrawal,
+Ashish Bhargava, Paul-Andre C Bissonnette, Shane Foster, Andrew
+Helwer, Mark Kasten, Ivan Lee, et al. 2019. Validating Datacenters
+at Scale. In Proceedings of the ACM Special Interest Group on Data
+Communication. 200–213.
