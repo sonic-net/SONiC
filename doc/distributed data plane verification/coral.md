@@ -167,14 +167,6 @@ to allow distributed data plane verification planners on the device to verify th
 
 ![system](img/system-diagram.jpg)
 
-```text
-; Defines schema for node's config
-
-key                      = NODE_TABLE:node_index
-predecessor              = string                 ; List of predecessor 
-successor                = string                 ; List of successor
-accepted                 = boolean
-```
 
 ## References
 [1] Karthick Jayaraman, Nikolaj Bjørner, Jitu Padhye, Amar Agrawal,
