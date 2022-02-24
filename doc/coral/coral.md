@@ -71,10 +71,10 @@ data plane on the network device, so that the operator can detect the network er
 measures to correct the error, and reduce the loss as much as possible. Coral can efficiently validate a 
 wide range of network forwarding requirements of operators in different scenarios. If the current network 
 status does not meet the operator's network forwarding requirements, then prompt the operator network error.
-## 3.2 General Process for Implementing Functionality
-Coral generates a directed acyclic graph DVnet based on the network topology and requirements, and performs a reverse counting process on DVnet, 
+Coral generates a directed acyclic graph DVnet based on the network topology and requirements, and performs a reverse counting process on DVnet,
 finally determines whether the network is wrong based on the count result and the given requirement.
-## 3.3 Use Case
+
+## 3.2 Use Case
 
 ![system](img/tore.png)
 
@@ -88,7 +88,7 @@ Figure 3. The network data plane.
 
 Figure 4. The DVNet and the counting process.
 
-### 3.3.1 Green Start Use Case
+### 3.2.1 Green Start Use Case
 Coral is used in the scenario of green start, i.e., all forwarding rules are
 installed to corresponding switches all at once.
 Note that P2 ∩ P3 = ∅ and P1 = P2 ∪ P3. Each u in DVNet initializes a packet space → count mapping, (P1, 0), except for D1 that initializes 
@@ -104,7 +104,7 @@ B1’s updated mapping is (P1, 0) and P2 ⊂ P1.  A forwards P2 to W , the mappi
 Therefore, the updated mapping for P2 at A1 is (P2, [0, 1]). In the end, the updated mapping of S1 [(P2, [0, 1]), (P3, 1)] reflects the final 
 counting results, indicating that the data plane in Figure 1b does not satisfy the requirements in Figure1b. In other words, the network 
 data plane is erroneous.
-### 3.3.2 Incremental Update Use Case
+### 3.2.2 Incremental Update Use Case
 Consider a scenario in Figure 1, where B updates its data plane to forward P1 to W , instead of to D. The changed mappings of different 
 nodes are circled with boxes in Figure 1c. In this case, device B locally updates the task results of B1 and B2 to [(P1, 1)] and [(P1, 0)], 
 respectively, and sends corresponding updates to the devices of their upstream neighbors, i.e., [(P1, 1)] sent to A following the opposite 
@@ -115,7 +115,7 @@ A needs to update its task result for node A1 to [(P1, 1)] because (1) no matter
 each packet will be sent to D, and (2) P2 ∪ P3 = P1. After
 updating its local result, A sends the update to S along the opposite of (S1,A1). Finally, S updates its local result for S1 to [(P1, 1)], 
 i.e., the requirement is satisfied after the update.
-### 3.3.3 Verifying RCDC Local Contracts Using Coral
+### 3.2.3 Verifying RCDC Local Contracts Using Coral
 
 ![system](img/dc.png)
 
@@ -133,6 +133,10 @@ datacenter besides the prefix that it is configured to announce, and
 the next hops are set to its neighboring leaf devices. For example,
 ToR1 has specific contracts for PrefixB, PrefixC
 , and PrefixD with next hops set to {A1,A2,A3,A4}. Aggregation contracts and core contracts are similar to ToR contracts.
+
+![system](img/dc_memory.png)
+
+Figure 7: Maximal memory.
 
 ![system](img/dc_memory.png)
 
