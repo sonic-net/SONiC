@@ -121,8 +121,18 @@ i.e., the requirement is satisfied after the update.
 
 Figure 5: An example datacenter.
 
-![system](img/dc_load.png)
+![system](img/rcdc_contracts.png)
+
 Figure 6: Example illustrating local contracts.
+
+We now explain what are ToR contracts. Each ToR has a default contract with next
+hops set to its neighboring leaf devices. For example, the default
+contract for ToR1 specifies {A1,A2,A3,A4} as the next hops.
+Each ToR has a specific contract for every prefix hosted in the
+datacenter besides the prefix that it is configured to announce, and
+the next hops are set to its neighboring leaf devices. For example,
+ToR1 has specific contracts for PrefixB, PrefixC
+, and PrefixD with next hops set to {A1,A2,A3,A4}. Aggregation contracts and core contracts are similar to ToR contracts.
 
 ![system](img/dc_memory.png)
 
@@ -136,11 +146,14 @@ Figure 8: CPU load.
 
 The local contract in Azure RCDC [1] that requires all pairs of ToR devices should reach each other along a shortest path, and all ToR-to-ToR 
 shortest paths should be available in the data plane and verifies all the shortest path availability requirements is a special case of the 
-counting task in Coral. In the experimental scenario of RCDC, it is assumed that the current data center is shown in Figure 2, we use three 
-different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1). Actually, we selected the three devices described 
-above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts which are shown in figure  on three commodity switches.
-Figure 3 knows that the power consumption of all three switches deployed with Coral is very low, so it is feasible to allow coral 
-planners on the device to verify these local contracts on commodity network devices.
+counting task in Coral. It is assumed that the current data center is shown in Figure 5, we use three 
+different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1) whose tasks are to verify their 
+local contracts which are similar to what shown in figure 6. 
+Actually, we selected the three devices described above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity
+switches. Figure 7 and Figure 8 show that all local contracts are verified on commodity switches with a CPU load ≤ 0.47 and a maximal memory
+≤ 15.2MB. The power consumption of all three switches deployed with Coral is 
+very low, so it is feasible to allow coral planners on the device to verify these local contracts on commodity network devices.
+
 # 4 Design
 
 ![system](img/system-diagram.jpg)
