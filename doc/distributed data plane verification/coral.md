@@ -151,11 +151,11 @@ Aggregation contracts and core contracts are similar to ToR contracts.
 
 (c) CPU load.
 
-Figure 7: Time and overhead of verifying all-shortest-path availability in DC networks from green start on commodity network devices.
+Figure 7: Time and overhead of verifying all-shortest-path availability in DC networks from green start on commodity network devices.
 
 The local contract in Azure RCDC [1] that requires all pairs of ToR devices should reach each other along a shortest path, and all ToR-to-ToR 
 shortest paths should be available in the data plane and verifies all the shortest path availability requirements is a special case of the 
-counting task in distributed data plane verification. It is assumed that the current data center is shown in Figure 5, we use three 
+counting task in distributed data plane verification. It is assumed that the current data center is shown in figure 5, we use three 
 different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1) whose tasks are to verify their 
 local contracts which are similar to what shown in figure 6. 
 Actually, we selected the three devices described above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity
