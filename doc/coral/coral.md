@@ -75,20 +75,18 @@ status does not meet the operator's network forwarding requirements, then prompt
 Coral generates a directed acyclic graph DVnet based on the network topology and requirements, and performs a reverse counting process on DVnet, 
 finally determines whether the network is wrong based on the count result and the given requirement.
 ## 3.3 Use Case
-<center>
-< img src="./img/tore.png" width="60%" /><br/>
-Figure 2. The topology.
-</center><br/>
 
-<center>
-< img src="./img/dataplane.png" width="60%" /><br/>
-Figure 2. The dataplane.
-</center><br/>
+![system](img/tore.png)
 
-<center>
-< img src="./img/dvnet.png" width="60%" /><br/>
-Figure 2. The dvnet.
-</center><br/>
+Figure 2. An example topology and requirement.
+
+![system](img/dataplane.png)
+
+Figure 3. The network data plane.
+
+![system](img/dvnet.png)
+
+Figure 4. The DVNet and the counting process.
 
 ### 3.3.1 Green Start Use Case
 Coral is used in the scenario of green start, i.e., all forwarding rules are
@@ -118,11 +116,29 @@ each packet will be sent to D, and (2) P2 ∪ P3 = P1. After
 updating its local result, A sends the update to S along the opposite of (S1,A1). Finally, S updates its local result for S1 to [(P1, 1)], 
 i.e., the requirement is satisfied after the update.
 ### 3.3.3 Verifying RCDC Local Contracts Using Coral
-The local contract in Azure RCDC[1] that requires all pairs of ToR devices should reach each other along a shortest path, and all ToR-to-ToR 
+
+![system](img/dc.png)
+
+Figure 5: An example datacenter.
+
+![system](img/dc_load.png)
+Figure 6: Example illustrating local contracts.
+
+![system](img/dc_memory.png)
+
+Figure 7: Maximal memory.
+
+
+![system](img/dc_load.png)
+
+Figure 8: CPU load.
+
+
+The local contract in Azure RCDC [1] that requires all pairs of ToR devices should reach each other along a shortest path, and all ToR-to-ToR 
 shortest paths should be available in the data plane and verifies all the shortest path availability requirements is a special case of the 
 counting task in Coral. In the experimental scenario of RCDC, it is assumed that the current data center is shown in Figure 2, we use three 
-different switches acting as three devices (one edge, one aggregation and one core). Actually, we selected the three devices described 
-above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity switches.
+different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1). Actually, we selected the three devices described 
+above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts which are shown in figure  on three commodity switches.
 Figure 3 knows that the power consumption of all three switches deployed with Coral is very low, so it is feasible to allow coral 
 planners on the device to verify these local contracts on commodity network devices.
 # 4 Design
