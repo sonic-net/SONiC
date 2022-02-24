@@ -92,7 +92,7 @@ We use two examples to demonstrates how the DDPV feature works. More
 illustrations can be found at [distributeddpvdemo.tech](DDPV-Demos). The first
 example is in a network in Figure 2. 
 
-![system](img/tore.png)
+<img src="img/tore.png" width="50%"  alt="tore" />
 
 Figure 2. An example topology and requirement.
 
@@ -103,7 +103,8 @@ compactly represents all valid paths in the topology that satisfy an
 operator-specified requirement, and is independent of the actual data plane of
 the network. Figure 3 gives the computed DVNet of the example in Figure 2. 
 
-![system](img/dvnet.png)
+<img src="./img/dvnet.png" width="50%"  alt="dvnet" />
+
 
 Figure 3. The DVNet and the counting process.
 
@@ -115,7 +116,9 @@ allows packets to reach D via [B,W,D] or [W,B,D].
 
 ### Example 1-1: Green Start
 
-![system](img/dataplane.png)
+<img src="./img/dvnet.png" width="30%"  alt="dvnet" />
+
+[comment]: <> (![system]&#40;img/dataplane.png&#41;)
 
 Figure 4. The network data plane.
 
@@ -187,17 +190,21 @@ time * number of cores)) ≤ 0.47 and a maximal memory ≤ 15.2MB.  These result
 show that it is feasible to run DDPV on commodity devices to verify local
 contracts of data centers.
 
+<img src="./img/dc_total_time.png" width="484px"  alt="dc_total_time" />
 
-![system](img/dc_total_time.png)
+[comment]: <> (![system]&#40;img/dc_total_time.png&#41;)
 
 (a) Total time.
 
-![system](img/dc_memory.png)
+<img src="./img/dc_memory.png" width="484px"  alt="dc_memory" />
+
+[comment]: <> (![system]&#40;img/dc_memory.png&#41;)
 
 (b) Maximal memory.
 
+<img src="./img/dc_load.png" width="484px"  alt="dc_load" />
 
-![system](img/dc_load.png)
+[comment]: <> (![system]&#40;img/dc_load.png&#41;)
 
 (c) CPU load.
 
