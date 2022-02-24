@@ -9,7 +9,7 @@ TBD in Markdown with links
 
 | Rev   | Date  | Author | Change Description |
 | ---- | ---------- | -----------| ------------------|
-| v0.1 | 02/24/2022 | Qiao Xiang, Chenyang Huang, Ridi Wen, Jiwu Shu@Xiamen University, China| Initial version |
+| v0.1 | 02/24/2022 | Qiao Xiang, Chenyang Huang, Ridi Wen, Yuxin Wang, Jiwu Shu@Xiamen University, China| Initial version |
 
 
 # Scope
