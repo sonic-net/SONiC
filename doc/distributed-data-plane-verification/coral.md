@@ -156,16 +156,14 @@ In the second example, we show how DDPV verifies the local contracts of the
 all-shortest-path availability in Azure RCDC [1]. All-shortest-path availability
 requires all pairs of ToR devices in a Clos-based data center should reach each
 other along a shortest path, and all ToR-to-ToR shortest paths should be
-available in the data plane.  Using the example in Figure 5, we show that
-RCDC is a special case of DDPV.
-
+available in the data plane.  
 
 ![system](img/dc.png)
 
 Figure 5: An example datacenter.
 
-
-We first explain what ToR contracts are. Each ToR has a default contract with next
+We first explain what ToR contracts are using the example in Figure 5, we show that
+RCDC is a special case of DDPV.. Each ToR has a default contract with next
 hops set to its neighboring leaf devices. For example, the default
 contract for ToR1 specifies {A1,A2,A3,A4} as the next hops.
 Each ToR has a specific contract for every prefix hosted in the
@@ -175,22 +173,19 @@ ToR1 has specific contracts for PrefixB, PrefixC
 , and PrefixD with next hops set to {A1,A2,A3,A4}. 
 Aggregation contracts and core contracts are similar to ToR contracts.
 
+
 ![system](img/rcdc_contracts.png)
 
 Figure 6: Example illustrating local contracts.
 
- It is assumed that the current data center is shown in figure 5, we use three 
-different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1) whose tasks are to verify their 
-local contracts which are similar to what shown in figure 6. 
-Actually, 
-
-We selected the three devices described above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity
-switches. 
-
-Figure 7 shows that all local contracts are verified on commodity switches in less than 320ms, with a CPU load ≤ 0.47 
-and a maximal memory ≤ 15.2MB.
-The power consumption of all three switches deployed with distributed data plane verification is very low, so it is feasible 
-to allow distributed data plane verification planners on the device to verify these local contracts on commodity network devices.
+We select three devices (one edge like ToR1, one aggregation like A1 and one
+core like D1)  in a 48-ary Fattree and another operational Clos-based topology
+called  NGClos, respectively, and verify their local contracts on three
+commodity switches. Figure 7 shows that all local contracts are verified on
+commodity switches in less than 320ms, with a CPU load (i.e., CPU time /(total
+time * number of cores)) ≤ 0.47 and a maximal memory ≤ 15.2MB.  These results
+show that it is feasible to run DDPV on commodity devices to verify local
+contracts of data centers.
 
 
 ![system](img/dc_total_time.png)
@@ -208,14 +203,7 @@ to allow distributed data plane verification planners on the device to verify th
 
 Figure 7: Time and overhead of verifying all-shortest-path availability in DC networks from green start on commodity network devices.
 
- It is assumed that the current data center is shown in figure 5, we use three 
-different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1) whose tasks are to verify their 
-local contracts which are similar to what shown in figure 6. 
-Actually, we selected the three devices described above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity
-switches. Figure 7 shows that all local contracts are verified on commodity switches in less than 320ms, with a CPU load ≤ 0.47 
-and a maximal memory ≤ 15.2MB.
-The power consumption of all three switches deployed with distributed data plane verification is very low, so it is feasible 
-to allow distributed data plane verification planners on the device to verify these local contracts on commodity network devices.
+
 
 
 [comment]: <> (# 4 Design)
