@@ -61,7 +61,8 @@ requirements.
 The picture below demonstrates the architecture and workflow of distributed data plane verification.
 <!---![system](img/system-diagram.jpg)-->
 
-![architecture](img/architecture.png)
+[comment]: <> (![architecture]&#40;img/architecture.png&#41;)
+![system](img/system-diagram.jpg)
 
 Firstly, DVNet is generated based on specified verification requirement and actual network topology. Then, the counting problem is distributed to individual switches. On each switch, counting result is computed depending on received verification messages and delivered to corresponding upstream node on DVNet. Finally, the source switch would be able to determine whether there is an error on data plane according to received verification messages.
 
@@ -185,36 +186,37 @@ switches. Figure 7 shows that all local contracts are verified on commodity swit
 and a maximal memory ≤ 15.2MB.
 The power consumption of all three switches deployed with distributed data plane verification is very low, so it is feasible 
 to allow distributed data plane verification planners on the device to verify these local contracts on commodity network devices.
-# 4 Design
 
-## 4.1 Overview
-![system](img/system-diagram.jpg)
+[comment]: <> (# 4 Design)
 
-## 4.2 Setup
+[comment]: <> (## 4.1 Overview)
+
+[comment]: <> (![system]&#40;img/system-diagram.jpg&#41;)
+
+[comment]: <> (## 4.2 Setup
 Before the verification begins, the planner first uses the requirement and the network topology to compute DVNet.
 It then transforms the DPV problem into a counting problem on DVNet.
 In its turn, each node in DVNet takes as input the data plane of its corresponding device and
 the counting results of its downstream nodes to compute for different packets,
 how many copies of them can be delivered to the intended destinations along downstream paths in DVNet.
 This traversal can be naturally decomposed to on-device counting tasks, one for each node in DVNet,
-and distributed to the corresponding network devices' vagentd by the planner. 
+and distributed to the corresponding network devices' vagentd by the planner. )
 
 
-## 4.3 Green start
+[comment]: <> (## 4.3 Green start
 Lecbuilderd collects all the data planes from the Database, calculates the LEC, and passes the LEC results to vagentd.
 Vagentd uses the node information of DVNet and LEC to calculate the current count result of each node.
 The leaf nodes of DVNet will generate messages and send them to the corresponding devices of the precursor nodes of each node through socket.
-
 After receiving the message, each device carries out a new round of calculation according to the content of the message and the counting result calculated before,
 then the new result generate messages and sent along the reverse direction in the DVNet.
-Finally, green start is complete until each device has finished counting.
+Finally, green start is complete until each device has finished counting. )
 
-## 4.4 Incremental update
+[comment]: <> (## 4.4 Incremental update
 When a device's data plane changes, Being lecbuilderd an database subscriber, it will receive the content of the changes,
 and then calculate the LEC changes and send them to vagentd.
 Vagentd calculates whether each node needs to update its count result,
 and if any of the results change, it generates a message and sends it to the node's precursor nodes.
-The process is similar to green start. Finally, update is complete until each device has finished counting.
+The process is similar to green start. Finally, update is complete until each device has finished counting.)
     
 
 # References
