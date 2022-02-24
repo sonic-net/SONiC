@@ -9,7 +9,7 @@ TBD in Markdown with links
 
 | Rev   | Date  | Author | Change Description |
 | ---- | ---------- | -----------| ------------------|
-| v0.1 | 02/24/2022 | Qiao Xiang, Chenyang Huang, Ridi Wen, Jiwu Shu| Initial version |
+| v0.1 | 02/24/2022 | Qiao Xiang, Chenyang Huang, Ridi Wen, Jiwu Shu@Xiamen University, China| Initial version |
 
 
 # Scope
@@ -37,29 +37,49 @@ Current DPV tools employ a centralized architecture, where a server collects the
 Despite substantial efforts on accelerating DPV, this centralized architecture is inherently unscalable because (1) it requires a highly available management network, which is hard build itself; and (2) the server becomes the performance bottleneck and a single point of failure. 
 
 In this HLD, to tackle the scalability challenge of DPV, we propose a distributed
-data plane verification framework, which circumvents the scalability bottleneck
+data plane verification feature, which circumvents the scalability bottleneck
 of centralized design and performs data plane checking on commodity network
 devices.  Our key insight is that DPV can be transformed into a counting problem
 on a directed acyclic graph, which can be naturally decomposed into lightweight
-tasks executed at network devices, enabling scalability.
+tasks executed at network devices, enabling scalability. To be concrete, this
+feature provides:
+
+* A declarative requirement specification language that allows operators to
+  flexibly specify common requirements studied by existing DPV tools (e.g.,
+reachability, blackhole free, waypoint and isolation), and more advanced, yet
+understudied requirements (e.g., multicast, anycast, no-redundant-delivery and
+all-shortest-path availability).
+* A verification planner that takes the operator specified requirement as input,
+  and systematically decomposes the global verification into lightweight,
+on-device computation tasks.
+* A distributed verification (DV) protocol that specifies how on-device
+  verifiers communicate task results efficiently to collaboratively verify the
+requirements.
+
 
 
 The picture below demonstrates the architecture and workflow of distributed data plane verification.
+<!---![system](img/system-diagram.jpg)-->
+
 ![architecture](img/architecture.png)
 
 Firstly, DVNet is generated based on specified verification requirement and actual network topology. Then, the counting problem is distributed to individual switches. On each switch, counting result is computed depending on received verification messages and delivered to corresponding upstream node on DVNet. Finally, the source switch would be able to determine whether there is an error on data plane according to received verification messages.
-The demo of distributed data plane verification can be found at [distributeddpvdemo.tech](distributeddpvdemo.tech).
+
+A series of demos of the proposed feature  can be found at [distributeddpvdemo.tech](distributeddpvdemo.tech). All demos are conducted on a small testbed of commodity switches installed with SONiC or ONL. 
+
+# Requirements
+* The ddpv container needs to have access to the device data plane (i.e., FIB and ACL) stored in the database container.
+* The ddpv container at neighboring switches needs to use sockets to exchange verification messages.
+* The ddpv container will be developed in Java, and will need a Java Runtime Environment (JRE).
+* New CLI commands need to be added to allow the ddpv container to receive the counting tasks from the verification planner and show related information, e.g., verification results, counting numbers, and status.
+
 
 # 2 Overview
 
-## 2.1 Functionality Overview
+# 2 Functionality Overview
 1. Distributed data plane verification allows user to verify a wide range of requirements, e.g., reachability, isolation, loop-freeness, black hole freeness, waypoint reachability and all shortest-path availability requirement in Azure RCDC [1].
 2. Distributed data plane verification is able to verify data plane in the scenario of both burst update and incremental update.
-## 2.2 Requirements Overview
-1. In order to compute Local Equivalence Class (LEC) table, distributed data plane verification needs to have access to FIB stored in database container.
-2. Sockets can be built to receive and deliver verification messages containing counting result.
-3. Java Runtime Environment (JRE) is needed in operation system.
-4. New CLI commands need to be added to specify data plane verification requirements and show related information, e.g., verification results, counting numbers, and status.
+
 
 # 3 Functionality
 ## 3.1 Functionality Description
