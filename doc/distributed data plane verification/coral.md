@@ -135,7 +135,8 @@ Each ToR has a specific contract for every prefix hosted in the
 datacenter besides the prefix that it is configured to announce, and
 the next hops are set to its neighboring leaf devices. For example,
 ToR1 has specific contracts for PrefixB, PrefixC
-, and PrefixD with next hops set to {A1,A2,A3,A4}. Aggregation contracts and core contracts are similar to ToR contracts.
+, and PrefixD with next hops set to {A1,A2,A3,A4}. 
+Aggregation contracts and core contracts are similar to ToR contracts.
 
 ![system](img/dc_total_time.png)
 
