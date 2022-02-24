@@ -82,6 +82,7 @@ Figure 3. The network data plane.
 ![system](img/dvnet.png)
 
 Figure 4. The DVNet and the counting process.
+
 Figure 4 gives the computed DVNet in the example shown in figure 2. Note the devices in the network and the nodes in DVNet have a
 1-to-many mapping. For each node u in DVNet, we assign a unique identifier, which is a concatenation of u.dev and an integer.
 For example, device W in the network is mapped to two nodes B1 and B2 in DVNet, because the regular expression
