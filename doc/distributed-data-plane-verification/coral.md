@@ -116,7 +116,7 @@ allows packets to reach D via [B,W,D] or [W,B,D].
 
 ### Example 1-1: Green Start
 
-<img src="./img/dvnet.png" width="30%"  alt="dvnet" />
+<img src="./img/dataplane.png" width="30%"  alt="dataplane" />
 
 [comment]: <> (![system]&#40;img/dataplane.png&#41;)
 
