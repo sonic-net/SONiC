@@ -40,7 +40,7 @@ In this HLD, to tackle the scalability challenge of DPV, we propose a distribute
 data plane verification feature, which circumvents the scalability bottleneck
 of centralized design and performs data plane checking on commodity network
 devices.  Our key insight is that DPV can be transformed into a counting problem
-on a directed acyclic graph, which can be naturally decomposed into lightweight
+on a directed acyclic graph called DVNet, which can be naturally decomposed into lightweight
 tasks executed at network devices, enabling scalability. To be concrete, this
 feature provides:
 
@@ -59,14 +59,12 @@ requirements.
 
 
 The picture below demonstrates the architecture and workflow of distributed data plane verification.
-<!---![system](img/system-diagram.jpg)-->
 
 [comment]: <> (![architecture]&#40;img/architecture.png&#41;)
 ![system](img/system-diagram.jpg)
 
-Firstly, DVNet is generated based on specified verification requirement and actual network topology. Then, the counting problem is distributed to individual switches. On each switch, counting result is computed depending on received verification messages and delivered to corresponding upstream node on DVNet. Finally, the source switch would be able to determine whether there is an error on data plane according to received verification messages.
 
-A series of demos of the proposed feature  can be found at [distributeddpvdemo.tech](distributeddpvdemo.tech). All demos are conducted on a small testbed of commodity switches installed with SONiC or ONL. 
+A series of demos of the proposed feature  can be found at [distributeddpvdemo.tech](DDPV-Demos). All demos are conducted on a small testbed of commodity switches installed with SONiC or ONL. 
 
 # Requirements
 * The ddpv container needs to have access to the device data plane (i.e., FIB and ACL) stored in the database container.
@@ -75,15 +73,11 @@ A series of demos of the proposed feature  can be found at [distributeddpvdemo.t
 * New CLI commands need to be added to allow the ddpv container to receive the counting tasks from the verification planner and show related information, e.g., verification results, counting numbers, and status.
 
 
-# 2 Overview
-
-# 2 Functionality Overview
-1. Distributed data plane verification allows user to verify a wide range of requirements, e.g., reachability, isolation, loop-freeness, black hole freeness, waypoint reachability and all shortest-path availability requirement in Azure RCDC [1].
-2. Distributed data plane verification is able to verify data plane in the scenario of both burst update and incremental update.
 
 
-# 3 Functionality
-## 3.1 Functionality Description
+
+# Functionality
+## Functionality Description
 Distributed data plane verification detects a wide range of network errors (e.g., switch operating system errors) by checking the actual 
 data plane on the network device, so that the operator can detect the network error in time, take relevant 
 measures to correct the error, and reduce the loss as much as possible. Distributed data plane verification can efficiently validate a 
@@ -92,28 +86,43 @@ status does not meet the operator's network forwarding requirements, then prompt
 Distributed data plane verification generates a directed acyclic graph called DVnet based on the network topology and requirements, 
 and performs a reverse counting process on DVnet, finally determines whether the network is wrong.
 
-## 3.2 Use Case
+## Use Case Examples
+
+We use two examples to demonstrates how the DDPV feature works. More
+illustrations can be found at [distributeddpvdemo.tech](DDPV-Demos). The first
+example is in a network in Figure 2. 
 
 ![system](img/tore.png)
 
 Figure 2. An example topology and requirement.
 
-![system](img/dataplane.png)
-
-Figure 3. The network data plane.
+After the operator specifies the requirement in Figure 2, the verification
+planner decides the on-device tasks for each device in the network by
+constructing a data structure called DVNet.  Informally, DVNet is a DAG that
+compactly represents all valid paths in the topology that satisfy an
+operator-specified requirement, and is independent of the actual data plane of
+the network. Figure 3 gives the computed DVNet of the example in Figure 2. 
 
 ![system](img/dvnet.png)
 
-Figure 4. The DVNet and the counting process.
+Figure 3. The DVNet and the counting process.
 
-Figure 4 gives the computed DVNet in the example shown in figure 2. Note the devices in the network and the nodes in DVNet have a
+
+Note the devices in the network and the nodes in DVNet have a
 1-to-many mapping. For each node u in DVNet, we assign a unique identifier, which is a concatenation of u.dev and an integer.
 For example, device W in the network is mapped to two nodes B1 and B2 in DVNet, because the regular expression
 allows packets to reach D via [B,W,D] or [W,B,D].
 
-### 3.2.1 Green Start Use Case
-Distributed data plane verification is used in the scenario of green start, i.e., all forwarding rules are
-installed to corresponding switches all at once. For simplicity, we use P1, P2, P3 to represent the packet spaces with destination IP
+### Example 1-1: Green Start
+
+![system](img/dataplane.png)
+
+Figure 4. The network data plane.
+
+
+We first show how DDPV works in the scenario of green start, i.e., all forwarding rules are
+installed to corresponding switches all at once. Consider the network data plane
+in Figure 4. For simplicity, we use P1, P2, P3 to represent the packet spaces with destination IP
 prefixes of 10.0.0.0/23, 10.0.0.0/24, and 10.0.1.0/24, respectively. Note that P2 ∩ P3 = ∅ and P1 = P2 ∪ P3. Each u in DVNet
 initializes a packet space → count mapping, (P1, 0), except for D1 that initializes the mapping as (P1, 1) (i.e., one copy of 
 any packet in P1 will be sent to the correct external ports). Afterwards, we traverse all the nodes in DVNet in reverse topological 
@@ -129,8 +138,8 @@ B1’s updated mapping is (P1, 0) and P2 ⊂ P1.  A forwards P2 to W , the mappi
 Therefore, the updated mapping for P2 at A1 is (P2, [0, 1]). In the end, the updated mapping of S1 [(P2, [0, 1]), (P3, 1)] reflects the final 
 counting results, indicating that the data plane in Figure 3 does not satisfy the requirements in Figure 2. In other words, the network 
 data plane is erroneous.
-### 3.2.2 Incremental Update Use Case
-Consider a scenario in Figure 2, where B updates its data plane to forward P1 to W , instead of to D. The changed mappings of different 
+### Example 1-2: Incremental Update
+Consider another scenario in Figure 2, where B updates its data plane to forward P1 to W , instead of to D. The changed mappings of different 
 nodes are circled with boxes in Figure 4. In this case, device B locally updates the task results of B1 and B2 to [(P1, 1)] and [(P1, 0)], 
 respectively, and sends corresponding updates to the devices of their upstream neighbors, i.e., [(P1, 1)] sent to A following the opposite 
 of (A1, B1) and [(P1, 0)] sent to W following the opposite of (W 1, B2).
@@ -141,7 +150,16 @@ A needs to update its task result for node A1 to [(P1, 1)] because (1) no matter
 each packet will be sent to D, and (2) P2 ∪ P3 = P1. After
 updating its local result, A sends the update to S along the opposite of (S1,A1). Finally, S updates its local result for S1 to [(P1, 1)], 
 i.e., the requirement is satisfied after the update.
-### 3.2.3 Verifying RCDC Local Contracts Using Coral
+
+### Example 2: Verifying RCDC Local Contracts
+In the second example, we show how DDPV verifies the local contracts of the
+all-shortest-path availability in Azure RCDC [1]. All-shortest-path availability
+requires all pairs of ToR devices in a Clos-based data center should reach each
+other along a shortest path, and all ToR-to-ToR shortest paths should be
+available in the data plane.
+ and verifies all the shortest path availability requirements is a special case of the 
+counting task in distributed data plane verification.
+
 
 ![system](img/dc.png)
 
@@ -176,9 +194,7 @@ Aggregation contracts and core contracts are similar to ToR contracts.
 
 Figure 7: Time and overhead of verifying all-shortest-path availability in DC networks from green start on commodity network devices.
 
-The local contract in Azure RCDC [1] that requires all pairs of ToR devices should reach each other along a shortest path, and all ToR-to-ToR 
-shortest paths should be available in the data plane and verifies all the shortest path availability requirements is a special case of the 
-counting task in distributed data plane verification. It is assumed that the current data center is shown in figure 5, we use three 
+ It is assumed that the current data center is shown in figure 5, we use three 
 different switches acting as three devices (one edge like ToR1, one aggregation like A1 and one core like D1) whose tasks are to verify their 
 local contracts which are similar to what shown in figure 6. 
 Actually, we selected the three devices described above in the 48-ary Fattree and the NGClos datasets, respectively, and verify their local contracts on three commodity
