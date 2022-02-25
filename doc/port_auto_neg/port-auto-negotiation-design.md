@@ -139,7 +139,7 @@ The related port attributes are listed below:
 
 Please note that `SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE` is a new attribute introduced in SAI 1.7.1. Vendors need to implement this attribute in their SAI implementation.
 
-### Configuration and management 
+### Configuration and management
 
 #### CLI Enhancements
 
@@ -183,7 +183,7 @@ Return:
   error message if interface_name or speed_list is invalid otherwise empty
 
 Note:
-  speed_list value "all" means all supported speeds 
+  speed_list value "all" means all supported speeds
 ```
 
 This command always replace the advertised speeds instead of append. For example, say the current advertised speeds value are "10000,25000", if user configure it with `config interface advertised-speeds Ethernet0 40000,100000`, the advertised speeds value will be changed to "40000,100000".
@@ -227,7 +227,7 @@ Return:
   error message if interface_name or interface_type_list is invalid otherwise empty
 
 Note:
-  interface_type_list value "all" means all supported interface type 
+  interface_type_list value "all" means all supported interface type
 ```
 
 This command always replace the advertised interface types instead of append. For example, say the current advertised interface types value are "KR4,SR4", if user configure it with `config interface advertised-types Ethernet0 CR4`, the advertised interface types value will be changed to "CR4".
@@ -346,7 +346,7 @@ The advantage here is that user can get a list of valid interface type from CLI.
 
 For speed and adv_speeds, there is a SAI API to get the supported speed list for a given port. The idea here is to query supported speed after orchagent creating port object, and the supported speed list will be save to STATE_DB for CLI to validate. A new field **supported_speeds** will be added to **PORT_TABLE**. If this field is present, CLI will use this field to validate the input speed and adv_speeds argument, otherwise, no validation will be performed on CLI side. The STATE_DB change will be described in [State DB Enhancements](#state-db-enhancements).
 
-#### Config DB Enhancements  
+#### Config DB Enhancements
 
 SONiC already defined two fields related to port speed setting: **speed**, **autoneg**. 3 new fields **adv_speeds**, **interface_type**, **adv_interface_types** will be added to **PORT** table:
 
@@ -396,8 +396,22 @@ To support validate interface speed on CLI side, a new field **supported_speeds*
 	; field                 = value
     ...
 	supported_speeds        = STRING                         ; supported speed list
+  speed                   = STRING                         ; operational speed
 
 An example value of supported_speeds could be "10000,25000,40000,100000".
+
+Before this feature, port speed in APP DB indicates both the configured speed and the operational speed. It is OK without this feature because port operational speed must be configured speed or port operational status is down. However, this is not true with this feature. Consider following flow:
+
+1. Configure port speed to 100G
+2. Configure advertised speed to 50G and enable auto negotiation
+3. Port operational speed turns to 50G
+4. Configure any port attribute, e.g mtu, portsyncd would put all port attributes to APP DB
+5. `show interface status` displays port speed as 100G which is incorrect
+
+To overcome this issue, following changes are required:
+
+1. Put port operational speed to STATE DB PORT_TABLE
+2. intfutil, portstat, voqutil shall be change to get port operational speed from STATE DB first. For backward compatible, intfutil, portstat, voqutil shall still get port operational speed from APP DB if port speed is not available in STATE DB or port operational state is down.
 
 #### YANG Model Enhancements
 
@@ -440,7 +454,7 @@ In current SONiC implementation, if auto negotiation is enabled, it uses the `sp
     ...
     "autoneg": "1",
     "speed": "100000"
-}	
+}
 ```
 
 Will be migrated to:
