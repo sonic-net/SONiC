@@ -134,7 +134,8 @@ Arguments:
   -f: [optional] forcing link-training configuration on an unsupported transceiver
 
 Example:
-  config interface link-training Ethernet0 auto
+  config interface link-training Ethernet0 on
+  config interface link-training Ethernet0 on -f
   config interface link-training Ethernet0 off
 
 Return:
@@ -154,7 +155,8 @@ Format:
   show interfaces link-training status <interface_name>
 
 Arguments:
-  interface_name: [optional] Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows link training status for all interfaces.
+  interface_name: [optional] Name of the interface to be shown. e.g: Ethernet0.
+                  If interface_name is not given, this command shows link training status for all interfaces.
 
 Example:
   show interfaces link-training status
@@ -227,8 +229,8 @@ A new table **LINK_TRAINING** with the following fields will be introduced into 
 	; Defines information for port link-training states
 	key             = LINK_TRAINING:port_name ; port link-training states
 	; field         = value
-	status          = STRING                  ; operational link training status
-	err_description = STRING                  ; error description from swss#orchagent
+	status          = STRING                  ; hardware operational status
+	err_description = STRING                  ; software error description
 
 - status:  
 String value, the operational port link training status. The list of possible values is as follow  
