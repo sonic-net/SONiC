@@ -1,29 +1,50 @@
-# TC remapping for mux tunnel
-
+# DSCP remapping for tunnel traffic
 
 ## 1 Table of Content ###
 
+- [Revision](#11-revision)
+- [Scope](#2-scope)
+- [Definitions/Abbreviations](#3-definitionsabbreviations)
+- [Overview](#4-overview)
+- [Design](#5-design)
+    - [SWSS Schema](#51-swss-schema)
+        - [Define new table for mapping](#511-define-new-table-for-mapping)
+        - [Update existing TUNNEL table](#512-update-existing-tunnel-table)
+        - [Define new field for extra lossless queues](#513-define-new-field-for-extra-lossless-queues)
+    - [SAI attribute](#52-sai-attribute)
+    - [orchagent](#53-orchagent)
+- [Test requirement](#6-test-requirement)
+- [Open Questions](#7-open-questions)
+
 ### 1.1 Revision ###
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 |             | Bing Wang   | Initial version                   |
+
 
 ## 2 Scope ##
 
-This document will cover high level design of TC remapping in SONiC.
+This document covers high level design of DSCP and TC remapping for tunnel traffic in SONiC.
 
 ## 3 Definitions/Abbreviations ##
 
-This section covers the abbreviation if any, used in this high-level design document and its definitions.
 
 | Term | Meaning |
 |:--------:|:---------------------------------------------:|
 | PFC | Priority-based Flow Control  |
 | TC | Traffic class|
+| DSCP| Differentiated Services Code Point |
 
-## 4 Overview ##
+## 4 Overview
+
+The current QoS map architecture allows for port-based selection of each QoS map. However, we are not able to override the port-based QoS map for tunnel traffic. 
+This design proposes a method to remapping DSCP and TC for IPinIP tunnel. 
+
 
 ## 5 Design ##
 
 ### 5.1 SWSS Schema
-#### 5.1.1 Define new table mapping
+#### 5.1.1 Define new table for mapping
 * Table for decap
 
     DSCP_TO_TC_MAP for mapping DSCP to TC
@@ -153,11 +174,15 @@ TC remapping requires below SAI attributes change.
      */
     SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP,
 ```
-### 5.3 Code change
+### 5.3 orchagent
+
+Code change in orchagent
+
 1. Update `tunneldecaporch` to read and set new tunnel attributes when creating decap tunnel.
 2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
 
-## 6 Test plan
+## 6 Test requirement
+All changes are to be covered by system test.
 * Encap at standby side
     
     * Test case 1 Verify DSCP re-writing
@@ -171,10 +196,7 @@ TC remapping requires below SAI attributes change.
     * Test case 3 Verify PFC frame generation at expected queue
 
 
-## 7 Questions
+## 7 Open Questions
 
-## 8 Todos
-1. Update yang model
-2. Confirm the usage of color to DSCP mapping
-3. Confirm `pipe` mode for DSCP at decap on BRCM
+
  
