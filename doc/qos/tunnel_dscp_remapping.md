@@ -45,6 +45,7 @@ This design proposes a method to remapping DSCP and TC for IPinIP tunnel.
 
 ### 5.1 SWSS Schema
 #### 5.1.1 Define new table for mapping
+Please be noted that below config is to remap traffic in queue 3 to queue 2, and traffic in queue 4 to queue 6.
 * Table for decap
 
     DSCP_TO_TC_MAP for mapping DSCP to TC
@@ -60,8 +61,7 @@ This design proposes a method to remapping DSCP and TC for IPinIP tunnel.
             "6": "6",
             "7": "1",
             "8": "0",
-            "9": "1",
-            ......
+            "9": "1"
     }
     ```
     TC_TO_PRIORITY_GROUP_MAP for mappping TC to PG
