@@ -42,11 +42,12 @@
 
 ###### Table 1: Revision
 
-| Rev   |   Date     | Author        | Change Description |
-|:-----:|:----------:|:-------------:|--------------------|
-| 0.1   |20-Dec-2021 | Tommy Tseng   | Initial version    |
-| 0.2   |26-Jan-2022 | Tommy Tseng   | Update CLI command |
-| 0.2   |23-Feb-2022 | Tommy Tseng   | Modify DB schema   |
+| Rev   |   Date     | Author        | Change Description                 |
+|:-----:|:----------:|:-------------:|------------------------------------|
+| 0.1   |20-Dec-2021 | Tommy Tseng   | Initial version                    |
+| 0.2   |26-Jan-2022 | Tommy Tseng   | Update CLI command                 |
+| 0.2   |23-Feb-2022 | Tommy Tseng   | Modify DB schema                   |
+| 0.3   |25-Feb-2022 | Yeh Jun-ying  | Update example, Yang model and CLI |
 # Scope
 
 This document describes the high level design of VLAN stacking feature.
@@ -317,13 +318,13 @@ Table shown below represents the SAI attributes which **_shall_** be used for VL
 |                         | SAI_VLAN_STACK_ATTR_APPLIED_VLAN_ID                        | Applied Vlan ID                 |
 
 
-For example, to create a ingress VLAN stacking push entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
+For example, to create a VLAN stacking entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
 
 ```json
 "VLAN_STACKING": {
-    "Ethernet10|ingress|21": {
-        "action": "push",
-        "s_vlanid": "22"
+    "Ethernet10|21": {
+        "s_vlan_priority": "0",
+        "c_vlanids": ["22"]
 }
 ```
 
@@ -365,15 +366,6 @@ vlan_stacking_entry_attrs.push(attr);
 sai_vlan_api->create_vlan_stack(&vlan_stacking_oid, gSwitchId, (uint32_t)vlan_stacking_entry_attrs.size(), vlan_stacking_entry_attrs.data());
 ```
 
-For example, to create a egress VLAN stacking pop entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
-
-```json
-"VLAN_STACKING": {
-    "Ethernet10|egress|22": {
-        "action": "pop"
-}
-```
-
 ```c++
 /* Create a egress VLAN Stacking pop entry object:
  * ------------------------------------------ */
@@ -404,13 +396,12 @@ vlan_stacking_entry_attrs.push(attr);
 sai_vlan_api->create_vlan_stack(&vlan_stacking_oid, gSwitchId, (uint32_t)vlan_stacking_entry_attrs.size(), vlan_stacking_entry_attrs.data());
 ```
 
-For example, to create a ingress VLAN stacking swap entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
+For example, to create a VLAN translation entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
 
 ```json
-"VLAN_STACKING": {
-    "Ethernet30|ingress|10": {
-        "action": "swap",
-        "s_vlanid": "20"
+"VLAN_TRANSLATION": {
+    "Ethernet30|20": {
+        "c_vlanid": "10"
 } 
 ```
 
@@ -446,16 +437,6 @@ attr.value.u16 = 20;
 vlan_stacking_entry_attrs.push(attr);
 
 sai_vlan_api->create_vlan_stack(&vlan_stacking_oid, gSwitchId, (uint32_t)vlan_stacking_entry_attrs.size(), vlan_stacking_entry_attrs.data());
-```
-
-For example, to create a egress VLAN stacking swap entry, Ports orchagent invokes the following SAI APIs with the necessary SAI attributes:
-
-```json
-"VLAN_STACKING": {
-    "Ethernet30|egress|20": {
-        "action": "swap",
-        "s_vlanid": "10"
-}
 ```
 
 ```c++
@@ -500,49 +481,47 @@ sai_vlan_api->create_vlan_stack(&vlan_stacking_oid, gSwitchId, (uint32_t)vlan_st
 
 Add VLAN stacking rule on a physical interface or PortChannel
 
-```json
-config vlan-stacking add <interface_name> <stage> <match_vlan> <action> <apply_vlan>
-  * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
-  * stage         : The traffic direction of the packet, e.g. "ingress" or "egress".
-  * match_vlan    : The VLAN ID on the packet which expected to match the rule(The range is from 1 to 4094).
-  * action        : The action applied to the packet when it matched the rule, e.g. "push", "pop" or "swap".
-  * apply_vlan    : The VLAN ID applied to the packet according to the action field(The range is from 1 to 4094).
+```
+config vlan-stacking add <interface_name> <s_vlanid> <c_vlanids> <s_vlan_priority>
+  * Append service vlan id with priority for ingress packet when matched customor vlan id.
+    Strip service vlan id for egress packet.
+  * interface_name  : The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
+  * s_vlanid        : The VLAN ID which will be pushed for ingress direction and popped for egress direction(The range is from 1 to 4094).
+  * c_vlanids       : The VLAN ID list which is used to match on ingress direction(The range is from 1 to 4094).
+  * s_vlan_priority : The priority of Service VLAN.(The range is from 0 to 7).
 ```
 
 The format is in the following
 
-```json
+```
 admin@sonic:~$ sudo config vlan-stacking add -h
-Usage: config vlan-stacking add [OPTIONS] <interface_name> <stage> <match_vlan> <action> <apply_vlan>
+Usage: config vlan-stacking add [OPTIONS] <interface_name> <s_vlanid> <c_vlanids> <s_vlan_priority>
 
   Add vlan stacking rule, examples:
-  - config vlan-stacking add Ethernet0 ingress 100 push 200
-  - config vlan-stacking add Ethernet0 egress 100 pop
-  - config vlan-stacking add Ethernet0 ingress 100 swap 200
-  - config vlan-stacking add Ethernet0 egress 100 swap 200
+  - config vlan-stacking add Ethernet0 200 100 0
+  - config vlan-stacking add Ethernet0 200 100,110-120 1
 
 Options:
   -?, -h, --help  Show this message and exit.
 ```
-
 Delete VLAN stacking rule from a physical interface or PortChannel
 
-```json
-config vlan-stacking del <interface_name> <stage> <match_vlan>
+```
+config vlan-stacking del <interface_name> <s_vlanid> [<c_vlanids>]
   * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
-  * stage         : The traffic direction of the packet, e.g. "ingress" or "egress".
-  * match_vlan    : The VLAN ID on the packet which expected to match the rule(The range is from 1 to 4094).
+  * s_vlanid  : The VLAN ID which will be pushed for ingress direction and popped for egress direction(The range is from 1 to 4094).
+  * c_vlanids : The VLAN ID list which is used to match on ingress packet(The range is from 1 to 4094).
 ```
 
 The format is in the following
 
-```json
+```
 admin@sonic:~$ sudo config vlan-stacking del -h
-Usage: config vlan-stacking del [OPTIONS] <interface_name> <stage> <match_vlan>
+Usage: config vlan-stacking del [OPTIONS] <interface_name> <s_vlanid> [<c_vlanids>]
 
   Delete vlan stacking rule, examples:
-  - config vlan-stacking del Ethernet0 ingress 100
-  - config vlan-stacking del Ethernet0 egress 100
+  - config vlan-stacking del Ethernet0 200
+  - config vlan-stacking del Ethernet0 200 115-120
 
 Options:
   -?, -h, --help  Show this message and exit.
@@ -550,20 +529,75 @@ Options:
 
 Display VLAN stacking rule configuration
 
-```json
+```
 show vlan-stacking
 ```
-
 The display format is in the following
 
-```json
+```
 admin@root:~# show vlan-stacking
-Interface    Stage      Match VLAN  Action      Apply VLAN
------------  -------  ------------  --------  ------------
-Ethernet0    egress            200  pop
-Ethernet0    ingress           100  push               200
-Ethernet4    egress            200  swap               100
-Ethernet4    ingress           100  swap               200
+Interface    s_vlanid   c_vlanids    s_vlan_priority
+-----------  --------  -----------  ----------------
+Ethernet0         200          100                 0
+Ethernet4         200  100,110-120                 1
+```
+
+Add VLAN translation rule on a physical interface or PortChannel
+
+```
+config vlan-translation add <interface_name> <s_vlanid> <c_vlanid>
+  * Swap the VLAN ID from customer vlan id to service vlan id for ingress direction.
+    Swap the VLAN ID from service vlan id to customer vlan id for egress direction.
+  * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
+  * s_vlanid : The VLAN ID will be replaced by c_vlanid for egress direction(The range is from 1 to 4094).
+  * c_vlanid : The VLAN ID will be replaced by s_vlanid for ingress direction(The range is from 1 to 4094).
+```
+
+The format is in the following
+
+```
+admin@sonic:~$ sudo config vlan-translation add -h
+Usage: config vlan-translation add [OPTIONS] <interface_name> <s_vlanid> <c_vlanid>
+
+  Add vlan stacking rule, examples:
+  - config vlan-translation add Ethernet0 200 100
+
+Options:
+  -?, -h, --help  Show this message and exit.
+```
+Delete VLAN translation rule from a physical interface or PortChannel
+
+```
+config vlan-translation del <interface_name> <s_vlanid>
+  * interface_name: The name of physical interface or PortChannel, e.g. "Ethernet0" or "PortChannel0001".
+  * s_vlanid  : The VLAN ID will be replaced by c_vlanid for egress direction(The range is from 1 to 4094).
+```
+
+The format is in the following
+
+```
+admin@sonic:~$ sudo config vlan-translation del -h
+Usage: config vlan-translation del [OPTIONS] <interface_name> <s_vlanid>
+
+  Delete vlan stacking rule, examples:
+  - config vlan-stacking del Ethernet0 200
+
+Options:
+  -?, -h, --help  Show this message and exit.
+```
+
+Display VLAN translation rule configuration
+
+```
+show vlan-translation
+```
+The display format is in the following
+
+```
+admin@root:~# show vlan-translation
+Interface    s_vlanid  c_vlanid
+-----------  --------  --------
+Ethernet0         100       200
 ```
 
 ### Yang model
@@ -573,7 +607,7 @@ New yang model `sonic-vlan-stacking.yang` is defined to describe VLAN stacking c
 ```json
 module sonic-vlan-stacking {
 
-    yang-version 1.0;
+    yang-version 1.1;
 
     namespace "http://github.com/Azure/sonic-vlan-stacking";
     prefix vlan-stacking;
@@ -609,11 +643,11 @@ module sonic-vlan-stacking {
             description "VLAN_STACKING part of config_db.json";
 
             list VLAN_STACKING_LIST {
-                key "INTERFACE_NAME STAGE VLAN_ID";
+                key "interface_name s_vlanid";
 
                 ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)|([0-9]+)$";
 
-                ext:key-regex-yang-to-configdb "<INTERFACE_NAME>|<STAGE>|<VLAN_ID>";
+                ext:key-regex-yang-to-configdb "<interface_name>|<s_vlanid>";
 
                 leaf interface_name {
                     type union {
@@ -626,27 +660,100 @@ module sonic-vlan-stacking {
                     }
                 }
 
-                leaf stage {
-                    type string {
-                        pattern 'ingress|egress';
-                    }
-                }
-
-                leaf vlan_id {
+                leaf s_vlanid {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
                 }
 
-                leaf action {
-                    mandatory true;
-                    type string {
-                        pattern 'push|pop|swap';
+                leaf-list c_vlanids {
+                    type union {
+                        type leafref {
+                            path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
+                        }
+                        type string {
+                            length 1..10;
+                            pattern '[0-9]{1,4}..[0-9]{1,4}';
+                        }
+                    }
+                }
+
+                leaf s_vlan_priority {
+                    type uint8 {
+                         range 0..7;
+                    }
+                }
+             }
+        }
+    }
+}
+```
+
+New yang model `sonic-vlan-translation.yang` is defined to describe VLAN translation configuration.
+
+```
+module sonic-vlan-translation {
+
+    yang-version 1.0;
+
+    namespace "http://github.com/Azure/sonic-vlan-translation";
+    prefix vlan-translation;
+
+    import sonic-extension {
+        prefix ext;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-port {
+        prefix port;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-portchannel {
+        prefix lag;
+        revision-date 2019-07-01;
+    }
+
+    import sonic-vlan {
+        prefix vlan;
+        revision-date 2019-07-01;
+    }
+
+    description "VLAN Translation YANG Module for SONiC OS";
+
+    revision 2021-12-15 {
+        description "First Revision";
+    }
+
+    container sonic-vlan-translation {
+        container VLAN_TRANSLATION {
+            description "VLAN_TRANSLATION part of config_db.json";
+
+            list VLAN_TRANSLATION_LIST {
+                key "interface_name s_vlanid";
+
+                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)|([0-9]+)$";
+
+                ext:key-regex-yang-to-configdb "<interface_name>|<s_vlanid>";
+
+                leaf interface_name {
+                    type union {
+                        type leafref {
+                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:port_name;
+                        }
+                        type leafref {
+                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:portchannel_name;
+                        }
                     }
                 }
 
                 leaf s_vlanid {
-                    /* S-VLAN ID for push and swap action */  
+                    type leafref {
+                        path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
+                    }
+                }
+
+                leaf c_vlanid {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
@@ -661,45 +768,25 @@ module sonic-vlan-stacking {
 
 ### Examples of QinQ Configuration
 
-The following configuration example shows C-VLAN 10 to S-VLAN 100 and C-VLAN 50 to S-VLAN 500 for ingress traffic on Ethernet1. And strips S-VLAN 100 and S-VLAN 500 for egress traffic on Ethernet1.
+The following configuration example shows C-VLAN 101, 102, 103 and 150 to S-VLAN 100 with VLAN priority 0 for ingress traffic on Ethernet1. And strips S-VLAN 100 for egress traffic on Ethernet1.
 
 ```json
 "VLAN_STACKING": {
-    "Ethernet1|ingress|10": {
-        "action": "push",
-        "s_vlanid": "100"
-    },
-    "Ethernet1|ingress|50": {
-        "action": "push",
-        "s_vlanid": "500"
-    },
-    "Ethernet1|egress|100": {
-        "action": "pop"
-    },
-    "Ethernet1|egress|500": {
-        "action": "pop"
-    }
+    "Ethernet1|100": {
+        "c_vlanids": ["101..103", "150"],
+        "s_vlan_priority": "0"
+    }
 }
 ```
 
-For port channel, the following configuration example shows C-VLAN 20 to S-VLAN 200 and C-VLAN 60 to S-VLAN 600 for ingress traffic on PortChannel01. And strips S-VLAN 200 and S-VLAN 600 for egress traffic on PortChannel01.
+For port channel, the following configuration example shows C-VLAN 201, 202, and 203 to S-VLAN with VLAN priority 1 for ingress traffic on PortChannel01. And strips S-VLAN 200 for egress traffic on PortChannel01.
 
 ```json
 "VLAN_STACKING": {
-    "PortChannel01|ingress|20": {
-        "action": "push",
-        "s_vlanid": "200"
-    },
-    "PortChannel01|ingress|60": {
-        "action": "push",
-        "s_vlanid": "600"
-    },
-    "PortChannel01|egress|200": {
-        "action": "pop"
-    },
-    "PortChannel01|egress|600": {
-        "action": "pop"
-    }
+    "PortChannel01|200": {
+        "c_vlanids": ["201..203"],
+        "s_vlan_priority": "1"
+    }
 }
 ```
 
@@ -708,30 +795,20 @@ For port channel, the following configuration example shows C-VLAN 20 to S-VLAN 
 For example, assume that the upstream switch does not support QinQ tunneling. As the following configuration example, select Ethernet1, and set the Old VLAN to 10 and the New VLAN to 510 to map VLAN 10 to VLAN 510 for upstream traffic entering Ethernet1, and VLAN 510 to VLAN 10 for downstream traffic leaving Ethernet1.
 
 ```json
-"VLAN_STACKING": {
-    "Ethernet1|ingress|10": {
-        "action": "swap",
-        "s_vlanid": "510"
-    },
-    "Ethernet1|egress|510": {
-        "action": "swap",
-        "s_vlanid": "10"
-    }
+"VLAN_TRANSLATION": {
+    "Ethernet1|10": {
+        "c_vlanid": "510"
+    }
 }
 ```
 
 As the following configuration example for port channel, select PortChannel01, and set the Old VLAN to 20 and the New VLAN to 620 to map VLAN 20 to VLAN 620 for upstream traffic entering PortChannel01, and VLAN 620 to VLAN 20 for downstream traffic leaving PortChannel01.
 
  ```json
-"VLAN_STACKING": {
-    "PortChannel01|ingress|20": {
-        "action": "swap",
-        "s_vlanid": "620"
-    },
-    "PortChannel01|egress|620": {
-        "action": "swap",
-        "s_vlanid": "20"
-    }
+"VLAN_TRANSLATION": {
+    "PortChannel01|20": {
+        "c_vlanid": "620"
+    }
 }
 ```
 
@@ -747,23 +824,31 @@ There is no restriction or limitation.
 
 ## System Test Cases
 
-* Verify that the max N / M mapping for ingress / egress frames are able to configure.
-* Verify that the max number of VLAN stacking configuration are able to configure.
+* Verify that the max number of VLAN stacking and VLAN translation configuration are able to configure.
 * Verify that the configuration is working on only Ethernet and port channel interfaces.
 * Verify that the invalid configuration doesn't take effect and an error is logged in syslog. (e.g., the port is not exist)
 * Verify the rewrite action **_will_** be done if match C-VLAN,
-  * push action for ingress frames
-  * pop action for egress frames
-  * swap action for ingress and egress frames
+  * VLAN stacking action for ingress and egress frames on edge interface
 
-  | Inject frames on edge interface                     | push                        | pop              | swap (ingress)               | swap (egress)            |
-  | --------------------------------------------------- | --------------------------- | ---------------- | ---------------------------- | ------------------------ |
-  | untagged                                            | Forward using port VLAN     | N/A              | Forward using port VLAN      | N/A                      |
-  | single tagged (with non-supported TPID, e.g., 9100) | Forward using port VLAN     | noop             | Forward using port VLAN      | noop                     |
-  | single tagged (not match the mapping)               | Forward using port VLAN     | noop             | Forward using pkt outer VLAN | noop                     |
-  | double tagged (not match the mapping)               | Forward using port VLAN     | noop             | Forward using pkt outer VLAN | noop                     |
-  | single tagged (matched the mapping)                 | Add S-VLAN tag              | Remove outer tag | Replace C-VLAN as S-VLAN     | Replace S-VLAN as C-VLAN |
-  | double tagged (matched the mapping)                 | Add S-VLAN tag (triple tag) | Remove outer tag | Replace C-VLAN AS S-VLAN     | Replace S-VLAN as C-VLAN |
+  | Frames on edge interface                            | Ingress frames              | Egress frames     |
+  | --------------------------------------------------- | --------------------------- | ------------------|
+  | untagged                                            | Forward using port VLAN     | N/A               |
+  | single tagged (with non-supported TPID, e.g., 9100) | Forward using port VLAN     | noop              |
+  | single tagged (not match the mapping)               | Forward using port VLAN     | noop              |
+  | double tagged (not match the mapping)               | Forward using port VLAN     | noop              |
+  | single tagged (matched the mapping)                 | Add S-VLAN tag              | Remove S-VLAN tag |
+  | double tagged (matched the mapping)                 | Add S-VLAN tag (triple tag) | Remove S-VLAN tag |
+
+  * VLAN translation action for ingress and egress frames on edge interface
+
+  | Frames on edge interface                            | Ingress frames               | Egress frames            |
+  | --------------------------------------------------- | ---------------------------- | ------------------------ |
+  | untagged                                            | Forward using port VLAN      | N/A                      |
+  | single tagged (with non-supported TPID, e.g., 9100) | Forward using port VLAN      | noop                     |
+  | single tagged (not match the mapping)               | Forward using pkt outer VLAN | noop                     |
+  | double tagged (not match the mapping)               | Forward using pkt outer VLAN | noop                     |
+  | single tagged (matched the mapping)                 | Replace C-VLAN as S-VLAN     | Replace S-VLAN as C-VLAN |
+  | double tagged (matched the mapping)                 | Replace C-VLAN AS S-VLAN     | Replace S-VLAN as C-VLAN |
 
 * Verify that the double frame will be L2/L3 forwarded on any not enable interface (Ethernet and port channel interfaces). Outer TPID = 8100, others **_will_** be drop.
 * Verify multiple mappings of different C-VLAN to separate S-VLANs per port. Include the combinations:
