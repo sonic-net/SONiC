@@ -219,6 +219,7 @@ The ddpv container runs two daemon processes: lecbuilderd and vagentd. We give a
 brief view on the key classes and their main functionalities of each process.
 
 ## lecbuilderd
+The core of lecbuilderd is the LECBuilder class.
 
 - LECBuilder
 
@@ -232,28 +233,34 @@ brief view on the key classes and their main functionalities of each process.
   - `updateLEC()`: get the updates of data plane from the database container and update the LECs incrementally.
 
 ## vagentd
+The vagentd process uses a dispatch-worker thread pool design.
+
+### Dispatcher
+
+The Dispatcher class receives the computation task configurations from the planner and spawns
+Worker threads correspondingly. It also establishes socket connections with neighboring devices, dispatches received messages to corresponding Worker threads, and sends the messages from Worker threads to corresponding neighbor devices.
+
+The main methods in Dispatcher include:
+
+  - `receiveInstruction()`: receive instructions on computation tasks from the planner, and spawn corresponding Worker threads. This method is only invoked when the system starts or the planner updates the computation tasks based on operators' instructions. 
+  - `receiveMessage()`: receive the verification messages from neighboring devices and dispatch them to the corresponding workers.
+  - `receiveLECUpdate()`: receive the updates of LECs from lecbuilderd and dispatch them to corresponding workers.
+  - `sendMessage()`: receive the sendResult requests
+    from workers and send them to corresponding devices.
+  - `sendAlert()`: if a worker specifies in its sendResult request that the result indicates a violation of an
+operator-specified requirement, the dispatcher sends an alert to the operators. 
+
   
-- Dispatcher
+### Worker
 
-  This class dispatches the counting tasks to workers.
-  Dispatcher receives the configurations from the planner, and establishes socket connections with neighboring devices.
-  The main methods in Dispatcher are:
-
-  - `receiveInstruction()`: receive instruction from planner (e.g., receives new DVNet and construct workers).
-  - `receiveMessage()`: receive the counting message from neighboring device and dispatch task to the corresponding workers.
-  - `receiveLECUpdate()`: receive the updates of LECs from lecbuilderd and dispatch update task to workers.
-  - `sendMessage()`: send the counting message to the neighboring device where the precursor node of the node in the DVNet resides.
-  - `sendResult()`: send the counting result to the planner.
-  
-- Worker
-
-  This class executes the counting tasks. 
-  A node in DVNet corresponds to a worker. 
+This class executes the lightweight computation tasks specified by the planner. 
+  Each node in DVNet corresponds to a worker thread. 
   The running state of Worker is controlled by the thread pool.
-  The main methods in Worker are:
-  - `receiveMessage()`: receive the counting message from dispatcher, and execute the counting task.
-  - `receiveLECUpdate()`: receive the updates of LECs from dispatcher, and execute the update task.
-  - `sendMessage()`: send the counting message to dispatcher, which sends it to the precursor node of the node in the DVNet.
+  The main methods in Worker include:
+  - `receiveMessage()`: receive the verification message from the dispatcher, and execute the computation task incrementally.
+  - `receiveLECUpdate()`: receive the updates of LECs from the dispatcher, and execute the computation task incrementally.
+  - `sendResult()`: send the result of the computation task to the dispatcher, which either forwards it to a corresponding neighbor device or sends an alert to the operators, depending on whether a violation of an operator-specified requirement is found by the worker.
+
   
 
 [comment]: <> (## 4.1 Overview)
