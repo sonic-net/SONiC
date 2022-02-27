@@ -215,19 +215,25 @@ Figure 7: Time and overhead of verifying all-shortest-path availability in DC ne
 
 # Design
 
+The ddpv container runs two daemon processes: lecbuilderd and vagentd. We give a
+brief view on the key classes and their main functionalities of each process.
+
 ## lecbuilderd
 
 - LECBuilder
 
-  Convert the data plane to LECs, and use binary decision diagram (BDD) to store LECs. LECBuilder contains the following methods.
+  This class is responsible for converting the data plane (e.g., FIB and ACL) of the residing device to local equivalence classes (LECs). Given a device X, a local equivalence class is a set of packets whose actions are identical at X. LECBuilder stores the LECs of its residing device using a data structure called  binary decision diagram (BDD). The main methods in LECBuilder are: 
     
-  - `readDP()`: Build LECs from DP.
-  - `getChanges()`: Get the changes of LECs from the changes of DP.
+  - `buildLEC()`: read the database container to get the data plane of the device,
+    and build the LECs.
+  - `updateLEC()`: get the updates of data plane from the database container and update the LECs incrementally.
 
 ## vagentd
 
 - Device
-  
+  This class receives the configurations from the planner, and construct 
+
+
   Assign tasks to and provide services for each node. Device contains the following methods.
   - `addNode()`: Add new node from planner.
   - `start()`: Each node starts counting tasks.
