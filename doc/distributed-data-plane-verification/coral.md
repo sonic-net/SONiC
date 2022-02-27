@@ -243,6 +243,7 @@ Figure 7: Time and overhead of verifying all-shortest-path availability in DC ne
   - `receiveChanges()`: Update the counting result from the changes of LECs.
 
 - Network
+
   Establish Socket connections and send and receive the counting results messages. Network contains the following methods.
   - `sendMessage()`: Send the counting results messages.
   - `receiveMessage()`: Receive the counting results messages.
