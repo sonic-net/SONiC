@@ -213,7 +213,41 @@ Figure 7: Time and overhead of verifying all-shortest-path availability in DC ne
 
 
 
-[comment]: <> (# 4 Design)
+# Design
+
+## lecbuilderd
+
+- LECBuilder
+
+  Convert the data plane to LECs, and use binary decision diagram (BDD) to store LECs. LECBuilder contains the following methods.
+    
+  - `readDP()`: Build LECs from DP.
+  - `getChanges()`: Get the changes of LECs from the changes of DP.
+
+## vagentd
+
+- Device
+  
+  Assign tasks to and provide services for each node. Device contains the following methods.
+  - `addNode()`: Add new node from planner.
+  - `start()`: Each node starts counting tasks.
+  - `receiveCount()`: Receives information from Network and assigns tasks to corresponding nodes.
+  - `sendCount()`: The node calls this method to send the counting result.
+  - `updateFromChanges()`: Assigns tasks to nodes from the changes of LECs.
+  
+- Node
+
+  Execute counting tasks. Node contains the following methods.
+  - `start()`: Start counting tasks.
+  - `receiveCount()`: After receiving the counting result of the subsequent node, compute the counting result of the current node.
+  - `receiveChanges()`: Update the counting result from the changes of LECs.
+
+- Network
+  Establish Socket connections and send and receive the counting results messages. Network contains the following methods.
+  - `sendMessage()`: Send the counting results messages.
+  - `receiveMessage()`: Receive the counting results messages.
+  - `serialize()`: Serialize the counting results.
+  - `deserialize()`: Deserialize the counting results.
 
 [comment]: <> (## 4.1 Overview)
 
