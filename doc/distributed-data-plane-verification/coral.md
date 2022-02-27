@@ -222,39 +222,39 @@ brief view on the key classes and their main functionalities of each process.
 
 - LECBuilder
 
-  This class is responsible for converting the data plane (e.g., FIB and ACL) of the residing device to local equivalence classes (LECs). Given a device X, a local equivalence class is a set of packets whose actions are identical at X. LECBuilder stores the LECs of its residing device using a data structure called  binary decision diagram (BDD). The main methods in LECBuilder are: 
+  This class is responsible for converting the data plane (e.g., FIB and ACL) of the residing device to local equivalence classes (LECs).
+  Given a device X, a local equivalence class is a set of packets whose actions are identical at X.
+  LECBuilder stores the LECs of its residing device using a data structure called binary decision diagram (BDD).
+  The main methods in LECBuilder are: 
     
   - `buildLEC()`: read the database container to get the data plane of the device,
     and build the LECs.
   - `updateLEC()`: get the updates of data plane from the database container and update the LECs incrementally.
 
 ## vagentd
-
-- Device
-  This class receives the configurations from the planner, and construct 
-
-
-  Assign tasks to and provide services for each node. Device contains the following methods.
-  - `addNode()`: Add new node from planner.
-  - `start()`: Each node starts counting tasks.
-  - `receiveCount()`: Receives information from Network and assigns tasks to corresponding nodes.
-  - `sendCount()`: The node calls this method to send the counting result.
-  - `updateFromChanges()`: Assigns tasks to nodes from the changes of LECs.
   
-- Node
+- Dispatcher
 
-  Execute counting tasks. Node contains the following methods.
-  - `start()`: Start counting tasks.
-  - `receiveCount()`: After receiving the counting result of the subsequent node, compute the counting result of the current node.
-  - `receiveChanges()`: Update the counting result from the changes of LECs.
+  This class dispatches the counting tasks to workers.
+  Dispatcher receives the configurations from the planner, and establishes socket connections with neighboring devices.
+  The main methods in Dispatcher are:
 
-- Network
+  - `receiveInstruction()`: receive instruction from planner (e.g., receives new DVNet and construct workers).
+  - `receiveMessage()`: receive the counting message from neighboring device and dispatch task to the corresponding workers.
+  - `receiveLECUpdate()`: receive the updates of LECs from lecbuilderd and dispatch update task to workers.
+  - `sendMessage()`: send the counting message to the neighboring device where the precursor node of the node in the DVNet resides.
+  - `sendResult()`: send the counting result to the planner.
+  
+- Worker
 
-  Establish Socket connections and send and receive the counting results messages. Network contains the following methods.
-  - `sendMessage()`: Send the counting results messages.
-  - `receiveMessage()`: Receive the counting results messages.
-  - `serialize()`: Serialize the counting results.
-  - `deserialize()`: Deserialize the counting results.
+  This class executes the counting tasks. 
+  A node in DVNet corresponds to a worker. 
+  The running state of Worker is controlled by the thread pool.
+  The main methods in Worker are:
+  - `receiveMessage()`: receive the counting message from dispatcher, and execute the counting task.
+  - `receiveLECUpdate()`: receive the updates of LECs from dispatcher, and execute the update task.
+  - `sendMessage()`: send the counting message to dispatcher, which sends it to the precursor node of the node in the DVNet.
+  
 
 [comment]: <> (## 4.1 Overview)
 
