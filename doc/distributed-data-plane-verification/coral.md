@@ -60,7 +60,7 @@ requirements.
 
 The picture below demonstrates the architecture and workflow of distributed data plane verification.
 
-[comment]: <> (![architecture]&#40;img/architecture.png&#41;)
+
 ![system](img/system-diagram.jpg)
 
 
@@ -118,7 +118,6 @@ allows packets to reach D via [B,W,D] or [W,B,D].
 
 <img src="./img/dataplane.png" width="30%"  alt="dataplane" />
 
-[comment]: <> (![system]&#40;img/dataplane.png&#41;)
 
 Figure 4. The network data plane.
 
@@ -192,19 +191,16 @@ contracts of data centers.
 
 <img src="./img/dc_total_time.png" width="484px"  alt="dc_total_time" />
 
-[comment]: <> (![system]&#40;img/dc_total_time.png&#41;)
 
 (a) Total time.
 
 <img src="./img/dc_memory.png" width="484px"  alt="dc_memory" />
 
-[comment]: <> (![system]&#40;img/dc_memory.png&#41;)
 
 (b) Maximal memory.
 
 <img src="./img/dc_load.png" width="484px"  alt="dc_load" />
 
-[comment]: <> (![system]&#40;img/dc_load.png&#41;)
 
 (c) CPU load.
 
@@ -216,7 +212,7 @@ Figure 7: Time and overhead of verifying all-shortest-path availability in DC ne
 # Design
 
 The ddpv container runs two daemon processes: lecbuilderd and vagentd. We give a
-brief view on the key classes and their main functionalities of each process.
+brief view of the key classes and the main functionalities of each process.
 
 ## lecbuilderd
 The core of lecbuilderd is the LECBuilder class.
@@ -238,8 +234,7 @@ The vagentd process uses a dispatch-worker thread pool design.
 ### Dispatcher
 
 The Dispatcher class receives the computation task configurations from the planner and spawns
-Worker threads correspondingly. It also establishes socket connections with neighboring devices, dispatches received messages to corresponding Worker threads, and sends the messages from Worker threads to corresponding neighbor devices.
-
+Worker threads correspondingly. It also establishes socket connections with neighboring devices, dispatches received messages to corresponding Worker threads and sends the messages from Worker threads to corresponding neighbor devices.
 The main methods in Dispatcher include:
 
   - `receiveInstruction()`: receive instructions on computation tasks from the planner, and spawn corresponding Worker threads. This method is only invoked when the system starts or the planner updates the computation tasks based on operators' instructions. 
@@ -248,49 +243,20 @@ The main methods in Dispatcher include:
   - `sendMessage()`: receive the sendResult requests
     from workers and send them to corresponding devices.
   - `sendAlert()`: if a worker specifies in its sendResult request that the result indicates a violation of an
-operator-specified requirement, the dispatcher sends an alert to the operators. 
+operator-specified requirement, the dispatcher sends an alert to the operators.
 
   
 ### Worker
 
 This class executes the lightweight computation tasks specified by the planner. 
   Each node in DVNet corresponds to a worker thread. 
-  The running state of Worker is controlled by the thread pool.
+  The running state of workers is controlled by the thread pool.
   The main methods in Worker include:
   - `receiveMessage()`: receive the verification message from the dispatcher, and execute the computation task incrementally.
   - `receiveLECUpdate()`: receive the updates of LECs from the dispatcher, and execute the computation task incrementally.
   - `sendResult()`: send the result of the computation task to the dispatcher, which either forwards it to a corresponding neighbor device or sends an alert to the operators, depending on whether a violation of an operator-specified requirement is found by the worker.
 
-  
 
-[comment]: <> (## 4.1 Overview)
-
-[comment]: <> (![system]&#40;img/system-diagram.jpg&#41;)
-
-[comment]: <> (## 4.2 Setup
-Before the verification begins, the planner first uses the requirement and the network topology to compute DVNet.
-It then transforms the DPV problem into a counting problem on DVNet.
-In its turn, each node in DVNet takes as input the data plane of its corresponding device and
-the counting results of its downstream nodes to compute for different packets,
-how many copies of them can be delivered to the intended destinations along downstream paths in DVNet.
-This traversal can be naturally decomposed to on-device counting tasks, one for each node in DVNet,
-and distributed to the corresponding network devices' vagentd by the planner. )
-
-
-[comment]: <> (## 4.3 Green start
-Lecbuilderd collects all the data planes from the Database, calculates the LEC, and passes the LEC results to vagentd.
-Vagentd uses the node information of DVNet and LEC to calculate the current count result of each node.
-The leaf nodes of DVNet will generate messages and send them to the corresponding devices of the precursor nodes of each node through socket.
-After receiving the message, each device carries out a new round of calculation according to the content of the message and the counting result calculated before,
-then the new result generate messages and sent along the reverse direction in the DVNet.
-Finally, green start is complete until each device has finished counting. )
-
-[comment]: <> (## 4.4 Incremental update
-When a device's data plane changes, Being lecbuilderd an database subscriber, it will receive the content of the changes,
-and then calculate the LEC changes and send them to vagentd.
-Vagentd calculates whether each node needs to update its count result,
-and if any of the results change, it generates a message and sends it to the node's precursor nodes.
-The process is similar to green start. Finally, update is complete until each device has finished counting.)
     
 
 # References
