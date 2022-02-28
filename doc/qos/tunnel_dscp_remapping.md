@@ -45,10 +45,13 @@ This design proposes a method to remapping DSCP and TC for IPinIP tunnel.
 
 ### 5.1 SWSS Schema
 #### 5.1.1 Define new table for mapping
+Update [qos_config.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) to generate 4 tables for remapping. Currently, the remapping is required in `dual-tor` scenario. So the tables are rendered into `config_db` only when `DEVICE_METADATA['localhost']['subtype'] = 'DualToR`. 
+
 Please be noted that below config is to remap traffic in queue 3 to queue 2, and traffic in queue 4 to queue 6.
 * Table for decap
 
     DSCP_TO_TC_MAP for mapping DSCP to TC
+
     ```json
     "DSCP_TO_TC_MAP": {
         "AZURE_TUNNEL": {
@@ -64,7 +67,9 @@ Please be noted that below config is to remap traffic in queue 3 to queue 2, and
             "9": "1"
     }
     ```
+
     TC_TO_PRIORITY_GROUP_MAP for mappping TC to PG
+
     ```json
     "TC_TO_PRIORITY_GROUP_MAP": {
         "AZURE_TUNNEL": {
@@ -78,9 +83,11 @@ Please be noted that below config is to remap traffic in queue 3 to queue 2, and
             "7": "7"
     }
     ```
+
 * Table for encap
 
     TC_TO_QUEUE_MAP for remapping queue
+
     ```json
     "TC_TO_QUEUE_MAP": {
         "AZURE_TUNNEL": {
@@ -94,6 +101,7 @@ Please be noted that below config is to remap traffic in queue 3 to queue 2, and
             "7": "7"
     }
     ``` 
+
     TC_TO_DSCP_MAP for rewriting DSCP
     ```json
     "TC_TO_DSCP_MAP": {
@@ -109,6 +117,7 @@ Please be noted that below config is to remap traffic in queue 3 to queue 2, and
     }
     ```
 
+    To support the new table, a new YANG model `sonic-tc-dscp.yang` is required 
 #### 5.1.2 Update existing TUNNEL table
 1. Change `dscp_mode` from `uniform` to `pipe` for TC remapping
 2. Add TC remapping config if TC remapping is enabled
@@ -151,6 +160,10 @@ In current version, software PFC watchdog will read field `pfc_enable` to determ
         }
 }
 ```
+
+To support new field `pfc_wd_sw_enable` and `pfc_wd_hw_enable`, [sonic-port-qos-map.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port-qos-map.yang) is required to be updated.
+
+ 
 ### 5.2 SAI attribute
 TC remapping requires below SAI attributes change.
 ```cpp
@@ -179,8 +192,17 @@ TC remapping requires below SAI attributes change.
 Code change in orchagent
 
 1. Update `tunneldecaporch` to read and set new tunnel attributes when creating decap tunnel.
-2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
 
+    | Attribute |     Value    |  
+    |---|-----------|
+    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP | [TC_TO_DSCP_MAP\|AZURE_TUNNEL]|
+    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP | [TC_TO_QUEUE_MAP\|AZURE_TUNNEL] |
+    
+2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
+    | Attribute |     Value    |  
+    |---|-----------|
+    | SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP | [DSCP_TO_TC_MAP\|AZURE_TUNNEL]|
+    | SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP | [TC_TO_PRIORITY_GROUP_MAP\|AZURE_TUNNEL |
 ## 6 Test requirement
 All changes are to be covered by system test.
 * Encap at standby side
