@@ -52,7 +52,6 @@ This doc proposes an enhancement to current ACL, which add a TTL to ACL rules an
 ## Requirements
 
 - ACL rules are removed when TTL expired
-- The precision of TTL is no more than 1 minute
 - Support TTL refreshment
 - The count down of TTL keeps going after warm-boot
 
@@ -152,7 +151,7 @@ Update `acl-loader` script to parse new field `is_dynamic`. The entry will be cr
 
 #### acl_ttl_checker
 
-A helper script managed by `Monit` service. The checker is triggered every 60 seconds by default. It will walk through all entries in `ACL_TTL_TABLE` and delete the corresponding `ACL_RULE` from `config_db` if
+A helper script will be added to `swss` container. The checker is started after `orchagent` and check the TTL of dynamic ACL rules every 10 seconds by default. It will walk through all entries in `ACL_TTL_TABLE` and delete the corresponding `ACL_RULE` from `config_db` if
 
 - Current timestamp is larger than the `expiration_time` in the entry
 - The corresponding ACL rule is marked as dynamic
@@ -188,4 +187,4 @@ A helper script managed by `Monit` service. The checker is triggered every 60 se
 3. Test case 3 Verify expired dynamic ACL rule can be removed
 
 ## Open questions
-1. `monit` service is delay started(5 minutes) after reboot or reload. So there will be no expiration at the first 5 minutes after reboot or reload.
+1. memory leak issue detection and validation.
