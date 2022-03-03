@@ -29,22 +29,20 @@ This latency could run in the order of minutes, oftent 10+.
 ### Pro
 1) This support is external to app, hence adapts well with III party containers.
 2) The containers could evolve and the switch may get update via container-only upgrade or image upgrade. Either would be transparent, as the regex lives inside the container.
-3) The plugin can be shared copy that the container can pick from the buildimage source. This helps provide a overall control across all containers.
-4) The nightly tests can ensure that each container indeed writes expected log messages to ensure that it does not break any backwartd compatibility. As the data is structured, the tests need not make distinction across releases.
+3) The plugin can be shared copy that the container can run frim shared folder in host. This helps provide a overall control across all containers.
+4) The data being structured, the nightly tests can ensure the data integrity across releases.
 5) The parsing load is distributed as per container. Within a container parsing is done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
-7) The regex file provides the unique identity for each. The structured JSON data is easier for tools to parse.
-8) Being structured data, the apps are free to add more or less data elements. Tools can be tolerant for missing or additional data, as use it if there.
+7) The regex file provides the unique identity for each event. The structured JSON data is easier for tools to parse.
+8) Being structured data, the apps are free to add more or less data elements. Tools can be tolerant for missing or additional data, as use it if exists.
 9) Streaming telemetry support is already available
 
 ### con:
-1) The code review should take care of not breaking backward compatibility. For example, if "bgp_down" is the tag/name for the message, this should not be changed across releases as external tools will look for messages by this name
-2) Two step process for devs, as for each new/updated log message add/update regex as needed. The adoption to new Event-Alarm FW is the solution.
-3) rsyslogd is *required*. It should be treated as critical process in each container.
+1) Two step process for devs, as for each new/updated log message add/update regex as needed. The adoption to new Event-Alarm FW is the solution will avoid this.
+2) The rsyslogd is *required*. It should be treated as critical process in each container.
 
 # Design
 
-![image](https://user-images.githubusercontent.com/47282725/155053818-fa50ec78-4e78-425e-be9a-20a851570730.png)
-
+![image](https://user-images.githubusercontent.com/47282725/156477501-7bc587a5-b5e0-4b2b-bfe5-1a4894482f16.png)
 
 # Next Step:
 When alarm-event FW is functional, the plugin would start using the macros provided by the FW.
