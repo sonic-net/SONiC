@@ -11,7 +11,7 @@ This poses a challenge to the external tools as they are forced to adapt for mul
 This would become even more challenging, when we upgrade individual container images via kubernetes/app-package-manager.
 
 The tools that use syslog messages face higher latency, as they have to wait for syslog messages to arrive to an external repository. 
-This latency could run in the order of minutes, oftent 10+.
+This latency could run in the order of minutes.
 
 ### Current
 ![image](https://user-images.githubusercontent.com/47282725/156665693-c701c4da-27a7-4257-9236-548898ff8092.png)
@@ -27,12 +27,17 @@ This latency could run in the order of minutes, oftent 10+.
 4. The tools can consume data with ease, as the switch has done the parsing job.
 5. The container image provides the regex to parse the log messages. Hence the app can update the log however and as well update regex to be in sync.
 6. All the containers could start using this solution w/o requiring any code update.</br>
-   New builds will include two additional files per container.</br>
+   New builds will include two additional files per container. (*.conf for rsyslog & regex for parsing*)</br>
    We could even update released builds that are running in switches, as all it needs is to add two files and rsyslog restart per container.
 8. RFE: The containers that SONiC owns, like swss & syncd, could switch to using new macro provided by event-Alarm framework over time.
 10. The containers that use event-Alarm framework could still use this solution to add new events until a code update/new build occurs in future.
 11. The III party containers could always use this approach.
 12. The rsyslog plugin would use the new macro provided by Event-Alarm FW, when it become available.
+
+## Design
+
+![image](https://user-images.githubusercontent.com/47282725/156477501-7bc587a5-b5e0-4b2b-bfe5-1a4894482f16.png)
+
 
 ## Pros & Cons
 
@@ -51,9 +56,7 @@ This latency could run in the order of minutes, oftent 10+.
 1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. The adoption to new Event-Alarm FW will avoid this.
 2) The rsyslogd is *required*. It should be treated as critical process in each container.
 
-# Design
 
-![image](https://user-images.githubusercontent.com/47282725/156477501-7bc587a5-b5e0-4b2b-bfe5-1a4894482f16.png)
 
 # Next Step:
 When alarm-event FW is functional, the plugin would start using the macros provided by the FW.
