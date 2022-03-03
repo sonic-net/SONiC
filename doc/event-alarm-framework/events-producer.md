@@ -20,8 +20,9 @@ This latency could run in the order of minutes, oftent 10+.
 4. The tools can consume data with ease, as the switch has done the parsing job.
 5. The container image provides the regex to parse the log messages. The app can update the log however and as well update regex to be in sync.
 6. The containers that SONiC owns, like swss & syncd, could move to using new macro provided by event-Alarm framework over time.
-7. The III party containers could continue using this approach
-8. The rsyslog plugin would use the new macro provided by Event-Alarm FW, when it become available
+7. The containers that use event-Alarm framework still could use this solution to add new events w/o waiting for code update/new build.
+8. The III party containers could continue using this approach
+9. The rsyslog plugin would use the new macro provided by Event-Alarm FW, when it become available
 
 ## Pros & Cons
 
