@@ -38,6 +38,7 @@ This document covers high level design of DSCP and TC remapping for tunnel traff
 ## 4 Overview
 
 In Dual-ToR scenario, PFC deadlock can happen if two servers are congested at same time and start sending PFC pause frames to both upper ToR and lower ToR. It is because the south bound traffic from T1 to standby ToR is bounced back to T1 via the same queue. Even when the block condition is resolved, the pause condition among T1 and both ToRs can stay forever and no traffic will go through.
+
 To avoid this scenario, the bounced-back traffic from standby ToR to T1 will be remapped into another queue. For example, the traffic flow is as below if we are going to remap traffic in queue 3 to queue 2.
 <p align=center>
 <img src="dscp-remapping-images/Bounced-back-traffic-flow.png" alt="Figure 1. Bounced back traffic flow">
