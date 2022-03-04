@@ -37,8 +37,13 @@ This document covers high level design of DSCP and TC remapping for tunnel traff
 
 ## 4 Overview
 
+In Dual-ToR scenario, PFC deadlock can happen if two servers are congested at same time and start sending PFC pause frames to both upper ToR and lower ToR. It is because the south bound traffic from T1 to standby ToR is bounced back to T1 via the same queue. Even when the block condition is resolved, the pause condition among T1 and both ToRs can stay forever and no traffic will go through.
+To avoid this scenario, the bounced-back traffic from standby ToR to T1 will be remapped into another queue. For example, the traffic flow is as below if we are going to remap traffic in queue 3 to queue 2.
+<p align=center>
+<img src="dscp-remapping-images/Bounced-back-traffic-flow.png" alt="Figure 1. Bounced back traffic flow">
+</p>
 The current QoS map architecture allows for port-based selection of each QoS map. However, we are not able to override the port-based QoS map for tunnel traffic. 
-This design proposes a method to remapping DSCP and TC for IPinIP tunnel. 
+This design proposes a method to remapping DSCP and TC for tunnel traffic. 
 
 
 ## 5 Design ##
@@ -48,6 +53,7 @@ This design proposes a method to remapping DSCP and TC for IPinIP tunnel.
 Update [qos_config.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) to generate 4 tables for remapping. Currently, the remapping is required in `dual-tor` scenario. So the tables are rendered into `config_db` only when `DEVICE_METADATA['localhost']['subtype'] = 'DualToR`. 
 
 Please be noted that below config is to remap traffic in queue 3 to queue 2, and traffic in queue 4 to queue 6.
+Before remapping to queue 4 and 6, both queues are required to be cleared. Hence the current `DSCP_TO_TC_MAP|AZURE` in [qos_config.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/qos_config.j2) is required to be updated to map DSCP `5` and `48` into other queues.
 * Table for decap
 
     DSCP_TO_TC_MAP for mapping DSCP to TC
