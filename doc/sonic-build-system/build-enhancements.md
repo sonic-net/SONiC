@@ -192,19 +192,23 @@ This feature provides build improvements in SONIC.
 
 - When multiple builds are triggered on the same build server that creates parallel building issue because all the build jobs are trying to create the same docker with latest tag. This happens only when sonic dockers are built using native host dockerd for sonic docker image creation.
 
-- This feature creates all sonic dockers as user sonic dockers and then, while saving and loading the user sonic dockers, it rename the user sonic dockers into correct sonic dockers with tag as latest.
+- This feature creates all sonic dockers with user tag.
+- While saving and loading the sonic dockers, it rename the sonic dockers with appropriate user tag.
+- Docker image Load and Save operations are protected with global lock.
+- The user tag is created with combination of user name and SHA ID of Docker control files(Dockerfile.j2, etc)
+- Different user tag is genenrated for a different branch of the same user.
 
 - Docker image save sequence protected with lock as bellow,
 	- docker_image_lock()
-	- docker tag docker-name-\<user\>:latest docker-name:latest
-	- docker save docker-name:latest > docker-name-\<user\>.gz
+	- docker tag docker-name-\<user-tag\>:latest docker-name:latest
+	- docker save docker-name:latest > docker-name-\<user-tag\>.gz
 	- docker rm docker-name:latest
 	- docker_image_unlock()
 
 - Docker image load sequence protected with lock as bellow,
 	- docker_image_lock()
-	- docker load -i < docker-name-\<user\>.gz
-	- docker tag docker-name:latest docker-name-\<user\>:latest
+	- docker load -i < docker-name-\<user-tag\>.gz
+	- docker tag docker-name:latest docker-name-\<user-tag\>:latest
 	- docker rm docker-name:latest
 	- docker_image_unlock()
 
@@ -415,13 +419,32 @@ files/build/versions/
 ## Installer Image Build Optimization
 
 # Installer image generation has six stages:
-   - Bootstrap generation
+
+    - Bootstrap generation
    - ROOTFS installation
    - SONiC packages installation
    - SQUASHFS generation
    - DockerFS generation
    - Installer image generation
-   
+
+
+
+
+###  Image Preparation:
+- Split into two parts:
+    1. Debian packages
+        - Bootstrap preparation
+        - General packages installation, such as curl, vim, sudo, python3, etc
+    2. Sonic packages
+        - Packages that are built and installed from from sonic repo.
+        - Docker images that are built and installed from from sonic repo
+
+- Step (1) can be generated as a base image and it can be run in parallel with the other targets, before build image step.
+    - Benifits:
+            - High hit rate, for less dependencies.
+            - Reduce the cache size.
+            - Improve the concurrency when cache not hit, the step has small dependencies, can be run with any other steps.
+
 #### Bootstrap generation
    - Debian bootstrap package files are prepared using debootstrap tool.
    - It downloads set of bootstrap packages and generates the bootstrap filesystem.
