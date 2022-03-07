@@ -17,8 +17,7 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/156947665-fd31480f-f755-43a9-bfb4-3085112955bd.png)
-
+![image](https://user-images.githubusercontent.com/47282725/156954810-fc1c9e3e-0ec1-4691-8b23-c97992025359.png)
 
 
 ## A solution
