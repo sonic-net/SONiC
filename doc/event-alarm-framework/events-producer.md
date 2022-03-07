@@ -13,11 +13,10 @@ This would become even more challenging, when we upgrade individual container im
 The tools that use syslog messages face higher latency, as they have to wait for syslog messages to arrive to an external repository. 
 This latency could run in the order of minutes.
 
-### Current
+
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-### Desired
 ![image](https://user-images.githubusercontent.com/47282725/156947665-fd31480f-f755-43a9-bfb4-3085112955bd.png)
 
 
@@ -66,8 +65,8 @@ The regex inside the continer will match the event/alarm name to regex for that 
 The additional config supported by the FW like enable/disable, priority, ... will be availablein the centralized per image config file as proposed in the FW.
 
 # CLI
-This work is only a backend support to retrieve message from apps to redis-DB, which is consumed by external tools via gNMI.
-The new FW which offers higher level functionality by qualifying messages as EVENTS & ALARMS will provide the required CLI support for configuration & view.
+A new "show events [<regex key pattern>]" command will be available to list all the events.
+One may use gnmi_cli or gnmi_get too, inside the switch as needed.
 
 
 # Test
