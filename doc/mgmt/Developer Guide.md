@@ -2261,6 +2261,7 @@ you can set the log_level in config_db.
 
 ```
 hmset REST_SERVER|default log_level <num>
+hmset TELEMETRY|gnmi log_level <num>
 ```
 
 
@@ -3727,6 +3728,4 @@ For debugging performance issues we need to collect the profiling numbers which 
 8. To generate the report in pdf format (command:  go tool pprof --pdf ./rest_server ./ cpu.pprof.1 > report.pdf)
 
 The generated pdf will give the profiling information of all the calls in the REST server during the REST query or KLISH CLI. From this data we will come to know which function in the REST server is consuming more time during the execution.
-
-
 
