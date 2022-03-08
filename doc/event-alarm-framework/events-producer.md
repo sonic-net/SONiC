@@ -17,27 +17,25 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/156954810-fc1c9e3e-0ec1-4691-8b23-c97992025359.png)
+![image](https://user-images.githubusercontent.com/47282725/157342842-20a572e7-4d47-4ef8-8e88-c0929a8640c8.png)
+
 
 
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
-2. Push the parsed data as JSON struct of {name: val[, ...]} to a redis DB table.
-3. Now any tool can subscribe to that table for events. External tools can use gNMI streaming telemetry for poll or OnChange.
-4. The tools can consume data with ease, as the switch has done the parsing job.
-5. The container image provides the regex to parse the log messages. Hence the app can update the log however and as well update regex to be in sync.
-6. All the containers could start using this solution w/o requiring any code update.</br>
+2. Push the parsed data as JSON struct of {name: val[, ...]} to telemetry listener via UDP
+3. The telemetry would stream the data out to interested clients through SAMPLE or ONCHANGE mode.
+4. Now any tool can subscribe to this strteam for live Event updates
+5. The tools can consume data with ease, as the switch has done the parsing job.
+6. The container image provides the regex to parse the log messages. Hence the app can update the log however and as well update regex to be in sync.
+7. All the containers could start using this solution w/o requiring any code update.</br>
    New builds will include two additional files per container. (*.conf for rsyslog & regex for parsing*)</br>
    We could even update released builds that are running in switches, as all it needs is to add two files and rsyslog restart per container.
-8. RFE: The containers that SONiC owns, like swss & syncd, could switch to using new macro provided by event-Alarm framework over time.
-10. The containers that use event-Alarm framework could still use this solution to add new events until a code update/new build occurs in future.
-11. The III party containers could always use this approach.
-12. The rsyslog plugin would use the new macro provided by Event-Alarm FW, when it become available.
+8. The rsyslog plugin could use the new macro provided by Event-Alarm FW, when it become available. This will be handy for III party containers.
 
 ## Design
 
-![image](https://user-images.githubusercontent.com/47282725/156477501-7bc587a5-b5e0-4b2b-bfe5-1a4894482f16.png)
-
+![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
 ## Pros & Cons
 
@@ -59,15 +57,13 @@ This latency could run in the order of minutes.
 
 
 # Next Step:
-When alarm-event FW is functional, the plugin would start using the macros provided by the FW.
-The regex inside the continer will match the event/alarm name to regex for that message. This provides the container freedom to evolve w/o updating the central config.
-The additional config supported by the FW like enable/disable, priority, ... will be availablein the centralized per image config file as proposed in the FW.
+When alarm-event FW is functional, the plugin could start using the macros provided by the FW, for identified tags as events.
+
 
 # CLI
-A new "show events [<regex key pattern>]" command will be available to list all the events.
-One may use gnmi_cli or gnmi_get too, inside the switch as needed.
+None
 
 
 # Test
-We could upgrade existing test cases to additionally look for structured messages in redis for each scenario being tested.
+We could upgrade existing test cases to additionally listent to gNMI stream on a different thread to verify expected events were streamed.
 
