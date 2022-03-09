@@ -125,7 +125,6 @@ The overall SONiC architecture will not be changed and no new sub-modules will b
     | swap    | Supported         | Supported        |
 
 * Swap rewrite action **_will_** become invalid if configured (push, swap) at ingress direction or (pop, swap) at egress direction on the specified interface at the same time.
-* Swap rewrite action at egress direction **_is not_** expected on the interface which is configured as untagged port member in specified VLAN.
 * Only outer TPID 8100 is supported. The frames with TPID = 8100 **_will_** be taken as tagged (single or double) frames.
 * For egress direction on channel port, each match criteria **_will_** use one hardware entry per member port.
 
