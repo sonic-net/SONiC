@@ -1,4 +1,4 @@
- ### Rev 0.3
+ ### Rev 0.4
 
 # Table of Contents
 
@@ -48,6 +48,7 @@
 | 0.2   |26-Jan-2022 | Tommy Tseng   | Update CLI command                 |
 | 0.2   |23-Feb-2022 | Tommy Tseng   | Modify DB schema                   |
 | 0.3   |25-Feb-2022 | Yeh Jun-ying  | Update example, Yang model and CLI |
+| 0.4   |23-Feb-2022 | Tommy Tseng   | Update Yang model and spec         |
 # Scope
 
 This document describes the high level design of VLAN stacking feature.
@@ -124,6 +125,7 @@ The overall SONiC architecture will not be changed and no new sub-modules will b
     | swap    | Supported         | Supported        |
 
 * Swap rewrite action **_will_** become invalid if configured (push, swap) at ingress direction or (pop, swap) at egress direction on the specified interface at the same time.
+* Swap rewrite action at egress direction **_is not_** expected on the interface which is configured as untagged port member in specified VLAN.
 * Only outer TPID 8100 is supported. The frames with TPID = 8100 **_will_** be taken as tagged (single or double) frames.
 * For egress direction on channel port, each match criteria **_will_** use one hardware entry per member port.
 
@@ -186,6 +188,8 @@ s_vlanid          = vlan_id                               ; a number between
 ; field           = value
 c_vlanids         = vlan_id-or-range[,vlan_id-or-range]*  ; list of VLAN IDs
 s_vlan_priority   = %x30-37                               ; a number between 0 and 7
+
+; value annotations
 vlan_id           = %x31-39                               ; 1-9
                   / %x31-39 DIGIT                         ; 10-99
                   / %x31-39 2DIGIT                        ; 100-999
@@ -220,6 +224,8 @@ interface_name    =
 s_vlanid          = vlan_id            ; a number between 1 and 4094
 ; field           = value
 c_vlanid          = vlan_id            ; a number between 1 and 4094
+
+; value annotations
 vlan_id           = %x31-39            ; 1-9
                   / %x31-39 DIGIT      ; 10-99
                   / %x31-39 2DIGIT     ; 100-999
@@ -258,6 +264,8 @@ s_vlanid          = vlan_id                               ; a number between 1 a
 ; field           = value
 c_vlanids         = vlan_id-or-range[,vlan_id-or-range]*  ; list of VLAN IDs
 s_vlan_priority   = %x30-37                               ; a number between 0 and 7
+
+; value annotations
 vlan_id           = %x31-39                               ; 1-9
                   / %x31-39 DIGIT                         ; 10-99
                   / %x31-39 2DIGIT                        ; 100-999
@@ -292,6 +300,8 @@ interface_name    =
 s_vlanid          = vlan_id            ; a number between 1 and 4094
 ; field           = value
 c_vlanid          = vlan_id            ; a number between 1 and 4094
+
+; value annotations
 vlan_id           = %x31-39            ; 1-9
                   / %x31-39 DIGIT      ; 10-99
                   / %x31-39 2DIGIT     ; 100-999
@@ -614,22 +624,18 @@ module sonic-vlan-stacking {
 
     import sonic-extension {
         prefix ext;
-        revision-date 2019-07-01;
     }
 
     import sonic-port {
         prefix port;
-        revision-date 2019-07-01;
     }
 
     import sonic-portchannel {
         prefix lag;
-        revision-date 2019-07-01;
     }
 
     import sonic-vlan {
         prefix vlan;
-        revision-date 2019-07-01;
     }
 
     description "VLAN Stacking YANG Module for SONiC OS";
@@ -645,28 +651,26 @@ module sonic-vlan-stacking {
             list VLAN_STACKING_LIST {
                 key "interface_name s_vlanid";
 
-                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)|([0-9]+)$";
-
-                ext:key-regex-yang-to-configdb "<interface_name>|<s_vlanid>";
-
                 leaf interface_name {
                     type union {
                         type leafref {
-                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:port_name;
+                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:name;
                         }
                         type leafref {
-                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:portchannel_name;
+                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name;
                         }
                     }
+                    description "Interface name";
                 }
 
                 leaf s_vlanid {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
+                    description "Service VLAN ID";
                 }
 
-                leaf-list c_vlanids {
+                leaf-list c_vlanids {
                     type union {
                         type leafref {
                             path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
@@ -676,14 +680,16 @@ module sonic-vlan-stacking {
                             pattern '[0-9]{1,4}..[0-9]{1,4}';
                         }
                     }
+                    description "Customer VLAN ID";
                 }
 
-                leaf s_vlan_priority {
+                leaf s_vlan_priority {
                     type uint8 {
                          range 0..7;
                     }
+                    description "VLAN priority of Service VLAN";
                 }
-             }
+             }
         }
     }
 }
@@ -692,31 +698,27 @@ module sonic-vlan-stacking {
 New yang model `sonic-vlan-translation.yang` is defined to describe VLAN translation configuration.
 
 ```
-module sonic-vlan-translation {
+sonic-vlan-translation {
 
-    yang-version 1.0;
+    yang-version 1.1;
 
     namespace "http://github.com/Azure/sonic-vlan-translation";
     prefix vlan-translation;
 
     import sonic-extension {
         prefix ext;
-        revision-date 2019-07-01;
     }
 
     import sonic-port {
         prefix port;
-        revision-date 2019-07-01;
     }
 
     import sonic-portchannel {
         prefix lag;
-        revision-date 2019-07-01;
     }
 
     import sonic-vlan {
         prefix vlan;
-        revision-date 2019-07-01;
     }
 
     description "VLAN Translation YANG Module for SONiC OS";
@@ -732,31 +734,30 @@ module sonic-vlan-translation {
             list VLAN_TRANSLATION_LIST {
                 key "interface_name s_vlanid";
 
-                ext:key-regex-configdb-to-yang "^([a-zA-Z0-9_-]+)|([a-zA-Z0-9_-]+)|([0-9]+)$";
-
-                ext:key-regex-yang-to-configdb "<interface_name>|<s_vlanid>";
-
                 leaf interface_name {
                     type union {
                         type leafref {
-                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:port_name;
+                            path /port:sonic-port/port:PORT/port:PORT_LIST/port:name;
                         }
                         type leafref {
-                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:portchannel_name;
+                            path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name;
                         }
                     }
+                    description "Interface name";
                 }
 
                 leaf s_vlanid {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
+                    description "Service VLAN ID";
                 }
 
                 leaf c_vlanid {
                     type leafref {
                         path /vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:vlanid;
                     }
+                    description "Customer VLAN ID";
                 }
             }
         }
