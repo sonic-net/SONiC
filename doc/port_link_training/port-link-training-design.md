@@ -19,7 +19,6 @@
   - [YANG Model Enhancements](#yang-model-enhancements)
   - [DB Migration Considerations](#db-migration-considerations)
   - [SWSS Enhancements](#swss-enhancements)
-  - [PMON xcvrd Considerations](#pmon-xcvrd-considerations)
 - [Warmboot Design Impact](#warmboot-design-impact)
 - [Limitations](#limitations)
 - [Testing Requirements](#testing-requirements)
@@ -37,7 +36,7 @@
 ### Scope
 This document is the design document for port link training feature on SONiC. This includes the requirements, DB schema change, DB migrator change, yang model change and swss change.
 
-The link-training controls in this document is SAI specific, the Gearbox design is outside the scope of this document.
+The link-training hardware controls in this document is SAI specific, while the Gearbox design is outside the scope of this document.
 
 ### Abbreviations
 
@@ -75,12 +74,11 @@ This feature does not change the existing SONiC architecture, while it has to ch
 - A few new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure link training mode as well as show port link training status. See detail description in section [CLI Enhancements](#cli-enhancements).
 - A few new fields will be added to existing table in APPL_DB and CONFIG_DB to support link training attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
 - YANG Model needs update according to the DB schema change. See detail description in section [YANG Model Enhancements](#yang-model-enhancements)
-- PMON xcvrd needs to update transceiver capability to APPL_DB to provide a hint to swss#orchagent for the advanced port link training controls. See detail description in section [PMON xcvrd Considerations](#pmon-xcvrd-considerations)
 - Port configuration setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 
 ### SAI API Requirement
 
-Currently, SAI already defines all the necessary port attributes to support port link training.
+First of all, we'll leverage the existing SAI port attributes listed below  
 
 ```cpp
     /**
@@ -109,9 +107,21 @@ Currently, SAI already defines all the necessary port attributes to support port
     SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS,
 ```
 
+On the other hand, a new port attribute will be introduced for the link-training ability query, and please note the link-training ability could be unavailable on the certain ports on a switch silicon (e.g. The uplink/management ports), hence we need to do the query at per-port basis.  
+
+```cpp
+    /**
+     * @brief Query link-training support
+     *
+     * @type bool
+     * @flags READ_ONLY
+     */
+    SAI_PORT_ATTR_SUPPORTED_LINK_TRAINING_MODE,
+```
+
 Vendor-specific SAI implementation is not in the scope of this document, but there are some common requirements for SAI:
 
-1. swss must check the link-training capabilities before making the corresponding request to syncd.
+1. swss must check the link-training abilities before making the corresponding request to syncd.
 2. SAI implementation must return error code if any of the above attributes is not supported, swss and syncd must not crash.
 3. SAI implementation must keep port link training disabled by default for backward compatibility. As long as swss and SAI keep backward compatible, user need not change anything after this feature is implemented and available in SONiC.
 
@@ -144,7 +154,7 @@ Return:
   - empty upon success
 ```
 
-For deployment considerations, when the link-training is enabled on a transceiver without LT capabilities, the swss#orchagent should log an error into syslog, and the config command should also report the error and get aborted, unless '-f' option is specified.
+For deployment considerations, when the link-training is enabled on a transceiver without LT capabilities, this config command should report an error and get aborted, unless '-f' option is specified.
 
 ##### Show link training status
 
@@ -208,19 +218,9 @@ The following fields will be introduced into **PORT_TABLE** table:
 	; field                 = value
 	...
 	link_training           = STRING               ; operational link training admin config
-	xcvr_capabilities       = STRING               ; transceiver capabilities
 
 - link_training:  
 String value, the port link training admin config.
-- xcvr_capabilities:  
-String value, the transceiver capabilities provided by pmon#xcvrd, it's a set of capabilities separated by comma, where "LT" stands for "link training". The list of possible values is as follow  
-
-| Capability      | Description           |
-|:---------------:|:----------------------|
-| AN              | Auto Negotiation      |
-| LT              | Link Training         |
-
-To minimize system overhead, instead of periodically fetching the operational link training status, the corresponding fields in the APPL_DB will only be updated in the following events
 
 #### State DB Enhancements
 
@@ -230,7 +230,7 @@ A new table **LINK_TRAINING** with the following fields will be introduced into 
 	key             = LINK_TRAINING:port_name ; port link-training states
 	; field         = value
 	status          = STRING                  ; hardware operational status
-	err_description = STRING                  ; software error description
+	supported       = STRING                  ; hardware link-training ability status of the switch
 
 - status:  
 String value, the operational port link training status. The list of possible values is as follow  
@@ -245,15 +245,13 @@ String value, the operational port link training status. The list of possible va
   | snr_low     | Enabled, while the SNR low threshold is detected                   |
   | timeout     | Enabled, while the training process is timed out                   |
 
-- err_description:  
-String value, the error description reported by the swss#orchagent, possible values is as follow  
+- supported:  
+String value, the hardware link-training ability status of the switch, this is a constant of the underlying switch silicon regardless of the transceivers attached, the swss#orchagent should populate this information during startup. The list of possible values is as follow  
 
-  | err_description         | Description                                              |
-  |:-----------------------:|:--------------------------------------------------------:|
-  | none                    | None of failure is detected                              |
-  | feature unavailable     | The link-training is not supported by the switch silicon |
-  | internal error          | A software failure is detected in swss, syncd or SAI     |
-  | unsupported transceiver | The link-training is not supported by the transceiver    |
+  | Status      | Description   |
+  |:-----------:|:-------------:|
+  | yes         | Supported     |
+  | no          | Not Supported |
 
 #### SAI attributes
 
@@ -283,6 +281,10 @@ These new yang leaf will be added to sonic-port.yang.
 By having port link training disabled if "link_training" is not specified in the CONFIG_DB, this feature is fully backward compatible.
 
 #### SWSS Enhancements
+
+##### Port Link-Training Ability Flag
+
+During system startup, PortsOrch should query for the per-port link-training abilities from syncd, and populate these flags into **LINK_TRAINING** table of [STATE_DB](#state-db-enhancements)
 
 ##### Port Configuration Flow
 
@@ -336,21 +338,6 @@ if link-training is supported by the SAI and is enabled:
 updateLinkTrainingStateDB(port, status)
 ```
 
-#### PMON xcvrd Considerations
-
-Given that port link training shall not be enabled on certain transceivers. For example, a chip-to-module transceiver. It's better to have pmon#xcvrd provide a hint to the swss#orchagent for the advanced link training controls. Hence, **xcvr_capabilities** is introduced into APPL_DB.  
-
-As of now, only CR transceivers will be identified as link-training capabile, and this will be triggered at the transceiver insertion events, the pseudo code is follow:
-
-```
-def get_media_capability(port):
-    caps = []
-    info = get_transceiver_info(port)
-    if 'GBASE-CR' in info.get('specification_compliance'):
-        caps.append('LT')
-    return ",".join(caps) if len(caps) > 0 else 'N/A'
-```
-
 
 ### Warmboot Design Impact
 
@@ -363,12 +350,6 @@ N/A
 ### Testing Requirements
 
 #### Unit Test cases
-
-For **sonic-platform-daemons**, we will leverage the existing [test_xcvrd.py](https://github.com/Azure/sonic-platform-daemons/blob/master/sonic-xcvrd/tests/test_xcvrd.py) for this. A few new test cases will be added:
-
-1. Test attribute xcvr_capabilities on both SFP insertion and removal scenario. Verify xcvr_capabilities is added/dropped from APPL_DB and has correct value.
-2. Test attribute xcvr_capabilities for a QSFP/QSFP-DD DAC transceiver. Verify xcvr_capabilities is in APPL_DB and with "LT".
-3. Test attribute xcvr_capabilities for a QSFP/QSFP-DD DR transceiver. Verify xcvr_capabilities is in APPL_DB and without "LT".
 
 For **sonic-swss**, we will leverage the existing [test_port.py](https://github.com/Azure/sonic-swss/blob/master/tests/test_port.py) for this. A few new test cases will be added:
 
