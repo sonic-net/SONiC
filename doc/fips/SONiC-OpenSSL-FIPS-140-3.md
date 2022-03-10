@@ -1,4 +1,4 @@
-# SONIC OpenSSL 140-3 HLD
+# SONIC OpenSSL FIPS 140-3 HLD
 
 ## Revision
 
