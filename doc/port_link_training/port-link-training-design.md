@@ -136,25 +136,20 @@ A few new CLI commands are designed to support port link training.
 
 ```
 Format:
-  config interface link-training <interface_name> <mode> [-f]
+  config interface link-training <interface_name> <mode>
 
 Arguments:
   interface_name: [mandatory] name of the interface to be configured. e.g: Ethernet0
   mode: [mandatory] link training mode, can be either "on" or "off"
-  -f: [optional] forcing link-training configuration on an unsupported transceiver
 
 Example:
   config interface link-training Ethernet0 on
-  config interface link-training Ethernet0 on -f
   config interface link-training Ethernet0 off
 
 Return:
   - error message if interface_name or mode is invalid
-  - error message if the link-training is not supported on the interface
   - empty upon success
 ```
-
-For deployment considerations, when the link-training is enabled on a transceiver without LT capabilities, this config command should report an error and get aborted, unless '-f' option is specified.
 
 ##### Show link training status
 
@@ -176,15 +171,15 @@ Return:
   error message if interface_name is invalid otherwise:
 
 admin@sonic:~$ show interfaces link-training status
-  Interface      LT Oper    LT Admin    Oper    Admin        Error Description
------------  -----------  ----------  ------  -------  -----------------------
-  Ethernet0      trained          on      up       up  unsupported transceiver
-  Ethernet8          off           -    down       up                        -
- Ethernet16      trained          on      up       up  unsupported transceiver
- Ethernet24          off           -    down       up                        -
- Ethernet32  not trained          on    down       up                        -
- Ethernet40          off           -    down       up                        -
- Ethernet48          off           -    down       up                        -
+  Interface      LT Oper    LT Admin    Oper    Admin
+-----------  -----------  ----------  ------  -------
+  Ethernet0      trained          on      up       up
+  Ethernet8          off           -    down       up
+ Ethernet16      trained          on      up       up
+ Ethernet24          off           -    down       up
+ Ethernet32  not trained          on    down       up
+ Ethernet40          off           -    down       up
+ Ethernet48          off           -    down       up
 ```
 
 
@@ -257,10 +252,11 @@ String value, the hardware link-training ability status of the switch, this is a
 
 Here is the table to map the fields and SAI attributes:  
 
-| **Parameter**          | **sai_port_attr_t**
-|:-----------------------|:-------------------------------------------|
-| link_training          | SAI_PORT_ATTR_LINK_TRAINING_ENABLE         |
-| link_training_status   | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
+| **Parameter**             | **sai_port_attr_t**                        |
+|:--------------------------|:-------------------------------------------|
+| link_training (APPL_DB)   | SAI_PORT_ATTR_LINK_TRAINING_ENABLE         |
+| status (STATE_DB)         | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
+| supported (STATE_DB)      | SAI_PORT_ATTR_SUPPORTED_LINK_TRAINING_MODE |
 
 #### YANG Model Enhancements
 
@@ -303,9 +299,7 @@ port = getPort(alias)
 if autoneg changed:
     setPortAutoNeg(port, autoneg)
 
-if link_training changed and "LT" in xcvr_capabilities:
-    if (link_training == "on") and (LT not in xcvr_capabilities):
-        log_warn("LT is not applicable to this transceiver")
+if link_training changed:
     setPortLinkTraining(port, link_training)
 ```
 
