@@ -2,7 +2,7 @@
 
 ## Goals
 1. Ability to stream syslog messages from apps as structured data via streaming telemetry
-2. Adapt III party applications to Events/alarm framework
+2. Extend to III party apps that run in SONiC, like BGP, teamd...
 
 ## Problems to solve
 The external tools that monitor system health often use syslog messages to look for events that need alert raised.
@@ -17,9 +17,7 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/157342842-20a572e7-4d47-4ef8-8e88-c0929a8640c8.png)
-
-
+![image](https://user-images.githubusercontent.com/47282725/158037918-4bd02e37-ffeb-435c-939b-42550ab359aa.png)
 
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
@@ -27,7 +25,7 @@ This latency could run in the order of minutes.
 3. The telemetry would stream the data out to interested clients through SAMPLE or ONCHANGE mode.
 4. Now any tool can subscribe to this strteam for live Event updates
 5. The tools can consume data with ease, as the switch has done the parsing job.
-6. The container image provides the regex to parse the log messages. Hence the app can update the log however and as well update regex to be in sync.
+6. The container image provides the regex to parse the log messages. Hence the app is free to update its log messages however but as well update regex to be in sync.
 7. All the containers could start using this solution w/o requiring any code update.</br>
    New builds will include two additional files per container. (*.conf for rsyslog & regex for parsing*)</br>
    We could even update released builds that are running in switches, as all it needs is to add two files and rsyslog restart per container.
