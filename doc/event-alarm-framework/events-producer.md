@@ -19,6 +19,10 @@ This latency could run in the order of minutes.
 
 ![image](https://user-images.githubusercontent.com/47282725/158037918-4bd02e37-ffeb-435c-939b-42550ab359aa.png)
 
+## Requirements
+1. Events are defined globally
+2. Events are static (don't change) across releases
+3. Each release 
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
 2. Push the parsed data as JSON struct of {name: val[, ...]} to telemetry listener via UDP
@@ -31,8 +35,42 @@ This latency could run in the order of minutes.
    We could even update released builds that are running in switches, as all it needs is to add two files and rsyslog restart per container.
 8. The rsyslog plugin could use the new macro provided by Event-Alarm FW, when it become available. This will be handy for III party containers.
 
-## Design
 
+## Events:
+
+### Defintion
+
+Yang model provides the list of events and the defintions on the structured data
+
+A sample:
+module events-bgp {
+    ...
+    container bgp_status {
+        list event_list {
+            key "type"
+            
+            leaf type {
+                enum "admin_up";
+                enum "admin_down";
+                enum "idle";
+                enum "active";
+                enum "open";
+                enum "established";
+            }
+            
+            leaf ip {
+                type inet:ip-address;
+                description "IP of neighbor";
+            }
+            
+            leaf timestamp {
+                type inet::date-and-time;
+                description "time of the event"
+            }
+        }
+    }
+    
+## Design
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
 ## Pros & Cons
