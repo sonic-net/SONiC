@@ -94,7 +94,7 @@ where ```mem_usage```  is total system memory used (MemAvailable from /proc/memi
 
 the SONiC techsupport is automatically generated.
 
-```mem_free_threshold``` is there to invoke dump when there is quite small amount of memory left that is needed to successfully execute "show techsupport". This is going to be 200 Mb by default, as at least 80-90 Mb takes "show techsupport" execution.
+```mem_free_threshold``` is there to invoke dump when there is quite small amount of memory left that is needed to successfully execute "show techsupport". This is going to be 200 MB by default, as at least 80-90 MB takes "show techsupport" execution.
 
 The check will be implemented as a script that is ran by monit periodically:
 
@@ -128,7 +128,7 @@ check system $HOST
 key                    = "AUTO_TECHSUPPORT|global"  
 state                  = "enabled" / "disabled"    ; Enable this to make the Techsupport Invocation event driven based on core-dump generation
 available_mem_threshold = 1*2DIGIT                 ; Memory threshold; 0 to disable techsupport invocation on mem leak.
-min-available-mem      = 1*5DIGIT                  ; Minimum free memory amount in Kb when techsupport will be executed.
+min_available_mem      = 1*5DIGIT                  ; Minimum free memory amount in MB when techsupport will be executed.
 rate_limit_interval    = 1*5DIGIT                  ; Minimum Time in seconds, between two successive techsupport invocations.
                                                      Manual Invocations will be considered as well in the calculation. 
                                                      Configure 0 to explicitly disable
@@ -203,10 +203,10 @@ module sonic-auto_techsupport {
                         default 10.0;
                     }
                     
-                    leaf min-available-mem {
-                        description "Minimum free memory amount in Kb when techsupport will be executed"
+                    leaf min_available_mem {
+                        description "Minimum free memory amount in MB when techsupport will be executed"
                         type uint32;
-                        default 204800;
+                        default 200;
                     }
 
                     leaf rate_limit_interval  {
