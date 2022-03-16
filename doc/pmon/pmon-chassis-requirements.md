@@ -10,11 +10,11 @@ Section 1 Requirements that are needed by default:-
 		8. chassisd daemon support on both LC and RP with all fields of table "CHASSIS_MODULE_TABLE|xxxx” correctly populated
 		9. chassisd daemon support populating fields in table "CHASSIS_ASIC_TABLE|xxx", this is used to start swss/syncd in SUP when FABRIC ASIC is ready.
         10. Slot Nummber in "CHASSIS_MODULE_TABLE|xxxx” need not be unique ? Slot Number is based on physcial layout (Ex: LC can be back facing and can have 0..n and  FC can be Front facing and be 0.n). chassisd can support this model ?
-		10. psud power algorithm on RP as specified in chassis design document
-		11. PSU LED Status  in the show command of RP
+		10. psud power algorithm on supervisor as specified in chassis design document
+		11. PSU LED Status  in the show command of supervisor
 		12. TEMPERATURE_INFO table update into Chassis State DB from both Supervisor and LC. Local TEMPERATURE_INFO is also available in LC STATE_DB.
-		13. Fan speed algorithm on RP as specified in chassis design document
-		14. FAN LED Status in the show command of RP
+		13. Fan speed algorithm on supervior as specified in chassis design document
+		14. FAN LED Status in the show command of supervisor
 		15. reboot-cause reason and history is working fine for both RP and LC
 		16. show commands for mid-plane switch as per Chassis Design Document. Add namespace parameter support for "show chassis midplane-status" command.  
 	 
