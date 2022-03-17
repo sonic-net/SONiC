@@ -29,26 +29,27 @@ This latency could run in the order of minutes.
 ## Requirements
 ### Events
 1. Events are defined per process.
-2. Every event is identified by tag, which is unique within a process with zero or more event specific parameters
-3. YANG schema defines these events
-4. Events are static (don't change) across releases, but can be deprecated in newer releases.
+2. Every event is identified by tag, which is unique within a process with zero or more event specific parameters.
+3. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
+4. Every event is described in YANG schema.
+5. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
 
 ### Event detection
 1. The method of detection can be any.
 2. This can vary across events
-3. Syslog messages could be a source or custom queries or update processes to report events or ...
-4. There can be multiple event detectors running under different scope
+3. Syslog messages could be a source or custom queries or update code to report events directly or ...
+4. There can be multiple event detectors running under different scopes
 
 ### Event reporting
 1. Streaming via UDP (multicast) is required, as that allows scope for multiple clients at the consumer end.
 2. Straming via UDP could meet the performance goal.
-3. Any persistence of events is outside the scope, but one can write a listener to update redis/whichever
-4. The structured data is per YANG definition
+3. The structured data is per YANG definition
+4. RFE: A listener to update redis/anyother persistence destination with current event status
 
 ### Event exporter
-1. Telemetry client to have a local listener for the events reported.
-2. Telemetry supports multiple external clients to forward the received events
-3. 
+1. Telemetry container will have a local listener for the events reported.
+2. Telemetry provides support for multiple external clients to forward the received events
+3. RFE: Telemetry upon restart will use redis-persistence to get the missed updates
 
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
