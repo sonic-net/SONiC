@@ -107,16 +107,35 @@ module events-bgp {
 ``` 
 
 ### Event detection
-The event detectors could happen in many ways
+The event detection could happen in many ways
 - Update the code to directly invoke Event reporter, which will stream it out.
 - Run a periodic check (via monit/cron/daemon/...) to identify an event and raise it via event reporter
 - Watch syslog messages for specific pattern; Upon match parse the required data out and call event reporter.
-- Syslog watcher could run per process in host and as well in containers
 - Any other means of getting alerted on an event
 
-#### log message based detection
-1. Use the plug
-## Design
+#### Log message based detection
+At high level:
+1. This is a two step process.
+2. The process raising the event sends a sylog out.
+3. A watcher scans all the messages emitted and parse/check for events of interest.
+4. When matching message arises, raise the event
+
+Here you have code that raises the log and a scanner, who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
+
+Though this sounds like a redundant/roundabout way, this helps
+- For III party code, not owned by SONiC, this is the acceptable solution
+- For code that we own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
+- A new event addition could be as simple as copying couple of small files to a switch and a rsyslog/container restart.
+
+##### Design at high level
+- Configure a rsyslog plugin as per process with rsyslog.d.
+- For logs raised by host processes, configure this plugin at host.
+- For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
+- In this mode, there will be plugin processes running in host & in containers per process.
+- Provide the regex pattern to use for matching events as i/p to the plugin.
+- Each plugin scans messasges from a *single* process and matches only against patterns for that process.
+- For messages that match a pattern, retrieve parameters of interest and fire event using event generator.
+
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
 ## Pros & Cons
