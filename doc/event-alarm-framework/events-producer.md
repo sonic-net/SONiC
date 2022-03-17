@@ -6,7 +6,7 @@
 3. Enforce a structured format for event data with pre-defined schema.
 4. Have the ability to stream at the max of 10K events per second to external clients
 5. Ensure events are unmutable across SONiC releases, but can be deprecated
-6. Meet the reliability of 99.5% - event generted to end client 
+6. Meet the reliability of 99.5% - event generated to end client 
 7. Rate of event reporting can be in par with rate of syslog reporting.
 
 
@@ -38,7 +38,7 @@ This latency could run in the order of minutes.
 1. The method of detection can be any.
 2. This can vary across events
 3. Syslog messages could be a source or custom queries or update code to report events directly or ...
-4. There can be multiple event detectors running under different scopes
+4. There can be multiple event detectors running under different scopes.
 
 ### Event reporting
 1. Event detectors stream the events with structured data
@@ -51,33 +51,35 @@ This latency could run in the order of minutes.
 2. Telemetry provides support for streaming the received events out to multiple external clients.
 3. RFE: Telemetry upon restart will use redis-persistence to get the missed updates
 
+### Event reliability
+There are two kinds of reliability
+1. Events are not modified across releases (except deprecation)
+2. Events are verified to fire as expected in every release. 
+3. Ensure that the perf goals are met
+
+#### Protection:
+1. The unit tests are required to hard code the YANG definition for an event and verify that against current to ensure it is unchanged.
+2. The unit tests are required to send a hard coded message for an event to the reporting tool and validate the reported data against YANG schema.
+4. The nightly tests are required to simulate the scenario for process to fire the event, verify that the event is fired and the data is validated against schema.
+5. The unit tests & nightly tests are required for every event.
+6. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
 
 
-## A solution
-1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
-2. Push the parsed data as JSON struct of {name: val[, ...]} to telemetry listener via UDP
-3. The telemetry would stream the data out to interested clients through SAMPLE or ONCHANGE mode.
-4. Now any tool can subscribe to this strteam for live Event updates
-5. The tools can consume data with ease, as the switch has done the parsing job.
-6. The container image provides the regex to parse the log messages. Hence the app is free to update its log messages however but as well update regex to be in sync.
-7. All the containers could start using this solution w/o requiring any code update.</br>
-   New builds will include two additional files per container. (*.conf for rsyslog & regex for parsing*)</br>
-   We could even update released builds that are running in switches, as all it needs is to add two files and rsyslog restart per container.
-8. The rsyslog plugin could use the new macro provided by Event-Alarm FW, when it become available. This will be handy for III party containers.
+## YANG schema
+1. Schema defines the description of the event, its unique tag and all the possible parameters.
+2. Schema can be maintained in multiple files, preferably one per process/continer/host.
+3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events).
+4. The schema for processes running in host are copied into this location at image creation/install time.
+5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
+6. NB clients could use the schema to understand/analyze the events
 
-
-## Events:
-
-### Defintion
-
-Yang model provides the list of events and the defintions on the structured data
-
+### A sample Defintion
 A sample:
 module events-bgp {
     ...
     container bgp_status {
         list event_list {
-            key "type"
+            key "type ip"
             
             leaf type {
                 enum "admin_up";
