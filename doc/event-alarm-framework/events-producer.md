@@ -65,7 +65,9 @@ There are two kinds of reliability
 6. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
 
 
-## YANG schema
+## Design
+
+### YANG schema
 1. Schema defines the description of the event, its unique tag and all the possible parameters.
 2. Schema can be maintained in multiple files, preferably one per process/continer/host.
 3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events).
@@ -73,10 +75,11 @@ There are two kinds of reliability
 5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
 6. NB clients could use the schema to understand/analyze the events
 
-### A sample Defintion
+#### A sample Defintion
 A sample:
+```
 module events-bgp {
-    ...
+    . . .
     container bgp_status {
         list event_list {
             key "type ip"
@@ -101,7 +104,18 @@ module events-bgp {
             }
         }
     }
-    
+``` 
+
+### Event detection
+The event detectors could happen in many ways
+- Update the code to directly invoke Event reporter, which will stream it out.
+- Run a periodic check (via monit/cron/daemon/...) to identify an event and raise it via event reporter
+- Watch syslog messages for specific pattern; Upon match parse the required data out and call event reporter.
+- Syslog watcher could run per process in host and as well in containers
+- Any other means of getting alerted on an event
+
+#### log message based detection
+1. Use the plug
 ## Design
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
