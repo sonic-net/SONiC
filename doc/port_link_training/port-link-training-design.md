@@ -355,7 +355,16 @@ For **sonic-utilities**, we will leverage the existing [unit test framework](htt
 
 #### System Test cases
 
-Will leverage sonic-mgmt to test this feature.
+The following tests will be introduced into **sonic-mgmt** for this feature.
+
+- test_link_training  
+  Test all candidate ports by having interface/media type updated to copper followed by link-training enablement. Verification criteria:  
+    - All ports are up when link-training is activated
+    - All ports are up with link-training status equals to 'trained'
+- test_link_training_negative  
+  Test all candidate ports by having interface/media type updated to fiber followed by link-training enablement. Verification criteria:  
+    - All ports are down when link-training is activated
+    - All ports are down without link-training status equals to 'trained'
 
 ### Action items
 
