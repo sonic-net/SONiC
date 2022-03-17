@@ -4,11 +4,11 @@
 1. Identify alertable events
 2. Detect those events
 3. Stream the event as structured data
-4. Ability stream at the max of 10K messages per second
+4. Have the ability to stream at the max of 10K messages per second
 5. Events are unmutable across releases, but can be deprecated
 6. Meet the reliability of 99.5% - event generted to end client 
 7. Rate of event reporting is in par with rate of syslog reporting.
-8.
+
 
 ## Problems to solve
 The external tools that monitor system health often use syslog messages to look for events that need alert raised.
@@ -23,12 +23,33 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/158037918-4bd02e37-ffeb-435c-939b-42550ab359aa.png)
+![image](https://user-images.githubusercontent.com/47282725/158892209-daf6a477-45ce-4051-b2cc-13422b34ead5.png)
+
 
 ## Requirements
-1. Events are defined globally
-2. Events are static (don't change) across releases
-3. Each release 
+### Events
+1. Events are defined per process.
+2. Every event is identified by tag, which is unique within a process with zero or more event specific parameters
+3. YANG schema defines these events
+4. Events are static (don't change) across releases, but can be deprecated in newer releases.
+
+### Event detection
+1. The method of detection can be any.
+2. This can vary across events
+3. Syslog messages could be a source or custom queries or update processes to report events or ...
+4. There can be multiple event detectors running under different scope
+
+### Event reporting
+1. Streaming via UDP (multicast) is required, as that allows scope for multiple clients at the consumer end.
+2. Straming via UDP could meet the performance goal.
+3. Any persistence of events is outside the scope, but one can write a listener to update redis/whichever
+4. The structured data is per YANG definition
+
+### Event exporter
+1. Telemetry client to have a local listener for the events reported.
+2. Telemetry supports multiple external clients to forward the received events
+3. 
+
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
 2. Push the parsed data as JSON struct of {name: val[, ...]} to telemetry listener via UDP
