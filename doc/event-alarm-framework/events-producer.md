@@ -1,8 +1,14 @@
 # Event Producer via rsyslog
 
 ## Goals
-1. Ability to stream syslog messages from apps as structured data via streaming telemetry
-2. Extend to III party apps that run in SONiC, like BGP, teamd...
+1. Identify alertable events
+2. Detect those events
+3. Stream the event as structured data
+4. Ability stream at the max of 10K messages per second
+5. Events are unmutable across releases, but can be deprecated
+6. Meet the reliability of 99.5% - event generted to end client 
+7. Rate of event reporting is in par with rate of syslog reporting.
+8.
 
 ## Problems to solve
 The external tools that monitor system health often use syslog messages to look for events that need alert raised.
