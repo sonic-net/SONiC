@@ -1,13 +1,13 @@
 # Event Producer via rsyslog
 
 ## Goals
-1. Identify alertable events
-2. Detect those events
-3. Stream the event as structured data
-4. Have the ability to stream at the max of 10K messages per second
-5. Events are unmutable across releases, but can be deprecated
+1. Provide a unified way for storing identified alertable events in SONiC switch.
+2. Provide a unified way for event detectors to report the events.
+3. Enforce a structured format for event data with pre-defined schema.
+4. Have the ability to stream at the max of 10K events per second to external clients
+5. Ensure events are unmutable across SONiC releases, but can be deprecated
 6. Meet the reliability of 99.5% - event generted to end client 
-7. Rate of event reporting is in par with rate of syslog reporting.
+7. Rate of event reporting can be in par with rate of syslog reporting.
 
 
 ## Problems to solve
@@ -41,15 +41,17 @@ This latency could run in the order of minutes.
 4. There can be multiple event detectors running under different scopes
 
 ### Event reporting
-1. Streaming via UDP (multicast) is required, as that allows scope for multiple clients at the consumer end.
-2. Straming via UDP could meet the performance goal.
+1. Event detectors stream the events with structured data
+2. The streaming supports one or more local listeners to receive streams from multiple detectors
 3. The structured data is per YANG definition
 4. RFE: A listener to update redis/anyother persistence destination with current event status
 
 ### Event exporter
-1. Telemetry container will have a local listener for the events reported.
-2. Telemetry provides support for multiple external clients to forward the received events
+1. Telemetry container will receive all the events reported from multiple detectors.
+2. Telemetry provides support for streaming the received events out to multiple external clients.
 3. RFE: Telemetry upon restart will use redis-persistence to get the missed updates
+
+
 
 ## A solution
 1. Parse the log messages as app emits it, via rsyslog plugin, hence transparent to App.
