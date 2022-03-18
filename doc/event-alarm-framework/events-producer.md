@@ -5,8 +5,8 @@
 2. Provide a unified way for event detectors to report the events.
 3. Enforce a structured format for event data with pre-defined schema.
 4. Have the ability to stream at the max of 10K events per second to external clients.
-5. Ensure events are unmutable across SONiC releases, but can be deprecated.
-6. Meet the reliability of 99.5% - From event generated to end client.
+5. Ensure events are immutable across SONiC releases, but can be deprecated.
+6. Meet the reliability goal of 99.5% - From event generated to end client.
 7. Rate of event reporting can be in par with rate of syslog reporting.
 
 
@@ -23,7 +23,8 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/158892209-daf6a477-45ce-4051-b2cc-13422b34ead5.png)
+![image](https://user-images.githubusercontent.com/47282725/159061158-30ff3c8a-5fc0-4af2-8822-6bfc67b2329c.png)
+
 
 
 ## Requirements
@@ -47,22 +48,22 @@ This latency could run in the order of minutes.
 4. RFE: A listener to update redis/any other persistence destination with current event status.
 
 ### Event exporter
-1. Telemetry container will receive all the events reported from multiple detectors.
-2. Telemetry container provides support for streaming out events to multiple external clients.
-3. RFE: Telemetry container upon restart will use redis/any other persistence to get the missed updates during its down time.
+1. Telemetry container receive all the events reported from all the event detectors.
+2. Telemetry container provides support for streaming out received events to multiple external clients.
+3. RFE: Telemetry container upon restart will use redis/any other persistence to get the latest on missed updates during its down time and stream out.
 
 ### Event reliability
 There are two kinds of reliability.
-1. Events are not modified across releases (except deprecation). We may allow addition of new params, as long as they don't affect existing params.
+1. Events are not modified across releases (*except deprecation*). We may allow addition of new params, as long as they don't affect existing params.
 2. Events are verified to fire as expected in every image release. 
 3. Ensure the perf goals are met.
 
 #### Protection:
-1. The unit tests are required to hard code the YANG definition for an event and verify that against current to ensure it is unchanged.
-2. The unit tests are required to send a hard coded message for an event to the reporting tool and validate the reported data against YANG schema.
-4. The nightly tests are required to simulate the scenario for process to fire the event, verify that the event is fired and the data is validated against schema.
-5. The unit tests & nightly tests are required for every event.
-6. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
+
+1. The unit tests are required to ensure the immutability of event definition across releases. This would help block a PR that mutates a definition.
+2. The nightly tests are required to ensure the process does fire the event, when the scenario occurs and the o/p is per definition. This would help block the release.
+3. The unit tests & nightly tests are required for every event.
+4. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
 </br>
 
 ## Design
@@ -185,6 +186,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ### Event exporting
 
 #### requirements
+- Telemetryt container receives all locally raised events.
 - Telemetry container supports exporting all the locally raised events to one or more external clients.
 - RFE: When restarted, ensure to provide the latest on all events that were missed during downtime.
 - Supports a max perf rate of 10K events per second.
