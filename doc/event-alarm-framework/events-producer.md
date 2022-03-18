@@ -135,7 +135,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - In this mode, there will be plugin processes running in host & in containers as one instance per process.
 - Provide the regex patterns to use for matching events as i/p to the plugin (*list of patterns for a process*).
 - Each plugin scans messasges **only** from a *single* process and matches only against patterns for that process.
-- For messages that match a pattern, retrieve parameters of interest and fire event using event generator.
+- For messages that match a pattern, retrieve parameters of interest and fire event using event reporter.
 - The rsyslog plugin binary, which does the parsing & reporting is a single binary in host, shared/used by all plugins.
 - The rsyslog plugin binary being under host control, ensures a single/unified behavior across all.
 - The unit tests can use hardcoded log messages to validate regex.
