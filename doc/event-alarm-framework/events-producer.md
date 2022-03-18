@@ -121,7 +121,7 @@ At high level:
 3. A watcher scans all the syslog messages emitted and parse/check for events of interest.
 4. When matching message arrives, raise the event
 
-Here you have code that sends the log and a scanner, who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
+Here you have code that sends the log and a watcher who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
 
 Though this sounds like a redundant/roundabout way, this helps as below.
 - For III party code, not owned by SONiC, this is an acceptable solution
