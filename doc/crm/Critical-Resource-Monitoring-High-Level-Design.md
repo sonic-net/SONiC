@@ -64,7 +64,7 @@ This document describes the high level design of the Critical Resource Monitorin
 | SAI                      | Swich Abstraction Interface                |
 # 1 Subsystem Requirements Overview
 ## 1.1 Functional requirements
-Detailed description of the Critical Resource Monitoring feature requirements is here: [CRM Requirements](https://github.com/Azure/SONiC/blob/gh-pages/doc/CRM_requirements.md).
+Detailed description of the Critical Resource Monitoring feature requirements is here: [CRM Requirements](https://github.com/Azure/SONiC/blob/gh-pages/doc/crm/CRM_requirements.md).
 
 This section describes the SONiC requirements for Critical Resource Monitoring (CRM) feature. CRM should monitor utilization of  ASIC resources by polling SAI attributes.
 

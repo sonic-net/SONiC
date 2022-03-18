@@ -83,7 +83,7 @@ Please refer to the test case for detailed description.
 | 18 | SRC IP address is link-local | IP|
 | 19 | DST IP address is link-local | IP|
 | 20 | ACL SRC IP DROP| IP|
-| 21 | ERIF interface disabled | IP|
+| 21 | No drops when ERIF interface disabled | IP|
 
 #### Related DUT CLI commands
 | **Command**                                                      | **Comment** |
@@ -968,9 +968,9 @@ Packet1 to trigger drop
 #### Test case #21
 ##### Test objective
 
-Verify egress RIF drop counter incremented while sending packets that are destined for a neighboring device but the egress link is down
+Verify egress RIF drop counter is not incremented while sending packets that are destined for a neighboring device but the egress link is down
 
-Packet1 to trigger drop
+Packet1 to send
 ```
 ...
 ###[ IP ]###
@@ -986,10 +986,11 @@ Packet1 to trigger drop
 
 ##### Test steps
 - Disable egress interface on DUT which is linked with neighbouring device
+- Check ARP entry is cleared
 - PTF host will send packet1
 - Verify that no packets appeared/captured on disabled link
 - Get L3 drop counter
-- Verify drop counter incremented
+- Verify drop counter is not incremented
 - Get L2 drop counter
 - Verify L2 drop counter is not incremented
 - Enable back egress interface on DUT which is linked with neighbouring device
