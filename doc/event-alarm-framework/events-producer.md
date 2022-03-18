@@ -132,28 +132,57 @@ Though this sounds like a redundant/roundabout way, this helps
 - For logs raised by host processes, configure this plugin at host.
 - For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
 - In this mode, there will be plugin processes running in host & in containers per process.
-- Provide the regex pattern to use for matching events as i/p to the plugin.
-- Each plugin scans messasges from a *single* process and matches only against patterns for that process.
+- Provide the regex patterns to use for matching events as i/p to the plugin (*list of patterns for a process*).
+- Each plugin scans messasges **only** from a *single* process and matches only against patterns for that process.
 - For messages that match a pattern, retrieve parameters of interest and fire event using event generator.
+
 
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
-## Pros & Cons
+#### Pros & Cons
 
-### Pro
+##### Pro
 1) This support is external to app, hence adapts well with III party applications, bgp, teamd, ... 
 2) This feature can be added to released builds too, as all it takes is to copy two files into each container and restart rsyslogd in the container
 3) The regex for parsing being local to container, it supports any container upgrade transaparently.
 4) The rsyslog plugin can be a shared copy that the container can run from shared folder in host. This helps provide a overall control across all containers.
-5) The data being structured, the nightly tests can ensure the data integrity across releases.
+5) The data being structured and per schema, the nightly tests can ensure the data integrity across releases.
 6) The message parsing load is distributed as per container. Within a container parsing is done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
 7) The regex file provides the unique identity for each event. The structured JSON data is easier for tools to parse.
 8) Being structured data, the apps are free to add more or less data elements across releases. Tools can be tolerant for missing or additional data, as use it if exists.
 9) Streaming telemetry support is already available
 
 ### con:
-1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. The adoption to new Event-Alarm FW will avoid this.
+1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. Updating code directly to raise the event will help avoid this.
 2) The rsyslogd is *required*. It should be treated as critical process in each container.
+
+### Event reporting
+
+#### requirements
+- Events are reported from multiple event detectors or we may call event-sources.
+- The event detectors could be running in host and/or some/all containers.
+- Events reporting should not be blocked by any back pressure from any local/external client.
+- A single local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
+- Multiple local clients should be able to receive the updates concurrently.
+- The local clients could be operating at different speeds.
+- The clients may come and go.
+- There may not be any local client to receive the events.
+
+#### Design
+- Event detectors send UDP messages to a multicast group
+- The local clients add themselves as members and receive from the group
+
+##### Pro
+- The senders are never blocked.
+- The receivers can be 0 to many
+- Both senders & receivers are neither aware of each other nor has any binding.
+- Simple design, hence more reliable.
+
+##### con
+- Messages could get lost, if the client is slow. It is the client's responsibility to ensure no loss.
+
+
+
 
 
 
