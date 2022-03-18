@@ -117,6 +117,7 @@ Before remapping to queue 4 and 6, both queues are required to be cleared. Hence
     ``` 
 
     TC_TO_DSCP_MAP for rewriting DSCP
+
     ```json
     "TC_TO_DSCP_MAP": {
         "AZURE_TUNNEL": {
@@ -201,6 +202,25 @@ TC remapping requires below SAI attributes change.
      */
     SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP,
 ```
+For instance, when we get a traffic flow with DSCP = 3 on T1, the traffic and bounced back traffic is delivered and remapped as below:
+
+1. Traffic from `T1` to `Standby ToR`
+    - Traffic mapped to `TC3`, `PG3` and `Queue 3` by port level QoS mapping  
+2. Bounced back traffic from `Standby ToR` to `T1`
+    - Traffic arrived at `Standby ToR` in `TC3`, `PG3` and `Queue 3` as per port level QoS mapping
+    - Packet will be encapped and delivered back to `T1` by `MuxTunnel`
+        - The outer `DSCP` is rewritten to `2` as specified in `TC_TO_DSCP_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP`.
+        - Traffic is delivered in `Queue 2` as specified in `TC_TO_QUEUE_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP`
+3. Bounced back traffic from `T1` to `Active ToR`
+    - Bounced back traffic arrive at `T1` in `Queue 2` and `PG2` by port level QoS mapping
+    - Bounced back traffic will be routed to `Active ToR` 
+4. Traffic from `Active ToR` to `Server`
+    - Traffic arrived at `Active ToR` and will be decapped and delivered to server
+        - The outer `DSCP` is ignored as the `dscp_mode` for `MuxTunnel` is `PIPE`. The inner `DSCP3` is copied to outer layer
+        - Traffic is remapped to `TC 3` as specified in `DSCP_TO_TC_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP`
+        - Traffic is remapped to `PG 2` as specified in `TC_TO_PRIORITY_GROUP_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP`
+        - Traffic is in `Queue 3` as per port level QoS mapping
+        - Decapped traffic is delivered to target server
 ### 5.3 orchagent
 
 Code change in orchagent
