@@ -1,12 +1,12 @@
 # Event Producer via rsyslog
 
 ## Goals
-1. Provide a unified way for storing identified alertable events in SONiC switch.
+1. Provide a unified way for listing identified alertable events in SONiC switch.
 2. Provide a unified way for event detectors to report the events.
 3. Enforce a structured format for event data with pre-defined schema.
-4. Have the ability to stream at the max of 10K events per second to external clients
-5. Ensure events are unmutable across SONiC releases, but can be deprecated
-6. Meet the reliability of 99.5% - event generated to end client 
+4. Have the ability to stream at the max of 10K events per second to external clients.
+5. Ensure events are unmutable across SONiC releases, but can be deprecated.
+6. Meet the reliability of 99.5% - From event generated to end client.
 7. Rate of event reporting can be in par with rate of syslog reporting.
 
 
@@ -42,20 +42,20 @@ This latency could run in the order of minutes.
 
 ### Event reporting
 1. Event detectors stream the events with structured data.
-2. The streaming supports one or more local listeners to receive streams from multiple detectors.
+2. The streaming supports one or more local listeners to receive streams from multiple detectors (many-to-many).
 3. The structured data is per YANG definition.
 4. RFE: A listener to update redis/any other persistence destination with current event status.
 
 ### Event exporter
 1. Telemetry container will receive all the events reported from multiple detectors.
-2. Telemetry provides support for streaming out events to multiple external clients.
-3. RFE: Telemetry upon restart will use redis/any other persistence to get the missed updates during its down time.
+2. Telemetry container provides support for streaming out events to multiple external clients.
+3. RFE: Telemetry container upon restart will use redis/any other persistence to get the missed updates during its down time.
 
 ### Event reliability
-There are two kinds of reliability
+There are two kinds of reliability.
 1. Events are not modified across releases (except deprecation). We may allow addition of new params, as long as they don't affect existing params.
-2. Events are verified to fire as expected in every release. 
-3. Ensure that the perf goals are met
+2. Events are verified to fire as expected in every image release. 
+3. Ensure the perf goals are met.
 
 #### Protection:
 1. The unit tests are required to hard code the YANG definition for an event and verify that against current to ensure it is unchanged.
@@ -63,7 +63,7 @@ There are two kinds of reliability
 4. The nightly tests are required to simulate the scenario for process to fire the event, verify that the event is fired and the data is validated against schema.
 5. The unit tests & nightly tests are required for every event.
 6. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
-
+</br>
 
 ## Design
 
@@ -116,43 +116,42 @@ The event detection could happen in many ways
 #### Log message based detection
 At high level:
 1. This is a two step process.
-2. The process raising the event sends a sylog out.
-3. A watcher scans all the messages emitted and parse/check for events of interest.
-4. When matching message arises, raise the event
+2. The process raising the event sends a sylog message out.
+3. A watcher scans all the syslog messages emitted and parse/check for events of interest.
+4. When matching message arrives, raise the event
 
-Here you have code that raises the log and a scanner, who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
+Here you have code that sends the log and a scanner, who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
 
-Though this sounds like a redundant/roundabout way, this helps
-- For III party code, not owned by SONiC, this is the acceptable solution
-- For code that we own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
+Though this sounds like a redundant/roundabout way, this helps as below.
+- For III party code, not owned by SONiC, this is an acceptable solution
+- For code that SONiC own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
 - A new event addition could be as simple as copying couple of small files to a switch and a rsyslog/container restart.
 
 ##### Design at high level
 - Configure a rsyslog plugin as per process with rsyslog.d.
 - For logs raised by host processes, configure this plugin at host.
 - For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
-- In this mode, there will be plugin processes running in host & in containers per process.
+- In this mode, there will be plugin processes running in host & in containers as one instance per process.
 - Provide the regex patterns to use for matching events as i/p to the plugin (*list of patterns for a process*).
 - Each plugin scans messasges **only** from a *single* process and matches only against patterns for that process.
 - For messages that match a pattern, retrieve parameters of interest and fire event using event generator.
+- The rsyslog plugin binary, which does the parsing & reporting is a single binary in host, shared/used by all plugins.
+- The rsyslog plugin binary being under host control, ensures a single/unified behavior across all.
+- The unit tests can use hardcoded log messages to validate regex.
 
 
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
-#### Pros & Cons
+##### Pros & Cons
 
-##### Pro
+###### Pro
 1) This support is external to app, hence adapts well with III party applications, bgp, teamd, ... 
 2) This feature can be added to released builds too, as all it takes is to copy two files into each container and restart rsyslogd in the container
 3) The regex for parsing being local to container, it supports any container upgrade transaparently.
-4) The rsyslog plugin can be a shared copy that the container can run from shared folder in host. This helps provide a overall control across all containers.
-5) The data being structured and per schema, the nightly tests can ensure the data integrity across releases.
-6) The message parsing load is distributed as per container. Within a container parsing is done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
-7) The regex file provides the unique identity for each event. The structured JSON data is easier for tools to parse.
-8) Being structured data, the apps are free to add more or less data elements across releases. Tools can be tolerant for missing or additional data, as use it if exists.
-9) Streaming telemetry support is already available
+4) The rsyslog plugin binary is maintained by host, hence provide a overall control across all containers.
+5) The message parsing load is distributed as per container. Within a container parsing is done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
 
-### con:
+###### con:
 1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. Updating code directly to raise the event will help avoid this.
 2) The rsyslogd is *required*. It should be treated as critical process in each container.
 
@@ -161,29 +160,34 @@ Though this sounds like a redundant/roundabout way, this helps
 #### requirements
 - Events are reported from multiple event detectors or we may call event-sources.
 - The event detectors could be running in host and/or some/all containers.
-- Events reporting should not be blocked by any back pressure from any local/external client.
-- A single local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
-- Multiple local clients should be able to receive the updates concurrently.
+- Support multiple local clients to be able to receive the events concurrently.
+- Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
 - The local clients could be operating at different speeds.
 - The clients may come and go.
 - There may not be any local client to receive the events.
+- Events reporting should not be blocked by any back pressure from any local client.
 
 #### Design
 - Event detectors send UDP messages to a multicast group
-- The local clients add themselves as members and receive from the group
+- The local clients add themselves as members and receive from the group.
 
 ##### Pro
 - The senders are never blocked.
-- The receivers can be 0 to many
+- The receivers can be 0 to many.
 - Both senders & receivers are neither aware of each other nor has any binding.
 - Simple design, hence more reliable.
 
 ##### con
 - Messages could get lost, if the client is slow. It is the client's responsibility to ensure no loss.
+- Clients that are slow by design (*like redis-DB updater*), could have a dedicated thread to receive all events and cache the latest. The main thread could be slow, it could miss updates, but it would use/record the latest.
 
 
+### Event exporting
 
-
+#### requirements
+- Telemetry container supports exporting all the locally raised events to one or more external clients.
+- RFE: When restarted, ensure to provide the latest on all events that were missed during downtime.
+- Supports a max perf rate of 10K events per second.
 
 
 # Next Step:
@@ -192,8 +196,15 @@ When alarm-event FW is functional, the plugin could start using the macros provi
 
 # CLI
 None
+RFE: Future persistence to redis could provide CLI to view the latest status on any event or even live dump of events as they were raised.
 
 
 # Test
-We could upgrade existing test cases to additionally listent to gNMI stream on a different thread to verify expected events were streamed.
+Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
+
+## Requirements
+1) Each event is covered by Unit test & nightly test
+2) Unit test --Hard code the YANG schema and verify that against current schema entry
+3) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema
+4) Nightly test -- Simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema
 
