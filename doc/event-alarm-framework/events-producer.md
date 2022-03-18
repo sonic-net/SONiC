@@ -28,7 +28,7 @@ This latency could run in the order of minutes.
 
 ## Requirements
 ### Events
-1. Events are defined per process.
+1. Events are defined with schema.
 2. Every event is identified by tag, which is unique within a process with zero or more event specific parameters.
 3. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 4. Every event is described in YANG schema.
@@ -36,24 +36,24 @@ This latency could run in the order of minutes.
 
 ### Event detection
 1. The method of detection can be any.
-2. This can vary across events
-3. Syslog messages could be a source or custom queries or update code to report events directly or ...
-4. There can be multiple event detectors running under different scopes.
+2. This can vary across events.
+3. Syslog messages might be used to detect an event or some custom queries or code-update to report events directly or ...
+4. There can be multiple event detectors running under different scopes, concurrently.
 
 ### Event reporting
-1. Event detectors stream the events with structured data
-2. The streaming supports one or more local listeners to receive streams from multiple detectors
-3. The structured data is per YANG definition
-4. RFE: A listener to update redis/anyother persistence destination with current event status
+1. Event detectors stream the events with structured data.
+2. The streaming supports one or more local listeners to receive streams from multiple detectors.
+3. The structured data is per YANG definition.
+4. RFE: A listener to update redis/any other persistence destination with current event status.
 
 ### Event exporter
 1. Telemetry container will receive all the events reported from multiple detectors.
-2. Telemetry provides support for streaming the received events out to multiple external clients.
-3. RFE: Telemetry upon restart will use redis-persistence to get the missed updates
+2. Telemetry provides support for streaming out events to multiple external clients.
+3. RFE: Telemetry upon restart will use redis/any other persistence to get the missed updates during its down time.
 
 ### Event reliability
 There are two kinds of reliability
-1. Events are not modified across releases (except deprecation)
+1. Events are not modified across releases (except deprecation). We may allow addition of new params, as long as they don't affect existing params.
 2. Events are verified to fire as expected in every release. 
 3. Ensure that the perf goals are met
 
