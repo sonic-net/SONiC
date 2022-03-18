@@ -1,4 +1,4 @@
-# Event Producer via rsyslog
+# Events reported from SONiC as structured
 
 ## Goals
 1. Provide a unified way for listing identified alertable events in SONiC switch.
