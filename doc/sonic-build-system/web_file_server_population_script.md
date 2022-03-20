@@ -6,8 +6,7 @@
 Date          | Description
 ----------- | -------------
 3/9/22        | First draft
-| 
-|
+
 
 ## _Table of Contents_
 
@@ -26,8 +25,8 @@ Date          | Description
 
 
 ## Overview
-The SONiC reproduceable build framework provides a way to lock the versions of external packages. It will lock the versions for all the docker images including the slave docker images, host images, and docker slave containers which are used to build the SONiC targets, such as deb files, python wheels, etc.
-SONiC reproduceable build allows to identify specific version of a web package retrieved by wget/curl and download it from an external file storage. 
+The SONiC reproducible build framework provides a way to lock the versions of external packages. It will lock the versions for all the docker images including the slave docker images, host images, and docker slave containers which are used to build the SONiC targets, such as deb files, python wheels, etc.
+SONiC reproducible build allows to identify specific version of a web package retrieved by wget/curl and download it from an external file storage. 
 The web site may be not stable, and the web packages may be replaced to another one unexpectedly, so we do not want to depend on the web packages at a remote web site. 
 Before a web package is used in the SONiC repository, the package should be uploaded to a trusted file storage. Currently SONiC offers to do that manually or automatically via Jenkins pipeline.
 The file Server population script is a complementary utility for “SONiC reproducible build” and suppose to ease the process of downloading the web packages from an external file storage and uploading them to trusted file storage.
@@ -53,7 +52,7 @@ https://storage.googleapis.com/golang/go1.14.2.linux-amd64.tar.gz==ebef065e4d355
 op1=>operation: Parse user input
 op2=>operation: Search for version-web files
 op3=>operation: Parse version-web files
-op4=>operation: Download Web pacjkaes ro cache
+op4=>operation: Download Web packages to cache
 
 op1->op2->op3->op4
 ```
