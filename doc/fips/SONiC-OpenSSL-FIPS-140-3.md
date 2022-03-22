@@ -18,9 +18,11 @@
   * [SymCrypt OpenSSL Engine debian package](#SymCrypt-OpenSSL-Engine-debian-package)
 - [Kerberos Cryptographic Module](#Kerberos-Cryptographic-Module)
 - [Golang Cryptographic Module](#Golang-Cryptographic-Module)
+- [Application Impact](#Application-Impact)
 - [SONiC FIPS Configuration](#SONiC-FIPS-Configuration)
   * [Enable FIPS on system level](#Enable-FIPS-on-system-level)
   * [Enable FIPS on application level](#Enable-FIPS-on-application-level)
+- [Q&A](#Q&A)
 
 
 ## Abbreviation
@@ -86,7 +88,7 @@ default_algorithms = ALL
 ```
 
 ### OpenSSL configuration enhancement
-When fips=1 is set in /proc/cmdline, the OpenSSL default config file is changed to "/usr/lib/ssl/openssl-fips.cnf", otherwise, the config file "/usr/lib/ssl/openssl-fips.cnf" is used.
+When fips=1 is set in /proc/cmdline, the OpenSSL default config file is changed to "/usr/lib/ssl/openssl-fips.cnf", otherwise, the config file "/usr/lib/ssl/openssl.cnf" is used.
 
 ### SymCrypt OpenSSL Engine debian package
 Provide SymCrypt OpenSSL debian package.
@@ -115,6 +117,11 @@ How OpenSSL Engine works in Golang?
 
 When FIPS enabled, both of the BoringSSL Enable Option and the SymCrypt Enabled option will be set.
 
+
+## Application Impact
+Some of functions of a application might be broken when using the cryptographic algorithms that are not FIPS compliant. It is relied on the tests of the applications to detect all the impact functions.
+For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c8/f/SOURCES/openssh-7.7p1-fips.patch) which is compiant with FIPS 140-2. We can apply the patch and verify if it can pass all the OpenSSH test cases when FIPS enabled.
+
 ## SONiC FIPS Configuration
 ### Enable FIPS on system level
 Add the Linux System parameter fips=1, in grub config, one of implemetation as below:
@@ -142,3 +149,7 @@ see https://www.openssl.org/docs/manmaster/man7/openssl-env.html
 ```
 export OPENSSL_CONFIG=/usr/lib/ssl/openssl-fips.cnf
 ```
+
+## Q&A
+### Does SymCrypt use Linux Kernel crypto module?
+SymCrypt on Linux does not rely on Kernel crypt for FIPS certification today.
