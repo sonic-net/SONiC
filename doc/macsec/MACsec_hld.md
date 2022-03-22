@@ -45,6 +45,7 @@
       - [3.4.2.2 Extension packet number(XPN) support](#3422-extension-packet-numberxpn-support)
       - [3.4.2.3 Proactive SAK refresh](#3423-proactive-sak-refresh)
       - [3.4.2.4 Scalability Evaluation](#3424-scalability-evaluation)
+      - [3.4.2.5 Configurable number of Maximum SAs per SC](#3425-configurable-number-of-maximum-sas-per-sc)
     - [3.4.3 SONiC MACsec Plugin](#343-sonic-macsec-plugin)
     - [3.4.4 MACsec Orch](#344-macsec-orch)
       - [3.4.4.1 Functions](#3441-functions)
@@ -84,6 +85,7 @@ This document provides general information about the MACsec feature implementati
 | KaY          | MAC Security Key Agreement Entity            |
 | MKA          | MACsec Key Agreement protocol                |
 | SA           | Secure Association                           |
+| AN           | Secure Association Number                    |
 | SAK          | Secure Association Key                       |
 | SC           | Secure Channel                               |
 | SCI          | Secure Channel Identifier                    |
@@ -342,9 +344,11 @@ ssci           = 8HEXDIG                                    ; 32-bit value that 
     "state":{{ok}}
 
 ; Defines schema for MACsec Port table attributes
-key          = MACSEC_PORT:port_name  ; Port name
-; field      = value
-state        = "ok"              ; The MACsec port is ready to configure
+key            = MACSEC_PORT:port_name  ; Port name
+; field        = value
+state          = "ok"            ; The MACsec port is ready to configure
+max_sa_per_sc  = 1*1DIGIT        ; The max number of SAs supported on SCs on this port.
+                                 ; This value can be between 1 and 4
 ```
 
 #### 3.3.2 MACsec Egress SC Table
@@ -531,6 +535,21 @@ Although to use solution, one wpa_supplicant to multiple interfaces, take less m
 1. The number of interfaces of a switch often doesn't exceed 200, the memory usage isn't insensitive to the switch.
 2. To use multiple wpa_supplicant instances can improve the robustness.
 
+##### 3.4.2.5 Configurable number of Maximum SAs per SC
+
+To support the smooth transition between SAs as they change during the lifetime of an SC, the IEEE standard allows the set up of a new SA while an existing SA is still active.
+The MACSec IEEE spec allows up to 4 SAs to be maintained per SC through the use of a 2-bit AN (association Number) value which is signalled by the protocol and 
+to support any kind of hitless key transition. This capability allows a SecY to specify how many AN values it is willing to handle.
+
+Also, the assignment of AN values is controlled by the key server on the secure channel and conveyed to the other end. Hence if a SecY is limited to support less than
+the maximum, it needs to play the role of key server so that it can ensure only the supported range of AN values is used. This is achieved by overriding the key server priority to
+the highest (numerically lowest value of 0) whenever the value specified by the SecY is lower than the maximum. This scheme achieves the desired result as long as either
+
+- Only one of the SecYs specifies a lower value, in which case it gets elected as the key server.
+- Both SecYs specify the same lower value, in which case either one can act as key server.
+
+wpa_supplicant enhancements along with driver support are required to support this capability.
+
 #### 3.4.3 SONiC MACsec Plugin
 
 SONiC MACsec Plugin is a plugin of wpa_supplicant, that does conversion between MACsec Control instructions and SONiC DB operations.
@@ -564,6 +583,7 @@ The following list all MACsec control instructions:
 |    delete_transmit_sa    | DEL APP_DB[MACSEC_EGRESS_SA]<br>WAIT DEL STATE_DB[MACSEC_EGRESS_SA]                                       |                                                                                                                                    |
 |    enable_transmit_sa    | SET APP_DB[MACSEC_EGRESS_SC:ENCODING_AN]=PARAM<br>WAIT SET STATE_DB[MACSEC_EGRESS_SA]                     |                                                                                                                                    |
 |   disable_transmit_sa    |                                                                                                           |                                                                                                                                    |
+|   get_max_sa_per_sc      | GET STATE_DB[MACSEC_PORT:MAX_SA_PER_SC]                                                                   | Query max SAs than be active on an SC                                                                                                                                      |
 
 ***WAIT : To subscribe the target table and to use the select operation to query the expected message***
 
@@ -575,6 +595,14 @@ The MACsecOrch is introduced in the Orchagent to handle configuration requests. 
 
 The following are all functions that MACsec Orch need to implement.
 
+- Global Initialization of MACsec
+  1. Instantiate SAI MACSec API ingress object with global default settings.
+  2. Instantiate SAI MACSec API egress object with global default settings.
+  3. Query ingress SAI for global SAI settings including
+      - SAI_MACSEC_ATTR_SCI_IN_INGRESS_MACSEC_ACL
+      - SAI_MACSEC_ATTR_MAX_SECURE_ASSOCIATIONS_PER_SC
+     and cache them in the global MACsec object
+
 - Enable MACsec
   1. Monitor the SET message from the MACsec Port Table in APP DB
   2. Create ingress/egress MACsec ports
@@ -583,7 +611,7 @@ The following are all functions that MACsec Orch need to implement.
   5. Create an ACL entry to drop packets (to be later used for macsec_flow), If PROTECT_ENABLE. Otherwise, not drop
   6. Bind the ingress/egress ACL tables to the ingress/egress MACsec ports
   7. Set Flex counter of MACsec port stats
-  8. Set State DB
+  8. Set State DB with the MACSec status and the MAX SA per SC value provided by SAI
 
 - Disable MACsec
   1. Monitor the DEL message from the MACsec Port Table in APP DB
