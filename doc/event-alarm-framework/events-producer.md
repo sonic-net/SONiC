@@ -20,7 +20,7 @@ The tools that use syslog messages face higher latency, as they have to wait for
 This latency could run in the order of minutes.
 
 
-![image](https://user-images.githubusercontent.com/47282725/156947460-66d08b3d-c981-4413-b0d5-232643dfba01.png)
+![image](https://user-images.githubusercontent.com/47282725/159573073-06075ee6-40e5-42da-88bf-9f349f64626c.png)
 
 
 ![image](https://user-images.githubusercontent.com/47282725/159061158-30ff3c8a-5fc0-4af2-8822-6bfc67b2329c.png)
@@ -79,32 +79,47 @@ There are two kinds of reliability.
 #### A sample Defintion
 A sample:
 ```
-module events-bgp {
-    . . .
-    container bgp_status {
+module sonic-events-bgp {
+    namespace "http://github.com/Azure/sonic-events-bgp";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+
+    revision 2022-03-28 {
+        description "BGP alert events.";
+    }
+
+    container sonic-events-bgp {
         list event_list {
-            key "type ip"
-            
-            leaf type {
-                enum "admin_up";
-                enum "admin_down";
-                enum "idle";
-                enum "active";
-                enum "open";
-                enum "established";
+            key "tag";
+
+            leaf tag {
+                type enumeration {
+                    enum "admin_up";
+                    enum "admin_down";
+                }
+                description "Event type/tag";
             }
-            
+
             leaf ip {
                 type inet:ip-address;
                 description "IP of neighbor";
             }
-            
+
             leaf timestamp {
-                type inet::date-and-time;
-                description "time of the event"
+                type yang::date-and-time;
+                description "time of the event";
             }
         }
     }
+}
 ``` 
 
 ### Event detection
@@ -186,7 +201,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ### Event exporting
 
 #### requirements
-- Telemetryt container receives all locally raised events.
+- Telemetry container receives all locally raised events.
 - Telemetry container supports exporting all the locally raised events to one or more external clients.
 - RFE: When restarted, ensure to provide the latest on all events that were missed during downtime.
 - Supports a max perf rate of 10K events per second.
