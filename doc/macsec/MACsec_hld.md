@@ -45,7 +45,7 @@
       - [3.4.2.2 Extension packet number(XPN) support](#3422-extension-packet-numberxpn-support)
       - [3.4.2.3 Proactive SAK refresh](#3423-proactive-sak-refresh)
       - [3.4.2.4 Scalability Evaluation](#3424-scalability-evaluation)
-      - [3.4.2.5 Configurable number of Maxmimum SAs per SC](#3425-max-sa-per-sc)
+      - [3.4.2.5 Configurable number of Maximum SAs per SC](#3425-configurable-number-of-maximum-sas-per-sc)
     - [3.4.3 SONiC MACsec Plugin](#343-sonic-macsec-plugin)
     - [3.4.4 MACsec Orch](#344-macsec-orch)
       - [3.4.4.1 Functions](#3441-functions)
@@ -535,7 +535,7 @@ Although to use solution, one wpa_supplicant to multiple interfaces, take less m
 1. The number of interfaces of a switch often doesn't exceed 200, the memory usage isn't insensitive to the switch.
 2. To use multiple wpa_supplicant instances can improve the robustness.
 
-##### 3.4.2.5 Configurable number of Maxmimum SAs per SC
+##### 3.4.2.5 Configurable number of Maximum SAs per SC
 
 To support the smooth transition between SAs as they change during the lifetime of an SC, the IEEE standard allows the set up of a new SA while an existing SA is still active.
 The MACSec IEEE spec allows up to 4 SAs to be maintained per SC through the use of a 2-bit AN (association Number) value which is signalled by the protocol and 
@@ -596,8 +596,8 @@ The MACsecOrch is introduced in the Orchagent to handle configuration requests. 
 The following are all functions that MACsec Orch need to implement.
 
 - Global Initialization of MACsec
-  1. Instiate SAI MACSec API ingress object with global default settings.
-  2. Instiate SAI MACSec API egress object with global default settings.
+  1. Instantiate SAI MACSec API ingress object with global default settings.
+  2. Instantiate SAI MACSec API egress object with global default settings.
   3. Query ingress SAI for global SAI settings including
       - SAI_MACSEC_ATTR_SCI_IN_INGRESS_MACSEC_ACL
       - SAI_MACSEC_ATTR_MAX_SECURE_ASSOCIATIONS_PER_SC
