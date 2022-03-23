@@ -229,14 +229,16 @@ Code change in orchagent
 
     | Attribute |     Value    |  
     |---|-----------|
-    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP | [TC_TO_DSCP_MAP\|AZURE_TUNNEL]|
-    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP | [TC_TO_QUEUE_MAP\|AZURE_TUNNEL] |
-    
-2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
-    | Attribute |     Value    |  
-    |---|-----------|
     | SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP | [DSCP_TO_TC_MAP\|AZURE_TUNNEL]|
     | SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP | [TC_TO_PRIORITY_GROUP_MAP\|AZURE_TUNNEL |
+    
+2. Update `create_tunnel` defined in `muxorch.cpp` to read and set new tunnel attributes when creating tunnel.
+
+    | Attribute |     Value    |  
+    |---|-----------|
+    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP | [TC_TO_DSCP_MAP\|AZURE_TUNNEL]|
+    | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP | [TC_TO_QUEUE_MAP\|AZURE_TUNNEL] |
+
 ## 6 Test requirement
 All changes are to be covered by system test.
 * Encap at standby side
