@@ -7,25 +7,27 @@
   * [1. Overview](#1-overview)
   * [2. High Level Requirements](#2-high-level-requirements)
   * [3. Core Dump Generation in SONiC](#3-core-dump-generation-in-sonic)
-  * [4. Schema Additions](#4-schema-additions)
-  * [6. CLI Enhancements](#5-cli-enhancements)
+  * [4. Memory usage based techsupport invocation](#4-Memory-usage-based-techsupport-invocation)
+  * [5. Schema Additions](#5-schema-additions)
+  * [6. CLI Enhancements](#6-cli-enhancements)
   * [7. Design](#6-design)
-      * [6.1 Modifications to coredump-compress script](#61-Modifications-to-coredump-compress-script)
-      * [6.2 coredump_gen_handler script](#62-coredump_gen_handler-script)
-      * [6.3 Modifications to generate_dump script](#64-Modifications-to-generate-dump-script)
-      * [6.4 techsupport_cleanup script](#65-techsupport_cleanup-script)
-      * [6.5 Warmboot consideration](#65-Warmboot-consideration)
-      * [6.6 MultiAsic consideration](#66-MultiAsic-consideration)
-      * [6.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#67-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
-  * [8. Test Plan](#7-Test-Plan)
-  * [9. SONiC-to-SONiC Upgrade Considerations](#8-SONiC-to-SONiC-Upgrade-Considerations)
+      * [7.1 Modifications to coredump-compress script](#71-Modifications-to-coredump-compress-script)
+      * [7.2 coredump_gen_handler script](#72-coredump_gen_handler-script)
+      * [7.3 Modifications to generate_dump script](#73-Modifications-to-generate-dump-script)
+      * [7.4 techsupport_cleanup script](#74-techsupport_cleanup-script)
+      * [7.5 Warmboot consideration](#75-Warmboot-consideration)
+      * [7.6 MultiAsic consideration](#76-MultiAsic-consideration)
+      * [7.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#77-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
+  * [8. Test Plan](#8-Test-Plan)
+  * [9. SONiC-to-SONiC Upgrade Considerations](#9-SONiC-to-SONiC-Upgrade-Considerations)
+  * [10. Open questions](#10-Open-questions)
 
 
 ### Revision  
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-| 1.1 |     TBD     | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
+| 1.1 | 04/03/2021  | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 | 3.0 |     02/2022 | Stepan Blyshchak         | Extending Support for memory usage threshold crossed                             |
 
@@ -380,13 +382,13 @@ sonic_dump_r-lionfish-16_20210901_222408  teamd           python3.1630535045.34.
 
 ```
 
-## 6. Design
+## 7. Design
 
-### 6.1 Modifications to coredump-compress script
+### 7.1 Modifications to coredump-compress script
 
 The coredump-compress script is updated to invoke the `coredump_gen_handler` script once it is done writing the core file to /var/core. Any stdout/stderr seen during the execution of `coredump_gen_handler` script is redirected to `/tmp/coredump_gen_handler.log`. This script is enhanced to determine which container the dump belongs to and passes it to the coredump_gen_handler script. 
 
-### 6.2 coredump_gen_handler script
+### 7.2 coredump_gen_handler script
 
 A script under the name `coredump_gen_handler.py` is added to `/usr/local/bin/` directory which will be invoked after a coredump is generated.  The script first checks if this feature is enabled by the user. The script then verifies if a core dump file is created within the last 20 sec and if yes, it moves forward. 
 
@@ -405,11 +407,11 @@ DATE sonic NOTICE coredump_gen_handler[pid]:  coredump_cleanup is disabled. No c
 DATE sonic ERR coredump_gen_handler[pid]:  "show techsupport --since '2 days ago'" was run, but no techsupport dump is found
 ```
 
-### 6.3 Modifications to generate_dump script
+### 7.3 Modifications to generate_dump script
 
 The generate_dump script is updated to invoke the `techsupport_cleanup` script to handle the cleanup of techsupport files. Any stdout/stderr seen during the execution of  `techsupport_cleanup` script is redirected to `/tmp/coredump_gen_handler.log`
 
-### 6.4 techsupport_cleanup script
+### 7.4 techsupport_cleanup script
 
 A script under the name `techsupport_cleanup.py` is added to `/usr/local/bin/` directory which will be invoked after a techsupport dump is created. The script first checks if the feature is enabled by the user. It then checks if the limit configured by the user has crossed and deletes the old techsupport files, if any.
 
@@ -419,17 +421,17 @@ DATE sonic NOTICE techsupport_cleanup[pid]:  techsupport_cleanup is disabled. No
 DATE sonic INFO coredump_gen_handler[pid]: max-techsupport-size argument is not set. No Cleanup is performed, current size occupied: 456 MB
 ```
  
-### 6.5 Warmboot consideration
+### 7.5 Warmboot consideration
 
 No changes to this flow
 
-### 6.6 MultiAsic consideration
+### 7.6 MultiAsic consideration
 
 Configuration specified for the default feature name in the AUTO_TECHSUPPORT_FEATURE table is applied across all the masic instances. 
 
 i.e. rate_limit_interval defined in the AUTO_TECHSUPPORT_FEATURE|swss key is applied for swss1, swss2, etc
  
-### 6.7  Design choices for max-techsupport-limit & max-techsupport-limit arguments
+### 7.7  Design choices for max-techsupport-limit & max-techsupport-limit arguments
 
 Firstly, Size-based cleanup design was inspired from MaxUse= Argument in the systemd-coredump.conf https://www.freedesktop.org/software/systemd/man/coredump.conf.html 
 
@@ -452,7 +454,7 @@ A default value of 5% would amount to a minimum of 500 MB which is a already a d
 
 Although if the admin feels otherwise, these values are configurable.
 
-## 7. Test Plan
+## 8. Test Plan
 
 Enhance the existing techsupport sonic-mgmt test with the following cases.
 
@@ -462,8 +464,9 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 |  2   | Check if the techsupport cleanup is working as expected                                                                                 |
 |  3   | Check if the global rate-& & per-process rate-limit-interval is working as expected                                                     |
 |  4   | Check if the core-dump cleanup is working as expected                                                                                   |
-|  5   | Check if the core-dump generated when reaching memory threshold                                                                                   |
-## 8. SONiC-to-SONiC Upgrade Considerations
+|  5   | Check if the core-dump generated when reaching memory threshold                                                                         |
+
+## 9. SONiC-to-SONiC Upgrade Considerations
 
 The default config required for auto_techsupport is present in the init_cfg.json. Therefore, when a clean installation of SONiC is performed, the configuration is found in the config DB and the feature is active. 
 
@@ -552,6 +555,6 @@ Load this Example config provided below to enable the feature. Each of the field
 }
 ```
 
-# Open question
+## 10. Open questions
 
 1. Is 10 % free memory/90 % used memory threshold a reasonable default?
