@@ -18,9 +18,11 @@
       * [7.5 Warmboot consideration](#75-Warmboot-consideration)
       * [7.6 MultiAsic consideration](#76-MultiAsic-consideration)
       * [7.7 Design choices for max-techsupport-limit & max-techsupport-limit arguments](#77-Design-choices-for-max-core-limit-&-max-techsupport-limit-arguments)
+      * [7.8 Techsupport Locking](#78-Techsupport-Locking)
   * [8. Test Plan](#8-Test-Plan)
   * [9. SONiC-to-SONiC Upgrade Considerations](#9-SONiC-to-SONiC-Upgrade-Considerations)
-  * [10. Open questions](#10-Open-questions)
+  * [10. App Extension Consideration](#9-App-Extension-Considerations)
+  * [11. Open questions](#10-Open-questions)
 
 
 ### Revision  
@@ -454,6 +456,14 @@ A default value of 5% would amount to a minimum of 500 MB which is a already a d
 
 Although if the admin feels otherwise, these values are configurable.
 
+### 7.8 Techsupport Locking
+
+Recently, an enhancement was made to techsupport script to only run one instance at a time by using a locking mechanism. When other script instance of techsupport tries to run, it'll exit with a relevent code. This would apply nevertheless of how a techsupport was invoked i.e. manual or through auto-techsupport. 
+
+With this change, rate-limit-interval of zero would not make any difference. The locking mechanism would implicitly impose a minimum rate-limit-interval of techsupport execution time.  And since, the techsupport execution time can't be found out and varies based on underlying machine and system state, the range of values configurable for the rate-limit-interval is left unchanged
+
+A relevant message will be logged to syslog when the invocation fails because of LOCKFAIL exit code. 
+
 ## 8. Test Plan
 
 Enhance the existing techsupport sonic-mgmt test with the following cases.
@@ -468,93 +478,16 @@ Enhance the existing techsupport sonic-mgmt test with the following cases.
 
 ## 9. SONiC-to-SONiC Upgrade Considerations
 
-The default config required for auto_techsupport is present in the init_cfg.json. Therefore, when a clean installation of SONiC is performed, the configuration is found in the config DB and the feature is active. 
+The configuration in the init_cfg.json is loaded to the running config i.e. CONFIG_DB even in the case of SONiC-SONiC upgrade from a older image which doesn't support this feature.
 
-However, in the case of SONiC-SONiC upgrade, the previous config_db.json is migrated and init_cfg.json is not involved. In that case, it is the responsibility of the admin to provide the config, if the admin wants to leverage this feature. 
+### 10  App Extension Considerations
 
-Load this Example config provided below to enable the feature. Each of the fields are explained in Section 4 and can be modified accordingly
+Detailed Info related to Appliation Extension can be found here: https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
 
-```
-{
-   "AUTO_TECHSUPPORT": {
-       "GLOBAL": {
-           "state": "enabled",
-           "rate_limit_interval": "180",
-           "max_techsupport_limit": "10.0",
-           "max_core_limit": "5.0",
-           "available_mem_threashold": "10.0",
-           "since": "2 days ago"
-       }
-   },
-   "AUTO_TECHSUPPORT_FEATURE": {
-       "bgp": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "database": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "lldp": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "pmon": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "radv": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "snmp": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "swss": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "syncd": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "teamd": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "dhcp_relay": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "mgmt-framework": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "mux": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "nat": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "sflow": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "macsec": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       },
-       "telemetry": {
-           "state": "enabled",
-           "rate_limit_interval": "600"
-       }
-   }
-}
-```
+A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. This will be run when the application installs/uninstalls. Since, this feature uses compile time flag to determine whether to enable/disable this feature, it is not possible to determine that at runtime when the application is installed. 
 
-## 10. Open questions
+Thus the decision to whether or not to enable the new feature will be based on the current state of existing features and global state. The new feature will be disabled if the global and all the individual features are disabled. If not, the feature will be enabled. The rate-limit-interval is set to 600 by default. 
+
+## 11. Open questions
 
 1. Is 10 % free memory/90 % used memory threshold a reasonable default?
