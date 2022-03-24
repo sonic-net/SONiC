@@ -484,7 +484,9 @@ The configuration in the init_cfg.json is loaded to the running config i.e. CONF
 
 Detailed Info related to Appliation Extension can be found here: https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
 
-A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. This will be run when the application installs/uninstalls. Since, the auto-techsupport feature uses compile time flag to determine whether to enable/disable itself, it is not possible to determine that at runtime when the application is installed. 
+A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. The existing FeatureRegistry class will be enahcned to also add/delete configuration related to AUTO_TECHSUPPORT_FEATURE table.
+
+This will be run when the application installs/uninstalls. Since, the auto-techsupport feature uses compile time flag to determine whether to enable/disable itself, it is not possible to determine that at runtime when the application is installed. 
 
 Thus the decision to whether or not to enable the new feature will be based on the current values of AUTO_TECHSUPPORT & AUTO_TECHSUPPORT_FEATURE tables. The new feature will be disabled if the global and all the individual features are disabled. If not, the feature will be enabled. The rate-limit-interval & memory threshold is set to 600 & 10% by default. 
 
