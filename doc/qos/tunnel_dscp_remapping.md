@@ -212,10 +212,9 @@ Before remapping to queue 4 and 6, both queues are required to be cleared. Hence
 ```
 
 #### 5.1.3 Define new field for extra lossless queues
-Two new fields are added to specify software or hardward PFC watchdog.
+Two new fields are added to specify on which queue to enable PFC watchdog.
 
 * `pfc_wd_sw_enable` Specify the queue(s) to enable software PFC watchdog
-* `pfc_wd_hw_enable` Specify the queue(s) to enable hardware PFC watchdog.
 
 In current version, software PFC watchdog will read field `pfc_enable` to determine PFCWD is enabled on which queue(s). To maintain compatible with current logic, `db_migrator` script is required to be updated.
 
@@ -225,7 +224,6 @@ In current version, software PFC watchdog will read field `pfc_enable` to determ
             "dscp_to_tc_map": "[DSCP_TO_TC_MAP|AZURE]",
             "pfc_enable": "3,4,2,6",
             "pfc_wd_sw_enable": "3,4",
-            "pfc_wd_hw_enable": "2,6",
             "pfc_to_queue_map": "[MAP_PFC_PRIORITY_TO_QUEUE|AZURE]",
             "tc_to_pg_map": "[TC_TO_PRIORITY_GROUP_MAP|AZURE]",
             "tc_to_queue_map": "[TC_TO_QUEUE_MAP|AZURE]"
@@ -233,7 +231,7 @@ In current version, software PFC watchdog will read field `pfc_enable` to determ
 }
 ```
 
-To support new field `pfc_wd_sw_enable` and `pfc_wd_hw_enable`, [sonic-port-qos-map.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port-qos-map.yang) is required to be updated.
+To support new field `pfc_wd_sw_enable`, [sonic-port-qos-map.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-port-qos-map.yang) is required to be updated.
 
  
 ### 5.2 SAI attribute
@@ -262,22 +260,24 @@ TC remapping requires below SAI attributes change.
 For instance, when we get a traffic flow with DSCP = 3 on T1, the traffic and bounced back traffic is delivered and remapped as below:
 
 1. Traffic from `T1` to `Standby ToR`
-    - Traffic mapped to `TC3`, `PG3` and `Queue 3` by port level QoS mapping  
+    - Traffic mapped to `TC3` and `PG3`by port level QoS mapping  
 2. Bounced back traffic from `Standby ToR` to `T1`
-    - Traffic arrived at `Standby ToR` in `TC3`, `PG3` and `Queue 3` as per port level QoS mapping
+    - Traffic arrived at `Standby ToR` in `TC3` and `PG3` as per port level QoS mapping
     - Packet will be encapped and delivered back to `T1` by `MuxTunnel`
         - The outer `DSCP` is rewritten to `2` as specified in `TC_TO_DSCP_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP`.
         - Traffic is delivered in `Queue 2` as specified in `TC_TO_QUEUE_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP`
 3. Bounced back traffic from `T1` to `Active ToR`
-    - Bounced back traffic arrive at `T1` in `Queue 2` and `PG2` by port level QoS mapping
+    - Bounced back traffic arrive at `T1` and `PG2` by port level QoS mapping
     - Bounced back traffic will be routed to `Active ToR` 
 4. Traffic from `Active ToR` to `Server`
     - Traffic arrived at `Active ToR` and will be decapped and delivered to server
-        - The outer `DSCP` is ignored as the `dscp_mode` for `MuxTunnel` is `PIPE`. The inner `DSCP3` is copied to outer layer
+        - The outer `DSCP` is ignored as the `dscp_mode` for `MuxTunnel` is `PIPE`. The inner `DSCP3` is unchanged.
         - Traffic is remapped to `TC 3` as specified in `DSCP_TO_TC_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_DECAP_QOS_DSCP_TO_TC_MAP`
         - Traffic is remapped to `PG 2` as specified in `TC_TO_PRIORITY_GROUP_MAP|AZURE_TUNNEL` by SAI attribute `SAI_TUNNEL_ATTR_DECAP_QOS_TC_TO_PRIORITY_GROUP_MAP`
         - Traffic is in `Queue 3` as per port level QoS mapping
         - Decapped traffic is delivered to target server
+
+The new SAI attributes are to be target at branch `202012` and `202205`.
 ### 5.3 orchagent
 
 Code change in orchagent
@@ -295,6 +295,12 @@ Code change in orchagent
     |---|-----------|
     | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_AND_COLOR_TO_DSCP_MAP | [TC_TO_DSCP_MAP\|AZURE_TUNNEL]|
     | SAI_TUNNEL_ATTR_ENCAP_QOS_TC_TO_QUEUE_MAP | [TC_TO_QUEUE_MAP\|AZURE_TUNNEL] |
+
+3. Update code for handling decap terminator
+Since both the `MuxTunnel` and regular IPinIP tunnel use Loopback address `10.1.0.32` as the `dst_ip`, they will share the same decap terminator. It may pose a conflict when we are going to apply extra attributes to `MuxTunnel`.
+To avoid the potential conflict, we have to create two separate tunnel terminators, one for MuxTunnel and one for regular IPinIP tunnel
+- For `MuxTunnel`, the type of terminator would be `P2P` as we have a specific `src_ip`, which is the peer's Loopback address.
+- For regular IPinIP tunnel, the type of terminator is unchanged, which is `P2MP`.
 
 ## 6 Test requirement
 All changes are to be covered by system test.
