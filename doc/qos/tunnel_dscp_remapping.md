@@ -151,7 +151,7 @@ Before remapping to queue 4 and 6, both queues are required to be cleared. Hence
             "4": "6", // Original map "4" : "4"
             "5": "0",
             "6": "0",
-            "7": "7"
+            "7": "0"  // Original map "7" : "7"
     }
     ```
 
@@ -212,11 +212,12 @@ Before remapping to queue 4 and 6, both queues are required to be cleared. Hence
 ```
 
 #### 5.1.3 Define new field for extra lossless queues
-Two new fields are added to specify on which queue to enable PFC watchdog.
+Since we are going to have two extra lossless queues, while we are not going to enable watchdog on these two new queues, we need a new field to specify on which queue to enable PFC watchdog.
 
-* `pfc_wd_sw_enable` Specify the queue(s) to enable software PFC watchdog
+* `pfc_enable` Specify on which queue to enable PFC
+* `pfc_wd_sw_enable` Specify the queue(s) to enable PFC watchdog
 
-In current version, software PFC watchdog will read field `pfc_enable` to determine PFCWD is enabled on which queue(s). To maintain compatible with current logic, `db_migrator` script is required to be updated.
+In current version, PFC watchdog will read `pfc_enable` to determine PFCWD is enabled on which queue(s). To maintain compatible with current logic, `db_migrator` script is required to be updated.
 
 ```json
 "PORT_QOS_MAP": {
