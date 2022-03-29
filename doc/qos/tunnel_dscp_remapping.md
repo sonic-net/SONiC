@@ -278,7 +278,7 @@ For instance, when we get a traffic flow with DSCP = 3 on T1, the traffic and bo
         - Traffic is in `Queue 3` as per port level QoS mapping
         - Decapped traffic is delivered to target server
 
-The new SAI attributes are to be target at branch `202012` and `202205`.
+The new SAI attributes are to be target at branch `202012` and `202106`.
 ### 5.3 orchagent
 
 Code change in orchagent
