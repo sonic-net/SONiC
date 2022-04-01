@@ -68,7 +68,7 @@ for example:
 ```sh
 For an example: 
 go1.14.2.linux-amd64.tar.gz-ebef065e4d35572af5b03e2be957a9c6c5063b38
-go1.14.2.linux-amd64.tar.gz-b73d6366c0bce441d20138c150e2ddcdf406e654 (fake hash value)
+go1.14.2.linux-amd64.tar.gz-b73d6366c0bce441d20138c150e2ddcdf406e654
 ```
 Same file name is used with different hash 
 
@@ -114,8 +114,10 @@ export SONIC_REPRODUCABLE_BUILD_UPLAOD_ENABLE=1
 export SONIC_REPRODUCABLE_BUILD_UPLAOD_USER=<User for trusted server authentication>
 export SONIC_REPRODUCABLE_BUILD_UPLAOD_KEY=<API key server authentication>
 export SONIC_REPRODUCABLE_BUILD_UPLAOD_DEST=< URL for destination web file server>
-
 ```
+
+Another approach is to call the script manually and provide as an input the pat where the script would search for version files (version files which were generated as part of "make freeze" invocation or by previous invocation of the script).
+
 ## Source tree location:
  
  The script will be located under
