@@ -22,6 +22,7 @@
 - [SONiC FIPS Configuration](#SONiC-FIPS-Configuration)
   * [Enable FIPS on system level](#Enable-FIPS-on-system-level)
   * [Enable FIPS on application level](#Enable-FIPS-on-application-level)
+  * [SONiC Build Options](#SONiC-Build-Options)
 - [Q&A](#Q&A)
 
 
@@ -123,6 +124,7 @@ Some of functions of a application might be broken when using the cryptographic 
 For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c8/f/SOURCES/openssh-7.7p1-fips.patch) which is compiant with FIPS 140-2. We can apply the patch and verify if it can pass all the OpenSSH test cases when FIPS enabled.
 
 ## SONiC FIPS Configuration
+
 ### Enable FIPS on system level
 Add the Linux System parameter fips=1, in grub config, one of implemetation as below:
 
@@ -149,6 +151,17 @@ see https://www.openssl.org/docs/manmaster/man7/openssl-env.html
 ```
 export OPENSSL_CONFIG=/usr/lib/ssl/openssl-fips.cnf
 ```
+
+### SONiC Build Options
+Support to enable/disable the FIPS feature, the feature is enabled by default in rules/config as below.
+```
+ENABLE_FIPS_FEATURE ?= y
+```
+Support to enable/disable FIPS config, the flage is disabled by default. IF the option is set, then the fips is enabled by default in the image, not necesary to do the config in system level or application level.
+```
+ENABLE_FIPS ?= n
+```
+If the ENABLE_FIPS_FEATURE is not set, then the option ENABLE_FIPS is useless.
 
 ## Q&A
 ### Does SymCrypt use Linux Kernel crypto module?
