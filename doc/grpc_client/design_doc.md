@@ -16,26 +16,27 @@ main purpose is to provide a way for linkmgr to exchange RPC's with SoC
 and do this within SONiC PMON docker
 
 
-Challenge: to provide an interface for gRPC daemon to exchange RPC's with the gRPC server running on the SoC
-           over a secure channel using a loopback IP. The RPC's exchanged with SoC
-           would help linkmgr state machine make decisions as to transition the DualToR
-           into active/standby depending on the state of the SoC 
+Requirements: 
+- to provide an interface for gRPC daemon to exchange RPC's with the gRPC server running on the SoC over a secure channel using a loopback IP.
+- The RPC's exchanged with SoC would help linkmgr state machine make decisions as to transition the DualToR into active/standby state depending on the state of the SoC 
 
 
 ### gRPC client communicate to SoC over Loopback IP
 
 #### Background
 
-- We need a way to communicate to SoC using a Loopback IPv4 which is not adversitised to public. This Loopback IP is a well defined IP which is allowed in SoC firewall rules, hence
+- We need a way to communicate to SoC using a Loopback IPv4 which would not be adversitised to public. This Loopback IP requirement arises because SoC has firewall rules which would not allow normal traffic to pass through.As such we would usea well defined IP(Loopback IP) which would be allowed in SoC firewall rules, hence
 the requirement to communicate over a pre-defined IPv4 address. 
 
-  - The Best approach would be BIND the socket using the gRPC to Loopback interface using gRPC API. The socket_mutator API is available in C++, which allows us to accomplish this. However the gRPC client is prposed Python daemon run inside PMON container. As such as long as library does not expose this API in Python, this is not an easy workaround. The github issue is filed for gRPC library.
-  - Adding a Kernel Route. We could add a Kernel Route to the soc IP. For example
+  - The Best approach would be BIND the socket using the gRPC to Loopback interface using gRPC API. The socket_mutator API is available in C++, which allows us to accomplish this. However the gRPC client is proposed to be written in Python, because platform API is installed inside PMON(Python). Hence the daemon is run inside PMON container. Since the gRPC library does not expose this API in Python, nor does it expose the socket, this is not an easy workaround. The github issue is filed for gRPC library.
+
+  - Another approach would be Adding a Kernel Route. We could add a Kernel Route to the soc IP. For example
     ```
        sudo ip route add <soc IP> via <vlan IP> src <Loopback IP>
     ```
-  - Te issue with adding a Kernel Route is the route_cheker will fail for this, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present
-  - SWSS orchagent will complain about not able to istall the entry in ASIC, the entry will be present in APP DB but not present inside ASIC. This would deem more worarounds necessary to be able to use this approach.
+  - The issue with adding a Kernel Route is the route_cheker will fail for this, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present
+  - SWSS orchagent will complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC. This would deem more workarounds necessary to be able to use this approach.
+  - For the kernel route approach we would have to accomodate these issues above 
   - using IPTABLES rule. For Example
     ```
         sudo iptables -t nat -A POSTROUTING --destination <soc IP> -j SNAT --to-source <LoopBack IP>
@@ -54,6 +55,8 @@ the requirement to communicate over a pre-defined IPv4 address.
         soc_ipv4: <soc IP>
     ```
 - The update_control_plane_nat_acls in caclmgrd will look for the above configuration and upon getting the config, it will add the POSTROUTING nat rules
+- Currently NAT rules for trapping the SNMP packets coming in the front panel interface in the linux network namespace and sent to the docker0 subnet 240.12.1.x. The NAT which are present are for SNMP packets, which are UDP + dest port 161
+- Adding this new POSTROUTING rule should not cause any issues to the forwarding behavior
 
 #### Rationale
 
@@ -89,7 +92,7 @@ the requirement to communicate over a pre-defined IPv4 address.
     ```
 #### gRPC client initialization
 
-- gRPC client should not be initialized for all images/configurations. Here the premise will be taken that the gRPC client will be initailzed only for DualToR active-active scenario.
+- gRPC client should not be initialized for all images/configurations. Here the premise will be taken that the gRPC client would only be initailzed only for DualToR active-active scenario.
 
 #### Proposed Solution
 - the proposal is to have a dualtortype field in DEVICE_METADATA table inside CONFIG_DB. During PMON initilazation once the sonic-cfggen has been rendered, it can check for DualToRtype field inide DEVICE_METADATA and if it is active-active/both it will initailze the grpc client daemon. 
@@ -107,5 +110,4 @@ the requirement to communicate over a pre-defined IPv4 address.
 
 #### Rationale
 - This logic eases the utilization of gRPC client only confined to DualToR configurations meant for active-active scenario.
-
 
