@@ -30,13 +30,13 @@ the requirement to communicate over a pre-defined IPv4 address.
 
   - The Best approach would be BIND the socket using the gRPC to Loopback interface using gRPC API. The socket_mutator API is available in C++, which allows us to accomplish this. However the gRPC client is proposed to be written in Python, because platform API is installed inside PMON(Python). Hence the daemon is run inside PMON container. Since the gRPC library does not expose this API in Python, nor does it expose the socket, this is not an easy workaround. The github issue is filed for gRPC library.
 
-  - Another approach would be Adding a Kernel Route. We could add a Kernel Route to the soc IP. For example
+  - Another approach could be Adding a Kernel Route. We could add a Kernel Route to the soc IP. For example
     ```
        sudo ip route add <soc IP> via <vlan IP> src <Loopback IP>
     ```
   - The issue with adding a Kernel Route is the route_cheker will fail for this, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present
   - SWSS orchagent will complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC. This would deem more workarounds necessary to be able to use this approach.
-  - For the kernel route approach we would have to accomodate these issues above 
+  - For the kernel route approach we would have to accomodate these issues listed above 
   - using IPTABLES rule. For Example
     ```
         sudo iptables -t nat -A POSTROUTING --destination <soc IP> -j SNAT --to-source <LoopBack IP>
@@ -61,7 +61,7 @@ the requirement to communicate over a pre-defined IPv4 address.
 #### Rationale
 
 
-  - This approach would add the rule for all the soc IP's contained to DualToR, and SoC server and gRPC client would be able to communicate over agreed IP 
+  - This approach shall add the rule for all the soc IP's contained to DualToR, and SoC server and gRPC client would be able to communicate over agreed IP 
 
 #### gRPC commuication over secure channel
 
