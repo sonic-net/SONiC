@@ -33,6 +33,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.6 | 02/02/2022  | Shyam Kumar                        | Added feature-enablement workflow 
 | 0.7 | 02/02/2022  | Jaganathan Anbalagan               | Added Breakout Handling 
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
+| 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
 
 
 # About this Manual
@@ -154,6 +155,9 @@ Please refer to the  flow/sequence diagrams which covers the following required 
   
   In order to enable this feature, the platform would set ‘skip_xcvrd_cmis_mgr’ to ‘false’ in their respective pmon_daemon_control.json as part of platform bootstrap. When xcvrd would spawn on that hwsku (LC/board), it would parse ‘skip_xcvrd_cmis_mgr’ and if found 'false', it would launch CMIS task manager. This implies enabling this feature. 
 Else, if ‘skip_xcvrd_cmis_mgr’ is set/found 'true' by xcvrd, it would skip launching CMIS task manager and this feature would remain disabled.
+If a platform/vendor does not specify/set ‘skip_xcvrd_cmis_mgr’, xcvrd would exercise the default workflow (i.e. when xcvrd detects QSFP-DD, it will initialize the module per CMIS specification). 
+Note: This feature flag (skip_xcvrd_cmis_mgr) was added as a flexibility in case vendor/platform intend to disable this feature and not use CMIS mgr.
+However, techinically, as mentioned in this document, that should not be the case.
   
   Workflow :
   ![Enabling 'Interface link bring-up sequence' feature(2)](https://user-images.githubusercontent.com/69485234/154403945-654b49d7-e85f-4a7a-bb4d-e60a16b826a7.png)
