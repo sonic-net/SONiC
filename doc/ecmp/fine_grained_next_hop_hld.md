@@ -216,7 +216,6 @@ found in the 'FG_NHG_PREFIX' section of config dB. If specified, the output will
 from the specified group. If it is not specified, by default, active next hops from all groups are displayed
 as shown below:
 
-
 FG NHG Prefix    Active Next Hops
 ---------------  ------------------
 100.50.25.12/32  200.200.200.4
