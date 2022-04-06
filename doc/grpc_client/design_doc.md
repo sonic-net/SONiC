@@ -7,6 +7,7 @@ Table of Contents
 * [Requirements](#Requirements)
 * [gRPC client communicate to SoC over Loopback IP](#)
 * [gRPC commuication over secure channel](#)
+* [gRPC client initialization](#)
 * [gRPC commuication to NIC simulator](#)
 
 
@@ -51,7 +52,7 @@ and do this within SONiC PMON docker
   - For the kernel route approach we would have to accomodate these issues listed above 
 - using an IPTABLES rule. We could add a POSTROUTING rule to the SNAT table with destination as SoC IP and source as Loopback IP. For Example
     ```
-        sudo iptables -t nat -A POSTROUTING --destination <soc IP> -j SNAT --to-source <LoopBack IP>
+        sudo iptables -t nat -A POSTROUTING --destination <SoC IP> -j SNAT --to-source <LoopBack IP>
     ```
     - There could be single SNAT entry for the entire subnet which is covers all the SoC IP's connected to the ToR
 
@@ -65,7 +66,7 @@ and do this within SONiC PMON docker
     ```
     ```
         MUX_CABLE|PORTNAME
-        soc_ipv4: <soc IP>
+        SoC_IPv4: <SoC IP>
     ```
 - The update_control_plane_nat_acls subroutine in caclmgrd will check for the above configuration and upon getting the config, it will add the POSTROUTING SNAT rule
 - Currently the NAT rules which exist are only for trapping the SNMP packets coming in the front panel interface in the linux network namespace and sent to the docker0 subnet 240.12.1.x. These NAT rules which are present are for SNMP packets, which are destined for UDP + dest port 161
@@ -82,7 +83,7 @@ num   pkts bytes target     prot opt in     out     source               destina
 
 #### Rationale
 
-  - This approach conveniently adds the rule for all the soc IP's needed to be communivating with DualToR over gPRC, and SoC server and gRPC client would be able to communicate over agreed IP. 
+  - This approach conveniently adds the rule for all the SoC IP's needed to be communivating with DualToR over gPRC, and SoC server and gRPC client would be able to communicate over agreed IP. 
 
 ## gRPC commuication over secure channel
 
@@ -115,24 +116,46 @@ num   pkts bytes target     prot opt in     out     source               destina
 gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in  as a task when NiC-Simulator would be injected. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
 is initiating the channels, it would be able to form a secure channel
 
-#### gRPC client initialization
+## gRPC client initialization
 
 - gRPC client should not be initialized for all images/configurations. Here the premise will be taken that the gRPC client would only be initailzed only for DualToR active-active scenario.
 
 #### Proposed Solution
-- the proposal is to have a dualtortype field in DEVICE_METADATA table inside CONFIG_DB. During PMON initilazation once the sonic-cfggen has been rendered, it can check for DualToRtype field inide DEVICE_METADATA and if it is active-active/both it will initailze the grpc client daemon. 
+- the proposal is to have a cable_type field in MUX_CABLE table inside CONFIG_DB. During PMON initilazation once the configuration has been rendered, and CONFIG_DB is populated and if it is active-active it will initailze the grpc client daemon logic for that PORT. For the lifetime of gRPC daemon, it will monitor this PORT as gRPC port only and not muxcable port
+-
+    ```
+        MUX_CABLE|PORTNAME
+        SoC_IPv4: <SoC IP>
+        cable_type: active_active
+    ```
+    This part is only for discussion- Should we seperate out the logic for gRPC or should we keep both ycabled and gRPC in the same daemon. We could have an extra field for DualToRType type. 
     ```
         DEVICE_METADATA | localhost
         type: ToRRouter
-	subtype: DualToR 
-	DualToRtype: active-active/Both
+        subtype: DualToR 
+        DualToRType: active-active/Both
     ```
-
-    ```
-        {% if 'subtype' in DEVICE_METADATA['localhost'] and DEVICE_METADATA['localhost']['subtype'] == 'DualToR'%}
-        {% if DEVICE_METADATA['localhost']['DualToRtype'] == 'active-active' or DEVICE_METADATA['localhost']['DualToRtype'] == 'Both'%}
-    ```
-
 #### Rationale
 - This logic eases the utilization of gRPC client only confined to DualToR configurations meant for active-active scenario.
+
+## gRPC communication with Nic-Simulator
+ 
+- the gRPC server hosted on the server in the lab, needs to know a request originating from the client, belongs to which Port. As in the case of real SoC the gRPC server only has the knowledge of a single PORT, it does not need to distinguish between requests for different ports. However the gRPC server inside the lab will not have knowledge about the requests are orginating for different PORTs.
+
+#### Proposed Solution using gRPC interceptor inside the client.
+
+- Interceptor is an effective way to put additional data inside the RPC originating from the client. The idea is to add the SoC_IP belonging to the port inside the intercept channel when the requests are being sent.
+- The interceptor channel wuld be created at Nic-Simulator injection time, and the meta_data entry would be populated.
+
+For example
+```
+with grpc.insecure_channel("%s:%s" % (server, port)) as insecure_channel:
+        metadata_interceptor = MetadataInterceptor(("grpc_server", "SoC_IP"))
+        with grpc.intercept_channel(insecure_channel, metadata_interceptor) as channel:
+            stub = nic_simulator_grpc_service_pb2_grpc.DualTorServiceStub(channel)
+```
+
+- the gRPC server listening to the requests would decode the meta_data and serve the requests for gRPC client by associating the SoC_IP with the port
+
+
 
