@@ -16,17 +16,18 @@ _Rev v0.1_
 Rev  | RevDate    | Author(s)   | Change Description
 ---- | ---------- | ----------- | ------------------
 v0.1 | 06/23/2021 | Google, ONF | Initial Version
+v0.2 | 03/31/2022 | Google, ONF | Extract Library
 
 
 
 ## Scope
 
-This document covers the high level design aspects of Packet I/O in SONiC for P4Runtime application. 
+This document covers the high level design aspects of Packet I/O in SONiC for both the P4Runtime application and any subsequent application that would benefit from packet exchange using Generic Netlink Sockets. 
 
 
 ## Overview
 
-SONiC supports Packet I/O on Linux netdev interfaces but this does not meet some unique requirements of P4Runtime application. This document details the requirements and captures the design changes necessary to meet the new requirements.
+SONiC supports Packet I/O on Linux netdev interfaces but this does not meet some unique requirements of P4Runtime application. This document details the requirements and captures the design changes necessary to meet the new requirements. This document also explains the extraction of a library from the P4Runtime application in order to make the functionality available to other applications as required. In addition to the new library this document will explain a new application which serves as a model for using the library and allows for TCPDump like sniffing capability and packet generation using Generic Netlink Sockets.
 
 
 **Requirements**
@@ -175,6 +176,59 @@ Vendor work is needed to enable the creation of the “submit_to_ingress” port
 
 
 ![drawing](images/p4rt_flow.png)
+
+## New Library Usage
+
+The library functionality is defined in genl-packet/receive_genetlink.h. First a callback function must be defined with the following signature:
+
+```
+using ReceiveCallbackFunction = std::function<void(
+    const std::string& src_port_name, const std::string& target_port_name,
+    const std::string& payload)>;
+```
+Then the StartReceive function is called which returns a thread which calls the callback function on packet receipt. 
+```
+std::thread StartReceive(
+    packet_metadata::ReceiveCallbackFunction callback_function,
+    nl_recvmsg_msg_cb_t  process_callback_function);
+```
+A version of process_callback_function is implemented in genl-packet/receive_genenlink.cc and will be used if process_callback_function is NULL.  The purpose of process_callback_function is to extract the netlink attributes: source port, destination port and payload and pass them to the ReceiveCallbackFunction.  This can be implemented by the library user if the logic in the library is insufficient. 
+
+## Library Phases 
+- **Current:**
+  - The current kernel module, documented in PacketIO.md, remains unchanged and is supplied by the asic vendor or delegates.
+  - There is a single multicast group / queue that all producers and consumers can use.  All packets are sent to all consumers.  Filtering must be done post-consumption.
+  - Packet meta-data is fixed.
+
+- **Dynamic generic netlink:**
+  - The kernel module will have an API that allows user space applications to manage multicast groups and queues at runtime.
+  - The library will allow applications to specify which multicast group / queue to listen to and allow for basic filtering.
+  - Packet meta-data continues to be fixed.
+- **Dynamic meta-data:**
+  - Kernel module is likely unchanged.
+  - Multicast group / queue functionality is likely unchanged.
+  - Packet meta-data can be specified by the using application.  
+
+## Sniffer Application:
+The sniffer provides the means of a tcpdump-like tool to listen to the genetlink device. The sniffer can be used for listening to traffic, as well as recording the traffic into a file or displaying to standard out. The resulting pcapng file can then be viewed using Wireshark. The sender can be used to send an example packet or packets from a pcap/pcapng file through genetlink. The sender also registers a new genetlink family and group called genl_packet and packets respectively. Both sniffer and sender use the pcapplusplus library which is an actively maintained open source library.
+
+Both the sender and the sniffer can be compiled via bazel or sonic-buildimage. Either way, once compiled or the necessary binary installed the following commands can be used to use the two applications ([sniffer] indicates the sniffer application and [sender] indicates the sender application):
+```
+- [sniffer] : launches the sniffer and records all packets into a file named out.pcapng.
+- [sniffer] -a : will either append the packets to out.pcapng or to a custom filename if given.
+- [sniffer] -o=- : This will print the hex representation of the received packets to standard out.
+- [sniffer] -o=hello.pcapng : By providing a filename you can write the genetlink packets into a given file. In this example it will be hello.pcapng.
+- [sniffer] -verbose : will print out verbose information about the packets received including metadata and packet contents.
+```
+
+The packet metadata carried with process_callback_function gets put into a comment in the pcapng. If the sniffer is to be run outside of P4Runtime the user might want to construct their own custom receive thread using customCallbackReceive found in the header file for the sniffer, since the carried metadata might be different.
+
+```
+- sudo [sender] : will send a sample packet using genetlink.
+- sudo [sender] -inputfile=hello.pcapng : will read the packets from a given file and send them via genetlink.
+- sudo [sender] -packet=AABBCCDD : will send the given packet in hex representation via genetlink. 
+```
+
 
 
 
