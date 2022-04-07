@@ -47,7 +47,7 @@ and do this within SONiC PMON docker
     ```
        sudo ip route add <SoC IP> via <vlan IP> src <Loopback IP>
     ```
-  - The issue with adding a Kernel Route is the route_checker will fail for this route, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present, hence the route_checker will not be able to validate this entry
+  - The issue with adding a Kernel Route is that route_checker will fail after adding this route, since vlan IP is the HOST's own vlan IP within SONiC as such no real neighbor is present, hence the route_checker will not be able to validate this entry
   - SWSS orchagent will also complain about not able to install the entry in ASIC, since the entry will be present in APP DB but not present inside ASIC. This would deem more workarounds necessary to be able to accomodate this route using this approach.
   - For the kernel route approach we would have to accomodate these issues listed above 
 - using an IPTABLES rule. We could add a POSTROUTING rule to the SNAT table with destination as SoC IP and source as Loopback IP. For Example
@@ -58,7 +58,7 @@ and do this within SONiC PMON docker
 
 #### Proposed Solution
 
-- use the IPTABLES rule approach as with this approach, there are no more workarounds necessary after adding the rule. Caclmgrd will check the CONFIG DB DEVICE_METADATA and upon learning this is ToR with subtype DualToR, will add the IPTABLES rule, after checking the MUX_CABLE table inside CONFIG_DB.
+- use the IPTABLES rule method as with this approach, there are no more workarounds necessary after adding the rule. Caclmgrd will check the CONFIG DB DEVICE_METADATA and upon learning this is ToR with subtype DualToR, will add the IPTABLES rule, after checking the MUX_CABLE table inside CONFIG_DB.
     ```
         DEVICE_METADATA | localhost
         type: ToRRouter
@@ -69,7 +69,7 @@ and do this within SONiC PMON docker
         SoC_IPv4: <SoC IP>
     ```
 - The update_control_plane_nat_acls subroutine in caclmgrd will check for the above configuration and upon getting the config, it will add the POSTROUTING SNAT rule
-- Currently the NAT rules which exist are only for trapping the SNMP packets coming in the front panel interface in the linux network namespace and sent to the docker0 subnet 240.12.1.x. These NAT rules which are present are for SNMP packets, which are destined for UDP + dest port 161
+- Currently the NAT rules which exist are only for multiasic platforms and are only for trapping the SNMP packets coming in the front panel interface in the linux network namespace and sent to the docker0 subnet 240.12.1.x. These NAT rules which are present are for SNMP packets, which are destined for UDP + dest port 161
 - Adding this new POSTROUTING rule should not cause any issues to the forwarding behavior to the ToR.
 - caclmgrd will not be needed to be restarted in this approach. The SNAT iptables entry would be a one time install when caclmgrd starts. 
    For Example
@@ -83,7 +83,7 @@ num   pkts bytes target     prot opt in     out     source               destina
 
 #### Rationale
 
-  - This approach conveniently adds the rule for all the SoC IP's needed to be communivating with DualToR over gPRC, and SoC server and gRPC client would be able to communicate over agreed IP. 
+  - This approach conveniently adds the rule for all the SoC IP's needed to be communicatting with DualToR over gPRC, and therefore SoC server and gRPC client would be able to communicate over agreed IP. 
 
 ## gRPC commuication over secure channel
 
@@ -113,7 +113,7 @@ num   pkts bytes target     prot opt in     out     source               destina
         # perform RPC's
     ```
 #### gRPC client authentication with Nic-Simulator
-gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in  as a task when NiC-Simulator would be injected. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
+gRPC also would need to be authenticated with the server which would be run for SONiC-MGMT tests. For this the proposal is to add self generated certs in a a task during add-topo for DualToR tetbeds and copied to the DUT when NiC-Simulator would be injected. This would be similar to the way mux-simulator is injected today. This way when the gRPC client
 is initiating the channels, it would be able to form a secure channel
 
 ## gRPC client initialization
@@ -140,7 +140,7 @@ is initiating the channels, it would be able to form a secure channel
 
 ## gRPC communication with Nic-Simulator
  
-- the gRPC server hosted on the server in the lab, needs to know a request originating from the client, belongs to which Port. As in the case of real SoC the gRPC server only has the knowledge of a single PORT, it does not need to distinguish between requests for different ports. However the gRPC server inside the lab will not have knowledge about the requests are orginating for different PORTs.
+- the gRPC server hosted on the server in the lab, needs to know a request originating from the client, belongs to which Port. As in the case of real SoC the gRPC server only has the knowledge of a single PORT, it does not need to distinguish between requests for different ports. However the gRPC server hosted for SONiC MGMT tests will not have knowledge about the requests are orginating for different PORTs.
 
 #### Proposed Solution using gRPC interceptor inside the client.
 
