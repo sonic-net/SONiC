@@ -29,7 +29,7 @@
 | Rev |     Date    |       Author       | Change Description          |
 |:---:|:-----------:|:-------------------------|:----------------------|
 | 1.0 | 06/22/2021  | Vivek Reddy Karri        | Auto Invocation of Techsupport, triggered by a core dump       |
-| 1.1 | 04/03/2021  | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
+| 1.1 | 04/08/2022  | Vivek Reddy Karri        | Add the capability to Register/Deregister app extension to AUTO_TECHSUPPORT_FEATURE table |
 | 2.0 |     TBD     | Vivek Reddy Karri        | Extending Support for Kernel Dumps                             |
 | 3.0 |     02/2022 | Stepan Blyshchak         | Extending Support for memory usage threshold crossed                             |
 
@@ -488,7 +488,8 @@ A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. Th
 
 This will be run when the application installs/uninstalls. Since, the auto-techsupport feature uses compile time flag to determine whether to enable/disable itself, it is not possible to determine that at runtime when the application is installed. 
 
-Thus the decision to whether or not to enable the new feature will be based on the current values of AUTO_TECHSUPPORT & AUTO_TECHSUPPORT_FEATURE tables. The new feature will be disabled if the global and all the individual features are disabled. If not, the feature will be enabled. The rate-limit-interval & memory threshold is set to 600 & 10% by default. 
+Thus the decision to whether or not to enable the new feature will be based on the current values of AUTO_TECHSUPPORT & AUTO_TECHSUPPORT_FEATURE tables. The default value for new feature will be disabled if the global state is shown disabled in init_cfg.json. If not, the feature will be enabled. The rate-limit-interval & memory threshold is set to 600 & 10% by default. 
+
 
 ## 11. Open questions
 
