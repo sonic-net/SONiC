@@ -538,49 +538,11 @@ else if autoneg == false:
         setInterfaceType(port, interface_type)
 ```
 
-##### Getting Negotiated Results
+##### Getting Remote Advertisement
 
-The current SONiC operational speed getting flow in PortsOrch is as follow:
+A new periodic timer task will be introduced into PortsOrch, it periodically loops through physical ports and update the per-port remote advertisement if autoneg is enabled and the link is down.
 
-- PortsOrch::doPortTask(Consumer &consumer)  
-```
-if isPortAutoNegChanged(port, autoneg):
-    setPortAutoNeg(port, autoneg)
-```
-
-The new SONiC operational speed getting flow in PortsOrch is as follow:
-
-- PortsOrch::doPortTask(Consumer &consumer)  
-```
-if isPortAutoNegChanged(port, autoneg):
-    rc = setPortAutoNeg(port, autoneg)
-    if (rc == SAI_STATUS_SUCCESS) and (autoneg == "on"):
-        setPortStateAutoNegPollEnabled(port, True)
-    else:
-        setPortStateAutoNegPollEnabled(port, False)
-```
-
-- PortsOrch::doTask(NotificationConsumer &consumer)  
-```
-if op == "port_state_change":
-    port = getPort(alias)
-    updatePortOperStatus(port, status)
-    if status == SAI_PORT_OPER_STATUS_UP:
-        updatePortStateAutoNeg(port)
-        setPortStateAutoNegPollEnabled(port, False)
-    elif isPortAutoNegEnabled(port):
-        setPortStateAutoNegPollEnabled(port, True)
-```
-
-- PortsOrch::doTask(SelectableTimer &timer)  
-```
-while PortsOrch is alive:
-    sleep_sec(1)
-    for port in all_port_list:
-        if not isPortStateAutoNegPollEnabled(port):
-            continue
-        updatePortStateAutoNeg(port)
-```
+![](flow_rmt_adv.png)
 
 ##### Backward Compatibility Considerations
 
