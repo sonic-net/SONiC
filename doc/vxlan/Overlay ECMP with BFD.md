@@ -1,6 +1,6 @@
 # Overlay ECMP with BFD monitoring
 ## High Level Design Document
-### Rev 1.1
+### Rev 1.5
 
 # Table of Contents
 
@@ -37,6 +37,7 @@
 | 1.2 | 10/18/2021  |     Prince Sunny/Shi Su   | Test Plan added            |
 | 1.3 | 11/01/2021  |     Prince Sunny  | IPv6 test cases added              |
 | 1.4 | 12/03/2021  |     Prince Sunny  | Added scaling section, extra test cases  |
+| 1.5 | 04/11/2022  |     Prince Sunny  | Test plan for Health monitoring |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -224,7 +225,14 @@ When an endpoint is deemed unhealthy, router shall perform the following actions
 ## 2.6 BGP
 
 Advertise VNET routes
-The overlay routes programmed on the device must be advertised to BGP peers. This can be achieved by the “network” command. 
+
+VnetOrch shall create an entry in STATE_DB for the active overlay routes eligible to be advertised by BGP to peers. Based on the health of overlay nexthop, the entry shall be added or removed. 
+
+```
+STATE_DB|ADVERTISE_NETWORK_TABLE|{{ip_prefix}}
+```
+
+The above entry shall be subscribed for by bgpcfgd and advertised by the “network” command. 
 
 For example:
 ```
@@ -269,6 +277,7 @@ Create VNET and Vxlan tunnel as an below:
             "scope": "default"
         }
     }
+}
 ```
 Similarly for IPv6 tunnels
 
@@ -287,6 +296,7 @@ Similarly for IPv6 tunnels
             "scope": "default"
         }
     }
+}
 ```
 
 Note: It can be safely assumed that only one type of tunnel exists - i.e, either IPv4 or IPv6 for this use-case
@@ -321,7 +331,7 @@ With IPv6 tunnels, prefixes can be either IPv4 or IPv6
 
 ### Test Cases
 
-#### Overlay ECMP 
+### 2.8.1 Overlay ECMP 
 
 It is assumed that the endpoint IPs may not have exact match underlay route but may have an LPM underlay route or a default route. Test must consider both IPv4 and IPv6 traffic for routes configured as example shown above
 
@@ -351,10 +361,94 @@ It is assumed that the endpoint IPs may not have exact match underlay route but 
 |Create/Delete overlay nexthop groups upto 512  | CRM  | Verify crm resourse for nexthop_group |
 |Create/Delete overlay nexthop group members upto 128  | CRM  | Verify crm resourse for nexthop_group_member |
 
-#### BFD and health monitoring
+### 2.8.2 BFD and health monitoring
 
-TBD
+Health monitoring requires 'endpoint_monitor' and 'advertise_prefix' attributes to be provided. 
 
-#### BGP advertising
+Reference tables
+
+**Config_DB**
+```
+{
+    "VNET|Vnet_3000": {
+        "vxlan_tunnel": "tunnel_v4",
+        "vni": "3000",
+        "scope": "default",
+        "advertise_prefix": "true",
+     }
+     
+     "VNET|Vnet_3001": {
+            "vxlan_tunnel": "tunnel_v6",
+            "vni": "3001",
+            "scope": "default",
+	    "advertise_prefix": "true"
+     }
+}
+```
+
+**APP_DB**
+```
+[
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3000:100.100.2.1/32": { 
+        "endpoint": "1.1.1.2", 
+        "endpoint_monitor": "1.1.2.2"
+     }
+    
+    "BFD_SESSION:default:default:1.1.2.2": {
+        "multihop": "true",
+        "local_addr": "10.1.0.32"
+     }
+     
+    "VNET_ROUTE_TUNNEL_TABLE:Vnet_3001:2000::1/128": { 
+        "endpoint": "fc02:1000::1", 
+        "endpoint_monitor": "fc02:1000::2"
+     }
+     
+    "BFD_SESSION:default:default:fc02:1000::2": {
+        "multihop": "true",
+        "local_addr": "fc00:1::32"
+     }
+]
+```
+
+**STATE_DB**
+```
+{
+    "ADVERTISE_NETWORK_TABLE|100.100.2.1/32": {
+     }
+     
+    "BFD_SESSION_TABLE|default|default|1.1.2.2": {
+       "state":"Up"
+     }
+     
+    "ADVERTISE_NETWORK_TABLE|2000::1/128": {
+     }
+     
+     "BFD_SESSION_TABLE|default|default|fc02:1000::2": {
+       "state":"Down"
+     }
+}
+```
+The below cases are executed first for IPv4 and repeat the same for IPv6.
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Create a tunnel route to a single endpoint a and monitor a'. Set BFD state a' to UP. Send packets to the route prefix dst| Tunnel route create and BFD functions  |  Packets are received only at endpoint a. BFD session for endpoint a' is up. Verify advertise table is present  |
+| Set the tunnel route to another endpoint b and monitor b'. Set BFD state for b' to UP. Send packets to the route prefix dst  | Tunnel route set and BFD functions  | Packets are received only at endpoint b. BFD session for b' is created and the state is up. BFD session for endpoint a' is removed   |
+| Remove the created tunnel route. Send packets to the route prefix dst. | Tunne route remove function and BFD | Packets are not received at any ports. BFD session for endpoint b' is removed. Verify advertise table is removed  |
+| Create tunnel route 1 to two endpoints A = {a1, a2}. Set BFD state for a1' and a2' to UP. Send multiple packets (varying tuple) to the route 1's prefix dst. | ECMP route create with BFD | Packets are received at both a1 and a2. All BFD session states are UP |
+| Create tunnel route 2 to endpoint group A. Send multiple packets (varying tuple) to route 2’s prefix dst | ECMP route create with BFD | Packets are received at both a1 and a2 |
+| Set tunnel route 2 to endpoint group B = {b1, b2}. Set BFD state for b1' and b2' to UP. Send multiple packets (varying tuple) to route 2’s prefix dst | ECMP route set with BFD | Packets are received at both b1 and b2. All BFD session states are UP |
+| Set tunnel route 2 to shared endpoints a1 and b1 with monitor a1' and b1'. Send packets to route 2’s prefix dst | NHG modify with BFD | Packets are recieved at a1 or b1. Nexthop group and the corresponding BFD sessions for endpoint group B are removed. ALL BFD sessions states are UP. |
+| Remove tunnel route 2. Send packets to route 2’s prefix dst | ECMP route remove with BFD | Packets are not recieved at any ports with dst IP of a1 or b1. Unused BFD sessions are removed. Verify advertise table is removed |
+| Set BFD state for a1' to UP and a2' to Down. Send multiple packets (varying tuple) to the route 1's prefix dst. | Health state change | Packets are received only at endpoint a1. Verify advertise table is present |
+| Set BFD state for a1' to Down. Send packets to the route 1's prefix dst. | Health state change  | Packets are not received at any ports. Verify advertise table is removed |
+| Set BFD state for a2' to UP. Send packets to the route 1's prefix dst. | Health state change  | Packets are received only at endpoint a2. Verify advertise table is present |
+| Set BFD state for a1' to UP. Send multiple packets (varying tuple) to the route 1's prefix dst. | Health state change  | Packets are received at both a1 and a2. Verify advertise table is present |
+| Set BFD state for a1' to Down and a2' to Down. Send multiple packets (varying tuple) to the route 1's prefix dst. | Health state change  | Packets are not received at any ports. Verify advertise table is removed | 
+| Remove tunnel route 1. Send multiple packets (varying tuple) to the route 1's prefix dst. | Route remove with BFD down  | Packets are not received at any ports. BFD sessions are removed. Verify advertise table is removed | 
+|Create/Delete overlay routes to 4k with unique endpoints upto 4k | BFD Scaling  | Verify all 4k BFD sessions are succesfully created and sessions alive |
+
+### 2.8.3 BGP advertising
 
 TBD
