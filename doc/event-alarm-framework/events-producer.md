@@ -24,7 +24,8 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/159573073-06075ee6-40e5-42da-88bf-9f349f64626c.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/163476819-2fefa3c1-7e00-45ab-91db-7b0ea0b4051a.png)
+![image](https://user-images.githubusercontent.com/47282725/163479441-5210363e-9e60-43a4-953a-20145841a59b.png)
+
 
 
 ## Requirements
@@ -138,11 +139,6 @@ module sonic-events-bgp {
                 description "time of the event";
             }
             
-            leaf event_index {
-                type uint64
-                description "A running index per source; This can be used by receiver to detect any message lost";
-            }
-
             leaf event_index {
                 type uint64
                 description "A running index per source; This can be used by receiver to detect any message lost";
