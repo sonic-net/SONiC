@@ -30,7 +30,7 @@ This latency could run in the order of minutes.
 ## Requirements
 ### Events
 1. Events are defined with schema.
-2. Every event is identified by tag, which is unique within a process with zero or more event specific parameters.
+2. Every event is identified by tag, which is unique within a event source with zero or more event specific parameters.
 3. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 4. Every event is described in YANG schema.
 5. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
@@ -86,11 +86,12 @@ There are two kinds of reliability.
 
 ### YANG schema
 1. Schema defines the description of the event, its unique tag and all the possible parameters.
-2. Schema can be maintained in multiple files, preferably one per process/continer/host.
+2. Schema can be maintained in multiple files, preferably one per process/container/host.
 3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events).
 4. The schema for processes running in host are copied into this location at image creation/install time.
 5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
 6. NB clients could use the schema to understand/analyze the events
+7. Every schema mandatorily includes event source, tag, timestamp & index.
 
 #### A sample Defintion
 A sample:
@@ -150,6 +151,24 @@ module sonic-events-bgp {
 }
 ``` 
 
+### Event APIs
+The Event API is provided as part of libswsscommon with API definition in a header file.
+
+#### Reporting API
+- An API for event reporting is provided. 
+- The event reporting API accepts, event-source, tag & parameters.
+- The event reporting API adds "timestamp" and "index"
+- The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
+- The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
+
+
+### Receiving API
+- A long running API is provided for event receivers. This goes in a forever loop of receiving events and makes a callback to caller provided function for each message.
+- The callback function implementation should be efficient as callback is blocking.
+- The receiver API uses the index to compute missed count of message per source and pass it to the callback function, along with the message.
+- The receiving API is preferably called in a dedicated thread.
+
+
 ### Event detection
 The event detection could happen in many ways
 - Update the code to directly invoke Event reporter, which will stream it out.
@@ -185,15 +204,15 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Configure a rsyslog plugin with rsyslog.
 - For logs raised by host processes, configure this plugin at host.
 - For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
-- The plugin could be configured per process or group of processes.
-- Provide the regex patterns to use for matching events as i/p to the plugin (*list of patterns for a process*).
+- The plugin is configured per event source or many or all. An event source could be one or multiple processes.
 - The plugin could be running in multiple instances.
 - Each plugin instance receives messasges **only** for processes that it is configured for.
-- For messages that match a pattern, retrieve parameters of interest and fire event using event reporter API.
+- The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag, which is unique within the source.
+- For messages that match a pattern, retrieve parameters of interest per regex and fire event using event reporter API.
+- The event reporting API is called with event source & tag from matching regex and data parsed out from message.
 - The rsyslog plugin binary, which does the parsing & reporting is a single binary in host, shared/used by all plugins.
-- The rsyslog plugin binary being under host control, ensures a single/unified behavior across all.
+- The rsyslog plugin binary being under host control, ensures a single/unified behavior across all. This is critical as event exporters and receivers are running across multiple containers and host.
 - The unit tests can use hardcoded log messages to validate regex.
-
 
 ![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
 
@@ -216,10 +235,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 #### requirements
 - Events are reported from multiple event detectors or we may call event-sources.
 - The event detectors could be running in host and/or some/all containers.
-- Each event includes to the minimum "event source", "event tag", "event timestamp" and "event index", where the index is a running sequence number per event-source. 
-- The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
-- The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
-- Support multiple local clients to be able to receive the events concurrently.
+- Each event includes to the minimum "event source", "event tag", "event timestamp" and "event index"
+- Supports multiple local clients to be able to receive the events concurrently.
 - Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
 - The local clients could be operating at different speeds.
 - The clients may come and go.
@@ -244,14 +261,31 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Event-index could be used to get the count of missed messages per source.
 - Clients that are slow by design (*like redis-DB updater*), could have a dedicated thread to receive all events and cache the latest. The main thread could be slow, it could miss updates, but it would use/record the latest.
 
+### Local persistence
+- This is to maintain a events status locally.
+- A service running in host would accomplish this.
+- It persists the events into EVENTS table in EVENTS-DB.
+- Runs in 2 threads.
+- The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
+- The event writer thread, wakes up periodically, create an empty cache, atomically swap it with receiver's cache and updates redis with the swapped cache.
+- The redis key {event-source | event-tag }
+- Though the writer wakes up every N seconds, it writes the value as of at the timepoint of it waking up.
+- Writer will be diligent to write only updates that it missed in the last cycle. The atomic swap helps.
+- The writer's default redis update frequency can be modified via init-cfg.json.
 
 ### Event exporting
+The telemetry container helps with exporting events to external collectors/clients.
 
 #### requirements
-- Telemetry container receives all locally raised events.
-- Telemetry container supports exporting all the locally raised events to one or more external clients.
-- RFE: When restarted, ensure to provide the latest on all events that were missed during downtime.
+- Telemetry container creates a new thread for each external client that subscribes for events.
+- Each thread invokes receiver API and the callback function would write the event into the client's connection
+- Any reported non zero missed count is tracked using a cumulative counter. In other words, every non-zero value is added to this counter, so this counter can be implied as total count of messages missed since start. This counter is logged upon each update. BTW, this counter is per event source per client thread.
+- The cumulative counter logging happens in a single common thread that scans counter updates across all client threads.
+- The external client could subscribe by a subset of event sources.
+- The client will receive only events from subscribed sources.
+- Upon telemetry container restart, on the first writer run, for events that are not received yet, send the last status from the redis. The knowledge of all possible events are obtained from redis.
 - Supports a max perf rate of 10K events per second.
+- The effective performance is tied to the client's perf.
 
 
 # Next Step:
@@ -259,9 +293,7 @@ When alarm-event FW is functional, the plugin could start using the macros provi
 
 
 # CLI
-None
-RFE: Future persistence to redis could provide CLI to view the latest status on any event or even live dump of events as they were raised.
-
+Show 
 
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
