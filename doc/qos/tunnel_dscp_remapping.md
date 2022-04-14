@@ -105,7 +105,7 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
             "30": "1",
             "31": "1",
             "32": "1",
-            "33": "1",
+            "33": "2", // Original map "33" : "1" 
             "34": "1",
             "35": "1",
             "36": "1",
@@ -180,7 +180,7 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
         "AZURE_TUNNEL": {
             "0": "8",
             "1": "0",
-            "2": "0",
+            "2": "33",
             "3": "2",
             "4": "6",
             "5": "46",
