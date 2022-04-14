@@ -3,11 +3,12 @@
 ## Goals
 1. Provide a unified way for listing identified alertable events in SONiC switch.
 2. Provide a unified way for event detectors to report the events.
-3. Enforce a structured format for event data with pre-defined schema.
-4. Have the ability to stream at the max of 10K events per second to external clients.
-5. Ensure events are immutable across SONiC releases, but can be deprecated.
-6. Meet the reliability goal of 99.5% - From event generated to end client.
-7. Rate of event reporting can be in par with rate of syslog reporting.
+3. Support exporting events to external gNMI clients via Subscribe
+4. Enforce a structured format for event data with pre-defined schema.
+5. Have the ability to stream at the max of 10K events per second to external clients.
+6. Ensure events are immutable across SONiC releases, but can be deprecated.
+7. Meet the reporting goal of 99.5% - From event generated to end client.
+8. Rate of event reporting can be in par with rate of syslog reporting.
 
 
 ## Problems to solve
@@ -39,7 +40,7 @@ This latency could run in the order of minutes.
 The libswsscommon will have the APIs for the following purposes.
 1. To report an event.
 2. To receive events in a loop with a function callback to pass the message to caller. This implies that the callback function's efficiency affects the receive performance.
-3. The reporting API will support multiple listeners.
+3. The reporting API will support multiple receivers.
 4. The receiver API will support multiple event reporters.
 
 ### Event detection
@@ -56,10 +57,10 @@ The libswsscommon will have the APIs for the following purposes.
 
 ### Event local persistence
 1. A host service will receive all events and record the same in redis, using a new EVENTS table.
-2. This service will receive events at 10k/sec, but updates to redis will be periodic to ensure minimal impact to control plane.
+2. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
 3. The periodic update will record only the events that changed since last redis write.
 4. The periodic update will write the latest value for the event.
-5. Any query to redis can be assured to get events as of 0 to N seconds before, where N is the period between two writes. The value of N can be configured via init_cfg.json
+5. Any query to redis can be assured to get events as of 0 to N seconds before, where N is the period between two writes. The value of N can be modified via init_cfg.json
 
 ### exporter
 1. Telemetry container receive all the events reported from all the event detectors.
@@ -69,23 +70,24 @@ The libswsscommon will have the APIs for the following purposes.
 
 ### Event reliability
 There are two kinds of reliability.
-1. Events are not modified across releases (*except deprecation*). We may allow addition of new params, as long as they don't affect existing params.
-2. Events are verified to fire as expected in every image release. 
-3. Ensure the perf goals are met during live streaming.
+1. The schema for the events are not modified across releases (*except deprecation*). We may allow addition of new params, as long as they don't affect existing params.
+2. Events are verified to fire as expected in every image release with data as defined in schema. 
+3. Ensure the perf & reporting goals on events are met during live streaming.
 
 #### Protection:
 
 1. The unit & nightly tests is provided for every event.
-2. The test would hard code the sceham defintion inside the test code and compare it against the YANG definition in file. This would help block accidental YANG updates across releases. 
-3. The unit tests are required to simulate the runtime to generate the event with help of mocking. The generated event data is validated against the YANG schema.
-4. The unit tests & nightly tests are mandated for every event.
-8. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
+2. The test would hard code the schema defintion inside the test code and compare it against the YANG definition in file. This would help block accidental YANG updates across releases. 
+3. The nightly & unit tests will do the schema verification. This is to handle the possibility of user updating the hard coded schema in unit test too.
+4. The unit tests are required to simulate the runtime to generate the event with help of mocking. The generated event data is validated against the YANG schema.
+5. The unit tests & nightly tests are mandated for every event.
+8. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reporting end-to-end.
 </br>
 
 ## Design
 
 ### YANG schema
-1. Schema defines the description of the event, its unique tag and all the possible parameters.
+1. Schema defines the description of the event, its source name, its unique tag and all the possible parameters.
 2. Schema can be maintained in multiple files, preferably one per process/container/host.
 3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events).
 4. The schema for processes running in host are copied into this location at image creation/install time.
@@ -115,7 +117,7 @@ module sonic-events-bgp {
 
     container sonic-events-bgp {
         list event_list {
-            key "tag";
+            key "event_source event_tag";
 
             leaf event_source {
                 type enumeration {
@@ -203,7 +205,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ##### Design at high level
 - Configure a rsyslog plugin with rsyslog.
 - For logs raised by host processes, configure this plugin at host.
-- For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
+- For logs raised by processes inside the container, configure for rsyslog running inside the container.
 - The plugin is configured per event source or many or all. An event source could be one or multiple processes.
 - The plugin could be running in multiple instances.
 - Each plugin instance receives messasges **only** for processes that it is configured for.
@@ -293,14 +295,15 @@ When alarm-event FW is functional, the plugin could start using the macros provi
 
 
 # CLI
-Show 
+Show command is provided to view events with optional parameter to filter by source.
 
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
 
 ## Requirements
 1) Each event is covered by Unit test & nightly test
-2) Unit test --Hard code the YANG schema and verify that against current schema entry
+2) Unit & nightly test: Hard code the YANG schema and verify that against current schema entry
 3) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema
-4) Nightly test -- Simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema
+4) Unit test -- For events reported by code, mock it as needed, to exercise the code that raises the event. Verify the received event data against the schema.
+5) Nightly test -- Simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
 
