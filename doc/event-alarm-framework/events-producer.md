@@ -30,7 +30,7 @@ This latency could run in the order of minutes.
 ## Requirements
 ### Events
 1. Events are defined with schema.
-2. Every event is identified by tag, which is unique within a event source with zero or more event specific parameters.
+2. Every event is identified by a source & tag; The tag is unique within a event source with zero or more event specific parameters.
 3. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 4. Every event is described in YANG schema.
 5. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
@@ -64,7 +64,7 @@ The libswsscommon will have the APIs for the following purposes.
 ### exporter
 1. Telemetry container receive all the events reported from all the event detectors.
 2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI.
-3. Telemetry container upon restart sends data from redis as current, before switching to live streaming. This helps with any update during telemetry downtime. This may incur sending some duplicate events, if the event has not changed during downtime. 
+3. Telemetry container upon restart uses data from redis as current for missed updates during telemetry downtime. This may incur sending some duplicate events, if the event has not changed during downtime. 
 
 
 ### Event reliability
