@@ -157,6 +157,16 @@ The event detection could happen in many ways
 - Watch syslog messages for specific pattern; Upon match parse the required data out and call event reporter.
 - Any other means of getting alerted on an event
 
+#### Code update
+- This is the preferred approach.
+- Use the API for event reporting.
+
+##### Pro
+- Direct reporting from run time is the most efficient way for performance & resource usage.
+
+##### con
+- A code update could take months to get into production.
+
 #### Log message based detection
 At high level:
 1. This is a two step process.
@@ -206,6 +216,9 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 #### requirements
 - Events are reported from multiple event detectors or we may call event-sources.
 - The event detectors could be running in host and/or some/all containers.
+- Each event includes to the minimum "event source", "event tag", "event timestamp" and "event index", where the index is a running sequence number per event-source. 
+- The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
+- The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
 - Support multiple local clients to be able to receive the events concurrently.
 - Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
 - The local clients could be operating at different speeds.
@@ -213,7 +226,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - There may not be any local client to receive the events.
 - Events reporting should not be blocked by any back pressure from any local client.
 - The reporting should meet the perf goal.
-- Event 
+
 
 #### Design
 - Event detectors send UDP messages to a multicast group
@@ -228,6 +241,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 
 ##### con
 - Messages could get lost, if the client is slow. It is the client's responsibility to ensure no loss.
+- Event-index could be used to get the count of missed messages per source.
 - Clients that are slow by design (*like redis-DB updater*), could have a dedicated thread to receive all events and cache the latest. The main thread could be slow, it could miss updates, but it would use/record the latest.
 
 
