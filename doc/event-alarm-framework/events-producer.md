@@ -160,13 +160,14 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - A new event addition could be as simple as copying couple of small files to a switch and a rsyslog/container restart.
 
 ##### Design at high level
-- Configure a rsyslog plugin as per process with rsyslog.d.
+- Configure a rsyslog plugin with rsyslog.
 - For logs raised by host processes, configure this plugin at host.
 - For logs raised by processes inside the container, configure for rsyslog.d running inside the container.
-- In this mode, there will be plugin processes running in host & in containers as one instance per process.
+- The plugin could be configured per process or group of processes.
 - Provide the regex patterns to use for matching events as i/p to the plugin (*list of patterns for a process*).
-- Each plugin scans messasges **only** from a *single* process and matches only against patterns for that process.
-- For messages that match a pattern, retrieve parameters of interest and fire event using event reporter.
+- The plugin could be running in multiple instances.
+- Each plugin instance receives messasges **only** for processes that it is configured for.
+- For messages that match a pattern, retrieve parameters of interest and fire event using event reporter API.
 - The rsyslog plugin binary, which does the parsing & reporting is a single binary in host, shared/used by all plugins.
 - The rsyslog plugin binary being under host control, ensures a single/unified behavior across all.
 - The unit tests can use hardcoded log messages to validate regex.
