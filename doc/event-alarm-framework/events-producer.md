@@ -306,4 +306,5 @@ Tests are critical to have static events staying static across releases and ensu
 3) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema
 4) Unit test -- For events reported by code, mock it as needed, to exercise the code that raises the event. Verify the received event data against the schema.
 5) Nightly test -- Simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
+6) Unit & nightly tests are mandated for every event.
 
