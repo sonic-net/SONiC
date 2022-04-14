@@ -157,6 +157,7 @@ The Event API is provided as part of libswsscommon with API definition in a head
 - The event reporting API accepts, event-source, tag & parameters.
 - The event reporting API adds "timestamp" and "index"
 - The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
+- The high 16 bits of event index will help distinguish restart scenario, as index will start from 0 in each restart.
 - The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
 
 
