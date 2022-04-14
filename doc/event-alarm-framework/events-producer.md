@@ -116,22 +116,34 @@ module sonic-events-bgp {
         list event_list {
             key "tag";
 
-            leaf tag {
+            leaf event_source {
+                type enumeration {
+                    enum "bgp";
+                }
+                description "Event source; This indicates event source";
+            }
+            
+            leaf event_tag {
                 type enumeration {
                     enum "admin_up";
                     enum "admin_down";
                 }
-                description "Event type/tag";
+                description "Event type/tag for the source";
+            }
+            
+            leaf event_timestamp {
+                type yang::date-and-time;
+                description "time of the event";
+            }
+            
+            leaf event_index {
+                type uint64
+                description "A running index per source; This can be used by receiver to detect any message lost";
             }
 
             leaf ip {
                 type inet:ip-address;
                 description "IP of neighbor";
-            }
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
             }
         }
     }
@@ -182,11 +194,12 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 2) This feature can be added to released builds too, as all it takes is to copy two files into each container and restart rsyslogd in the container
 3) The regex for parsing being local to container, it supports any container upgrade transaparently.
 4) The rsyslog plugin binary is maintained by host, hence provide a overall control across all containers.
-5) The message parsing load is distributed as per container. Within a container parsing is done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
+5) The message parsing load is distributed as per container. Within a container parsing could be done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
 
 ###### con:
 1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. Updating code directly to raise the event will help avoid this.
 2) The rsyslogd is *required*. It should be treated as critical process in each container.
+3) Yet, unit/nightly tests can help ensure both steps are done
 
 ### Event reporting
 
@@ -199,6 +212,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - The clients may come and go.
 - There may not be any local client to receive the events.
 - Events reporting should not be blocked by any back pressure from any local client.
+- The reporting should meet the perf goal.
+- Event 
 
 #### Design
 - Event detectors send UDP messages to a multicast group
@@ -209,6 +224,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - The receivers can be 0 to many.
 - Both senders & receivers are neither aware of each other nor has any binding.
 - Simple design, hence more reliable.
+- Performance goal can be met.
 
 ##### con
 - Messages could get lost, if the client is slow. It is the client's responsibility to ensure no loss.
