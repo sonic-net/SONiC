@@ -35,35 +35,51 @@ This latency could run in the order of minutes.
 4. Every event is described in YANG schema.
 5. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
 
+### Events APIs
+The libswsscommon will have the APIs for the following purposes.
+1. To report an event.
+2. To receive events in a loop with a function callback to pass the message to caller. This implies that the callback function's efficiency affects the receive performance.
+3. The reporting API will support multiple listeners.
+4. The receiver API will support multiple event reporters.
+
 ### Event detection
 1. The method of detection can be any.
 2. This can vary across events.
-3. Syslog messages might be used to detect an event or some custom queries or code-update to report events directly or ...
-4. There can be multiple event detectors running under different scopes, concurrently.
+3. The events could be reported at run time by the individual components, like orchagent, syncd.
+4. The events could be detected from syslog messages. The rsyslog plugin could be an option for live reporting.
+5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
 ### Event reporting
-1. Event detectors stream the events with structured data.
-2. The streaming supports one or more local listeners to receive streams from multiple detectors (many-to-many).
+1. Event detectors stream the events with structured data, using the API provided.
+2. The streaming out API supports one or more local listeners to receive streams from multiple detectors (many-to-many).
 3. The structured data is per YANG definition.
-4. RFE: A listener to update redis/any other persistence destination with current event status.
 
-### Event exporter
+### Event local persistence
+1. A host service will receive all events and record the same in redis, using a new EVENTS table.
+2. This service will receive events at 10k/sec, but updates to redis will be periodic to ensure minimal impact to control plane.
+3. The periodic update will record only the events that changed since last redis write.
+4. The periodic update will write the latest value for the event.
+5. Any query to redis can be assured to get events as of 0 to N seconds before, where N is the period between two writes. The value of N can be configured via init_cfg.json
+
+### exporter
 1. Telemetry container receive all the events reported from all the event detectors.
-2. Telemetry container provides support for streaming out received events to multiple external clients.
-3. RFE: Telemetry container upon restart will use redis/any other persistence to get the latest on missed updates during its down time and stream out.
+2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI.
+3. Telemetry container upon restart sends data from redis as current, before switching to live streaming. This helps with any update during telemetry downtime. This may incur sending some duplicate events, if the event has not changed during downtime. 
+
 
 ### Event reliability
 There are two kinds of reliability.
 1. Events are not modified across releases (*except deprecation*). We may allow addition of new params, as long as they don't affect existing params.
 2. Events are verified to fire as expected in every image release. 
-3. Ensure the perf goals are met.
+3. Ensure the perf goals are met during live streaming.
 
 #### Protection:
 
-1. The unit tests are required to ensure the immutability of event definition across releases. This would help block a PR that mutates a definition.
-2. The nightly tests are required to ensure the process does fire the event, when the scenario occurs and the o/p is per definition. This would help block the release.
-3. The unit tests & nightly tests are required for every event.
-4. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
+1. The unit & nightly tests is provided for every event.
+2. The test would hard code the sceham defintion inside the test code and compare it against the YANG definition in file. This would help block accidental YANG updates across releases. 
+3. The unit tests are required to simulate the runtime to generate the event with help of mocking. The generated event data is validated against the YANG schema.
+4. The unit tests & nightly tests are mandated for every event.
+8. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reliability end-to-end.
 </br>
 
 ## Design
