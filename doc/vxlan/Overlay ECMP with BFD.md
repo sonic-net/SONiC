@@ -143,6 +143,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
 
 Proposed:
 ```
+{% raw %} # ignore this line please
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
     "endpoint": {{ip_address1},{ip_address2},...} 
     "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
@@ -150,6 +151,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "vni": {{vni1},{vni2},...} (OPTIONAL) 
     "weight": {{w1},{w2},...} (OPTIONAL) 
     “profile”: {{profile_name}} (OPTIONAL) 
+{% endraw %} # ignore this line please
 ```
 
 ```
