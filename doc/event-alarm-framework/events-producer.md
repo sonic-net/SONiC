@@ -38,7 +38,7 @@ This latency could run in the order of minutes.
 ### Events APIs
 The libswsscommon will have the APIs for the following purposes.
 1. To report an event.
-2. To receive events in a loop with a function callback to pass the message to caller. This implies that the callback function's efficiency affects the receive performance.
+2. To receive events and pass the message to caller. 
 3. The reporting API will support multiple receivers.
 4. The receiver API will support multiple event reporters.
 
@@ -162,10 +162,13 @@ The Event API is provided as part of libswsscommon with API definition in a head
 
 
 ### Receiving API
-- A long running API is provided for event receivers. This goes in a forever loop of receiving events and makes a callback to caller provided function for each message.
-- The callback function implementation should be efficient as callback is blocking.
-- The receiver API uses the index to compute missed count of message per source and pass it to the callback function, along with the message.
-- The receiving API is preferably called in a dedicated thread.
+- There will be a set of 5 APIs
+- event_receive_start -- Starts the receiver loop in a new/dedicated thread and return an handle. This can be called only once per process and can be shared across multiple threads too.
+- event_subscribe -- This is called with handle returned by init. This can be called multiple times from different threads as one for each external receiver. This returns a handle.
+- event_read -- This called with handle returned by sunscriber. This returns the set of events received matching the subscription. By default it is a blocking call until at least one event is available. But it can be called as non-blocking too.
+- event_subscribe_end -- This is called to close an earlier subscribe call.
+- event_receive_end -- Stops the receiving of events and stop & join the thread before returning
+- The receiver API uses the index to compute missed count of message per source per reader and pass it along with the message in read call, as optional o/p val.
 
 
 ### Event detection
