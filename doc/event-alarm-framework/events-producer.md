@@ -82,6 +82,11 @@ There are two kinds of reliability.
 
 ## Design
 
+### overall View
+
+![image](https://user-images.githubusercontent.com/47282725/163660771-47ef122a-68d7-49fc-850c-4121d9bf2b42.png)
+
+
 ### YANG schema
 1. Schema defines the description of the event, its source name, its unique tag and all the possible parameters.
 2. Schema can be maintained in multiple files, preferably one per process/container/host.
