@@ -78,7 +78,7 @@ There are two kinds of reliability.
 #### Protection:
 
 1. The unit & nightly tests is provided for every event.
-2. These tests are expected to verify the immutability of the event definition and the code do raise the event correctly. \
+2. These tests are expected to verify the immutability of the event definition and the code do raise the event correctly.
 3. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reporting end-to-end.
 </br>
 
@@ -309,10 +309,10 @@ Tests are critical to have static events staying static across releases and ensu
 
 ## Requirements
 1) Each event is covered by Unit test & nightly test
-2) Unit & nightly test: Hard code the YANG schema and verify that against current schema entry
-3) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema
+2) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema. This ensures the data fired is per schema.
 4) Unit test -- For events reported by code, mock it as needed to exercise the code that raises the event. Verify the received event data against the schema.
-5) Nightly test -- Simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
-6) Unit & nightly tests are mandated for every event.
+5) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is the *fool-proof* way to validate the immutability of the schema.
+6) Nightly test -- For events that can be simulated, simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
+7) Unit & nightly tests are mandated for every event.
 
  
