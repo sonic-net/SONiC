@@ -53,6 +53,8 @@ The libswsscommon will have the APIs for the following purposes.
 1. Event detectors stream the events with structured data, using the API provided.
 2. The streaming out API supports one or more local listeners to receive streams from multiple detectors (many-to-many).
 3. The structured data is per YANG definition.
+4. All events for a source is published via a single process instance (in other words publisher)
+5. Events from a source are indexed sequentially to help detect lost messages.
 
 ### Event local persistence
 1. A host service will receive all events and record the same in redis, using a new EVENTS table.
@@ -158,21 +160,19 @@ module sonic-events-bgp {
 The Event API is provided as part of libswsscommon with API definition in a header file.
 
 #### Reporting API
-- An API for event reporting is provided. 
+- APIs for event reporting is provided. 
+- EVENT_SEND_INIT to initialize once and EVENT_SEND is called for each event send. 
 - The event reporting API accepts, event-source, tag & parameters.
 - The event reporting API adds "timestamp" and "index"
 - The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
+- Event index is coined per source. All events for a source uses single publishing instance (process/thread)
 - The high 16 bits of event index will help distinguish restart scenario, as index will start from 0 in each restart.
 - The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
 
 
 ### Receiving API
-- There will be a set of 5 APIs
-- event_receive_start -- Starts the receiver loop in a new/dedicated thread and return an handle. This can be called only once per process and can be shared across multiple threads too.
-- event_subscribe -- This is called with handle returned by init. This can be called multiple times from different threads as one for each external receiver. This returns a handle.
-- event_read -- This called with handle returned by sunscriber. This returns the set of events received matching the subscription. By default it is a blocking call until at least one event is available. But it can be called as non-blocking too.
-- event_subscribe_end -- This is called to close an earlier subscribe call.
-- event_receive_end -- Stops the receiving of events and stop & join the thread before returning
+- APIs for event receive are provided.
+- EVENT_RECV_INIT to initialize once and EVENT_RECV is called for each event read. 
 - The receiver API uses the index to compute missed count of message per source per reader and pass it along with the message in read call, as optional o/p val.
 
 
