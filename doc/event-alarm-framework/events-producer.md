@@ -253,14 +253,16 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 
 
 #### Design
-- Event detectors send UDP messages to a multicast group
-- The local clients add themselves as members and receive from the group.
+- To handle multiple publishers and receiver, ZMQ proxy runs as host service via XPUB/XSUB.
+- Publishers connect to this proxy service XSUB end point to publish messages.
+- Publishers send event-source as topic (_which receivers can use for filtering_)
+- Subscribers/receivers connect to XPUB endpoint to register subscription and receive messages.
+- Receivers can send subscription to filter on topic. In other words set filter to receive messages from only a subset of event-sources.
 
 ##### Pro
 - The senders are never blocked.
 - The receivers can be 0 to many.
 - Both senders & receivers are neither aware of each other nor has any binding.
-- Simple design, hence more reliable.
 - Performance goal can be met.
 
 ##### con
