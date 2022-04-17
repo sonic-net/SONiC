@@ -86,7 +86,7 @@ There are two kinds of reliability.
 
 ### overall View
 
-![image](https://user-images.githubusercontent.com/47282725/163660771-47ef122a-68d7-49fc-850c-4121d9bf2b42.png)
+![image](https://user-images.githubusercontent.com/47282725/163734653-c4b72856-c69d-4e17-a357-e4df6b3e12c9.png)
 
 
 ### YANG schema
