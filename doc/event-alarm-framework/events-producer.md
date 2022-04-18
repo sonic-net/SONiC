@@ -96,7 +96,7 @@ There are two kinds of reliability.
 4. The schema for processes running in host are copied into this location at image creation/install time.
 5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
 6. NB clients could use the schema to understand/analyze the events
-7. Every schema mandatorily includes event source, tag, timestamp & index.
+7. Every schema mandatorily includes event sender, source, tag, timestamp & index.
 
 #### A sample Defintion
 A sample:
@@ -142,9 +142,13 @@ module sonic-events-bgp {
                 description "time of the event";
             }
             
+            leaf event_sender {
+                type string
+                description "Sender name; Multiple senders could be using same source.";
+            }
             leaf event_index {
                 type uint64
-                description "A running index per source; This can be used by receiver to detect any message lost";
+                description "A running index per source per sender; This can be used by receiver to detect any message lost";
             }
 
             leaf ip {
@@ -162,12 +166,11 @@ The Event API is provided as part of libswsscommon with API definition in a head
 #### Reporting API
 - APIs for event reporting is provided. 
 - EVENT_SEND_INIT to initialize once and EVENT_SEND is called for each event send. 
-- The event reporting API accepts, event-source, tag & parameters.
-- The event reporting API adds "timestamp" and "index"
-- The event index is coined as <last 16 bits of epoch time of first event from a source, in seconds><48 bits of running index from 0 for events from a source>
-- Event index is coined per source. All events for a source uses single publishing instance (process/thread)
-- The high 16 bits of event index will help distinguish restart scenario, as index will start from 0 in each restart.
+- The event reporting API accepts, event-sender, source, tag & parameters. The timestamp could be provided too.
+- The event reporting API adds "timestamp" if not provided and "index".
+- Event index is coined per source per sender. 
 - The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
+- The index will be formatted such that a restart at the publisher would be distinguished to avoid false reporting.
 
 
 ### Receiving API
@@ -186,6 +189,7 @@ The event detection could happen in many ways
 #### Code update
 - This is the preferred approach.
 - Use the API for event reporting.
+- This method is used in all SONiC owned code.
 
 ##### Pro
 - Direct reporting from run time is the most efficient way for performance & resource usage.
@@ -242,7 +246,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 #### requirements
 - Events are reported from multiple event detectors or we may call event-sources.
 - The event detectors could be running in host and/or some/all containers.
-- Each event includes to the minimum "event source", "event tag", "event timestamp" and "event index"
+- Each event includes to the minimum "event sender", "event source", "event tag", "event timestamp" and "event index"
 - Supports multiple local clients to be able to receive the events concurrently.
 - Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
 - The local clients could be operating at different speeds.
@@ -314,5 +318,8 @@ Tests are critical to have static events staying static across releases and ensu
 4) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is the *fool-proof* way to validate the immutability of the schema.
 5) Nightly test -- For events that can be simulated, simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
 6) Unit & nightly tests are mandated for every event.
+
+### caveat:
+For III party sources (non-sonic owned sources) where we don't control unit tests, simulating the error scenario may not be possible. Here if the code has changed the log message format, there is no reliable defense.
 
  
