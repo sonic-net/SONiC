@@ -292,13 +292,16 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 The telemetry container helps with exporting events to external collectors/clients.
 
 #### requirements
+- Telemetry container hosts gNMI server for streaming events to external receivers.
+- The external clients subscribe and receive messages via gNMI connection/protocol.
 - Telemetry container creates a new thread for each external client that subscribes for events.
-- Each thread invokes receiver API and the callback function would write the event into the client's connection
-- Any reported non zero missed count is tracked using a cumulative counter. In other words, every non-zero value is added to this counter, so this counter can be implied as total count of messages missed since start. This counter is logged upon each update. BTW, this counter is per event source per client thread.
-- The cumulative counter logging happens in a single common thread that scans counter updates across all client threads.
-- The external client could subscribe by a subset of event sources.
+- A subscription connection is created per external client. This way a slow client will not block others.
+- Each message received is synchronously written to external client. Hence the performance depends on the external client.
+- The receive API returns the cumulative missed message count per source per sender, along with received message. This counter is reset on sender restart.
+- This cumulative counter is logged.
+- The external client could subscribe by a subset of event sources or any/all.
 - The client will receive only events from subscribed sources.
-- Upon telemetry container restart, on the first writer run, for events that are not received yet, send the last status from the redis. The knowledge of all possible events are obtained from redis.
+- Upon telemetry container restart, on the first writer run, for events that are not received yet, send the last status from the redis. The knowledge of all possible events are obtained from redis. NOTE: This may result in some duplicate events to external receivers.
 - Supports a max perf rate of 10K events per second.
 - The effective performance is tied to the client's perf.
 
