@@ -276,10 +276,10 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - It persists the events into EVENTS table in EVENTS-DB.
 - Runs in 2 threads.
 - The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
-- The event writer thread, wakes up periodically, create an empty cache, atomically swap it with receiver's cache and updates redis with the swapped cache.
+- The event writer thread, wakes up periodically.
 - The redis key {event-source | event-tag }
 - Though the writer wakes up every N seconds, it writes the value as of at the timepoint of it waking up.
-- Writer will be diligent to write only updates that it missed in the last cycle. The atomic swap helps.
+- Writer will be diligent to write only updates that it missed in the last cycle. 
 - The writer's default redis update frequency can be modified via init-cfg.json.
 
 ### Event exporting
@@ -310,9 +310,9 @@ Tests are critical to have static events staying static across releases and ensu
 ## Requirements
 1) Each event is covered by Unit test & nightly test
 2) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema. This ensures the data fired is per schema.
-4) Unit test -- For events reported by code, mock it as needed to exercise the code that raises the event. Verify the received event data against the schema.
-5) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is the *fool-proof* way to validate the immutability of the schema.
-6) Nightly test -- For events that can be simulated, simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
-7) Unit & nightly tests are mandated for every event.
+3) Unit test -- For events reported by code, mock it as needed to exercise the code that raises the event. Verify the received event data against the schema.
+4) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is the *fool-proof* way to validate the immutability of the schema.
+5) Nightly test -- For events that can be simulated, simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
+6) Unit & nightly tests are mandated for every event.
 
  
