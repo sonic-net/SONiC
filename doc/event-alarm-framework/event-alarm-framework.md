@@ -73,27 +73,27 @@ It is not in the scope of the framework to update ANY of the applications to rai
 
 The Event and Alarm Framework feature provides a centralized framework for applications in SONiC to raise notifications and store them for north bound interfaces to listen and fetch to monitor the device.
 
-Events and Alarms are notifications to indicate a change in the state of the system that operator may be interested in. 
-Such a change has an important metric called *severity* to indicate how critical it is to the health of the system. 
+Events and Alarms are notifications to indicate a change in the state of the system that operator may be interested in.
+Such a change has an important metric called *severity* to indicate how critical it is to the health of the system.
 
 *  Events
 
-   Events are "one shot" notifications to indicate an abnormal/important situation. 
-   
+   Events are "one shot" notifications to indicate an abnormal/important situation.
+
    User logging in, authentication failure, configuration changed notification are all examples of events.
 
 *  Alarms
 
    Alarms are notifications raised for conditions that could be cleared by correcting or removal of such conditions.
-   
+
    Out of memory, temperature crossing a threshold, and so on, are examples of conditions when the alarms are raised.
    Such conditions are dynamic: a faulty software/hardware component encounters the above such condition and **may** come out of that situation when the condition is resolved.
-   
+
    Events are sent as the condition progresses through being raised and cleared in addition to operator acknowledging/unacknowledging it.
    So, these events have a field called *action*: RAISE, CLEAR or ACKNOWLEDGE/UNACKNOWLEDGE.
 
    Each of such events for an alarm is characterized by "action" in addition to "severity".
-   
+
    An application *raises* an alarm when it encounters a faulty condition by sending an event with action: *RAISE*.
    After the application recovers from the condition, that alarm is *cleared* by sending an event with action: *CLEAR*.
    An operator could *ACKNOWLEDGE/UNACKNOWLEDGE* an alarm. This indicates that the operator is aware of the faulty condition.
@@ -113,11 +113,11 @@ Both events and alarms get recorded in a new DB called EVENT DB in a new redis i
    All events with an action field of *RAISE* get recorded in a table, by name, "ALARM" in addition to getting recorded in Event Table ( only events corresponding to an alarm has action field ).
    When an application that raised the alarm clears it ( by sending an event with action *CLEAR* ), the alarm record is removed from ALARM table.
    A user acknowledging a particular alarm will NOT remove that alarm record from this table; only when application clears it, the alarm is removed from ALARM table.
-   
+
    In effect, ALARM table contains outstanding alarms that need to be cleared by those applications who raised them.
    This table is NOT persisted and its contents are cleared with a reload.
 
-In summary, the framework provides both current and historical event status of software and physical entities of the system through ALARM and EVENT tables. 
+In summary, the framework provides both current and historical event status of software and physical entities of the system through ALARM and EVENT tables.
 
 In addition to the above tables, the framework maintains various statisitcs.
 
@@ -127,7 +127,7 @@ In addition to the above tables, the framework maintains various statisitcs.
 
 2. Alarm Statistics Table
 
-   Statistics on number of alarms per severity are maintained in ALARM_STATS table. 
+   Statistics on number of alarms per severity are maintained in ALARM_STATS table.
    ALARM_STATS table is not persistent as conditions that triggers an alarm gets cleared on bootup.
    When application raises an alarm, the counter corresponding to that alarm's severity is increased by 1.
    When the alarm is cleared or acknowledged, the corresponding severity counter will be reduced by 1.
@@ -157,9 +157,10 @@ Template for event profile is as below:
     "events":[
         {
             "name"     : <name of the event/alarm>,
+            "revision" : <revision as a numeric Id>,
             "severity" : <severity of the event/alarm>,
             "enable"   : <flag to indicate whether the framework should ignore event/alarm sent by application>,
-            "message"  : <message that describes the condition, possible recovery action>
+            "message"  : <message that describes the condition, possible recovery action. It can be as regular string message or in Json Format.>
         }
     ]
 }
@@ -174,13 +175,13 @@ Operator can select any of these custom event profiles to change default propert
 The selected profile is persistent across reboots and will be in effect until operator selects either default or another custom profile.
 
 In addition to storing events in DB, framework forwards log messages corresponding to all the events to syslog.
-Syslog message displays the type (ALARM or EVENT), action (RAISE, CLEAR, ACKNOWLEDGE or UNACKNOWLEDGE) - when the message corresponds to an event of an alarm, name of the event and detailed message. 
+Syslog message displays the type (ALARM or EVENT), action (RAISE, CLEAR, ACKNOWLEDGE or UNACKNOWLEDGE) - when the message corresponds to an event of an alarm, name of the event and detailed message.
 
 gNMI clients can subscribe to receive events as they are raised. Subscribing through REST is being evaluated.
 
 CLI and REST/gNMI clients can query either table with filters - based on severity, delta based on timestamp, sequence-id etc.,
 
-Application owners need to identify various conditions that would be of interest to the operator and use the framework to raise events/alarms. 
+Application owners need to identify various conditions that would be of interest to the operator and use the framework to raise events/alarms.
 
 ## 1.1 Requirements
 
@@ -190,7 +191,7 @@ Application owners need to identify various conditions that would be of interest
 | ID    | Requirement                                            		                  | Comment             |
 | :---  | :----                                                 		                  | :---                |
 | 1     | Provide API via library for apps to publish events                              |                     |
-| 2     | Provide API via library for apps to publish alarms                   |                | 
+| 2     | Provide API via library for apps to publish alarms                   |                |
 | 3     | Event Infra to write formatted syslog messages corresponding to all events to Syslog. |                    |
 | 4     | Event Infra to persist all events and alarms in DB.                        |                     |
 | 5     | Event Infra to read Event profile ( severity and enable/disable flag ) from a json file. |                    |
@@ -270,12 +271,12 @@ There are three players in the event framework. Producers, which raises events; 
 
 Applications act as producers of events.
 
-Event consumer class in eventd container receives and processes the received event. 
-Event consumer manages received events, updates event table, alarm table, event_stats table and alarm_stats tables and invokes logging API, which constructs message and sends it over to syslog. 
+Event consumer class in eventd container receives and processes the received event.
+Event consumer manages received events, updates event table, alarm table, event_stats table and alarm_stats tables and invokes logging API, which constructs message and sends it over to syslog.
 
 Operator can chose to change properties of events with the help of event profile. Default
 event profile is available at */etc/evprofile/default.json*. User can download the default event profile,
-modify and upload it back to the switch to apply it. 
+modify and upload it back to the switch to apply it.
 
 Through event profile, user can change severity of any event and also can enable/disable a event.
 
@@ -285,7 +286,7 @@ Through CLI, REST or gNMI, event table and alarm table can be retrieved using va
 Application that need to raise an event, need to use event notifiy API ( LOG_EVENT ).
 This API is part of *libeventnotify* library that applications need to link.
 
-For one-shot events, applications need to provide event-id (name of the event), source, dynamic message, and event action set to NOTIFY. 
+For one-shot events, applications need to provide event-id (name of the event), source, dynamic message, and event action set to NOTIFY.
 
 For alarms, applications need to provide event-id (name of the event), source, dynamic message, and event action (RAISE_ALARM / CLEAR_ALARM / ACK_ALARM /UNACK_ALARM).
 The ACK_ALARM/UNACK_ALARM action types are used only by mgmt-framework to provide the functionality to acknowledge/unacknowledge the alarms through NBI.
@@ -295,22 +296,24 @@ Developers of new events or alarms need to update this file by declaring name an
 
 ```
 {
-    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send 
-                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test 
-                    the new event by adding it to a custom event profile and use 'event profile <filename>' command 
-                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file 
-                    with the new event after testing it out. 
-                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. 
+    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send
+                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test
+                    the new event by adding it to a custom event profile and use 'event profile <filename>' command
+                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file
+                    with the new event after testing it out.
+                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL.
                     Supported enable flag values are: true and false.",
     "events":[
         {
             "name" : "CUSTOM_EVPROFILE_CHANGE",
+            "revision" : 0,
             "severity" : "INFORMATIONAL",
             "enable" : "true",
             "message" : "Custom Event Profile is applied."
         },
         {
             "name": "TEMPERATURE_EXCEEDED",
+            "revision" : 0,
             "severity": "CRITICAL",
             "enable": "true"
             "message" : "Temperature threshold is 75 degrees."
@@ -327,6 +330,8 @@ definition:
 - name is name of the event
 - source is the object that is generating this event
 - action is either NOTIFY, RAISE_ALARM, CLEAR_ALARM, ACK_ALARM or UNACK_ALARM
+- MSG can be json string. If json string, it is rendered as is in the syslog.
+
 
 Usage:
 For one-shot events:
@@ -349,7 +354,7 @@ Here is a typical developement process to link eventnotify library to a componen
 a. Update buildimage/rules/*app*.mk
 
    Add $(LIBEVENTNOTIFY_DEV) to compile dependency.
-   
+
    Add $(LIBEVENTNOTIFY) to runtime dependency.
 
 ```
@@ -365,7 +370,7 @@ b. Update Makefile.am of the app to link to event notify library.
 
        tammgrd_LDADD += -leventnotify
 ```
-c. Declare the name of new event/alarm along with severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json 
+c. Declare the name of new event/alarm along with revision, severity, enable flag and static message in sonic-eventd/etc/evprofile/default.json
 
 d. In the source file where event is to be raised, include eventnotify.h and invoke LOG_EVENT with action as NOTIFY/RAISE_ALARM/CLEAR_ALARM (ACK_ALARM/UNACK_ALARM are used by mgmt-framework to allow users to acknowledge/unacknowledge alarms).
 
@@ -377,12 +382,12 @@ The EVENTPUBSUB table uses event-id and a sequence-id generated locally by event
 The event consumer is a class in sonic-eventd container that processes the incoming record.
 
 On intitialization, event consumer reads */etc/evprofile/default.json* and builds an internal map of events, called *static_event_map*.
-It then verifies if there was a custom event profile configured and merges its contents to static_event_map built from default event profile. 
+It then verifies if there was a custom event profile configured and merges its contents to static_event_map built from default event profile.
 It then reads from EVENTPUBSUB table. This table contains records that are published by applications and waiting to be read by eventd.
 Whenever there is a new record, event consumer reads the record, processes and deletes it.
 
 On reading the field value tuple, using the event-id in the record, event consumer fetches static information from *static_event_map*.
-As mentioned above, static information contains severity, static message and event enable flag. 
+As mentioned above, static information contains severity, static message and event enable flag.
 If the enable flag is set to false, event consumer ignores the event by logging a debug message.
 If the flag is set to true, it continues to process the event as follows:
 - Generate new sequence-id for the event
@@ -401,7 +406,12 @@ The corresponding syslog severities are: log-alert, log-crit, log-error, log-war
 Severity INFORMATIONAL is not applicable to alarms.
 
 #### 3.1.2.2 Sequence-ID
-Every new event should have a unique sequential ID. The sequence-id is persistent and continues to grow until 2 exp 64.
+Every new event should have a unique sequential ID. The sequence-id is of the format <32 bit time_t><5 digit running sequence 00000 to 99999>. These semantics allows applications to layout the logs chronologically.
+
+#### 3.1.2.3 Revision
+Every event/alarm defined in the profile must have a revision specified as a numerical.  If not given, the default revision '0' is assigned to the event/alarm. This revision is to be incremented if the alarm parameters are updated.
+For e.g., if TEMPERATURE_EXCEEDED alarm threshold is changed from 65 from original 70, the revision is updated in default.json keeping the name unchanged.
+This will allow to redefine the event on an image upgrade. Clients can distinguish events from different sources running different releases.
 
 ### 3.1.3 Alarm Consumer
 The alarm consume method on receiving the event record, verifies the event action. If it is RAISE_ALARM, it adds the record to Alarm Table.
@@ -431,45 +441,45 @@ Example here is pmon using ALARM_STATS table to control system LED.
 | alarm |  severity  | acknowledged  |
 |:-----:|:----------:|:-------------:|
 |       |            |               |
-|       |            |               | 
+|       |            |               |
 
 Alarm table is empty. All counters in ALARM_STATS is 0. System LED is Green.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-1 | CRITICAL   |              |
 | ALM-2 | MINOR      |              |
 
 Alarm table now has two alarms. One with *CRITICAL* and other with *MINOR*. ALARM_STATS is updated as: Critical as 1 and Minor as 1. As There is atleast one alarm with *critical/major* severity, system LED is Red.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 
 The *CRITICAL* alarm is cleared by the application, so alarm consumer removes it from ALARM table, ALARM_STATS is updated as: Critical as 0 and Minor as 1. As there is at least one *minor/warning* alarms in the table, system LED is Amber.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 | ALM-9 | MAJOR      |              |
 
 Now there is an alarm with *MAJOR* severity. ALARM_STATS now reads as: Major as 1 and Minor as 1. So, system LED is Red.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      |              |
 | ALM-9 | MAJOR      | true         |
 
 The *MAJOR* alarm is acknowledged by user, alarm consumer sets *acknolwedged* flag to true and reduces Major counter in ALARM_STATS by 1, ALARM_STATS now reads as: Major 0 and Minor 1. This way, acknowledged major alarm has no effect on system LED. There are no other *CRITICAL/MAJOR* alarms. There however, exists an alarm with *MINOR/WARNING* severity. System LED is Amber.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      | true         |
 | ALM-9 | MAJOR      | true         |
 
 The *MINOR* alarm is also acknowledged by user. ALARM_STATS reads: Major as 0, Minor as 0. So it is also taken out of consideration for system LED. System LED is Green.
 
-| alarm |  severity  | acknowledged | 
+| alarm |  severity  | acknowledged |
 |:-----:|:----------:|:------------:|
 | ALM-2 | MINOR      | true         |
 | ALM-9 | MAJOR      | false        |
@@ -480,7 +490,7 @@ The *MAJOR* alarm is also unacknowledged by user. ALARM_STATS reads: Major as 1,
 Supported NBIs are: syslog, REST and gNMI.
 
 #### 3.1.4.1 syslog
-Logging API contains logic to take the event record, augment it with any static information, format the message and 
+Logging API contains logic to take the event record, augment it with any static information, format the message and
 send it to syslog.
 ```
     if (ev_act.empty()) {
@@ -506,14 +516,14 @@ send it to syslog.
             ev_type.c_str(), ev_act.c_str(),
             ev_id.c_str(), ev_msg.c_str(), ev_static_msg.c_str());
     }
-``` 
+```
 An example of syslog message generated for an event raised when user selects a custom event profile.
 ```
 May 19 21:22:07.122786 2021 sonic WARNING eventd#eventd[2419]: [EVENT], %CUSTOM_EVPROFILE_CHANGE : handle_custom_evprofile: Custom Event Profile myprofile.json is applied.. Custom Event Profile is selected by user.
 ```
 Syslog message for an alarm raised by a sensor:
 ```
-May 19 21:42:14.373410 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (RAISE), %TEMPERATURE_EXCEEDED : temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees. 
+May 19 21:42:14.373410 2021 sonic ALERT eventd#eventd[2453]: [ALARM] (RAISE), %TEMPERATURE_EXCEEDED : temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees. Temperature threshold is 75 degrees.
 ```
 Syslog message when alarm is clared is as follows:
 ```
@@ -537,21 +547,21 @@ Support for VRF/source-interface/UDP port are all are applicable for 'event' typ
 Subcribing through REST to receive event notifications is currently being evaluated.
 
 #### 3.1.4.3 gNMI
-gNMI clients can subscribe to receive event notifications. Subscribed gNMI clients receive event fields as in the DB and 
+gNMI clients can subscribe to receive event notifications. Subscribed gNMI clients receive event fields as in the DB and
 there is no customization of these fileds similar to syslog messages.
 
 TODO: add definitions of protobuf spec
 
 #### 3.1.4.4 System LED
-The original requirement was to change LED based on severities of the events. But on most of the platforms the system/power/fan LEDs are managed by the BMC. 
-BMC (baseboard management controller) is an embedded system that manages various platform elements like fan, PSU, temperature sensors. 
+The original requirement was to change LED based on severities of the events. But on most of the platforms the system/power/fan LEDs are managed by the BMC.
+BMC (baseboard management controller) is an embedded system that manages various platform elements like fan, PSU, temperature sensors.
 There is an API that can be invoked to control LED, but not all platforms will support that API if they are fully controlled by the BMC.
 So, on certain platforms, system LED could not represent events on the system.
 
-Another issue is: Currently pmon controls LED, and as eventd now tries to change the very same LED, which leads to conflicts. 
+Another issue is: Currently pmon controls LED, and as eventd now tries to change the very same LED, which leads to conflicts.
 A mechanism must exist for one of these to be master, which, in this case, is pmon.
 
-The proposed solution is to have pmon use ALAMR_STATS counters in conjunction with existing logic to update system LED. 
+The proposed solution is to have pmon use ALAMR_STATS counters in conjunction with existing logic to update system LED.
 
 #### 3.1.4.5 Event/Alarm flooding
 There are scenarios when system enters a loop of a fault condition that makes application trigger events continuously. To avoid such
@@ -559,8 +569,8 @@ instances flood the EVENT or ALARM tables, eventd maintains a cache of last even
 to make sure it is not a flood. If it is found to be same event/alarm, the newly raised entry will be silently discarded.
 
 #### 3.1.4.6 Eventd continuous restart
-Under the scenarios when eventd runs into an issue and restarts continuously, applications might keep writing to the eventpubsub table. As consumer - eventd - is not able to remove events from the pusbsub table, eventpusbub table could grow forever as applications keep rising events/alarms. 
-One way to fix is to have the system monitor daemon to periodically (very high polling interval) to check the number of keys in the table and if it exceeds a number, delete all the entries. When system monitor daemon does this, it logs a syslog message. 
+Under the scenarios when eventd runs into an issue and restarts continuously, applications might keep writing to the eventpubsub table. As consumer - eventd - is not able to remove events from the pusbsub table, eventpusbub table could grow forever as applications keep rising events/alarms.
+One way to fix is to have the system monitor daemon to periodically (very high polling interval) to check the number of keys in the table and if it exceeds a number, delete all the entries. When system monitor daemon does this, it logs a syslog message.
 
 ### 3.1.5 Event Profile
 The Event profile contains mapping between event-id and severity of the event, enable flag.
@@ -572,22 +582,24 @@ By default, every event is enabled.
 The severity of event is decided by developer while adding the event.
 ```
 {
-    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send 
-                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test 
-                    the new event by adding it to a custom event profile and use 'event profile <filename>' command 
-                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file 
-                    with the new event after testing it out. 
-                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL. 
+    "__README__" : "This is default map of events that eventd uses. Developer can modify this file and send
+                    SIGINT to eventd to make it read and use the updated file. Alternatively developer can test
+                    the new event by adding it to a custom event profile and use 'event profile <filename>' command
+                    to apply that profile without sending SIGINT to eventd. Developer need to commit default.json file
+                    with the new event after testing it out.
+                    Supported severities are: CRITICAL, MAJOR, MINOR, WARNING and INFORMATIONAL.
                     Supported enable flag values are: true and false.",
     "events":[
         {
             "name" : "CUSTOM_EVPROFILE_CHANGE",
+            "revision" : 0,
             "severity" : "INFORMATIONAL",
             "enable" : "true",
             "message" : "Custom Event Profile is applied."
         },
         {
             "name": "TEMPERATURE_EXCEEDED",
+            "revision" : 0,
             "severity": "CRITICAL",
             "enable": "true"
             "message" : "Temperature threshold is 75 degrees."
@@ -600,26 +612,29 @@ some/all events in the profile and can upload it back to the switch and place th
 
 The uploaded profile will be called custom event profile.
 
-An example of custom event profile is as below. 
+An example of custom event profile is as below.
 With this particular custom event profile, user wants to
 - change severity of CUSTOM_EVPROFILE_CHANGE event (severity changed from INFORMATIONAL to MAJOR)
-- suppress the TEMPERATURE_EXCEEDED alarm (enable flag is changed from true to false) 
+- suppress the TEMPERATURE_EXCEEDED alarm (enable flag is changed from true to false)
 - introduce new alarm by name DUMMY_ALARM (there should be an application to raise/clear this new alarm).
 ```
 {
     "events": [
         {
             "name" : "CUSTOM_EVPROFILE_CHANGE",
+            "revision" : 0,
             "severity" : "MAJOR",
             "enable" : "true",
         },
         {
             "name": "TEMPERATURE_EXCEEDED",
+            "revision" : 0,
             "severity": "CRITICAL",
             "enable": "false"
         },
         {
             "name" : "DUMMY_ALARM",
+            "revision": 0
             "severity" : "WARNING",
             "enable" : "true",
         }
@@ -631,9 +646,9 @@ User can have multiple custom profiles and can select any of the profiles under 
 
 The framework will sanity check the user selected profile and merges it map of events *static_event_map* maintained by eventd.
 
-After a successful sanity check, the framework generates an event indicating that a new profile is in effect. 
+After a successful sanity check, the framework generates an event indicating that a new profile is in effect.
 
-If there are any outstanding alarms in the alarm table, the framework removes those records for which enable is set to false in the new profile. 
+If there are any outstanding alarms in the alarm table, the framework removes those records for which enable is set to false in the new profile.
 Severity counters in ALARM_STATS are reduced accordingly.
 
 Eventd starts using the merged map of characteristics for the all the newly generated events. A CUSTOM_EVPROFILE_CHANGE event is generated.
@@ -643,7 +658,7 @@ All the other attributes will remain to their default values.
 
 Sanity check rejects the profile if attributes contains values that are not known to eventd.
 
-Config Migration hooks will be used to persist custom profiles across an upgrade.
+Config Migration hooks will be used to persist the current active profile across an upgrade.
 
 The profile can also be applied through ztp.
 
@@ -659,7 +674,7 @@ input {
     to sequence-id;
   }
 output {
-   list event-table-entries; 
+   list event-table-entries;
 }
 ```
 
@@ -668,15 +683,16 @@ The rpc callback needs to access DB with the given set of sequence ids.
 The gNMI server (gnoi_client.go, gnoi.go, sonic_proto, transl_utils.go) need to be extended to support the RPC to support similar operations for gNMI.
 
 ### 3.1.7 Event Table and Alarm Table
-The Event Table (EVENT) and Alarm List Table (ALARM) stored in EVENT_DB. 
+The Event Table (EVENT) and Alarm List Table (ALARM) stored in EVENT_DB.
 The size of Event Table is 40k records or 30 days worth of events which ever hits earlier.
 A manifest file will be created with parameters to specify the number and number of days limits for
 eventd to read and enforce them.
 
+
 ```
-root@sonic:/etc# cat eventd.json 
+root@sonic:/etc# cat eventd.json
 {
-    "config" : {
+    "config" :  {
         "no-of-records": 40000,
         "no-of-days": 30
     }
@@ -688,6 +704,8 @@ root@sonic:/etc# cat eventd.json
 When either of the limit is reached, the framework wraps around the table by discarding older records.
 
 User can send SIGINT to eventd process to force read and apply the manifest limits.
+
+The EVENTPUBSUB table will be periodically monitored and flushed based of a pre-defined table limit. Based on discussions this can be plugged into existing system jobs.    
 
 An example of an event in EVENT table.
 ```
@@ -703,6 +721,8 @@ time-created    : Time stamp at which the event is generated {uint64}
 action          : Indicates action of the event; for one-shot events, it is empty. For alarms it could be raise, clear or acknowledge {enum}
 resource        : Object which generated the event {string}
 severity        : Severity of the event {string}
+revision        : Revision of the event {uint64}
+
 
 127.0.0.1:6379[6]> hgetall "EVENT|1"
  1) "text"
@@ -717,7 +737,8 @@ severity        : Severity of the event {string}
 10) "/etc/evprofile/x.json"
 11) "severity"
 12) "WARNING"
-127.0.0.1:6379[6]>
+13) "Revision"
+14)"0"
 ```
 
 Schema for EVENT_STATS table is as follows:
@@ -754,6 +775,7 @@ ALARM Table:
 Key             : id
 
 id              : Unique sequential ID generated by the system for every event {uint64}
+revision        : Revision of the alarm {uint64}
 type-id         : Name of the event generated {string}
 text            : Dynamic message describing the cause for the event {string}
 time-created    : Time stamp at which the event is generated {uint64}
@@ -761,6 +783,7 @@ acknowledged    : Indicates if alarm has been acknowledged {boolean}
 resource        : Object which generated the event {string}
 severity        : Severity of the event {string}
 acknowledged    : Indicates when alarm has been acknowledged/unacknowledged {uint64}
+
 
 127.0.0.1:6379[6]> hgetall "ALARM|2"
  1) "type-id"
@@ -779,11 +802,12 @@ acknowledged    : Indicates when alarm has been acknowledged/unacknowledged {uin
 14) "2"
 15) "acknowledged"
 16) "false"
-127.0.0.1:6379[6]
+17) "revision"
+18) "0"
 ```
 
 Schema for ALARM_STATS table is as below. When an alarm of particular severity is cleared,
-the corresponding severity counter is decremented. 
+the corresponding severity counter is decremented.
 ```
 ALARM_STATS Table:
 ==============================
@@ -821,17 +845,17 @@ The following filters are supported:
 - All records between two Sequence Numbers (incl end and begin)
 
 ### 3.1.9 Supporting third party containers
-To support third party components ( e.g. FRR, teamd, DHCP Relay, LLDPd, ntpd etc ) which can not be modified to raise events, the following options are considered 
+To support third party components ( e.g. FRR, teamd, DHCP Relay, LLDPd, ntpd etc ) which can not be modified to raise events, the following options are considered
 and are being evaluated.
 1.  Patch the components
     Create a patch for these components by adding libeventnotify library and invoke the API. This however, requires these patches need to be maintained in the code forever.
 
 2.  Listen to syslog messages
-    As many of these components raises syslog messages on an important event, a listener can be implemented to read incoming syslog messages and raise 
+    As many of these components raises syslog messages on an important event, a listener can be implemented to read incoming syslog messages and raise
     events based on the message.
-    This however is heavy on performance due to the fact that listener has to parse each syslog message. Also listener need to maintain a map of messages to 
+    This however is heavy on performance due to the fact that listener has to parse each syslog message. Also listener need to maintain a map of messages to
     event-id and need to be aware of resource and other specific details. It need to be aware of nuances of alarm raising/clearing if the component follows
-    any specific logic. 
+    any specific logic.
 
 Approach 1 is preferred.
 
@@ -843,7 +867,7 @@ Table EVENTPUBSUB is used for applications to write events and for eventd to acc
 Event Table (EVENT) and Alarm Table (ALARM) are used to house events and alarms respectively.
 To maintain various statistics of events, these two tables are used : EVENT_STATS and ALARM_STATS.
 
-EVPROFILE table is used by mgmt-framework to communicate name of the custom event profile when configured through NBI. 
+EVPROFILE table is used by mgmt-framework to communicate name of the custom event profile when configured through NBI.
 Eventd reads the file name from this table and merges it with its static_event_map.
 
 ## 3.3 User Interface
@@ -856,6 +880,7 @@ module: sonic-event
      +--rw EVENT
      |  +--rw EVENT_LIST* [id]
      |     +--rw id              uint64
+     |     +--rw revision        uint64  
      |     +--rw resource?       string
      |     +--rw text?           string
      |     +--rw time-created?   timeticks64
@@ -892,6 +917,7 @@ module: sonic-event
           +--ro EVENT
              +--ro EVENT_LIST* [id]
                 +--ro id              uint64
+                +--ro revision        uint64
                 +--ro resource?       string
                 +--ro text?           string
                 +--ro time-created?   timeticks64
@@ -907,6 +933,7 @@ module: sonic-alarm
      +--rw ALARM
      |  +--rw ALARM_LIST* [id]
      |     +--rw id                  uint64
+     |     +--rw revision            uint64
      |     +--rw resource?           string
      |     +--rw text?               string
      |     +--rw time-created?       event:timeticks64
@@ -958,6 +985,7 @@ module: sonic-alarm
           +--ro ALARM
              +--ro ALARM_LIST* [id]
                 +--ro id                  uint64
+                +--ro revision            uint64
                 +--ro resource?           string
                 +--ro text?               string
                 +--ro time-created?       event:timeticks64
@@ -990,7 +1018,7 @@ openconfig alarms yang is defined at [here](https://github.com/openconfig/public
 ```
 sonic# alarm acknowledge <seq-id-of-raised-alarm>
 ```
-An operator can acknolwedge a raised alarm. This indicates that the operator is aware of the fault condition and considers the condition not catastrophic. 
+An operator can acknolwedge a raised alarm. This indicates that the operator is aware of the fault condition and considers the condition not catastrophic.
 Acknowledging an alarm updates alarm statistics and thereby applications like pmon can remove the particular alarm from status consideration.
 
 The alarm record in the ALARM table is marked with acknowledged field set to true. There is acknowledge-time field that indicates when that alarm is acknowledged.
@@ -998,7 +1026,7 @@ The alarm record in the ALARM table is marked with acknowledged field set to tru
 ```
 sonic# alarm unacknowledge <seq-id-of-raised-alarm>
 ```
-An operator can un-acknolwedge a previously acknowledged raised alarm. 
+An operator can un-acknolwedge a previously acknowledged raised alarm.
 Un-acknowledging an alarm updates alarm statistics and thereby applications like pmon can take the particular alarm into status consideration.
 
 The alarm record in the ALARM table is marked with acknowledged field set to false.
@@ -1012,21 +1040,21 @@ The command takes name of specified file, validates it for its syntax and values
 ```
 sonic# clear event
 ```
-This command clears all the records in the event table. All the event stats are cleared. 
+This command clears all the records in the event table. All the event stats are cleared.
 The command will not affect alarm table or alarm statistics.
-Eventd generates an event informing that event table is cleared. 
+Eventd generates an event informing that event table is cleared.
 
 #### 3.3.2.2 Configuration Commands
 ```
-sonic(config)# logging server <ip> [log|event] 
+sonic(config)# logging server <ip> [log|event]
 ```
-Note: The 'logging server' command is an existing, already supported command. 
+Note: The 'logging server' command is an existing, already supported command.
 It is only enhanced to take either 'log' or 'event' to indicate either native syslog messages or syslog messages corresponding to events alone are sent to the remote host.
 Support with VRF/source-interface and configuring remote-port are all backward comaptible and will be applicable to either 'log' or 'event' options.
 
 #### 3.3.2.3 Show Commands
 ```
-sonic# show event profile 
+sonic# show event profile
 --------------------------
 Active Event Profile
 --------------------------
@@ -1038,11 +1066,11 @@ default.json
 myProfile.json
 userProfile.json
 
-sonic# show event [ details | summary | severity <sev> | start <from-ts> end <to-ts> | recent <5min|60min|24hr> | id <seq-id> | from <seq-id> to <seq-id> ] 
+sonic# show event [ details | summary | severity <sev> | start <from-ts> end <to-ts> | recent <5min|60min|24hr> | id <seq-id> | from <seq-id> to <seq-id> ]
 
 'show event' commands would display all the records in EVENT table.
 
-sonic# show event 
+sonic# show event
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1054,47 +1082,50 @@ Id           Action          Severity   Name                           Timestamp
 6            UNACKNOWLEDGE   CRITICAL   DUMMY_ALARM                    2021-05-19T21:53:24.484Z    Alarm id 4 UNACKNOWLEDGE.                         
 7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    signalHandler: Clearing simulated alarm        
 
-sonic# show event details 
+sonic# show event details
 ----------------------------------------------
-Event Details - 1 
+Event Details - 1
 ----------------------------------------------
-Id:                  1 
-Action:              - 
-Severity:            WARNING 
-Type:                CUSTOM_EVPROFILE_CHANGE 
-Timestamp            2021-05-19T21:38:27.455Z 
-Description:         handle_custom_evprofile: Custom Event Profile x.json is applied. 
-Source:              /etc/evprofile/x.json 
- 
+Id:                  1
+Revision:            0
+Action:              -
+Severity:            WARNING
+Type:                CUSTOM_EVPROFILE_CHANGE
+Timestamp            2021-05-19T21:38:27.455Z
+Description:         handle_custom_evprofile: Custom Event Profile x.json is applied.
+Source:              /etc/evprofile/x.json
+
 ----------------------------------------------
-Event Details - 2 
+Event Details - 2
 ----------------------------------------------
-Id:                  2 
-Action:              RAISE 
-Severity:            CRITICAL 
-Type:                DUMMY_ALARM 
-Timestamp            2021-05-19T21:39:31.622Z 
-Description:         signalHandler: Raising simulated alarm 
-Source:              simulation 
- 
+Id:                  2
+Revision:            1
+Action:              RAISE
+Severity:            CRITICAL
+Type:                DUMMY_ALARM
+Timestamp            2021-05-19T21:39:31.622Z
+Description:         signalHandler: Raising simulated alarm
+Source:              simulation
+
 ----------------------------------------------
-Event Details - 3 
+Event Details - 3
 ----------------------------------------------
-Id:                  3 
-Action:              CLEAR 
-Severity:            CRITICAL 
-Type:                DUMMY_ALARM 
-Timestamp            2021-05-19T21:42:34.371Z 
-Description:         signalHandler: Clearing simulated alarm 
-Source:              simulation 
+Id:                  3
+Revision:            0
+Action:              CLEAR
+Severity:            CRITICAL
+Type:                DUMMY_ALARM
+Timestamp            2021-05-19T21:42:34.371Z
+Description:         signalHandler: Clearing simulated alarm
+Source:              simulation
 
 sonic# show event summary
 Event summary
 ---------------------------------
-Total:                         14 
-Raised:                        4 
-Acknowledged:                  1 
-Cleared:                       3 
+Total:                         14
+Raised:                        4
+Acknowledged:                  1
+Cleared:                       3
 ----------------------------------
 
 sonic# show event severity critical
@@ -1108,7 +1139,7 @@ Id           Action          Severity   Name                           Timestamp
 6            UNACKNOWLEDGE   CRITICAL   DUMMY_ALARM                    2021-05-19T21:53:24.484Z    Alarm id 4 UNACKNOWLEDGE.                         
 7            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:55:54.977Z    signalHandler: Clearing simulated alarm
 
-sonic# show event recent 24hr 
+sonic# show event recent 24hr
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1121,15 +1152,16 @@ Id           Action          Severity   Name                           Timestamp
 
 sonic# show event id 2
 ----------------------------------------------
-Event Details - 2 
+Event Details - 2
 ----------------------------------------------
-Id:                  2 
-Action:              RAISE 
-Severity:            CRITICAL 
-Type:                DUMMY_ALARM 
-Timestamp            2021-05-19T21:39:31.622Z 
-Description:         signalHandler: Raising simulated alarm 
-Source:              simulation 
+Id:                  2
+Revision:            1
+Action:              RAISE
+Severity:            CRITICAL
+Type:                DUMMY_ALARM
+Timestamp            2021-05-19T21:39:31.622Z
+Description:         signalHandler: Raising simulated alarm
+Source:              simulation
 
 sonic# show event from 2 to 5
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1144,7 +1176,7 @@ sonic# show event start 2021-05-19T21:39:31.622Z end 2021-05-19T21:46:14.371Z
 ----------------------------------------------------------------------------------------------------------------------------
 Id           Action          Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
-3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm 
+3            CLEAR           CRITICAL   DUMMY_ALARM                    2021-05-19T21:42:34.371Z    signalHandler: Clearing simulated alarm
 
 sonic# show alarm [ acknowledged | all | detail | summary | severity <sev> | id <seq-id> | start <from-ts> end <to-ts> | recent <5min|1hr|1day> | from <from-seq> to <to-seq> ]
 
@@ -1155,7 +1187,7 @@ sonic# show alarm
 Id           Severity   Name                           Timestamp                   Description                                                  
 ----------------------------------------------------------------------------------------------------------------------------
 14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
-16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    :- /psu/2 has experienced a fault 
+16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    :- /psu/2 has experienced a fault
 
 sonic# show alarm all
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1163,14 +1195,15 @@ Id           Severity   Name                           Timestamp                
 ----------------------------------------------------------------------------------------------------------------------------
 14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
 15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    signalHandler: Raising simulated alarm         
-16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault 
-  
+16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault
 
-sonic# show alarm detail 
-  
+
+sonic# show alarm detail
+
 alarm details - 14
 -------------------------------------------
 Id:                14
+Revision:          0   
 Severity:          CRITICAL
 Source:            /sensor/2
 Name:              TEMPERATURE_EXCEEDED
@@ -1186,17 +1219,17 @@ Id           Severity   Name                           Timestamp                
 ----------------------------------------------------------------------------------------------------------------------------
 14           WARNING    TEMPERATURE_EXCEEDED           2021-05-20T00:47:52.992Z    temperatureCrossedThreshold: Current temperature of sensor/2 is 76 degrees         
 15           WARNING    DUMMY_ALARM                    2021-05-20T02:16:41.637Z    signalHandler: Raising simulated alarm         
-16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault 
+16           WARNING    PSU_FAULT                      2021-05-20T02:16:42.611Z    /psu/2 has experienced a fault
 
 sonic# show alarm summary
 Alarm summary
 ---------------------------------
-Total:                         3 
-Critical:                      0 
-Major:                         0 
-Minor:                         0 
-Warning:                       3 
-Acnowledged:                   2 
+Total:                         3
+Critical:                      0
+Major:                         0
+Minor:                         0
+Warning:                       3
+Acnowledged:                   2
 ----------------------------------
 ```
 
@@ -1225,9 +1258,9 @@ openconfig REST links:
 ## 5.1 Application warm boot
 Applications confirming to the warm boot, should have stored their state and compare current values against previous values.
 Such compliant application also "remembers" that it raised an event before for a specific condition.
-They would 
+They would
 *  not raise alarms/events for the same condition that it raised pre warm boot
-*  clear those alarms once current state of a particular condition is recovered (by comparing against the stored state). 
+*  clear those alarms once current state of a particular condition is recovered (by comparing against the stored state).
 
 ## 5.2 eventd warm boot
 Records from applications are stored in a table, called EVENTPUBSUB.
@@ -1256,11 +1289,11 @@ The second command displays all the alarms that are waiting to be cleared by app
 - Un-Ack an alarm and verify that acknowledged flag is set to false in ALARM table and acknowledge-time is set
 - Verify wrap around for EVENT table ( change manifest file to a lower range and trigger that many events )
 - Verify sequence-id for events is persistent by restarting
-- Verify counters by raising various alarms with different severities 
+- Verify counters by raising various alarms with different severities
 - Change severity of an event through custom event profile and verify it is logged at specified severity
 - Change enable/disable of an event through custom event profile and verify it is suppressed
-- Verify custom event profile with an invalid severity is rejected 
-- Verify custom event profile with an invalid enable/disable flag is rejected 
+- Verify custom event profile with an invalid severity is rejected
+- Verify custom event profile with an invalid enable/disable flag is rejected
 - Verify custom event profile is persisted after a reboot
 - Verify various show commands
 - Verify 'logging-server <ip> event' command forwards only event log messages to the host
