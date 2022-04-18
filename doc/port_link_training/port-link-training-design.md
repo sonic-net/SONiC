@@ -16,6 +16,7 @@
     - [Show link training status](#show-link-training-status)
   - [Config DB Enhancements](#config-db-enhancements)
   - [Application DB Enhancements](#application-db-enhancements)
+  - [State DB Enhancements](#state-db-enhancements)
   - [YANG Model Enhancements](#yang-model-enhancements)
   - [DB Migration Considerations](#db-migration-considerations)
   - [SWSS Enhancements](#swss-enhancements)
@@ -53,7 +54,7 @@ Link training is a process by which the transmitter and receiver on a high-speed
 
 In current SONiC implementation, user can leverage the platform-specific [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to statically update the TX FIR per attached transceiver to improve BER. However, the ODM vendors rarely provide the pre-calibrated pre-emphasis for the CR/KR transceivers, which could result in the link reliability issues.
 
-The IEEE 802.3 standard defines a set of link training protocols for various mediums, and the feature in this document is to focus on IEEE clause 72 and 93 to dynamically improve the link quality over the SFP coppers/backplanes.
+The IEEE 802.3 standard defines a set of link training protocols for various mediums, and the feature in this document is to focus on IEEE clause 72 and 93 to dynamically improve the link quality over the SFP coppers and backplanes.
 
 This feature could be activated with or without port auto negotiation.
 
@@ -72,7 +73,7 @@ This feature does not change the existing SONiC architecture, while it has to ch
 
 - SAI API requirements is covered in section [SAI API Requirement](#sai-api-requirement).
 - A few new CLI commands will be added to sonic-utilities sub module. These CLI commands support user to configure link training mode as well as show port link training status. See detail description in section [CLI Enhancements](#cli-enhancements).
-- A few new fields will be added to existing table in APPL_DB and CONFIG_DB to support link training attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements) and [Application DB Enhancements](#application-db-enhancements).
+- A few new fields will be added to existing table in APPL_DB and CONFIG_DB to support link training attributes. See detail description in section [Config DB Enhancements](#config-db-enhancements), [Application DB Enhancements](#application-db-enhancements) and [State DB Enhancements](#state-db-enhancements)
 - YANG Model needs update according to the DB schema change. See detail description in section [YANG Model Enhancements](#yang-model-enhancements)
 - Port configuration setting flow will be changed in orchagent of sonic-swss. See detail description in section [SWSS Enhancements](#swss-enhancements).
 
@@ -121,7 +122,7 @@ On the other hand, a new port attribute will be introduced for the link-training
 
 Vendor-specific SAI implementation is not in the scope of this document, but there are some common requirements for SAI:
 
-1. swss must check the link-training abilities before making the corresponding request to syncd.
+1. swss must check the link-training abilities before making the corresponding requests to syncd.
 2. SAI implementation must return error code if any of the above attributes is not supported, swss and syncd must not crash.
 3. SAI implementation must keep port link training disabled by default for backward compatibility. As long as swss and SAI keep backward compatible, user need not change anything after this feature is implemented and available in SONiC.
 
@@ -219,15 +220,14 @@ String value, the port link training admin config.
 
 #### State DB Enhancements
 
-A new table **LINK_TRAINING** with the following fields will be introduced into STATE_DB:
+The following fields will be introduced into **PORT_TABLE** table:
 
 	; Defines information for port link-training states
-	key             = LINK_TRAINING:port_name ; port link-training states
-	; field         = value
-	status          = STRING                  ; hardware operational status
-	supported       = STRING                  ; hardware link-training ability status of the switch
+	key                  = PORT_TABLE:port_name ; port link-training states
+	; field              = value
+	link_training_status = STRING               ; port link-training operational status
 
-- status:  
+- link_training_status:  
 String value, the operational port link training status. The list of possible values is as follow  
 
   | Status      | Description                                                        |
@@ -240,23 +240,14 @@ String value, the operational port link training status. The list of possible va
   | snr_low     | Enabled, while the SNR low threshold is detected                   |
   | timeout     | Enabled, while the training process is timed out                   |
 
-- supported:  
-String value, the hardware link-training ability status of the switch, this is a constant of the underlying switch silicon regardless of the transceivers attached, the swss#orchagent should populate this information during startup. The list of possible values is as follow  
-
-  | Status      | Description   |
-  |:-----------:|:-------------:|
-  | yes         | Supported     |
-  | no          | Not Supported |
-
 #### SAI attributes
 
 Here is the table to map the fields and SAI attributes:  
 
 | **Parameter**             | **sai_port_attr_t**                        |
 |:--------------------------|:-------------------------------------------|
-| link_training (APPL_DB)   | SAI_PORT_ATTR_LINK_TRAINING_ENABLE         |
-| status (STATE_DB)         | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
-| supported (STATE_DB)      | SAI_PORT_ATTR_SUPPORTED_LINK_TRAINING_MODE |
+| link_training             | SAI_PORT_ATTR_LINK_TRAINING_ENABLE         |
+| link_training_status      | SAI_PORT_ATTR_LINK_TRAINING_RX_STATUS, SAI_PORT_ATTR_LINK_TRAINING_FAILURE_STATUS |
 
 #### YANG Model Enhancements
 
@@ -280,58 +271,38 @@ By having port link training disabled if "link_training" is not specified in the
 
 ##### Port Link-Training Ability Flag
 
-During system startup, PortsOrch should query for the per-port link-training abilities from syncd, and populate these flags into **LINK_TRAINING** table of [STATE_DB](#state-db-enhancements)
+During system startup, PortsOrch should query for the per-port link-training abilities from syncd, and have these per-port flags maintained in the **m_port_cap_lt** field of **Port** object.
 
-##### Port Configuration Flow
-
-The current SONiC port configuration flow in PortsOrch can be described in following pseudo code:
-
-```
-port = getPort(alias)
-if autoneg changed:
-    setPortAutoNeg(port, autoneg)
-```
-
-The new SONiC port configuration flow can be described in following pseudo code:
-
-```
-port = getPort(alias)
-if autoneg changed:
-    setPortAutoNeg(port, autoneg)
-
-if link_training changed:
-    setPortLinkTraining(port, link_training)
+i.e.
+```cpp
+class Port
+{
+    ......
+    bool m_port_cap_lt = false; /* Port Capability - LinkTraining */
+};
 ```
 
-##### Link Training Status Refresh
+##### Port Link-Training Configuration Flow
 
-A timer will also be introduced into PortsOrch for polling link-training status:
+in PortsOrch, the port Link-Training configuration flow is as follows, the link-training may or may not be disabled when auto-negotiation is activated, it depends on the switch ASIC limitations in the individual SAI implementation, and the pre-emphasis configuration request should be saved and replayed upon link-training configuration updates:
 
-```
-while PortsOrch is alive:
-    sleep_sec(3)
-    for port in all_port_list:
-        updatePortLinkTrainingStatus(port)
-```
+![](flow_lt_config.png)
 
-The updatePortLinkTrainingStatus(port) can be furtherly described in following pseudo code:
+##### Port Link-Training Status Poll
 
-```
-if port is not physical_port:
-    return
+A timer thread will be introduced into PortsOrch for polling link-training status, the per-port status poll will be activated upon the following events
 
-status = "off"
-if link-training is supported by the SAI and is enabled:
-    status = getLinkTrainingRxStatus(port)
-    if status != trained:
-        error = getLinkTrainingFailure(port)
-        if error != "none":
-            status = error
-        else:
-            status = "not_trained"
-updateLinkTrainingStateDB(port, status)
-```
+- Link-Training is transitoned to be enabled on a port
+- Link is down on a port with Link-Training enabled
 
+On the other hand, the per-port status poll will be de-activated upon the following events
+
+- Link-Training is transitoned to be disabled on a port
+- Link is up on a port with Link-Training enabled
+
+This timer is a single-threaded task that polls the status of all ports one by one, the program flow is as follows
+
+![](flow_lt_status.png)
 
 ### Warmboot Design Impact
 
