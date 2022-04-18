@@ -281,7 +281,9 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Runs in 2 threads.
 - The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
 - The event writer thread, wakes up periodically.
-- The redis key {event-source | event-tag }
+- The redis key is coined as {event-source | event-tag | <hash of params>}
+- The redis value is { timestamp:... [, param0: ... [param1: ...]] }
+- The key helps tracks all unique event instances
 - Though the writer wakes up every N seconds, it writes the value as of at the timepoint of it waking up.
 - Writer will be diligent to write only updates that it missed in the last cycle. 
 - The writer's default redis update frequency can be modified via init-cfg.json.
