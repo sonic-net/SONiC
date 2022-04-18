@@ -73,8 +73,20 @@ Below is a sample of `FLAGS` table
 
 #### 5.2.1 Set default value with `init_cfg.json`
 
-The default vaule of flags in `FLAGS` table can be set in `init_cfg.json` and loaded into db at system startup. These flags are usually set at image being build, and are unlikely to change at runtime.
+The default value of flags in `FLAGS` table can be set in `init_cfg.json` and loaded into db at system startup. These flags are usually set at image being build, and are unlikely to change at runtime.
 
+If the values in `config_db.json` is changed by user, it will not be rewritten back by `init_cfg.json` as `config_db.json` is loaded after `init_cfg.json` in [docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2)
+
+```
+if [ -r /etc/sonic/config_db$DEV.json ]; then
+    if [ -r /etc/sonic/init_cfg.json ]; then
+        $SONIC_CFGGEN -j /etc/sonic/init_cfg.json -j /etc/sonic/config_db$DEV.json --write-to-db
+    else
+        $SONIC_CFGGEN -j /etc/sonic/config_db$DEV.json --write-to-db
+    fi
+fi
+```
+For example, the value of `default_bgp_status` is down in `init_cfg.json` if `shutdown_bgp_on_start` is set to `y` when image is being built. If we modify the value of `default_bgp_status` in `config_db.json` to `up`, it will keep `up`.
 #### 5.2.2 Parse from `minigraph.xml` when loading minigraph
 
 For the flags that can be changed by reconfiguration, we can update entries in `minigraph.xml`, and parse the new values in to config_db with minigraph parser at reloading minigraph.
