@@ -286,7 +286,7 @@ class Port
 
 in PortsOrch, the port Link-Training configuration flow is as follows, the link-training may or may not be disabled when auto-negotiation is activated, it depends on the switch ASIC limitations in the individual SAI implementation, and the pre-emphasis configuration request should be saved and replayed upon link-training configuration updates:
 
-![](flow_lt_config.png)
+![](flow-lt-config.png)
 
 ##### Port Link-Training Status Poll
 
@@ -302,7 +302,7 @@ On the other hand, the per-port status poll will be de-activated upon the follow
 
 This timer is a single-threaded task that polls the status of all ports one by one, the program flow is as follows
 
-![](flow_lt_status.png)
+![](flow-lt-status.png)
 
 ### Warmboot Design Impact
 
