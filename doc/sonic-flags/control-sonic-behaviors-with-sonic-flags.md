@@ -74,7 +74,6 @@ Below is a sample of `FLAGS` table
 #### 5.2.1 Set default value with `init_cfg.json`
 
 The default value of flags in `FLAGS` table can be set in `init_cfg.json` and loaded into db at system startup. These flags are usually set at image being build, and are unlikely to change at runtime.
-
 If the values in `config_db.json` is changed by user, it will not be rewritten back by `init_cfg.json` as `config_db.json` is loaded after `init_cfg.json` in [docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2)
 
 ```
@@ -111,8 +110,18 @@ The `FLAGS` table can be subscribed by components that are interested on the fla
 A new Yang model is to be added to restrict the valid flags in `FLAGS` table. The existing entries for flags in current [sonic-device_metadata.yang](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-device_metadata.yang) are to be removed.
 
 ### 6.3 Code change
-1. Update `db_migrator.py` to migrate flags from `DEVICE_METADATA|localhost` table to `FLAGS` table.
-2. Update the code of component to subscribe `FLAGS` table to watch the update.
+1. Update `db_migrator.py` to migrate flags from `DEVICE_METADATA|localhost` table to `FLAGS` table. Current flags include
+
+|Flag|Source|
+|--|--|
+|default_bgp_status| From init_cfg.json, the value is determined by option shutdown_bgp_on_start when image being built|
+|default_pfcwd_status|From init_cfg.json, the value is determined by option enable_pfcwd_on_start when image being built|
+|synchronous_mode|From init_cfg.json, the value is determined by option include_p4rt when image being built|
+|buffer_model|From init_cfg.json, the value is determined by option default_buffer_model when image being built|
+|dhcp_server| Parse from minigraph.xml|
+
+
+2. Add code to subscribe `FLAGS` table to get the update notification for components that is interested in the `FLAGS` change. Currently, all orchs and daemons don't support changing flag controlled behaviors without restarting service, so no code change is required for existing components.
 
 ## 7 Test requirement
 TBA
