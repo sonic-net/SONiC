@@ -490,7 +490,7 @@ This will be run when the application installs/uninstalls. Since, the auto-techs
 
 Thus the decision to whether or not to enable the new feature will be based on the current values of AUTO_TECHSUPPORT & AUTO_TECHSUPPORT_FEATURE tables. The default value for new feature will be disabled if the global state is shown disabled in init_cfg.json. If not, the feature will be enabled. The rate-limit-interval & memory threshold is set to 600 & 10% by default. 
 
-If there is a user-provided config in conifg_db.json or CONFIG_DB, it is not overwritten by the default config when the app installs and is not cleared when the app gets uninstalled.
+When the app get un-installed, all the config will be cleared unless keep-config option is used.
 
 
 ## 11. Open questions
