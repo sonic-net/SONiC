@@ -29,7 +29,7 @@ This document provides a detailed description on the new features for:
 
 |                                                              | Pros                                              | Cons                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------ |
-| Get default value from Yang model in read API.               | Redis config DB keeps no change.                  | 3 MB memory per-process because need load Yang model and reference libyang.<br>0.05 second to load yang model. |
+| Get default value from Yang model in read API.               | Redis config DB keeps no change.                  | 3 MB memory per-process because need load Yang model and reference libyang.<br>50ms to load yang model.<br>8ms to read default value 10000 times. |
 | Write default value to default value DB when write config DB. | Better read performance, Less memory consumption. | Need add new Redis DB for default value.                     |
 
 ### API compatibility
