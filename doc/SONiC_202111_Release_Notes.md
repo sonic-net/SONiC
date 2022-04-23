@@ -214,7 +214,7 @@ Refer [HLD document](https://github.com/Azure/SONiC/blob/master/doc/Query_Stats_
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.9.1 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.9.1%20Release%20notes.md)
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.9.1 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.9.1_ReleaseNotes.md)
 
 
 # Contributors 

@@ -16,6 +16,7 @@
     * [1.3 CLI requirements](#13-cli-requirements)
     * [1.4 Warm Restart requirements ](#14-warm-restart-requirements)
     * [1.5 Scaling requirements ](#15-scaling-requirements)
+    * [1.6 SAI requirements ](#16-sai-requirements)
   * [2 Modules Design](#2-modules-design)
     * [2.1 Config DB](#21-config-db)
     * [2.2 App DB](#22-app-db)
@@ -93,6 +94,14 @@ At a minimum level, the following are the estimated scale numbers
 | Tunnel endpoints         | 4k                          |
 | BFD monitoring           | 4k                          |
 
+## 1.6 SAI requirements
+In addition to supporting Overlay ECMP (TUNNEL APIs) and BFD (HW OFFLOAD), the platform must support the following SAI attributes
+| API                   | 
+|--------------------------|
+| SAI_SWITCH_ATTR_VXLAN_DEFAULT_ROUTER_MAC              |
+| SAI_SWITCH_ATTR_VXLAN_DEFAULT_PORT        |
+
+
 # 2 Modules Design
 
 The following are the schema changes. 
@@ -134,6 +143,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
 
 Proposed:
 ```
+{% raw %} # ignore this line please
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
     "endpoint": {{ip_address1},{ip_address2},...} 
     "endpoint_monitor": {{ip_address1},{ip_address2},...} (OPTIONAL) 
@@ -141,6 +151,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "vni": {{vni1},{vni2},...} (OPTIONAL) 
     "weight": {{w1},{w2},...} (OPTIONAL) 
     “profile”: {{profile_name}} (OPTIONAL) 
+{% endraw %} # ignore this line please
 ```
 
 ```
