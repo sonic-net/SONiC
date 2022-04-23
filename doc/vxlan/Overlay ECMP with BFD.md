@@ -38,6 +38,7 @@
 | 1.3 | 11/01/2021  |     Prince Sunny  | IPv6 test cases added              |
 | 1.4 | 12/03/2021  |     Prince Sunny  | Added scaling section, extra test cases  |
 | 1.5 | 04/11/2022  |     Prince Sunny  | Test plan for Health monitoring |
+| 1.6 | 04/23/2022  |     Storm Liang  | Update 2.6 BGP secion & add Test plan for BGP |
 
 # About this Manual
 This document provides general information about the Vxlan Overlay ECMP feature implementation in SONiC with BFD support. This is an extension to the existing VNET Vxlan support as defined in the [Vxlan HLD](https://github.com/Azure/SONiC/blob/master/doc/vxlan/Vxlan_hld.md)
@@ -232,19 +233,85 @@ VnetOrch shall create an entry in STATE_DB for the active overlay routes eligibl
 
 ```
 STATE_DB|ADVERTISE_NETWORK_TABLE|{{ip_prefix}}
+    "profile": {{profile_name}}
 ```
 
 The above entry shall be subscribed for by bgpcfgd and advertised by the “network” command. 
+Notes: Currently, only one profile_name is supported, the value is fixed as "FROM_SDN_SLB_ROUTES" 
 
 For example:
 ```
 router bgp 1
  address-family ipv4 unicast
-  network 10.0.0.0/8
+  network 10.0.0.0/8  route-map FROM_SDN_SLB_ROUTES_RM
  exit-address-family
- ```
+```
 
-This configuration example says that network 10.0.0.0/8 will be announced to all neighbors. FRR bgpd doesn’t care about IGP routes when announcing its routes.
+This configuration example says that network 10.0.0.0/8 will be announced to all neighbors. FRR bgpd doesn’t care about IGP routes when announcing its routes. 
+The profile would be transformed to route-map and associated with IP prefix. 
+
+VnetOrch shall create a profile in APP_DB, which would be associated to the IP prefix when advertised by "network" command. 
+
+```
+APP_DB|BGP_PROFILE_TABLE|{{profile_name}}
+    "community_id": {{community_string}}
+```
+
+Notes: Same here, currently only one profile is supported - "FROM_SDN_SLB_ROUTES" 
+The above entry shall be subscribed for by bgpcfgd and created/updated by "route-map" command. 
+
+For example:
+```
+route-map FROM_SDN_SLB_ROUTES_RM permit 100
+ set community 1234:1235
+```
+
+Below will go through several use cases by manipulating tables. 
+
+### Use case A: To advertise route 10.0.0.0/8 with community id "1234:1235" 
+Step 1: add/update one route-map entry in the state db. 
+```
+APP_DB|BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES
+    "community_id": "1234:1235"
+```
+
+Command to add this entry 
+```
+sonic-db-cli APP_DB HSET "BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES" "community_id" "1234:1235"
+```
+ 
+Step 2: add route entry in the state db 
+```
+STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8
+    "profile": "FROM_SDN_SLB_ROUTES"
+```
+Command to add this entry 
+```
+sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" "FROM_SDN_SLB_ROUTES"
+```
+
+### Use case B: 10.0.0.0/8 with community id "1234:1235",  re advertise route 10.0.0.0/8 with new community id "1234:1236" 
+Step 1: add/update one route-map entry in the state db. 
+```
+APP_DB|BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES
+    "community_id": "1234:1236"
+```
+
+Command to add this entry 
+```
+sonic-db-cli APP_DB HSET "BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES" "community_id" "1234:1236"
+```
+
+### Use case C: To remove route 10.0.0.0/8 with community id "1234:1235" 
+Step 1: Delete the route entry in the state db. 
+
+~~STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8~~
+
+Command to add this entry 
+```
+sonic-db-cli STATE_DB HDEL "ADVERTISE_NETWORK_TABLE|10.0.0.0/8"
+```
+
 
 
 ## 2.7 CLI
@@ -394,6 +461,7 @@ Reference tables
     "VNET_ROUTE_TUNNEL_TABLE:Vnet_3000:100.100.2.1/32": { 
         "endpoint": "1.1.1.2", 
         "endpoint_monitor": "1.1.2.2"
+        "profile": "FROM_SDN_SLB_ROUTES"
      }
     
     "BFD_SESSION:default:default:1.1.2.2": {
@@ -404,11 +472,16 @@ Reference tables
     "VNET_ROUTE_TUNNEL_TABLE:Vnet_3001:2000::1/128": { 
         "endpoint": "fc02:1000::1", 
         "endpoint_monitor": "fc02:1000::2"
+        "profile": "FROM_SDN_SLB_ROUTES"
      }
      
     "BFD_SESSION:default:default:fc02:1000::2": {
         "multihop": "true",
         "local_addr": "fc00:1::32"
+     }
+
+    "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES": {
+        "community_id": "1234:1236"
      }
 ]
 ```
@@ -417,6 +490,7 @@ Reference tables
 ```
 {
     "ADVERTISE_NETWORK_TABLE|100.100.2.1/32": {
+        "profile": "FROM_SDN_SLB_ROUTES"
      }
      
     "BFD_SESSION_TABLE|default|default|1.1.2.2": {
@@ -424,6 +498,7 @@ Reference tables
      }
      
     "ADVERTISE_NETWORK_TABLE|2000::1/128": {
+        "profile": "FROM_SDN_SLB_ROUTES"
      }
      
      "BFD_SESSION_TABLE|default|default|fc02:1000::2": {
@@ -452,5 +527,12 @@ The below cases are executed first for IPv4 and repeat the same for IPv6.
 |Create/Delete overlay routes to 4k with unique endpoints upto 4k | BFD Scaling  | Verify all 4k BFD sessions are succesfully created and sessions alive |
 
 ### 2.8.3 BGP advertising
-
-TBD
+The below cases are executed first for IPv4 and repeat the same for IPv6. 
+| Step | Goal | Expected results |
+|-|-|-|
+| Create a tunnel route and adevertise the tunnel route to all neighbor without community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes |
+| Create a tunnel route and adevertise the tunnel route to all neighbor with community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with community id |
+| Update a tunnel route and adevertise the tunnel route to all neighbor with new community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with new community id |
+| Delete a tunnel route | BGP | ALL BGP neighbors can remove the previously advertised BGP routes |
+| Create 4k tunnel routes and adevertise all tunnel routes to all neighbor with community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with community id and record the time |
+| Updat BGP_PROFILE_TABLE with new community id for 4k tunnel routes and adevertise all tunnel routes to all neighbor with new community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with new community id and record the time |
