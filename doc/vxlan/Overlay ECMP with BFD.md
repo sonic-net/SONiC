@@ -253,7 +253,7 @@ The profile would be transformed to route-map and associated with IP prefix.
 VnetOrch shall create a profile in APP_DB, which would be associated to the IP prefix when advertised by "network" command. 
 
 ```
-APP_DB|BGP_PROFILE_TABLE|{{profile_name}}
+APPL_DB:BGP_PROFILE_TABLE:{{profile_name}}
     "community_id": {{community_string}}
 ```
 
@@ -271,13 +271,13 @@ Below will go through several use cases by manipulating tables.
 ### Use case A: To advertise route 10.0.0.0/8 with community id "1234:1235" 
 Step 1: add/update one route-map entry in the state db. 
 ```
-APP_DB|BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES
+APPL_DB:BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES
     "community_id": "1234:1235"
 ```
 
 Command to add this entry 
 ```
-sonic-db-cli APP_DB HSET "BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES" "community_id" "1234:1235"
+sonic-db-cli APPL_DB HSET "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES" "community_id" "1234:1235"
 ```
  
 Step 2: add route entry in the state db 
@@ -293,13 +293,13 @@ sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" "FROM_
 ### Use case B: 10.0.0.0/8 with community id "1234:1235",  re advertise route 10.0.0.0/8 with new community id "1234:1236" 
 Step 1: add/update one route-map entry in the state db. 
 ```
-APP_DB|BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES
+APPL_DB:BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES
     "community_id": "1234:1236"
 ```
 
 Command to add this entry 
 ```
-sonic-db-cli APP_DB HSET "BGP_PROFILE_TABLE|FROM_SDN_SLB_ROUTES" "community_id" "1234:1236"
+sonic-db-cli APPL_DB HSET "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES" "community_id" "1234:1236"
 ```
 
 ### Use case C: To remove route 10.0.0.0/8 with community id "1234:1235" 
@@ -312,7 +312,7 @@ Command to add this entry
 sonic-db-cli STATE_DB HDEL "ADVERTISE_NETWORK_TABLE|10.0.0.0/8"
 ```
 
-
+Notes: the BGP_PROFILE_TABLE table need to be removed explicitly, there is no ref-count in the bgpconfd layer.
 
 ## 2.7 CLI
 
