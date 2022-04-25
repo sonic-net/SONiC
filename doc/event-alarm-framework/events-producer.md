@@ -31,9 +31,12 @@ This latency could run in the order of minutes.
 ### Events
 1. Events are defined with schema.
 2. Every event is identified by a source & tag; The tag is unique within a event source with zero or more event specific parameters.
-3. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
-4. Every event is described in YANG schema.
-5. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
+3. Every event for a source & tag is uniquely identified by a hash of key parameters of that event.
+4. source + tag + hash can be used to identify duplicate events.
+5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
+6. Event reporter includes sender info, which is used only for gauging possible missed messages from this sender.
+7. Every event is described in YANG schema.
+8. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
 
 ### Events APIs
 The libswsscommon will have the APIs for the following purposes.
@@ -165,8 +168,8 @@ The Event API is provided as part of libswsscommon with API definition in a head
 
 #### Reporting API
 - APIs for event reporting is provided. 
-- EVENT_SEND_INIT to initialize once and EVENT_SEND is called for each event send. 
-- The event reporting API accepts, event-sender, source, tag & parameters. The timestamp could be provided too.
+- An API to initialize once and and event-send API is called for each event send. 
+- The event reporting API accepts, event-sender, source, tag, hash-params & parameters. The timestamp could be provided too.
 - The event reporting API adds "timestamp" if not provided and "index".
 - Event index is coined per source per sender. 
 - The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
@@ -175,7 +178,7 @@ The Event API is provided as part of libswsscommon with API definition in a head
 
 ### Receiving API
 - APIs for event receive are provided.
-- EVENT_RECV_INIT to initialize once and EVENT_RECV is called for each event read. 
+- An init API to initialize once and receive is called for each event read. 
 - The receiver API uses the index to compute missed count of message per source per reader and pass it along with the message in read call, as optional o/p val.
 
 
@@ -246,7 +249,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 #### requirements
 - Events are reported from multiple event detectors or we may call event-sources.
 - The event detectors could be running in host and/or some/all containers.
-- Each event includes to the minimum "event sender", "event source", "event tag", "event timestamp" and "event index"
+- Each event includes to the minimum "event sender", "event source", "event tag", "event timestamp, "event hash" and "event index"
 - Supports multiple local clients to be able to receive the events concurrently.
 - Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
 - The local clients could be operating at different speeds.
@@ -281,7 +284,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Runs in 2 threads.
 - The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
 - The event writer thread, wakes up periodically.
-- The redis key is coined as {event-source | event-tag | <hash of params>}
+- The redis key is coined as {event-source | event-tag | event-hash}
 - The redis value is { timestamp:... [, param0: ... [param1: ...]] }
 - The key helps tracks all unique event instances
 - Though the writer wakes up every N seconds, it writes the value as of at the timepoint of it waking up.
