@@ -796,7 +796,7 @@ Return Dict:
 
 ### 3.1 ACL Table
 
-ACL Tables configuration resieds in CONFIG DB in table *ACL_TABLE*. Tables in *ACL_TABLE* may reference another table *ACL_TABLE_TYPE* that holds the table type configuration or may use one of default table types (L3, L3V6, MIRROR, etc.). This information is dumped from CONFIG DB. Orchagent processes *ACL_TABLE* and *ACL_TABLE_TYPE* configuration and manages the following ASIC resources:
+ACL Tables configuration resides in CONFIG DB in table *ACL_TABLE*. Tables in *ACL_TABLE* may reference another table *ACL_TABLE_TYPE* that holds the table type configuration or may use one of default table types (L3, L3V6, MIRROR, etc.). This information is dumped from CONFIG DB. Orchagent processes *ACL_TABLE* and *ACL_TABLE_TYPE* configuration and manages the following ASIC resources:
  - *SAI_OBJECT_TYPE_ACL_TABLE*
  - *SAI_OBJECT_TYPE_ACL_TABLE_GROUP*
  - *SAI_OBJECT_TYPE_ACL_TABLE_GROUP_MEMBER*.
@@ -905,7 +905,7 @@ admin@sonic:~$ dump state acl_table DATA_L3 -t
 
 ### 3.2 ACL Rule
 
-ACL Rules configuration resieds in CONFIG DB in table *ACL_RULE*. This information is dumped from CONFIG DB. Orchagent processes *ACL_RULE* configuration and manages the following ASIC resources:
+ACL Rules configuration resides in CONFIG DB in table *ACL_RULE*. This information is dumped from CONFIG DB. Orchagent processes *ACL_RULE* configuration and manages the following ASIC resources:
  - *SAI_OBJECT_TYPE_ACL_ENTRY*
  - *SAI_OBJECT_TYPE_ACL_COUNTER*
  - *SAI_OBJECT_TYPE_ACL_RANGE*
