@@ -290,7 +290,19 @@ Command to add this entry
 sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" "FROM_SDN_SLB_ROUTES"
 ```
 
-### Use case B: 10.0.0.0/8 with community id "1234:1235",  re advertise route 10.0.0.0/8 with new community id "1234:1236" 
+### Use case B: To advertise route 10.0.0.0/8 without community id (without profile)
+Step 1: add route entry in the state db 
+```
+STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8
+    "profile": ""
+```
+Command to add this entry 
+```
+sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" ""
+```
+Notes: This would be different with current vnetorch behavior, vnetorch will add the route entry {STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8:{"":""}}, this need to be changed.
+
+### Use case C: 10.0.0.0/8 with community id "1234:1235",  re advertise route 10.0.0.0/8 with new community id "1234:1236" 
 Step 1: add/update one route-map entry in the state db. 
 ```
 APPL_DB:BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES
@@ -302,14 +314,14 @@ Command to add this entry
 sonic-db-cli APPL_DB HSET "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES" "community_id" "1234:1236"
 ```
 
-### Use case C: To remove route 10.0.0.0/8 with community id "1234:1235" 
+### Use case D: To remove route 10.0.0.0/8 with community id "1234:1235" 
 Step 1: Delete the route entry in the state db. 
 
 ~~STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8~~
 
 Command to add this entry 
 ```
-sonic-db-cli STATE_DB HDEL "ADVERTISE_NETWORK_TABLE|10.0.0.0/8"
+sonic-db-cli STATE_DB DEL "ADVERTISE_NETWORK_TABLE|10.0.0.0/8"
 ```
 
 Notes: the BGP_PROFILE_TABLE table need to be removed explicitly, there is no ref-count in the bgpconfd layer.
