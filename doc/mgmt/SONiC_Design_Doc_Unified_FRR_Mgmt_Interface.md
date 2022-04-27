@@ -64,6 +64,7 @@
 | 0.7 | 08/10/2020  | Venkatesan Mahalingam | Added a requirement to indicate that this document intends to cover non-template based FRR configurations i.e solely based on configurations from config DB |
 | 0.8 | 01/28/2021  | Zhenhong Zhao & Venkatesan Mahalingam | Changed daemon name from bgpcfgd to frrcfgd and added some missed table and field descriptions |
 | 0.9 | 03/05/2021 | Venkatesan Mahalingam | Added a field 'frr_mgmt_framework_config' field in DEVICE_METADATA config-DB schema to start frrcfgd daemon and table name change for PREFIX table |
+| 0.10 | 11/29/2021 | Sucheta Mahara | Enable BGP with link local only using option v6only|
 
 ## About this Manual
 This document provides general information about the implementation of Extended Unified Configuration and Management framework support for FRR-BGP feature in SONiC.
@@ -345,6 +346,7 @@ strict_capability_match            = "true" / "false" ; Strict capability negoti
 admin_status                       = "true" / "false" ; Neighbor admin status
 local_as_no_prepend                = "true" / "false" ; Do not prepend local-as to updates from ebgp peers
 local_as_replace_as                = "true" / "false" ; Do not prepend local-as to updates from ibgp peers
+v6only                             = "true" / "false" ; Enable BGP session with Link local only.
 
 ```
 #### 3.2.1.7 BGP_NEIGHBOR_AF
@@ -781,6 +783,8 @@ module: openconfig-routing-policy
 | Solo peer - part of its own update group |sonic(config-router-bgp-neighbor)# solo |
 | Strict capability negotiation match |sonic(config-router-bgp-neighbor)# strict-capability-match |
 | |sonic(config-router-bgp-neighbor)# ttl-security hops \<val>  |
+| Enable v6only for BGP neighbor interface|sonic(config-router-bgp-neighbor)# v6only |
+
 
 ##### 3.6.2.1.4 BGP Neighbor Address family mode commands
 |Command Description |CLI Command    |
@@ -1126,4 +1130,47 @@ This enhancement to FRR-BGP Unified management framework does not disrupt data p
 
 # 9 Unit Test
 Testing of the configuration changes are automated i.e all the config DB changes for BGP fields will be checked against FRR BGP commands and BGP configurations present in CONFIG_DB are converted to FRR configurations using config gen utility with help of Jinja template during configuration restore.
+## 9.1 Test case for v6only:
+
+
+Test CASE 1 : Configure BGP for interface neighbor
+
+|Command Executed | Result /Notes     |
+|:------------------|:-----------------|
+|sonic(config)# interface Ethernet 0||
+|sonic(conf-if-Ethernet0)# ipv6 enable||
+|sonic(conf-if-Ethernet0)# no shutdown| |
+|sonic(conf-if-Ethernet0)# exit| |
+|sonic(config)# interface Loopback 0| |
+|sonic(conf-if-lo0)# ip address 10.0.1.1/32| |
+|sonic(conf-if-lo0)# exit| |
+|sonic(config)# router bgp 101| |
+|sonic(conf-router-bgp)# router-id 10.0.1.1| |
+|sonic(config-router-bgp)# neighbor interface Ethernet 0| |
+|sonic(config-router-bgp-neighbor)# address-family ipv4 unicast| |
+|sonic(config-router-bgp-neighbor-af)# activate| |
+|sonic(config-router-bgp-neighbor-af)# exit| |
+|sonic(config-router-bgp-neighbor)# remote-as external||
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|BGP session is establised on link local |
+
+Test CASE 2 : Add ipv4 address and session goes down i.e from Established to Active
+
+|Command Executed | Result /Notes     |
+|:------------------|:-----------------|
+|sonic(conf-if-Ethernet0)# ip address 1.1.1.1/31|  |
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors|session is down |
+
+Test CASE 3 : Add v6only and session is Established on link local address.
+
+|Command Executed | Result /Notes     |
+|:------------------|:-----------------|
+|sonic(config)# interface Ethernet 0| |
+|sonic(config-router-bgp-neighbor)# v6only| |
+|sonic(config-router-bgp-neighbor)# do show bgp ipv4 unicast neighbors| session Established |
+
+v6only can be set with REST/gnmi.
+
+Example rest URI:-
+/restconf/data/openconfig-network-instance:network-instances/network-instance=default/protocols/protocol=BGP,bgp/bgp/neighbors/neighbor=Ethernet0/config/openconfig-bgp-ext:v6only
+
 # 10 Appendix
