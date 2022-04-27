@@ -109,13 +109,20 @@ module sonic-events-bgp {
 
 ### BGP State event 
 The above set of logs will now be published as following structured events per schema
-
+```
 { "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "false", "timestamp": "2022-08-17T02:39:21.286611" }
 { "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "true", "timestamp": "2022-08-17T02:46:42.615668" }
 { "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "false", "timestamp": "2022-08-17T04:46:51.290979" }
 { "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "true", "timestamp": "2022-08-17T05:06:26.871202" }
-    
+```    
+### gNMI client
+The client could subscribe for events with optional filter on event source in streaming mode
+```
+gnmic --target events --path "/bgp" --mode STREAM --stream-mode ON_CHANGE
+```
 
+### redis entries
+The unique instances of events are recorded in EVENTS-DB with key=<source>|<tag>|<contatenated keys>
 ## Requirements
 ### Events
 1. Events are defined with schema.
