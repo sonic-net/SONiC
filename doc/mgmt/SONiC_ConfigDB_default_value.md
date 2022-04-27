@@ -1,6 +1,21 @@
 # ConfigDB default value from Yang model
 
 ## Table of Contents
+- [Table of Contents](#table-of-contents)
+- [About this Manual](#about-this-manual)
+    + [SONiC issue solved by this feature](#sonic-issue-solved-by-this-feature)
+- [1 Functional Requirement](#1-functional-requirement)
+    + [1.1 swss-common return default value from Yang model](#1-1-swss-common-return-default-value-from-yang-model)
+- [2 Design](#2-design)
+    + [2.1 Considerations](#2-1-considerations)
+    + [2.2 New class](#2-2-new-class)
+    + [2.3 Other code change](#2-3-other-code-change)
+    + [2.4 Other solutions](#2-4-other-solutions)
+    + [2.2 New class](#222-new-class)
+- [3 Error handling](#3-error-handling)
+- [4 Serviceability and Debug](#4-serviceability-and-debug)
+- [5 Unit Test](#5-unit-test)
+- [6 References](#6-references)
 
 
 # About this Manual
@@ -8,7 +23,7 @@ This document provides a detailed description on the new features for:
  - Get default value from Yang model.
  - swss-common API support read default value from config DB.
 
-## SONiC memory issue solved by this feature.
+## SONiC issue solved by this feature
  - Potential risk: Yang model default value conflict with hardcoded value:
     - Default value hardcoded in source code.
     - Yang model default value not used.
@@ -39,32 +54,33 @@ This document provides a detailed description on the new features for:
 | Existed read API return default value. | Less code change, all app will get default value automatically. | There are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
 | Existed read API keeps no change.      | When update existed code, can cleanup code to remove hard coded default value. | All apps need code update.                                   |
 
-## 2.2 Load yang model
+## 2.2 New class
  - YangModelLoader class
    - load table name to default value mapping to memory.
+
  - DefaultValueProvider class
    - Find default value information by table name and config DB key
    - Merge default value to API result.
 
+ - DBDecorator interface
+ - ConfigDBDecorator class
+   - This class contains all logic and knowledge for apply default to config DB query result. 
+
 ## 2.3 Other code change
- - Following method will change to get default value from DefaultValueProvider
-   - ConfigDBPipeConnector_Native::_get_config(DBConnector& client, RedisTransactioner& pipe, map<string, map<string, map<string, string>>>& data, int cursor, bool withDefaultValue)
-   - ConfigDBConnector_Native::get_config(bool withDefaultValue)
-   - ConfigDBConnector_Native::get_table(string table, bool withDefaultValue)
-   - DBConnector::hgetall(const std::string &key, OutputIterator result, bool withDefaultValue)
-   - Table::get(const string &key, vector<FieldValueTuple> &values)
+ - DBConnector class add 2 new methods:
+   - void setDBDecorator(std::shared_ptr<swss::DBDecorator> &db_decorator);
+   - const std::shared_ptr<swss::DBDecorator> &getDBDecorator() const;
 
-## 2.4 API change
+ - Following class will add new parameter to ctor:
+   - ConfigDBConnector_Native
+   - ConfigDBPipeConnector_Native
+   - ConfigDBConnector
 
- - All existed API keep no change.
- - Add new API with 1 new parameter 'withDefaultValue'
-   - Example:
-     - Current API:
-       - ConfiDBConnector::get_table(std::string table)
-     - New API:
-       - ConfiDBConnector::get_table(std::string table, bool **withDefaultValue**)
+ - Existed ctor for following class will mark as depracated:
+   - ConfigDBConnector_Native
+   - ConfigDBPipeConnector_Native
 
-## 2.5 Other solutions
+## 2.4 Other solutions
 
 |                                                              | Pros                                                         | Cons                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -79,37 +95,10 @@ This document provides a detailed description on the new features for:
 # 4 Serviceability and Debug
  - Debug version will write debug log to syslog.
 
-# 6 Unit Test
+# 5 Unit Test
  - All new code will 100% covered by gtest test case.
  - Add E2E test case for all new APIs.
 
-# 7 Changed API list
-   - ConfiDBConnector
-     - get_entry(std::string table, std::string key, bool withDefaultValue)
-     - get_table(std::string table, bool withDefaultValue)
-     - get_config(bool withDefaultValue)
-     - listen(self, init_data_handler=None, with_default_value=False)
-   - ConfigDBPipeConnecto
-     - get_config(bool withDefaultValue)
-   - DBConnector
-     - hget(const string &key, const string &field, bool withDefaultValue)
-     - hgetall(const std::string &key, bool withDefaultValue)
-     - hgetall(const std::string &key, OutputIterator result, bool withDefaultValue)
-   - DBInterface
-     - get(const std::string& dbName, const std::string& hash, const std::string& key, bool withDefaultValue, bool blocking)
-     - get_all(const std::string& dbName, const std::string& hash, bool withDefaultValue, bool blocking)
-   - RedisClient
-     - get(const std::string &key, const std::string &field, bool withDefaultValue)
-     - hgetall(const std::string &key, bool withDefaultValue)
-   - SonicV2Connector
-     - get(const std::string& db_name, const std::string& _hash, const std::string& key, bool withDefaultValue, bool blocking)
-     - get_all(const std::string& db_name, const std::string& _hash, bool withDefaultValue, bool blocking)
-   - SubscriberStateTable
-     - SubscriberStateTable(DBConnector *db, const string &tableName, bool withDefaultValue, int popBatchSize, int pri)
-   - Table
-     - get(const string &key, vector<FieldValueTuple> &values, bool withDefaultValue)
-     - getContent(vector<KeyOpFieldsValuesTuple> &tuples, bool withDefaultValue)
-
-# 8 References
+# 6 References
 ## SONiC YANG MODEL GUIDELINES
 https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md
