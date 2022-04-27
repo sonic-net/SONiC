@@ -93,8 +93,11 @@ module sonic-events-bgp {
                 description "IP of neighbor";
             }
 
-            leaf isUp {
-                type boolean;
+            leaf status {
+                type enumeration {
+                    enum "up";
+                    enum "down";
+                }
                 description "Provides the status as up (true) or down (false)";
             }
 
@@ -110,10 +113,10 @@ module sonic-events-bgp {
 ### BGP State event 
 The above set of logs will now be published as following structured events per schema
 ```
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "false", "timestamp": "2022-08-17T02:39:21.286611" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "true", "timestamp": "2022-08-17T02:46:42.615668" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "false", "timestamp": "2022-08-17T04:46:51.290979" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "true", "timestamp": "2022-08-17T05:06:26.871202" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" }
 ```    
 ### gNMI client
 The client could subscribe for events with optional filter on event source in streaming mode
@@ -128,7 +131,7 @@ The latest/current instance at the time point will be recorded.
 ```
 key=<source>|<tag>|<contatenated keys>
 
-e.g. key: bgp|state|100.126.188.90_up  value { "timestamp": "2022-08-17T02:39:21.286611" }
+e.g. key: bgp|state|100.126.188.90  value: { "timestamp": "2022-08-17T02:39:21.286611"; "status": "up""}
 ```
 ## Requirements
 ### Events
