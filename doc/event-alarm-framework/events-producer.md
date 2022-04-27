@@ -123,7 +123,7 @@ module sonic-events-bgp {
 
     container sonic-events-bgp {
         list event_list {
-            key "event_source event_tag";
+            key "event_tag";
 
             leaf event_source {
                 type enumeration {
@@ -134,8 +134,8 @@ module sonic-events-bgp {
             
             leaf event_tag {
                 type enumeration {
-                    enum "admin_up";
-                    enum "admin_down";
+                    enum "state";
+                    enum "hold_timer";
                 }
                 description "Event type/tag for the source";
             }
@@ -145,15 +145,6 @@ module sonic-events-bgp {
                 description "time of the event";
             }
             
-            leaf event_sender {
-                type string
-                description "Sender name; Multiple senders could be using same source.";
-            }
-            leaf event_index {
-                type uint64
-                description "A running index per source per sender; This can be used by receiver to detect any message lost";
-            }
-
             leaf ip {
                 type inet:ip-address;
                 description "IP of neighbor";
