@@ -122,7 +122,9 @@ gnmic --target events --path "/bgp" --mode STREAM --stream-mode ON_CHANGE
 ```
 
 ### redis entries
-The unique instances of events are recorded in EVENTS-DB with 
+The unique instances of events are recorded in EVENTS-DB as below. 
+Note: The frequency of updates will be few updates per second. In other words, far less than supported perf of 10K messages/sec.
+The latest/current instance at the time point will be recorded.
 ```
 key=<source>|<tag>|<contatenated keys>
 
