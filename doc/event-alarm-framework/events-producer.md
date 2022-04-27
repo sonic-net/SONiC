@@ -122,7 +122,12 @@ gnmic --target events --path "/bgp" --mode STREAM --stream-mode ON_CHANGE
 ```
 
 ### redis entries
-The unique instances of events are recorded in EVENTS-DB with key=<source>|<tag>|<contatenated keys>
+The unique instances of events are recorded in EVENTS-DB with 
+```
+key=<source>|<tag>|<contatenated keys>
+
+e.g. key: bgp|state|100.126.188.90_up  value { "timestamp": "2022-08-17T02:39:21.286611" }
+```
 ## Requirements
 ### Events
 1. Events are defined with schema.
