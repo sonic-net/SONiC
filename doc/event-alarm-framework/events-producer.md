@@ -24,14 +24,102 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/159573073-06075ee6-40e5-42da-88bf-9f349f64626c.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/163482186-d2441b8e-7ff0-498a-9a37-2d25fef614e5.png)
+![image](https://user-images.githubusercontent.com/47282725/165630828-d0c39c33-7e32-42b8-befb-ab443d246cf9.png)
 
+
+## A Use case
+The BGP state change is taken for a sample use case.
+
+### BGP syslogs:
+When BGP state changes, the event is reported in syslog messages as below
+
+```
+bgpd.log.2.gz:Aug 17 02:39:21.286611 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJCHANGE: neighbor 100.126.188.90 Down Neighbor deleted
+bgpd.log.2.gz:Aug 17 02:46:42.615668 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJCHANGE: neighbor 100.126.188.90 Up
+bgpd.log.2.gz:Aug 17 04:46:51.290979 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJCHANGE: neighbor 100.126.188.78 Down Neighbor deleted
+bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJCHANGE: neighbor 100.126.188.78 Up
+
+```
+
+### BGP State event model
+An event is defined for BGP state change in YANG model as below/
+
+```
+module sonic-events-bgp {
+    namespace "http://github.com/Azure/sonic-events-bgp";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "BGP alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC BGP events";
+
+    container sonic-events-bgp {
+        list event_list {
+            leaf source {
+                type enumeration {
+                    enum "bgp";
+                }
+                description "Source is BGP";
+            }
+
+            leaf tag {
+                type enumeration {
+                    enum "state";
+                }
+                description "Event type/tag";
+            }
+
+            leaf ip {
+                type inet:ip-address;
+                description "IP of neighbor";
+            }
+
+            leaf isUp {
+                type boolean;
+                description "Provides the status as up (true) or down (false)";
+            }
+
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
+            }
+        }
+    }
+}
+```
+
+### BGP State event 
+The above set of logs will now be published as following structured events per schema
+
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "false", "timestamp": "2022-08-17T02:39:21.286611" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "isUp": "true", "timestamp": "2022-08-17T02:46:42.615668" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "false", "timestamp": "2022-08-17T04:46:51.290979" }
+{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "isUp": "true", "timestamp": "2022-08-17T05:06:26.871202" }
+    
 
 ## Requirements
 ### Events
 1. Events are defined with schema.
 2. Every event is identified by a source & tag; The tag is unique within a event source with zero or more event specific parameters.
-3. Every event for a source & tag is uniquely identified by a hash of key parameters of that event.
+3. An instance of an event can be uniquely identified by source & tag and key parameters of that event. This can help identify events repeat.
 4. source + tag + hash can be used to identify duplicate events.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. Event reporter includes sender info, which is used only for gauging possible missed messages from this sender.
