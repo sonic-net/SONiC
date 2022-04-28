@@ -349,6 +349,13 @@ typedef std::vector<std::string> event_subscribe_sources_t;
 
 /*
  * Initialize subscriber.
+ *  Only one subscriber is accepted with NULL/empty subscription list.
+ *  This subscriber is called the main receiver.
+ *  The main receiver gets the privilege of caching events whenever the
+ *  connection is dropped until reconnect and cached events are sent 
+ *  upon re-connect.
+ *  Another additional privilege is all stats/SLA is collected for
+ *  this receiver.
  *
  * Input:
  *  lst_subscribe_sources_t
@@ -359,7 +366,8 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *  Non NULL handle on success
  *  NULL on failure
  */
-event_handle_t events_init_subscriber(const event_subscribe_sources_t *sources=NULL);
+event_handle_t events_init_subscriber(const char *sla_id,     
+        const event_subscribe_sources_t *sources=NULL);
 
 /*
  * De-init/free the subscriber
@@ -388,8 +396,30 @@ void events_deinit_subscriber(event_handle_t &handle);
  */
 void event_receive(event_handle_t handle, std::string &source, std::string& tag,
         event_params_t &params, std::string& timestamp);
-```
+        
+        typedef enum {
+    TOTAL_CNT = 0,
+    MISSED_CNT,
+    CACHE_CNT,
+    CACHE_MISSED_CNT,
+    MIN_LATENCY,
+    MAX_LATENCY,
+    AVG_LATENCY
+} stats_type_t;
 
+typedef std::map<stats_type_t, uint64_t> stats_t;
+
+/*  
+ * return stats collected.
+ *   
+ * Stats are only collected for subscription with no filter, the
+ * main receiver.
+ *   
+ * Output:
+ *  Copy of collected stats
+ */  
+stats_t get_stats(event_handle_t &handle);
+```
 
 ### Event detection
 The event detection could happen in many ways
@@ -457,38 +487,45 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ###### con:
 1) Two step process for devs. For each new/updated log message ***for an event*** in the code, remember to add/update regex as needed. 
 
-### Event reporting
+### Event publishing & receiving
 
 #### requirements
-- Events are reported from multiple event detectors or we may call event-sources.
-- The event detectors could be running in host and/or some/all containers.
-- Each event includes to the minimum "event sender", "event source", "event tag", "event timestamp, "event hash" and "event index"
-- Supports multiple local clients to be able to receive the events concurrently.
-- Each local client should be able to receive updates from all event detectors w/o being aware of all of the sources.
-- The local clients could be operating at different speeds.
-- The clients may come and go.
-- There may not be any local client to receive the events.
-- Events reporting should not be blocked by any back pressure from any local client.
-- The reporting should meet the perf goal.
-
+- Events are published as many to many.
+- Multiple receivers for messages published by multiple publishers running in hosts and containers.
+- A receiver should be transparent to all publishers and vice versa
+- A slow receiver should not impact either other receivers.
+- Publishers should never be blocked.
+- Receivers should be able to learn the count of messages they have missed to receive.
+- Receivers & publishers could go down and come up anytime.
 
 #### Design
-- To handle multiple publishers and receiver, ZMQ proxy runs as host service via XPUB/XSUB.
-- Publishers connect to this proxy service XSUB end point to publish messages.
-- Publishers send event-source as topic (_which receivers can use for filtering_)
-- Subscribers/receivers connect to XPUB endpoint to register subscription and receive messages.
-- Receivers can send subscription to filter on topic. In other words set filter to receive messages from only a subset of event-sources.
+- Use ZMQ PUB/SUB for publish & subscribe
+- To help with transparency across publishers & receivers, run a central ZMQ proxy with XPUB/XSUB.
+- Run the zmq proxy service in a dedicated eventd container.
+- The systemd ensures the availability of eventd container.
+- The publishers and subscribers connect to the *always* available, single instance ZMQ proxy.
+- This proxy could transparently feed every messages to a side-car component.
+- Run the events-cache service as the side component.
+- The events cache service is accessible via REQ/REP
 
-##### Pro
-- The senders are never blocked.
-- The receivers can be 0 to many.
-- Both senders & receivers are neither aware of each other nor has any binding.
-- Performance goal can be met.
+#### Details
+1. All the zmq paths' defaults are hardcoded in the libswsscommon lib as part of APIs code.
+2. These can be overridden with config from /etc/sonic/init_cfg.json
+3. The publish API adds sequence number to the message which is stripped off by receiver before forwarding the message to caller.
+   - Sequence: < runtime id in high 32 bits > < 32 bits of sequence number starting with 0 >
+   - runtime-id = epoch time in milliseconds, truncated to low 32 bits 
+   - Send the message as 3 parts.
+     - part1: The event-source only. The first part is considered as ZMQ topic and ZMQ supports filter by topics.
+     - part2: Tag, timestamp and sequence.
+     - part3: Any additional params.
+ 4. The receiver API:
+    - Creates stats as listed in SLA section.
+    - It has the expected sequence number for each runtime id. The diff between the sequence in the received event and expected, is the count of messages missed to receive.
+    - It saves the timestamp/diff to compute latency.
+    - This computation is done only for receiver with no subscription filter.
 
-##### con
-- Messages could get lost, if the client is slow. It is the client's responsibility to ensure no loss.
-- Event-index could be used to get the count of missed messages per source.
-- Clients that are slow by design (*like redis-DB updater*), could have a dedicated thread to receive all events and cache the latest. The main thread could be slow, it could miss updates, but it would use/record the latest.
+### Events cache service
+1
 
 ### Local persistence
 - This is to maintain a events status locally.
