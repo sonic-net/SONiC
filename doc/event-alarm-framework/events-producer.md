@@ -1,14 +1,13 @@
 # Events reported from SONiC as structured
 
 ## Goals
-1. Provide a unified way for listing identified alertable events in SONiC switch.
+1. Provide a unified way for listing and defining alertable events in SONiC switch.
 2. Provide a unified way for event detectors to report the events.
-3. Support exporting events to external gNMI clients via Subscribe
+3. Provide support for exporting events to external gNMI clients via Subscribe
 4. Enforce a structured format for event data with pre-defined schema.
 5. Have the ability to stream at the max of 10K events per second to external clients.
 6. Ensure events are immutable across SONiC releases, but can be deprecated.
-7. Meet the reporting goal of 99.5% - From event generated to end client.
-8. Rate of event reporting can be in par with rate of syslog reporting.
+7. Meet the reporting goal of 99.5% of reliability - From event generated to end client.
 
 
 ## Problems to solve
@@ -24,8 +23,7 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/159573073-06075ee6-40e5-42da-88bf-9f349f64626c.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/165637132-68358aad-2ec4-4eed-a805-41327408d97d.png)
-
+![image](https://user-images.githubusercontent.com/47282725/165796196-ca89a72f-21ad-4dfa-aae8-34f458b2ff62.png)
 
 
 ## A Use case
@@ -43,7 +41,7 @@ bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJC
 ```
 
 ### BGP State event model
-An event is defined for BGP state change in YANG model as below/
+An event is defined for BGP state change in YANG model as below.
 
 ```
 module sonic-events-bgp {
@@ -150,74 +148,113 @@ The above set of logs will now be published as following structured events per s
 ### gNMI client
 The client could subscribe for events with optional filter on event source in streaming mode
 ```
-gnmic --target events --path "/bgp" --mode STREAM --stream-mode ON_CHANGE
+gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
+
+o/p
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T02:39:21.286611",
+      "ip": "100.126.188.90",
+      "status": "down"
+    }
+}
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T02:46:42.615668",
+      "ip": "100.126.188.90",
+      "status": "up"
+    }
+  }
+}
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T04:46:51.290979",
+      "ip": "100.126.188.78",
+      "status": "down"
+    }
+}
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T05:06:26.871202",
+      "ip": "100.126.188.78",
+      "status": "up"
+    }
+  }
+}
+        
 ```
 
 ### redis entries
-The unique instances of events are recorded in EVENTS-DB as below. 
-Note: The frequency of updates will be few updates per second. In other words, far less than supported perf of 10K messages/sec.
-The latest/current instance at the time point will be recorded.
+The updates are periodic, like once every N seconds, which is far less than supported events publish rate of 10K events/second.
+Hence for repeated events, only the last incidence at the time of redis update is recorded. The repetition of an event is identified with key fields as declared in YANG model.
+As the updates periodic, there will be a notable latency between event publish and reflection in redis, which can be between 0 to redis-update frequency.
 ```
 key=<source>|<tag>|<contatenated keys>
 
-e.g. key: bgp|state|100.126.188.90  value: { "timestamp": "2022-08-17T02:39:21.286611"; "status": "up""}
+The redis-entries would be as below, as IP is key for BGP state changes.
+
+key: bgp|state|100.126.188.90  value: { "timestamp": "2022-08-17T02:46:42.615668"; "status": "up"}
+key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202"; "status": "up"}
 ```
 ## Requirements
 ### Events
 1. Events are defined with schema.
-2. Every event is identified by a source & tag; The tag is unique within a event source with zero or more event specific parameters.
-3. An instance of an event can be uniquely identified by source & tag and key parameters of that event. This can help identify events repeat.
-4. source + tag + hash can be used to identify duplicate events.
+2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
+3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
+4. An instance of an event can be uniquely identified by source, tag and key parameters of that event. This can help identify events repeat.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
-6. Event reporter includes sender info, which is used only for gauging possible missed messages from this sender.
-7. Every event is described in YANG schema.
-8. YANG schema files for all events are available in a single location for NB clients to refer in Switch.
+6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
 ### Events APIs
 The libswsscommon will have the APIs for the following purposes.
 1. To report an event.
-2. To receive events and pass the message to caller. 
-3. The reporting API will support multiple receivers.
-4. The receiver API will support multiple event reporters.
+2. To receive events.
+3. Event is reported with source, tag and optionally additional params.
+4. The reporting supports multiple subscribers/receivers. The reporting API is transparent to listening subscribers. The subscribers could come and go anytime.
+5. The subscribers call receive events API. This supports all publishing sources transparently. The publishing sources could come and go anytime.
+6. The receiving API supports filtering by source. A receiver may choose to receive events from "BGP" & "SWSS" sources only.
+7. The events are sequenced internally to assess missed messages by receivers.
+8. The events reported are validate against YANG schema. Invalid messages are reported via syslog & event for alerting.
 
 ### Event detection
 1. The method of detection can be any.
 2. This can vary across events.
-3. The events could be reported at run time by the individual components, like orchagent, syncd.
-4. The events could be detected from syslog messages. The rsyslog plugin could be an option for live reporting.
+3. The events could be reported at run time by the individual components, like orchagent, syncd. The code is updated to call the event-publish API.
+4. The events could be detected from syslog messages. The rsyslog plugin could be an option for live reporting, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
-### Event reporting
-1. Event detectors stream the events with structured data, using the API provided.
-2. The streaming out API supports one or more local listeners to receive streams from multiple detectors (many-to-many).
-3. The structured data is per YANG definition.
-4. All events for a source is published via a single process instance (in other words publisher)
-5. Events from a source are indexed sequentially to help detect lost messages.
-
 ### Event local persistence
-1. A host service will receive all events and record the same in redis, using a new EVENTS table.
-2. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
-3. The periodic update will record only the events that changed since last redis write.
-4. The periodic update will write the latest value for the event.
-5. Any query to redis can be assured to get events as of 0 to N seconds before, where N is the period between two writes. The value of N can be modified via init_cfg.json
+1. A service will receive all events and record the same in redis, using a new EVENTS-DB.
+3. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
+4. The periodic update will record only the last incidence of an event for repeated events.
+5. The latency between receiving the event to redis-update can vary between 0 to N, where N is the pause between 2 updates.
+6. The value of N can be modified via init_cfg.json
+
+### Events cache service
+1. An on-demand cache service is provided to cache events for a period in transient cache.
+2. This service can be started/stopped and retrieve cached data via an libswsscommon API.
+3. A receiver could use this, during its downtime and use the cache upon restart.
+4. The service caches only last incidence for repeated incidences of an event.
+5. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
 ### exporter
 1. Telemetry container receive all the events reported from all the event detectors.
 2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI.
-3. Telemetry container upon restart uses data from redis as current for missed updates during telemetry downtime. This may incur sending some duplicate events, if the event has not changed during downtime. 
-
+3. Telemetry container uses cache service during its downtime and as well external receiver's downtime (implying between external receiver connectiondrop & re-connect).
 
 ### Event reliability
-There are two kinds of reliability.
-1. The schema for the events are not modified across releases (*except deprecation*). We may allow addition of new params, as long as they don't affect existing params.
-2. Events are verified to fire as expected in every image release with data as defined in schema. 
-3. Ensure the perf & reporting goals on events are met during live streaming.
+1. The internal sequencing helps assess the count of messages by receivers.
+2. This count is recorded in STATE-DB along with total count of events.
+3. Goal: At the max rate of 10K messages per second, meet the reliability score of 95.5%.
 
-#### Protection:
-
+### Protection:
 1. The unit & nightly tests is provided for every event.
-2. These tests are expected to verify the immutability of the event definition and the code do raise the event correctly.
-3. A separate stress test is required to ensure the performance rate of 10K events/sec and 99.5% of reporting end-to-end.
+2. These tests simulate code to fire the event and the data is validated against schema.
+3. A separate stress test is provided to verify the performance reliability goals.
 </br>
 
 ## Design
