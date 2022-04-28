@@ -1,8 +1,8 @@
-# Events reported from SONiC as structured
+# SONiC publishes events as structured
 
 ## Goals
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
-2. Provide a unified way for event detectors to report the events.
+2. Provide a unified way for event detectors to publish the events.
 3. Provide support for exporting events to external gNMI clients via Subscribe
 4. Enforce a structured format for event data with pre-defined schema.
 5. Have the ability to stream at the max of 10K events per second to external clients.
@@ -210,7 +210,7 @@ key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
 ### Events APIs
-The libswsscommon will have the APIs for reporting & receiving.
+The libswsscommon will have the APIs for publishing & receiving.
 1. To publish an event.
 2. To receive events.
 3. Event is published with source, tag and optionally additional params.
@@ -223,8 +223,8 @@ The libswsscommon will have the APIs for reporting & receiving.
 ### Event detection
 1. The method of detection can be any.
 2. This can vary across events.
-3. The events could be reported at run time by the individual components, like orchagent, syncd. The code is updated to call the event-publish API.
-4. The events could be inferred indirectly from syslog messages. The rsyslog plugin could be an option for live reporting, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
+3. The events could be published at run time by the individual components, like orchagent, syncd. The code is updated to call the event-publish API.
+4. The events could be inferred indirectly from syslog messages. The rsyslog plugin could be an option for live publishing, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
 ### Event local persistence
@@ -243,7 +243,7 @@ The libswsscommon will have the APIs for reporting & receiving.
 6. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
 ### exporter
-1. Telemetry container runs a service to receive all the events reported from all the event publishers.
+1. Telemetry container runs a service to receive all the events published from all the event publishers.
 2. Telemetry container's events service provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
 3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
 4. Telemetry container uses cache service during its downtime and during downtime of main receiver, so as not to misse the events that arrived during the downtime.
@@ -266,22 +266,17 @@ The libswsscommon will have the APIs for reporting & receiving.
 ![image](https://user-images.githubusercontent.com/47282725/165838968-835807bf-bfcc-4d5f-9f32-dabe910d8b1f.png)
 
 ### YANG schema
-1. Schema defines each event.
-2. An event is classified by source & tag.
-3. An event is defined with all the possible parameters for that event and timestamp.
-4. The schema marks parameters that are key to identify an event.
-5. An event is identified by source, tag and key-parameter values.
-6. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
-7. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
-8. The schema for processes running in host are copied into this location at image creation/install time.
-9. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
-10. NB clients could use the schema to understand/analyze the events
+1. YANG schema is written for every event.
+2. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
+3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
+4. The schema for processes running in host are copied into this location at image creation/install time.
+5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
+6. NB clients could use the schema to understand/analyze the events
 
 
 ### Event APIs
 The Event API is provided as part of libswsscommon with API definition in a header file.
 
-#### Reporting API
 ```
 /*
  * Events library 
@@ -395,26 +390,21 @@ void event_receive(event_handle_t handle, std::string &source, std::string& tag,
         event_params_t &params, std::string& timestamp);
 ```
 
-### Receiving API
-- APIs for event receive are provided.
-- An init API to initialize once and receive is called for each event read. 
-- The receiver API uses the index to compute missed count of message per source per reader and pass it along with the message in read call, as optional o/p val.
-
 
 ### Event detection
 The event detection could happen in many ways
-- Update the code to directly invoke Event reporter, which will stream it out.
-- Run a periodic check (via monit/cron/daemon/...) to identify an event and raise it via event reporter
-- Watch syslog messages for specific pattern; Upon match parse the required data out and call event reporter.
+- Update the code to directly invoke Event publisher, which will stream it out.
+- Run a periodic check (via monit/cron/daemon/...) to identify an event and raise it via event publisher
+- Watch syslog messages for specific pattern; Upon match parse the required data out and call event publisher.
 - Any other means of getting alerted on an event
 
 #### Code update
 - This is the preferred approach.
-- Use the API for event reporting.
+- Use the API for event publishing.
 - This method is used in all SONiC owned code.
 
 ##### Pro
-- Direct reporting from run time is the most efficient way for performance & resource usage.
+- Direct publishing from run time is the most efficient way for performance & resource usage.
 
 ##### con
 - A code update could take months to get into production.
@@ -424,30 +414,37 @@ At high level:
 1. This is a two step process.
 2. The process raising the event sends a sylog message out.
 3. A watcher scans all the syslog messages emitted and parse/check for events of interest.
-4. When matching message arrives, raise the event
+4. When matching message arrives, publish the event
 
 Here you have code that sends the log and a watcher who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
 
 Though this sounds like a redundant/roundabout way, this helps as below.
-- For III party code, not owned by SONiC, this is an acceptable solution
-- For code that SONiC own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
+- For III party code, not owned by SONiC, this is an acceptable solution.
 - A new event addition could be as simple as copying couple of small files to a switch and a rsyslog/container restart.
+- For code that SONiC own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
+
 
 ##### Design at high level
-- Configure a rsyslog plugin with rsyslog.
+- Configure a rsyslog plugin with rsyslog via .conf file.
 - For logs raised by host processes, configure this plugin at host.
-- For logs raised by processes inside the container, configure for rsyslog running inside the container.
-- The plugin is configured per event source or many or all. An event source could be one or multiple processes.
+- For logs raised by processes inside the container, configure for rsyslog running inside the container, more for load distribution.
+- The plugin can be more specifically configured using rsyslog properties, so as to restrict the set of logs to parse and log distribution across multiple instances. One way could be to run a plugin instance per process.
 - The plugin could be running in multiple instances.
-- Each plugin instance receives messasges **only** for processes that it is configured for.
-- The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag, which is unique within the source.
-- For messages that match a pattern, retrieve parameters of interest per regex and fire event using event reporter API.
-- The event reporting API is called with event source & tag from matching regex and data parsed out from message.
-- The rsyslog plugin binary, which does the parsing & reporting is a single binary in host, shared/used by all plugins.
-- The rsyslog plugin binary being under host control, ensures a single/unified behavior across all. This is critical as event exporters and receivers are running across multiple containers and host.
+- Each plugin instance could receive messasges **only** for processes that it is configured for.
+- The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag.
+- The regex pattern is present as files as one per plugin instance, so an instance sees only the regex expressions that it could match.
+- For messages that match a pattern, retrieve parameters of interest per regex and fire event using event publisher API.
+- The event publishpublishing API is called with event source & tag from matching regex and data parsed out from message.
 - The unit tests can use hardcoded log messages to validate regex.
 
-![image](https://user-images.githubusercontent.com/47282725/157343412-6c4a6519-c27b-459b-896b-7875d8f952b8.png)
+##### How
+1. Copy a rsyslog's .conf file with plugin info into /etc/rsyslog.d/
+2. Copy regex files as one per plugin instance. Each files carries expressions of interest to an instance only.
+3. Restart rsyslog.
+4. The rsyslog.d starts the plugin instance when an message arrives for that instance.
+5. rsyslog.d feeds instances with every message destined for it.
+
+![image](https://user-images.githubusercontent.com/47282725/165850058-76ed4806-f43b-4959-8b33-b8365ac6348c.png)
 
 ##### Pros & Cons
 
@@ -455,13 +452,10 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 1) This support is external to app, hence adapts well with III party applications, bgp, teamd, ... 
 2) This feature can be added to released builds too, as all it takes is to copy two files into each container and restart rsyslogd in the container
 3) The regex for parsing being local to container, it supports any container upgrade transaparently.
-4) The rsyslog plugin binary is maintained by host, hence provide a overall control across all containers.
-5) The message parsing load is distributed as per container. Within a container parsing could be done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process, *always*
+4) The message parsing load is distributed as per container. Within a container parsing could be done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process.
 
 ###### con:
-1) Two step process for devs, as for each new/updated log message ***for an event***, add/update regex as needed. Updating code directly to raise the event will help avoid this.
-2) The rsyslogd is *required*. It should be treated as critical process in each container.
-3) Yet, unit/nightly tests can help ensure both steps are done
+1) Two step process for devs. For each new/updated log message ***for an event*** in the code, remember to add/update regex as needed. 
 
 ### Event reporting
 
