@@ -211,24 +211,24 @@ key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202
 
 ### Events APIs
 The libswsscommon will have the APIs for reporting & receiving.
-1. To report an event.
+1. To publish an event.
 2. To receive events.
-3. Event is reported with source, tag and optionally additional params.
-4. The reporting supports multiple subscribers/receivers. The reporting API is transparent to listening subscribers. The subscribers could come and go anytime.
+3. Event is published with source, tag and optionally additional params.
+4. The publishing supports multiple subscribers/receivers. The publishing API is transparent to listening subscribers. The subscribers could come and go anytime.
 5. The subscribers call receive events API. This supports all publishing sources transparently. The publishing sources could come and go anytime.
-6. The receiving API supports filtering by source. A receiver may choose to receive events from "BGP" & "SWSS" sources only.
+6. The receiving API supports filtering by source. For an example, a receiver may choose to receive events from "BGP" & "SWSS" sources only.
 7. The events are sequenced internally to assess missed messages by receivers.
-8. The events reported are validated against YANG schema. Any invalid messages is reported via syslog & event for alerting.
+8. The events published are validated against YANG schema. Any invalid messages is reported via syslog & event for alerting.
 
 ### Event detection
 1. The method of detection can be any.
 2. This can vary across events.
 3. The events could be reported at run time by the individual components, like orchagent, syncd. The code is updated to call the event-publish API.
-4. The events could be detected from syslog messages. The rsyslog plugin could be an option for live reporting, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
+4. The events could be inferred indirectly from syslog messages. The rsyslog plugin could be an option for live reporting, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
 ### Event local persistence
-1. A service will record the events in redis, using a new EVENTS-DB.
+1. A service will record the events in redis in a new DB, "EVENTS-DB".
 3. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
 4. The periodic update will record only the last incidence of an event for repeated events.
 5. The latency between receiving the event to redis-update can vary between 0 to N, where N is the pause between 2 updates.
@@ -239,12 +239,14 @@ The libswsscommon will have the APIs for reporting & receiving.
 2. This service can be started/stopped and retrieve cached data via an libswsscommon API.
 3. A receiver could use this, during its downtime and use the cache upon restart.
 4. The service caches only last incidence for repeated incidences of an event.
-5. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
+5. The repeated incidences are counted in missed-events-count.
+6. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
 ### exporter
-1. Telemetry container receive all the events reported from all the event publishers.
-2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
-3. Telemetry container uses cache service during its downtime and as well external receiver's downtime (_implying between external receiver connectiondrop & re-connect_).
+1. Telemetry container runs a service to receive all the events reported from all the event publishers.
+2. Telemetry container's events service provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
+3. Multiple external collectors could connect with filters on event-sources. Only one collector is accepted for all events (_no filtering by source_), in otherwords main-receiver.
+4. Telemetry container uses cache service during its downtime and during downtime of main receiver, to send events that arrived during the downtime.
 
 ### Event reliability
 1. The internal sequencing helps assess the count of messages by receivers.
@@ -261,31 +263,137 @@ The libswsscommon will have the APIs for reporting & receiving.
 
 ### overall View
 
-![image](https://user-images.githubusercontent.com/47282725/165818319-771c2af2-55ab-4fc7-a3af-e22d3db78b2b.png)
+![image](https://user-images.githubusercontent.com/47282725/165838968-835807bf-bfcc-4d5f-9f32-dabe910d8b1f.png)
 
 ### YANG schema
 1. Schema defines each event.
-2. An event is identified by source & tag.
-3. Each event is defined with all the possible parameters for that event and timestamp.
-4. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
-5. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
-6. The schema for processes running in host are copied into this location at image creation/install time.
-7. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
-8. NB clients could use the schema to understand/analyze the events
+2. An event is classified by source & tag.
+3. An event is defined with all the possible parameters for that event and timestamp.
+4. The schema marks parameters that are key to identify an event.
+5. An event is identified by source, tag and key-parameter values.
+6. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
+7. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
+8. The schema for processes running in host are copied into this location at image creation/install time.
+9. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
+10. NB clients could use the schema to understand/analyze the events
 
 
 ### Event APIs
 The Event API is provided as part of libswsscommon with API definition in a header file.
 
 #### Reporting API
-- APIs for event reporting is provided. 
-- An API to initialize once and and event-send API is called for each event send. 
-- The event reporting API accepts, event-sender, source, tag, hash-params & parameters. The timestamp could be provided too.
-- The event reporting API adds "timestamp" if not provided and "index".
-- Event index is coined per source per sender. 
-- The event-index could be used by receivers to gauge the count of missed/lost messages from a source.
-- The index will be formatted such that a restart at the publisher would be distinguished to avoid false reporting.
+```
+/*
+ * Events library 
+ *
+ *  APIs are for publishing & receiving events with source, tag and params along with timestamp.
+ *
+ */
 
+
+class events_base;
+
+typedef events_base* event_handle_t;
+
+/*
+ * Initialize an event publisher instance for an event source.
+ *
+ * NOTE:
+ *  The initialization occurs asynchronously.
+ *  The event published before init is complete, is blocked until the init
+ *  is complete. Hence recommend, do the init as soon as the process starts.
+ *
+ *  A single publisher instance is maintained for a source.
+ *  Any duplicate init call for a source will return the same instance.
+ *
+ * Input:
+ *  event_source
+ *      All events published with the handle returned by this call is
+ *      tagged with this source, transparently.
+ *
+ * Return 
+ *  Non NULL handle
+ *  NULL on failure
+ */
+
+event_handle_t events_init_publisher(const std::string &event_source);
+
+/*
+ * De-init/free the publisher
+ *
+ * Input: 
+ *  Handle returned from events_init_publisher
+ *
+ * Output: 
+ *  None
+ */
+void events_deinit_publisher(event_handle_t &handle);
+
+
+typedef std::map<std::string, std::string> event_params_t;
+
+/*
+ * Publish an event
+ *
+ * input:
+ *  handle -- As obtained from events_init_publisher
+ *  tag -- Event tag
+ *  params -- Params associated with event;
+ *  timestamp -- Timestamp for the event; optional; 
+ *              format:"2022-08-17T02:39:21.286611"
+ *              default: time at the point of this call.
+ *
+ */
+void event_publish(event_handle_t handle, const string &tag,
+        const event_params_t *params=NULL,
+        const char *timestamp=NULL);
+
+
+
+typedef std::vector<std::string> event_subscribe_sources_t;
+
+/*
+ * Initialize subscriber.
+ *
+ * Input:
+ *  lst_subscribe_sources_t
+ *      List of subscription sources of interest.
+ *      Absence implies for alll
+ *
+ * Return:
+ *  Non NULL handle on success
+ *  NULL on failure
+ */
+event_handle_t events_init_subscriber(const event_subscribe_sources_t *sources=NULL);
+
+/*
+ * De-init/free the subscriber
+ *
+ * Input: 
+ *  Handle returned from events_init_subscriber
+ *
+ * Output: 
+ *  None
+ */
+void events_deinit_subscriber(event_handle_t &handle);
+
+
+/*
+ * Revieve an event
+ *
+ * input:
+ *  handle -- As obtained from events_init_subscriber
+ *
+ * output:
+ *  source -- Event's source.
+ *  tag -- Event's tag.
+ *  params -- Params associated with event, if any
+ *  timestamp -- Event's timestamp.
+ *
+ */
+void event_receive(event_handle_t handle, std::string &source, std::string& tag,
+        event_params_t &params, std::string& timestamp);
+```
 
 ### Receiving API
 - APIs for event receive are provided.
