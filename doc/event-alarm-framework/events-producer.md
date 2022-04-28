@@ -205,12 +205,12 @@ key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202
 1. Events are defined with schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
 3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
-4. An instance of an event can be uniquely identified by source, tag and key parameters of that event. This can help identify events repeat.
+4. An instance of an event can be uniquely identified by source, tag and key parameters of that event. This can help identify events repetition.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
 ### Events APIs
-The libswsscommon will have the APIs for the following purposes.
+The libswsscommon will have the APIs for reporting & receiving.
 1. To report an event.
 2. To receive events.
 3. Event is reported with source, tag and optionally additional params.
@@ -218,7 +218,7 @@ The libswsscommon will have the APIs for the following purposes.
 5. The subscribers call receive events API. This supports all publishing sources transparently. The publishing sources could come and go anytime.
 6. The receiving API supports filtering by source. A receiver may choose to receive events from "BGP" & "SWSS" sources only.
 7. The events are sequenced internally to assess missed messages by receivers.
-8. The events reported are validate against YANG schema. Invalid messages are reported via syslog & event for alerting.
+8. The events reported are validated against YANG schema. Any invalid messages is reported via syslog & event for alerting.
 
 ### Event detection
 1. The method of detection can be any.
@@ -228,7 +228,7 @@ The libswsscommon will have the APIs for the following purposes.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
 ### Event local persistence
-1. A service will receive all events and record the same in redis, using a new EVENTS-DB.
+1. A service will record the events in redis, using a new EVENTS-DB.
 3. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
 4. The periodic update will record only the last incidence of an event for repeated events.
 5. The latency between receiving the event to redis-update can vary between 0 to N, where N is the pause between 2 updates.
@@ -242,9 +242,9 @@ The libswsscommon will have the APIs for the following purposes.
 5. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
 ### exporter
-1. Telemetry container receive all the events reported from all the event detectors.
-2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI.
-3. Telemetry container uses cache service during its downtime and as well external receiver's downtime (implying between external receiver connectiondrop & re-connect).
+1. Telemetry container receive all the events reported from all the event publishers.
+2. Telemetry container provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
+3. Telemetry container uses cache service during its downtime and as well external receiver's downtime (_implying between external receiver connectiondrop & re-connect_).
 
 ### Event reliability
 1. The internal sequencing helps assess the count of messages by receivers.
