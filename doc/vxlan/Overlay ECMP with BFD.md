@@ -237,7 +237,6 @@ STATE_DB|ADVERTISE_NETWORK_TABLE|{{ip_prefix}}
 ```
 
 The above entry shall be subscribed for by bgpcfgd and advertised by the “network” command. 
-Notes: Currently, only one profile_name is supported, the value is fixed as "FROM_SDN_SLB_ROUTES" 
 
 For example:
 ```
@@ -246,18 +245,18 @@ router bgp 1
   network 10.0.0.0/8  route-map FROM_SDN_SLB_ROUTES_RM
  exit-address-family
 ```
+Notes: Currently, only one profile_name is supported
 
 This configuration example says that network 10.0.0.0/8 will be announced to all neighbors. FRR bgpd doesn’t care about IGP routes when announcing its routes. 
 The profile would be transformed to route-map and associated with IP prefix. 
 
-VnetOrch shall create a profile in APP_DB, which would be associated to the IP prefix when advertised by "network" command. 
+Application shall create a profile in APP_DB, which would be associated to the IP prefix when advertised by "network" command. 
 
 ```
 APPL_DB:BGP_PROFILE_TABLE:{{profile_name}}
     "community_id": {{community_string}}
 ```
 
-Notes: Same here, currently only one profile is supported - "FROM_SDN_SLB_ROUTES" 
 The above entry shall be subscribed for by bgpcfgd and created/updated by "route-map" command. 
 
 For example:
@@ -275,7 +274,7 @@ APPL_DB:BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES
     "community_id": "1234:1235"
 ```
 
-Command to add this entry 
+Example command to add this entry 
 ```
 sonic-db-cli APPL_DB HSET "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES" "community_id" "1234:1235"
 ```
@@ -285,7 +284,7 @@ Step 2: add route entry in the state db
 STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8
     "profile": "FROM_SDN_SLB_ROUTES"
 ```
-Command to add this entry 
+Example command to add this entry 
 ```
 sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" "FROM_SDN_SLB_ROUTES"
 ```
@@ -294,13 +293,12 @@ sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" "FROM_
 Step 1: add route entry in the state db 
 ```
 STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8
-    "profile": ""
+    "": ""
 ```
-Command to add this entry 
+Example command to add this entry 
 ```
-sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "profile" ""
+sonic-db-cli STATE_DB HSET "ADVERTISE_NETWORK_TABLE|10.0.0.0/8" "" ""
 ```
-Notes: This would be different with current vnetorch behavior, vnetorch will add the route entry {STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8:{"":""}}, this need to be changed.
 
 ### Use case C: 10.0.0.0/8 with community id "1234:1235",  re advertise route 10.0.0.0/8 with new community id "1234:1236" 
 Step 1: add/update one route-map entry in the state db. 
@@ -309,7 +307,7 @@ APPL_DB:BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES
     "community_id": "1234:1236"
 ```
 
-Command to add this entry 
+Example command to add this entry 
 ```
 sonic-db-cli APPL_DB HSET "BGP_PROFILE_TABLE:FROM_SDN_SLB_ROUTES" "community_id" "1234:1236"
 ```
@@ -319,12 +317,12 @@ Step 1: Delete the route entry in the state db.
 
 ~~STATE_DB|ADVERTISE_NETWORK_TABLE|10.0.0.0/8~~
 
-Command to add this entry 
+Example command to delete this entry 
 ```
 sonic-db-cli STATE_DB DEL "ADVERTISE_NETWORK_TABLE|10.0.0.0/8"
 ```
 
-Notes: the BGP_PROFILE_TABLE table need to be removed explicitly, there is no ref-count in the bgpconfd layer.
+Notes: the BGP_PROFILE_TABLE table need to be removed explicitly, there is no ref-count in the bgpcfgd layer.
 
 ## 2.7 CLI
 
@@ -542,9 +540,10 @@ The below cases are executed first for IPv4 and repeat the same for IPv6.
 The below cases are executed first for IPv4 and repeat the same for IPv6. 
 | Step | Goal | Expected results |
 |-|-|-|
-| Create a tunnel route and adevertise the tunnel route to all neighbor without community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes |
-| Create a tunnel route and adevertise the tunnel route to all neighbor with community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with community id |
-| Update a tunnel route and adevertise the tunnel route to all neighbor with new community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with new community id |
+| Create a tunnel route and advertise the tunnel route to all neighbor without community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes |
+| Create a tunnel route and advertise the tunnel route to all neighbor with community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with community id |
+| Update a tunnel route and advertise the tunnel route to all neighbor with new community id | BGP | ALL BGP neighbors can recieve the advertised BGP routes with new community id |
+| Create a tunnel route and advertise the tunnel route to all neighbor with BGP profile, but create the profile later| BGP | ALL BGP neighbors can recieve the advertised BGP routes without community id first, after the profile table created, the community id would be added and all BGP neighbors can recieve this update and associate the community id with the route |
 | Delete a tunnel route | BGP | ALL BGP neighbors can remove the previously advertised BGP routes |
-| Create 4k tunnel routes and adevertise all tunnel routes to all neighbor with community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with community id and record the time |
-| Updat BGP_PROFILE_TABLE with new community id for 4k tunnel routes and adevertise all tunnel routes to all neighbor with new community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with new community id and record the time |
+| Create 4k tunnel routes and advertise all tunnel routes to all neighbor with community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with community id and record the time |
+| Updat BGP_PROFILE_TABLE with new community id for 4k tunnel routes and advertise all tunnel routes to all neighbor with new community id | BGP scale | ALL BGP neighbors can recieve 4k advertised BGP routes with new community id and record the time |
