@@ -261,70 +261,18 @@ The libswsscommon will have the APIs for reporting & receiving.
 
 ### overall View
 
-![image](https://user-images.githubusercontent.com/47282725/163734653-c4b72856-c69d-4e17-a357-e4df6b3e12c9.png)
-
+![image](https://user-images.githubusercontent.com/47282725/165818319-771c2af2-55ab-4fc7-a3af-e22d3db78b2b.png)
 
 ### YANG schema
-1. Schema defines the description of the event, its source name, its unique tag and all the possible parameters.
-2. Schema can be maintained in multiple files, preferably one per process/container/host.
-3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events).
-4. The schema for processes running in host are copied into this location at image creation/install time.
-5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
-6. NB clients could use the schema to understand/analyze the events
-7. Every schema mandatorily includes event sender, source, tag, timestamp & index.
+1. Schema defines each event.
+2. An event is identified by source & tag.
+3. Each event is defined with all the possible parameters for that event and timestamp.
+4. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
+5. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
+6. The schema for processes running in host are copied into this location at image creation/install time.
+7. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
+8. NB clients could use the schema to understand/analyze the events
 
-#### A sample Defintion
-A sample:
-```
-module sonic-events-bgp {
-    namespace "http://github.com/Azure/sonic-events-bgp";
-    prefix "events";
-    yang-version 1.1;
-
-    import ietf-inet-types {
-        prefix inet;
-    }
-
-    import ietf-yang-types {
-        prefix yang;
-    }
-
-    revision 2022-03-28 {
-        description "BGP alert events.";
-    }
-
-    container sonic-events-bgp {
-        list event_list {
-            key "event_tag";
-
-            leaf event_source {
-                type enumeration {
-                    enum "bgp";
-                }
-                description "Event source; This indicates event source";
-            }
-            
-            leaf event_tag {
-                type enumeration {
-                    enum "state";
-                    enum "hold_timer";
-                }
-                description "Event type/tag for the source";
-            }
-            
-            leaf event_timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
-            
-            leaf ip {
-                type inet:ip-address;
-                description "IP of neighbor";
-            }
-        }
-    }
-}
-``` 
 
 ### Event APIs
 The Event API is provided as part of libswsscommon with API definition in a header file.
