@@ -205,7 +205,7 @@ key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202
 1. Events are defined with schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
 3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
-4. An instance of an event can be uniquely identified by source, tag and key parameters of that event. This can help identify events repetition.
+4. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
@@ -245,11 +245,11 @@ The libswsscommon will have the APIs for reporting & receiving.
 ### exporter
 1. Telemetry container runs a service to receive all the events reported from all the event publishers.
 2. Telemetry container's events service provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
-3. Multiple external collectors could connect with filters on event-sources. Only one collector is accepted for all events (_no filtering by source_), in otherwords main-receiver.
-4. Telemetry container uses cache service during its downtime and during downtime of main receiver, to send events that arrived during the downtime.
+3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
+4. Telemetry container uses cache service during its downtime and during downtime of main receiver, so as not to misse the events that arrived during the downtime.
 
 ### Event reliability
-1. The internal sequencing helps assess the count of messages by receivers.
+1. The internal sequencing helps assess the count of messages missed by the main receiver.
 2. This count is recorded in STATE-DB along with total count of events.
 3. Goal: At the max rate of 10K messages per second, meet the reliability score of 95.5%.
 
