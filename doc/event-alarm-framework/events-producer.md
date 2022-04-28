@@ -73,41 +73,70 @@ module sonic-events-bgp {
         "SONIC BGP events";
 
     container sonic-events-bgp {
-        list event_list {
-            leaf source {
-                type enumeration {
-                    enum "bgp";
+
+        container bgp-state {
+            list event_list {
+                key "IP";
+
+                leaf source {
+                    type enumeration {
+                        enum "bgp";
+                    }
+                    description "Source is BGP";
                 }
-                description "Source is BGP";
-            }
-
-            leaf tag {
-                type enumeration {
-                    enum "state";
+        
+                leaf tag {
+                    type enumeration {
+                        enum "state";
+                    }
+                    description "Event type/tag";
                 }
-                description "Event type/tag";
-            }
 
-            leaf ip {
-                type inet:ip-address;
-                description "IP of neighbor";
-            }
-
-            leaf status {
-                type enumeration {
-                    enum "up";
-                    enum "down";
+                leaf ip {
+                    type inet:ip-address;
+                    description "IP of neighbor";
                 }
-                description "Provides the status as up (true) or down (false)";
-            }
 
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
+                leaf status {
+                    type enumeration {
+                        enum "up";
+                        enum "down";
+                    }
+                    description "Provides the status as up (true) or down (false)";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container bgp-hold-timer {
+            list event_list {
+                leaf source {
+                    type enumeration {
+                        enum "bgp";
+                    }
+                    description "Source is BGP";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "hold_timer_expiry";
+                    }
+                    description "BGP Hold timer expiry";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
             }
         }
     }
 }
+    
 ```
 
 ### BGP State event 
