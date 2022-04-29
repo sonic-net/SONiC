@@ -1,4 +1,4 @@
-# SONiC publishes events as structured
+# SONiC streaming events as structured via gNMI
 
 ## Goals
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
@@ -40,7 +40,7 @@ bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJC
 
 ```
 
-### BGP State event model
+### BGP event YANG model
 An event is defined for BGP state change in YANG model as below.
 
 ```
@@ -725,18 +725,127 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - Show command is provided to view events with optional parameter to filter by source.
 - Show commands is provided to vew STATS collected
 
+# Alerts & YANG models
+The following alerts are planned for implementation
+
+## Source: BGP
+Events sourced by BGP. There could be multiple publishers raising BGP events.
+	
+### State
+- The state is reported as "UP" or "Down" with neighbor IP.
+- Params: { status: up/down, IP: < neighnor IP> }
+- The neigbor IP is the key param. Hence a BGP state event is identified with the IP. Multiple events raised for UP/DOWN for an IP are considered repeat.
+- NOTE: repeat events are supporessed only in cache mode or rate-limit in action.
+	
+### Hold-timer-expiry
+- This event has no params and hence no key either.
+- Event is identified by source ("BGP") and tag ("hold_timer_expiry") only
+	
+### YANG model
+```
+module sonic-events-bgp {
+    namespace "http://github.com/Azure/sonic-events-bgp";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "BGP alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC BGP events";
+
+    container sonic-events-bgp {
+
+        container bgp-state {
+            list event_list {
+                key "IP";
+
+                leaf source {
+                    type enumeration {
+                        enum "bgp";
+                    }
+                    description "Source is BGP";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "state";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf ip {
+                    type inet:ip-address;
+                    description "IP of neighbor";
+                }
+
+                leaf status {
+                    type enumeration {
+                        enum "up";
+                        enum "down";
+                    }
+                    description "Provides the status as up (true) or down (false)";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container bgp-hold-timer {
+            list event_list {
+                leaf source {
+                    type enumeration {
+                        enum "bgp";
+                    }
+                    description "Source is BGP";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "hold_timer_expiry";
+                    }
+                    description "BGP Hold timer expiry";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+    }
+}
+    
+```
+
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
 
 ## Requirements
 1) Each event is covered by Unit test & nightly test
-2) Unit test -- For events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema. This ensures the data fired is per schema.
+2) Unit test -- For ||| party code that raises events based on log messages, have hard coded log message and run it by rsyslog plugin binary with current regex list in the source and validate the o/p reported against schema. This ensures the data fired is per schema.
 3) Unit test -- For events reported by code, mock it as needed to exercise the code that raises the event. Verify the received event data against the schema.
-4) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is the *fool-proof* way to validate the immutability of the schema.
-5) Nightly test -- For events that can be simulated, simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
-6) Unit & nightly tests are mandated for every event.
+4) Nightly test: For each event, hardcode the sample event data and validate against the schema. This is additional layer of protection to validate the immutability of the schema.
+5) Nightly test -- For each event simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
 
-### caveat:
-For III party sources (non-sonic owned sources) where we don't control unit tests, simulating the error scenario may not be possible. Here if the code has changed the log message format, there is no reliable defense.
+
 
  
