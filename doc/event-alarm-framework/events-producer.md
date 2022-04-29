@@ -661,7 +661,7 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 - The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
 - For clients who would like some explicit rate limiting, a custom option is provided.
 - The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit
-- path: /events/rate-limit/<N> -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
+- path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
 - The rate-limiting/backpressure would only drop repeated events.
 	
 
