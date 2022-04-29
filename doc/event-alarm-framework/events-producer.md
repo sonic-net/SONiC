@@ -666,8 +666,8 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 	
 
 ### STATS update
-The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.<\br>
-The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.<\br>
+The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
+The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
 - The counters are persisted in STATE-DB with keys as "EVENT-STATS|<counter name>"
 - The counters are cumulative.
