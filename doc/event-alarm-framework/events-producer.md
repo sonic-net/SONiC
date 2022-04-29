@@ -599,6 +599,9 @@ The telemetry container runs gNMI server service to export events to gNMI client
 
 - Telemetry container hosts gNMI server for streaming events to external receivers.
 - The external clients subscribe and receive messages via gNMI connection/protocol.
+- For each client connected, a listener is spawned to receive messages at the max rate of 10K/sec.
+- The received messages are sent to the connected client at the client's rate.
+- Any overflow due to back-pressure/rate-limit is confined to suppression of events repeat.
  
 #### gNMI protocol
 - Use SUBSCRIBE request 
@@ -646,8 +649,11 @@ The message reliability is ensured only for main receiver. There are 3 kinds of 
 1. A slow receiver that reaches overflow state causes drop of repeated events and send only the last instance.
 2. During downtime of main receiver, the events cache service, drops repeated events and provide only the last instance.
 3. The internal listener for published events missed to receive an event.
-
-Among the three, onhly the third scenario is a real message drop. In the cases 1 & 2, it can be seen as avoiding duplicates when resource conservation is demanded. Hence only messages missed by listener, is accounted into reliability measure computation.
+   - This could be due to one/more publishers publishing at a combined rate going above 10K/second.
+   - The eventd service is down.
+   - An overloaded internal control plane state making the local listener for events running too slow.
+     
+Among the three, only the third scenario is a real message drop. In the cases 1 & 2, it can be seen as suppression of repeats to conserve resource with no real loss of data as last incidence is sent. Hence only messages missed by listener, is accounted into reliability measure computation.
 	
 All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
 
@@ -659,9 +665,64 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 - The rate-limiting/backpressure would only drop repeated events.
 	
 
+### STATS update
+The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.<\br>
+The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.<\br>
 
-### SLA update
+- The counters are persisted in STATE-DB with keys as "EVENT-STATS|<counter name>"
+- The counters are cumulative.
+- The counters lifetime is tied with lifetime of STATE-DB.
+
+#### counters
+- events-sent-cnt:
+  - The count of all events / messages sent to the main receiver. In other words count of events the receiver is expected to receive.
+  - This would not include suppressed events-repeat (_read reliability section above for details_).
+  
+- events-missed-cnt:
+  - The count of events, the telemetry service missed to receive from the publishers (_read reliability section above for details_).
+	
+- events-suppressed-cnt:
+  - The count of events suppressed (_read reliability section above for details_).
     
+- Max_receiver_duration_secs:
+  - The max time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
+  	
+- Min_receiver_duration_secs:
+  - The min time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
+	
+- avg_receiver_duration_secs:
+  - The average time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
+	
+- receiver_connect_cnt:
+  - The count of connections made by main receiver
+	
+- cache_duration_in_secs:
+  - The total duration of cache use in seconds
+  - This includes telemetry container downtime and main receiver downtime, while telemetry's gNMI service is up.
+	
+- telemetry_restart_cnt:
+  - Count of telemetry restarts.
+	
+- telemetry_service_runtime_secs:
+  - Count of seconds the telemetry service has been active.
+  - This is updaed periodically, while telemetry service is running. Assuming a period of every N seconds, it could miss a max of N seconds in this count in each run, which is often way too negligible compared to runtime duration.
+	
+- min_latency
+  - The minimum time taken from event publish to event write into receiver connection
+
+- max_latency
+  - The maximum time taken from event publish to event write into receiver connection
+	
+- avg_latency
+  - The minimum time taken from event publish to event write into receiver connection
+	
+- min_latency
+  - The minimum time taken from event publish to event write into receiver connection
+	
+- min_latency
+  - The minimum time taken from event publish to event write into receiver connection
+	
+	
 # Next Step:
 When alarm-event FW is functional, the plugin could start using the macros provided by the FW, for identified tags as events.
 
