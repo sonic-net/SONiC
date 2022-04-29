@@ -1,6 +1,7 @@
 SONiC streaming events as structured via gNMI
+=============================================
 
-## Goals
+# Goals
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
 2. Provide a unified way for event detectors to publish the events.
 3. Provide support for exporting events to external gNMI clients via Subscribe
@@ -10,7 +11,7 @@ SONiC streaming events as structured via gNMI
 7. Meet the reporting goal of 99.5% of reliability - From event generated to end client.
 
 
-## Problems to solve
+# Problems to solve
 The external tools that monitor system health often use syslog messages to look for events that need alert raised.
 The syslog messages being text string could potentially **change** across releases. Some log messages could get split into multiple different ones.
 This poses a challenge to the external tools as they are forced to adapt for multiple different versions and parse a message based on the OS version of the producer.
@@ -26,10 +27,10 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/165796196-ca89a72f-21ad-4dfa-aae8-34f458b2ff62.png)
 
 
-## A Use case
+# A Use case
 The BGP state change is taken for a sample use case.
 
-### BGP syslogs:
+## BGP syslogs:
 When BGP state changes, the event is reported in syslog messages as below
 
 ```
@@ -40,7 +41,7 @@ bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJC
 
 ```
 
-### BGP event YANG model
+## BGP event YANG model
 An event is defined for BGP state change in YANG model as below.
 
 ```
@@ -137,7 +138,7 @@ module sonic-events-bgp {
     
 ```
 
-### BGP State event 
+## BGP State event 
 The above set of logs will now be published as following structured events per schema
 ```
 { "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" }
