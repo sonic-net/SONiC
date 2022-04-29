@@ -595,7 +595,7 @@ int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
   - Invalid events are not persisted.
   
 
-### Event exporting
+## Event exporting
 The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
 
 - Telemetry container hosts gNMI server for streaming events to external receivers.
@@ -604,7 +604,7 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - The received messages are sent to the connected client at the client's rate.
 - Any overflow due to back-pressure/rate-limit is confined to suppression of events repeat.
  
-#### gNMI protocol
+### gNMI protocol
 - Use SUBSCRIBE request 
   - Use paths as 
     - "/events" to receive all events.
@@ -666,7 +666,7 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 - The rate-limiting/backpressure would only drop repeated events.
 	
 
-## STATS update
+# STATS update
 The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
@@ -675,7 +675,7 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The counters lifetime is tied with lifetime of STATE-DB.
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
-### counters
+## counters
 - events-sent-cnt:
   - The count of all events / messages sent to the main receiver. In other words count of events the receiver is expected to receive.
   - This would not include suppressed events-repeat (_read reliability section above for details_).
