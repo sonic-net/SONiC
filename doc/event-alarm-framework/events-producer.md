@@ -146,7 +146,7 @@ The above set of logs will now be published as following structured events per s
 { "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" }
 { "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" }
 ```    
-### gNMI client
+## gNMI client
 The client could subscribe for events with optional filter on event source in streaming mode
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
@@ -189,7 +189,7 @@ o/p
         
 ```
 
-### redis entries
+## redis entries
 The updates are periodic, like once every N seconds, which is far less than supported events publish rate of 10K events/second.
 Hence for repeated events, only the last incidence at the time of redis update is recorded. The repetition of an event is identified with key fields as declared in YANG model.
 As the updates periodic, there will be a notable latency between event publish and reflection in redis, which can be between 0 to redis-update frequency.
@@ -201,8 +201,8 @@ The redis-entries would be as below, as IP is key for BGP state changes.
     key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
     key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
 ```
-## Requirements
-### Events
+# Requirements
+## Events
 1. Events are defined with schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
 3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
@@ -210,7 +210,7 @@ The redis-entries would be as below, as IP is key for BGP state changes.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
-### Event APIs
+## Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
 1. To publish an event.
 2. To receive events.
@@ -221,21 +221,21 @@ The libswsscommon will have the APIs for publishing & receiving.
 7. The events are sequenced internally to assess missed messages by receivers.
 8. The events published are validated against YANG schema. Any invalid messages is reported via syslog & event for alerting.
 
-### Event detection
+## Event detection
 1. The method of detection can be any.
 2. This can vary across events.
 3. The events could be published at run time by the individual components, like orchagent, syncd. The code is updated to call the event-publish API.
 4. The events could be inferred indirectly from syslog messages. The rsyslog plugin could be an option for live publishing, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
-### Event local persistence
+## Event local persistence
 1. A service will record the events in redis in a new DB, "EVENTS-DB".
 3. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
 4. The periodic update will record only the last incidence of an event for repeated events.
 5. The latency between receiving the event to redis-update can vary between 0 to N, where N is the pause between 2 updates.
 6. The value of N can be modified via init_cfg.json
 
-### Events cache service
+## Events cache service
 1. An on-demand cache service is provided to cache events for a period in transient cache.
 2. This service can be started/stopped and retrieve cached data via an libswsscommon API.
 3. A receiver could use this, during its downtime and use the cache upon restart.
@@ -243,7 +243,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 5. The repeated incidences are counted in missed-events-count.
 6. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
-### exporter
+## exporter
 1. Telemetry container runs a internal listener to receive all the events published from all the event publishers in the switch.
 2. Telemetry container runs a gNMI serveer to export events to external receivers/collectors via SUBSCRIBE request.
 3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
@@ -253,20 +253,20 @@ The libswsscommon will have the APIs for publishing & receiving.
    - Various stats, like total count of events, missed count, latency from event publish to event send are collected and recorded in STATE-DB.
 
 
-### Tests:
+## Tests:
 1. The unit & nightly tests is provided for every event.
 2. These tests simulate code to fire the event and the data is validated against schema.
 3. A separate stress test is provided to verify the performance reliability goals.
 </br>
 
-## Design
+# Design
 
-### overall View
+## overall View
 
 ![image](https://user-images.githubusercontent.com/47282725/165867413-ad261d86-42e0-41f9-8100-35f03d0dfe71.png)
 
 
-### YANG schema
+## YANG schema
 1. YANG schema is written for every event.
 2. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
 3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
@@ -275,7 +275,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 6. NB clients could use the schema to understand/analyze the events
 
 
-### Event APIs
+## Event APIs
 The Event API is provided as part of libswsscommon with API definition in a header file.
 
 ```
@@ -422,25 +422,25 @@ typedef std::map<stats_type_t, uint64_t> stats_t;
 stats_t get_stats(event_handle_t &handle);
 ```
 
-### Event detection
+## Event detection
 The event detection could happen in many ways
 - Update the code to directly invoke Event publisher, which will stream it out.
 - Run a periodic check (via monit/cron/daemon/...) to identify an event and raise it via event publisher
 - Watch syslog messages for specific pattern; Upon match parse the required data out and call event publisher.
 - Any other means of getting alerted on an event
 
-#### Code update
+### Code update
 - This is the preferred approach.
 - Use the API for event publishing.
 - This method is used in all SONiC owned code.
 
-##### Pro
+#### Pro
 - Direct publishing from run time is the most efficient way for performance & resource usage.
 
-##### con
+#### con
 - A code update could take months to get into production.
 
-#### Log message based detection
+### Log message based detection
 At high level:
 1. This is a two step process.
 2. The process raising the event sends a sylog message out.
@@ -455,7 +455,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - For code that SONiC own, a code update would take in the order of months to reach thousands of switches, but this approach can be applied instantly to every switch
 
 
-##### Design at high level
+#### Design at high level
 - A rsyslog plugin is provided to raise events by parsing log messages.
 - Configure the rsyslog plugin with rsyslog via .conf file.
 - For logs raised by host processes, configure this plugin at host.
@@ -469,7 +469,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - The event publishpublishing API is called with event source & tag from matching regex and data parsed out from message.
 - The unit tests can use hardcoded log messages to validate regex.
 
-##### How
+#### How
 1. Copy a rsyslog's .conf file with plugin info into /etc/rsyslog.d/
 2. Copy regex files as one per plugin instance. Each files carries expressions of interest to an instance only.
 3. Restart rsyslog.
@@ -486,12 +486,12 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 3) The regex for parsing being local to container, it supports any container upgrade transaparently.
 4) The message parsing load is distributed as per container. Within a container parsing could be done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process.
 
-###### con:
+##### con:
 1) Two step process for devs. For each new/updated log message ***for an event*** in the code, remember to add/update regex as needed. 
 
-### Event publishing & receiving
+## Event publishing & receiving
 
-#### requirements
+### requirements
 - Events are published as many to many.
 - Multiple receivers for messages published by multiple publishers running in hosts and containers.
 - A receiver should be transparent to all publishers and vice versa
@@ -503,7 +503,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
   - The events that failed validation are not published.
   - The failed validations are logged via syslog and event is raised 
 
-#### Design
+### Design
 - Use ZMQ PUB/SUB for publish & subscribe
 - To help with transparency across publishers & receivers, run a central ZMQ proxy with XPUB/XSUB.
 - Run the zmq proxy service in a dedicated eventd container.
@@ -513,7 +513,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Run the events-cache service as the side component.
 - The events cache service is accessible via REQ/REP
 
-#### Details
+### Details
 1. All the zmq paths' defaults are hardcoded in the libswsscommon lib as part of APIs code.
 2. These can be overridden with config from /etc/sonic/init_cfg.json
 3. The publish API adds sequence number to the message which is stripped off by receiver before forwarding the message to caller.
@@ -526,7 +526,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
     - It computes missed message count with expected sequence number and the sequence in the received event and expected.
     - It saves the timestamp/diff to compute latency.
  
-### Events cache service
+## Events cache service
 1. This is a singleton service that runs in eventd container.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
 3. The caching can be started/stopped.
@@ -573,7 +573,7 @@ typedef std::map<std::string, cache_message_t> lst_cache_message_t;
 int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
 ```
 
-### Local persistence
+## Local persistence
 - This is to maintain a events status locally.
 - A service running in eventd would accomplish this.
 - It gets access to all events via a local listener attached to zmq proxy.
@@ -645,7 +645,7 @@ o/p
   }
 }
 ```
-#### Message reliability
+### Message reliability
 The message reliability is ensured only for main receiver. There are 3 kinds of missed message scenarios.
 1. A slow receiver that reaches overflow state causes drop of repeated events and send only the last instance.
 2. During downtime of main receiver, the events cache service, drops repeated events and provide only the last instance.
@@ -658,7 +658,7 @@ Among the three, only the third scenario is a real message drop. In the cases 1 
 	
 All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
 
-#### Rate-limiting
+### Rate-limiting
 - The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
 - For clients who would like some explicit rate limiting, a custom option is provided.
 - The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit
@@ -666,7 +666,7 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 - The rate-limiting/backpressure would only drop repeated events.
 	
 
-### STATS update
+## STATS update
 The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
@@ -675,7 +675,7 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The counters lifetime is tied with lifetime of STATE-DB.
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
-#### counters
+### counters
 - events-sent-cnt:
   - The count of all events / messages sent to the main receiver. In other words count of events the receiver is expected to receive.
   - This would not include suppressed events-repeat (_read reliability section above for details_).
