@@ -978,7 +978,7 @@ Events sourced by services running in swss container. There could be multiple pu
 ### YANG model	
 ```
 module sonic-events-swss {
-    namespace "http://github.com/sonic-net/sonic-events-bgp";
+    namespace "http://github.com/sonic-net/sonic-events-swss";
     prefix "events";
     yang-version 1.1;
 
@@ -991,7 +991,7 @@ module sonic-events-swss {
         }
 
     revision 2022-03-28 {
-        description "BGP alert events.";
+        description "SWSS alert events.";
     }
 
     organization
@@ -1013,7 +1013,7 @@ module sonic-events-swss {
                     type enumeration {
                         enum "swss";
                     }
-                    description "Source is BGP";
+                    description "Source is swss";
                 }
         
                 leaf tag {
@@ -1038,7 +1038,86 @@ module sonic-events-swss {
     }
 }
 ```
+
+## Source: syncd
+Events sourced by services running in syncd container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
 	
+### Failure
+- This reports different  kinds of fatal failures
+- Params: { type: < type of failure > }
+- The event is identified with the source, tag and type that denotes the kind of failure.
+	
+### YANG mode
+```
+module sonic-events-syncd {
+    namespace "http://github.com/sonic-net/sonic-events-syncd";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "syncd alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC syncd events";
+
+    container sonic-events-syncd {
+
+        container failure {
+            list event_list {
+                key "asic_index type;
+
+                leaf source {
+                    type enumeration {
+                        enum "syncd";
+                    }
+                    description "Source is syncd";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "failure";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf asic_index {
+                    type uint8;
+                    description "ASIC index in case of multi asic platform";
+                    default 0;
+                }
+
+                leaf type {
+                    type enumeration {
+                        enum "route_add_failed",
+                        enum "switch_event_2",
+                        enum "brcm_sai_switch_assert"
+                    }
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+    }
+}
+```
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
 
