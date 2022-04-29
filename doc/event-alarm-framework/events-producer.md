@@ -1,4 +1,4 @@
-# SONiC streaming events as structured via gNMI
+SONiC streaming events as structured via gNMI
 
 ## Goals
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
