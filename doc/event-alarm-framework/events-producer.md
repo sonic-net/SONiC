@@ -197,8 +197,8 @@ key=<source>|<tag>|<contatenated keys>
 
 The redis-entries would be as below, as IP is key for BGP state changes.
 
-key: bgp|state|100.126.188.90  value: { "timestamp": "2022-08-17T02:46:42.615668"; "status": "up"}
-key: bgp|state|100.126.188.78  value: { "timestamp": "2022-08-17T05:06:26.871202"; "status": "up"}
+    key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
+    key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
 ```
 ## Requirements
 ### Events
@@ -263,7 +263,8 @@ The libswsscommon will have the APIs for publishing & receiving.
 
 ### overall View
 
-![image](https://user-images.githubusercontent.com/47282725/165838968-835807bf-bfcc-4d5f-9f32-dabe910d8b1f.png)
+![image](https://user-images.githubusercontent.com/47282725/165867413-ad261d86-42e0-41f9-8100-35f03d0dfe71.png)
+
 
 ### YANG schema
 1. YANG schema is written for every event.
@@ -525,13 +526,71 @@ Though this sounds like a redundant/roundabout way, this helps as below.
     - This computation is done only for receiver with no subscription filter.
 
 ### Events cache service
-1
+1. This is a singleton service that runs in eventd container.
+2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
+3. The caching can be started/stopped.
+4. When started all events are cached. The repeated events are cached with last incidence. The repetitions are counted as missed.
+5. The API uses ZMQ REQ/REP pattern for communication.
+
+Supports the following APIs
+```
+/*
+ * Start events cache service
+ *
+ * return:
+ *  0 -- started or already running
+ *  -1 -- service not available.
+ */
+int cache_service_start(void);
+
+
+typedef struct {
+    std::string source;
+    std::string tag;
+    std::string timestamp;
+    event_params_t params;
+} cache_message_t;
+
+/* Map of event_key vs the message */
+typedef std::map<std::string, cache_message_t> lst_cache_message_t;
+
+
+/*
+ * Stop events cache service
+ *
+ * output:
+ *  lst_msgs -- list of cached messages.
+ *
+ *  missed_cnt -- Repeated events are counted as missed, as cache persists
+ *                only the last incidence.
+ *
+ * return:
+ *  0 -- stopped.
+ *  1 -- Nothing to stop, as it is not running.
+ *  -1 -- service not available.
+ */
+int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
+```
 
 ### Local persistence
 - This is to maintain a events status locally.
-- A service running in host would accomplish this.
+- A service running in eventd would accomplish this.
+- It gets access to all events via a local listener attached to zmq proxy.
 - It persists the events into EVENTS table in EVENTS-DB.
+- It does a periodic update of every N seconds.
+- The N is defaulted to hard coded value in code, which can be overriden via /etc/sonic/init_cfg.json
+- In case of repeated events, the last incidence at the time of update is recorded.
+- For each event
+  - Key = <event source>|<event tag>[|<concatenated value key params using '|' to join>]
+  - key params are obtained from YANG and the names are sorted to get the ordering of concatenation (e.g <IP value>|<status value>)
+  - value {<ist of all params  as key-val pairs>, "timestamp": "..."}
+  - e.g. 
+    ```
+    key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
+    key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
+    ```
 - Runs in 2 threads.
+    
 - The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
 - The event writer thread, wakes up periodically.
 - The redis key is coined as {event-source | event-tag | event-hash}
