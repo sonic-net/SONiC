@@ -367,7 +367,7 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *  Non NULL handle on success
  *  NULL on failure
  */
-event_handle_t events_init_subscriber(const char *sla_id,     
+event_handle_t events_init_subscriber(     
         const event_subscribe_sources_t *sources=NULL);
 
 /*
@@ -515,16 +515,13 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 3. The publish API adds sequence number to the message which is stripped off by receiver before forwarding the message to caller.
    - Sequence: < runtime id in high 32 bits > < 32 bits of sequence number starting with 0 >
    - runtime-id = epoch time in milliseconds, truncated to low 32 bits 
-   - Send the message as 3 parts.
-     - part1: The event-source only. The first part is considered as ZMQ topic and ZMQ supports filter by topics.
-     - part2: Tag, timestamp and sequence.
-     - part3: Any additional params.
+   - Send as multipart message with event-source in part1, which allows using ZMQ's filtering by event-sources.
  4. The receiver API:
-    - Creates stats as listed in SLA section.
-    - It has the expected sequence number for each runtime id. The diff between the sequence in the received event and expected, is the count of messages missed to receive.
+    - Reads & returns one event at a time, in blocking mode.
+    - For receive with no filtering, it creates stats as listed in SLA section for this receive session.
+    - It computes missed message count with expected sequence number and the sequence in the received event and expected.
     - It saves the timestamp/diff to compute latency.
-    - This computation is done only for receiver with no subscription filter.
-
+ 
 ### Events cache service
 1. This is a singleton service that runs in eventd container.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
@@ -596,6 +593,21 @@ The telemetry container runs gNMI server service to export events to gNMI client
 #### requirements
 - Telemetry container hosts gNMI server for streaming events to external receivers.
 - The external clients subscribe and receive messages via gNMI connection/protocol.
+ 
+#### gNMI protocol
+- Use subscribe request with subscription list
+  - Set of paths can be 
+		/events/	Receive all events; default
+		/events/<event source>	e.g. /bgp -- Receives only BGP events
+Multiple paths could be provided
+		○ Target = EVENTS
+		○ Mode = STREAM
+		○ StreamMode: OnChange
+		○ Updates_only = True  
+		○ Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"BGP" } mode:ON_CHANGE}}
+gnMI o/p should prefix it with \even![image](https://user-images.githubusercontent.com/47282725/165878180-03da48af-de8b-4bc0-b134-83151d9061c1.png)
+  
+    
 - 
 - Telemetry container creates a new thread for each external client that subscribes for events.
 - A subscription connection is created per external client. This way a slow client will not block others.
@@ -608,7 +620,8 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - Supports a max perf rate of 10K events per second.
 - The effective performance is tied to the client's perf.
 
-
+### SLA update
+    
 # Next Step:
 When alarm-event FW is functional, the plugin could start using the macros provided by the FW, for identified tags as events.
 
