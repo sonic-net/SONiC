@@ -247,7 +247,8 @@ The libswsscommon will have the APIs for publishing & receiving.
 2. Telemetry container runs a gNMI serveer to export events to external receivers/collectors via SUBSCRIBE request.
 3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
 4. Telemetry ensures reliability to main receiver only.
-   - Reliability is extended to cover even the period when main receiver is down/disconnect. This is done by using a local events-cache service to cache all events during its downtime and send these events upon next connect.
+   - Durung the main receiver down/disconnect period make use of local events-cache service to cache all events during its downtime and send these events upon next connect.
+   - For slow main receiver, when it reaches overflow/queue-full state, only the repeated events are dropped and keep the last instance of the event for later queueing.
    - Various stats, like total count of events, missed count, latency from event publish to event send are collected and recorded in STATE-DB.
 
 
@@ -454,7 +455,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 
 
 ##### Design at high level
-- Configure a rsyslog plugin with rsyslog via .conf file.
+- A rsyslog plugin is provided to raise events by parsing log messages.
+- Configure the rsyslog plugin with rsyslog via .conf file.
 - For logs raised by host processes, configure this plugin at host.
 - For logs raised by processes inside the container, configure for rsyslog running inside the container, more for load distribution.
 - The plugin can be more specifically configured using rsyslog properties, so as to restrict the set of logs to parse and log distribution across multiple instances. One way could be to run a plugin instance per process.
@@ -496,6 +498,9 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Publishers should never be blocked.
 - Receivers should be able to learn the count of messages they have missed to receive.
 - Receivers & publishers could go down and come up anytime.
+- A publishing API validates every event per YANG schema by default. This default behavior can be turned off via /etc/sonic/init-cfg.json. In case of turning off, offline validation occurs.
+  - The events that failed validation are not published.
+  - The failed validations are logged via syslog and event is raised 
 
 #### Design
 - Use ZMQ PUB/SUB for publish & subscribe
@@ -584,11 +589,14 @@ int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
     key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
     key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
     ```
+- In the scenario, where publishing API does not do YANG validation (_turned off via init_cfg.json_), this service validates every event.
+  - Invalid events are reported via syslog and by raising an event to alert.
+  - Invalid events are not persisted.
+  
 
 ### Event exporting
 The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
 
-#### requirements
 - Telemetry container hosts gNMI server for streaming events to external receivers.
 - The external clients subscribe and receive messages via gNMI connection/protocol.
  
@@ -634,31 +642,23 @@ o/p
 }
 ```
 #### Message reliability
-There are 3 kinds of missed message scenarios
-1. The receiver is slow compared to publish speed, which causes message drop via back pressure.
-2. The internal listener for published events missed to receive an event.
-The messages dropped for above reasons, are tracked via missed message count. They are accounted into reliability measure.
+The message reliability is ensured only for main receiver. There are 3 kinds of missed message scenarios.
+1. A slow receiver that reaches overflow state causes drop of repeated events and send only the last instance.
+2. During downtime of main receiver, the events cache service, drops repeated events and provide only the last instance.
+3. The internal listener for published events missed to receive an event.
+
+Among the three, onhly the third scenario is a real message drop. In the cases 1 & 2, it can be seen as avoiding duplicates when resource conservation is demanded. Hence only messages missed by listener, is accounted into reliability measure computation.
 	
-3. During downtime of main receiver, the events-cache service maintains all events, but skip repeated events and cache only the last incidence. The skipped ones are counted as cache-missed-count. Though by theory they are missed by receiver, as the receiver do get the latest status of the event, upon connect, these missed could be considered benign. Hence not included in reliability measure.
+All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
 
 #### Rate-limiting
-Supports over-use of a reserved path entry to 
+- The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
+- For clients who would like some explicit rate limiting, a custom option is provided.
+- The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit
+- path: /events/rate-limit/<N> -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
+- The rate-limiting/backpressure would only drop repeated events.
+	
 
-	
-	
-  
-    
-- 
-- Telemetry container creates a new thread for each external client that subscribes for events.
-- A subscription connection is created per external client. This way a slow client will not block others.
-- Each message received is synchronously written to external client. Hence the performance depends on the external client.
-- The receive API returns the cumulative missed message count per source per sender, along with received message. This counter is reset on sender restart.
-- This cumulative counter is logged.
-- The external client could subscribe by a subset of event sources or any/all.
-- The client will receive only events from subscribed sources.
-- Upon telemetry container restart, on the first writer run, for events that are not received yet, send the last status from the redis. The knowledge of all possible events are obtained from redis. NOTE: This may result in some duplicate events to external receivers.
-- Supports a max perf rate of 10K events per second.
-- The effective performance is tied to the client's perf.
 
 ### SLA update
     
