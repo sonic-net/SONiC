@@ -986,9 +986,9 @@ module sonic-events-swss {
         prefix inet;
     }
 
-        import ietf-yang-types {
-                prefix yang;
-        }
+    import ietf-yang-types {
+        prefix yang;
+    }
 
     revision 2022-03-28 {
         description "SWSS alert events.";
@@ -1005,7 +1005,7 @@ module sonic-events-swss {
 
     container sonic-events-swss {
 
-        container swss-redis-generic {
+        container redis-generic {
             list event_list {
                 key "asic_index;
 
@@ -1013,7 +1013,7 @@ module sonic-events-swss {
                     type enumeration {
                         enum "swss";
                     }
-                    description "Source is swss";
+                    description "Source is SWSS";
                 }
         
                 leaf tag {
@@ -1027,6 +1027,49 @@ module sonic-events-swss {
                     type uint8;
                     description "ASIC index in case of multi asic platform";
                     default 0;
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+        container if-state {
+            list event_list {
+                key "asic_index ifname;
+
+                leaf source {
+                    type enumeration {
+                        enum "swss";
+                    }
+                    description "Source is SWSS";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "if_state";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf asic_index {
+                    type uint8;
+                    description "ASIC index in case of multi asic platform";
+                    default 0;
+                }
+
+                leaf ifname {
+                    type string;
+                    description "Interface name";
+                }
+
+                leaf status {
+                    type enumeration {
+                        enum "up";
+                        enum "down";
+                    }
+                    description "Provides the status as up (true) or down (false)";
                 }
 
                 leaf timestamp {
