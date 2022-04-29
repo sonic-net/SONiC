@@ -209,7 +209,7 @@ The redis-entries would be as below, as IP is key for BGP state changes.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 
-### Events APIs
+### Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
 1. To publish an event.
 2. To receive events.
@@ -243,17 +243,15 @@ The libswsscommon will have the APIs for publishing & receiving.
 6. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
 
 ### exporter
-1. Telemetry container runs a service to receive all the events published from all the event publishers.
-2. Telemetry container's events service provides support for streaming out received events live to multiple external clients via gNMI-subscribe.
+1. Telemetry container runs a internal listener to receive all the events published from all the event publishers in the switch.
+2. Telemetry container runs a gNMI serveer to export events to external receivers/collectors via SUBSCRIBE request.
 3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
-4. Telemetry container uses cache service during its downtime and during downtime of main receiver, so as not to misse the events that arrived during the downtime.
+4. Telemetry ensures reliability to main receiver only.
+   - Reliability is extended to cover even the period when main receiver is down/disconnect. This is done by using a local events-cache service to cache all events during its downtime and send these events upon next connect.
+   - Various stats, like total count of events, missed count, latency from event publish to event send are collected and recorded in STATE-DB.
 
-### Event reliability
-1. The internal sequencing helps assess the count of messages missed by the main receiver.
-2. This count is recorded in STATE-DB along with total count of events.
-3. Goal: At the max rate of 10K messages per second, meet the reliability score of 95.5%.
 
-### Protection:
+### Tests:
 1. The unit & nightly tests is provided for every event.
 2. These tests simulate code to fire the event and the data is validated against schema.
 3. A separate stress test is provided to verify the performance reliability goals.
@@ -595,17 +593,59 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - The external clients subscribe and receive messages via gNMI connection/protocol.
  
 #### gNMI protocol
-- Use subscribe request with subscription list
-  - Set of paths can be 
-		/events/	Receive all events; default
-		/events/<event source>	e.g. /bgp -- Receives only BGP events
-Multiple paths could be provided
-		○ Target = EVENTS
-		○ Mode = STREAM
-		○ StreamMode: OnChange
-		○ Updates_only = True  
-		○ Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"BGP" } mode:ON_CHANGE}}
-gnMI o/p should prefix it with \even![image](https://user-images.githubusercontent.com/47282725/165878180-03da48af-de8b-4bc0-b134-83151d9061c1.png)
+- Use SUBSCRIBE request 
+  - Use paths as 
+    - "/events" to receive all events.
+    - "/events/<source> to receive all events from a source.
+    - Multiple paths can be accepted.
+  - Subscribe options
+    - Target = EVENTS
+    - Mode = STREAM
+    - StreamMode: OnChange
+    - Updates_only = True  
+  - Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"BGP" } mode:ON_CHANGE}}
+	
+- Restriction
+  - There can be only one client for all events.
+  - The client for all events is called the main receiver.
+  - The goal of 95.5% is assured only for the main receiver and stats are collected for the main receiver
+
+- The gnMI o/p is prefixed with \events\
+```
+gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
+
+o/p
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T02:39:21.286611",
+      "ip": "100.126.188.90",
+      "status": "down"
+    }
+}
+{
+  "EVENTS": {
+    "/events/bgp/state": {
+      "timestamp": "2022-08-17T02:46:42.615668",
+      "ip": "100.126.188.90",
+      "status": "up"
+    }
+  }
+}
+```
+#### Message reliability
+There are 3 kinds of missed message scenarios
+1. The receiver is slow compared to publish speed, which causes message drop via back pressure.
+2. The internal listener for published events missed to receive an event.
+The messages dropped for above reasons, are tracked via missed message count. They are accounted into reliability measure.
+	
+3. During downtime of main receiver, the events-cache service maintains all events, but skip repeated events and cache only the last incidence. The skipped ones are counted as cache-missed-count. Though by theory they are missed by receiver, as the receiver do get the latest status of the event, upon connect, these missed could be considered benign. Hence not included in reliability measure.
+
+#### Rate-limiting
+Supports over-use of a reserved path entry to 
+
+	
+	
   
     
 - 
