@@ -530,7 +530,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
 3. The caching can be started/stopped.
 4. When started all events are cached. The repeated events are cached with last incidence. The repetitions are counted as missed.
-5. The API uses ZMQ REQ/REP pattern for communication.
+5. The API uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
 
 Supports the following APIs
 ```
@@ -589,23 +589,14 @@ int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
     key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
     key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
     ```
-- Runs in 2 threads.
-    
-- The event receiver thread receives the updates and caches it locally in-memory, as just one copy per event. In case of multiple updates, that copy is written with latest.
-- The event writer thread, wakes up periodically.
-- The redis key is coined as {event-source | event-tag | event-hash}
-- The redis value is { timestamp:... [, param0: ... [param1: ...]] }
-- The key helps tracks all unique event instances
-- Though the writer wakes up every N seconds, it writes the value as of at the timepoint of it waking up.
-- Writer will be diligent to write only updates that it missed in the last cycle. 
-- The writer's default redis update frequency can be modified via init-cfg.json.
 
 ### Event exporting
-The telemetry container helps with exporting events to external collectors/clients.
+The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
 
 #### requirements
 - Telemetry container hosts gNMI server for streaming events to external receivers.
 - The external clients subscribe and receive messages via gNMI connection/protocol.
+- 
 - Telemetry container creates a new thread for each external client that subscribes for events.
 - A subscription connection is created per external client. This way a slow client will not block others.
 - Each message received is synchronously written to external client. Hence the performance depends on the external client.
