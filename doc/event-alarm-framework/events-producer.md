@@ -46,7 +46,7 @@ An event is defined for BGP state change in YANG model as below.
 
 ```
 module sonic-events-bgp {
-    namespace "http://github.com/Azure/sonic-events-bgp";
+    namespace "http://github.com/sonic-net/sonic-events-bgp";
     prefix "events";
     yang-version 1.1;
 
@@ -731,6 +731,7 @@ The following alerts are planned for implementation
 
 ## Source: BGP
 Events sourced by BGP. There could be multiple publishers raising BGP events.
+The publishing is done via parsing syslogs, as this is III party code.
 	
 ### State
 - The state is reported as "UP" or "Down" with neighbor IP.
@@ -745,7 +746,7 @@ Events sourced by BGP. There could be multiple publishers raising BGP events.
 ### YANG model
 ```
 module sonic-events-bgp {
-    namespace "http://github.com/Azure/sonic-events-bgp";
+    namespace "http://github.com/sonic-net/sonic-events-bgp";
     prefix "events";
     yang-version 1.1;
 
@@ -836,7 +837,208 @@ module sonic-events-bgp {
 }
     
 ```
+## Source: host
+Events sourced by services running in host. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
+	
+### usage
+- The usage can be for disk or memory.
+- Params: { type: disk/mem usage, fs: < filesystem path for disk usage >, usage: < % in use >, limit: < set limit in % > }
+- The "type" is the key param. Hence a host usage event is identified with the type. Multiple events could be raised for different usage values.
+	
+### sshd
+- This event has only type, which is "INCORRECT_PASSWD".
+- Event is identified by source source + tag + type.
+- There are no additional params.
+- Update PAM patch that detects this event, to call libswsscommon python API to publish.
 
+### disk
+- This event has only type, which is "read_only".
+- Event is identified by source source + tag + type.
+- There are no additional params.
+- Update disk_check.py to publish the event.
+	
+### YANG model
+```
+module events-host {
+    namespace "http://github.com/sonic-net/sonic-events-host";
+    prefix "events";
+    yang-version 1.1;
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "BGP alert events.";
+    }
+
+    container sonic-events-host {
+        container event-usage {
+            list event_usage {
+                key "type";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Source is from host services";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "usage";
+                    }
+                    description "Event tag usage";
+                }
+
+                leaf type {
+                    enum "disk_usage";
+                    enum "mem_usage";
+                }
+
+                leaf fs {
+                    type  string;
+                    description "Name of the file system";
+                    default "";
+                }
+
+                leaf usage {
+                    type integer;
+                    description "Percentage in use";
+                }
+
+                leaf limit {
+                    type integer;
+                    description "Percentage limit set";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+        container event-sshd {
+            list event_sshd {
+                key "type";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Source is from host services";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "sshd";
+                    }
+                    description "Event tag for sshd";
+                }
+
+                leaf type {
+                    enum "INCORRECT_PASSWD";
+                }
+            }
+        }
+        container event-disk {
+            list event_disk {
+                key "type";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Source is from host services";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "disk";
+                    }
+                    description "Event tag for disk";
+                }
+
+                leaf type {
+                    enum "read_only";
+                }
+            }
+        }
+    }
+}
+```
+## Source: swss
+Events sourced by services running in swss container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
+	
+### redis_generic_get
+- This is a state/event that is fatal after few reports for swss container.
+- Params: None
+- The event is identified with the source & tag.
+	
+### YANG model	
+```
+module sonic-events-swss {
+    namespace "http://github.com/sonic-net/sonic-events-bgp";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "BGP alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC SWSS events";
+
+    container sonic-events-swss {
+
+        container swss-redis-generic {
+            list event_list {
+                key "asic_index;
+
+                leaf source {
+                    type enumeration {
+                        enum "swss";
+                    }
+                    description "Source is BGP";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "redis_generic_get";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf asic_index {
+                    type uint8;
+                    description "ASIC index in case of multi asic platform";
+                    default 0;
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+    }
+}
+```
+	
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
 
