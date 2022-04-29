@@ -669,9 +669,10 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
-- The counters are persisted in STATE-DB with keys as "EVENT-STATS|<counter name>"
+- The counters are persisted in STATE-DB with keys as "EVENT-STATS|< counter name >"
 - The counters are cumulative.
 - The counters lifetime is tied with lifetime of STATE-DB.
+- The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
 #### counters
 - events-sent-cnt:
@@ -683,6 +684,9 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 	
 - events-suppressed-cnt:
   - The count of events suppressed (_read reliability section above for details_).
+    
+- events-cached-cnt:
+  - The count of events provided from cache.
     
 - Max_receiver_duration_secs:
   - The max time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
@@ -714,21 +718,12 @@ The stats are collected by telemetry service that serves the main receiver. Henc
   - The maximum time taken from event publish to event write into receiver connection
 	
 - avg_latency
-  - The minimum time taken from event publish to event write into receiver connection
-	
-- min_latency
-  - The minimum time taken from event publish to event write into receiver connection
-	
-- min_latency
-  - The minimum time taken from event publish to event write into receiver connection
+  - The average time taken from event publish to event write into receiver connection
 	
 	
-# Next Step:
-When alarm-event FW is functional, the plugin could start using the macros provided by the FW, for identified tags as events.
-
-
 # CLI
-Show command is provided to view events with optional parameter to filter by source.
+- Show command is provided to view events with optional parameter to filter by source.
+- Show commands is provided to vew STATS collected
 
 # Test
 Tests are critical to have static events staying static across releases and ensuring the processes indeed fire those events in every release.
