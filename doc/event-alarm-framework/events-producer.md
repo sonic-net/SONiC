@@ -972,8 +972,14 @@ Events sourced by services running in swss container. There could be multiple pu
 	
 ### redis_generic_get
 - This is a state/event that is fatal after few reports for swss container.
-- Params: None
-- The event is identified with the source & tag.
+- Params: { asic_index: < Index of the asic for multi-asic and 0 for all other > }
+- Asic_index is key param
+- The event is identified with the source, tag and asic_index.
+
+### if_state:
+- Reports the interface state changes
+- Params: { asic_index: < Index of the asic for multi-asic and 0 for all other >, ifname: < i/f name >; status: up/down}
+- key params {asic_index, ifname }
 	
 ### YANG model	
 ```
