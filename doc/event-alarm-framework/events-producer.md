@@ -733,16 +733,7 @@ The following alerts are planned for implementation
 Events sourced by BGP. There could be multiple publishers raising BGP events.
 The publishing is done via parsing syslogs, as this is III party code.
 	
-### State
-- The state is reported as "UP" or "Down" with neighbor IP.
-- Params: { status: up/down, IP: < neighnor IP> }
-- The neigbor IP is the key param. Hence a BGP state event is identified with the IP. Multiple events raised for UP/DOWN for an IP are considered repeat.
-- NOTE: repeat events are supporessed only in cache mode or rate-limit in action.
-	
-### Hold-timer-expiry
-- This event has no params and hence no key either.
-- Event is identified by source ("BGP") and tag ("hold_timer_expiry") only
-	
+
 ### YANG model
 ```
 module sonic-events-bgp {
@@ -774,6 +765,12 @@ module sonic-events-bgp {
     container sonic-events-bgp {
 
         container bgp-state {
+            description "
+                Declares an event for BGP state for a neighbor IP
+                IP is the key parameter
+                The status says "up" or "down"
+                Repeat events are identified by IP";
+
             list event_list {
                 key "IP";
 
@@ -781,14 +778,14 @@ module sonic-events-bgp {
                     type enumeration {
                         enum "bgp";
                     }
-                    description "Source is BGP";
+                    description "Event source";
                 }
         
                 leaf tag {
                     type enumeration {
                         enum "state";
                     }
-                    description "Event type/tag";
+                    description "Event tag";
                 }
 
                 leaf ip {
@@ -812,19 +809,52 @@ module sonic-events-bgp {
         }
 
         container bgp-hold-timer {
+            description "
+                Declares an event for BGP hold timer expiry.
+                This event does not have any other parameter.
+                Hence source + tag identifies an event";
+
             list event_list {
                 leaf source {
                     type enumeration {
                         enum "bgp";
                     }
-                    description "Source is BGP";
+                    description "Event source";
                 }
         
                 leaf tag {
                     type enumeration {
                         enum "hold_timer_expiry";
                     }
-                    description "BGP Hold timer expiry";
+                    description "Event tag";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container zebra-no-buff {
+            description "
+                Declares an event for zebra running out of buffer.
+                This event does not have any other parameter.
+                Hence source + tag identifies an event";
+                
+            list event_list {
+                leaf source {
+                    type enumeration {
+                        enum "bgp";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "zebra_no_buffer";
+                    }
+                    description "Event tag";
                 }
 
                 leaf timestamp {
@@ -835,27 +865,137 @@ module sonic-events-bgp {
         }
     }
 }
-    
 ```
+
+## Source: dhcp-relay
+Events sourced by processes from dhcp-relay container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
+	
+### YANG model
+```
+module sonic-events-dhcp-relay {
+    namespace "http://github.com/sonic-net/sonic-events-dhcp-relay";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "dhcp-relay alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC dhcp-relay events";
+
+    container sonic-events-dhcp-relay {
+
+        container dhcp-relay-discard {
+            description "
+                Declares an event for dhcp-relay discarding packet on an
+                interface due to missing IP address assigned.
+                Params:
+                    name of the interface discarding.
+                    class of the missing IP address as IPv4 or IPv6.
+                Both params are used as key
+                Hence source + tag + all params identifies an event";
+
+            list event_list {
+                key "ip_class ifname";
+
+                leaf source {
+                    type enumeration {
+                        enum "dhcp-relay";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "discard_no_ip";
+                    }
+                    description "Event tag";
+                }
+
+                leaf ip_class {
+                    type enumeration {
+                        enum "ipV4";
+                        enum "ipV6";
+                    }
+                    description "Class of IP address missing";
+                }
+
+                leaf ifname {
+                    type string;
+                    description "Name of the i/f discarding";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container dhcp-relay-disparity {
+            description "
+                Declares an event for disparity detected in
+                DHCP Relay behavior by dhcpmon.
+                parameters:
+                    vlan that shows this disdparity
+                    Additional data 
+                vlan is the only key param.
+                Hence source + tag + vlan identifies an event";
+
+            list event_list {
+                key "vlan";
+
+                leaf source {
+                    type enumeration {
+                        enum "dhcp-relay";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "disparity";
+                    }
+                    description "Event tag";
+                }
+
+                leaf vlan {
+                    type string;
+                    description "Name of the vlan affected";
+                }
+
+                leaf duration {
+                    type uint32;
+                    description "Duration of disparity";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+    }
+}
+```
+	
 ## Source: host
 Events sourced by services running in host. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
-	
-### usage
-- The usage can be for disk or memory.
-- Params: { type: disk/mem usage, fs: < filesystem path for disk usage >, usage: < % in use >, limit: < set limit in % > }
-- The "type" is the key param. Hence a host usage event is identified with the type. Multiple events could be raised for different usage values.
-	
-### sshd
-- This event has only type, which is "INCORRECT_PASSWD".
-- Event is identified by source source + tag + type.
-- There are no additional params.
-- Update PAM patch that detects this event, to call libswsscommon python API to publish.
-
-### disk
-- This event has only type, which is "read_only".
-- Event is identified by source source + tag + type.
-- There are no additional params.
-- Update disk_check.py to publish the event.
 	
 ### YANG model
 ```
@@ -874,24 +1014,34 @@ module events-host {
 
     container sonic-events-host {
         container event-usage {
+            description "
+                Declares an event for usage crossing set limit
+                for disk or memory.
+                The parameters describe the usage & limit set.
+                The usage_type defines the affected entity as system memory
+                or file system.
+                
+                The usage_type is the key.
+                Hence source + tag + usage_type identifies an event";
+
             list event_usage {
-                key "type";
+                key "usage_type";
 
                 leaf source {
                     type enumeration {
                         enum "host";
                     }
-                    description "Source is from host services";
+                    description "Event source";
                 }
         
                 leaf tag {
                     type enumeration {
                         enum "usage";
                     }
-                    description "Event tag usage";
+                    description "Event tag";
                 }
 
-                leaf type {
+                leaf usage_type {
                     enum "disk_usage";
                     enum "mem_usage";
                 }
@@ -903,12 +1053,20 @@ module events-host {
                 }
 
                 leaf usage {
-                    type integer;
+                    type uint8 {
+                        range "0..100" {
+                            error-message "Incorrect val for %";
+                        }
+                    }
                     description "Percentage in use";
                 }
 
                 leaf limit {
-                    type integer;
+                    type uint8 {
+                        range "0..100" {
+                            error-message "Incorrect val for %";
+                        }
+                    }
                     description "Percentage limit set";
                 }
 
@@ -919,48 +1077,347 @@ module events-host {
             }
         }
         container event-sshd {
+            description "
+                Declares an event reported by sshd.
+                The fail type declares the type of failure.
+                INCORRECT_PASSWORD - denotes that sshd is sending
+                wrong password to AAA to intentionally fail this 
+                login.
+                fail_type is the key param.
+                Hence source + tag + fail_type identifies an event";
+
             list event_sshd {
-                key "type";
+                key "fail_type";
 
                 leaf source {
                     type enumeration {
                         enum "host";
                     }
-                    description "Source is from host services";
+                    description "Event source";
                 }
         
                 leaf tag {
                     type enumeration {
                         enum "sshd";
                     }
-                    description "Event tag for sshd";
+                    description "Event tag";
                 }
 
-                leaf type {
-                    enum "INCORRECT_PASSWD";
+                leaf fail_type {
+                    type enumeration {
+                        enum "INCORRECT_PASSWD";
+                    }
+                    description "Type of failure";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
                 }
             }
         }
         container event-disk {
+            description "
+                Declares an event reported by disk check.
+                The fail type declares the type of failure.
+                read-only - denotes that disk is in RO state.
+
+                fail_type is the key param.
+                Hence source + tag + fail_type identifies an event";
+
             list event_disk {
-                key "type";
+                key "fail_type";
 
                 leaf source {
                     type enumeration {
                         enum "host";
                     }
-                    description "Source is from host services";
+                    description "Event source";
                 }
         
                 leaf tag {
                     type enumeration {
                         enum "disk";
                     }
-                    description "Event tag for disk";
+                    description "Event tag";
                 }
 
-                leaf type {
-                    enum "read_only";
+                leaf fail_type {
+                    type enumeration {
+                        enum "read_only";
+                    }
+                    description "Type of failure";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+        container event-kernel {
+            description "
+                Declares an event reported by kernel.
+                The fail type declares the type of failure.
+
+                fail_type is the key param.
+                Hence source + tag + fail_type identifies an event";
+
+            list event_kernel {
+                key "fail_type";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Event source";
+                }
+
+                leaf tag {
+                    type enumeration {
+                        enum "kernel";
+                    }
+                    description "Event tag";
+                }
+
+                leaf fail_type {
+                    type enumeration {
+                        enum "write_failed";
+                        enum "write_protected";
+                        enum "remount_read_only";
+                        enum "aufs_read_lock";
+                        enum "invalid_freelist";
+                        enum "zlib_decompress";
+                    }
+                    description "Type of failure";
+                }
+
+                leaf msg {
+                    type string;
+                    description "human readable hint text";
+                    default "";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container event-monit-proc {
+            description "
+                Declares an event reported by monit for a process
+                that is not running.
+        
+                Params: 
+                    Name of the process that is not running.
+                    The ASIC-index of that process.
+                   
+                proc_name & asic_index are key params.
+                Hence source + tag + key-params identifies an event";
+
+            list event_proc {
+
+                key "proc_name asic_index";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "monic_proc_not_running";
+                    }
+                    description "Event tag";
+                }
+
+                leaf proc_name {
+                    type string;
+                    description "Name of the process not running";
+                    default "";
+                }
+
+                leaf asic_index {
+                    type uint8;
+                    description "ASIC index in case of multi asic platform";
+                    default 0;
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container event-monit-status {
+            description "
+                Declares an event reported by monit for status check
+                failure for a process
+        
+                Params: 
+                    Name of the process that is not running.
+                    The ASIC-index of that process.
+                   
+                proc_name & asic_index are key params.
+                Hence source + tag + key-params identifies an event";
+
+            list event_status {
+
+                key "entity asic_index";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "monit_status_fail";
+                    }
+                    description "Event tag";
+                }
+
+                leaf entity {
+                    type string;
+                    description "Name of the failing entity";
+                    default "";
+                }
+
+                leaf asic_index {
+                    type uint8;
+                    description "ASIC index in case of multi asic platform";
+                    default 0;
+                }
+
+                leaf reason {
+                    type string;
+                    description "Human readble text explaining failure";
+                    default "";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container event-platform {
+            description "
+                Declares an event for platform related failure.
+                Params: 
+                    fail_type provides the type of failure.
+                   
+                fail_type is the key param.
+                Hence source + tag + key-param identifies an event";
+
+            list event_platform {
+                key "fail_type";
+
+                leaf source {
+                    type enumeration {
+                        enum "host";
+                    }
+                    description "Event source";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "platform";
+                    }
+                    description "Event tag";
+                }
+
+                leaf fail_type {
+                    type enumeration {
+                        enum "watchdog_timeout";
+                        enum "switch_parity_error";
+                        enum "SEU_error";
+                    }
+                    description "Type of failure";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+    }
+}
+
+```
+## Source: pmon
+Events sourced by platform monitor services.
+	
+### YANG model	
+```
+module sonic-events-pmon {
+    namespace "http://github.com/sonic-net/sonic-events-pmon";
+    prefix "events";
+    yang-version 1.1;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+        import ietf-yang-types {
+                prefix yang;
+        }
+
+    revision 2022-03-28 {
+        description "pmon alert events.";
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC pmon events";
+
+    container sonic-events-pmon {
+
+        container pmon-exited {
+            description "
+                Declares an event reportes by pmon for an unexpected exit.
+                The exited entity is the only param and as well the key param.
+                Hence source + tag + entity identifies an event";
+
+            list event_list {
+                key "entity";
+
+                leaf source {
+                    type enumeration {
+                        enum "pmon";
+                    }
+                    description "Source is BGP";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "exited";
+                    }
+                    description "An unexpected exit";
+                }
+
+                leaf entity {
+                    type string;
+                    description "entity that had unexpected exit";
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
                 }
             }
         }
@@ -969,18 +1426,7 @@ module events-host {
 ```
 ## Source: swss
 Events sourced by services running in swss container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
-	
-### redis_generic_get
-- This is a state/event that is fatal after few reports for swss container.
-- Params: { asic_index: < Index of the asic for multi-asic and 0 for all other > }
-- Asic_index is key param
-- The event is identified with the source, tag and asic_index.
 
-### if_state:
-- Reports the interface state changes
-- Params: { asic_index: < Index of the asic for multi-asic and 0 for all other >, ifname: < i/f name >; status: up/down}
-- key params {asic_index, ifname }
-	
 ### YANG model	
 ```
 module sonic-events-swss {
@@ -1012,6 +1458,11 @@ module sonic-events-swss {
     container sonic-events-swss {
 
         container redis-generic {
+            description "
+                Declares an event for a fatal error encountered by swss.
+                The asic-index of the failing process is the only param.
+                Hence source + tag + asic_index identifies an event";
+
             list event_list {
                 key "asic_index;
 
@@ -1042,8 +1493,16 @@ module sonic-events-swss {
             }
         }
         container if-state {
+            description "
+                Declares an event for i/f flap.
+                
+                The name of the flapping i/f and status are the only params.
+                The i/f name is the key param.
+
+                Hence source + tag + if-name identifies an event";
+
             list event_list {
-                key "asic_index ifname;
+                key "ifname";
 
                 leaf source {
                     type enumeration {
@@ -1057,12 +1516,6 @@ module sonic-events-swss {
                         enum "if_state";
                     }
                     description "Event type/tag";
-                }
-
-                leaf asic_index {
-                    type uint8;
-                    description "ASIC index in case of multi asic platform";
-                    default 0;
                 }
 
                 leaf ifname {
@@ -1084,17 +1537,108 @@ module sonic-events-swss {
                 }
             }
         }
+
+        container pfc-storm {
+            description "
+                Declares an event for PFC storm.
+                
+                The name of the i/f facing the storm is the only param.
+                The i/f name is the key param.
+
+                Hence source + tag + if-name identifies an event";
+
+            list event_list {
+                key "ifname;
+
+                leaf source {
+                    type enumeration {
+                        enum "swss";
+                    }
+                    description "Source is SWSS";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "pfc_storm";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf ifname {
+                    type string;
+                    description "Interface name";
+                }
+
+                leaf queue_index {
+                    type uint8;
+                }
+
+                leaf queue_id {
+                    type uint64_t;
+                }
+
+                leaf port_id {
+                    type uint64_t;
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
+
+        container chk_crm_threshold {
+            description "
+                Declares an event for CRM threshold.
+                This event does not have any other parameter.
+                Hence source + tag identifies an event";
+
+            list event_list {
+
+                leaf source {
+                    type enumeration {
+                        enum "swss";
+                    }
+                    description "Source is SWSS";
+                }
+        
+                leaf tag {
+                    type enumeration {
+                        enum "crm_threshold_exceeded";
+                    }
+                    description "Event type/tag";
+                }
+
+                leaf percent {
+                    type uint8 {
+                         range "0..100" {
+                            error-message "Invalid percentage value";
+                        }
+                    }
+                    description "percentage used";
+                }
+
+                leaf used_cnt {
+                    type uint8;
+                }
+
+                leaf free_cnt {
+                    type uint64_t;
+                }
+
+                leaf timestamp {
+                    type yang::date-and-time;
+                    description "time of the event";
+                }
+            }
+        }
     }
 }
 ```
 
 ## Source: syncd
 Events sourced by services running in syncd container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
-	
-### Failure
-- This reports different  kinds of fatal failures
-- Params: { type: < type of failure > }
-- The event is identified with the source, tag and type that denotes the kind of failure.
 	
 ### YANG mode
 ```
@@ -1127,8 +1671,16 @@ module sonic-events-syncd {
     container sonic-events-syncd {
 
         container failure {
+            description "
+                Declares an event for all types of syncd failure.
+                The type of failure and the asic-index of failing syncd are
+                provided along with a human readable message to give the
+                dev debugging additional info.
+                The fail-type & asic-index are key params.
+                Hence source + tag + key params identifies an event";
+
             list event_list {
-                key "asic_index type;
+                key "asic_index fail_type;
 
                 leaf source {
                     type enumeration {
@@ -1150,12 +1702,20 @@ module sonic-events-syncd {
                     default 0;
                 }
 
-                leaf type {
+                leaf fail_type {
                     type enumeration {
-                        enum "route_add_failed",
-                        enum "switch_event_2",
-                        enum "brcm_sai_switch_assert"
+                        enum "route_add_failed";
+                        enum "switch_event_2";
+                        enum "brcm_sai_switch_assert";
+                        enum "assert";
+                        enum "mmu_err";
                     }
+                }
+
+                leaf msg {
+                    type string;
+                    description "human readable hint text"
+                    default "";
                 }
 
                 leaf timestamp {
