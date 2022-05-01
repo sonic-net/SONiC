@@ -7,6 +7,7 @@
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Liu Kebo      | Initial version                   |
  | 1.1 |             |      Liu Kebo      | update error event handling       |
+ | 1.2 |             |      Junchao Chen  | port config change handling       |
 ## About This Manual ##
 
 This document is intend to provide general information about the Transceiver and Sensor Monitoring implementation.
@@ -234,11 +235,9 @@ Xcvrd will spawn a new process(sfp_state_update_task) to wait for the SFP plug i
 
 A thread will be started to periodically refresh the DOM sensor information.
 
-In the main loop of the Xcvrd task, it periodically check the integrity the DB, if some SFP info missing, will be added back.
-
 Detailed flow as showed in below chart:
 
-![](https://github.com/keboliu/SONiC/blob/master/images/xcvrd-flow.svg)
+![](https://github.com/Azure/SONiC/blob/d1159ca728112f10319fa47de4df89c445a27efc/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
 #### 1.4.1 State machine of sfp\_state\_update\_task process ####
 
@@ -282,6 +281,61 @@ Currently no explicit "error clear event" is defined, a plug in event will be co
 An explicit "error clear event" can be added if some vendor's platform supports this kind of event.
 
 On transceiver plug in or plug out events, the port error status will be cleared.
+
+#### 1.4.3 Port Mapping Information handling ####
+
+xcvrd depends on port mapping information to update transceiver information to DB. Port mapping information contains following data:
+
+- Logical port name list. E.g. ["Ethernet0", "Ethernet4" ...]
+- Logical port name to physical port index mapping. E.g. {"Ethernet0": 1}
+- Physical port index to logical port name mapping. E.g. {1: "Ethernet0"}
+- Logical port name to ASIC ID mapping. This is useful for multi ASIC platforms.
+
+Currently, xcvrd assumes that port mapping information is never changed, so it always read static port mapping information from platform.json/port_config.ini and save it to a global data structure. However, things changed since dynamic port breakout feature introduced. Port can be added/created on the fly, xcvrd cannot update transceiver information, DOM information and transceiver status information without knowing the ports change. This causes data in state db not aligned with config db. To address this issue, xcvrd should subscribe CONFIG_DB PORT table change and update port mapping information accordingly.
+
+- Main process need not subscribe port configuration change.
+- State machine process and DOM sensor update thread subscribe port configuration change and update local port mapping accordingly.
+
+Port change event contains following data:
+
+- ASIC index which indicates the DB namespace.
+- Logical port name. Get from the key of PORT table. E.g, for key "PORT|Ethernet0", the logical port name is "Ethernet0".
+- Physic port index. Get from "index" field of PORT table.
+- Event type. Can be "Add" or "Remove".
+
+As port mapping information might be updated during runtime, the global port mapping information cannot be shared properly among main process, state machine process and DOM sensor update thread. A possible solution is to use share memory between different processes, but it will introduce process level lock to many places which is hard to maintain. So, a simple solution is to store local port mapping information in main process, state machine process and DOM sensor update thread and update them according to port configuration change. In this case, no explicit lock is needed and we can keep the logic as simple as it is. Of course it takes more memory, but port mapping information would be very small which should not cause any memory issue.
+
+##### 1.4.3.1 Subscribe CONFIG_DB PORT table change #####
+
+SONiC has implemented a way to "select" data changes from redis. xcvrd should reuse this "select" infrastructure to listen CONFIG_DB PORT table change. The workflow is like:
+
+1. For each ASIC namespace, create a selectable object which point to CONFIG_DB PORT table
+2. Add each selectable object to the select queue
+3. Select DB event in a while loop
+4. If there is any selectable object ready for read, check:
+
+    - Entry added, trigger a port change event with event type "Add"
+    - Entry removed, trigger a port change event with event type "Remove"
+    - Entry updated, if the port logical name to physical index mapping has been changed, trigger a port "Remove" and port "Add" event.
+
+5. Update local port mapping
+
+##### 1.4.3.2 Handle port change event in state machine process #####
+
+Once a port configuration change detected, it should update local port mapping information first, and if it is a remove event, state machine task should remove transceiver information from table TRANSCEIVER_INFO, TRANSCEIVER_STATUS and TRANSCEIVER_DOM_SENSOR; if it is an add event, there could be 4 cases:
+
+- Transceiver information is already in DB which means that a logical port with the same physical index already exists. Copy the data from DB and create a new entry to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO whose key is the newly added logical port name.
+- Transceiver information is not in DB and transceiver is present with no SFP error. Query transceiver information and DOM sensor information via platform API and update the data to table TRANSCEIVER_DOM_INFO, TRANSCEIVER_STATUS_INFO and TRANSCEIVER_INFO.
+- Transceiver information is not in DB and transceiver is present with SFP error. If the SFP error does not block EEPROM reading, just query transceiver information and DOM sensor information via platform API and update the data to DB; otherwise, just update TRANSCEIVER_STATUS table with the error.
+- Transceiver information is not in DB and transceiver is not present. Update TRANSCEIVER_STATUS only.
+
+##### 1.4.3.2 Handle port change event in DOM sensor update thread #####
+
+Once a port configuration change detected, it should update local port mapping information first and if it is a remove event, it should remove transceiver information from table TRANSCEIVER_DOM_SENSOR; if it is and add event, nothing else need to be done because new port in already in local port mapping and the DOM sensor information will be updated properly.
+
+##### 1.4.3.3 Recover missing SFP information in DB #####
+
+When a SFP insert event arrives to state machine process, it reads the SFP EEPROM. If the first read fails, it retries after 5 seconds. If it fails again, this SFP will be put into a retry queue. State machine process retries EEPROM reading for each item in the retry queue every iteration. It makes sure that xcvrd will not miss transceiver information in DB.
 
 ## 2. SNMP Agent Change ##
 
