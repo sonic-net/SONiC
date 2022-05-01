@@ -30,14 +30,14 @@ Some feature flows in SONiC are delayed with a timer to keep the CPU dedicated t
 In order to have such indicator, re-use of the fastfast-reboot infrastructure can be used.
 
 Each network application will experience similar processing flow.
-Application and corresponding orchagent sub modules need to work together to restore the original data and push it to the ASIC.
+Application and corresponding orchagent sub modules need to work together to restore the preboot state and push it to the ASIC.
 Take neighbor as an example, upon restart operation every neighbor we had prior to the reboot should be created again after resetting the ASIC.
 We should also synchronize the actual neighbor state after recovering it, the MAC of the neighbor could have changed, went down for some reason etc.
 In this case, restore_neighbors.py script will align the network state with the switch state by sending ARP/NDP to all known neighbors prior the reboot.
 neighsyncd will update the internal cache with all neighbors and push all to APP DB, orchagent will then add/remove/update any neighbor and get syncd to program the HW with the new data.
 
 In addition to the recover mechanism, the warmboot-finalizer can be enhanced to finalize fast-reboot as well and introduce a new flag indicating the process is done.
-This new flag can be used later on for any functionality which we want to start only after init flow finished in case of fast-reboot.
+This new flag can be used later on for any functionality, we want to start only after init flow finished in case of fast-reboot.
 This is to prevent interference in the fast-reboot reconciliation process and impair the performance, for example enablement of flex counters.
 
 References:
@@ -49,11 +49,11 @@ https://github.com/Azure/sonic-buildimage/blob/master/dockers/docker-orchagent/e
 
 The new Fast-reboot design should meet the following requirments:
 
-- Reboot the switch into a new SONiC software version using kexec.
-- Upgrade the FW by the new SONiC image if needed.
-- Recover all applications state with the new image to the previous state prior the reboot.
+- Reboot the switch into a new SONiC software version using kexec - less than 5 seconds.
+- Upgrade the switch FW by the new SONiC image if needed.
+- Recover all application's state with the new image to the previous state prior the reboot.
 - Recover ASIC state after reset to the previous state prior the reboot.
-- Recover the Kernel state after reset to the previous state prior the reboot.
+- Recover the Kernel internal DB state after reset to the previous state prior the reboot.
 - Sync the Kernel and ASIC with changes on the network which happen during fast-reboot.
 - Control plane downtime will not exceed 90 seconds.
 - Data plane downtime will not exceed 30 seconds.
