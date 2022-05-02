@@ -298,6 +298,11 @@ typedef events_base* event_handle_t;
  *  Any duplicate init call for a source will return the same instance.
  *
  * Input:
+ *  event_sender
+ *      An identity of the sender. The event-source+sender is expected to 
+ *      globally unique. This helps with identifying messages missed by receiver
+ *	from a sender.
+ *
  *  event_source
  *      All events published with the handle returned by this call is
  *      tagged with this source, transparently.
@@ -307,7 +312,7 @@ typedef events_base* event_handle_t;
  *  NULL on failure
  */
 
-event_handle_t events_init_publisher(const std::string &event_source);
+event_handle_t events_init_publisher(const std::string &event_sender, std::string &event_source);
 
 /*
  * De-init/free the publisher
@@ -484,47 +489,59 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 
 ## Event publishing & receiving
 
-### requirements
-- Events are published as many to many.
-- Multiple receivers for messages published by multiple publishers running in hosts and containers.
+### Basic requirements to meet
+- Events are published from multiple publishers to multiple receivers.
+- The publishers and receivers run in host and containers.
+- The publishers should never be blocked.
 - A receiver should be transparent to all publishers and vice versa
-- A slow receiver should not impact either other receivers.
-- Publishers should never be blocked.
-- Receivers should be able to learn the count of messages they have missed to receive.
-- Receivers & publishers could go down and come up anytime.
+- A slow receiver should not impact either other receivers or publishers.
+- The receivers should be able to learn the count of messages they have missed to receive.
+- The receivers & publishers could go down and come up anytime.
 - A publishing API validates every event per YANG schema by default. This default behavior can be turned off via /etc/sonic/init-cfg.json. In case of turning off, offline validation occurs.
   - The events that failed validation are not published.
   - The failed validations are logged via syslog and event is raised 
+- A receiver should be able to compute the count of messages it missed to receive as ZMQ PUB/SUB drops messages upoin Q overflow.
 
 ### Design
-- Use ZMQ PUB/SUB for publish & subscribe
-- To help with transparency across publishers & receivers, run a central ZMQ proxy with XPUB/XSUB.
+- Use ZMQ PUB/SUB for publish & subscribe.
+- To help with complete transparency across publishers & receivers, run a central ZMQ proxy with XPUB/XSUB.
+  - The proxy binds to PUB/SUB end points.
+  - The publishers & receivers connect to SUB & PUB end points respectively.
 - Run the zmq proxy service in a dedicated eventd container.
-- The systemd ensures the availability of eventd container.
-- The publishers and subscribers connect to the *always* available, single instance ZMQ proxy.
+  - The systemd ensures the availability of eventd container.
+  - The publishers and subscribers connect to the *always* available, single instance ZMQ proxy.
 - This proxy could transparently feed every messages to a side-car component.
-- Run the events-cache service as the side component.
-- The events cache service is accessible via REQ/REP
+  - Run the events-cache service as a side component.
+  - Run a local redis-persistence service as another side component.
 
 ### Details
 1. All the zmq paths' defaults are hardcoded in the libswsscommon lib as part of APIs code.
 2. These can be overridden with config from /etc/sonic/init_cfg.json
-3. The publish API adds sequence number to the message which is stripped off by receiver before forwarding the message to caller.
-   - Sequence: < runtime id in high 32 bits > < 32 bits of sequence number starting with 0 >
-   - runtime-id = epoch time in milliseconds, truncated to low 32 bits 
+3. The publish API adds few private attributes
+   - Adds two sequence numbers and an runtime ID to the message which is stripped off by receiver before forwarding the message to caller.
+     - runtime-ID <32 bit ID>
+       - This is computed to be unique among process restarts.
+     - source Sequence: < 32 bits of sequence number starting with 0 >
+     - tag sequence: <32 bits of sequence numnber starting with 0>
+   - Adds the sender info into the message, to be used in conjunction with sequence numbers.
    - Send as multipart message with event-source in part1, which allows using ZMQ's filtering by event-sources.
  4. The receiver API:
     - Reads & returns one event at a time, in blocking mode.
-    - For receive with no filtering, it creates stats as listed in SLA section for this receive session.
-    - It computes missed message count with expected sequence number and the sequence in the received event and expected.
-    - It saves the timestamp/diff to compute latency.
+    - For receive with no filtering, it maintains stats as listed in SLA section for this receive session.
+      - Maintains expected sequence numbers per source & per-source-per-tag for each sender
+      - Diff with received numbers to count missed messages per source and missed repeats per tag per source for a sender.
+      - It subtracts the repeats missed from the source-missed, as there is no real loss of data.
+        - This handles the case of too many flaps per second.
+      - It uses the timestamp in message to compute latency.
+      - The stats can be retrieved by caller, anytime and update the STATE-DB.
+    - It strips off the sender & sequence number info, before returning message to caller.
  
 ## Events cache service
 1. This is a singleton service that runs in eventd container.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
 3. The caching can be started/stopped.
-4. When started all events are cached. The repeated events are cached with last incidence. The repetitions are counted as missed.
-5. The API uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
+4. When started all events are cached. The repeated events are cached with last incidence. It maintains the effective missed count across all sources (not counting the repeats)
+5. The cache service uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
 
 Supports the following APIs
 ```
@@ -532,7 +549,7 @@ Supports the following APIs
  * Start events cache service
  *
  * return:
- *  0 -- started or already running
+ *   0 -- started or already running
  *  -1 -- service not available.
  */
 int cache_service_start(void);
