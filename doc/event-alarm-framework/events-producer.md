@@ -631,7 +631,7 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - Use SUBSCRIBE request 
   - Use paths as 
     - "/events" to receive all events.
-    - "/events/<source> to receive all events from a source.
+    - "/events/< source > to receive all events from a source.
     - Multiple paths can be accepted.
   - Subscribe options
     - Target = EVENTS
@@ -680,17 +680,14 @@ The message reliability is ensured only for main receiver. There are 3 kinds of 
 Among the three, only the third scenario is a real message drop. In the cases 1 & 2, it can be seen as suppression of repeats to conserve resource with no real loss of data as last incidence is sent. Hence only messages missed by listener, is accounted into reliability measure computation. 
 
 #### Missed Message computaion.
-1. The count of missed from step 3 above are tracked cumulatively.
-2. The missing computed via sender+source sequence numbers are collected across all senders to get the total missed.
-3. Any sender+source+tag level missing, say N implies that this event though missed N times, the last state is received. Hence this N is subtracted from the total
+1. The missing computed via sender+source sequence numbers are collected across all senders to get the total missed.
+   - This is the total count of events the local listener missed to receive across all publishers/senders.
+2. The sender+source+tag level missing, say N implies that this event though missed N times, the last state after the N missed, is received. As the state after N missed is received & sent to the main-receiver, this N could be discounted from total missed. Hence this N is subtracted from the total-missed.
 	
 	total_missed = < sum of missed per sender+source > - < sum of repeats missed computed via sender+source+tag>
 
 This implies, in a healthy system, this count will be always trending towards 0, with possible spikes.
-	
-	
-	
-	
+
 All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
 
 ### Rate-limiting
@@ -700,7 +697,21 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
 - path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
 - The rate-limiting/backpressure would only drop repeated events.
 	
-
+### Reliability via caching
+- The events cache service is tapped in two scenarios
+  - The time duration between gNMI server disconnect & re-connect.
+  - The planned service downtime for telemetry container.
+	
+- Upon gNMI main-receiver re-connect
+  - Send subscribe message to evend's proxy; But defer reading the messages sent.
+  - Call cache service stop API, which returns the cached events list.
+  - Send these events to the main-receiver
+  - Now start reading from subscription.
+  - The messages received between start of subscribe and stop of caching could be duplicates.
+    - Detect the duplicates using the sequence number cached per sender/source.
+    - Duplicate messages are dropped.
+    - This check would stop after few seconds, as new events after spmetime, can't be found in cache.
+	
 # STATS update
 The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
@@ -711,18 +722,28 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
 ## counters
+- events-published-cnt:
+  - Count of all events published locally inside the switch.
+  - This count includes all repeats.
+	
 - events-sent-cnt:
-  - The count of all events / messages sent to the main receiver. In other words count of events the receiver is expected to receive.
+  - The count of all events / messages sent to the main receiver. In other words count of events the main receiver is expected to receive.
   - This would not include suppressed events-repeat (_read reliability section above for details_).
+  - This would not include count missed.
+  - ~= < events-published-cnt > - < events suppressed repeats > - < events missed >
   
 - events-missed-cnt:
-  - The count of events, the telemetry service missed to receive from the publishers (_read reliability section above for details_).
-	
+  - The count of events, the telemetry service missed to receive from the publishers and hence missed to send to main receiver.
+  - This does not include missed repeats.
+  - The "Missed mesage count" section under reliability has the details.
+  	
 - events-suppressed-cnt:
   - The count of events suppressed (_read reliability section above for details_).
+  - Suppression could happen at telemetry gNMI server due to slow client or during events caching.
     
 - events-cached-cnt:
   - The count of events provided from cache.
+  - Cumulative count of events provided from cache.
     
 - Max_receiver_duration_secs:
   - The max time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
