@@ -224,11 +224,11 @@ o/p
 # Requirements
 ## Events
 Events definition, usage & immutability.
-1. Events are defined with schema.
+1. Events are defined with schema with revisions.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
-3. An event is defined with zero or more event specific parameters. ~~A subset of the parameters are identified as key.
-4. ~~An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
-5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
+3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
+4. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
+5. Events schema updates are identified with revisions.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 7. YANG schema files can be set as contract between external events' consumer & SONiC.
 
@@ -236,7 +236,7 @@ Events definition, usage & immutability.
 The libswsscommon will have the APIs for publishing & receiving.
 1. To publish an event to all subscribers.
 2. To receive events from all publishers.
-3. Event is published with source, tag and optionally additional params.
+3. Event is published with Yang module path and optionally additional params.
 4. The publishing API is transparent to listening subscribers. The subscribers could come and go anytime.
 5. The subscribers are transparent to publishing sources transparently. The publishing sources could come and go anytime.
 6. The receiving API supports filtering by source. For an example, a receiver may choose to receive events from "BGP" & "SWSS" sources only.
@@ -250,20 +250,12 @@ The libswsscommon will have the APIs for publishing & receiving.
 4. The events could be inferred indirectly from syslog messages. The rsyslog plugin could be an option for live publishing, which can parse syslog messages as they arrive and raise events for messages that indicate an event.
 5. There can be multiple event detectors running under different scopes (host/containers), concurrently.
 
-## Event local persistence
-1. A service will record the events in redis in a new DB, "EVENTS-DB".
-3. This service will receive events at 10k/sec, but updates to redis will be periodic as every N seconds, to ensure minimal impact to control plane.
-4. The periodic update will record only the last incidence of an event for repeated events.
-5. The latency between receiving the event to redis-update can vary between 0 to N, where N is the pause between 2 updates.
-6. The value of N can be modified via init_cfg.json
-
 ## Events cache service
 1. An on-demand cache service is provided to cache events for a period in transient cache.
 2. This service can be started/stopped and retrieve cached data via an libswsscommon API.
 3. A receiver could use this, during its downtime and use the cache upon restart.
-4. The service caches only last incidence for repeated incidences of an event.
-5. The repeated incidences are counted in missed-events-count.
-6. The max size of the cache is same max count of possible events, hence there is no overflow possibility.
+4. The service caches first N events, where N is the max size of the cache.
+5. Events that overflow are dropped and counted as missed.
 
 ## exporter
 1. Telemetry container runs a internal listener to receive all the events published from all the event publishers in the switch.
