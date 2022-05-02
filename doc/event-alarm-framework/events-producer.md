@@ -24,7 +24,7 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/166261116-d5aa2592-ed85-44c6-9e9e-3dd027b6f886.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/165796196-ca89a72f-21ad-4dfa-aae8-34f458b2ff62.png)
+![image](https://user-images.githubusercontent.com/47282725/166265380-301e5a5a-77ad-4597-9afb-322846216690.png)
 
 
 # A Use case
