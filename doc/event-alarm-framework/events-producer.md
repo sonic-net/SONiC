@@ -8,7 +8,7 @@ SONiC streaming events as structured via gNMI
 4. Provide a structured format for event data with pre-defined schema.
 5. Provide the ability to stream at the max of 10K events per second to external clients.
 6. provide a way to ensure events are immutable across SONiC releases, but can be deprecated.
-7. Provide 99.5% of reliability - From event generated to end client.
+7. Provide (TODO) 99.5% of reliability - From event generated to end client.
 
 
 # Problems to solve
@@ -71,81 +71,117 @@ module sonic-events-bgp {
     description
         "SONIC BGP events";
 
-    container sonic-events-bgp {
+    container bgp-state {
+        description "
+            Declares an event for BGP state for a neighbor IP
+            IP is the key parameter
+            The status says "up" or "down"
+            Repeat events are identified by IP";
 
-        container bgp-state {
-            list event_list {
-                key "IP";
+        list event_list {
+            key "IP";
 
-                leaf source {
-                    type enumeration {
-                        enum "bgp";
-                    }
-                    description "Source is BGP";
+            leaf source {
+                type enumeration {
+                    enum "bgp";
                 }
-        
-                leaf tag {
-                    type enumeration {
-                        enum "state";
-                    }
-                    description "Event type/tag";
-                }
-
-                leaf ip {
-                    type inet:ip-address;
-                    description "IP of neighbor";
-                }
-
-                leaf status {
-                    type enumeration {
-                        enum "up";
-                        enum "down";
-                    }
-                    description "Provides the status as up (true) or down (false)";
-                }
-
-                leaf timestamp {
-                    type yang::date-and-time;
-                    description "time of the event";
-                }
+                description "Event source";
             }
-        }
+    
+            leaf tag {
+                type enumeration {
+                    enum "state";
+                }
+                description "Event tag";
+            }
 
-        container bgp-hold-timer {
-            list event_list {
-                leaf source {
-                    type enumeration {
-                        enum "bgp";
-                    }
-                    description "Source is BGP";
-                }
-        
-                leaf tag {
-                    type enumeration {
-                        enum "hold_timer_expiry";
-                    }
-                    description "BGP Hold timer expiry";
-                }
+            leaf ip {
+                type inet:ip-address;
+                description "IP of neighbor";
+            }
 
-                leaf timestamp {
-                    type yang::date-and-time;
-                    description "time of the event";
+            leaf status {
+                type enumeration {
+                    enum "up";
+                    enum "down";
                 }
+                description "Provides the status as up (true) or down (false)";
+            }
+
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
             }
         }
     }
-}
+
+    container bgp-hold-timer {
+        description "
+            Declares an event for BGP hold timer expiry.
+            This event does not have any other parameter.
+            Hence source + tag identifies an event";
+
+        list event_list {
+            leaf source {
+                type enumeration {
+                    enum "bgp";
+                }
+                description "Event source";
+            }
     
+            leaf tag {
+                type enumeration {
+                    enum "hold_timer_expiry";
+                }
+                description "Event tag";
+            }
+
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
+            }
+        }
+    }
+
+    container zebra-no-buff {
+        description "
+            Declares an event for zebra running out of buffer.
+            This event does not have any other parameter.
+            Hence source + tag identifies an event";
+            
+        list event_list {
+            leaf source {
+                type enumeration {
+                    enum "bgp";
+                }
+                description "Event source";
+            }
+    
+            leaf tag {
+                type enumeration {
+                    enum "zebra_no_buffer";
+                }
+                description "Event tag";
+            }
+
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
+            }
+        }
+    }
+}    
 ```
 
 ## BGP State event 
 The event will now be published as below per schema.
 ```
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" }
-{ "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" }
-```    
+{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
+{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" } }
+{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" } }
+{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" } }
+```   
+
 ## gNMI client
 A gNMI client could subscribe for events with optional filter on event source in streaming mode.
 Below shows the command & o/p for subscribing all, and receiving BGP events.
@@ -154,38 +190,32 @@ gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
 
 o/p
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "/events/sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T02:39:21.286611",
       "ip": "100.126.188.90",
       "status": "down"
     }
 }
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "/events/sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T02:46:42.615668",
       "ip": "100.126.188.90",
       "status": "up"
     }
-  }
 }
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "/events/sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T04:46:51.290979",
       "ip": "100.126.188.78",
       "status": "down"
     }
 }
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "/events/sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T05:06:26.871202",
       "ip": "100.126.188.78",
       "status": "up"
     }
-  }
 }
         
 ```
@@ -196,8 +226,8 @@ o/p
 Events definition, usage & immutability.
 1. Events are defined with schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
-3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
-4. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
+3. An event is defined with zero or more event specific parameters. ~~A subset of the parameters are identified as key.
+4. ~~An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
 7. YANG schema files can be set as contract between external events' consumer & SONiC.
