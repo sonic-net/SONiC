@@ -398,11 +398,10 @@ void events_deinit_subscriber(event_handle_t &handle);
 void event_receive(event_handle_t handle, std::string &source, std::string& tag,
         event_params_t &params, std::string& timestamp);
         
-        typedef enum {
-    TOTAL_CNT = 0,
-    MISSED_CNT,
-    CACHE_CNT,
-    CACHE_MISSED_CNT,
+typedef enum {
+    TOTAL_CNT = 0,   // total count of messages received
+    MISSED_CNT,      // Effective count of missed. Receiving an instance with missed repeats are discounted
+    CACHE_CNT,       // count of messages received from cache.
     MIN_LATENCY,
     MAX_LATENCY,
     AVG_LATENCY
@@ -532,6 +531,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
       - Diff with received numbers to count missed messages per source and missed repeats per tag per source for a sender.
       - It subtracts the repeats missed from the source-missed, as there is no real loss of data.
         - This handles the case of too many flaps per second.
+      - It maintains the cumulative count of missed.
       - It uses the timestamp in message to compute latency.
       - The stats can be retrieved by caller, anytime and update the STATE-DB.
     - It strips off the sender & sequence number info, before returning message to caller.
@@ -562,6 +562,15 @@ typedef struct {
     event_params_t params;
 } cache_message_t;
 
+/*
+ * Set of expected next sequence numbers
+ *
+ * The key is computed as <run_time_id|sender|source> for per source
+ * <run_time_id|sender|source|tag> as per tag.
+ *
+ */
+typedef std::map<std::string, uint32_t> next_sequence_t;
+
 /* Map of event_key vs the message */
 typedef std::map<std::string, cache_message_t> lst_cache_message_t;
 
@@ -574,17 +583,19 @@ typedef std::map<std::string, cache_message_t> lst_cache_message_t;
  *
  *  missed_cnt -- Repeated events are counted as missed, as cache persists
  *                only the last incidence.
- *
+ *  sequences -- Cached info on next expected value. The caller would use this
+ *	  	 as current context to resume.
  * return:
  *  0 -- stopped.
  *  1 -- Nothing to stop, as it is not running.
  *  -1 -- service not available.
  */
-int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
+int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt, next_sequence_t &sequences);
+
 ```
 
 ## Local persistence
-- This is to maintain a events status locally.
+- This is to maintain a events' status locally.
 - A service running in eventd would accomplish this.
 - It gets access to all events via a local listener attached to zmq proxy.
 - It persists the events into EVENTS table in EVENTS-DB.
@@ -593,7 +604,9 @@ int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt);
 - In case of repeated events, the last incidence at the time of update is recorded.
 - For each event
   - Key = <event source>|<event tag>[|<concatenated value key params using '|' to join>]
-  - key params are obtained from YANG and the names are sorted to get the ordering of concatenation (e.g <IP value>|<status value>)
+    - key param names are obtained from YANG.
+    - The key param names are sorted to get the ordering of concatenation
+    - For example, in case of keys as "IP ifName" the params are concatenated as <ifName value>|<IP value>)
   - value {<ist of all params  as key-val pairs>, "timestamp": "..."}
   - e.g. 
     ```
