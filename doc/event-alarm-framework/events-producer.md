@@ -5,10 +5,10 @@ SONiC streaming events as structured via gNMI
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
 2. Provide a unified way for event detectors to publish the events.
 3. Provide support for exporting events to external gNMI clients via Subscribe
-4. Enforce a structured format for event data with pre-defined schema.
-5. Have the ability to stream at the max of 10K events per second to external clients.
-6. Ensure events are immutable across SONiC releases, but can be deprecated.
-7. Meet the reporting goal of 99.5% of reliability - From event generated to end client.
+4. Provide a structured format for event data with pre-defined schema.
+5. Provide the ability to stream at the max of 10K events per second to external clients.
+6. provide a way to ensure events are immutable across SONiC releases, but can be deprecated.
+7. Provide 99.5% of reliability - From event generated to end client.
 
 
 # Problems to solve
