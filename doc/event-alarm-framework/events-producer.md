@@ -21,7 +21,7 @@ The tools that use syslog messages face higher latency, as they have to wait for
 This latency could run in the order of minutes.
 
 
-![image](https://user-images.githubusercontent.com/47282725/159573073-06075ee6-40e5-42da-88bf-9f349f64626c.png)
+![image](https://user-images.githubusercontent.com/47282725/166261116-d5aa2592-ed85-44c6-9e9e-3dd027b6f886.png)
 
 
 ![image](https://user-images.githubusercontent.com/47282725/165796196-ca89a72f-21ad-4dfa-aae8-34f458b2ff62.png)
