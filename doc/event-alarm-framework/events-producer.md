@@ -455,9 +455,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - Configure the rsyslog plugin with rsyslog via .conf file.
   - For logs raised by host processes, configure this plugin at host.
   - For logs raised by processes inside the container, configure plugin inside the container. This helps in container upgrade scenarios and as well help with load distribution.
-  
-- The plugin can be configured using rsyslog properties to help scale into multiple instances, so a single instance see only a subset of logs pre-filtered by rsyslog.
-  - A plugin instance could receive messasges **only** for processes that it is configured for.
+  - The plugin can be configured using rsyslog properties to help scale into multiple instances, so a single instance see only a subset of logs pre-filtered by rsyslog.
+    - A plugin instance could receive messasges **only** for processes that it is configured for.
   
 - The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag.
   - The regex pattern is present as files as one per plugin instance, so an instance sees only the regex expressions that it could match.
@@ -478,9 +477,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 
 ###### Pro
 1) This support is external to app, hence adapts well with III party applications, bgp, teamd, ... 
-2) This feature can be added to released builds too, as all it takes is to copy two files into each container and restart rsyslogd in the container
-3) The regex for parsing being local to container, it supports any container upgrade transaparently.
-4) The message parsing load is distributed as per container. Within a container parsing could be done at the granularity of per process with no extra cost as rsyslogd already pre-parsed it per-process.
+2) As this needs just copying couple of files & restarting rsyslog *only*, new events can be added to switches in production via a simple script. A tool can scan for all target switches & update transparently.
 
 ##### con:
 1) Two step process for devs. For each new/updated log message ***for an event*** in the code, remember to add/update regex as needed. 
