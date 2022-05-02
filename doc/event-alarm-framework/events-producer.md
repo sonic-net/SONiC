@@ -453,23 +453,24 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 #### Design at high level
 - A rsyslog plugin is provided to raise events by parsing log messages.
 - Configure the rsyslog plugin with rsyslog via .conf file.
-- For logs raised by host processes, configure this plugin at host.
-- For logs raised by processes inside the container, configure for rsyslog running inside the container, more for load distribution.
-- The plugin can be more specifically configured using rsyslog properties, so as to restrict the set of logs to parse and log distribution across multiple instances. One way could be to run a plugin instance per process.
-- The plugin could be running in multiple instances.
-- Each plugin instance could receive messasges **only** for processes that it is configured for.
+  - For logs raised by host processes, configure this plugin at host.
+  - For logs raised by processes inside the container, configure plugin inside the container. This helps in container upgrade scenarios and as well help with load distribution.
+  
+- The plugin can be configured using rsyslog properties to help scale into multiple instances, so a single instance see only a subset of logs pre-filtered by rsyslog.
+  - A plugin instance could receive messasges **only** for processes that it is configured for.
+  
 - The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag.
-- The regex pattern is present as files as one per plugin instance, so an instance sees only the regex expressions that it could match.
-- For messages that match a pattern, retrieve parameters of interest per regex and fire event using event publisher API.
-- The event publishpublishing API is called with event source & tag from matching regex and data parsed out from message.
-- The unit tests can use hardcoded log messages to validate regex.
+  - The regex pattern is present as files as one per plugin instance, so an instance sees only the regex expressions that it could match.
+  - For messages that match a pattern, retrieve parameters of interest per regex and fire event using event publisher API.
+  - The plugin calls the event publishing API with event source & tag from matching regex and data parsed out from message.
+  - The regex files carry ".reg" extension
 
-#### How
-1. Copy a rsyslog's .conf file with plugin info into /etc/rsyslog.d/
-2. Copy regex files as one per plugin instance. Each files carries expressions of interest to an instance only.
-3. Restart rsyslog.
-4. The rsyslog.d starts the plugin instance when an message arrives for that instance.
-5. rsyslog.d feeds instances with every message destined for it.
+- rsyslog service update
+  - Copy the .conf & .reg files into /etc/rsyslog.d/
+  - Restart rsyslog service
+  - The plugin instances are invoked upon first message
+  - Each instance is fed with messages that are configured for that instance
+    - An instance running in BGP container can be configured to receive messages from bgpd process only. There can be another instance for messages from bgpcfgd.
 
 ![image](https://user-images.githubusercontent.com/47282725/165850058-76ed4806-f43b-4959-8b33-b8365ac6348c.png)
 
