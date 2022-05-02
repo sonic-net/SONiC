@@ -139,7 +139,7 @@ module sonic-events-bgp {
 ```
 
 ## BGP State event 
-The above set of logs will now be published as following structured events per schema
+The event will now be published as below per schema.
 ```
 { "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" }
 { "source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" }
@@ -147,7 +147,8 @@ The above set of logs will now be published as following structured events per s
 { "source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" }
 ```    
 ## gNMI client
-The client could subscribe for events with optional filter on event source in streaming mode
+A gNMI client could subscribe for events with optional filter on event source in streaming mode.
+Below shows the command & o/p for subscribing all, and receiving BGP events.
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
 
@@ -189,34 +190,25 @@ o/p
         
 ```
 
-## redis entries
-The updates are periodic, like once every N seconds, which is far less than supported events publish rate of 10K events/second.
-Hence for repeated events, only the last incidence at the time of redis update is recorded. The repetition of an event is identified with key fields as declared in YANG model.
-As the updates periodic, there will be a notable latency between event publish and reflection in redis, which can be between 0 to redis-update frequency.
-```
-key=<source>|<tag>|<contatenated keys>
 
-The redis-entries would be as below, as IP is key for BGP state changes.
-
-    key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
-    key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
-```
 # Requirements
 ## Events
+Events definition, usage & immutability.
 1. Events are defined with schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
 3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
 4. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
 5. Events are static (*don't change*) across releases, but can be deprecated in newer releases.
 6. YANG schema files for all events are available in a single location for NB clients in the installed image.
+7. YANG schema files can be set as contract between external events' consumer & SONiC.
 
 ## Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
-1. To publish an event.
-2. To receive events.
+1. To publish an event to all subscribers.
+2. To receive events from all publishers.
 3. Event is published with source, tag and optionally additional params.
-4. The publishing supports multiple subscribers/receivers. The publishing API is transparent to listening subscribers. The subscribers could come and go anytime.
-5. The subscribers call receive events API. This supports all publishing sources transparently. The publishing sources could come and go anytime.
+4. The publishing API is transparent to listening subscribers. The subscribers could come and go anytime.
+5. The subscribers are transparent to publishing sources transparently. The publishing sources could come and go anytime.
 6. The receiving API supports filtering by source. For an example, a receiver may choose to receive events from "BGP" & "SWSS" sources only.
 7. The events are sequenced internally to assess missed messages by receivers.
 8. The events published are validated against YANG schema. Any invalid messages is reported via syslog & event for alerting.
@@ -245,12 +237,15 @@ The libswsscommon will have the APIs for publishing & receiving.
 
 ## exporter
 1. Telemetry container runs a internal listener to receive all the events published from all the event publishers in the switch.
-2. Telemetry container runs a gNMI serveer to export events to external receivers/collectors via SUBSCRIBE request.
-3. Multiple external collectors could connect with filters on event-sources. Only one collector could subscribe for all events (_no filtering by source_), in otherwords the main-receiver.
-4. Telemetry ensures reliability to main receiver only.
-   - Durung the main receiver down/disconnect period make use of local events-cache service to cache all events during its downtime and send these events upon next connect.
-   - For slow main receiver, when it reaches overflow/queue-full state, only the repeated events are dropped and keep the last instance of the event for later queueing.
-   - Various stats, like total count of events, missed count, latency from event publish to event send are collected and recorded in STATE-DB.
+2. Telemetry container runs a gNMI server to export events to external receivers/collectors via SUBSCRIBE request.
+3. Multiple external collectors could connect with filters on event-sources.
+4. There can be only one external collector that subscribes for all events (_no filtering by source_). This collector is called the main-receiver.
+5. Telemetry provides the following for the main-receiver *only*.
+   - Ensures the 99.5 % reliability.
+   - To meet the reliability it uses the cache service during downtime and replay on connect.
+   - A slow receiver is managed by skipping repeated events and send only the latest instance.
+   - The stats for maintained for SLA compliance verification. This inlcudes like total count of events, missed count, latency from publish to send, .... The stats are collected and recorded in STATE-DB.
+   - An external gNMI client could subscribe for stats table updates' streaming ON-CHANGE.
 
 
 ## Tests:
