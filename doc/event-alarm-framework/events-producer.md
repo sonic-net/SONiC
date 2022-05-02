@@ -625,7 +625,7 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - The external clients subscribe and receive messages via gNMI connection/protocol.
 - For each client connected, a listener is spawned to receive messages at the max rate of 10K/sec.
 - The received messages are sent to the connected client at the client's rate.
-- Any overflow due to back-pressure/rate-limit is confined to suppression of events repeat.
+- Any overflow due to back-pressure/rate-limit is confined to suppression of repeated events.
  
 ### gNMI protocol
 - Use SUBSCRIBE request 
@@ -643,7 +643,7 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - Restriction
   - There can be only one client for all events.
   - The client for all events is called the main receiver.
-  - The goal of 95.5% is assured only for the main receiver and stats are collected for the main receiver
+  - The goal of 95.5% reliability is assured only for the main receiver and stats are collected for the main receiver *only*.
 
 - The gnMI o/p is prefixed with \events\
 ```
@@ -677,7 +677,19 @@ The message reliability is ensured only for main receiver. There are 3 kinds of 
    - The eventd service is down.
    - An overloaded internal control plane state making the local listener for events running too slow.
      
-Among the three, only the third scenario is a real message drop. In the cases 1 & 2, it can be seen as suppression of repeats to conserve resource with no real loss of data as last incidence is sent. Hence only messages missed by listener, is accounted into reliability measure computation.
+Among the three, only the third scenario is a real message drop. In the cases 1 & 2, it can be seen as suppression of repeats to conserve resource with no real loss of data as last incidence is sent. Hence only messages missed by listener, is accounted into reliability measure computation. 
+
+#### Missed Message computaion.
+1. The count of missed from step 3 above are tracked cumulatively.
+2. The missing computed via sender+source sequence numbers are collected across all senders to get the total missed.
+3. Any sender+source+tag level missing, say N implies that this event though missed N times, the last state is received. Hence this N is subtracted from the total
+	
+	total_missed = < sum of missed per sender+source > - < sum of repeats missed computed via sender+source+tag>
+
+This implies, in a healthy system, this count will be always trending towards 0, with possible spikes.
+	
+	
+	
 	
 All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
 
