@@ -239,7 +239,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 
 ## overall View
 
-![image](https://user-images.githubusercontent.com/47282725/166498352-1980565b-c870-46aa-b0c0-ea4ea4e50fa1.png)
+![image](https://user-images.githubusercontent.com/47282725/166600751-8580ee8b-e08e-43de-a071-d7e2507ab220.png)
 
 
 ## YANG schema
@@ -333,15 +333,12 @@ void event_publish(event_handle_t handle, const std:string &event_tag,
         const event_params_t *params=NULL);
 
 
-
 typedef std::vector<std::string> event_subscribe_sources_t;
 
 /*
  * Initialize subscriber.
- *  Init subscriber, optionally to filter by event-source.
- *
- *  Only one subscriber is accepted with NULL/empty subscription list.
- *  This subscriber is called the main receiver.
+ * 
+ 
  *  The main receiver gets the privilege of caching events whenever the
  *  connection is dropped until reconnect and cached events are sent 
  *  upon re-connect.
