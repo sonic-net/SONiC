@@ -223,6 +223,8 @@ The libswsscommon will have the APIs for publishing & receiving.
 3. A receiver could use this, during its downtime and use the cache upon restart.
 4. The service caches first N events, where N is the max size of the cache.
 5. Events that overflow are dropped and counted as missed.
+6. N is configurable via init_cfg.json.
+   TODO: Will build process decide N based on platform type?
 
 ## exporter
 1. Telemetry container runs a gNMI server to export events to external receivers/collectors via SUBSCRIBE request.
