@@ -330,7 +330,7 @@ typedef events_base* event_handle_t;
  *
  * Input:
  *  event_source:
- *	YANG module pah for event source.
+ *	The event source.
  *
  *  event_sender
  *      An identity of the sender. The event-source+sender is expected to 
@@ -374,6 +374,7 @@ typedef std::map<std::string, std::string> event_params_t;
  * input:
  *  handle -- As obtained from events_init_publisher
  *  yang-path -- YANG module path for this event.
+ *  tag -- Tag for the event
  *  params -- Params associated with the event.
  *  timestamp -- Timestamp for the event; optional; 
  *              format:"2022-08-17T02:39:21.286611"
@@ -381,7 +382,8 @@ typedef std::map<std::string, std::string> event_params_t;
  *
  */
 void event_publish(event_handle_t handle, const string &yang_path,
-        const event_params_t *params=NULL,
+        const std::string tag,
+	const event_params_t *params=NULL,
         const char *timestamp=NULL);
 
 
