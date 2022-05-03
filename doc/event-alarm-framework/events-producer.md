@@ -133,8 +133,8 @@ module sonic-events-bgp {
 ```
 
 ## BGP State event 
-The event will now be published as below per schema. The instance data would indicate YANG module path & revision that is required for validation.
-[ TODO: Need review from YANG expert ]
+The event will now be published as below per schema. The instance data would indicate YANG module path for validation.
+[ TODO: Need review from YANG expert  Q: Do we need to specify revision info in instance data ? ]
 
 ```
 { "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
@@ -188,14 +188,16 @@ o/p
 # Requirements
 ## Events
 Events definition, usage & immutability.
-1. Events are defined with schema with revisions.
+1. Events are defined in YANG schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
+   - A source is defined as YANG module
+   - Tags for a source is defined as containers in the YANG module
+   - Each instance data provides YANG path as < module d > : < container ID>
 3. The schema may specify a globally unique event-id.
 4. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
-5. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
-6. Events schema updates are identified with revisions.
-7. YANG schema files for all events are available in a single location for NB clients in the installed image.
-8. YANG schema files can be set as contract between external events' consumer & SONiC.
+5. Events schema updates are identified with revisions.
+6. YANG schema files for all events are available in a single location for NB clients in the installed image.
+7. YANG schema files can be set as contract between external events' consumer & SONiC.
 
 ## Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
