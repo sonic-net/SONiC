@@ -282,33 +282,40 @@ typedef events_base* event_handle_t;
 /*
  * Initialize an event publisher instance for an event source.
  *
- * NOTE:
- *  The initialization occurs asynchronously.
- *  The event published before init is complete, is blocked until the init
- *  is complete. Hence recommend, do the init as soon as the process starts.
- *
  *  A single publisher instance is maintained for a source.
  *  Any duplicate init call for a source will return the same instance.
  *
+ *  Internally a sequence number is added to every event published.
+ *  The sequence number is per handle. A handle is per caller & event source.
+ *
+ *  The receiver caches the expecte sequence number and diff with received
+ *  to find the count of missed events.
+ *
+ *  As publisher & receiver are not directly connected, the handle is identified
+ *  to receiver via sender+source data.
+ *
+ * NOTE:
+ *      The initialization occurs asynchronously.
+ *      Any event published before init is complete, is blocked until the init
+ *      is complete. Hence recommend, do the init as soon as the process starts.
+ *
  * Input:
- *  event_source:
- *	The event source.
- *
  *  event_sender
- *      An identity of the sender. The event-source+sender is expected to 
+ *      The identity of the sender. The event-source+sender is expected to 
  *      globally unique. This helps with identifying events missed by receiver
- *	from a sender.
- *	Internally publisher adds a sequence number specific to sender+source
- *	which the receiver may use to compute any missed events. The receiver 
- *	strips this sequence number before returning the event to caller.
+ *      from a sender.
  *
-
+ *  event_source
+ *      The YANG module name for the event source. All events published with the handle
+ *      returned by this call is tagged with this source, transparently. The receiver
+ *      could subscribe with this source as filter.
+ *
  * Return 
- *  Non NULL handle
- *  NULL on failure
+    *  Non NULL handle
+    *  NULL on failure
  */
 
-event_handle_t events_init_publisher(std::string &event_source, std::string &event_sender);
+event_handle_t events_init_publisher(const std::string &event_sender, std::string &event_source);
 
 /*
  * De-init/free the publisher
@@ -322,31 +329,31 @@ event_handle_t events_init_publisher(std::string &event_source, std::string &eve
 void events_deinit_publisher(event_handle_t &handle);
 
 
+/*
+ * List of event params
+ */
 typedef std::map<std::string, std::string> event_params_t;
 
 /*
  * Publish an event
- *  The given data is constructed instance data per YANG schema
- *  It is optionally validated (configurable in /etc/sonic/init_cfg.json).
- *  The YANG path for event-source is sent in first part of ZMQ message,
- *  which allows subscribers to filter by source.
- *  The instance data is published as second part of the message.
- *  The two part message is published via ZMQ PUB.
  *
  * input:
- *  handle -- As obtained from events_init_publisher
- *  yang-path -- YANG module path for this event.
- *  tag -- Tag for the event
- *  params -- Params associated with the event.
- *  timestamp -- Timestamp for the event; optional; 
- *              format:"2022-08-17T02:39:21.286611"
- *              default: time at the point of this call.
+ *  handle -- As obtained from events_init_publisher for a event-source.
+ *
+ *  event_tag --
+ *      Name of the YANG container that defines this event in the
+ *      event-source module associated with this handle.
+ *
+ *      YANG path formatted as "< event_source >:< event_tag >"
+ *      e.g. {"sonic-events-bgp:bgp-state": { "ip": "10.10.10.10", ...}}
+ *
+ *  params --
+ *      Params associated with event; This may or may not contain
+ *      timestamp. In the absence, the timestamp is added, transparently.
  *
  */
-void event_publish(event_handle_t handle, const string &yang_path,
-        const std::string tag,
-	const event_params_t *params=NULL,
-        const char *timestamp=NULL);
+void event_publish(event_handle_t handle, const std:string &event_tag,
+        const event_params_t *params=NULL);
 
 
 
@@ -360,18 +367,19 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *  connection is dropped until reconnect and cached events are sent 
  *  upon re-connect.
  *  Another additional privilege is all stats/SLA is collected for
- *  this receiver.
+ *  this receiver and recorded in STATE-DB
  *
  * Input:
  *  lst_subscribe_sources_t
- *      List of subscription sources of interest expressed as YANG module paths.
- *      Absence implies for all.
+ *      List of subscription sources of interest.
+ *      The source value is the corresponding YANG module name.
+ *      e.g. "sonic-events-bgp " is the source modulr name for bgp.
  *
  * Return:
  *  Non NULL handle on success
  *  NULL on failure
  */
-event_handle_t events_init_subscriber(     
+event_handle_t events_init_subscriber(
         const event_subscribe_sources_t *sources=NULL);
 
 /*
@@ -387,23 +395,104 @@ void events_deinit_subscriber(event_handle_t &handle);
 
 
 /*
- * Revieve an event
- * The 
+ * Receive an event
+ *
  * input:
  *  handle -- As obtained from events_init_subscriber
  *
  * output:
- *  yang_source_path - YANG schema module path for event-source.
- *  event_data - A JSON string with complete data as needed by YANG validation.
- *	This instance data is complete with YANG module path & revision as 
- *	required by YANG validator.
+ *  yang_path -- Event's complete YANG path as
+ *      < event's source module path > : < event's container name >
+ *  params -- Params associated with event, if any
  *
- *  missed_count - 
- *	The count of messages missed from the sender of this event for this event-source.
- *	This is computed from the internal sequence number embedded in the message sent.
+ *  missed_cnt --
+ *      Count of missed events from the sender of this event
+ *      for this event's source, from last event read for this 
+ *      event's source.
+ *      Cumulative sum of all missed, will give the total count
+ *      of events, the listener/receiver failed to receive
+ *      from internal publishers.
+ */
+void event_receive(event_handle_t handle, std::string yang_path,
+        event_params_t &params, int &missed_cnt);
+
+
+/*
+ * Send message to echo service
+ *  This initiates connection & a send. Both happen asynchronoulsy.
+ *  Hence the call return immediately.
+ *  The only way to confirm if the call succeeded or not, is by reading
+ *  echo response.
+ *
+ *  This service may be used to shadow the PUB connection occuring
+ *  asyncronously. A PUB connection is assured to be complete, before 
+ *  echo_send & recv completes.
+ *
+ * Input:
+ *  data - Data to be sent
+ */
+event_handle_t echo_send(const std:string &data);
+
+/*
+ * Receive echo response
+ *  This is a blocking call until echo response is received.
+ *  The receive has to preceded by send.
+ *
+ * output:
+ *  data -- received data
+ *
+ * return:
+ *  0 -- success
+ *  -1 -- Invalid handle.
+ */
+int echo_recv(event_handle_t &h, std::string &data);
+
+
+/*
+ * Start events cache service
+ *
+ * return:
+ *  0 -- started or already running
+ *  -1 -- service not available.
+ */
+int cache_service_start(void);
+
+
+/*
+ * Set of expected next sequence numbers
+ *
+ * The key is computed as <sender|source|run_time_id>
  *
  */
-void event_receive(event_handle_t handle, std::strings &yang_path, std::string &event_data, int &missed_cnt);
+typedef std::map<std::string, uint32_t> next_sequence_t;
+
+typedef struct {
+    std::string source+;
+    std::string tag;
+    std::string timestamp;
+    event_params_t params;
+} cache_message_t;
+
+/* Map of event_key vs the message */
+typedef std::map<std::string, cache_message_t> lst_cache_message_t;
+
+
+/*
+ * Stop events cache service
+ *
+ * output:
+ *  lst_msgs -- list of cached messages.
+ *
+ *  missed_cnt -- Repeated events are counted as missed, as cache persists
+ *                only the last incidence.
+ *  sequences -- Cached info on next expected value. The caller would use this
+ *       as current context to resume.
+ * return:
+ *  0 -- stopped.
+ *  1 -- Nothing to stop, as it is not running.
+ *  -1 -- service not available.
+ */
+int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt, next_sequence_t &sequences);
         
 ```
 
