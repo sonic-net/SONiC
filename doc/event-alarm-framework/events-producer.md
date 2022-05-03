@@ -179,10 +179,10 @@ The event will now be published as below per schema. The instance data would ind
 [ TODO: Need review from YANG expert ]
 
 ```
-{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
-{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" } }
-{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" } }
-{ "sonic-events-bgp:bgp-state": {"ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" } }
+{ "sonic-events-bgp:bgp-state": {"source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
+{ "sonic-events-bgp:bgp-state": {"source": "bgp", "tag": "state", "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" } }
+{ "sonic-events-bgp:bgp-state": {"source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" } }
+{ "sonic-events-bgp:bgp-state": {"source": "bgp", "tag": "state", "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" } }
 ```   
 
 ## gNMI client
