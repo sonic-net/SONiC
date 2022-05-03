@@ -7,8 +7,6 @@ SONiC streaming events as structured via gNMI
 3. Provide support for exporting events to external gNMI clients via Subscribe
 4. Provide a structured format for event data with pre-defined schema with revisioning to handle future updates.
 5. Provide the ability to stream at the max of 10K events per second to external clients.
-6. Provide (TODO) 99.5% of reliability - From event generated to end client.
-
 
 # Problems to solve
 The external tools that monitor system health often use syslog messages to look for events that need alert raised.
@@ -223,29 +221,19 @@ The libswsscommon will have the APIs for publishing & receiving.
 3. A receiver could use this, during its downtime and use the cache upon restart.
 4. The service caches first N events, where N is the max size of the cache.
 5. Events that overflow are dropped and counted as missed.
-6. N is configurable via init_cfg.json.
-   TODO: Will build process decide N based on platform type?
+6. N is hardcoded in the code in the units of max-cache-size in bytes.
 
 ## exporter
-1. Telemetry container runs a gNMI server to export events to external receivers/collectors via SUBSCRIBE request.
-2. Multiple external collectors could connect with filters on event-sources.
-3. Each external collector is paired with a local listener for events.
-4. The events are written out in FIFO order with a set buffer for internal cache.
-5. A slow receiver may cause buffer overflow. This overflow will result in events drop, until the buffer has free space.
-6. There can be only one external collector that subscribes for all events (_no filtering by source_). This collector is called the main-receiver.
-8. Telemetry provides the following for the main-receiver *only*.
-   - Uses cache service, during downtime of main receiver or telemetry service and replay on connect.
-   - A slow receiver or long downtime can result in message drop.
-   - The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, latency from publish to send, ....
+1. Telemetry container runs a gNMI server to export events to external receiver/collector via SUBSCRIBE request.
+2. Telemetry container sends all the events to the receiver in FIFO order.
+3. Telemetry container uses an internal buffer, when local publishing rates overwhelms the receiver.
+   - Internal buffer overflow will cause new events to be dropped.
+   - The dropped events are counted and recorded in STATE-DB via stats
+4. Telemetry uses cache service, during downtime of main receiver or telemetry service and replay on connect.
+   - A long downtime can result in message drop due to cache overflow.
+5. The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, ...
    - The stats are collected and recorded in STATE-DB.
    - An external gNMI client could subscribe for stats table updates' streaming ON-CHANGE.
-
-
-## Tests:
-1. The unit & nightly tests is provided for every event.
-2. These tests simulate code to fire the event and the data is validated against schema.
-3. A separate stress test is provided to verify the performance reliability goals.
-</br>
 
 # Design
 
