@@ -191,7 +191,7 @@ Events definition, usage & immutability.
 1. Events are defined in YANG schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
    - A source is defined as YANG module
-   - Tags for a source is defined as containers in the YANG module
+   - Tags for a source is defined as container in the YANG module
    - Each instance data provides YANG path as < module d > : < container ID>
 3. The schema may specify a globally unique event-id.
 4. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
@@ -203,7 +203,7 @@ Events definition, usage & immutability.
 The libswsscommon will have the APIs for publishing & receiving.
 1. To publish an event to all subscribers.
 2. To receive events from all publishers.
-3. Event is published with Yang module path and optionally additional params.
+3. Event is published with Yang module path and params.
 4. The publishing API is transparent to listening subscribers. The subscribers could come and go anytime.
 5. The subscribers are transparent to publishing sources transparently. The publishing sources could come and go anytime.
 6. The receiving API supports filtering by source. For an example, a receiver may choose to receive events from "BGP" & "SWSS" sources only.
@@ -232,7 +232,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 5. A slow receiver may cause buffer overflow. This overflow will result in events drop, until the buffer has free space.
 6. There can be only one external collector that subscribes for all events (_no filtering by source_). This collector is called the main-receiver.
 8. Telemetry provides the following for the main-receiver *only*.
-   - Uses cache service, during downtime of main receiver ot telemetry service downtime and replay on connect
+   - Uses cache service, during downtime of main receiver or telemetry service and replay on connect.
    - A slow receiver or long downtime can result in message drop.
    - The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, latency from publish to send, ....
    - The stats are collected and recorded in STATE-DB.
