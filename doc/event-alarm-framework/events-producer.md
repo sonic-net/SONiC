@@ -5,10 +5,9 @@ SONiC streaming events as structured via gNMI
 1. Provide a unified way for listing and defining alertable events in SONiC switch.
 2. Provide a unified way for event detectors to publish the events.
 3. Provide support for exporting events to external gNMI clients via Subscribe
-4. Provide a structured format for event data with pre-defined schema.
+4. Provide a structured format for event data with pre-defined schema with revisioning to handle future updates.
 5. Provide the ability to stream at the max of 10K events per second to external clients.
-6. provide a way to ensure events are immutable across SONiC releases, but can be deprecated.
-7. Provide (TODO) 99.5% of reliability - From event generated to end client.
+6. Provide (TODO) 99.5% of reliability - From event generated to end client.
 
 
 # Problems to solve
@@ -76,25 +75,10 @@ module sonic-events-bgp {
         description "
             Declares an event for BGP state for a neighbor IP
             IP is the key parameter
-            The status says "up" or "down"
-            Repeat events are identified by IP";
+            The status says up or down";
 
         list event_list {
             key "IP";
-
-            leaf source {
-                type enumeration {
-                    enum "bgp";
-                }
-                description "Event source";
-            }
-    
-            leaf tag {
-                type enumeration {
-                    enum "state";
-                }
-                description "Event tag";
-            }
 
             leaf ip {
                 type inet:ip-address;
@@ -123,19 +107,6 @@ module sonic-events-bgp {
             Hence source + tag identifies an event";
 
         list event_list {
-            leaf source {
-                type enumeration {
-                    enum "bgp";
-                }
-                description "Event source";
-            }
-    
-            leaf tag {
-                type enumeration {
-                    enum "hold_timer_expiry";
-                }
-                description "Event tag";
-            }
 
             leaf timestamp {
                 type yang::date-and-time;
@@ -151,19 +122,6 @@ module sonic-events-bgp {
             Hence source + tag identifies an event";
             
         list event_list {
-            leaf source {
-                type enumeration {
-                    enum "bgp";
-                }
-                description "Event source";
-            }
-    
-            leaf tag {
-                type enumeration {
-                    enum "zebra_no_buffer";
-                }
-                description "Event tag";
-            }
 
             leaf timestamp {
                 type yang::date-and-time;
@@ -171,7 +129,7 @@ module sonic-events-bgp {
             }
         }
     }
-}    
+}
 ```
 
 ## BGP State event 
