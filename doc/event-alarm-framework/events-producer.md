@@ -794,25 +794,13 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
 ## counters
-- events-published-cnt:
-  - Count of all events published locally inside the switch.
-  - This count includes all repeats.
-	
 - events-sent-cnt:
   - The count of all events / messages sent to the main receiver. In other words count of events the main receiver is expected to receive.
-  - This would not include suppressed events-repeat (_read reliability section above for details_).
   - This would not include count missed.
-  - ~= < events-published-cnt > - < events suppressed repeats > - < events missed >
   
 - events-missed-cnt:
-  - The count of events, the telemetry service missed to receive from the publishers and hence missed to send to main receiver.
-  - This does not include missed repeats.
-  - The "Missed mesage count" section under reliability has the details.
+  - The count of events missed either by local listener attached to main receiver or dropped due to slow receiver.
   	
-- events-suppressed-cnt:
-  - The count of events suppressed (_read reliability section above for details_).
-  - Suppression could happen at telemetry gNMI server due to slow client or during events caching.
-    
 - events-cached-cnt:
   - The count of events provided from cache.
   - Cumulative count of events provided from cache.
