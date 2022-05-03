@@ -249,7 +249,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 
 ## overall View
 
-![image](https://user-images.githubusercontent.com/47282725/165867413-ad261d86-42e0-41f9-8100-35f03d0dfe71.png)
+![image](https://user-images.githubusercontent.com/47282725/166498352-1980565b-c870-46aa-b0c0-ea4ea4e50fa1.png)
 
 
 ## YANG schema
