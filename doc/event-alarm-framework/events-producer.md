@@ -285,26 +285,12 @@ typedef events_base* event_handle_t;
  *  A single publisher instance is maintained for a source.
  *  Any duplicate init call for a source will return the same instance.
  *
- *  Internally a sequence number is added to every event published.
- *  The sequence number is per handle. A handle is per caller & event source.
- *
- *  The receiver caches the expecte sequence number and diff with received
- *  to find the count of missed events.
- *
- *  As publisher & receiver are not directly connected, the handle is identified
- *  to receiver via sender+source data.
- *
  * NOTE:
  *      The initialization occurs asynchronously.
  *      Any event published before init is complete, is blocked until the init
  *      is complete. Hence recommend, do the init as soon as the process starts.
  *
  * Input:
- *  event_sender
- *      The identity of the sender. The event-source+sender is expected to 
- *      globally unique. This helps with identifying events missed by receiver
- *      from a sender.
- *
  *  event_source
  *      The YANG module name for the event source. All events published with the handle
  *      returned by this call is tagged with this source, transparently. The receiver
@@ -315,7 +301,7 @@ typedef events_base* event_handle_t;
     *  NULL on failure
  */
 
-event_handle_t events_init_publisher(const std::string &event_sender, std::string &event_source);
+event_handle_t events_init_publisher(std::string &event_source);
 
 /*
  * De-init/free the publisher
@@ -336,6 +322,9 @@ typedef std::map<std::string, std::string> event_params_t;
 
 /*
  * Publish an event
+ *
+ *  Internally a a sequence number is embedded in every published event,
+ *  along with a globally unique runtime-id that can distinguish restarts.
  *
  * input:
  *  handle -- As obtained from events_init_publisher for a event-source.
@@ -361,6 +350,8 @@ typedef std::vector<std::string> event_subscribe_sources_t;
 
 /*
  * Initialize subscriber.
+ *  Init subscriber, optionally to filter by event-source.
+ *
  *  Only one subscriber is accepted with NULL/empty subscription list.
  *  This subscriber is called the main receiver.
  *  The main receiver gets the privilege of caching events whenever the
@@ -393,9 +384,15 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
-
+class event_id;
+typedef event_id *event_id_p;
+typedef event_id event_id_t;
 /*
- * Receive an event
+ * Receive an event.
+ *
+ *  This API maintains an expected sequence number and use the received
+ *  sequence in event to compute missed message count.
+ *  NOTE: runtime-id identifies a sender runtime instance.
  *
  * input:
  *  handle -- As obtained from events_init_subscriber
@@ -412,57 +409,88 @@ void events_deinit_subscriber(event_handle_t &handle);
  *      Cumulative sum of all missed, will give the total count
  *      of events, the listener/receiver failed to receive
  *      from internal publishers.
+ *
+ *  id -- Id embedded in event for this event. This can be used
+ *      to find duplicates from events cache.
  */
 void event_receive(event_handle_t handle, std::string yang_path,
-        event_params_t &params, int &missed_cnt);
+        event_params_t &params, int &missed_cnt,
+        event_id_p id);
 
+
+typedef void *cache_handle_t;
 
 /*
  * Start events cache service
  *
  * return:
- *  0 -- started or already running
- *  -1 -- service not available.
+ *  Non NULL handle 
+ *  NULL -- service not available
  */
-int cache_service_start(void);
-
-
-/*
- * Set of expected next sequence numbers
- *
- * The key is computed as <sender|source|run_time_id>
- *
- */
-typedef std::map<std::string, uint32_t> next_sequence_t;
-
-typedef struct {
-    std::string source+;
-    std::string tag;
-    std::string timestamp;
-    event_params_t params;
-} cache_message_t;
-
-/* Map of event_key vs the message */
-typedef std::map<std::string, cache_message_t> lst_cache_message_t;
+cache_handle_t cache_service_start(void);
 
 
 /*
  * Stop events cache service
  *
- * output:
- *  lst_msgs -- list of cached messages.
- *
- *  missed_cnt -- Repeated events are counted as missed, as cache persists
- *                only the last incidence.
- *  sequences -- Cached info on next expected value. The caller would use this
  *       as current context to resume.
  * return:
- *  0 -- stopped.
- *  1 -- Nothing to stop, as it is not running.
- *  -1 -- service not available.
+ *  Non NULL handle on success.
+ *  NULL -- Either no cache running or no service not available
  */
-int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt, next_sequence_t &sequences);
-        
+cache_handle_t cache_service_stop();
+
+
+/*
+ * Read next event from cache
+ *
+ * input:
+ *   handle -- as obtained from stop
+ *
+ * output:
+ *  yang_path -- Event's complete YANG path as
+ *      < event's source module path > : < event's container name >
+ *  params -- Params associated with event, if any
+ *
+ * return:
+ *  True -- if message returned
+ *  false -- No more message to return
+ */
+bool cache_service_start(event_handle_t handle, std::string yang_path,
+        event_params_t &params);
+
+
+/*
+ * get missed count.
+ *
+ * input:
+ *   handle -- as obtained from stop
+ *
+ * output:
+ *
+ *  missed_cnt -- total count of missed during cacheing.
+ *
+ * return:
+ *  0 -- on success
+ *  -1 -- on failure
+ */
+int cache_service_missed(event_handle_t handle, int &missed);
+
+
+/*
+ * check in cache
+ *
+ * input:
+ *  handle -- as obtained from stop
+ *  event_id_t -- as obtained from event receive
+ *
+ * return:
+ *  true -- Match/found
+ *  false -- Not found
+ *
+ */  
+bool cache_service_check(event_handle_t handle, event_id_t id);
+localadmin@remanava-dev-1:~/source/fork/syslog_telemetry/sonic-swss-common/common$        
 ```
 
 ## Event detection
