@@ -773,6 +773,7 @@ The publishing is done via parsing syslogs, as this is III party code.
 	
 
 ### YANG model
+
 ```
 module sonic-events-bgp {
     namespace "http://github.com/sonic-net/sonic-events-bgp";
@@ -800,110 +801,68 @@ module sonic-events-bgp {
     description
         "SONIC BGP events";
 
-    container sonic-events-bgp {
+    container bgp-state {
+        description "
+            Declares an event for BGP state for a neighbor IP
+            IP is the key parameter
+            The status says up or down";
 
-        container bgp-state {
-            description "
-                Declares an event for BGP state for a neighbor IP
-                IP is the key parameter
-                The status says "up" or "down"
-                Repeat events are identified by IP";
+        list event_list {
+            key "IP";
 
-            list event_list {
-                key "IP";
+            leaf ip {
+                type inet:ip-address;
+                description "IP of neighbor";
+            }
 
-                leaf source {
-                    type enumeration {
-                        enum "bgp";
-                    }
-                    description "Event source";
+            leaf status {
+                type enumeration {
+                    enum "up";
+                    enum "down";
                 }
-        
-                leaf tag {
-                    type enumeration {
-                        enum "state";
-                    }
-                    description "Event tag";
-                }
+                description "Provides the status as up (true) or down (false)";
+            }
 
-                leaf ip {
-                    type inet:ip-address;
-                    description "IP of neighbor";
-                }
-
-                leaf status {
-                    type enumeration {
-                        enum "up";
-                        enum "down";
-                    }
-                    description "Provides the status as up (true) or down (false)";
-                }
-
-                leaf timestamp {
-                    type yang::date-and-time;
-                    description "time of the event";
-                }
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
             }
         }
+    }
 
-        container bgp-hold-timer {
-            description "
-                Declares an event for BGP hold timer expiry.
-                This event does not have any other parameter.
-                Hence source + tag identifies an event";
+    container bgp-hold-timer {
+        description "
+            Declares an event for BGP hold timer expiry.
+            This event does not have any other parameter.
+            Hence source + tag identifies an event";
 
-            list event_list {
-                leaf source {
-                    type enumeration {
-                        enum "bgp";
-                    }
-                    description "Event source";
-                }
-        
-                leaf tag {
-                    type enumeration {
-                        enum "hold_timer_expiry";
-                    }
-                    description "Event tag";
-                }
+        list event_list {
 
-                leaf timestamp {
-                    type yang::date-and-time;
-                    description "time of the event";
-                }
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
             }
         }
+    }
 
-        container zebra-no-buff {
-            description "
-                Declares an event for zebra running out of buffer.
-                This event does not have any other parameter.
-                Hence source + tag identifies an event";
-                
-            list event_list {
-                leaf source {
-                    type enumeration {
-                        enum "bgp";
-                    }
-                    description "Event source";
-                }
-        
-                leaf tag {
-                    type enumeration {
-                        enum "zebra_no_buffer";
-                    }
-                    description "Event tag";
-                }
+    container zebra-no-buff {
+        description "
+            Declares an event for zebra running out of buffer.
+            This event does not have any other parameter.
+            Hence source + tag identifies an event";
+            
+        list event_list {
 
-                leaf timestamp {
-                    type yang::date-and-time;
-                    description "time of the event";
-                }
+            leaf timestamp {
+                type yang::date-and-time;
+                description "time of the event";
             }
         }
     }
 }
 ```
+	
+TODO: Based on review of  BGP model above, the following will carry out the updates.
 
 ## Source: dhcp-relay
 Events sourced by processes from dhcp-relay container. There could be multiple publishers raising host events. The services that detect these events are updated to directly call the publishing API in C or python.
