@@ -43,6 +43,7 @@ bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJC
 
 ## BGP event YANG model
 An event is defined for BGP state change in YANG model as below.
+[ TODO: Need review from YANG expert ]
 
 ```
 module sonic-events-bgp {
@@ -174,7 +175,9 @@ module sonic-events-bgp {
 ```
 
 ## BGP State event 
-The event will now be published as below per schema.
+The event will now be published as below per schema. The instance data would indicate YANG module path & revision that is required for validation.
+[ TODO: Need review from YANG expert ]
+
 ```
 { "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
 { "sonic-events-bgp:bgp-state": {"ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" } }
@@ -187,6 +190,9 @@ A gNMI client could subscribe for events with optional filter on event source in
 Below shows the command & o/p for subscribing all, and receiving BGP events.
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
+
+The instance data would indicate YANG module path & revision that is required for validation.
+[ TODO: Need review from YANG expert ]
 
 o/p
 {
@@ -226,11 +232,12 @@ o/p
 Events definition, usage & immutability.
 1. Events are defined with schema with revisions.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
-3. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
-4. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
-5. Events schema updates are identified with revisions.
-6. YANG schema files for all events are available in a single location for NB clients in the installed image.
-7. YANG schema files can be set as contract between external events' consumer & SONiC.
+3. The schema may specify a globally unique event-id.
+4. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
+5. An event is identified by source, tag and key parameters of that event. This can help identify events repetition.
+6. Events schema updates are identified with revisions.
+7. YANG schema files for all events are available in a single location for NB clients in the installed image.
+8. YANG schema files can be set as contract between external events' consumer & SONiC.
 
 ## Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
@@ -258,15 +265,17 @@ The libswsscommon will have the APIs for publishing & receiving.
 5. Events that overflow are dropped and counted as missed.
 
 ## exporter
-1. Telemetry container runs a internal listener to receive all the events published from all the event publishers in the switch.
-2. Telemetry container runs a gNMI server to export events to external receivers/collectors via SUBSCRIBE request.
-3. Multiple external collectors could connect with filters on event-sources.
-4. There can be only one external collector that subscribes for all events (_no filtering by source_). This collector is called the main-receiver.
-5. Telemetry provides the following for the main-receiver *only*.
-   - Ensures the 99.5 % reliability.
-   - To meet the reliability it uses the cache service during downtime and replay on connect.
-   - A slow receiver is managed by skipping repeated events and send only the latest instance.
-   - The stats for maintained for SLA compliance verification. This inlcudes like total count of events, missed count, latency from publish to send, .... The stats are collected and recorded in STATE-DB.
+1. Telemetry container runs a gNMI server to export events to external receivers/collectors via SUBSCRIBE request.
+2. Multiple external collectors could connect with filters on event-sources.
+3. Each external collector is paired with a local listener for events.
+4. The events are written out in FIFO order with a set buffer for internal cache.
+5. A slow receiver may cause buffer overflow. This overflow will result in events drop, until the buffer has free space.
+6. There can be only one external collector that subscribes for all events (_no filtering by source_). This collector is called the main-receiver.
+8. Telemetry provides the following for the main-receiver *only*.
+   - Uses cache service, during downtime of main receiver ot telemetry service downtime and replay on connect
+   - A slow receiver or long downtime can result in message drop.
+   - The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, latency from publish to send, ....
+   - The stats are collected and recorded in STATE-DB.
    - An external gNMI client could subscribe for stats table updates' streaming ON-CHANGE.
 
 
@@ -320,21 +329,24 @@ typedef events_base* event_handle_t;
  *  Any duplicate init call for a source will return the same instance.
  *
  * Input:
+ *  event_source:
+ *	YANG module pah for event source.
+ *
  *  event_sender
  *      An identity of the sender. The event-source+sender is expected to 
- *      globally unique. This helps with identifying messages missed by receiver
+ *      globally unique. This helps with identifying events missed by receiver
  *	from a sender.
+ *	Internally publisher adds a sequence number specific to sender+source
+ *	which the receiver may use to compute any missed events. The receiver 
+ *	strips this sequence number before returning the event to caller.
  *
- *  event_source
- *      All events published with the handle returned by this call is
- *      tagged with this source, transparently.
- *
+
  * Return 
  *  Non NULL handle
  *  NULL on failure
  */
 
-event_handle_t events_init_publisher(const std::string &event_sender, std::string &event_source);
+event_handle_t events_init_publisher(std::string &event_source, std::string &event_sender);
 
 /*
  * De-init/free the publisher
@@ -352,17 +364,23 @@ typedef std::map<std::string, std::string> event_params_t;
 
 /*
  * Publish an event
+ *  The given data is constructed instance data per YANG schema
+ *  It is optionally validated (configurable in /etc/sonic/init_cfg.json).
+ *  The YANG path for event-source is sent in first part of ZMQ message,
+ *  which allows subscribers to filter by source.
+ *  The instance data is published as second part of the message.
+ *  The two part message is published via ZMQ PUB.
  *
  * input:
  *  handle -- As obtained from events_init_publisher
- *  tag -- Event tag
- *  params -- Params associated with event;
+ *  yang-path -- YANG module path for this event.
+ *  params -- Params associated with the event.
  *  timestamp -- Timestamp for the event; optional; 
  *              format:"2022-08-17T02:39:21.286611"
  *              default: time at the point of this call.
  *
  */
-void event_publish(event_handle_t handle, const string &tag,
+void event_publish(event_handle_t handle, const string &yang_path,
         const event_params_t *params=NULL,
         const char *timestamp=NULL);
 
@@ -382,8 +400,8 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *
  * Input:
  *  lst_subscribe_sources_t
- *      List of subscription sources of interest.
- *      Absence implies for alll
+ *      List of subscription sources of interest expressed as YANG module paths.
+ *      Absence implies for all.
  *
  * Return:
  *  Non NULL handle on success
@@ -406,41 +424,23 @@ void events_deinit_subscriber(event_handle_t &handle);
 
 /*
  * Revieve an event
- *
+ * The 
  * input:
  *  handle -- As obtained from events_init_subscriber
  *
  * output:
- *  source -- Event's source.
- *  tag -- Event's tag.
- *  params -- Params associated with event, if any
- *  timestamp -- Event's timestamp.
+ *  yang_source_path - YANG schema module path for event-source.
+ *  event_data - A JSON string with complete data as needed by YANG validation.
+ *	This instance data is complete with YANG module path & revision as 
+ *	required by YANG validator.
+ *
+ *  missed_count - 
+ *	The count of messages missed from the sender of this event for this event-source.
+ *	This is computed from the internal sequence number embedded in the message sent.
  *
  */
-void event_receive(event_handle_t handle, std::string &source, std::string& tag,
-        event_params_t &params, std::string& timestamp);
+void event_receive(event_handle_t handle, std::strings &yang_path, std::string &event_data, int &missed_cnt);
         
-typedef enum {
-    TOTAL_CNT = 0,   // total count of messages received
-    MISSED_CNT,      // Effective count of missed. Receiving an instance with missed repeats are discounted
-    CACHE_CNT,       // count of messages received from cache.
-    MIN_LATENCY,
-    MAX_LATENCY,
-    AVG_LATENCY
-} stats_type_t;
-
-typedef std::map<stats_type_t, uint64_t> stats_t;
-
-/*  
- * return stats collected.
- *   
- * Stats are only collected for subscription with no filter, the
- * main receiver.
- *   
- * Output:
- *  Copy of collected stats
- */  
-stats_t get_stats(event_handle_t &handle);
 ```
 
 ## Event detection
