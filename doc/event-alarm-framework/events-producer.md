@@ -418,37 +418,6 @@ void event_receive(event_handle_t handle, std::string yang_path,
 
 
 /*
- * Send message to echo service
- *  This initiates connection & a send. Both happen asynchronoulsy.
- *  Hence the call return immediately.
- *  The only way to confirm if the call succeeded or not, is by reading
- *  echo response.
- *
- *  This service may be used to shadow the PUB connection occuring
- *  asyncronously. A PUB connection is assured to be complete, before 
- *  echo_send & recv completes.
- *
- * Input:
- *  data - Data to be sent
- */
-event_handle_t echo_send(const std:string &data);
-
-/*
- * Receive echo response
- *  This is a blocking call until echo response is received.
- *  The receive has to preceded by send.
- *
- * output:
- *  data -- received data
- *
- * return:
- *  0 -- success
- *  -1 -- Invalid handle.
- */
-int echo_recv(event_handle_t &h, std::string &data);
-
-
-/*
  * Start events cache service
  *
  * return:
