@@ -136,7 +136,7 @@ This document describes the high level design of PIM Any Source Multicast in SON
 | IIF       | Incoming interface                                                |
 | IGMP      | Internet Group Management Protocol                                |
 | LHR       | Last Hop Router (Router directly connected to the Host/Receiver   |
-| MLD       | Multicast Discovery Protocol                                      |
+| MLD       | Multicast Listener Discovery Protocol                                      |
 | RP        | Rendezvous Point                                                  |
 | SPT       | Shortest Path Tree                                                |
 | RPF       | Reverse Path Forwarding                                           | 
@@ -452,7 +452,7 @@ typedef enum _sai_ipmc_event_t
    
    /** IPMC entry aged */
    
-    SAI_IPMC_EVENT_AGED,
+    SAI_IPMC_EVENT_AGE,
  
     /** IPMC entry don’t age */
     
@@ -951,13 +951,13 @@ Rest API support is there for all the existing fields and the ones that are newl
 ![](pim_images/PIM_STATIC_RP_CONFIG_FLOW.png)
 
 ## 4.2 PIM Data packet Flow
-![](2021-12-06-13-10-56.png)
+![](pim_images/2021-12-06-13-10-56.png)
 
 ## 4.3 PIM KAT system wide Flow
-!![](2022-03-14-22-18-55.png)
+!![](pim_images/2022-03-14-22-18-55.png)
 
 ## 4.4 Process restart
-!![](2022-03-14-22-37-58.png)
+!![](pim_images/2022-03-14-22-37-58.png)
 
 
 # 5  Design Constraints and Risks
