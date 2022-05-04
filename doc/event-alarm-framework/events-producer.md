@@ -44,8 +44,8 @@ An event is defined for BGP state change in YANG model as below.
 
 ```
 module sonic-events-bgp {
-    namespace "http://github.com/sonic-net/sonic-events-bgp";
-    prefix "events";
+    namespace "http://github.com/Azure/sonic-events-bgp";
+
     yang-version 1.1;
 
     import ietf-inet-types {
@@ -56,7 +56,7 @@ module sonic-events-bgp {
                 prefix yang;
         }
 
-    revision 2022-03-28 {
+    revision 2022-05-05 {
         description "BGP alert events.";
     }
 
@@ -72,30 +72,22 @@ module sonic-events-bgp {
     container bgp-state {
         description "
             Declares an event for BGP state for a neighbor IP
-            IP is the key parameter
             The status says up or down";
 
-        list event_list {
-            key "IP";
-
-            leaf ip {
-                type inet:ip-address;
-                description "IP of neighbor";
-            }
-
-            leaf status {
-                type enumeration {
-                    enum "up";
-                    enum "down";
-                }
-                description "Provides the status as up (true) or down (false)";
-            }
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
+        leaf ip {
+            type inet:ip-address;
+            description "IP of neighbor";
         }
+
+        leaf status {
+            type enumeration {
+                enum "up";
+                enum "down";
+            }
+            description "Provides the status as up (true) or down (false)";
+        }
+
+        uses sonic-events-cmn;
     }
 
     container bgp-hold-timer {
@@ -104,13 +96,7 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
 
-        list event_list {
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
-        }
+        uses sonic-events-cmn;
     }
 
     container zebra-no-buff {
@@ -119,13 +105,7 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
             
-        list event_list {
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
-        }
+        uses sonic-events-cmn;
     }
 }
 ```
@@ -834,11 +814,39 @@ The publishing is done via parsing syslogs, as this is III party code.
 	
 
 ### YANG model
+```
+module sonic-events-common {
+    namespace "http://github.com/Azure/sonic-events-common";
+    prefix evtcmn;
+    yang-version 1.1;
 
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC Events common definition";
+
+    revision 2022-05-26 {
+        description
+            "Initial revision.";
+    }
+
+    grouping sonic-events-cmn {
+        leaf timestamp {
+            type yang::date-and-time;
+            description "time of the event";
+        }
+    }
+}
+```
+	
 ```
 module sonic-events-bgp {
-    namespace "http://github.com/sonic-net/sonic-events-bgp";
-    prefix "events";
+    namespace "http://github.com/Azure/sonic-events-bgp";
+
     yang-version 1.1;
 
     import ietf-inet-types {
@@ -849,7 +857,7 @@ module sonic-events-bgp {
                 prefix yang;
         }
 
-    revision 2022-03-28 {
+    revision 2022-05-05 {
         description "BGP alert events.";
     }
 
@@ -865,30 +873,22 @@ module sonic-events-bgp {
     container bgp-state {
         description "
             Declares an event for BGP state for a neighbor IP
-            IP is the key parameter
             The status says up or down";
 
-        list event_list {
-            key "IP";
-
-            leaf ip {
-                type inet:ip-address;
-                description "IP of neighbor";
-            }
-
-            leaf status {
-                type enumeration {
-                    enum "up";
-                    enum "down";
-                }
-                description "Provides the status as up (true) or down (false)";
-            }
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
+        leaf ip {
+            type inet:ip-address;
+            description "IP of neighbor";
         }
+
+        leaf status {
+            type enumeration {
+                enum "up";
+                enum "down";
+            }
+            description "Provides the status as up (true) or down (false)";
+        }
+
+        uses sonic-events-cmn;
     }
 
     container bgp-hold-timer {
@@ -897,13 +897,7 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
 
-        list event_list {
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
-        }
+        uses sonic-events-cmn;
     }
 
     container zebra-no-buff {
@@ -912,15 +906,10 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
             
-        list event_list {
-
-            leaf timestamp {
-                type yang::date-and-time;
-                description "time of the event";
-            }
-        }
+        uses sonic-events-cmn;
     }
 }
+
 ```
 	
 TODO: Based on review of  BGP model above, the following will carry out the updates.
