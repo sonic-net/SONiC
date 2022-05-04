@@ -312,11 +312,15 @@ void event_publish(event_handle_t handle, const std:string &event_tag,
         const event_params_t *params=NULL);
 
 
+
 typedef std::vector<std::string> event_subscribe_sources_t;
 
 /*
  * Initialize subscriber.
- * 
+ *  Init subscriber, optionally to filter by event-source.
+ *
+ *  Only one subscriber is accepted with NULL/empty subscription list.
+ *  This subscriber is called the main receiver.
  *  The main receiver gets the privilege of caching events whenever the
  *  connection is dropped until reconnect and cached events are sent 
  *  upon re-connect.
@@ -381,16 +385,19 @@ void event_receive(event_handle_t handle, std::string yang_path,
         event_id_p id);
 
 
-typedef void *cache_handle_t;
+class events_cache;
+typedef events_cache *cache_handle_t;
 
 /*
- * Start events cache service
+ * Start events cache service.
+ * This invalidates any previous cache handle.
  *
  * return:
- *  Non NULL handle 
- *  NULL -- service not available
+ *  0 -- Started successfully.
+ *  1 -- Already running
+ * -1 -- service not available
  */
-cache_handle_t cache_service_start(void);
+int cache_service_start(void);
 
 
 /*
@@ -419,7 +426,7 @@ cache_handle_t cache_service_stop();
  *  True -- if message returned
  *  false -- No more message to return
  */
-bool cache_service_start(event_handle_t handle, std::string yang_path,
+bool cache_read(cache_handle_t handle, std::string yang_path,
         event_params_t &params);
 
 
@@ -437,7 +444,7 @@ bool cache_service_start(event_handle_t handle, std::string yang_path,
  *  0 -- on success
  *  -1 -- on failure
  */
-int cache_service_missed(event_handle_t handle, int &missed);
+int cache_missed(event_handle_t handle, int &missed);
 
 
 /*
@@ -452,8 +459,7 @@ int cache_service_missed(event_handle_t handle, int &missed);
  *  false -- Not found
  *
  */  
-bool cache_service_check(event_handle_t handle, event_id_t id);
-localadmin@remanava-dev-1:~/source/fork/syslog_telemetry/sonic-swss-common/common$        
+bool cache_check(event_handle_t handle, event_id_t id);
 ```
 
 ## Event detection
