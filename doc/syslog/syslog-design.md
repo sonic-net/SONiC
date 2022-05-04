@@ -104,7 +104,7 @@ SSIP is a feature which allows user to change UDP packet source IP address.
 Any configured address can be used for source IP mangling.  
 This might be useful for security reasons.
 
-SSIP also extends the existing syslog implementation with VRF and server port configuration support.
+SSIP also extends the existing syslog implementation with VRF device and server UDP port configuration support.
 The feature doesn't change the existing DB schema which makes it fully backward compatible.
 
 ## 1.2 Requirements
@@ -112,9 +112,9 @@ The feature doesn't change the existing DB schema which makes it fully backward 
 ### 1.2.1 Functionality
 
 **This feature will support the following functionality:**
-1. Syslog Source IP configuration
-2. Syslog server port configuration
-3. Syslog VRF support
+1. Syslog Source IP address configuration
+2. Syslog server UDP port configuration
+3. Syslog VRF device support
 
 ### 1.2.2 Command interface
 
@@ -146,8 +146,8 @@ The feature doesn't change the existing DB schema which makes it fully backward 
 
 SSIP will reuse syslog `omfwd` functionality which offers the next features:  
 1. Source IP address configuration
-2. Server port configuration
-3. VRF configuration
+2. Server UDP port configuration
+3. VRF device configuration
 
 ## 2.2 Syslog Forwarding Output Module
 
@@ -201,7 +201,7 @@ The `rsyslog-config` service performs the next actions:
 
 ###### Table 3: SSIP parameters
 
-| SONiC  | Rsyslogd | Schema                     |
+| SONiC  | Rsyslogd | Config DB Schema           |
 |:-------|:---------|:---------------------------|
 | key    | target   | SYSLOG_SERVER\|key         |
 | source | address  | SYSLOG_SERVER\|key\|source |
@@ -309,7 +309,7 @@ key = SYSLOG_SERVER|server_ip_address ; server IP address. Must be unique
 
 ; field = value
 source  = ip-addr    ; source IP address
-port    = 1*5DIGIT   ; server port (0..65535)
+port    = 1*5DIGIT   ; server UDP port (0..65535)
 vrf     = vrf-device ; VRF device
 
 ; value annotations
@@ -427,8 +427,8 @@ show
 **Options:**
 
 _config syslog add_
-1. `-s|--source` - source ip
-2. `-p|--port` - server port
+1. `-s|--source` - source ip address
+2. `-p|--port` - server udp port
 3. `-r|--vrf` - vrf device
 
 ### 2.6.2 Usage examples
@@ -512,7 +512,7 @@ module sonic-syslog {
                 }
 
                 leaf port {
-                    description "Syslog server port";
+                    description "Syslog server UDP port";
                     type uint16;
                 }
 
