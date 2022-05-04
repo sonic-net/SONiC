@@ -219,9 +219,8 @@ The libswsscommon will have the APIs for publishing & receiving.
 1. An on-demand cache service is provided to cache events for a period in transient cache.
 2. This service can be started/stopped and retrieve cached data via an libswsscommon API.
 3. A receiver could use this, during its downtime and use the cache upon restart.
-4. The service caches first N events, where N is the max size of the cache.
-5. Events that overflow are dropped and counted as missed.
-6. N is hardcoded in the code in the units of max-cache-size in bytes.
+4. The service caches uses max available cache size.
+5. Events that overflow the max allocatable buffer size are dropped and counted as missed.
 
 ## exporter
 1. Telemetry container runs a gNMI server to export events to external receiver/collector via SUBSCRIBE request.
@@ -338,7 +337,6 @@ typedef std::vector<std::string> event_subscribe_sources_t;
 /*
  * Initialize subscriber.
  * 
- 
  *  The main receiver gets the privilege of caching events whenever the
  *  connection is dropped until reconnect and cached events are sent 
  *  upon re-connect.
