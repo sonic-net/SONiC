@@ -159,7 +159,7 @@ PIM Any Source Multicast(ASM) control plane support is already available in Soni
 2. Support trapping of known ipv4 multicast data to CPU through a dedicated CoPP queue.
 3. Support programming of (*,G) routes into hardware using SAI APIS.
 4. Support programming of register interface as CPU port in (*,G) and (S,G) multicast routes
-5. Support IPv4 multicast forwarding on Port based, VLAN based and LAG based routing interfaces.
+5. Support IPv4 multicast forwarding on Port based, VLAN based and LAG based routing interfaces. It is also supported on the sub-interfaces as well.
 6. Provide support for VRF in PIM ASM.
 7. Support the liveliness tracking of (S,G) route through HW timers and programming the HW timer value using SAI APIS.
 8. Support to stop multicast data forwarding in Kernel to avoid duplication of traffic.
