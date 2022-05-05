@@ -196,7 +196,7 @@ No new containers are introduced as part of this design.
 
 ### 2.1.1 PIM-ASM Shared Path Tree
  1) Receiver sends a IGMP membership report to join the multicast group.
- 2) LHR creates a (\*,G) entry in the multicast routing table for the joined group and updates the outgoing interface list with interface on which it received the IGMP join and sends a PIM (\*,G) join towards the RP to join the shared tree. RP receives the PIM join and it creates a (\*,G) entry in the multicast routing table and the interface towards the LHR in the outgoing interface list. A shared tree for multicast group has been constructed from RP to LHR and the receiver.
+ 2) LHR creates a (\*,G) entry in the multicast routing table for the joined group and updates the outgoing interface list with interface on which it received the IGMP join and sends a PIM (\*,G) join towards the RP to join the shared tree. RP receives the PIM join and it creates a (\*,G) entry in the multicast routing table and the interface towards the LHR in the outgoing interface list. Even though the shared tree ends at RP, FRR creates the (\*,G) entry with iif as the loopback interface on which the RP is configured and the same is pushed to Kernel. But this (\*,G) entry will not be installed in the hardware as the iif is considered as NULL. A shared tree for multicast group has been constructed from RP to LHR and the receiver.
  3) Source starts to stream the multicast data
  4) FHR DR sends PIM Register message by encapsulating the multicast data and unicast it to RP.
  5) RP on receiving PIM Register message, de-encapsulates the messages and and checks if the packet is for an active multicast group, if so it  forwards the packet down the shared tree. RP joins the SPT for the source by sending (S,G) join to FHR so that it can receive native (S,G) multicast traffic. 
@@ -252,7 +252,7 @@ A small change has been introduced in ipmFpmsyncd for handling the KAT timer exp
 
 5. ipmcOrch being an subscriber for IPMC_ROUTE_TABLE in APPL_DB , it receives the multicast route entry information  updated by ipmcFpmsyncd. <br> <br>
 
-6. After processing the received information, ipmcOrchagent invokes SAI APIs to inject the multicast route entry information into ASIC_DB. <br> <br>
+6. After processing the received information, if the oifs and iifs have valid RPF then the ipmcOrchagent invokes SAI APIs to inject the multicast route entry information into ASIC_DB. In case of RP, as (\*,G) has the loopback interface as iif which does not have a valid RPF, orchagent will not push (\*,G) entry to SAI.<br> <br>
 
 7. Syncd being an ASIC_DB subscriber, it receives the multicast route information updated to ASIC_DB by ipmcOrchagent. <br> <br>
 
