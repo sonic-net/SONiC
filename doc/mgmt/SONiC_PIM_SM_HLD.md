@@ -476,7 +476,7 @@ PIM ASM leverages all the existing DBs. There are few new DBs introduced in CONF
 
 ### 3.3.1 CONFIG DB
 #### 3.3.1.1 PIM Global Configuration [Existing]
-```JSON
+```diff
 
 Key                       : PIM_GLOBALS|vrf-name|address-family
 
@@ -488,7 +488,8 @@ keep-alive-timer          : Keep alive timer in seconds. Range (31-60000 seconds
 ssm-ranges                : Configure Source-Specific-Multicast group range using IP Prefix-list
 ecmp-enabled              : To enable PIM ECMP (true/false)
 ecmp-rebalance-enabled    : To enable PIM ECMP rebalance (true/false). It can be enabled/disabled only when ECMP is enabled
-spt-threshold             : To disable or re-enable the SPT switchover. By default, SPT switchover is enabled in the system.
++spt-action               : To disable or re-enable the SPT switchover
++spt-infinity-prefix-list : Prefix-list for which SPT switchover has to be disabled.
 ```
 
 #### 3.3.1.2 PIM Interface-Specific Configuration [Existing]
