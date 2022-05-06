@@ -52,7 +52,7 @@ Base class will be put in `base.py`. Classes implemented by vendor will be put i
 
 ### Base Class Design
 
-Base class for portable console device is defined like belo:
+Base class for portable console device is defined like below:
 
 ```python
 # base.py
@@ -74,7 +74,7 @@ class PortableConsoleDeviceBase:
         raise NotImplementedError
 ```
 
-Vendors can simply inherit the base class and implement the interface methods as they can. For the methods cannot support, vendors can also raise a `NotImplementedError` exception.
+Vendors can simply inherit the base class and implement the interface methods. For the methods cannot support, vendors can also raise a `NotImplementedError` exception.
 
 ### Factory Function Design
 
