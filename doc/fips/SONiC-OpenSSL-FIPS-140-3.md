@@ -5,6 +5,7 @@
 |  Rev  | Date       | Author     | Change Description |
 | :---: | :--------: | :--------: | ------------------ |
 |  0.1  | 2022-02-22 | Xuhui Miao | Initial version    |
+|  0.2  | 2022-05-07 | Xuhui Miao | Update Fips config |
 
 ## Table of Contents
 - [Abbreviation](#abbreviation)
@@ -126,14 +127,29 @@ For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c
 ## SONiC FIPS Configuration
 
 ### Enable FIPS on system level
-Add the Linux System parameter fips=1, in grub config, one of implemetation as below:
+Set the Linux System parameter sonic_fips=1, to validate if the FIPS is enabled:
+```
+grep 'sonic_fips=1' /proc/cmdline
+```
 
+There is another parameter fips=1 supported for SymCrypt OpenSSL to enable FIPS. The parameter will enable the Linux Kernel FIPS, but the Linux Kernel FIPS is not supported yet, and it is out of scope in this document. In future, when the FIPS is supported by SONiC Linux Kernel, and the parameter fips=1 has already set, it is not necessary to set sonic_fips=1.
+
+For grub, one of implemetation as below:
 cat /etc/grub.d/99-fips.cfg
 ```
-GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT fips=1"
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT sonic_fips=1"
 ```
 
-To validate the FIPS enabled, grep 'fips=1' /proc/cmdline.
+For uboot, use fw_setenv to variable linuxargs to change the boot options.
+```
+OTHER_OPTIONS=$(fw_printenv linuxargs | sed 's/linuxargs=//')
+fw_setenv linuxargs "$OTHER_OPTIONS sonic_fips=1"
+```
+
+For Aboot, add the config in /host/image-{version}/kernel-cmdline, example:
+```
+reboot=p console=ttyS0 acpi=on Aboot=Aboot-norcal7-7.2.0-pcie2x4-6128821 <other parameters...> sonic_fips=1
+```
 
 ### Enable FIPS on application level
 ```
