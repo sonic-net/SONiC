@@ -68,6 +68,7 @@ module sonic-events-common {
         }
     }
 }
+
 module sonic-events-bgp {
     namespace "http://github.com/Azure/sonic-events-bgp";
 
@@ -79,6 +80,10 @@ module sonic-events-bgp {
 
     import ietf-yang-types {
         prefix yang;
+    }
+
+    import sonic-events-common {
+        prefix evtcmn;
     }
 
     revision 2022-05-05 {
@@ -112,7 +117,7 @@ module sonic-events-bgp {
             description "Provides the status as up (true) or down (false)";
         }
 
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 
     container bgp-hold-timer {
@@ -121,7 +126,7 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
 
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 
     container zebra-no-buff {
@@ -130,20 +135,19 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
             
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 }
 ```
 
 ## BGP State event 
 The event will now be published as below per schema. The instance data would indicate YANG module path for validation.
-[ TODO: Need review from YANG expert  Q: Do we need to specify revision info in instance data ? ]
 
 ```
-{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611" } }
-{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668" } }
-{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979" } }
-{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202" } }
+{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611Z" } }
+{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "up", "timestamp": "2022-08-17T02:46:42.615668Z" } }
+{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.78", "status": "down", "timestamp": "2022-08-17T04:46:51.290979Z" } }
+{ "sonic-events-bgp:bgp-state": { "ip": "100.126.188.78", "status": "up "timestamp": "2022-08-17T05:06:26.871202Z" } }
 ```   
 
 ## gNMI client
@@ -158,28 +162,28 @@ The instance data would indicate YANG module path & revision that is required fo
 o/p
 {
     "sonic-events-bgp:bgp-state": {
-      "timestamp": "2022-08-17T02:39:21.286611",
+      "timestamp": "2022-08-17T02:39:21.286611Z",
       "ip": "100.126.188.90",
       "status": "down"
     }
 }
 {
     "sonic-events-bgp:bgp-state": {
-      "timestamp": "2022-08-17T02:46:42.615668",
+      "timestamp": "2022-08-17T02:46:42.615668Z",
       "ip": "100.126.188.90",
       "status": "up"
     }
 }
 {
     "sonic-events-bgp:bgp-state": {
-      "timestamp": "2022-08-17T04:46:51.290979",
+      "timestamp": "2022-08-17T04:46:51.290979Z",
       "ip": "100.126.188.78",
       "status": "down"
     }
 }
 {
     "/events/sonic-events-bgp:bgp-state": {
-      "timestamp": "2022-08-17T05:06:26.871202",
+      "timestamp": "2022-08-17T05:06:26.871202Z",
       "ip": "100.126.188.78",
       "status": "up"
     }
@@ -187,20 +191,18 @@ o/p
         
 ```
 
-
 # Requirements
 ## Events
-Events definition, usage & immutability.
+Events definition, usage & update.
 1. Events are defined in YANG schema.
 2. Events are classified with source of event (as BGP, swss, ...) and type of event as tag within that source.
    - A source is defined as YANG module
    - Tags for a source is defined as container in the YANG module
-   - Each instance data provides YANG path as < module d > : < container ID>
+   - Each instance data provides YANG path as < module name > : < container name >
 3. The schema may specify a globally unique event-id.
 4. An event is defined with zero or more event specific parameters. A subset of the parameters are identified as key.
 5. Events schema updates are identified with revisions.
-6. YANG schema files for all events are available in a single location for NB clients in the installed image.
-7. YANG schema files can be set as contract between external events' consumer & SONiC.
+6. YANG schema files can be set as contract between SONiC and the external events consumers.
 
 ## Event APIs
 The libswsscommon will have the APIs for publishing & receiving.
@@ -317,6 +319,9 @@ typedef std::map<std::string, std::string> event_params_t;
  *
  *  Internally a a sequence number is embedded in every published event,
  *  along with a globally unique runtime-id that can distinguish restarts.
+ *  The receiver could keep next expected number for each runtime id
+ *  and use this info to compute missed event count upon next event.
+ *  The contents of the sequence is implementation specific.
  *
  * input:
  *  handle -- As obtained from events_init_publisher for a event-source.
@@ -344,14 +349,6 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  * Initialize subscriber.
  *  Init subscriber, optionally to filter by event-source.
  *
- *  Only one subscriber is accepted with NULL/empty subscription list.
- *  This subscriber is called the main receiver.
- *  The main receiver gets the privilege of caching events whenever the
- *  connection is dropped until reconnect and cached events are sent 
- *  upon re-connect.
- *  Another additional privilege is all stats/SLA is collected for
- *  this receiver and recorded in STATE-DB
- *
  * Input:
  *  lst_subscribe_sources_t
  *      List of subscription sources of interest.
@@ -376,9 +373,6 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
-class event_id;
-typedef event_id *event_id_p;
-typedef event_id event_id_t;
 /*
  * Receive an event.
  *
@@ -402,12 +396,13 @@ typedef event_id event_id_t;
  *      of events, the listener/receiver failed to receive
  *      from internal publishers.
  *
- *  id -- Id embedded in event for this event. This can be used
- *      to find duplicates from events cache.
+ *  sequence -- Sequence embedded in event for this event. This can be used
+ *      to find duplicates from events cache. The caller may not interpret
+ *      as this is private and implementation specific.
  */
 void event_receive(event_handle_t handle, std::string yang_path,
         event_params_t &params, int &missed_cnt,
-        event_id_p id);
+        const string &sequence);
 
 
 class events_cache;
@@ -477,14 +472,14 @@ int cache_missed(event_handle_t handle, int &missed);
  *
  * input:
  *  handle -- as obtained from stop
- *  event_id_t -- as obtained from event receive
+ *  sequence -- as obtained from event receive
  *
  * return:
  *  true -- Match/found
  *  false -- Not found
  *
  */  
-bool cache_check(event_handle_t handle, event_id_t id);
+bool cache_check(event_handle_t handle, const string sequence);
 ```
 
 ## Event detection
