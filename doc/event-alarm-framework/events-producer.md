@@ -686,52 +686,19 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
 
 ## counters
-- events-sent-cnt:
-  - The count of all events / messages sent to the main receiver. In other words count of events the main receiver is expected to receive.
+- events-published-cnt
+  - The count of all events sent to the external gNMI receiver. In other words count of events the main receiver is expected to receive.
   - This would not include count missed.
   
 - events-missed-cnt:
-  - The count of events missed either by local listener attached to main receiver or dropped due to slow receiver.
+  - The count of events missed either by local listener or during cacheing or dropped due to slow receiver.
+  - The slow receiver or rate-limit set by the receiver could cause internal buffer overflow that results in drop, hence missed.
   	
 - events-cached-cnt:
   - The count of events provided from cache.
-  - Cumulative count of events provided from cache.
     
-- Max_receiver_duration_secs:
-  - The max time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
-  	
-- Min_receiver_duration_secs:
-  - The min time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
-	
-- avg_receiver_duration_secs:
-  - The average time in seconds the main receiver remain connected in a single connection while the telmetry's gNMI service is running.
-	
-- receiver_connect_cnt:
-  - The count of connections made by main receiver
-	
-- cache_duration_in_secs:
-  - The total duration of cache use in seconds
-  - This includes telemetry container downtime and main receiver downtime, while telemetry's gNMI service is up.
-	
-- telemetry_restart_cnt:
-  - Count of telemetry restarts.
-	
-- telemetry_service_runtime_secs:
-  - Count of seconds the telemetry service has been active.
-  - This is updaed periodically, while telemetry service is running. Assuming a period of every N seconds, it could miss a max of N seconds in this count in each run, which is often way too negligible compared to runtime duration.
-	
-- min_latency
-  - The minimum time taken from event publish to event write into receiver connection
-
-- max_latency
-  - The maximum time taken from event publish to event write into receiver connection
-	
-- avg_latency
-  - The average time taken from event publish to event write into receiver connection
-	
 	
 # CLI
-- Show command is provided to view events with optional parameter to filter by source.
 - Show commands is provided to vew STATS collected
 
 # Alerts & YANG models
@@ -782,9 +749,13 @@ module sonic-events-bgp {
         prefix inet;
     }
 
-        import ietf-yang-types {
-                prefix yang;
-        }
+    import ietf-yang-types {
+        prefix yang;
+    }
+
+    import sonic-events-common {
+        prefix evtcmn;
+    }
 
     revision 2022-05-05 {
         description "BGP alert events.";
@@ -817,7 +788,7 @@ module sonic-events-bgp {
             description "Provides the status as up (true) or down (false)";
         }
 
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 
     container bgp-hold-timer {
@@ -826,7 +797,7 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
 
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 
     container zebra-no-buff {
@@ -835,10 +806,9 @@ module sonic-events-bgp {
             This event does not have any other parameter.
             Hence source + tag identifies an event";
             
-        uses sonic-events-cmn;
+        uses evtcmn:sonic-events-cmn;
     }
 }
-
 ```
 	
 TODO: Based on review of  BGP model above, the following will carry out the updates.
