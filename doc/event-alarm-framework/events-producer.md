@@ -404,82 +404,6 @@ void event_receive(event_handle_t handle, std::string yang_path,
         event_params_t &params, int &missed_cnt,
         const string &sequence);
 
-
-class events_cache;
-typedef events_cache *cache_handle_t;
-
-/*
- * Start events cache service.
- * This invalidates any previous cache handle.
- *
- * return:
- *  0 -- Started successfully.
- *  1 -- Already running
- * -1 -- service not available
- */
-int cache_service_start(void);
-
-
-/*
- * Stop events cache service
- *
- *       as current context to resume.
- * return:
- *  Non NULL handle on success.
- *  NULL -- Either no cache running or no service not available
- */
-cache_handle_t cache_service_stop();
-
-
-/*
- * Read next event from cache
- *
- * input:
- *   handle -- as obtained from stop
- *
- * output:
- *  yang_path -- Event's complete YANG path as
- *      < event's source module path > : < event's container name >
- *  params -- Params associated with event, if any
- *
- * return:
- *  True -- if message returned
- *  false -- No more message to return
- */
-bool cache_read(cache_handle_t handle, std::string yang_path,
-        event_params_t &params);
-
-
-/*
- * get missed count.
- *
- * input:
- *   handle -- as obtained from stop
- *
- * output:
- *
- *  missed_cnt -- total count of missed during cacheing.
- *
- * return:
- *  0 -- on success
- *  -1 -- on failure
- */
-int cache_missed(event_handle_t handle, int &missed);
-
-
-/*
- * check in cache
- *
- * input:
- *  handle -- as obtained from stop
- *  sequence -- as obtained from event receive
- *
- * return:
- *  true -- Match/found
- *  false -- Not found
- *
- */  
-bool cache_check(event_handle_t handle, const string sequence);
 ```
 
 ## Event detection
@@ -577,135 +501,121 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ### Details
 1. All the zmq paths' defaults are hardcoded in the libswsscommon lib as part of APIs code.
 2. These can be overridden with config from /etc/sonic/init_cfg.json
-3. The publish API adds few private attributes
-   - Adds two sequence numbers and an runtime ID to the message which is stripped off by receiver before forwarding the message to caller.
-     - runtime-ID <32 bit ID>
-       - This is computed to be unique among process restarts.
-     - source Sequence: < 32 bits of sequence number starting with 0 >
-     - tag sequence: <32 bits of sequence numnber starting with 0>
-   - Adds the sender info into the message, to be used in conjunction with sequence numbers.
-   - Send as multipart message with event-source in part1, which allows using ZMQ's filtering by event-sources.
- 4. The receiver API:
+3. The publish API adds a sequence number as string, which is internal between publish & receive APIs and the cache service.
+4. The receiver API:
     - Reads & returns one event at a time, in blocking mode.
-    - For receive with no filtering, it maintains stats as listed in SLA section for this receive session.
-      - Maintains expected sequence numbers per source & per-source-per-tag for each sender
-      - Diff with received numbers to count missed messages per source and missed repeats per tag per source for a sender.
-      - It subtracts the repeats missed from the source-missed, as there is no real loss of data.
-        - This handles the case of too many flaps per second.
-      - It maintains the cumulative count of missed.
-      - It uses the timestamp in message to compute latency.
-      - The stats can be retrieved by caller, anytime and update the STATE-DB.
-    - It strips off the sender & sequence number info, before returning message to caller.
+    - It strips off the sequence number info, before returning event to caller and provide it as separate param
+    - The receiver may use it to look up for duplicates in cache, if it had just used events from cache.
  
 ## Events cache service
 1. This is a singleton service that runs in eventd container.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
 3. The caching can be started/stopped.
-4. When started all events are cached. The repeated events are cached with last incidence. It maintains the effective missed count across all sources (not counting the repeats)
+4. When started all events are cached. Upon cache overflow, the events are dropped and count as missed.
 5. The cache service uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
 
 Supports the following APIs
 ```
+
+class events_cache;
+typedef events_cache *cache_handle_t;
+
 /*
- * Start events cache service
+ * Start events cache service.
+ * This invalidates any previous cache handle.
  *
  * return:
- *   0 -- started or already running
- *  -1 -- service not available.
+ *  0 -- Started successfully.
+ *  1 -- Already running
+ * -1 -- service not available
  */
 int cache_service_start(void);
-
-
-typedef struct {
-    std::string source;
-    std::string tag;
-    std::string timestamp;
-    event_params_t params;
-} cache_message_t;
-
-/*
- * Set of expected next sequence numbers
- *
- * The key is computed as <run_time_id|sender|source> for per source
- * <run_time_id|sender|source|tag> as per tag.
- *
- */
-typedef std::map<std::string, uint32_t> next_sequence_t;
-
-/* Map of event_key vs the message */
-typedef std::map<std::string, cache_message_t> lst_cache_message_t;
 
 
 /*
  * Stop events cache service
  *
- * output:
- *  lst_msgs -- list of cached messages.
- *
- *  missed_cnt -- Repeated events are counted as missed, as cache persists
- *                only the last incidence.
- *  sequences -- Cached info on next expected value. The caller would use this
- *	  	 as current context to resume.
+ *       as current context to resume.
  * return:
- *  0 -- stopped.
- *  1 -- Nothing to stop, as it is not running.
- *  -1 -- service not available.
+ *  Non NULL handle on success.
+ *  NULL -- Either no cache running or no service not available
  */
-int cache_service_stop(lst_cache_message_t &lst, uint32_t &missed_cnt, next_sequence_t &sequences);
+cache_handle_t cache_service_stop();
+
+
+/*
+ * Read next event from cache
+ *
+ * input:
+ *   handle -- as obtained from stop
+ *
+ * output:
+ *  yang_path -- Event's complete YANG path as
+ *      < event's source module path > : < event's container name >
+ *  params -- Params associated with event, if any
+ *
+ * return:
+ *  True -- if message returned
+ *  false -- No more message to return
+ */
+bool cache_read(cache_handle_t handle, std::string yang_path,
+        event_params_t &params);
+
+
+/*
+ * get missed count.
+ *
+ * input:
+ *   handle -- as obtained from stop
+ *
+ * output:
+ *
+ *  missed_cnt -- total count of missed during cacheing.
+ *
+ * return:
+ *  0 -- on success
+ *  -1 -- on failure
+ */
+int cache_missed(event_handle_t handle, int &missed);
+
+
+/*
+ * check in cache
+ *
+ * input:
+ *  handle -- as obtained from stop
+ *  sequence -- as obtained from event receive
+ *
+ * return:
+ *  true -- Match/found
+ *  false -- Not found
+ *
+ */  
+bool cache_check(event_handle_t handle, const string sequence);
 
 ```
-
-## Local persistence
-- This is to maintain a events' status locally.
-- A service running in eventd would accomplish this.
-- It gets access to all events via a local listener attached to zmq proxy.
-- It persists the events into EVENTS table in EVENTS-DB.
-- It does a periodic update of every N seconds.
-- The N is defaulted to hard coded value in code, which can be overriden via /etc/sonic/init_cfg.json
-- In case of repeated events, the last incidence at the time of update is recorded.
-- For each event
-  - Key = <event source>|<event tag>[|<concatenated value key params using '|' to join>]
-    - key param names are obtained from YANG.
-    - The key param names are sorted to get the ordering of concatenation
-    - For example, in case of keys as "IP ifName" the params are concatenated as <ifName value>|<IP value>)
-  - value {<ist of all params  as key-val pairs>, "timestamp": "..."}
-  - e.g. 
-    ```
-    key: bgp|state|100.126.188.90  value: { "ip": "100.126.188.90", "timestamp": "2022-08-17T02:46:42.615668", "status": "up"}
-    key: bgp|state|100.126.188.78  value: { "ip": "100.126.188.78", "timestamp": "2022-08-17T05:06:26.871202", "status": "up"}
-    ```
-- In the scenario, where publishing API does not do YANG validation (_turned off via init_cfg.json_), this service validates every event.
-  - Invalid events are reported via syslog and by raising an event to alert.
-  - Invalid events are not persisted.
-  
 
 ## Event exporting
 The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
 
 - Telemetry container hosts gNMI server for streaming events to external receivers.
-- The external clients subscribe and receive messages via gNMI connection/protocol.
-- For each client connected, a listener is spawned to receive messages at the max rate of 10K/sec.
+- The external client subscribe and receive messages via gNMI connection/protocol.\
+- Only one client is expected; The client is expected to set no filter, implying it receives all events.
+- A istener is spawned to receive messages at the max rate of 10K/sec.
 - The received messages are sent to the connected client at the client's rate.
-- Any overflow due to back-pressure/rate-limit is confined to suppression of repeated events.
+- Any overflow due to back-pressure/rate-limit results in events drop.
  
 ### gNMI protocol
 - Use SUBSCRIBE request 
   - Use paths as 
     - "/events" to receive all events.
-    - "/events/< source > to receive all events from a source.
-    - Multiple paths can be accepted.
   - Subscribe options
     - Target = EVENTS
     - Mode = STREAM
     - StreamMode: OnChange
     - Updates_only = True  
-  - Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"BGP" } mode:ON_CHANGE}}
+  - Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"events" } mode:ON_CHANGE}}
 	
-- Restriction
-  - There can be only one client for all events.
-  - The client for all events is called the main receiver.
-  - The goal of 95.5% reliability is assured only for the main receiver and stats are collected for the main receiver *only*.
-
 - The gnMI o/p is prefixed with \events\
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
@@ -714,7 +624,7 @@ o/p
 {
   "EVENTS": {
     "/events/bgp/state": {
-      "timestamp": "2022-08-17T02:39:21.286611",
+      "timestamp": "2022-08-17T02:39:21.286611Z",
       "ip": "100.126.188.90",
       "status": "down"
     }
@@ -722,7 +632,7 @@ o/p
 {
   "EVENTS": {
     "/events/bgp/state": {
-      "timestamp": "2022-08-17T02:46:42.615668",
+      "timestamp": "2022-08-17T02:46:42.615668Z",
       "ip": "100.126.188.90",
       "status": "up"
     }
@@ -730,26 +640,20 @@ o/p
 }
 ```
 ### Message reliability
-The message reliability is ensured only for main receiver. There are 3 kinds of missed message scenarios.
-1. A slow receiver that reaches overflow state causes drop of repeated events and send only the last instance.
-2. During downtime of main receiver, the events cache service, drops repeated events and provide only the last instance.
+The message reliability is ensured as BEST effort. There are 3 kinds of missed message scenarios.
+1. A slow receiver that reaches overflow state causes drop of events.
+2. During downtime of main receiver, the events cache service, drops events upon overflow.
 3. The internal listener for published events missed to receive an event.
    - This could be due to one/more publishers publishing at a combined rate going above 10K/second.
    - The eventd service is down.
    - An overloaded internal control plane state making the local listener for events running too slow.
+4. The receiver from API or cache service get this count of missed events.
+
      
-Among the three, only the third scenario is a real message drop. In the cases 1 & 2, it can be seen as suppression of repeats to conserve resource with no real loss of data as last incidence is sent. Hence only messages missed by listener, is accounted into reliability measure computation. 
 
-#### Missed Message computaion.
-1. The missing computed via sender+source sequence numbers are collected across all senders to get the total missed.
-   - This is the total count of events the local listener missed to receive across all publishers/senders.
-2. The sender+source+tag level missing, say N implies that this event though missed N times, the last state after the N missed, is received. As the state after N missed is received & sent to the main-receiver, this N could be discounted from total missed. Hence this N is subtracted from the total-missed.
-	
-	total_missed = < sum of missed per sender+source > - < sum of repeats missed computed via sender+source+tag>
-
-This implies, in a healthy system, this count will be always trending towards 0, with possible spikes.
-
-All stats related to main receiver is recorded in STATE-DB. Refer STATS section for details.
+#### Missed event computaion.
+1. This is internal to the implementation.
+2. The receiver & cache-service APIs provide the count of missed messages. The caller could update SLA saved in STATE-DB.
 
 ### Rate-limiting
 - The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
@@ -769,8 +673,7 @@ All stats related to main receiver is recorded in STATE-DB. Refer STATS section 
   - Send these events to the main-receiver
   - Now start reading from subscription.
   - The messages received between start of subscribe and stop of caching could be duplicates.
-    - Detect the duplicates using the sequence number cached per sender/source.
-    - Duplicate messages are dropped.
+    - Call cache service with sequence of received to check duplicate or not.
     - This check would stop after few seconds, as new events after spmetime, can't be found in cache.
 	
 # STATS update
