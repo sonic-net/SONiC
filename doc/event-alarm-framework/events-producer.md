@@ -40,9 +40,34 @@ bgpd.log.2.gz:Aug 17 05:06:26.871202 SN6-0101-0114-02T0 INFO bgp#bgpd[62]: %ADJC
 
 ## BGP event YANG model
 An event is defined for BGP state change in YANG model as below.
-[ TODO: Need review from YANG expert ]
 
 ```
+module sonic-events-common {
+    namespace "http://github.com/Azure/sonic-events-common";
+    prefix evtcmn;
+    yang-version 1.1;
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC Events common definition";
+
+    revision 2022-05-26 {
+        description
+            "Initial revision.";
+    }
+
+    grouping sonic-events-cmn {
+        leaf timestamp {
+            type yang::date-and-time;
+            description "time of the event";
+        }
+    }
+}
 module sonic-events-bgp {
     namespace "http://github.com/Azure/sonic-events-bgp";
 
@@ -52,9 +77,9 @@ module sonic-events-bgp {
         prefix inet;
     }
 
-        import ietf-yang-types {
-                prefix yang;
-        }
+    import ietf-yang-types {
+        prefix yang;
+    }
 
     revision 2022-05-05 {
         description "BGP alert events.";
