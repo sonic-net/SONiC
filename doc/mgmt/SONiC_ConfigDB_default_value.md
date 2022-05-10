@@ -15,7 +15,10 @@
 - [3 Error handling](#3-error-handling)
 - [4 Serviceability and Debug](#4-serviceability-and-debug)
 - [5 Unit Test](#5-unit-test)
-- [6 References](#6-references)
+- [6 Migration steps](#6-migration-steps)
+    + [6.1 Phase 1](#6-1-phase-1)
+    + [6.2 Phase 1](#6-2-Phase-2)
+- [7 References](#7-references)
 
 
 # About this Manual
@@ -27,7 +30,11 @@ This document provides a detailed description on the new features for:
  - Potential risk: Yang model default value conflict with hardcoded value:
     - Default value hardcoded in source code.
     - Yang model default value not used.
- - SONiC utilities not support get default value.
+ - SONiC utilities not support get default value:
+   - Vender OS have different show command:
+     - show running: return user config which not include default value.
+     - show running all: return all config with default value.
+   - Currently SONiC only support 'show running'
 
 # 1 Functional Requirement
 ## 1.1 swss-common return default value from Yang model
@@ -39,6 +46,7 @@ This document provides a detailed description on the new features for:
  - Design diagram:
 
 <img src="./images/swss-common-default-value.png"  />
+
 ## 2.1 Considerations
 ### How to get default value
 
@@ -51,8 +59,13 @@ This document provides a detailed description on the new features for:
 
 |                                        | Pros                                                         | Cons                                                         |
 | -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Existed read API return default value. | Less code change, all app will get default value automatically. | There are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
-| Existed read API keeps no change.      | When update existed code, can cleanup code to remove hard coded default value. | All apps need code update.                                   |
+| Change API to return default value. | Less code change, all app will get default value automatically. | There are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
+| Existed API keeps no change.      | When update existed code, can cleanup code to remove hard coded default value. | All apps need code update.                                   |
+
+### Current design:
+   - Get default value from Yang model in read API.
+   - Existed read API keeps no change. 
+
 
 ## 2.2 New class
  - YangModelLoader class
@@ -67,9 +80,10 @@ This document provides a detailed description on the new features for:
    - This class contains all logic and knowledge for apply default to config DB query result. 
 
 ## 2.3 Other code change
- - DBConnector class add 2 new methods:
-   - void setDBDecorator(std::shared_ptr<swss::DBDecorator> &db_decorator);
-   - const std::shared_ptr<swss::DBDecorator> &getDBDecorator() const;
+ - DBConnector class add new methods:
+   - const std::shared_ptr<swss::DBDecorator> setDBDecorator(std::shared_ptr<swss::DBDecorator> &db_decorator);
+   - const std::shared_ptr<swss::DBDecorator> getDBDecorator(swss::DBDecoratorType type) const;
+   - const DecoratorMapping &getDBDecorators() const;
 
  - Following class will add new parameter to ctor:
    - ConfigDBConnector_Native
@@ -99,6 +113,20 @@ This document provides a detailed description on the new features for:
  - All new code will 100% covered by gtest test case.
  - Add E2E test case for all new APIs.
 
-# 6 References
+# 6 Migration steps
+## 6.1 Phase 1
+ - swss common API change to support read default value.
+
+## 6.1 Phase 2
+ - Find out all projects need update by code scan:
+   - Any project using swsssdk.
+   - Any project using swss common c++ lib.
+   - Any project using swss common python lib.
+
+ - Involve project owner to migrate to new API.
+   - If project still using swsssdk, then switch to swsscommon with new API.
+   - When migrate to new API, also clean up hardcoded default values. 
+
+# 7 References
 ## SONiC YANG MODEL GUIDELINES
 https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md
