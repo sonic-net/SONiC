@@ -56,9 +56,9 @@ module sonic-events-common {
     description
         "SONIC Events common definition";
 
-    revision 2022-05-26 {
+    revision 2022-12-01 {
         description
-            "Initial revision.";
+            "Common reusable definitions";
     }
 
     grouping sonic-events-cmn {
@@ -67,26 +67,37 @@ module sonic-events-common {
             description "time of the event";
         }
     }
-}
 
+    grouping sonic-events-usage {
+        leaf usage {
+            type uint8 {
+                range "0..100" {
+                    error-message "Incorrect val for %";
+                }
+            }
+            description "Percentage in use";
+        }
+        
+        leaf limit {
+            type uint8 {
+                range "0..100" {
+                    error-message "Incorrect val for %";
+                }
+            }
+            description "Percentage limit set";
+        }
+    }
+}
 module sonic-events-bgp {
     namespace "http://github.com/Azure/sonic-events-bgp";
 
     yang-version 1.1;
 
-    import ietf-inet-types {
-        prefix inet;
-    }
-
-    import ietf-yang-types {
-        prefix yang;
-    }
-
     import sonic-events-common {
         prefix evtcmn;
     }
 
-    revision 2022-05-05 {
+    revision 2022-12-01 {
         description "BGP alert events.";
     }
 
