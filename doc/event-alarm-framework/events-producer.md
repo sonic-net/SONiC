@@ -168,7 +168,6 @@ Below shows the command & o/p for subscribing all, and receiving BGP events.
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
 
 The instance data would indicate YANG module path & revision that is required for validation.
-[ TODO: Need review from YANG expert ]
 
 o/p
 {
