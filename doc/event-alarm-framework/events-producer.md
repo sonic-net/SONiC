@@ -327,23 +327,30 @@ typedef std::map<std::string, std::string> event_params_t;
 /*
  * Publish an event
  *
- *  Internally a a sequence number is embedded in every published event,
- *  along with a globally unique runtime-id that can distinguish restarts.
- *  The receiver could keep next expected number for each runtime id
+ *  Internally a globally unique sequence number is embedded in every published event,
+ *  The sequence numbers from same publishing instances can be compared
+ *  to see if there any missing events between.
+ *
+ *  The sequence has two components as run-time-id that distinguishes
+ *  the running instance of a publisher and other a running sequence
+ *  starting from 0, which is local to this runtime-id.
+ *
+ *  The receiver API keep next last received number for each runtime id
  *  and use this info to compute missed event count upon next event.
- *  The contents of the sequence is implementation specific.
+ *  The contents of the sequence is implementation specific. Use the
+ *  provided API to compare two sequences.
  *
  * input:
- *  handle -- As obtained from events_init_publisher for a event-source.
+ *  handle - As obtained from events_init_publisher for a event-source.
  *
- *  event_tag --
+ *  event_tag -
  *      Name of the YANG container that defines this event in the
  *      event-source module associated with this handle.
  *
  *      YANG path formatted as "< event_source >:< event_tag >"
  *      e.g. {"sonic-events-bgp:bgp-state": { "ip": "10.10.10.10", ...}}
  *
- *  params --
+ *  params -
  *      Params associated with event; This may or may not contain
  *      timestamp. In the absence, the timestamp is added, transparently.
  *
@@ -383,36 +390,113 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
+typedef std::string event_sequence_t;
+
+/*
+ * compares two given event sequences embedded by publisher of the event.
+ *
+ * Input:
+ *  s1, s2 - Sequences to compare
+ * 
+ * Output
+ *  diff  - DIff between two sequences. This is signed value as
+ *          s1 - s2; Hence 0 if same, negative if s1 precedes s2
+ *      `   else positive. Diff is not filled, whe
+ *
+ * returns
+ *  0   -   Sequences are compared. Use diff to see the result.
+ *  -1  -   Sequences can't be compared, as they are from two different
+ *          publisher instances. diff is undefined.
+ */
+int comp_event_sequence(event_sequence_t s1, event_sequence_t s2, uint32_t &diff);
+
+typedef struct {
+    /*
+     * Yang path to indicate type of event and to validate the params.
+     */
+    std::string yang_path;
+
+    /*
+     * Params associated with the event.
+     */
+    event_params_t &params;
+
+    /*
+     * Count of missed events from this sender, before this event. Sum of
+     * missed count from all received events will give the total missed.
+     */
+    int missed_cnt;
+
+    /*
+     * Sequence ID of that event - globally unique across all events.
+     * 
+     * This could be used to find, if two events are duplicate
+     * or not. If not duplicate, the ordering between two events.
+     */
+    event_sequence_t sequence_id;
+
+} received_event_t;
+
 /*
  * Receive an event.
+ * A blocking call.
  *
  *  This API maintains an expected sequence number and use the received
- *  sequence in event to compute missed message count.
- *  NOTE: runtime-id identifies a sender runtime instance.
+ *  sequence in event to compute missed events count.
  *
  * input:
- *  handle -- As obtained from events_init_subscriber
+ *  handle - As obtained from events_init_subscriber
  *
  * output:
- *  yang_path -- Event's complete YANG path as
- *      < event's source module path > : < event's container name >
- *  params -- Params associated with event, if any
+ *  event - Received event.
  *
- *  missed_cnt --
- *      Count of missed events from the sender of this event
- *      for this event's source, from last event read for this 
- *      event's source.
- *      Cumulative sum of all missed, will give the total count
- *      of events, the listener/receiver failed to receive
- *      from internal publishers.
- *
- *  sequence -- Sequence embedded in event for this event. This can be used
- *      to find duplicates from events cache. The caller may not interpret
- *      as this is private and implementation specific.
  */
-void event_receive(event_handle_t handle, std::string yang_path,
-        event_params_t &params, int &missed_cnt,
-        const string &sequence);
+void event_receive(event_handle_t handle, received_event_t &event);
+
+
+/*
+ * Start events cache service.
+ * This clears any events in cache.
+ *
+ * return:
+ *  0 - Started successfully.
+ *  1 - Already running
+ * -1 - service not available
+ */
+int cache_service_start(void);
+
+
+/*
+ * Stop events cache service
+ *
+ * return:
+ *  0 - stopped successfully.
+ *  -1 - Cache service not running or no service not available
+ */
+int cache_service_stop();
+
+
+typedef std::vector<received_event_t> lst_received_events_t;
+
+/*
+ * Read set of events from cache in FIFO order.
+ * Events are removed as they are read.
+ * Events are provided in a batch, with more flag
+ * to indicate if there are more to read.
+ *
+ * A cache start will clear the cache.
+ *
+ * output:
+ *  events -  A batch of events in FIFO order.
+ *
+ *  more  - True, if more to read. False if no more to read
+ *
+ * return:
+ *  0  -    success
+ *  -1 -    No active cache to read from. Active cache is available
+ *          only upon successful cache_service_stop
+ */
+int cache_read(received_event_t &events, bool &more);
 
 ```
 
