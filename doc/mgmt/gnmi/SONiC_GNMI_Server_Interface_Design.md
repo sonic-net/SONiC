@@ -387,9 +387,17 @@ SetRequest message will be:
 
 All successful changes for ConfigDB made through the gNMI SET RPC will be saved to /etc/sonic/config_db.json.
 
-If the target database is not ConfigDB, we can’t guarantee persisitence.
+If the target database is not ConfigDB, we can't guarantee persisitence.
 
-#### 1.2.1.7 Authentication
+#### 1.2.1.7 Heartbeat and Reprogram
+
+For full system reboot, client has to reprogram ApplDB. If the gnmi container restarts, client doesn't need to reprogram.
+
+We propose to use Capabilities RPC as heartbeat to detect reboot, and after reboot, client should compare ApplDB configuration and check if needs to reprogram.
+
+<img src="images/heartbeat.png" alt="heartbeat" width="500px"/>
+
+#### 1.2.1.8 Authentication
 sonic-telemetry provides three authentication mechanisms, and sonic-gnmi will use the same mechanisms:
 * Password: Like HTTP Basic auth, you pass the username and password in the gRPC metadata
 * JWT: JSON Web Tokens standard. First you authenticate with username/password and then receive a JWT token. After you send the token in the gRPC metadata.
@@ -398,23 +406,23 @@ sonic-telemetry provides three authentication mechanisms, and sonic-gnmi will us
 sonic-restapi uses one authentication mechanism:
 * In the authentication of client certificate, after the certificate chain is validated by TLS, it will further check if the common name of the end-entity certificate is in the trusted common name list of the server config.
 
-#### 1.2.1.8 ACL
+#### 1.2.1.9 ACL
 GNMI server will not support OpenConfig Yang models, so ACL configuration will use CONFIG_DB schema and SONiC Yang Models.
 
-#### 1.2.1.9 Docker to Host communication
+#### 1.2.1.10 Docker to Host communication
 'config apply-patch' and 'config reload' are designed to run on host, and it's difficult to support them in container:
 1. These commands will update redis database and restart container, when they restart gnmi, bgp, syncd and swss, the ongoing gnmi operation will be broken.
 2. 'config reload' will stop service at first, run some other operations, and then restart service. If we run this command in container, it will be broken at the stop service step.
 3. These commands will execute some host scripts and use systemctl to restart service, it will be dangerous to support these operations in container.
 The solution is to add host services for 'config apply-patch' and 'config reload' on host, and gNMI server uses dbus method to invoke these services to update configuration
 
-##### 1.2.1.9.1 Incremental Configurations
+##### 1.2.1.10.1 Incremental Configurations
 
 For incremental configuration, 'config apply-patch' should not restart gNMI, bgp, synd and swss.
 
 <img src="images/incremental_rpc.png" alt="incremental" width="500px"/>
 
-##### 1.2.1.9.2 Full Configurations
+##### 1.2.1.10.2 Full Configurations
 
 For full configuration, there’re 2 possible solutions: 
 * gNMI server needs to send response at first, and then invoke 'config reload'.
