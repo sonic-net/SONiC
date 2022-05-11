@@ -601,17 +601,19 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 3. The caching can be started/stopped.
 4. When started all events are cached. Upon cache overflow, the events are dropped and count as missed.
 5. The cache service uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
+6. APIs are provided for all cache access.
 
 
 ## Event exporting
 The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
 
 - Telemetry container hosts gNMI server for streaming events to external receivers.
-- The external client subscribe and receive messages via gNMI connection/protocol.\
-- Only one client is expected; The client is expected to set no filter, implying it receives all events.
-- A istener is spawned to receive messages at the max rate of 10K/sec.
-- The received messages are sent to the connected client at the client's rate.
+- The external client subscribe and receive events via gNMI connection/protocol.
+- Only one client is accepted; The client is provided with all events. 
+- A local listener is spawned to receive events at the max rate of 10K/sec.
+- The received events are sent to the connected client at the client's rate.
 - Any overflow due to back-pressure/rate-limit results in events drop.
+
  
 ### gNMI protocol
 - Use SUBSCRIBE request 
@@ -624,33 +626,30 @@ The telemetry container runs gNMI server service to export events to gNMI client
     - Updates_only = True  
   - Sample: subscribe:{prefix:{target:"EVENTS"} subscription:{path:{element:"events" } mode:ON_CHANGE}}
 	
-- The gnMI o/p is prefixed with \events\
+- The gnMI o/p is prefixed with YANG path for corresponding schema.
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
 
 o/p
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T02:39:21.286611Z",
       "ip": "100.126.188.90",
       "status": "down"
     }
 }
 {
-  "EVENTS": {
-    "/events/bgp/state": {
+    "sonic-events-bgp:bgp-state": {
       "timestamp": "2022-08-17T02:46:42.615668Z",
       "ip": "100.126.188.90",
       "status": "up"
     }
-  }
 }
 ```
 ### Message reliability
 The message reliability is ensured as BEST effort. There are 3 kinds of missed message scenarios.
 1. A slow receiver that reaches overflow state causes drop of events. This is tracked as explicit drop count.
-2. During downtime of main receiver, the events cache service, drops events upon overflow. This is another explicit dropo count.
+2. During downtime of main receiver, the events cache service, drops events upon overflow. This is another explicit drop count.
 3. The internal listener for published events missed to receive an event. The missing is transparent to receiver.
    - This could be due to one/more publishers publishing at a combined rate going above 10K/second.
    - The eventd service is down.
@@ -664,7 +663,7 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
 - For clients who would like some explicit rate limiting, a custom option is provided.
 - The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit
 - path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
-- The rate-limiting/backpressure would only drop repeated events.
+
 	
 ### Reliability via caching
 - The events cache service is tapped in two scenarios
@@ -672,16 +671,16 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
   - The planned service downtime for telemetry container.
 	
 - Upon gNMI main-receiver re-connect
-  - Send subscribe message to evend's proxy; But defer reading the messages sent.
-  - Call cache service stop API, which returns the cached events list.
-  - Send these events to the main-receiver
-  - Now start reading from subscription.
+  - Send subscribe message to evend's proxy; But defer reading the messages from subscription channel.
+  - Call cache service stop API, and read the cached events list.
+  - Send these events to the main-receiver.
+  - Now start reading from subscription channel.
   - The messages received between start of subscribe and stop of caching could be duplicates.
     - Check it among the messages received via cache. 
-    - This check would stop after few seconds, as new events after spmetime, can't be found in cache.
+    - This check would stop after few seconds, as new events after sometime, can't be found in cache.
 	
 # STATS update
-The following stats are collected. These stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
+The stats are collected and updaed periodically in DB. The stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
 - The counters are persisted in STATE-DB with keys as "EVENT-STATS|< counter name >"
@@ -702,9 +701,12 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - events-cached-cnt:
   - The count of events provided from cache.
 
+- events-cache-missed-cnt:
+  - The count of events missed during cache collection.
+
 - Latency
   - Computed as < timestamp of write into main receiver's gNMI channel > - < timestamp in the event as inserted by publisher >
-  - A moving window of last N events' latency are maintained.
+  - The latency of last N events published to external receiver is maintained as a moving window.
   - Min
     - Minimum value from the window
   - Max
