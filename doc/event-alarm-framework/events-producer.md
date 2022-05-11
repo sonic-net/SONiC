@@ -261,11 +261,8 @@ The libswsscommon will have the APIs for publishing & receiving.
 ## YANG schema
 1. YANG schema is written for every event.
 2. Schema is maintained in multiple files as one per source (src/sonic-yang-models/yang-events/events-bgp.yang)
-3. All the schema files are copied into one single location (e.g. /usr/shared/sonic/events) in the install image.
-4. The schema for processes running in host are copied into this location at image creation/install time.
-5. The schema for processes running inside the containers are held inside the containers and copied into the shared location on the first run. This allows for independent container upgrade scenarios.
-6. NB clients could use the schema to understand/analyze the events
-
+3. All the schema files are copied into one single location in the install image, like config YANG models.
+4. This schema could be published in an global/shared repo for use by external consumer of the events.
 
 ## Event APIs
 The Event API is provided as part of libswsscommon with API definition in a header file.
@@ -328,7 +325,7 @@ typedef std::map<std::string, std::string> event_params_t;
  * Publish an event
  *
  *  Internally a globally unique sequence number is embedded in every published event,
- *  The sequence numbers from same publishing instances can be compared
+ *  The sequence numbers from same publishing instance can be compared
  *  to see if there any missing events between.
  *
  *  The sequence has two components as run-time-id that distinguishes
@@ -390,7 +387,7 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
-typedef std::string event_sequence_t;
+typedef unsigned long long event_sequence_t;
 
 /*
  * compares two given event sequences embedded by publisher of the event.
@@ -575,10 +572,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 - A slow receiver should not impact either other receivers or publishers.
 - The receivers should be able to learn the count of messages they have missed to receive.
 - The receivers & publishers could go down and come up anytime.
-- A publishing API validates every event per YANG schema by default. This default behavior can be turned off via /etc/sonic/init-cfg.json. In case of turning off, offline validation occurs.
-  - The events that failed validation are not published.
-  - The failed validations are logged via syslog and event is raised 
-- A receiver should be able to compute the count of messages it missed to receive as ZMQ PUB/SUB drops messages upoin Q overflow.
+
 
 ### Design
 - Use ZMQ PUB/SUB for publish & subscribe.
@@ -590,7 +584,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
   - The publishers and subscribers connect to the *always* available, single instance ZMQ proxy.
 - This proxy could transparently feed every messages to a side-car component.
   - Run the events-cache service as a side component.
-  - Run a local redis-persistence service as another side component.
+  
 
 ### Details
 1. All the zmq paths' defaults are hardcoded in the libswsscommon lib as part of APIs code.
@@ -598,8 +592,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 3. The publish API adds a sequence number as string, which is internal between publish & receive APIs and the cache service.
 4. The receiver API:
     - Reads & returns one event at a time, in blocking mode.
-    - It strips off the sequence number info, before returning event to caller and provide it as separate param
-    - The receiver may use it to look up for duplicates in cache, if it had just used events from cache.
+    - The serquence number is provided to caller as separate param
+    - The caller may use it to look up for duplicates from cache.
  
 ## Events cache service
 1. This is a singleton service that runs in eventd container.
