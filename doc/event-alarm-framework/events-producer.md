@@ -608,86 +608,6 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 4. When started all events are cached. Upon cache overflow, the events are dropped and count as missed.
 5. The cache service uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
 
-Supports the following APIs
-```
-
-class events_cache;
-typedef events_cache *cache_handle_t;
-
-/*
- * Start events cache service.
- * This invalidates any previous cache handle.
- *
- * return:
- *  0 -- Started successfully.
- *  1 -- Already running
- * -1 -- service not available
- */
-int cache_service_start(void);
-
-
-/*
- * Stop events cache service
- *
- *       as current context to resume.
- * return:
- *  Non NULL handle on success.
- *  NULL -- Either no cache running or no service not available
- */
-cache_handle_t cache_service_stop();
-
-
-/*
- * Read next event from cache
- *
- * input:
- *   handle -- as obtained from stop
- *
- * output:
- *  yang_path -- Event's complete YANG path as
- *      < event's source module path > : < event's container name >
- *  params -- Params associated with event, if any
- *
- * return:
- *  True -- if message returned
- *  false -- No more message to return
- */
-bool cache_read(cache_handle_t handle, std::string yang_path,
-        event_params_t &params);
-
-
-/*
- * get missed count.
- *
- * input:
- *   handle -- as obtained from stop
- *
- * output:
- *
- *  missed_cnt -- total count of missed during cacheing.
- *
- * return:
- *  0 -- on success
- *  -1 -- on failure
- */
-int cache_missed(event_handle_t handle, int &missed);
-
-
-/*
- * check in cache
- *
- * input:
- *  handle -- as obtained from stop
- *  sequence -- as obtained from event receive
- *
- * return:
- *  true -- Match/found
- *  false -- Not found
- *
- */  
-bool cache_check(event_handle_t handle, const string sequence);
-
-```
 
 ## Event exporting
 The telemetry container runs gNMI server service to export events to gNMI clients via subscribe command.
@@ -735,19 +655,15 @@ o/p
 ```
 ### Message reliability
 The message reliability is ensured as BEST effort. There are 3 kinds of missed message scenarios.
-1. A slow receiver that reaches overflow state causes drop of events.
-2. During downtime of main receiver, the events cache service, drops events upon overflow.
-3. The internal listener for published events missed to receive an event.
+1. A slow receiver that reaches overflow state causes drop of events. This is tracked as explicit drop count.
+2. During downtime of main receiver, the events cache service, drops events upon overflow. This is another explicit dropo count.
+3. The internal listener for published events missed to receive an event. The missing is transparent to receiver.
    - This could be due to one/more publishers publishing at a combined rate going above 10K/second.
    - The eventd service is down.
    - An overloaded internal control plane state making the local listener for events running too slow.
-4. The receiver from API or cache service get this count of missed events.
-
+   - This is computed using internal sequence number embedded in the message. This is implementation dependent and computed by receiving API.
+4. The cumulative count of all missed messages are tracked in STATE-DB.
      
-
-#### Missed event computaion.
-1. This is internal to the implementation.
-2. The receiver & cache-service APIs provide the count of missed messages. The caller could update SLA saved in STATE-DB.
 
 ### Rate-limiting
 - The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
@@ -767,7 +683,7 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
   - Send these events to the main-receiver
   - Now start reading from subscription.
   - The messages received between start of subscribe and stop of caching could be duplicates.
-    - Call cache service with sequence of received to check duplicate or not.
+    - Check it among the messages received via cache. 
     - This check would stop after few seconds, as new events after spmetime, can't be found in cache.
 	
 # STATS update
@@ -778,20 +694,31 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The counters are cumulative.
 - The counters lifetime is tied with lifetime of STATE-DB.
 - The telemetry supports streaming of EVENT-STATS table ON-CHANGE in streaming mode.
+- The counters are updated periodically as every M seconds, where defaulted value M can be overridden by init-cfg.json config.
 
 ## counters
 - events-published-cnt
   - The count of all events sent to the external gNMI receiver. In other words count of events the main receiver is expected to receive.
   - This would not include count missed.
-  
+   
 - events-missed-cnt:
   - The count of events missed either by local listener or during cacheing or dropped due to slow receiver.
   - The slow receiver or rate-limit set by the receiver could cause internal buffer overflow that results in drop, hence missed.
   	
 - events-cached-cnt:
   - The count of events provided from cache.
+
+- Latency
+  - Computed as < timestamp of write into main receiver's gNMI channel > - < timestamp in the event as inserted by publisher >
+  - A moving window of last N events' latency are maintained.
+  - Min
+    - Minimum value from the window
+  - Max
+    - Maximum value from the window
+  - Min
+    - Average value from the window
+  
     
-	
 # CLI
 - Show commands is provided to vew STATS collected
 
