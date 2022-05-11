@@ -55,7 +55,7 @@ N/A
 
 ### High-Level Design
 
-SONiC build system includes a new build-time flag to INCLUDE_BOOTCHART. When this flag is set a *systemd-bootchart* debian package is installed in SONiC host from upstream debian repositories (Installed size 128 KB). 
+SONiC build system includes a new build-time flag to INCLUDE_BOOTCHART. When this flag is set a *systemd-bootchart* debian package is installed in SONiC host from upstream debian repositories (Installed size 128 KB).
 SONiC provides a default configuration for bootchart located at /etc/systemd/bootchart.conf:
 
 ```ini
@@ -112,9 +112,9 @@ Update configuration:
 ```
 admin@sonic:~$ sudo sonic-bootchart config --samples 500 --frequency 10
 admin@sonic:~$ sudo sonic-bootchart show
-Status      Operational Status    Samples    Frequency  Output
---------  --------------------  ---------  -----------  ------------------------------------
-enabled              in-active        500           10  /run/log/bootchart-20220504-1325.svg
+Status      Operational Status    Samples    Frequency    Time (sec)  Output
+--------  --------------------  ---------  -----------  ------------  ------------------------------------
+enabled              in-active        500           10            50  /run/log/bootchart-20220504-1325.svg
 ```
 
 *systemd-bootchart* saves the plots to a temporary directory /run/log that is flushed after reboot.
