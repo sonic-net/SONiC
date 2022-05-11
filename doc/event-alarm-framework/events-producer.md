@@ -2,8 +2,8 @@ SONiC streaming events as structured via gNMI
 =============================================
 
 # Goals
-1. Provide a unified way for listing and defining alertable events in SONiC switch.
-2. Provide a unified way for event detectors to publish the events.
+1. Provide a unified way for defining events in SONiC switch.
+2. Provide a unified way for publishing the events.
 3. Provide support for exporting events to external gNMI clients via Subscribe
 4. Provide a structured format for event data with pre-defined schema with revisioning to handle future updates.
 5. Provide the ability to stream at the max of 10K events per second to external clients.
@@ -550,6 +550,8 @@ Though this sounds like a redundant/roundabout way, this helps as below.
   - The plugin instances are invoked upon first message
   - Each instance is fed with messages that are configured for that instance
     - An instance running in BGP container can be configured to receive messages from bgpd process only. There can be another instance for messages from bgpcfgd.
+
+- [ TODO: Provide a PR link for a use case, say BGP here, as reference ]
 
 ![image](https://user-images.githubusercontent.com/47282725/165850058-76ed4806-f43b-4959-8b33-b8365ac6348c.png)
 
