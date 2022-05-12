@@ -421,56 +421,35 @@ union mfpm_data_msg_t
 
 ### 3.2.1 **SAI specific data structure and callback changes**
 
-Following data structures will be included and exposed to SYNCD to receive IPMC entry AGE and DONTAGE data,
+Following data structures will be included and exposed to SYNCD to receive IPMC entry aliveness data,
 
-/**
- * @brief Notification data format received from SAI IPMC callback
-  * @count attr[attr_count]
- */
+typedef enum _sai_ipmc_event_t
+{
+      
+SAI_IPMC_EVENT_AGE,
+      
+SAI_IPMC_EVENT_DONT_AGE,
+      
+} sai_ipmc_event_t;
 
+**SAI provide the data in the below mentioned structure format as part of callback.**
+      
 typedef struct _sai_ipmc_event_notification_data_t
 {
-   
-   /** Event type */
-   
-    sai_ipmc_event_t event;
-    
-     /** IPMC entry */
-     
-    sai_ipmc_entry_t ipmc_entry;
- 
+      
+sai_ipmc_event_t event;
+      
+sai_ipmc_entry_t ipmc_entry;
+      
 } sai_ipmc_event_notification_data_t;
 
 **sai_ipmc_entry_t** - This is an existing SAI data structure.
 
-/**
- * @brief IPMC event type
- */
+SYNCD registers the following callback API with SAI to receive IPMC entries aliveness data,
 
-typedef enum _sai_ipmc_event_t
-{
-   
-   /** IPMC entry aged */
-   
-    SAI_IPMC_EVENT_AGE,
- 
-    /** IPMC entry don’t age */
-    
-    SAI_IPMC_EVENT_DONT_AGE,
- 
-} sai_ipmc_event_t;
- 
-/**
- * @brief IPMC notifications
-  * @count data[count]
-  * @param[in] count Number of notifications
- * @param[in] data Pointer to IPMC event notification data array
- */
- 
-typedef void (*sai_ipmc_event_notification_fn)(
-        _In_ uint32_t count,
-        _In_ const sai_ipmc_event_notification_data_t *data);
-
+typedef void (*sai_ipmc_event_notification_fn)(_In_ uint32_t count,
+_In_ const sai_ipmc_event_notification_data_t *data);
+      
 ## 3.3 DB Changes
 PIM ASM leverages all the existing DBs. There are few new DBs introduced in CONFIG and STATE DBs like PIM_GLOBALS_STATIC_RP & IPMC_MROUTE_AGE_TABLE for ASM specific functionality.
 
