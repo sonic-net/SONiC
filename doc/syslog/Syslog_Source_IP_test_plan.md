@@ -4,7 +4,7 @@
 
 | **Document Name** | **Link** |
 |-------------------|----------|
-| Syslog Source IP HLD | [https://github.com/nazariig/SONiC/blob/1f2f6713495d04b41d19e0f201bff72af60ef52f/doc/syslog/syslog-design.md]|
+| Syslog Source IP HLD | [will update here once the design HLD is merged to master ]|
 
 
 ## Overview
@@ -94,9 +94,9 @@ config syslog del '2.2.2.2'
 
 
 ### Test cases #3 -  Configure syslog server with VRF/Source: set/unset
-1. For vrf: Default, mgmt, Vrf-data, Configure syslog server with VRF/Source: set/unset like below:
+1. For vrf: default, mgmt, Vrf-data, Configure syslog server with VRF/Source: set/unset like below:
 ```
-config syslog add '2.2.2.2' --vrf "Default"
+config syslog add '2.2.2.2' --vrf "default"
 config syslog add '3.3.3.3' --vrf "mgmt"
 config syslog add '2222::2222' --vrf "Vrf-data"
 ```
@@ -105,7 +105,7 @@ config syslog add '2222::2222' --vrf "Vrf-data"
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2       N/A        N/A     Default
+2.2.2.2       N/A        N/A     default
 3.3.3.3       N/A        N/A     mgmt
 2222::2222    N/A        N/A     Vrf-data
 ```
@@ -122,9 +122,9 @@ config syslog del '2222::2222'
 
 
 ### Test cases #4 -  Configure syslog server with VRF/Source: set/set
-1. For vrf: Default, mgmt, Vrf-data, Configure syslog server with VRF/Source: set/set like below:
+1. For vrf: default, mgmt, Vrf-data, Configure syslog server with VRF/Source: set/set like below:
 ```
-config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "Default"
+config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "default"
 config syslog add '3.3.3.3' ---source "5.5.5.5" --vrf "mgmt"
 config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
 ```
@@ -133,7 +133,7 @@ config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2     1.1.1.1      N/A     Default
+2.2.2.2     1.1.1.1      N/A     default
 3.3.3.3     5.5.5.5      N/A     mgmt
 2222::2222  1111::1111      N/A     Vrf-data
 ```
@@ -152,14 +152,14 @@ config syslog del '2222::2222'
 ### Test cases #5 -  Remove source IP config, check the relevant syslog config will be removed
 1. Configure syslog server with VRF/Source: set/set like below:
 ```
-config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "Default"
+config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "default"
 ```
 2. Check syslog config by show syslog, the result should like below:
 ```
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2     1.1.1.1      N/A     Default
+2.2.2.2     1.1.1.1      N/A     default
 ```
 3. Remove the config of source IP
 4. Check the relevant syslog config should be removed
