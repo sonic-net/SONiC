@@ -453,22 +453,13 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
-typedef struct {
-    /*
-     * Received event as JSON string as 
-     *  < YANG path of schema >: {
-     *      event_params_t
-     *  }
-     */
-    std::string event;
-
-    /*
-     * Count of missed events from this sender, before this event. Sum of
-     * missed count from all received events will give the total missed.
-     */
-    int missed_cnt;
-
-} received_event_t;
+/*
+ * Received event as JSON string as 
+ *  < YANG path of schema >: {
+ *      event_params_t
+ *  }
+ */
+typedef std::string event_str_t;
 
 /*
  * Receive an event.
@@ -483,12 +474,20 @@ typedef struct {
  * output:
  *  event - Received event.
  *
+ *  missed_cnt:
+ *      Count of missed events from this sender, before this event. Sum of
+ *      missed count from all received events will give the total missed.
+ */
+    int missed_cnt;
+
+ *
  * return:
  *  0 - On success
  * -1 - On failure. The handle is not valid.
  *
  */
-int event_receive(event_handle_t handle, received_event_t &event);
+int event_receive(event_handle_t handle, event_str_t &event, int &missed_cnt);
+
 ```
 
 ## Event detection
