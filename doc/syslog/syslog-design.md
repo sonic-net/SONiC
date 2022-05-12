@@ -223,7 +223,7 @@ Linux kernel decides which source IP to use within the default VRF.
 
 **Example:**
 ```
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp")
 ```
 
 #### 2.3.3.2 VRF/Source: `unset/set`
@@ -233,7 +233,7 @@ yes - set source IP, no - generate error
 
 **Example:**
 ```
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" address="1.1.1.1")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" address="1.1.1.1")
 ```
 
 #### 2.3.3.3 VRF/Source: `set/unset`
@@ -257,11 +257,11 @@ yes - set VRF, no - generate error
 **Example:**
 ```
 Default VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp")
 MGMT VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" device="mgmt")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" device="mgmt")
 DATA VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" device="Vrf-Data")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" device="Vrf-Data")
 ```
 
 #### 2.3.3.4 VRF/Source: `set/set`
@@ -291,11 +291,11 @@ yes - set source IP, no - generate error
 **Example:**
 ```
 Default VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" address="1.1.1.1")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" address="1.1.1.1")
 MGMT VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" address="1.1.1.1" device="mgmt")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" address="1.1.1.1" device="mgmt")
 DATA VRF:
-*.* action(type="omfwd" target="2.2.2.2" protocol="udp" port="514" address="1.1.1.1" device="Vrf-Data")
+*.* action(type="omfwd" target="2.2.2.2" protocol="udp" address="1.1.1.1" device="Vrf-Data")
 ```
 
 ## 2.4 DB schema
