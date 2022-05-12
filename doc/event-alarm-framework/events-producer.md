@@ -244,9 +244,12 @@ The libswsscommon will have the APIs for publishing & receiving.
 2. Telemetry container sends all the events to the receiver in FIFO order.
 3. Telemetry container uses an internal buffer, when local publishing rates overwhelms the receiver.
    - Internal buffer overflow will cause new events to be dropped.
-   - The dropped events are counted and recorded in STATE-DB via stats
+   - The dropped events are counted and recorded in STATE-DB via stats.
+   - A telemetry service crash will lose all events in internal buffer and not included in the dropped counter.
 4. Telemetry uses cache service, during downtime of main receiver or telemetry service and replay on connect.
    - A long downtime can result in message drop due to cache overflow.
+   - A unplanned telemetry service down (say crash) will not use the cache service
+
 5. The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, ...
    - The stats are collected and recorded in STATE-DB.
    - An external gNMI client could subscribe for stats table updates' streaming ON-CHANGE.
@@ -534,10 +537,10 @@ Though this sounds like a redundant/roundabout way, this helps as below.
 ## Events cache service
 1. This is a singleton service that runs in eventd container.
 2. It has access to all messages received by zmq proxy via an internal listener tied to the proxy.
-3. The caching can be started/stopped.
+3. The caching is started/stopped transparently via init/de-init subscriber API, if cache-use is enabled by caller.
 4. When started all events are cached. Upon cache overflow, the events are dropped and count as missed.
 5. The cache service uses ZMQ REQ/REP pattern for communication w.r.t start/stop and replying with cached data.
-6. APIs are provided for all cache access.
+6. The receive API will transparently read off of cache, if cache is enabled by the caller.
 
 
 ## Event exporting
@@ -549,6 +552,9 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - A local listener is spawned to receive events at the max rate of 10K/sec.
 - The received events are sent to the connected client at the client's rate.
 - Any overflow due to back-pressure/rate-limit results in events drop.
+- Uses cache servce transparently  by enabling via init call.
+- Any receiver disconnect or planned telemetry down will trigger the cache service to cache events.
+- The events receive will transparently read off of cache, when cache is available.
 
  
 ### gNMI protocol
@@ -595,16 +601,20 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
      
 
 ### Rate-limiting
-- The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.
-- For clients who would like some explicit rate limiting, a custom option is provided.
-- The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit
-- path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".
+- Expect the receiver do the rate-limnit.
+- The telemetry service uses an internal buffer to cache upon back pressure and any overflow will cause message drop.
+~- The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.~
+~- For clients who would like some explicit rate limiting, a custom option is provided.~
+~- The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit~
+~- path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".~
 
 	
 ### Reliability via caching
 - The events cache service is tapped in two scenarios
   - The time duration between gNMI server disconnect & re-connect.
   - The planned service downtime for telemetry container.
+
+- The events cache service is enabled via a flag in init API from 
 	
 - Upon gNMI main-receiver re-connect
   - Send subscribe message to evend's proxy; But defer reading the messages from subscription channel.
