@@ -737,7 +737,8 @@ The following are under brainstorming for possible future implementations.
 ## YANG schema compilation to language constants
 - The publishers specify event source & type as strings. e.g. "sonic-events-bgp" and "bgp-state".
 - To avoid publishers making mistakes in the strings or publish an event w/o yang model, create these strings as constants for "c++" & "python".
-- These strings can be created at compile time from YANG schema
+- These constants can be created at compile time from YANG schema.
+- The code could be forced to use these constants instead of literal strings.
 - Sample:
 ```
 sonic_events_bgp.h
@@ -756,10 +757,11 @@ namespace SONIC_EVENTS_BGP {
 ```
 
 ## New events via config push
-- New events could be identified after an image release
+- New events could be identified after an image release.
 - These could be captured via rsyslog plugin approach, by adding/updating a regex file & plugin.conf file at host and restart of rsyslog service.
 - These new regex expressions could be pushed via incremental config update with no impact to dataplane.
 - These pushed updates could be transparently absorbed and would result in publishing of new events.
+- In short, a new event could be added via config push.
 
 ## Event definition enhancements
 - The consumer of events get the instance data of event as a key-value pair, where key points to the YANG model.
