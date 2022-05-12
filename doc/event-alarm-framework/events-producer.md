@@ -61,6 +61,7 @@ let IgnorePersistence = @"(?i)Monit_[lldp] Memory Usage|Monit_[pmon] Memory Usag
 ![image](https://user-images.githubusercontent.com/47282725/168165680-648a0132-19d4-47ee-90c7-cfe806d62095.png)
 
 ```
+## Problems
 Problems with this approach are obvious. To state a few
 - Hard to even decipher for correctness.
 - No formal process to review/maintain/update
@@ -259,6 +260,16 @@ o/p
         
 ```
 
+## STATS
+<pre>
+STATE-DB:
+	EVENT-STATS
+		published: 123456
+		missed-slow-receiver: 100
+		missed-offline-cache: 1012
+		missed-internal: 0
+		latency: 0.012345
+</pre>
 # Requirements
 ## Events
 Events definition, usage & update.
