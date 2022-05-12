@@ -23,6 +23,62 @@ This latency could run in the order of minutes.
 
 ![image](https://user-images.githubusercontent.com/47282725/166265380-301e5a5a-77ad-4597-9afb-322846216690.png)
 
+## Current state
+We have adhoc list of regex maintained by the consumer of the regex.</br>  
+
+Sample:
+```
+For Interface flap on SONiC we do followingcapture. 
+ 
+database...SyslogData
+                | where TIMESTAMP >= startTime and TIMESTAMP < endTime
+                | project Device = tolower(Device), Message, TIMESTAMP
+                | where Message contains "Set operation status"
+                | extend interfaceName = tolower(extract("host interface (.*)", 1, Message))
+
+
+BGP Flap:
+ 
+database...SyslogData
+| where Message contains "bgpd" and Message !contains "127.0.0.1"  and Message contains "ADJCHANGE"
+| where TIMESTAMP >= startTime and TIMESTAMP < endTime
+| project DeviceName = tolower(Device), TIMESTAMP, Message
+| extend neighborIP = extract("(?:.*\\s|^)((?:(?:[[:xdigit:]]{0,4}:){2,7}[[:xdigit:]]{0,4})|(?:[[:digit:]]{1,3}\\x2e[[:digit:]]{1,3}\\x2e[[:digit:]]{1,3}\\x2e[[:digit:]]{1,3}))", 1, Message)
+| extend state = Message
+| extend state = case(Message !contains "vrf default" and Message contains "Up","Up",Message !contains "vrf default" and Message contains "Down","Down",Message contains "vrf default" and Message contains "Up","Up",Message contains "vrf default" and Message contains "Down","Down",['state']
+ 
+BGP Holdtimer Expiry :
+ 
+let messageRegex = @"(?i)bgp_io_mgmt_cb.*Hold Timer Expired|bgp.*Hold Timer Expired|BGP.*holdtimer exp|hold time expired";
+database...SyslogData
+| where TIMESTAMP >= startTime and TIMESTAMP < endTime
+| project DeviceName = tolower(Device), TIMESTAMP, Message
+| where Message matches regex messageRegex
+ 
+SONiC Process related logs:
+ 
+let messageRegex = @"(?i)internal_redis_generic_get|kernel:.*write failed|kernel:.*Write Protected|kernel:.*Remounting filesystem read-only|monit.*space usage|monit.*mem usage|syncd.*Received switch event 2|zebra.*No buffer space available|L3 route add faled with error Entry exists|supervisord: syncd error: assertion failed:|kernel:.*aufs_read_lock|quagga_watcher.*missing|returned unexpected number of bytes|systemd-logind.service watchdog timeout|pfc_storm_check.*detect_pfc_storm|error: linux runtime spec devices|swss#orchagent:.*:- main: Failed to access writable directory|.*dhcrelay\[\d+\]: Discarding packet received on .* interface that has no IPv4 address assigned.|SER Parity Check Error|MMU ERR Type|netlink-listen recvmsg overrun: No buffer space available|panic: invalid freelist page: 11, page type is leaf|dhcpmon detected disparity in DHCP Relay behavior|bcmCNTR.*segfault|monit.*Memory Usage|monit.*process is not running|exited:.*not expected|monit.*status failed|checkCrmThresholds: IPV6_NEXTHOP THRESHOLD_EXCEEDED|read-only file system|\'container_memory_dhcprelay\' status failed|SEU error was detected|SQUASHFS error: zlib decompression failed, data probably corrupt";
+let IgnorePersistence = @"(?i)Monit_[lldp] Memory Usage|Monit_[pmon] Memory Usage|telemetry|dialout_client|snmpd|snmp|go-server-server|snmp_subagent|bgpcfgd|xcvrd|lldp_syncd|lldpmgrd|lldpd_monitor|restapi|dialout_client|telemetry|The docker container is not running or the given container name is invalid|Monit_Inconsistency detected by"
+ 
+![image](https://user-images.githubusercontent.com/47282725/168165680-648a0132-19d4-47ee-90c7-cfe806d62095.png)
+
+```
+Problems with this approach are obvious. To state a few
+- Hard to even decipher for correctness.
+- No formal process to review/maintain/update
+- No formal process for devs to indicate new events or change in log messages.
+- III party code like BGP, changes the log messages nearly in every release. Keeping upto that with no formal process could lead to missing events.
+  - Multiple variation of messages for single event
+- As it is dependent on syslogs, the latency from event occurrence to action, can be long.
+- Every message is matched against every regex - redundant/expensive.
+
+## What we bring in
+1) No more scanning logs for events, but SONiC switch publishes events.
+2) SONiC defines events in schema. Type of events and type of associated params.
+3) Events are published as just data only per schema, hence no more parsing.
+4) SONiC assures events per schema across releases.
+5) New events arrive transparently and the tool will be forced to learn on demand.
+6) The schema could tag events with additional metadata like, severity, globally unique event-id and more.
 
 # A Use case
 The BGP state change is taken for a sample use case.
