@@ -66,9 +66,10 @@ Problems with this approach are obvious. To state a few
 - No formal process to review/maintain/update
 - No formal process for devs to indicate new events or change in log messages.
 - III party code like BGP, changes the log messages nearly in every release. Keeping upto that with no formal process could lead to missing events.
-  - Multiple variation of messages for single event
+  - Multiple variation of messages for single event.
 - As it is dependent on syslogs, the latency from event occurrence to action, can be long.
 - Every message is matched against every regex - redundant/expensive.
+- Severity level of an event is not tagged along.
 
 ## What we bring in
 1) No more scanning logs for events, but SONiC switch publishes events.
@@ -717,5 +718,39 @@ Tests are critical to have static events staying static across releases and ensu
 5) Nightly test -- For each event simulate the scenario for the event, look for the event raised by process and validate the event reported against the schema. This may not be able to cover every event, but unit tests can.
 
 
+# Future
+The following are under brainstorming for possible future implementations.
 
+## YANG schema compilation to language constants
+- The publishers specify event source & type as strings. e.g. "sonic-events-bgp" and "bgp-state".
+- To avoid publishers making mistakes in the strings or publish an event w/o yang model, create these strings as constants for "c++" & "python".
+- These strings can be created at compile time from YANG schema
+- Sample:
+```
+sonic_events_bgp.h
+
+namespace SONIC_EVENTS_BGP {
+      const string name = “sonic-events-bgp”;
+      
+      namespace BGP_STATE {
+            const string name =”bgp-state”;
+
+            const string IP = “ip”;
+
+            const string STATUS = “status”;
+      }
+}
+```
+
+## New events via config push
+- New events could be identified after an image release
+- These could be captured via rsyslog plugin approach, by adding/updating a regex file & plugin.conf file at host and restart of rsyslog service.
+- These new regex expressions could be pushed via incremental config update with no impact to dataplane.
+- These pushed updates could be transparently absorbed and would result in publishing of new events.
+
+## Event definition enhancements
+- The consumer of events get the instance data of event as a key-value pair, where key points to the YANG model.
+- The YANG schema defintion could be enhanced with additional custom data types created using YANG extensions.
+- An extension could be defined for "severity". The developer of the schema could use this to specify the severity of an event added.
+- An extension could be defined for globally unique event-id, which could be used by event consumer, when publishing the event to external parties.
  
