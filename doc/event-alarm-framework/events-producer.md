@@ -286,6 +286,8 @@ typedef events_base* event_handle_t;
  *  A single publisher instance is maintained for a source.
  *  Any duplicate init call for a source will return the same instance.
  *
+ *  Choosing cache will help read cached data, during downtime, if any.
+ *
  * NOTE:
  *      The initialization occurs asynchronously.
  *      Any event published before init is complete, is blocked until the init
@@ -297,12 +299,16 @@ typedef events_base* event_handle_t;
  *      returned by this call is tagged with this source, transparently. The receiver
  *      could subscribe with this source as filter.
  *
+ *  use_cache
+ *      When set to true, it will make use of the cache service transparently.
+ *      The cache service caches events during session down time (last deinit to this
+ *      init call).
  * Return 
-    *  Non NULL handle
-    *  NULL on failure
+ *  Non NULL handle
+ *  NULL on failure
  */
 
-event_handle_t events_init_publisher(std::string &event_source);
+event_handle_t events_init_publisher(std::string &event_source, bool use_cache=false);
 
 /*
  * De-init/free the publisher
@@ -325,7 +331,7 @@ typedef std::map<std::string, std::string> event_params_t;
  * Publish an event
  *
  *  Internally a globally unique sequence number is embedded in every published event,
- *  The sequence numbers from same publishing instance can be compared
+ *  The sequence numbers from same publishing instances can be compared
  *  to see if there any missing events between.
  *
  *  The sequence has two components as run-time-id that distinguishes
@@ -387,50 +393,20 @@ event_handle_t events_init_subscriber(
  */
 void events_deinit_subscriber(event_handle_t &handle);
 
-typedef unsigned long long event_sequence_t;
-
-/*
- * compares two given event sequences embedded by publisher of the event.
- *
- * Input:
- *  s1, s2 - Sequences to compare
- * 
- * Output
- *  diff  - DIff between two sequences. This is signed value as
- *          s1 - s2; Hence 0 if same, negative if s1 precedes s2
- *      `   else positive. Diff is not filled, whe
- *
- * returns
- *  0   -   Sequences are compared. Use diff to see the result.
- *  -1  -   Sequences can't be compared, as they are from two different
- *          publisher instances. diff is undefined.
- */
-int comp_event_sequence(event_sequence_t s1, event_sequence_t s2, uint32_t &diff);
-
 typedef struct {
     /*
-     * Yang path to indicate type of event and to validate the params.
+     * Received event as JSON string as 
+     *  < YANG path of schema >: {
+     *      event_params_t
+     *  }
      */
-    std::string yang_path;
-
-    /*
-     * Params associated with the event.
-     */
-    event_params_t &params;
+    std::string event;
 
     /*
      * Count of missed events from this sender, before this event. Sum of
      * missed count from all received events will give the total missed.
      */
     int missed_cnt;
-
-    /*
-     * Sequence ID of that event - globally unique across all events.
-     * 
-     * This could be used to find, if two events are duplicate
-     * or not. If not duplicate, the ordering between two events.
-     */
-    event_sequence_t sequence_id;
 
 } received_event_t;
 
@@ -447,54 +423,12 @@ typedef struct {
  * output:
  *  event - Received event.
  *
- */
-void event_receive(event_handle_t handle, received_event_t &event);
-
-
-/*
- * Start events cache service.
- * This clears any events in cache.
- *
  * return:
- *  0 - Started successfully.
- *  1 - Already running
- * -1 - service not available
+ *  0 - On success
+ * -1 - On failure. The handle is not valid.
+ *
  */
-int cache_service_start(void);
-
-
-/*
- * Stop events cache service
- *
- * return:
- *  0 - stopped successfully.
- *  -1 - Cache service not running or no service not available
- */
-int cache_service_stop();
-
-
-typedef std::vector<received_event_t> lst_received_events_t;
-
-/*
- * Read set of events from cache in FIFO order.
- * Events are removed as they are read.
- * Events are provided in a batch, with more flag
- * to indicate if there are more to read.
- *
- * A cache start will clear the cache.
- *
- * output:
- *  events -  A batch of events in FIFO order.
- *
- *  more  - True, if more to read. False if no more to read
- *
- * return:
- *  0  -    success
- *  -1 -    No active cache to read from. Active cache is available
- *          only upon successful cache_service_stop
- */
-int cache_read(received_event_t &events, bool &more);
-
+int event_receive(event_handle_t handle, received_event_t &event);
 ```
 
 ## Event detection
