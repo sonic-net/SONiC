@@ -21,10 +21,8 @@ This latency could run in the order of minutes.
 ![image](https://user-images.githubusercontent.com/47282725/166261116-d5aa2592-ed85-44c6-9e9e-3dd027b6f886.png)
 
 
-![image](https://user-images.githubusercontent.com/47282725/166265380-301e5a5a-77ad-4597-9afb-322846216690.png)
-
-## Current state
-We have adhoc list of regex maintained by the consumer of the regex.</br>  
+## How tool parse
+An adhoc list of regex is maintained by the consumer of the regex.</br>  
 
 Sample:
 ```
@@ -79,6 +77,9 @@ Problems with this approach are obvious. To state a few
 4) SONiC assures events per schema across releases.
 5) New events arrive transparently and the tool will be forced to learn on demand.
 6) The schema could tag events with additional metadata like, severity, globally unique event-id and more.
+
+
+![image](https://user-images.githubusercontent.com/47282725/166265380-301e5a5a-77ad-4597-9afb-322846216690.png)
 
 # A Use case
 The BGP state change is taken for a sample use case.
