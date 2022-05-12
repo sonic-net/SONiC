@@ -1,6 +1,9 @@
 !/usr/bin/env bash
+git checkout -b sonic_image_md_update
 git config --global user.email "xinxliu@microsoft.com"
 git config --global user.name "xinliu-seattle"
+git reset --hard
+git pull origin sonic_image_md_update
 
 
 #set -euo pipefail
@@ -178,5 +181,5 @@ echo "| 106   | Wnc           | OSW1800        		| Barefoot    | Tofino         
 done
 
 git add supported_devices_platforms.md
-git commit -m "latest links for sonic images in dedicated branch sonic_latest_images_links"
-git push 
+git commit -m "latest links for sonic images in supported platform md file"
+git push -f --set-upstream origin sonic_image_md_update
