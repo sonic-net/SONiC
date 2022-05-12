@@ -73,12 +73,13 @@ Problems with this approach are obvious. To state a few
 - Severity level of an event is not tagged along.
 
 ## What we bring in
-1) No more scanning logs for events, but SONiC switch publishes events.
+1) **No more scanning logs** for events, but SONiC switch publishes events.
 2) SONiC defines events in schema. Type of events and type of associated params.
-3) Events are published as just data only per schema, hence no more parsing.
-4) SONiC assures events per schema across releases.
+3) **Events** are published as just **data only** per schema, hence no more parsing.
+4) SONiC **assures** events per schema **across releases**.
 5) New events arrive transparently and the tool will be forced to learn on demand.
 6) The schema could tag events with additional metadata like, severity, globally unique event-id and more.
+7) All schema are published in shared global repo, which anyone can read to decipher/understand an event.
 
 
 ![image](https://user-images.githubusercontent.com/47282725/166265380-301e5a5a-77ad-4597-9afb-322846216690.png)
@@ -270,6 +271,7 @@ STATE-DB:
 		missed-internal: 0
 		latency: 0.012345
 </pre>
+
 # Requirements
 ## Events
 Events definition, usage & update.
