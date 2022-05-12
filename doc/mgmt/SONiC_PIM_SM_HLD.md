@@ -100,7 +100,7 @@
 - [9 Scalability](#9-scalability)
           - [Table 3: IP Multicast Scaling limits](#table-3-ip-multicast-scaling-limits)
 - [10 Unit Test](#10-unit-test)
-- [11  Design expections from Broadcom](#11--design-expections-from-broadcom)
+- [11  Design expections from Vendor](#11--design-expections-from-Vendor)
   - [11.1 ACL and COPP requirements](#111-acl-and-copp-requirements)
   - [11.2  IPMC entry deletion event](#112--ipmc-entry-deletion-event)
 
@@ -999,7 +999,7 @@ Below list covers the major testcase that would be covered as part of this featu
 | 28   |   Functionality    | Verify that no first packet loss is seen with minimal multicast route entries when pim ecmp is configured  | |
            
       
-# 11  Design expections from Broadcom
+# 11  Design expections from Vendor
 ## 11.1 ACL and COPP requirements
 An ACL to lift unknown multicast address is required to honor the source traffic. The qualifiers and the corresponding actions are listed below.
 
