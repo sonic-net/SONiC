@@ -358,17 +358,12 @@ typedef events_base* event_handle_t;
  *      The YANG module name for the event source. All events published with the handle
  *      returned by this call is tagged with this source, transparently. The receiver
  *      could subscribe with this source as filter.
- *
- *  use_cache
- *      When set to true, it will make use of the cache service transparently.
- *      The cache service caches events during session down time (last deinit to this
- *      init call).
  * Return 
  *  Non NULL handle
  *  NULL on failure
  */
 
-event_handle_t events_init_publisher(std::string &event_source, bool use_cache=false);
+event_handle_t events_init_publisher(std::string &event_source);
 
 /*
  * De-init/free the publisher
@@ -400,8 +395,6 @@ typedef std::map<std::string, std::string> event_params_t;
  *
  *  The receiver API keep next last received number for each runtime id
  *  and use this info to compute missed event count upon next event.
- *  The contents of the sequence is implementation specific. Use the
- *  provided API to compare two sequences.
  *
  * input:
  *  handle - As obtained from events_init_publisher for a event-source.
@@ -430,6 +423,11 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *  Init subscriber, optionally to filter by event-source.
  *
  * Input:
+ *  use_cache
+ *      When set to true, it will make use of the cache service transparently.
+ *      The cache service caches events during session down time (last deinit to this
+ *      init call).
+ *
  *  lst_subscribe_sources_t
  *      List of subscription sources of interest.
  *      The source value is the corresponding YANG module name.
@@ -439,7 +437,7 @@ typedef std::vector<std::string> event_subscribe_sources_t;
  *  Non NULL handle on success
  *  NULL on failure
  */
-event_handle_t events_init_subscriber(
+event_handle_t events_init_subscriber(bool use_cache=false,
         const event_subscribe_sources_t *sources=NULL);
 
 /*
@@ -465,8 +463,8 @@ typedef std::string event_str_t;
  * Receive an event.
  * A blocking call.
  *
- *  This API maintains an expected sequence number and use the received
- *  sequence in event to compute missed events count.
+ *  This API maintains an last received sequence number and use the received
+ *  sequence in event to compute missed events count per publisher instance.
  *
  * input:
  *  handle - As obtained from events_init_subscriber
@@ -487,7 +485,6 @@ typedef std::string event_str_t;
  *
  */
 int event_receive(event_handle_t handle, event_str_t &event, int &missed_cnt);
-
 ```
 
 ## Event detection
