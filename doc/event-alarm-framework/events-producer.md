@@ -605,7 +605,7 @@ The telemetry container runs gNMI server service to export events to gNMI client
 - A local listener is spawned to receive events at the max rate of 10K/sec.
 - The received events are sent to the connected client at the client's rate.
 - Any overflow due to back-pressure/rate-limit results in events drop.
-- Uses cache servce transparently  by enabling via init call.
+- Uses cache service transparently by enabling via init call.
 - Any receiver disconnect or planned telemetry down will trigger the cache service to cache events.
 - The events receive will transparently read off of cache, when cache is available.
 
@@ -644,7 +644,7 @@ o/p
 ### Message reliability
 The message reliability is ensured as BEST effort. There are 3 kinds of missed message scenarios.
 1. A slow receiver that reaches overflow state causes drop of events. This is tracked as explicit drop count.
-2. During downtime of main receiver, the events cache service, drops events upon overflow. This is another explicit drop count.
+2. Longer downtime of main receiver/telemetry service, could cause cache overflow and hence the drop. This is another explicit drop count.
 3. The internal listener for published events missed to receive an event. The missing is transparent to receiver.
    - This could be due to one/more publishers publishing at a combined rate going above 10K/second.
    - The eventd service is down.
@@ -656,27 +656,17 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
 ### Rate-limiting
 - Expect the receiver do the rate-limnit.
 - The telemetry service uses an internal buffer to cache upon back pressure and any overflow will cause message drop.
-~- The gNMI clients do need rate-limiting support to avoid overwhelming. The inherent/transparent limit via TCP back pressure is an option.~
-~- For clients who would like some explicit rate limiting, a custom option is provided.~
-~- The subscribe request does not have an option to provide rate-limiting, hence a reserved path is used to specify a rate-limit~
-~- path: /events/rate-limit/< N > -- This would be interpreted by telemetry's gNMI server as "_event export rate is <= N events/second_".~
 
-	
 ### Reliability via caching
-- The events cache service is tapped in two scenarios
+- The events cache service is tapped *transparently* in two scenarios
   - The time duration between gNMI server disconnect & re-connect.
   - The planned service downtime for telemetry container.
 
-- The events cache service is enabled via a flag in init API from 
+- The events cache service is enabled via a flag in init API. A corresponding deinit call will start the cache service until the next init call. 
+  - This implies, a service crash will not start the cache, as it may not call deinit.
 	
-- Upon gNMI main-receiver re-connect
-  - Send subscribe message to evend's proxy; But defer reading the messages from subscription channel.
-  - Call cache service stop API, and read the cached events list.
-  - Send these events to the main-receiver.
-  - Now start reading from subscription channel.
-  - The messages received between start of subscribe and stop of caching could be duplicates.
-    - Check it among the messages received via cache. 
-    - This check would stop after few seconds, as new events after sometime, can't be found in cache.
+- Upon gNMI main-receiver re-connect, the receive API will return the events from cache, and switch to subscription channel upon clearing the cache.
+  
 	
 # STATS update
 The stats are collected and updaed periodically in DB. The stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
@@ -689,29 +679,24 @@ The stats are collected by telemetry service that serves the main receiver. Henc
 - The counters are updated periodically as every M seconds, where defaulted value M can be overridden by init-cfg.json config.
 
 ## counters
-- events-published-cnt
+- published-cnt
   - The count of all events sent to the external gNMI receiver. In other words count of events the main receiver is expected to receive.
   - This would not include count missed.
    
-- events-missed-cnt:
-  - The count of events missed either by local listener or during cacheing or dropped due to slow receiver.
-  - The slow receiver or rate-limit set by the receiver could cause internal buffer overflow that results in drop, hence missed.
-  	
-- events-cached-cnt:
-  - The count of events provided from cache.
+- missed-slow-receiver:
+  - The count of events dropped due to internal buffer overflow caused by slow receiver.
 
-- events-cache-missed-cnt:
-  - The count of events missed during cache collection.
+- missed-offline-state:
+  - An extended downtime of either main receiver or telemetry service, can result in offline cache overflow.
 
+- missed-internal
+  - missed by local listener from local publishers. An internal drop between local publishers & listener inside SONiC switch.
+  - This may be due to either one or more publishers publishing at excessively high rate or control plane pressure indirectly causing slow down at listener or the eventd service is down.
+ 	
 - Latency
   - Computed as < timestamp of write into main receiver's gNMI channel > - < timestamp in the event as inserted by publisher >
   - The latency of last N events published to external receiver is maintained as a moving window.
-  - Min
-    - Minimum value from the window
-  - Max
-    - Maximum value from the window
-  - Min
-    - Average value from the window
+  - Average value from the window
   
     
 # CLI
