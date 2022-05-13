@@ -4,24 +4,24 @@
 <!-- omit in toc -->
 ## Table of Content
 
-- Revision
-- Scope
-- Definitions/Abbreviations
-- Overview
-- Requirements
-- Architecture Design
-- High-Level Design
-- SAI API
-- Configuration and management
-	- Manifest (if the feature is an Application Extension)
-	- CLI/YANG model Enhancements
-	- Config DB Enhancements
-- Warmboot and Fastboot Design Impact
-- Restrictions/Limitations
-- Testing Requirements/Design
-	- Unit Test cases
-	- System Test cases
-- Open/Action items - if any
+- [Revision](#revision)
+- [Scope](#scope)
+- [Definitions/Abbreviations](#definitionsabbreviations)
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Architecture Design](#architecture-design)
+- [High-Level Design](#high-level-design)
+- [SAI API](#sai-api)
+- [Configuration and management](#configuration-and-management)
+	- [Manifest (if the feature is an Application Extension)](#manifest-if-the-feature-is-an-application-extension)
+	- [CLI/YANG model Enhancements](#cliyang-model-enhancements)
+	- [Config DB Enhancements](#config-db-enhancements)
+- [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
+- [Restrictions/Limitations](#restrictionslimitations)
+- [Testing Requirements/Design](#testing-requirementsdesign)
+	- [Unit Test cases](#unit-test-cases)
+	- [System Test cases](#system-test-cases)
+- [Open/Action items](#openaction-items)
 
 ### Revision
 
@@ -44,6 +44,8 @@ This document describes an integration of one of systemd tools called *systemd-b
 ### Requirements
 
 - Integrate systemd-bootchart with SONiC OS
+- systemd-bootchart is by default installed in the system
+- systemd-bootchart is by default disabled and user need to enable it via CLI
 - SONiC CLI tool to interact with systemd-bootchart
 - Support commands to enable/disable systemd-bootchart
 - Configure the amount of samples to collect and frequency
@@ -55,7 +57,20 @@ N/A
 
 ### High-Level Design
 
-SONiC build system includes a new build-time flag to INCLUDE_BOOTCHART. When this flag is set a *systemd-bootchart* debian package is installed in SONiC host from upstream debian repositories (Installed size 128 KB).
+SONiC build system includes a new build-time flag to INCLUDE_BOOTCHART (y/n). When this flag is set a *systemd-bootchart* debian package is installed in SONiC host from upstream debian repositories (Installed size 128 KB).
+
+Example INCLUDE_BOOTCHART flag usage:
+
+Include bootchart:
+```
+make INCLUDE_BOOTCHART=y target/sonic-mellanox.bin
+```
+
+Do not include bootchart:
+```
+make INCLUDE_BOOTCHART=n target/sonic-mellanox.bin
+```
+
 SONiC provides a default configuration for bootchart located at /etc/systemd/bootchart.conf:
 
 ```ini
@@ -74,7 +89,7 @@ N/A
 
 ### Configuration and management
 
-*sonic-bootchart* is a stand alone utility, like *sonic-kdump-config*, *sonic-installer*, etc.
+*sonic-bootchart* is a standalone utility, like *sonic-kdump-config*, *sonic-installer*, etc.
 
 Command line interface:
 
@@ -103,22 +118,53 @@ admin@sonic:~$ sudo sonic-bootchart disable
 Running command: systemctl disable systemd-bootchart
 ```
 
+In case image is built without bootchart included (INCLUDE_BOOTCHART=n) sonic-bootchart will print an error:
+
+```
+admin@sonic:~$ sudo sonic-bootchart enable
+systemd-bootchart is not installed
+```
+
 Once bootchart is enabled a systemd-bootchart.service is enabled in systemd which starts a daemon early at boot that collects samples.
 This setting is permanent, meaning, after it is enabled, bootchart will always run at boot until disabled, *config save*, *config reload* do not affect this setting.
 
 
-Update configuration:
+Update configuration example:
 
 ```
 admin@sonic:~$ sudo sonic-bootchart config --samples 500 --frequency 10
+```
+
+This command will update /etc/systemd/bootchart.conf. The next time bootchart will run (at system start after reboot) it will take the new values.
+*systemd-bootchart* saves the plots to a temporary directory /run/log that is flushed after reboot.
+
+Displaying configuration, operational status and output SVG plots:
+
+```
 admin@sonic:~$ sudo sonic-bootchart show
 Status      Operational Status    Samples    Frequency    Time (sec)  Output
 --------  --------------------  ---------  -----------  ------------  ------------------------------------
 enabled              in-active        500           10            50  /run/log/bootchart-20220504-1325.svg
 ```
 
-*systemd-bootchart* saves the plots to a temporary directory /run/log that is flushed after reboot.
+Fields description:
 
+| Field |  Comment |
+|-------|--------------------------|
+| Status | Output of "systemctl is-enabled systemd-bootchart". Shows whether this service is configured to start at boot (enabled/disabled) |
+| Operational Status | Output of "systemctl is-action systemd-bootchart". Shows whether this service is currently collecting samples (active/in-active) |
+| Samples | Configured amount of samples to collect |
+| Frequency | How frequent to collect samples per second |
+| Time | The time how long after boot samples will be collected, it is a result of division samples/frequency |
+| Output | If systemd-bootchart finished collecting samples (in-active) this column will display resulting plots, otherwise this column is empty |
+
+
+Usage example:
+
+- First make sure you have SONiC image built with INCLUDE_BOOTCHART=y
+- Enable bootchart: "sudo sonic-bootchart enable"
+- Perform any kind of reboot: "sudo reboot" or "sudo warm-reboot" or "sudo fast-reboot"
+- Wait till system reboots and the plot is generated by quering "sudo sonic-bootchart show"
 
 #### Manifest (if the feature is an Application Extension)
 
@@ -151,6 +197,6 @@ Cover CLI with UT for:
 
 N/A
 
-### Open/Action items - if any
+### Open/Action items
 
 N/A
