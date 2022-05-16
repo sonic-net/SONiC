@@ -161,5 +161,26 @@ SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
 2.2.2.2     1.1.1.1      N/A     default
 ```
-3. Remove the config of source IP
+3. Remove the config of source IP on the interface like below:
+```
+sudo config  interface ip remove Ethernet0 1.1.1.1/24
+```
 4. Check the relevant syslog config should be removed
+
+
+### Test cases #6 -  Disable mgmt VRF or remove data VRF if this VRF exists in syslog config, there will an error prompt
+1. Configure syslog sever with VRF/Source: set/set like below:
+```
+config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "Default"
+config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
+```
+2. Check syslog config by show syslog, the result should like below:
+```
+# show syslog
+SERVER      SOURCE      PORT    VRF
+----------  ----------  ------  --------
+2.2.2.2     1.1.1.1      N/A     Default
+2222::2222  1111::1111   N/A     Vrf-data
+```
+3. Disable mgmt VRF or remove Data VRF
+4. Check there is an error prompt such as: VRF exists in syslog config, it can not be disabled or removed.
