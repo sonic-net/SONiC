@@ -15,7 +15,6 @@
         - [1.3.7 Application Associations](#137-Application-Associations)
         - [1.3.8 Container](#138-Container)
         - [1.3.9 SAI Overview](#139-SAI-Overview)
-        - [1.3.10 CA Mode](#1310-CA-Mode)
 - [2 Functionality](#2-Functionality)
 - [3 Design](#3-Design)
     - [3.1 Overview](#31-Overview)
@@ -65,7 +64,7 @@ This document provides comprehensive functional and design information about the
 
 X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem. Then you must configure the redis keys and restart the services. There is also the issue of upgrades where the location the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
-The certificate management feature will introduce a new YANG model and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions. The switch will be able to act as a Certificate Authority (CA) for itself and other switches as well to simplify the initial configuration.
+The certificate management feature will introduce a new YANG model and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -97,7 +96,6 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Add ability to configure CRL
   - Add ability to configure OCSP
   - Add ability to generate self-signed certificates as well as certificate signing requests
-  - Add ability to sign CSR's by running in a CA mode
   - Add ability to associate host and CA certs with application
   - Add CLIs to configure and manage certificates
   - Add validation and monitoring of certificates
@@ -128,7 +126,6 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Create new security profile
   - Delete security profile
   - Associate a certificate, private key file and CA trust-store with a security-profile
-  - Have "CA mode" where switch generates CA certificate and can then sign certificates for other switches
   - Have option to specify CA server to have your CSR signed by it
 
 ### User Interfaces  
@@ -159,7 +156,6 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Services must be restarted in for new certificates to take effect
   - If an invalid certificate is configured, services including REST and gNMI/gNOI may become inaccessible. However the CLI will continue to work.
   - Debian’s pre-installed ca-certificates will only be used by default Debian applications that have not been enabled to use the certificate management infrastructure.
-  - In CA mode, the server and clients need to have consistent time set (preferable with NTP) to ensure certificates are valid when generated.
 
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
@@ -179,14 +175,6 @@ The sonic-crypto YANG model will describe the following structure(s) and field(s
     - revocation-check
     - peer-name-check
     - key-usage-check
-
-  - ca-mode
-    - ca-mode (true|false)
-    - ca-host
-    - csr-list
-      - name
-      - source
-      - type
 
   - trust-store
     - name
@@ -257,17 +245,8 @@ A new CLI will be added with the following commands:
 | crypto security-profile | Create security-profile |
 | crypto security-profile certificate | Associate security-profile with certificate |
 | crypto security-profile trust-store | Associate security-profile with trust-store |
-| crypto ca-server mode | Enable CA server/client or disabled |
-| crypto ca-server host | The CA server hostname/ip if in client mode |
-| crypto ca-server list-csr | Show list of CSRs sent to us to be signed |
-| crypto ca-server show-csr | Show details of CSR |
-| crypto ca-server sign-csr | Sign CSR sent to us |
-| crypto ca-server delete-csr | Reject and delete CSR sent to us |
 | crypto trust-store <name> | Create new or access existing trust-store |
 | crypto trust-store <name> add <ca-name> | Add CA cert to trust-store |
-
-
-The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically.
 
 **Note:**
 Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.). The CLIs will follow the format below:
@@ -288,7 +267,6 @@ When the security-profile model is configured and the RPC's are called, the data
 | Delete CA Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate is root CA for another cert | Return certificate is root CA for child error |
 | CSR Create | Invalid CSR | Return invalid CSR error |
-| Configure CA server | Time on server is different than local | Return time configuration error to prevent invalid certs |
 
 **Notes:**
   - In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
@@ -318,7 +296,6 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 
 *Notes:*
   - The certificate expiration alarms will be rechecked when a new certificate is installed and cleared if the condition is resolved by the new certificate.
-  - The CA server mode will automatically generate a CA certificate to be used to sign other certificates. This CA certificate will be rotated automatically and so sysmonitor.py will periodically check and rotate the CA certificate as needed.
   - Alarms for invalid certificates will only be raised on certificates that are currently in use by a security-profile. If you attempt to use an expired certificate, it will be rejected during configuration validation instead.
 
 ### 1.3.6 Directory Structure
@@ -348,13 +325,9 @@ No new containers are introduced for this feature. Existing Mgmt container will 
 
 No new or existing SAI services are required.
 
-### 1.3.10 CA Mode
-
-Certificate Management feature will introduce a new mode called CA Mode that allows a certain switch to act as a CA for other switches. In this mode, the CA switch will be able to generate and sign certificates for the services on all the switches. In this mode, the CA will also be able to automatically rotate certificates for the switches, preventing issues with certificate expiration. This mode is similar to how certificates are handled by Kubernetes for each of it's nodes. This makes certificates management easier, since the user does not have to directly deal with generating certificates, signing requests, rotation etc.
-
 # 2 Functionality
 
-The Certificate Management Feature will implement a new YANG model sonic-crypto with these section: security-profile ca-mode, trust-store and cdp-config. The security-profile will be for associating certificates with applications as well as providing options for using those certificates. The ca-mode will be for managing the CA certificates, CSRs and configuring a CA server either locally (server mode) or remotely (client mode). The model will also have RPCs defined for all certificate related actions.
+The Certificate Management Feature will implement a new YANG model sonic-crypto with these section: security-profile, trust-store and cdp-config. The security-profile will be for associating certificates with applications as well as providing options for using those certificates. The model will also have RPCs defined for all certificate related actions.
 
 A set of functions and a certificate monitor thread will be created in sysmonitor.py that will be used to monitor the certificates and configurations and raise appropriate alarms and events.
 
@@ -364,7 +337,7 @@ A set of functions and a certificate monitor thread will be created in sysmonito
 
 The model will be implemented in sonic-mgmt-common and will be used by the mgmt-framework and telemetry containers. The sysmonitor.py is in sonic-buildimage and will run on the host. The certificates themselves will be stored on the host in /etc/sonic/cert and will be mounted on all of the containers by default.
 
-The YANG model will store the configuration in the configdb and will add new tables, for security-profiles, ca-mode, trust-store and cdp-config.
+The YANG model will store the configuration in the configdb and will add new tables, for security-profiles, trust-store and cdp-config.
 
 ### 3.1.1 Service and Docker Management
 
@@ -405,13 +378,6 @@ The config DB will contain the new model's information.
         +--w type?
         +--w destination-path?
         +--w parameters?
-    +--rw ca-mode
-       +--rw ca-mode                bool
-       +--rw ca-host                string
-       +--rw csr-list* [name]
-           +--rw name               string
-           +--rw source             string
-           +--rw type               enum
     rpcs:
       +--w crypto-cert-ca-sign
         +--w name?
@@ -699,14 +665,6 @@ Verify certificate using openssl verify command.
     /sonic-crypto:security-profile/security-profile/trust-stores/trust-store
     /sonic-crypto:security-profile/security-profile/peer-name-check
     /sonic-crypto:security-profile/security-profile/key-usage-check
-    
-    /sonic-crypto:ca-mode
-    /sonic-crypto:ca-mode/ca-mode
-    /sonic-crypto:ca-mode/ca-host
-    /sonic-crypto:ca-mode/csr-list
-    /sonic-crypto:ca-mode/csr-list/name
-    /sonic-crypto:ca-mode/csr-list/source
-    /sonic-crypto:ca-mode/csr-list/type
 
     /sonic-crypto:trust-stores
     /sonic-crypto:trust-stores/trust-store
@@ -758,6 +716,5 @@ All sonic platforms will be supported.
   - Add CA certificate and client certificate and verify REST & telemetry server can be accessed without insecure mode
   - Use invalid client certificate with CA and verify it is rejected
   - Force CDP refresh
-  - Enable CA mode and generate CSR for client and get it signed. Use this certificate for REST/gNMI requests.
 
 
