@@ -37,7 +37,7 @@ show
 
 Options:
 
-config syslog add
+config syslog add server_ip
 
 -s|--source - source ip address
 -p|--port - server udp port
@@ -46,7 +46,7 @@ config syslog add
 ```
 
 ### Supported topology
-The test will be supported on t0.
+The test will be supported on any.
 
 
 ### Test cases #1 -  Configure syslog server with VRF/Source:unset/unset
@@ -59,7 +59,7 @@ config syslog add '2.2.2.2'
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2     N/A     N/A     N/A
+2.2.2.2     N/A         514     default
 ```
 3. Check the corresponding interface of rsyslog server can receive the syslog message with port 514
 4. Del syslog server config like below:
@@ -68,7 +68,7 @@ config syslog del '2.2.2.2'
 ```
 5. Check syslog config by show syslog, the relevant config should be removed
 6. Check the corresponding interface of rsyslog server can not receive any syslog message with port 514
-7. Repeat steps 1-5 by setting different port, and check the port of received syslog message will be changed to the set one
+7. Repeat steps 1-6 by setting different port, and check the port of received syslog message will be changed to the set one
 
 
 ### Test cases #2 -  Configure syslog server with VRF/Source: unset/set
@@ -81,7 +81,7 @@ config syslog add '2.2.2.2' --source "1.1.1.1"
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2     1.1.1.1     N/A     N/A
+2.2.2.2     1.1.1.1      514    default
 ```
 3. Check the corresponding interface of rsyslog server can receive the syslog message with port 514 and src ip 1.1.1.1
 4. Del syslog server config like below:
@@ -105,9 +105,9 @@ config syslog add '2222::2222' --vrf "Vrf-data"
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2       N/A        N/A     default
-3.3.3.3       N/A        N/A     mgmt
-2222::2222    N/A        N/A     Vrf-data
+2.2.2.2       N/A        514     default
+3.3.3.3       N/A        514     mgmt
+2222::2222    N/A        514     Vrf-data
 ```
 3. Check the corresponding interface of rsyslog server can receive the syslog message with port 514
 4. Del syslog server config like below:
@@ -133,9 +133,9 @@ config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
 # show syslog
 SERVER      SOURCE      PORT    VRF
 ----------  ----------  ------  --------
-2.2.2.2     1.1.1.1      N/A     default
-3.3.3.3     5.5.5.5      N/A     mgmt
-2222::2222  1111::1111      N/A     Vrf-data
+2.2.2.2     1.1.1.1      514     default
+3.3.3.3     5.5.5.5      514     mgmt
+2222::2222  1111::1111   514     Vrf-data
 ```
 3. Check the corresponding interface of rsyslog server can receive the syslog message with correct port and source ip
 4. Del syslog server config like below:
@@ -147,3 +147,21 @@ config syslog del '2222::2222'
 5. Check syslog config by show syslog, the relevant config should be removed
 6. Check the corresponding interface of rsyslog server can not receive any syslog message with correct port and source ip
 7. Repeat steps 1-6 by setting different port, and check the port of received syslog message will be changed to the set one
+
+
+### Test cases #5 -  Disable mgmt VRF or remove data VRF exists in syslog config, there will an error prompt
+1. Configure syslog sever with VRF/Source: set/set like below:
+```
+config syslog add '3.3.3.3' ---source "5.5.5.5" --vrf "mgmt"
+config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
+```
+2. Check syslog config by show syslog, the result should like below:
+```
+# show syslog
+SERVER      SOURCE      PORT    VRF
+----------  ----------  ------  --------
+3.3.3.3     5.5.5.5      514     mgmt
+2222::2222  1111::1111   514     Vrf-data
+```
+3. Disable mgmt VRF or remove Data VRF
+4. Check there is an error prompt such as: VRF exists in syslog config, it can not be disabled or removed.
