@@ -8,6 +8,7 @@
 - [2 Functional Requirements](#2-functional-requirements)
 - [3 Use Cases](#3-use-cases)
   - [3.1 In-Service restart and upgrade](#31-in-service-restart-and-upgrade)
+  - [3.2 In-Service restart and upgrade from a vendor NOS to SONiC NOS](#32-in-service-restart-and-upgrade-from-a-vendor-nos-to-sonic-nos)
 - [4 Reconciliation at syncd](#4-reconciliation-at-syncd)
   - [4.1 Orchagent Point Of View](#41-orchagent-point-of-view)
   - [4.2 Syncd Point Of View - INIT/APPLY view framework](#42-syncd-point-of-view---initapply-view-framework)
@@ -70,10 +71,79 @@ When swss docker starts with the new kernel, all the port/LAG, vlan, interface, 
 
 The restart of syncd docker should leave data plane intact until it starts again with the new kernel. After restart, syncd configures the HW with the state prior the reboot by all network applications.
 
+## 3.2 In-Service restart and upgrade from a vendor NOS to SONiC NOS
+
+Fast-reboot will finish successfully from a different NOS than SONiC with two possible scenarios:
+ - Dump files of default gateway, neighbors and fdb tables are provided to the new image in a format that meet the SONiC scheme, as SONiC does prior the reboot.
+   - On this scenario all should work exacly the same as the switch rebooted from SONiC to SONiC.
+
+ - Dump files of default gateway, neighbors and fdb tables are not provided to the new image as SONiC does prior the reboot.
+   - On this scenario fast-reboot will finish successfully, but with low performance since all neighbors and fdb entries will be created by the slow path.
+
+Here are test results for both scenarios tested on a SONiC switch based on 202111 branch hash 339e68e1d, Nvidia SN2700 platform.
+
+ - With dump files:
+
+```
+2022-05-18 14:48:32 : --------------------------------------------------
+2022-05-18 14:48:32 : Summary:
+2022-05-18 14:48:32 : --------------------------------------------------
+2022-05-18 14:48:32 : Longest downtime period was 0:00:28.066813
+2022-05-18 14:48:32 : Reboot time was 0:01:45.150628
+2022-05-18 14:48:32 : Expected downtime is less then 0:00:30
+2022-05-18 14:48:32 : --------------------------------------------------
+2022-05-18 14:48:32 : Additional info:
+2022-05-18 14:48:32 : --------------------------------------------------
+2022-05-18 14:48:32 : INFO:10.213.84.185:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.184:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.187:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.186:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.181:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.183:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.182:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : INFO:10.213.84.188:PortChannel interface state changed 1 times
+2022-05-18 14:48:32 : --------------------------------------------------
+2022-05-18 14:48:32 : ==================================================
+```
+
+ - With no dump files:
+
+```
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : Summary:
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : Longest downtime period was 0:00:25.112824
+2022-05-18 15:56:33 : Reboot time was 0:01:36.778029
+2022-05-18 15:56:33 : Expected downtime is less then 0:00:30
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : Additional info:
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : INFO:10.213.84.185:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.184:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.187:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.186:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.181:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.183:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.182:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : INFO:10.213.84.188:PortChannel interface state changed 1 times
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : Fails:
+2022-05-18 15:56:33 : --------------------------------------------------
+2022-05-18 15:56:33 : FAILED:dut:Total downtime period must be less then 0:00:30 seconds. It was 48.5044789314
+2022-05-18 15:56:33 : ==================================================
+```
+
+A proper automatic functional test case covering the scenario of vendor NOS to SONiC NOS reboot should be implemented as part of this feature.
+The test will simulate such scenario by dropping the dump files and perform fast-reboot without it.
+
 # 4 Reconciliation at syncd
 
 ## 4.1 Orchagent Point Of View
 
+If dump files provided by the previous image prior the reboot, all tables should be pushed to APP DB for reconciling orchagent.
+If no dumps are provided, orchagent will reconcile with no information from prior the reboot.
+On this case all ARP and FDB entries will be created by the slow path.
 When orchagent starts with the new SONiC image, the same infrastructure we use to reconcile fastfast-boot will start.
 After INIT_VIEW and create_switch functions sent to syncd (reset of the ASIC took place here), 'warmRestoreAndSyncUp' will be executed.
 This function will populate m_toSync with all tasks for syncd, by APP DB and CONFIG DB prior the reboot.
