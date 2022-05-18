@@ -53,19 +53,28 @@ To have a better management of the flags, a new table `SYSTEM_DEFAULTS` is intro
 
 A new table `SYSTEM_DEFAULTS` is added into config_db.
 ```
-    key             = SYSTEM_DEFAULTS
+    key             = SYSTEM_DEFAULTS|feature_name; feature name must bt unique
 
     ;field          = value
-    FLAG_NAME       = 1*255VCHAR ; FLAG_NAME must be unique, the value is a string, which can be 'enable'/'disable', 'down'/'up' or any string. 
+    status          = 1*255VCHAR ; The value is a string, which can be 'enable'/'disable', 'down'/'up' or any string.
+    custom_field     = 1*255VCHAR ; The name of custom_field can be any custom string.
 ```
 Below is a sample of `SYSTEM_DEFAULTS` table
 
 ```
 "SYSTEM_DEFAULTS": {
-        "default_bgp_status": "down",
-        "default_pfcwd_status": "enable",
-        "synchronous_mode": "enable",
-        "dhcp_server": "enable"
+        "tunnel_qos_remap": {
+            "status": "enabled"
+        }
+        "default_bgp_status": {
+            "status": "down"
+        }
+        "synchronous_mode": {
+            "status": "enable"
+        }
+        "dhcp_server": {
+            "status": "enable"
+        }
     }
 ```
 
@@ -89,7 +98,19 @@ For example, the value of `default_bgp_status` is down in `init_cfg.json` if `sh
 #### 5.2.2 Parse from `minigraph.xml` when loading minigraph
 
 For the flags that can be changed by reconfiguration, we can update entries in `minigraph.xml`, and parse the new values in to config_db with minigraph parser at reloading minigraph.
+For example, to turn on/off the `tunnel_qos_remap` feature, a new section will be defined in `minigraph.xml`
 
+```
+  <SystemDefaultsDeclaration>
+    <a:SystemDefaults xmlns:a="http://schemas.datacontract.org/2004/07/Microsoft.Search.Autopilot.Evolution">
+		 <a:SystemDefault>
+            <a:Name>TunnelQosRemapEnabled</a:Name>
+            <a:Value>True</a:Value>
+         </a:SystemDefault>
+    </a:SystemDefaults>
+</SystemDefaultsDeclaration>
+```
+The new section will be parsed by `minigraph.py`, and the parsed value will be merged with the values defined in `init_cfg.json`, and finally written into `config_db`. If there are duplicated entries in `init_cfg.json` and `minigraph.xml`, the values in `minigraph.xml` will overwritten the values defined in `init_cfg.json`.
 #### 5.2.3 Update value directly in db memory
 For some behavior change, we may don't have to interrupt dataplane. To support controlling SONiC behavior on-the-fly, we can update the value of flags in memory with tools like `sonic-cfggen`, `configlet` or `config apply-patch`.
 
