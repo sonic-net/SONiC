@@ -53,9 +53,10 @@ The `CONSOLE_SWITCH_TABLE` holds the configuration database for the purpose of c
 key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
-autodetect = "enabled"/"disabled" ; "enabled" means factory function will auto detect which vendor's device is plugged in
-                                  ; "disabled" means factory function will read vendor_name from config_db
-vendor_name = 1*255 VCHAR         ; vendor name of console switch
+autodetect  = "enabled"/"disabled" ; "enabled" means factory function will auto detect which vendor's device is plugged in
+                                   ; "disabled" means factory function will read vendor_name from config_db
+vendor_name = 1*255 VCHAR          ; vendor name of portable console device
+model_name  = 1*255 VCHAR          ; model name of portable console device
 ```
 
 ## Portable Console Device API Design
@@ -249,17 +250,143 @@ As mentioned above, only the third way is our recommendation, which can automati
 
 ## SONiC CLI Design
 
-### show console
+### Console Show Commands
 
 #### show console summary
 
-#### show console vendor-name
+This command displays a summary of the portable console device.
 
-#### show console serial-number
+* Usage:
 
-### show psu
+  ```
+  show console summary
+  ```
 
-### config(?)
+* Example:
+
+  ```
+  admin@sonic:~$ show console summary
+  Vendor Name: Microsoft
+  Model Name: Simulator
+  Serial Number: Microsoft-Simulator-S/N
+  Auto Detect: Disable
+
+  Virtual Device List:
+  Line    Virtual Device Path
+  ----    -------------------
+     1         /dev/console-1
+     2         /dev/console-2
+  ```
+
+#### show console vendor_name
+
+This command displays the vendor name of the portable console device. If auto-detect is disabled, it will read the vendor name from CONFIG_DB. Otherwise, it will read the vendor name from `get_vendor_name()`.
+
+* Usage:
+
+  ```
+  show console vendor_name
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ show console vendor_name
+  Microsoft
+  ```
+
+#### show console model_name
+
+This command displays the model name of the portable console device. If auto-detect is disabled, it will read the model name from CONFIG_DB. Otherwise, it will read the model name from `get_vendor_name()`.
+
+* Usage:
+
+  ```
+  show console model_name
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ show console model_name
+  Simulator
+  ```
+
+#### show console serial_number
+
+This command displays the serial number of the portable console device.
+
+* Usage:
+
+  ```
+  show console serial_number
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ show console serial_number
+  Microsoft-Simulator-S/N
+  ```
+
+#### show console virtual_device_list
+
+This command displays the virtual device list of the portable console device.
+
+* Usage:
+
+  ```
+  show console virtual_device_list
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ show console virtual_device_list
+  Line    Virtual Device Path
+  ----    -------------------
+     1         /dev/console-1
+     2         /dev/console-2
+  ```
+
+#### show console psustatus
+
+This command displays the status of power supply units of the portable console device.
+
+* Usage:
+
+  ```
+  show console psustatus
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ show console psustatus
+  PSU    Model          Serial        HW Rev      Voltage (V)    Current (A)    Power (W)  Status    LED
+  -----  -------------  ------------  --------  -------------  -------------  -----------  --------  -----
+  PSU 1  MTEF-PSF-AC-A  MT1621X15246  A3                11.97           4.56        54.56  OK        green
+  ```
+
+<!-- show platform psustatus -->
+
+### Console Config Commands
+
+#### config console auto_detect
+
+This command is used to config portable console device auto-detect. If auto-detect is disabled, `vendor_name` and `model_name` must be configured to ensure portable console device work correctly.
+
+* Usage:
+
+  ```
+  config console auto_detect {enable|disable} [<vendor_name> <model_name>]
+  ```
+
+* Example:
+
+  ```
+  admin@sonic:~$ sudo config console auto_detect disable Microsoft Simulator
+  ```
 
 ## Reference
 
