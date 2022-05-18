@@ -212,7 +212,7 @@ module sonic-events-bgp {
 ```
 
 ## BGP State event 
-The event will now be published as below per schema. The instance data would indicate YANG module path for validation.
+The event will now be published as below per schema. The instance data would indicate YANG module path for validation. The event is as well sent to syslog.
 
 ```
 { "sonic-events-bgp:bgp-state": { "ip": "100.126.188.90", "status": "down", "timestamp": "2022-08-17T02:39:21.286611Z" } }
