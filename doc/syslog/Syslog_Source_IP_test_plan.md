@@ -165,3 +165,23 @@ SERVER      SOURCE      PORT    VRF
 ```
 3. Disable mgmt VRF or remove Data VRF
 4. Check there is an error prompt such as: VRF exists in syslog config, it can not be disabled or removed.
+
+### Test cases #6 -  After Configure syslog server and save config, do cold/fast/warm reboot, check syslog config still work
+1. Configure syslog server with VRF/Source: set/set like below:
+```
+config syslog add '2.2.2.2' ---source "1.1.1.1" --vrf "default"
+config syslog add '3.3.3.3' ---source "5.5.5.5" --vrf "mgmt"
+config syslog add '2222::2222' ---source "1111::1111" --vrf "Vrf-data"
+```
+2. Check syslog config by show syslog, the result should like below:
+```
+# show syslog
+SERVER      SOURCE      PORT    VRF
+----------  ----------  ------  --------
+2.2.2.2     1.1.1.1      514     default
+3.3.3.3     5.5.5.5      514     mgmt
+2222::2222  1111::1111   514     Vrf-data
+```
+3. Check the corresponding interface will send syslog message with port 514 and related source IP on dut
+4. Save config and do cold/fast/warm reboot
+5. Check Syslog config still work 
