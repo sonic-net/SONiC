@@ -253,7 +253,7 @@ The flow chart below describes how `get_portable_console_device` function works:
 
 ![factory-function-flow-chart.png](./Portable-Console-Switch-High-Level-Design/factory-function.png)
 
-As mentioned above, only the third way is our recommendation, which can automatically find out which vendor's device is plugged in and create the corresponing object. The first and second ways are reserved for more flexibility, so they are given higher priority.
+As mentioned above, only the third way is our recommendation, which can automatically detect which vendor's device is plugged in and create the corresponing object. The first and second ways are reserved for more flexibility, so they are given higher priority.
 
 ## SONiC CLI Design
 
