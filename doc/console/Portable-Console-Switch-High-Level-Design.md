@@ -13,7 +13,7 @@ In this design document, we provide the standard for adapting console devices to
 ## Assumption
 
 1. In the current design, we only support **USB** console devices.
-2. Only **one** vendor's console devices can work on a SONiC switch at the same time. If console devices from multiple vendors are plugged in at the same time, which vendor's devices will work is undefined behavior.
+2. Only **one** vendor's console devices can work on a SONiC switch at the same time. If console devices from multiple vendors are plugged in at the same time, none of these devices will work.
 3. Multiple console devices of the **same model** from the **same vendor** can be daisy-chained to extend more console ports. Whether daisy-chaining is supported and how many devices are supported in daisy-chain depends on the vendor's implementation.
 
 ## Setup Portable Console Device in SONiC
@@ -34,13 +34,13 @@ For example, vendor can prepare a `50-<vendor_name>-<model_name>.rules` file in 
 cp ./50-<vendor_name>-<model_name>.rules /etc/udev/rules.d
 ```
 
-Then SONiC will install the `.rules` correctly and load it when system boot.
+Then SONiC will install the udev `.rules` file correctly and load it when system boot.
 
 ### Udev `.rules` File Priority
 
 *This part proposes conventions for vendors who use [udev](https://wiki.debian.org/udev) to map console interface.*
 
-Since [`man udev`](https://man7.org/linux/man-pages/man7/udev.7.html) mentions that "all rules files are collectively sorted and processed in lexical order", the name of a udev `.rules` file usually start with a number which specifies the priority. The larger the number, the higher the priority the udev `.rules` file. If there is no special need, set the priority of the `.rules` file to 50. Then the file name will look like `50-<vendor_name>-<model_name>.rules`.
+Since [`man udev`](https://man7.org/linux/man-pages/man7/udev.7.html) mentions that "all rules files are collectively sorted and processed in lexical order", the name of a udev `.rules` file usually start with a number (between 01 and 99) which specifies the priority. The larger the number, the higher the priority. If there is no special need, set the priority of the `.rules` file to 50. Then the file name will look like `50-<vendor_name>-<model_name>.rules`.
 
 ## CONFIG_DB Changes
 
@@ -53,7 +53,7 @@ The `CONSOLE_SWITCH_TABLE` holds the configuration database for the purpose of c
 key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
-autodetect  = "enabled"/"disabled" ; "enabled" means factory function will auto detect which vendor's device is plugged in
+autodetect  = "enable"/"disable" ; "enabled" means factory function will auto detect which vendor's device is plugged in
                                    ; "disabled" means factory function will read vendor_name from config_db
 vendor_name = 1*255 VCHAR          ; vendor name of portable console device
 model_name  = 1*255 VCHAR          ; model name of portable console device
@@ -74,14 +74,14 @@ sonic_console/
 │   ├── __init__.py
 │   └── console_simulator.py
 ├── <vendor-name>
-    └── <vendor-name>_<model-name>.py
+    └── console_<model-name>.py
 ```
 
-Base class will be put in `console_base.py`. Factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendor will be put in corresponding `<vendor-name>` directory. The implementations of different models of the same vendor should be put in the corresponding `<vendor-name>_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
+The base class will be put in `console_base.py`. The factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendor will be put in the corresponding `<vendor-name>` directory. The implementations of different models of the same vendor should be put in the corresponding `console_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
 
 ### Base Class Design
 
-Base class for portable console device is defined like below:
+The base class for portable console device will be defined like:
 
 ```python
 # console_base.py
@@ -92,10 +92,10 @@ class PortableConsoleDeviceBase:
     def is_plugged_in(cls):
         """
         Retrives whether portable console device is plugged in or not.
-        This method is recommended for all vendors to implement!
+        This method is mandatory for factory function to auto detect vendor name and model name.
 
-        :return: Boolean, True if portable console device is plugged in
-                        , False otherwise.
+        :return: A boolean, True if portable console device is plugged in
+                          , False otherwise.
         """
         raise NotImplementedError
 
@@ -105,7 +105,7 @@ class PortableConsoleDeviceBase:
         Retrives the vendor name of the `PortableConsoleDeviceBase` concrete subclass.
         This method is mandatory for factory method to create instance from manual configuration.
 
-        :return: String, denoting vendor name of the `PortableConsoleDeviceBase` concrete subclass.
+        :return: A string, denoting vendor name of the `PortableConsoleDeviceBase` concrete subclass.
         """
         raise NotImplementedError
 
@@ -115,25 +115,28 @@ class PortableConsoleDeviceBase:
         Retrives the model name of the `PortableConsoleDeviceBase` concrete subclass.
         This method is mandatory for factory method to create instance from manual configuration.
 
-        :return: String, denoting model name of the `PortableConsoleDeviceBase` concrete subclass.
+        :return: A string, denoting model name of the `PortableConsoleDeviceBase` concrete subclass.
         """
         raise NotImplementedError
 
     @classmethod
     def get_instance(cls):
         """
-        Build and return portable console device object.
+        Build and return the portable console device object.
 
-        :return: Object derived from `PortableConsoleDeviceBase`. If object cannot be created
-                 (eg. due to device not plugged in), return None.
+        :return: A tuple of two values.
+                 The first value is an object derived from `PortableConsoleDeviceBase`. If object
+                 cannot be created (eg. due to device not plugged in), return None.
+                 The second value is a string. If object cannot be created, return the error message.
+                 Otherwise, return an empty string.
         """
-        return NotImplementedError
+        raise NotImplementedError
 
     def get_serial_number(self):
         """
-        Retrieves the serial number of portable console device.
+        Retrieves the serial number of the portable console device.
 
-        :return: String, denoting serial number of portable console device.
+        :return: A string, denoting serial number of portable console device.
         """
         raise NotImplementedError
 
@@ -172,9 +175,9 @@ class PortableConsoleDeviceBase:
 
     def get_psu(self, index):
         """
-        Retrieves power supply unit represented by (0-based) index <index>
+        Retrieves power supply unit represented by index (0-based).
 
-        :param index: An integer, the index (0-based) of the power supply unit to retrieve
+        :param index: An integer, the index (0-based) of the power supply unit to retrieve.
         :return: An objects derived from `sonic_psu.pus_base.PsuBase` representing the specified
                  power supply unit.
         """
@@ -187,7 +190,7 @@ Vendors can simply inherit the base class and implement the interface methods. F
 > 
 > --[Built-in Exceptions — Python documentation](https://docs.python.org/3/library/exceptions.html#TypeError)
 
-For example, `PortableConsoleDeviceSimulator` will be implemented like:
+For example, Microsoft will implement a portable console device simulator like:
 
 ```python
 # microsoft/console_simulator.py
@@ -212,7 +215,11 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
 
     @classmethod
     def get_instance(cls):
-        return PortableConsoleDeviceSimulator()
+        try:
+            obj = PortableConsoleDeviceSimulator()
+            return (obj, "")
+        except Exception as e:
+            return (None, e)
 
     def get_serial_number(self):
         return "Microsoft-Simulator-S/N"
@@ -238,9 +245,9 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
 
 Factory function `get_portable_console_device` supports three ways to identify which subclass should be used to create portable console device object:
 
-1. Use function parameter `vendor_name` to specify which subclass to use. (Highest priority)
-2. If `autodetect` is set to `disabled` in `config_db`, then use `vendor_name` in `config_db` to specify which subclass to use. (Second priority)
-3. If `autodetect` is set to `enabled`, then use `is_plugged_in` method of all the derived subclass to detect which vendor's device is plugged in, and use the corresponding subclass. (Lowest priority but **recommended**)
+1. Use function parameter `vendor_name` and `model_name` to specify which subclass to use. (This can be used to write unit test.)
+2. If `autodetect` is set to `disable` in `config_db`, then use `vendor_name` in `config_db` to specify which subclass to use. (If a vendor doesn't support the `is_plugged_in` method, the device can be manually confitured to work.)
+3. If `autodetect` is set to `enable`, then use `is_plugged_in` method of all the derived subclass to detect which vendor's device is plugged in, and use the corresponding subclass. (**recommended**)
 
 The flow chart below describes how `get_portable_console_device` function works:
 
