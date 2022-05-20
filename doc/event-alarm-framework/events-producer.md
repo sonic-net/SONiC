@@ -313,11 +313,12 @@ The libswsscommon will have the APIs for publishing & receiving.
 ## exporter
 1. Telemetry container runs a gNMI server to export events to external receiver/collector via SUBSCRIBE request.
 2. Telemetry container sends all the events to the receiver in FIFO order.
-3. Telemetry container uses an internal buffer, when local publishing rates overwhelms the receiver.
+3. Telemetry container ensures atleast one event sent every N seconds, by sending a heartbeat/no-op event when there are no events to publish.
+4. Telemetry container uses an internal buffer, when local publishing rates overwhelms the receiver.
    - Internal buffer overflow will cause new events to be dropped.
    - The dropped events are counted and recorded in STATE-DB via stats.
    - A telemetry service crash will lose all events in internal buffer and not included in the dropped counter.
-4. Telemetry uses cache service, during downtime of main receiver or telemetry service and replay on connect.
+5. Telemetry uses cache service, during downtime of main receiver or telemetry service and replay on connect.
    - A long downtime can result in message drop due to cache overflow.
    - A unplanned telemetry service down (say crash) will not use the cache service
 
