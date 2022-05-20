@@ -203,6 +203,7 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
 
     @classmethod
     def is_plugged_in(cls):
+        # TODO: This method has not been fully designed. Will be implemented later.
         return False
 
     @classmethod
@@ -277,12 +278,6 @@ This command displays a summary of the portable console device.
   Model Name: Simulator
   Serial Number: Microsoft-Simulator-S/N
   Auto Detect: Disable
-
-  Virtual Device List:
-  Line    Virtual Device Path
-  ----    -------------------
-     1         /dev/console-1
-     2         /dev/console-2
   ```
 
 #### show console vendor_name
@@ -381,7 +376,7 @@ This command displays the status of power supply units of the portable console d
 
 #### config console auto_detect
 
-This command is used to config portable console device auto-detect. If auto-detect is disabled, `vendor_name` and `model_name` must be configured to ensure portable console device work correctly.
+This command is used to config portable console device auto-detect. If auto-detect is disabled, `vendor_name` and `model_name` must be configured to ensure portable console device work correctly. **By default, auto-detect is enabled.**
 
 * Usage:
 
