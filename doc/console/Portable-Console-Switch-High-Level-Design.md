@@ -26,6 +26,8 @@ After the console device is plugged into the SONiC switch, we need to set up the
 
 Since we prefer the setup process completed after building SONiC image, a directory is provided to vendors to put all the files (eg. driver, udev `.rules`, etc.) they need. A `setup.sh` script file must be placed in this directory, which will be run **during the SONiC image build process**. After SONiC image has been built, all the necessary files will be installed.
 
+<!-- Pictures exported from Visio are zoomed to 70% -->
+
 ![A flow diagram to explain the setup process](./Portable-Console-Switch-High-Level-Design/setup.png)
 
 For example, vendor can prepare a `50-<vendor_name>-<model_name>.rules` file in this directory, and add the following lines in `setup.sh`:
