@@ -70,6 +70,7 @@ IP interface loopback action is a feature that allows user to change the way rou
     2. INTERFACE table for interface Ethernet (e.g. INTERFACE|Ethernet232)
     3. PORTCHANNEL_INTERFACE table for interface port-channel (e.g. PORTCHANNEL_INTERFACE|PortChannel1)    
 5. The configured loopback action can be viewed by show command in CLI.
+6. When SONiC configuration of loopback action is missing the system will behave as it is today, based on SAI behavioural model, forward the loopbacked packets.
 
 ### 1.2.2 Command interface
 **This feature will support the following commands:**
@@ -78,8 +79,8 @@ IP interface loopback action is a feature that allows user to change the way rou
 
 ### 1.2.3 Error handling
 **This feature will provide error handling for the next situations:**
-1. In CLI: invalid action, invalid interace, non ip interface
-2. In SWSS: invalid action, invalid interace, non ip interface, invalid DB operation
+1. In CLI: invalid action, invalid interface, non ip interface
+2. In SWSS: invalid action, invalid DB operation, invalid interface
 
 ### 1.2.4 Event logging
 **This feature will provide event logging for:** loopback action set on IP interface.
@@ -93,7 +94,7 @@ IP interface loopback action is a feature that allows user to change the way rou
 # 2 Design
 ## 2.1 Overview
 Intfmgrd subscribes for changes in L3 interface tables VLAN_INTERFACE, INTERFACE and PORTCHANNEL_INTERFACE in config DB. Whenever there is a change in one of these tables, intfmgrd is notified. Intfmgrd then updates INTF_TABLE table in app DB. Upon change in INTF_TABLE, intforch is notified.
-Intforch performs validity checks, call the relevant SAI API and updates internal cache. There is an existing mechanizm in intforch that postpones handling of changes in INTF_TABLE until interface is ready, we will use it.
+Intforch performs validity checks, call the relevant SAI API and updates internal cache. The flow in intfmgr is based on the current interface configuration flow.
 
 ## 2.2 DB schema
 ### 2.2.1 Config DB
@@ -111,7 +112,7 @@ Example:
     "Vlan100": {
         "loopback_action": "drop",
         "mac_addr": "00:01:02:03:04:10",
-        "mpls": "enable"
+        "ipv6_use_link_local_only": "enable"
     },
 }
 ```
@@ -128,7 +129,7 @@ Example:
     "Ethernet248": {
         "loopback_action": "forward",
         "mac_addr": "00:01:02:03:04:11",
-        "mpls": "enable"
+        "ipv6_use_link_local_only": "enable"
     },
 }
 ```
@@ -143,7 +144,7 @@ Example:
     "PortChannel1": {
         "loopback_action": "drop",
         "mac_addr": "00:01:02:03:04:12",
-        "mpls": "enable"
+        "ipv6_use_link_local_only": "enable"
     },
 }
 ```
@@ -160,9 +161,8 @@ Example for interface vlan:
         "Vlan100": {
             "loopback_action": "drop",
             "mac_addr": "00:01:02:03:04:10",
-            "mpls": "enable"            
-        }
-    }
+            "ipv6_use_link_local_only": "enable"
+
 ```
 Example for interface Ethernet:
 ```
@@ -170,7 +170,7 @@ Example for interface Ethernet:
         "Ethernet248": {
             "loopback_action": "drop",
             "mac_addr": "00:01:02:03:04:11",
-            "mpls": "enable"
+            "ipv6_use_link_local_only": "enable"
         }
     }
 ```
@@ -180,13 +180,13 @@ Example for interface port-channel:
         "PortChannel1": {
             "loopback_action": "drop",
             "mac_addr": "00:01:02:03:04:12",
-            "mpls": "enable"            
+            "ipv6_use_link_local_only": "enable"            
         }
     }
 ```
 
 ### 2.2.3 Configuration migration
-No special handling is required
+When upgrading from SW image which does not support the new schema to a one which supports, the new image will not contain loopback action configuration. All existing IP interfaces will behave as today, based on SAI behavioural model, forward the loopbacked packets.
 
 ## 2.3 Flows
 
@@ -244,10 +244,12 @@ typedef enum _sai_router_interface_attr_t
 ## 2.5 Statistics
 Packets that are dropped due to loopback action will be counted in TX_ERR in IP interface statistics.
 ```
-root@sonic:~# show interfaces counters rif
-      IFACE    RX_OK    RX_BPS    RX_PPS    RX_ERR    TX_OK    TX_BPS    TX_PPS    TX_ERR
------------  -------  --------  --------  --------  -------  --------  --------  --------
-Ethernet232        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
+root@r-lionfish-14:/home/admin# show interfaces counters rif
+       IFACE    RX_OK    RX_BPS    RX_PPS    RX_ERR    TX_OK    TX_BPS    TX_PPS    TX_ERR
+------------  -------  --------  --------  --------  -------  --------  --------  --------
+ Ethernet236        4  0.00 B/s    0.00/s         1        0  0.00 B/s    0.00/s         0
+PortChannel1        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
+       Vlan2        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
 ```
 
 ## 2.6 CLI
@@ -277,7 +279,7 @@ Example:
 root@sonic:~# show ip interfaces loopback-action
 Interface     Action      
 ------------  ----------  
-Ethernet232   drop     
+Ethernet232   drop
 Vlan100       forward     
 ```
 
@@ -312,8 +314,13 @@ Test case will perform the following:
 6. Create interface VLAN and repeat steps 2 to 4.
 
 ## 3.2 System tests
-Will be added after review with verification team.
-
-# 4 Open items
-1. Minigraph for MSFT.
-2. VLAN sub interface not covered.
+Add the following test in sonic-mgmt.
+Test will perform the following:
+1. Create IP interface Ethernet.
+2. Loopback action not configured, send traffic, verify lopbacked packets are forwarded.
+3. Set loopback action to drop, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
+4. Save config and reboot, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
+5. Set loopback action to forward, send traffic, verify lopbacked packets are forwarded.
+6. Save config and reboot, send traffic, verify lopbacked packets are forwarded.
+7. Create port-channel IP interface and repeat steps 2 to 6.
+8. Create interface VLAN and repeat steps 2 to 6.
