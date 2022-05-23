@@ -6,18 +6,22 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 
 | Rev | Date     | Author          | Change Description |
 |:---:|:--------:|:---------------:|--------------------|
-| 0.1 | 05/23/22 |                | Initial version    |
+| 0.1 | 05/23/22 | Jing Zhang      | Initial version    |
 
 ## Scope 
-This document provides the high level design of SONiC dual toR solution supporting active-active setup. 
+This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
 
-## Server  Network Interface Card (NIC) Infomation 
-Server NIC will be deployed on Gen 9 Cluster Design. Each server will have a NIC will have 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. 
+## Complexity on Server side
+In general, the intoduction of active-active will simplify state transition logics for SONiC dual ToRs. The complexity is transferred to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed.
 
-## Top of Rack (ToR) Information
-To support active-active, the ToR must be running SONiC. The hardware is a 32 or 64 port x 100G device. Note with Gen 9 Cluster, the ToR and T1 port speed will be still on 100Gbps. 
-
-Two DAC cables will be used to connect the Server NIC and 2 ToRs. No Y-cable is needed.
+For active-active setup, the requirements for server side are:
+1. Server NIC is responsible to deliver traffic up the stack once receiving sourthbound (tier 0 device to server) traffic.
+1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links. 
+1. Server should provide support for ToR to control traffic forwarding if needed, and follow this control when dispensing traffic. 
+1. Server should replicate there northbound traffic to both ToRs:
+    * Specified ICMP replies (for probing link health status)
+    * ARP
+    * Neighbor advertisements
 
 
 ## Cluster Topology 
@@ -127,7 +131,7 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding. 
 
 * Cable Control through gRPC  
-  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding sate based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC if ToRs are active through gRPC calls. 
+  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC if ToRs are active through gRPC calls. 
   
   Current defined gRPC services between SoC and ToRs related with linkmgrd cable controlling:  
   * DualToRActive
@@ -145,20 +149,22 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   ![active_active_self](./image/active_active_self.png) 
 
   Linkmgrd also provides rescue mechanism when peer can't switch to standby for some , i.e. link failures. If link prober doesn't receive peer's heartbeat response AND self ToR is in healthy active state, linkmgrd should determine peer link to be standby. 
-  ![active_active_peer](./image/active_active_peer.png) 
+  ![active_active_peer](./image/active_active_peer.png)  
+
+  When control channel is unreachable, ToR won't block the traffic forwarding, but it will periodically check gRPC server's healthiness. It will make sure server side's admin forwarding state aligns with linkmgrd's decision.
+  ![grpc_failure](./image/gRPC_failure.png) 
+
 
 ### Incremental Featrues   
 * Default gateway to T1  
   If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
 
 * Link Prober Packet Loss Statics
-
+  Link prober will by default send heartbeat packet every 100 ms, the packet loss statics can be a good system healthiness measurement. An incremental feature is to collect the packet loss counts, start time and end time. The collected data is stored and updated in state db. User can check and reset through CLI. 
+ 
 * Supoort for Detachment
-
-
+  User can config linkmgrd to a certain mode, so it won't switch to active / standby based on health indicators. User can also config linkmgrd to a mode, so it won't modify peer's forwarding state. This support will be useful for maintenance, upgrade and testing scenarios. 
 
 ### Command Line 
+TBD
 
-
-## Network Managerment
-.. ...
