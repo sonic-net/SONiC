@@ -65,7 +65,7 @@ IP interface loopback action is a feature that allows user to change the way rou
     2. Interface Ethernet
     3. Interface port-channel 
 3. Loopback action can be set to "drop" or "forward". 
-4. CLI does not allow to set loopback action on non IP interface. Interface is considered as IP interface if it has entry in:
+4. CLI will reject loopback action setting on a non IP interface. Interface is considered as an IP interface if it has entry in:
     1. VLAN_INTERFACE table for interface vlan (e.g. VLAN_INTERFACE|Vlan100)
     2. INTERFACE table for interface Ethernet (e.g. INTERFACE|Ethernet232)
     3. PORTCHANNEL_INTERFACE table for interface port-channel (e.g. PORTCHANNEL_INTERFACE|PortChannel1)    
