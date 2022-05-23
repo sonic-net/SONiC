@@ -50,7 +50,7 @@ This document describes the high level design of IP interface loopback action fe
 # 1 Introduction
 ## 1.1 Feature overview
 IP interface loopback action is a feature that allows user to change the way router handles routed packets for which egress port equals to ingress port.
-1. When loopback action is configured to drop, those packets will be dropped.
+1. When loopback action is configured to drop, those packets will be dropped. Drppoed packets due to loopback action are counted in rif statistics, see [2.5 Statistics](#25-statistics)
 2. When loopback action is configured to forward, those packets will be forwarded.
 
 ![feature overview](images/feature_overview.svg "Figure 1: feature overview")
@@ -59,8 +59,8 @@ IP interface loopback action is a feature that allows user to change the way rou
 ## 1.2 Requirements
 ### 1.2.1 Functionality
 **This feature will support the following functionality:**
-1. Loopback action can be set on IP interface. 
-2. IP Interface can be one of the following:
+1. Loopback action can be set on an IP interface. 
+2. An IP Interface can be one of the following:
     1. Interface vlan
     2. Interface Ethernet
     3. Interface port-channel 
@@ -242,7 +242,7 @@ typedef enum _sai_router_interface_attr_t
 ```
 
 ## 2.5 Statistics
-Packets that will dropped due to loopback action will be counted in RX_ERR in IP interface statistics.
+Packets that are dropped due to loopback action will be counted in TX_ERR in IP interface statistics.
 ```
 root@sonic:~# show interfaces counters rif
       IFACE    RX_OK    RX_BPS    RX_PPS    RX_ERR    TX_OK    TX_BPS    TX_PPS    TX_ERR
@@ -316,3 +316,4 @@ Will be added after review with verification team.
 
 # 4 Open items
 1. Minigraph for MSFT.
+2. VLAN sub interface not covered.
