@@ -37,8 +37,7 @@ T1s will have 8 uplinks to T2s. Therefore, total T1s uplink will be 64. Total up
 
 
 ## SONiC ToR Controlled Solution 
-### IP Routing  
-Normal Scenario  
+### Normal Scenario  
 Both T0s are up and functioning and both the server NIC connections are up and functioning.
 * Control Plane  
    UT0 and LT0 will advertise same VLAN  (IPv4 and IPv6) to upstream T1s. Each T1 will see there are 2 available next hops for the VLAN. T1s advertise to T2 as normal.
@@ -54,7 +53,7 @@ Both T0s are up and functioning and both the server NIC connections are up and f
     * NIC determines which link to use and sends all the packet on a flow using the same link.
     * T0 sends the traffic to destination server if T0 has learn the MAC address of the destination server.
 
-Server Uplink Issue  
+### Server Uplink Issue  
 Both T0s are up and functioning and some servers NIC are only connected to 1 ToR (due to cable issue, or the cable is taken out for maintenance).  
 * Control Plane  
 No change from the normal case. 
@@ -74,7 +73,7 @@ No change from the normal case.
     * If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over VxLAN encap via T1s. 
     * T0 sends the traffic to the server.
 
-ToR Failure  
+### ToR Failure  
 Only 1 T0s is up and functioning and both the server NIC connections are up and functioning. 
 * Control Plane  
 Only 1 T0 will advertise the VLAN (IPv4 and v6) to upstream T1s. 
@@ -94,7 +93,7 @@ Highlight on the difference with Active-Standby:
 1. In active-standby dual ToR design, traffic from server is duplicate to both T0s, standby ToR needs to drop the packets. In active-active, NIC will determine which link to use if both are available. 
 1. In active-ative design, servers have up to 2 links for traffic, T1s and above devices will see more throughput from server. 
 
-### Linkmgrd  
+## Linkmgrd  
 Linkmgrd will provide the determination of a ToR / link's readiness for use. 
 
 ### Requirement
@@ -108,22 +107,57 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
 * Link Prober   
   Linkmgrd will keep the link prober design from active-standby mode for monitoring link health status. Link prober will send ICMP packets and listen to ICMP response packets. ICMP packets will contain payload information about the ToR. ICMP replies will be duplicated to both ToRs from the server, hence a ToR can monitor the health status of its peer ToR as well.  
 
-  ICMP Probing Format  
-  The source MAC will be ToR's SVI mac address. Ethernet destination will be the well-known MAC address. Source IP will be ToR's Loopback IP, destination IP will be SoC's IP address, which will be introduced as a field in minigraph.   
-  ![image info](./image/icmp_format.png)  
-  Linkmgrd also adapt TLV (Type-Length-Value) as the encoding schema in payload for additional information elements, including cookie, version, ToR GUID etc. 
-   ![image info](./image/icmp_payload.png)  
+  Link Prober will report 4 possible states:  
+  * LinkProberUnknown: Serves as initial states. This state is also reachable in the case of no ICMP reply is received. 
+  * LinkProberActive: It indicates that LinkMgr receives ICMP replies containing ID of the current ToR.
+  * LinkProberPeerUnknown: It indicates that LinkMgr did not receive ICMP replies containing ID of the peer ToR. Hence, there is a chance that peer ToR’s link is currently down. 
+  * LinkProberPeerAcitve: It indicates that LinkMgr receives ICMP replies containing ID of the peer ToR, or in other words, peer ToR’s links appear to be active.  
 
-   ... ...
+  __ICMP Probing Format__  
+  The source MAC will be ToR's SVI mac address. Ethernet destination will be the well-known MAC address. Source IP will be ToR's Loopback IP, destination IP will be SoC's IP address, which will be introduced as a field in minigraph.   
+  ![icmp_format](./image/icmp_format.png)  
+
+  Linkmgrd also adapt TLV (Type-Length-Value) as the encoding schema in payload for additional information elements, including cookie, version, ToR GUID etc.  
+   ![icmp_payload](./image/icmp_payload.png)  
 
 * Link State  
-  When link is down, linkmgrd will receive notification based on kernel message from netlink. This notification will be used to determine if ToR is healthy. 
+  When link is down, linkmgrd will receive notification from SWSS based on kernel message from netlink. This notification will be used to determine if ToR is healthy. 
+
+* Admin Forwarding State   
+  ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding. 
 
 * Cable Control through gRPC  
   In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding sate based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC if ToRs are active through gRPC calls. 
-   
+  
+  Current defined gRPC services between SoC and ToRs related with linkmgrd cable controlling:  
+  * DualToRActive
+      1. Query forwarding state of ports for both peer and self ToR;
+      1. Query server side link state of ports for both peer and self ToR;
+      1. Set forwarding states of ports for both peer and self ToR; 
+  * GracefulRestart
+      1. Shutdown / restart notification from SoC to ToR.
+  
+* Acitve-Active State Machine  
+  Active-acitve state transition logics are simplified compared to active-standby. In active-standby, linkmgrd makes mux toggle decisions based on y-cable direction, while for active-active, two links are more independent. Linkmgrd will only make state transition decisions based on healthy indicators. 
+
+  To be more specific, if link prober indicates active AND link state appears to be up, linkmgrd should determine link's forwarding state as active, otherwise, it should be standby.
+
+  ![active_active_self](./image/active_active_self.png) 
+
+  Linkmgrd also provides rescue mechanism when peer can't switch to standby for some , i.e. link failures. If link prober doesn't receive peer's heartbeat response AND self ToR is in healthy active state, linkmgrd should determine peer link to be standby. 
+  ![active_active_peer](./image/active_active_peer.png) 
+
+### Incremental Featrues   
 * Default gateway to T1  
-  If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](./default_route.md).
+  If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
+
+* Link Prober Packet Loss Statics
+
+* Supoort for Detachment
+
+
+
+### Command Line 
 
 
 ## Network Managerment
