@@ -11,14 +11,14 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
 
-## Complexity on Server side
-In general, the intoduction of active-active will simplify state transition logics for SONiC dual ToRs. The complexity is transferred to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed.
+## Server requirements
+In general, the intoduction of active-active will simplify state transition logics for SONiC dual ToRs. The complexity is transferred from smart y-cable to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed.
 
 For active-active setup, the requirements for server side are:
 1. Server NIC is responsible to deliver traffic up the stack once receiving sourthbound (tier 0 device to server) traffic.
-1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links. 
-1. Server should provide support for ToR to control traffic forwarding if needed, and follow this control when dispensing traffic. 
-1. Server should replicate there northbound traffic to both ToRs:
+1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. each stream will be dispatched to one of the 2 up links until link state changes. 
+1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
+1. Server should replicate the northbound traffic to both ToRs:
     * Specified ICMP replies (for probing link health status)
     * ARP
     * Neighbor advertisements
