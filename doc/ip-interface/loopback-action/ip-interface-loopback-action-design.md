@@ -51,7 +51,7 @@ This document describes the high level design of IP interface loopback action fe
 ## 1.1 Feature overview
 IP interface loopback action is a feature that allows user to change the way router handles routed packets for which egress port equals to ingress port.
 1. When loopback action is configured to drop, those packets will be dropped. Drppoed packets due to loopback action are counted in rif statistics, see [2.5 Statistics](#25-statistics)
-2. When loopback action is configured to forward, those packets will be forwarded.
+2. When loopback action is configured to forward, those packets will be forwarded as the pipeline defined.
 
 ![feature overview](images/feature_overview.svg "Figure 1: feature overview")
 ###### Figure 1: feature overview
