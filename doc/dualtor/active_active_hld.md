@@ -12,11 +12,12 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
 
 ## Server requirements
-In general, the intoduction of active-active will simplify state transition logics for SONiC dual ToRs. The complexity is transferred from smart y-cable to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed.
+For active-active setup, some complexity is transferred from smart y-cable to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed any more.
 
 For active-active setup, the requirements for server side are:
 1. Server NIC is responsible to deliver traffic up the stack once receiving sourthbound (tier 0 device to server) traffic.
-1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. each stream will be dispatched to one of the 2 up links until link state changes. 
+1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
+1. Each ToR has a well-known IP. For northbound traffic, server should dispatch IO towards these IPs to the corresponding uplinks.
 1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
 1. Server should replicate the northbound traffic to both ToRs:
     * Specified ICMP replies (for probing link health status)
@@ -44,18 +45,19 @@ T1s will have 8 uplinks to T2s. Therefore, total T1s uplink will be 64. Total up
 ### Normal Scenario  
 Both T0s are up and functioning and both the server NIC connections are up and functioning.
 * Control Plane  
-   UT0 and LT0 will advertise same VLAN  (IPv4 and IPv6) to upstream T1s. Each T1 will see there are 2 available next hops for the VLAN. T1s advertise to T2 as normal.
+  UT0 and LT0 will advertise same VLAN  (IPv4 and IPv6) to upstream T1s. Each T1 will see there are 2 available next hops for the VLAN. T1s advertise to T2 as normal.
+
 * Data Plane  
   * Traffic to the server  
     * Traffic lands on any of the T1 by ECMP from T2s.
     * T1 forwards traffic to either of the T0s by ECMP. 
-    * T0 sends the traffic to the server. 
+    * T0 sends the traffic to the server and NIC delivers traffic up the stack.
   * Traffic from the server to outside the cluster  
     * NIC determines which link to use and sends all the packets on a flow using the same link.
     * T0 sends the traffic to the T1 by ECMP. 
   * Traffic from the server to within the cluster  
     * NIC determines which link to use and sends all the packet on a flow using the same link.
-    * T0 sends the traffic to destination server if T0 has learn the MAC address of the destination server.
+    * T0 sends the traffic to destination server if T0 has learnt the MAC address of the destination server.
 
 ### Server Uplink Issue  
 Both T0s are up and functioning and some servers NIC are only connected to 1 ToR (due to cable issue, or the cable is taken out for maintenance).  
@@ -65,8 +67,8 @@ No change from the normal case.
   * Traffic to the server  
     * Traffic lands on any of the T1 by ECMP from T2s.
     * T1 forwards traffic to either of the T0s by ECMP.
-    * If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over VxLAN encap via T1s.  
-    * T0 sends the traffic to the server. 
+    * **If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over VxLAN encap via T1s.**  
+    * T0 sends the traffic to the server and NIC delivers traffic up the stack. 
   * Traffic from the server to outside the cluster   
     * T0 will signal to NIC which side to use.  
     * NIC determines which link to use and sends all the packets on a flow using the same link. If server NIC has only 1 connection up, all traffic will be on this connection. 
@@ -78,7 +80,7 @@ No change from the normal case.
     * T0 sends the traffic to the server.
 
 ### ToR Failure  
-Only 1 T0s is up and functioning and both the server NIC connections are up and functioning. 
+Only 1 T0s is up and functioning.
 * Control Plane  
 Only 1 T0 will advertise the VLAN (IPv4 and v6) to upstream T1s. 
 * Data Plane  
