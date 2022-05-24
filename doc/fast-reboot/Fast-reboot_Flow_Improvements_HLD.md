@@ -143,7 +143,8 @@ The test will simulate such scenario by dropping the dump files and perform fast
 
 If dump files provided by the previous image prior the reboot, all tables should be pushed to APP DB for reconciling orchagent.
 If no dumps are provided, orchagent will reconcile with no information from prior the reboot.
-On this case all ARP and FDB entries will be created by the slow path.
+On this case all ARP and FDB entries will be created by the slow path, meaning ARP packets will exchange between the switch and the neighbors and will be created according to the neighbors response, from kernel to the ASIC.
+Same for FDB entries which will be created by the kernel as well, depends on the traffic flowing through the switch.
 When orchagent starts with the new SONiC image, the same infrastructure we use to reconcile fastfast-boot will start.
 After INIT_VIEW and create_switch functions sent to syncd (reset of the ASIC took place here), 'warmRestoreAndSyncUp' will be executed.
 This function will populate m_toSync with all tasks for syncd, by APP DB and CONFIG DB prior the reboot.
