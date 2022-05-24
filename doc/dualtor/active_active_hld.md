@@ -15,13 +15,14 @@ This document provides the high level design of SONiC dual toR solution, support
 For active-active setup, some complexity is transferred from smart y-cable to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed any more.
 
 For active-active setup, the requirements for server side are:
-1. Server NIC is responsible to deliver traffic up the stack once receiving sourthbound (tier 0 device to server) traffic.
+1. Server NIC is responsible to deliver southbound (tier 0 device to server) traffic from either uplinks to applications running on server host.
 1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
-1. Each ToR has a well-known IP. For northbound traffic, server should dispatch IO towards these IPs to the corresponding uplinks.
 1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
+    * gRPC is introduced for this requirement. 
+    * Each ToR will have a well-known IP. Server NIC should dispatch gRPC replies towards these IPs to the corresponding uplinks.
 1. Server should replicate the northbound traffic to both ToRs:
     * Specified ICMP replies (for probing link health status)
-    * ARP
+    * ARP propagation
     * Neighbor advertisements
 
 
@@ -130,7 +131,20 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   When link is down, linkmgrd will receive notification from SWSS based on kernel message from netlink. This notification will be used to determine if ToR is healthy. 
 
 * Admin Forwarding State   
-  ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding. 
+  ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding.  
+  
+* Acitve-Active State Machine  
+  Active-acitve state transition logics are simplified compared to active-standby. In active-standby, linkmgrd makes mux toggle decisions based on y-cable direction, while for active-active, two links are more independent. Linkmgrd will only make state transition decisions based on healthy indicators. 
+
+  To be more specific, if link prober indicates active AND link state appears to be up, linkmgrd should determine link's forwarding state as active, otherwise, it should be standby.
+
+  ![active_active_self](./image/active_active_self.png) 
+
+  Linkmgrd also provides rescue mechanism when peer can't switch to standby for some reason, i.e. link failures. If link prober doesn't receive peer's heartbeat response AND self ToR is in healthy active state, linkmgrd should determine peer link to be standby. 
+  ![active_active_peer](./image/active_active_peer.png)  
+
+  When control channel is unreachable, ToR won't block the traffic forwarding, but it will periodically check gRPC server's healthiness. It will make sure server side's admin forwarding state aligns with linkmgrd's decision.
+  ![grpc_failure](./image/gRPC_failure.png) 
 
 * Cable Control through gRPC  
   In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC if ToRs are active through gRPC calls. 
@@ -142,20 +156,9 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
       1. Set forwarding states of ports for both peer and self ToR; 
   * GracefulRestart
       1. Shutdown / restart notification from SoC to ToR.
-  
-* Acitve-Active State Machine  
-  Active-acitve state transition logics are simplified compared to active-standby. In active-standby, linkmgrd makes mux toggle decisions based on y-cable direction, while for active-active, two links are more independent. Linkmgrd will only make state transition decisions based on healthy indicators. 
 
-  To be more specific, if link prober indicates active AND link state appears to be up, linkmgrd should determine link's forwarding state as active, otherwise, it should be standby.
-
-  ![active_active_self](./image/active_active_self.png) 
-
-  Linkmgrd also provides rescue mechanism when peer can't switch to standby for some , i.e. link failures. If link prober doesn't receive peer's heartbeat response AND self ToR is in healthy active state, linkmgrd should determine peer link to be standby. 
-  ![active_active_peer](./image/active_active_peer.png)  
-
-  When control channel is unreachable, ToR won't block the traffic forwarding, but it will periodically check gRPC server's healthiness. It will make sure server side's admin forwarding state aligns with linkmgrd's decision.
-  ![grpc_failure](./image/gRPC_failure.png) 
-
+  To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
+   ![icmp_payload](./image/decision_table.png) 
 
 ### Incremental Featrues   
 * Default gateway to T1  
