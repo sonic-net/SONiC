@@ -16,6 +16,7 @@ For active-active setup, some complexity is transferred from smart y-cable to se
 
 For active-active setup, the requirements for server side are:
 1. Server NIC is responsible to deliver southbound (tier 0 device to server) traffic from either uplinks to applications running on server host.
+   * ToRs are presenting same IP, same MAC to server on both links.
 1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
 1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
     * gRPC is introduced for this requirement. 
