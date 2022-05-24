@@ -11,23 +11,41 @@ Active-active dual ToR link manager is an evolution of active-standby dual ToR l
 ## Scope 
 This document provides the high level design of SONiC dual toR solution, supporting active-active setup. 
 
-## Server requirements
-For active-active setup, some complexity is transferred from smart y-cable to server side. Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed any more.
+## Content
+[1 Cluster Topology](#active_active_hld.md#1-cluster-topology)  
 
-For active-active setup, the requirements for server side are:
-1. Server NIC is responsible to deliver southbound (tier 0 device to server) traffic from either uplinks to applications running on server host.
-   * ToRs are presenting same IP, same MAC to server on both links.
-1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
-1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
-    * gRPC is introduced for this requirement. 
-    * Each ToR will have a well-known IP. Server NIC should dispatch gRPC replies towards these IPs to the corresponding uplinks.
-1. Server should replicate the northbound traffic to both ToRs:
-    * Specified ICMP replies (for probing link health status)
-    * ARP propagation
-    * Neighbor advertisements
+[2 Requrement Overview](#2-requrement-overview)  
+  - [2.1 Server Requirements](#21-server-requirements)
+  - [2.2 SONiC Requirements](#22-sonic-requirements)  
 
+[3 SONiC ToR Controlled Solution](#3-sonic-tor-controlled-solution)  
+  - [3.1 IP Routing](#31-ip-routing)
+    - [3.1.1 Normal Scenario](#311-normal-scenario)
+    - [3.1.2 Server Uplink Issue](#312-server-uplink-issue)
+    - [3.1.3 ToR Failure](#313-tor-failure)
+    - [3.1.4 Comparison to Active-Standby ](#314-comparison-to-active-standby)
+  - [3.2 DB Schema Changes](#32-db-schema-changes)
+    - [3.2.1 Config DB](#321-config-db)
+    - [3.2.2 App DB](#322-app-db)
+    - [3.2.3 State DB](#323-state-db)
+  - [3.3 Linkmgrd](#33-linkmgrd)
+    - [3.3.1 Link Prober](#331-link-prober)
+    - [3.3.2 Link State](#332-link-state)
+    - [3.3.3 Admin Forwarding State](#333-admin-forwarding-state)
+    - [3.3.4 Acitve-Active State Machine](#334-acitve-active-state-machine)
+    - [3.3.5 Default gateway to T1](#335-default-gateway-to-t1)
+    - [3.3.6 Incremental Featrues](#336-incremental-featrues)
+  - [3.4 Orchagent](#34-orchagent)
+    - [3.4.1 IPinIP tunnel](#341-ipinip-tunnel)
+    - [3.4.2 Flow Diagram and Orch Components](#342-flow-diagram-and-orch-components)
+  - [3.5 Transceiver Daemon](#35-transceiver-daemon)
+    - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
+  - [3.6 State Transition Flow](#36-state-transition-flow)
+  - [3.7 Command Line](#37-command-line)
 
-## Cluster Topology 
+[4 Warm Reboot Support](#4-warm-reboot-support)
+
+## 1 Cluster Topology 
 There are a certain number of racks in a row, each rack will have 2 ToRs, and each row will have 8 Tier One (T1s) network devices. Each server will have a NIC connected to 2 ToRs with 100 Gbps DAC cables. 
 
 In this design:
@@ -37,14 +55,77 @@ In this design:
 
 ![image info](./image/cluster_topology.png)
 
-### Bandwidth 
+__Bandwidth__ 
 Each ToR will have single port-channel to each T1. The port-channel will have 2 members of 100Gbps. Therefore, each T0 will have total of 8\*2\*100 Gbps = 1.6 Tbps to all T1s.   
 
 T1s will have 8 uplinks to T2s. Therefore, total T1s uplink will be 64. Total uplink bandwidth is 6.4Tbps.
 
+## 2 Requrement Overview
+### 2.1 Server Requirements
+ Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed any more. Hence, some complexity is transferred from smart y-cable to server side.
 
-## SONiC ToR Controlled Solution 
-### Normal Scenario  
+For active-active setup, the requirements for server side are:
+1. Server NIC is responsible to deliver southbound (tier 0 device to server) traffic from either uplinks to applications running on server host.
+   * ToRs are presenting same IP, same MAC to server on both links.
+1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
+1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
+    * gRPC is introduced for this requirement. 
+    * Each ToR will have a well-known IP. Server NIC should dispatch gRPC replies towards these IPs to the corresponding uplinks.
+1. Server should replicate these northbound traffic to both ToRs:
+    * Specified ICMP replies (for probing link health status)
+    * ARP propagation
+    * IPv6 router solicitation, neighbor solicitation and neighbor advertisements
+    
+    Check pseudo code below for details of IO scheduling contract. 
+    ```
+    // gRPC Response
+    if (ethertype == IPv4 && DestIP == Loopback3_Port0_IPv4) or (ethertype == IPv6 && DestIP == Loopback3_Port0_IPv6) 
+    { 
+      if (Port 0.LinkState == Up)
+        Send to Port 0
+      else
+        Drop
+    }
+    else if (ethertype == IPv4 && DestIP == Loopback3_Port1_IPv4) or (ethertype == IPv6 && DestIP == Loopback3_Port1_IPv6)  
+    { 
+      if (Port 1.LinkState == Up)
+        Send to Port 1
+      else
+        Drop
+    } 
+    
+    // ARP
+    else if (ethertype == ARP)
+      Duplicate to both ports
+    
+    // ICMP Heartbeat Probing 
+    else if ((ethertype == IPv4 && DestIP == Loopback2_IPv4 && IPv4.Protocol == ICMP) or (ethertype == IPv6 && DestIP == Loopback2_IPv6 && IPv6.Protocol == ICMPv6))
+      Duplicate to all active ports
+    
+    // IPv6 router solicitation, neighbor solicitation and neighbor advertisements
+    else if (ethertype == IPv6 && IPv6.Protocol == ICMPv6 && ICMPv6.Type in [133, 135, 136])
+      Duplicate to both ports
+    else if (gRPC status == "Port 0 disabled" || Port0.LinkState == Down)
+      Send to Port 1
+    else if (gRPC status == "Port 1 disabled" || Port1.LinkState == Down)
+      Send to Port 0
+    
+    // Other Traffic
+    else
+      Send packet on either port
+    ```
+
+### 2.2 SONiC Requirements
+1. Introduce active-active mode into MUX state machine. 
+1. Probe to determine if link is healthy or not. 
+1. Signal NIC if ToR is switching active or standby.
+1. Rescue when peer ToR failure occures.
+1. Unblock traffic when cable control channel is unreachable.  
+
+## 3 SONiC ToR Controlled Solution 
+
+### 3.1 IP Routing
+#### 3.1.1 Normal Scenario  
 Both T0s are up and functioning and both the server NIC connections are up and functioning.
 * Control Plane  
   UT0 and LT0 will advertise same VLAN  (IPv4 and IPv6) to upstream T1s. Each T1 will see there are 2 available next hops for the VLAN. T1s advertise to T2 as normal.
@@ -61,7 +142,7 @@ Both T0s are up and functioning and both the server NIC connections are up and f
     * NIC determines which link to use and sends all the packet on a flow using the same link.
     * T0 sends the traffic to destination server if T0 has learnt the MAC address of the destination server.
 
-### Server Uplink Issue  
+#### 3.1.2 Server Uplink Issue  
 Both T0s are up and functioning and some servers NIC are only connected to 1 ToR (due to cable issue, or the cable is taken out for maintenance).  
 * Control Plane  
 No change from the normal case. 
@@ -69,7 +150,7 @@ No change from the normal case.
   * Traffic to the server  
     * Traffic lands on any of the T1 by ECMP from T2s.
     * T1 forwards traffic to either of the T0s by ECMP.
-    * **If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over VxLAN encap via T1s.**  
+    * **If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over IPinIP encap via T1s.**  
     * T0 sends the traffic to the server and NIC delivers traffic up the stack. 
   * Traffic from the server to outside the cluster   
     * T0 will signal to NIC which side to use.  
@@ -78,10 +159,10 @@ No change from the normal case.
   * Traffic from the server to within the cluster  
     * T0 will signal to NIC which side to use. 
     * NIC determines which link to use and sends all the packets on a flow using the same link. If Server NIC has only 1 connection up, all traffic will be on this connection
-    * If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over VxLAN encap via T1s. 
+    * If T0 does not have the downlink to the server, T0 will send the traffic to the peer T0 over IPinIP encap via T1s. 
     * T0 sends the traffic to the server.
 
-### ToR Failure  
+#### 3.1.3 ToR Failure  
 Only 1 T0s is up and functioning.
 * Control Plane  
 Only 1 T0 will advertise the VLAN (IPv4 and v6) to upstream T1s. 
@@ -97,22 +178,47 @@ Only 1 T0 will advertise the VLAN (IPv4 and v6) to upstream T1s.
     * T0 will signal to NIC which side to use.
     * T0 sends the traffic to the server. 
 
-Highlight on the difference with Active-Standby:   
-1. In active-standby dual ToR design, traffic from server is duplicate to both T0s, standby ToR needs to drop the packets. In active-active, NIC will determine which link to use if both are available. 
-1. In active-ative design, servers have up to 2 links for traffic, T1s and above devices will see more throughput from server. 
+#### 3.1.4 Comparison to Active-Standby  
+Highlight on the common and differences with Active-Standby:   
+  ![comparison](./image/difference.png)  
 
-## Linkmgrd  
+### 3.2 DB Schema Changes
+#### 3.2.1 Config DB 
+* New field in `MUX_CABLE` table to determine cable type
+```
+MUX_CABLE|PORTNAME:
+  cable_type: active-standby|active-active
+```
+#### 3.2.2 App DB 
+* New table to invoke transceiver daemon to query server side forwarding state
+```
+FORWARDING_STATE_COMMAND | PORTNAME:
+  command: probe | set_active_self | set_standby_self | set_standby_peer 
+FORWARDING_STATE_RESPONSE | PORTNAME:
+  response: active | standby | unknown | error 
+  response_peer: active | standby | unknown | error 
+```
+* New table for transceiver daemon to write peer link state to linkmgrd
+```
+PORT_TABLE_PEER|PORTNAME
+  oper_status: up|down
+```
+* New table to invoke transceiver daemon to set peer's server side forwarding state
+```
+HW_FORWARDING_STATE_PEER|PORTNAME
+  state: active|standby|unknown 
+```
+#### 3.2.3 State DB 
+* New table for transceiver daemon to write peer's server side forwarding state to linkmgrd
+```
+HW_MUX_CABLE_TABLE_PEER| PORTNAME
+ state: active |standby|unknown
+```
+
+### 3.3 Linkmgrd  
 Linkmgrd will provide the determination of a ToR / link's readiness for use. 
 
-### Requirement
-1. Introduce active-active mode into MUX state machine. 
-1. Probe to determine if link is healthy or not. 
-1. Signal NIC if ToR is switching active or standby.
-1. Rescue when peer ToR failure occures.
-1. Unblock traffic when cable control channel is unreachable.  
-
-### Solution 
-* Link Prober   
+#### 3.3.1 Link Prober   
   Linkmgrd will keep the link prober design from active-standby mode for monitoring link health status. Link prober will send ICMP packets and listen to ICMP response packets. ICMP packets will contain payload information about the ToR. ICMP replies will be duplicated to both ToRs from the server, hence a ToR can monitor the health status of its peer ToR as well.  
 
   Link Prober will report 4 possible states:  
@@ -121,6 +227,8 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   * LinkProberPeerUnknown: It indicates that LinkMgr did not receive ICMP replies containing ID of the peer ToR. Hence, there is a chance that peer ToR’s link is currently down. 
   * LinkProberPeerAcitve: It indicates that LinkMgr receives ICMP replies containing ID of the peer ToR, or in other words, peer ToR’s links appear to be active.  
 
+  By default, the heartbeat probing interval is 100 ms. It takes 3 lost of link prober packets, to determine link is unhealthy. Server issue can also cause link prober packet loss, but ToR won't distinguish it from link issue. 
+
   __ICMP Probing Format__  
   The source MAC will be ToR's SVI mac address. Ethernet destination will be the well-known MAC address. Source IP will be ToR's Loopback IP, destination IP will be SoC's IP address, which will be introduced as a field in minigraph.   
   ![icmp_format](./image/icmp_format.png)  
@@ -128,13 +236,13 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   Linkmgrd also adapt TLV (Type-Length-Value) as the encoding schema in payload for additional information elements, including cookie, version, ToR GUID etc.  
    ![icmp_payload](./image/icmp_payload.png)  
 
-* Link State  
+#### 3.3.2 Link State  
   When link is down, linkmgrd will receive notification from SWSS based on kernel message from netlink. This notification will be used to determine if ToR is healthy. 
 
-* Admin Forwarding State   
+#### 3.3.3 Admin Forwarding State   
   ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding.  
   
-* Acitve-Active State Machine  
+#### 3.3.4 Acitve-Active State Machine  
   Active-acitve state transition logics are simplified compared to active-standby. In active-standby, linkmgrd makes mux toggle decisions based on y-cable direction, while for active-active, two links are more independent. Linkmgrd will only make state transition decisions based on healthy indicators. 
 
   To be more specific, if link prober indicates active AND link state appears to be up, linkmgrd should determine link's forwarding state as active, otherwise, it should be standby.
@@ -147,8 +255,45 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   When control channel is unreachable, ToR won't block the traffic forwarding, but it will periodically check gRPC server's healthiness. It will make sure server side's admin forwarding state aligns with linkmgrd's decision.
   ![grpc_failure](./image/gRPC_failure.png) 
 
-* Cable Control through gRPC  
-  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC if ToRs are active through gRPC calls. 
+#### 3.3.5 Default gateway to T1  
+  If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
+
+  To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
+   ![icmp_payload](./image/decision_table.png) 
+
+#### 3.3.6 Incremental Featrues   
+
+* Link Prober Packet Loss Statics  
+  Link prober will by default send heartbeat packet every 100 ms, the packet loss statics can be a good measurement of system healthiness. An incremental feature is to collect the packet loss counts, start time and end time. The collected data is stored and updated in state db. User can check and reset through CLI. 
+ 
+* Supoort for Detachment  
+  User can config linkmgrd to a certain mode, so it won't switch to active / standby based on health indicators. User can also config linkmgrd to a mode, so it won't modify peer's forwarding state. This support will be useful for maintenance, upgrade and testing scenarios. 
+
+### 3.4 Orchagent 
+#### 3.4.1 IPinIP tunnel
+Orchagent will create tunnel at initialization and add / remove routes to forward traffic to peer ToR via this tunnel when linkmgrd switchs state to standby / active. 
+
+Check below for an example of config DB entry and tunnel utilization when LT0's link is having issue. 
+  ![tunnel](./image/tunnel.png) 
+
+#### 3.4.2 Flow Diagram and Orch Components
+Major components of Orchagent for this IPinIP tunnel are MuxCfgOrch, TunnelOrch, MuxOrch. 
+  ![tunnel](./image/orchagent.png)
+
+1. MuxCfgOrch  
+MuxCfgOrch listens to config DB entries to populate the port to server IP mapping to MuxOrch. 
+
+1. TunnelOrch  
+TunnelOrch will subscribe to `MUX_TUNNEL` table and create tunnel, tunnel termination, and decap entry. This tunnel object would be created when initializing. This tunnel object would be used as nexthop object by MuxOrch for programming route via SAI_NEXT_HOP_TYPE_TUNNEL_ENCAP. 
+
+1. MuxOrch   
+MuxOrch will listen to state changes from linkmgrd and does the following at a high-level:
+    * Enable / disable neighbor entry.   
+    * Add / remove tunnel routes.
+
+### 3.5 Transceiver Daemon
+#### 3.5.1 Cable Control through gRPC  
+  In active-active design, we will use gRPC to do cable control and signal NIC if ToRs is up active. SoC will run a gRPC server. Linkmgrd will determine server side forwarding state based on link prober status and link state. Then linkmgrd can invoke transceiver daemon to update NIC wether ToRs are active or not through gRPC calls. 
   
   Current defined gRPC services between SoC and ToRs related with linkmgrd cable controlling:  
   * DualToRActive
@@ -158,19 +303,14 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   * GracefulRestart
       1. Shutdown / restart notification from SoC to ToR.
 
-  To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
-   ![icmp_payload](./image/decision_table.png) 
+### 3.6 State Transition Flow
+The following UML sequence illustrates the state transtion when linkmgrd state moves to active. The flow will be similar for moving to standby. 
 
-### Incremental Featrues   
-* Default gateway to T1  
-  If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
+![state transition flow](./image/state_transition_flow.png)
 
-* Link Prober Packet Loss Statics
-  Link prober will by default send heartbeat packet every 100 ms, the packet loss statics can be a good system healthiness measurement. An incremental feature is to collect the packet loss counts, start time and end time. The collected data is stored and updated in state db. User can check and reset through CLI. 
- 
-* Supoort for Detachment
-  User can config linkmgrd to a certain mode, so it won't switch to active / standby based on health indicators. User can also config linkmgrd to a mode, so it won't modify peer's forwarding state. This support will be useful for maintenance, upgrade and testing scenarios. 
+### 3.7 Command Line  
+TBD 
 
-### Command Line 
+## 4 Warm Reboot Support
 TBD
 
