@@ -282,16 +282,16 @@ root@r-lionfish-14:/home/admin# show interfaces counters rif
  Ethernet236        4  0.00 B/s    0.00/s         1        0  0.00 B/s    0.00/s         0
 PortChannel1        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
        Vlan2        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
+Ethernet0.10        0  0.00 B/s    0.00/s         0        0  0.00 B/s    0.00/s         0
 ```
 
 ## 2.6 CLI
 ### 2.6.1 Config command
-
-The following command will be added to configure IP interface loopback action:
+A new SONiC CLI command is introduced to configure IP interface loopback action.
 ```
-config interface loopback-action <interface-name> <action>
+# Set loopback action per INTERFACE/PORTCHANNEL_INTERFACE/VLAN_INTERFACE/VLAN_SUB_INTERFACE
+config interface loopback-action <intf-name> drop|forward
 ```
-action options: "drop", "forward"
 
 Examples:
 ```
@@ -300,7 +300,7 @@ config interface loopback-action Vlan100 forward
 ```
 
 ### 2.6.2 Show command
-The following command will be added to show the configured loopback action.
+A new SONiC CLI command is introduced to show the configured loopback action.
 IP interfaces that user did not configure loopback action on them, will not be shown in the table.
 ```
 show ip interfaces loopback-action
@@ -337,23 +337,23 @@ No special handling is required
 
 # 3 Test plan
 ## 3.1 Unit tests via VS
-Add the following test cases in file sonic-swss/tests/test_interface.py.
-Test case will perform the following:
+Add the following test case in file sonic-swss/tests/test_interface.py.
 1. Create IP interface by writing to config DB
 2. Set loopback action on IP interface
 3. Check table INTF_TABLE in App DB
 4. Check table SAI_OBJECT_TYPE_ROUTER_INTERFACE in ASIC DB
 5. Create port-channel IP interface and repeat steps 2 to 4.
 6. Create interface VLAN and repeat steps 2 to 4.
+7. Create subinterface and repeat steps 2 to 4.
 
 ## 3.2 System tests
 Add the following test in sonic-mgmt.
-Test will perform the following:
 1. Create IP interface Ethernet.
-2. Loopback action not configured, send traffic, verify lopbacked packets are forwarded.
+2. Loopback action not configured, send traffic, verify lopbacked packets are forwarded (SAI default).
 3. Set loopback action to drop, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
 4. Save config and reboot, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
 5. Set loopback action to forward, send traffic, verify lopbacked packets are forwarded.
 6. Save config and reboot, send traffic, verify lopbacked packets are forwarded.
 7. Create port-channel IP interface and repeat steps 2 to 6.
 8. Create interface VLAN and repeat steps 2 to 6.
+9. Create subinterface and repeat steps 2 to 6.
