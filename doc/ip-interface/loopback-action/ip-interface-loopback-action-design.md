@@ -227,7 +227,7 @@ When upgrading from SW image which does not support the new schema to a one whic
 #### 2.3.1.2 Handle set in init
 In init, loopback action configuration is being handled as part of the IP interface creation.
 During init, all field-value pairs of each key in INTF_TABLE table (e.g. INTF_TABLE|Vlan100) are being received in intfOrch together at once.
-Those field-value pairs are the interface attributes, e.g. mac address, mpls enable, loopback action etc.
+Those field-value pairs are the interface attributes, e.g. mac address, loopback action etc.
 
 ### 2.3.2 Loopback action set interface Ethernet
 Loopback action set on interface Ethernet flow is the same as interface vlan flow besides config DB and app DB keys being used. Used keys are defined in [2.2.1 Config DB](#221-config-db).
