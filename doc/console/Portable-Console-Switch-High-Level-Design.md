@@ -13,7 +13,7 @@ In this design document, we provide the standard for adapting console devices to
 ## Assumption
 
 1. In the current design, we only support **USB** console devices.
-2. Only **one** vendor's console devices can work on a SONiC switch at the same time. If console devices from multiple vendors are plugged in at the same time, none of these devices will work.
+2. Only **one** vendor's console devices can work on a SONiC switch at the same time. If console devices from multiple vendors are plugged in at the same time and the user doesn't manually specify `vendor_name`, none of these devices will work. (Look at [Factory Function Design](#factory-function-design) for more information.)
 3. Multiple console devices of the **same model** from the **same vendor** can be daisy-chained to extend more console ports. Whether daisy-chaining is supported and how many devices are supported in daisy-chain depends on the vendor's implementation.
 
 ## Setup Portable Console Device in SONiC
@@ -21,7 +21,7 @@ In this design document, we provide the standard for adapting console devices to
 After the console device is plugged into the SONiC switch, we need to set up the console device in SONiC for further use. The setup process includes:
 
   1. Install corresponding drivers.
-  2. Map console interface from `/dev/ttyUSB<id>` to `/dev/console-<id>`. (Usually done with the help of [udev](https://wiki.debian.org/udev))
+  2. Map console interface from `/dev/ttyUSB<id>` to `/dev/console-<line-number>`. (Usually done with the help of [udev](https://wiki.debian.org/udev))
   3. Any other necessary steps.
 
 Since we prefer the setup process completed after building SONiC image, a directory is provided to vendors to put all the files (eg. driver, udev `.rules`, etc.) they need. A `setup.sh` script file must be placed in this directory, which will be run **during the SONiC image build process**. After SONiC image has been built, all the necessary files will be installed.
