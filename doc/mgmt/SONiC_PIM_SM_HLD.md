@@ -171,6 +171,7 @@ PIM Any Source Multicast(ASM) control plane support is already available in Soni
 3. Support for GNMI subscriber
 4. Support save and reload of PIM-SM configurations.
 5. Support to display PIM SM details in "show running-config" and also add "show running-config pim"
+6. Existing clear commands are used for PIM-ASM no new clear commands are added as part of this feature.
 
 ### 1.1.3 Scalability Requirements
 The following are the scalability requirements for this feature:
@@ -421,19 +422,16 @@ union mfpm_data_msg_t
 
 ### 3.2.1 **SAI specific data structure and callback changes**
 
-Following data structures will be included and exposed to SYNCD to receive IPMC entry aliveness data,
+SAI API sai_set_switch_attribute() will be used by Orchagent to set the IPMC aging time with the attribute mentioned below,
+sai_get_switch_attribute() to get the configured value. <br>
 
-typedef enum _sai_ipmc_event_t
-{
-      
-SAI_IPMC_EVENT_AGE,
-      
-SAI_IPMC_EVENT_DONT_AGE,
-      
-} sai_ipmc_event_t;
+   attr.id = SAI_SWITCH_ATTR_IPMC_AGING_TIME; <br>
+   attr.value.u32 = aging_time; // in seconds <br>
 
-**SAI provide the data in the below mentioned structure format as part of callback.**
-      
+SYNCD registers a callback named sai_ipmc_event_notification_fn to receive IPMC entries aliveness data as shown below.    
+typedef void (*sai_ipmc_event_notification_fn)(_In_ uint32_t count,_In_ const sai_ipmc_event_notification_data_t *data)
+
+**SAI provides the aliveness data in the below mentioned structure format as part of callback.** <br>
 typedef struct _sai_ipmc_event_notification_data_t
 {
       
@@ -444,11 +442,18 @@ sai_ipmc_entry_t ipmc_entry;
 } sai_ipmc_event_notification_data_t;
 
 **sai_ipmc_entry_t** - This is an existing SAI data structure.
+      
+typedef enum _sai_ipmc_event_t
+{
+      
+SAI_IPMC_EVENT_AGE,
+      
+SAI_IPMC_EVENT_DONT_AGE,
+      
+} sai_ipmc_event_t;
 
-SYNCD registers the following callback API with SAI to receive IPMC entries aliveness data,
+  
 
-typedef void (*sai_ipmc_event_notification_fn)(_In_ uint32_t count,
-_In_ const sai_ipmc_event_notification_data_t *data);
       
 ## 3.3 DB Changes
 PIM ASM leverages all the existing DBs. There are few new DBs introduced in CONFIG and STATE DBs like PIM_GLOBALS_STATIC_RP & IPMC_MROUTE_AGE_TABLE for ASM specific functionality.
@@ -838,7 +843,7 @@ module: sonic-pim
 |                                  **Syntax**                                   | ip pim [vrf vrf-name] spt-threshold infinity { prefix-list prefix-list-name} |     
 |                                                                               | no ip pim [vrf vrf-name] spt-threshold infinity       |
 | **Parameters**                                                                |                                                                                       |     
-| vrf                                                                           | Applies to specific VRF if VRF input is provided       |     
+| vrf                                                                           | Enter the keyword vrf followed by the name of the VRF      |     
 |spt-threshold  | Shortest path tree switchover   |
 |infinity       | Disables SPT switchover
 |prefix-list   |  Provide the prefix-list or list of multicast groups on which SPT switchover has to be disabled or re-enabled.
