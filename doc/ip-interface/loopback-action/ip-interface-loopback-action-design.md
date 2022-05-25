@@ -22,7 +22,8 @@
             - [2.3.1.2 Handle set in init](#2312-handle-set-in-init)
         - [2.3.2 Loopback action set interface Ethernet](#232-loopback-action-set-interface-ethernet)
         - [2.3.3 Loopback action set interface port-channel](#233-loopback-action-set-interface-port-channel)
-        - [2.3.4 IP interface creation](#234-ip-interface-creation)
+        - [2.3.4 Loopback action set subinterface](#234-loopback-action-set-subinterface)
+        - [2.3.5 IP interface creation](#235-ip-interface-creation)
     - [2.4 SAI](#24-sai)
     - [2.5 Statistics](#25-statistics)
     - [2.6 CLI](#26-cli)
@@ -33,7 +34,6 @@
 - [3 Test plan](#3-test-plan)
     - [3.1 Unit tests via VS](#31-unit-tests-via-vs)
     - [3.2 System tests](#32-system-tests)
-- [4 Open items](#4-open-items)    
 
 ## Revision
 | Rev | Date       | Author         | Description     |
@@ -63,12 +63,15 @@ IP interface loopback action is a feature that allows user to change the way rou
 2. An IP Interface can be one of the following:
     1. Interface vlan
     2. Interface Ethernet
-    3. Interface port-channel 
+    3. Interface port-channel
+    4. Subinterface
 3. Loopback action can be set to "drop" or "forward". 
 4. CLI will reject loopback action setting on a non IP interface. Interface is considered as an IP interface if it has entry in:
     1. VLAN_INTERFACE table for interface vlan (e.g. VLAN_INTERFACE|Vlan100)
     2. INTERFACE table for interface Ethernet (e.g. INTERFACE|Ethernet232)
     3. PORTCHANNEL_INTERFACE table for interface port-channel (e.g. PORTCHANNEL_INTERFACE|PortChannel1)    
+    4. VLAN_SUB_INTERFACE table for subinterface (e.g. VLAN_SUB_INTERFACE|Ethernet0.10)
+
 5. The configured loopback action can be viewed by show command in CLI.
 6. When SONiC configuration of loopback action is missing the system will behave as it is today, based on SAI behavioural model, forward the loopbacked packets.
 
@@ -136,12 +139,28 @@ Example:
 3. PORTCHANNEL_INTERFACE
 ```
 PORTCHANNEL_INTERFACE|interface-name
-    "loopback_action": action 
+    "loopback_action": action
 ```
 Example:
 ```
 "PORTCHANNEL_INTERFACE": {
     "PortChannel1": {
+        "loopback_action": "drop",
+        "mac_addr": "00:01:02:03:04:12",
+        "ipv6_use_link_local_only": "enable"
+    },
+}
+```
+
+4. VLAN_SUB_INTERFACE
+```
+VLAN_SUB_INTERFACE|interface-name
+    "loopback_action": action
+```
+Example:
+```
+"VLAN_SUB_INTERFACE": {
+    "Ethernet0.10": {
         "loopback_action": "drop",
         "mac_addr": "00:01:02:03:04:12",
         "ipv6_use_link_local_only": "enable"
@@ -180,6 +199,16 @@ Example for interface port-channel:
         "PortChannel1": {
             "loopback_action": "drop",
             "mac_addr": "00:01:02:03:04:12",
+            "ipv6_use_link_local_only": "enable"
+        }
+    }
+```
+Example for subinterface:
+```
+    "INTF_TABLE": {
+        "Ethernet0.10": {
+            "loopback_action": "drop",
+            "mac_addr": "00:01:02:03:04:12",
             "ipv6_use_link_local_only": "enable"            
         }
     }
@@ -206,7 +235,10 @@ Loopback action set on interface Ethernet flow is the same as interface vlan flo
 ### 2.3.3 Loopback action set interface port-channel
 Loopback action set on interface port-channel flow is the same as interface vlan flow besides config DB and app DB keys being used. Used keys are defined in [2.2.1 Config DB](#221-config-db).
 
-### 2.3.4 IP interface creation
+### 2.3.4 Loopback action set subinterface
+Loopback action set on subinterface flow is the same as interface vlan flow besides config DB and app DB keys being used. Used keys are defined in [2.2.1 Config DB](#221-config-db).
+
+### 2.3.5 IP interface creation
 If loopback action was not configured by the user, default loopback action is derived from SAI behavioral model which is forward.
 
 ## 2.4 SAI
@@ -288,6 +320,7 @@ The following YANG models will be extended in order to provide support for loopb
 1. sonic-interface.yang -> container INTERFACE 
 2. sonic-portchannel.yang -> container PORTCHANNEL_INTERFACE
 3. sonic-vlan.yang -> container VLAN_INTERFACE 
+4. sonic-vlan-sub-interface.yang -> container VLAN_SUB_INTERFACE
 
 New leaf loopback_action will be added:
 ```
