@@ -357,3 +357,5 @@ Add the following test in sonic-mgmt.
 7. Create port-channel IP interface and repeat steps 2 to 6.
 8. Create interface VLAN and repeat steps 2 to 6.
 9. Create subinterface and repeat steps 2 to 6.
+10. Set loopback action on non IP interface.
+11. Set loopback action on non existing interface.
