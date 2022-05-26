@@ -2,7 +2,7 @@
 Docker to Host Communications
 
 # High Level Design Document
-#### Rev 0.7
+#### Rev 0.8
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -33,6 +33,9 @@ Docker to Host Communications
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.7 | 04/23/2020  | Mike Lazar         | Added authentication failure      |
 |     |             |                    | log information                   |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.8 | 05/26/2022  | Gang Lv            | Added generic config updater      |
+|     |             |                    | interface                         |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 
 
@@ -123,6 +126,8 @@ requests to the host to perform "actions". For instance :
 * initiate reboot and warm reboot using existing scripts
 * create show-tech tar file using existing show-tech script
 * config save/reload using existing scripts
+* config apply-patch using existing scripts
+* config checkpoint/delete-checkpoint using existing scripts
 
 In contrast to typical DB operations - CRUD (create, read, update, delete), an "action" is an operation that does not directly modify a DB record, but triggers a host OS system request instead (such as SW image install/update).
 It is recommended that the "Host services" only be defined for this type of applications. 
@@ -143,6 +148,8 @@ Note. The Linux D-Bus implementation uses Unix domain sockets for client to D-Bu
 All containers that use D-Bus services will bind mount
 (-v /var/run/dbus:/var/run/dbus:rw) the host directory where D-Bus service sockets are created.
 This ensures that only the desired containers access the D-Bus host services.
+
+If multiple D-Bus clients simultaneously issue requests, then each request is queued and processed in the order received on a per connection basis.
 
 D-Bus provides a reliable communication channel between client (SONiC management container) and service (native host OS) – all actions are acknowledged and can provide return values. It should be noted that acknowledgements are important for operations such as “image upgrade” or “config-save”. In addition, D-Bus methods can return values of many types – not just ACKs. For instance, they can return strings, useful to return the output of a command.
 
@@ -251,12 +258,56 @@ N/A
 N/A
 ### 3.6.3 REST API Support
 N/A
+### 3.6.4 D-Bus API
+#### 3.6.4.1 showtech
+This API will execute the "show techsupport" command.
+
+Input is date message, and output are return code and error message.
+
+"show techsupport" command could take a few minutes, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.2 save
+This API will execute the "config save" command.
+
+Input is config file name, and output are return code and error message.
+
+#### 3.6.4.3 reload
+This API will execute the "config reload" command.
+
+Input is config file name, and output are return code and error message.
+
+"config reload" command would restart D-Bus host service, so D-Bus client might not receive the response.
+
+#### 3.6.4.4 apply_patch_db
+This API will execute the "config apply-patch" command with SONiC DB schema.
+
+Input is patch file name, and output are return code and error message.
+
+"config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.5 apply_patch_yang
+This API will execute the "config apply-patch" command with SONiC Yang schema.
+
+Input is patch file name, and output are return code and error message.
+
+"config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
+
+#### 3.6.4.6 create_cp
+This API will execute the "config checkpoint" command.
+
+Input is checkpoint name, and output are return code and error message.
+
+#### 3.6.4.7 delete_cp
+This API will execute the "config delete-checkpoint" command.
+
+Input is checkpoint name, and output are return code and error message.
 
 # 4 Flow Diagrams
 
 ![](images/docker-to-host-service.svg)
 
 # 5 Error Handling
+If dbus host service exited abnormally, systemd would restart this service.
 
 The `hostQuery` and `hostQueryAsync` APIs return a standard Go `error` object,
 which can be used to handle any errors that are returned by the D-Bus
