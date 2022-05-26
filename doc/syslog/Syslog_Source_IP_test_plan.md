@@ -167,20 +167,32 @@ SERVER      SOURCE      PORT    VRF
 4. Check there is an error prompt such as: VRF exists in syslog config, it can not be disabled or removed.
 
 
- ### Test cases #6 -  Configure syslog server with invalid source IP
-1. Configure syslog server with invalid IP:
+### Test cases #6 -  Configure syslog server with non-existing source IP
+1. Configure syslog server with a source ip not existing in any vrf:
 ```
-config syslog add 2.2.2.2 ---source 127.0.0.1
+config syslog add 2.2.2.2 ---source 100.100.111.12
 ```
 2. Check there is relevant error prompt like blow
 ```
-Error: Invalid value for "-s" / "--source": 127.0.0.1 is a loopback/multicast IP address
+Error: Invalid value for "-s" / "--source": 100.100.111.12 IP doesn't exist in Linux default VRF
 ```
-3. Check the syslog config doesn't include relevant item 
-4. Repeat step 1~3 with non-existing IP and multicast IP
+3. Check the syslog config doesn't include relevant item
 
 
-### Test cases #7 -  Configure syslog server with non-existing vrf 
+### Test cases #7 -  Configure syslog server with source IP in the other vrf
+1. Configure ip on one specified vrf such as default
+2. Configure syslog server with source IP in the other vrf such as Vrf-data:
+```
+config syslog add 2.2.2.2 ---source 10.210.24.128 --vrf Vrf-data
+```
+3. Check there is relevant error prompt like blow
+```
+Error: Invalid value for "-s" / "--source": 10.210.24.128 IP doesn't exist in Linux Vrf-data VRF
+```
+4. Check the syslog config doesn't include relevant item
+
+
+### Test cases #8-  Configure syslog server with non-existing vrf 
 1. Configure syslog server with non-existing vrf:
 ```
 config syslog add 2222::2222  --vrf vrf-non
@@ -192,7 +204,7 @@ Error: Invalid value for "-r" / "--vrf": invalid choice: vrf-non. (choose from d
  3. Check the syslog config doesn't include relevant item
  
  
- ### Test cases #8 -  After Configure syslog server and save config, do cold/fast/warm reboot, check syslog config still work
+### Test cases #9 -  After Configure syslog server and save config, do cold/fast/warm reboot, check syslog config still work
 1. Configure syslog server with VRF/Source: set/set like below:
 ```
 config syslog add 2.2.2.2 --source 1.1.1.1 --vrf default
