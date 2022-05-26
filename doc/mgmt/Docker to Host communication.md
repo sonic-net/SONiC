@@ -149,7 +149,7 @@ All containers that use D-Bus services will bind mount
 (-v /var/run/dbus:/var/run/dbus:rw) the host directory where D-Bus service sockets are created.
 This ensures that only the desired containers access the D-Bus host services.
 
-If multiple D-Bus clients simultaneously issue requests, then each request is queued and processed in the order received on a per connection basis.
+If multiple D-Bus clients simultaneously issue requests, then each request is queued and processed in the order received.
 
 D-Bus provides a reliable communication channel between client (SONiC management container) and service (native host OS) – all actions are acknowledged and can provide return values. It should be noted that acknowledgements are important for operations such as “image upgrade” or “config-save”. In addition, D-Bus methods can return values of many types – not just ACKs. For instance, they can return strings, useful to return the output of a command.
 
