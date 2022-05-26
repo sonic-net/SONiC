@@ -259,45 +259,45 @@ N/A
 ### 3.6.3 REST API Support
 N/A
 ### 3.6.4 D-Bus API
-#### 3.6.4.1 showtech
+#### 3.6.4.1 showtech.info
 This API will execute the "show techsupport" command.
 
 Input is date message, and output are return code and error message.
 
 "show techsupport" command could take a few minutes, and D-Bus client should use timeout or asynchronous request.
 
-#### 3.6.4.2 save
+#### 3.6.4.2 config.save
 This API will execute the "config save" command.
 
 Input is config file name, and output are return code and error message.
 
-#### 3.6.4.3 reload
+#### 3.6.4.3 config.reload
 This API will execute the "config reload" command.
 
 Input is config file name, and output are return code and error message.
 
 "config reload" command would restart D-Bus host service, so D-Bus client might not receive the response.
 
-#### 3.6.4.4 apply_patch_db
+#### 3.6.4.4 gcu.apply_patch_db
 This API will execute the "config apply-patch" command with SONiC DB schema.
 
 Input is patch file name, and output are return code and error message.
 
 "config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
 
-#### 3.6.4.5 apply_patch_yang
+#### 3.6.4.5 gcu.apply_patch_yang
 This API will execute the "config apply-patch" command with SONiC Yang schema.
 
 Input is patch file name, and output are return code and error message.
 
 "config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
 
-#### 3.6.4.6 create_cp
+#### 3.6.4.6 gcu.create_cp
 This API will execute the "config checkpoint" command.
 
 Input is checkpoint name, and output are return code and error message.
 
-#### 3.6.4.7 delete_cp
+#### 3.6.4.7 gcu.delete_cp
 This API will execute the "config delete-checkpoint" command.
 
 Input is checkpoint name, and output are return code and error message.
@@ -323,7 +323,21 @@ N/A
 N/A
 
 # 9 Unit Test
-List unit test cases added for this feature including warm boot.
+| Test Case | Description |
+| ---- | ---- |
+| 1 | Invoke showtech.info API, and CLI command is successful. |
+| 2 | Invoke config.save API, and CLI command is successful. |
+| 3 | Invoke config.save API, and CLI command failed. |
+| 4 | Invoke config.reload API, and CLI command is successful. |
+| 5 | Invoke config.reload API, and CLI command failed. |
+| 6 | Invoke gcu.apply_patch_db API, and CLI command is successful. |
+| 7 | Invoke gcu.apply_patch_db API, and CLI command failed. |
+| 8 | Invoke gcu.apply_patch_yang API, and CLI command is successful. |
+| 9 | Invoke gcu.apply_patch_yang API, and CLI command failed. |
+| 10 | Invoke gcu.create_cp API, and CLI command is successful. |
+| 11 | Invoke gcu.create_cp API, and CLI command failed. |
+| 12 | Invoke gcu.delete_cp API, and CLI command is successful. |
+| 13 | Invoke gcu.delete_cp API, and CLI command failed. |
 
 # 10 Internal Design Information
 N/A
