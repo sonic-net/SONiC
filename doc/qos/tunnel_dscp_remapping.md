@@ -19,7 +19,8 @@
 ### 1.1 Revision ###
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             | Bing Wang   | Initial version                   |
+| 0.1 | 4/14, 2022            | Bing Wang   | Initial version                   |
+| 0.2 | 5/26, 2022 | Bing Wang  | Update port level TC_TO_PRIORITY qos map|
 
 
 ## 2 Scope ##
@@ -105,7 +106,7 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
             "30": "1",
             "31": "1",
             "32": "1",
-            "33": "2", // Original map "33" : "1" 
+            "33": "8", // Original map "33" : "1" 
             "34": "1",
             "35": "1",
             "36": "1",
@@ -151,10 +152,29 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
             "4": "6", // Original map "4" : "4"
             "5": "0",
             "6": "0",
-            "7": "0"  // Original map "7" : "7"
+            "7": "0",  // Original map "7" : "7"
+            "8": "0"   // TC 8 is mapped to PG 0
     }
     ```
 
+    As the tunnel level `TC_TO_PRIORITY_GROUP_MAP` depends on the port level `TC_TO_PRIORITY_GROUP_MAP`, therefore, the `TC_TO_PRIORITY_GROUP_MAP` at port level is also updated.
+
+    ```json
+    "TC_TO_PRIORITY_GROUP_MAP": {
+        "AZURE": {
+            "0": "0",
+            "1": "0",
+            "2": "2", // Original map "2": "2"
+            "3": "3", 
+            "4": "4",
+            "5": "0",
+            "6": "6", // Original map "6": "0"
+            "7": "7",
+            "8": "0" // TC 8 is mapped to PG 0
+        },
+    }
+    ```
+    Since two lossy PGs (2 and 6) are added, the `qos_config.j2` template need to be improved to add lossy pg profile for `PG2` and `PG6`.
 * Table for encap
 
     TC_TO_QUEUE_MAP for remapping queue
@@ -169,7 +189,8 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
             "4": "6", // Original map "4" : "4"
             "5": "5",
             "6": "1", // Original map "6" : "6"
-            "7": "7"
+            "7": "7",
+            "8": "1", // TC 8 is mapped to Queue 1
     }
     ``` 
 
@@ -180,12 +201,13 @@ Before remapping to queue 2 and 6, both queues are required to be cleared. Hence
         "AZURE_TUNNEL": {
             "0": "8",
             "1": "0",
-            "2": "33",
+            "2": "0",
             "3": "2",
             "4": "6",
             "5": "46",
             "6": "0",
-            "7": "48"
+            "7": "48",
+            "8": "33" // Map TC 8 to 33 to preserve the DSCP value
     }
     ```
 
