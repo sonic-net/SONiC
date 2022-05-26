@@ -167,7 +167,32 @@ SERVER      SOURCE      PORT    VRF
 4. Check there is an error prompt such as: VRF exists in syslog config, it can not be disabled or removed.
 
 
-### Test cases #6 -  After Configure syslog server and save config, do cold/fast/warm reboot, check syslog config still work
+ ### Test cases #6 -  Configure syslog server with invalid source IP
+1. Configure syslog server with invalid IP:
+```
+config syslog add 2.2.2.2 ---source 127.0.0.1
+```
+2. Check there is relevant error prompt like blow
+```
+Error: Invalid value for "-s" / "--source": 127.0.0.1 is a loopback/multicast IP address
+```
+3. Check the syslog config doesn't include relevant item 
+4. Repeat step 1~3 with non-existing IP and multicast IP
+
+
+### Test cases #7 -  Configure syslog server with non-existing vrf 
+1. Configure syslog server with non-existing vrf:
+```
+config syslog add 2222::2222  --vrf vrf-non
+```
+2. Check there is relevant error prompt like blow 
+```
+Error: Invalid value for "-r" / "--vrf": invalid choice: vrf-non. (choose from default, Vrf-red)
+```
+ 3. Check the syslog config doesn't include relevant item
+ 
+ 
+ ### Test cases #8 -  After Configure syslog server and save config, do cold/fast/warm reboot, check syslog config still work
 1. Configure syslog server with VRF/Source: set/set like below:
 ```
 config syslog add 2.2.2.2 --source 1.1.1.1 --vrf default
@@ -186,28 +211,3 @@ SERVER      SOURCE      PORT    VRF
 3. Check the corresponding interface will send syslog message with port 514 and related source IP on dut
 4. Save config and do cold/fast/warm reboot
 5. Check Syslog config still work
-
-
- ### Test cases #7 -  Configure syslog server with invalid source IP
-1. Configure syslog server with invalid IP:
-```
-config syslog add 2.2.2.2 ---source 127.0.0.1
-```
-2. Check there is relevant error prompt like blow
-```
-Error: Invalid value for "-s" / "--source": 127.0.0.1 is a loopback/multicast IP address
-```
-3. Check the syslog config doesn't include relevant item 
-4. Repeat step 1~3 with non-existing IP and multicast IP
-
-
-### Test cases #8 -  Configure syslog server with non-existing vrf 
-1. Configure syslog server with non-existing vrf:
-```
-config syslog add 2222::2222  --vrf vrf-non
-```
-2. Check there is relevant error prompt like blow 
-```
-Error: Invalid value for "-r" / "--vrf": invalid choice: vrf-non. (choose from default, Vrf-red)
-```
- 3. Check the syslog config doesn't include relevant item
