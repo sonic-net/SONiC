@@ -62,9 +62,10 @@ T1s will have 8 uplinks to T2s. Therefore, total T1s uplink will be 64. Total up
 
 ## 2 Requrement Overview
 ### 2.1 Server Requirements
- Each server will have a Network Interface Card (NIC) connected to 2 x 100Gbps uplinks. These uplinks will be connected to 2 different ToRs with Direct Attach Copper (DAC) Cable. No Y-cable is needed any more. Hence, some complexity is transferred from smart y-cable to server side.
+In our cluster setup, as smart y-cable is replaced, some complexity shall be transferred to server NIC. 
 
-For active-active setup, the requirements for server side are:
+Note that, this complexity can be handled by active-active smart cables, or any other deployments, as long as long it meets the requirements below. 
+
 1. Server NIC is responsible to deliver southbound (tier 0 device to server) traffic from either uplinks to applications running on server host.
    * ToRs are presenting same IP, same MAC to server on both links.
 1. Server NIC is responsible to dispense northbound (server to tier 0) traffic between two active links: at IO stream (5 tuples) level. Each stream will be dispatched to one of the 2 uplinks until link state changes. 
@@ -180,7 +181,62 @@ Only 1 T0 will advertise the VLAN (IPv4 and v6) to upstream T1s.
 
 #### 3.1.4 Comparison to Active-Standby  
 Highlight on the common and differences with Active-Standby:   
-  ![comparison](./image/difference.png)  
+
+<table style="text-align: left;">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Active- Standby</th>
+      <th>Active-Active</th>
+      <th>Implication</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Server uplink view</td>
+      <td colspan=2>Single IP, single MAC</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Standby side receive traffic</td>
+      <td colspan=2>Forward it to active ToR through IPinIP tunnel via T1</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>T0 to T1 control plane</td>
+      <td colspan=2>Advertise same set of routes </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>T1 to T0 Traffic</td>
+      <td colspan=2>ECMP</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Southbound traffic</td>
+      <td colspan=2>From either side</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Northbound traffic</td>
+      <td>All is duplicated to both ToRs.</td>
+      <td>NiC determines which side to forward the traffic.</td>
+      <td>Orchagent doesn’t need to drop packets on standby side. </td>
+    </tr>
+    <tr> 
+      <td>Bandwidth</td>
+      <td>Up to 1 link</td>
+      <td>Up to 2 links</td>
+      <td>T1 and above devices see more throughput from server. </td>
+    </tr>
+    <tr>  
+      <td>Cable Control</td>
+      <td>I2C</td>
+      <td>gRPC over DAC cables</td>
+      <td>Control plane and data plane now share the same link. </td>
+    </tr>
+  </tbody>
+</table>
 
 ### 3.2 DB Schema Changes
 #### 3.2.1 Config DB 
@@ -259,7 +315,72 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
 
   To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
-   ![icmp_payload](./image/decision_table.png) 
+
+<table>
+  <thead>
+    <tr>
+      <th colspan=4>Input</th>
+      <th colspan=3>Decision</th>
+    </tr>
+    <tr>
+      <th rowspan=2>Default Route to T1</th>
+      <th colspan=2>Link Prober</th>
+      <th rowspan=2>Link State</th>
+      <th rowspan=2>Link Manager State</th>
+      <th colspan=2>gRPC Action to Update Server-Side Admin Forwarding State</th>
+    </tr>
+    <tr>
+      <th>SELF</th>
+      <th>PEER</th>
+      <th>SELF</th>
+      <th>PEER</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Available</th>
+      <th>Active</th>
+      <th>Active</th>
+      <th rowspan=2>Up</th>
+      <th rowspan=2>Active</th>
+      <th rowspan=2>Set to Active</th>
+      <th>No-op</th>
+    </tr>
+    <tr>
+      <th>Available</th>
+      <th>Active</th>
+      <th>Unknown</th>
+      <th>Set to standby</th>
+    </tr>
+    <tr>
+      <th>Available</th>
+      <th>Unknown</th>
+      <th>*</th>
+      <th>Up</th>
+      <th>Standby</th>
+      <th>Set to standby</th>
+      <th>No-op</th>
+    </tr>
+    <tr>
+      <th>Available</th>
+      <th>*</th>
+      <th>*</th>
+      <th>Down</th>
+      <th>Standby</th>
+      <th>Set to standby</th>
+      <th>No-op</th>
+    </tr>
+    <tr>
+      <th>Missing</th>
+      <th>*</th>
+      <th>*</th>
+      <th>*</th>
+      <th>Standby</th>
+      <th>Set to standby</th>
+      <th>No-op</th>
+    </tr>
+  </tbody>
+</table>
 
 #### 3.3.6 Incremental Featrues   
 
