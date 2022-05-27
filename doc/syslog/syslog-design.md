@@ -449,11 +449,11 @@ config syslog del '2.2.2.2'
 **The following command shows syslog server configuration:**
 ```bash
 root@sonic:/home/admin# show syslog
-SERVER      SOURCE      PORT    VRF
-----------  ----------  ------  --------
-2.2.2.2     1.1.1.1     514     default
-3.3.3.3     1.1.1.1     514     mgmt
-2222::2222  1111::1111  514     Vrf-Data
+SERVER IP    SOURCE IP    PORT    VRF
+-----------  -----------  ------  --------
+2.2.2.2      1.1.1.1      514     default
+3.3.3.3      1.1.1.1      514     mgmt
+2222::2222   1111::1111   514     Vrf-Data
 ```
 
 ## 2.7 YANG model
@@ -513,7 +513,7 @@ module sonic-syslog {
 
                 leaf port {
                     description "Syslog server UDP port";
-                    type uint16;
+                    type inet:port-number;
                 }
 
                 leaf vrf {
@@ -524,7 +524,6 @@ module sonic-syslog {
                         }
                         type vrf-device;
                     }
-                    default "default";
                 }
 
             }
