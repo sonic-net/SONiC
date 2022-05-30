@@ -71,9 +71,9 @@ IP interface loopback action is a feature that allows user to change the way rou
     2. INTERFACE table for interface Ethernet (e.g. INTERFACE|Ethernet232)
     3. PORTCHANNEL_INTERFACE table for interface port-channel (e.g. PORTCHANNEL_INTERFACE|PortChannel1)    
     4. VLAN_SUB_INTERFACE table for subinterface (e.g. VLAN_SUB_INTERFACE|Ethernet0.10)
-
 5. The configured loopback action can be viewed by show command in CLI.
 6. When SONiC configuration of loopback action is missing the system will behave as it is today, based on SAI behavioural model, forward the loopbacked packets.
+7. No changes required in Kernel.
 
 ### 1.2.2 Command interface
 **This feature will support the following commands:**
@@ -349,11 +349,11 @@ Add the following test case in file sonic-swss/tests/test_interface.py.
 ## 3.2 System tests
 Add the following test in sonic-mgmt.
 1. Create IP interface Ethernet.
-2. Loopback action not configured, send traffic, verify lopbacked packets are forwarded (SAI default).
-3. Set loopback action to drop, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
-4. Save config and reboot, send traffic, verify lopbacked packets are dropped and TX_ERR in rif counter increased.
-5. Set loopback action to forward, send traffic, verify lopbacked packets are forwarded.
-6. Save config and reboot, send traffic, verify lopbacked packets are forwarded.
+2. Loopback action not configured, send traffic, verify loopbacked packets are forwarded (SAI default).
+3. Set loopback action to drop, send traffic, verify loopbacked packets are dropped and TX_ERR in rif counter increased.
+4. Save config and reboot, send traffic, verify loopbacked packets are dropped and TX_ERR in rif counter increased.
+5. Set loopback action to forward, send traffic, verify loopbacked packets are forwarded.
+6. Save config and reboot, send traffic, verify loopbacked packets are forwarded.
 7. Create port-channel IP interface and repeat steps 2 to 6.
 8. Create interface VLAN and repeat steps 2 to 6.
 9. Create subinterface and repeat steps 2 to 6.
