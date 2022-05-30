@@ -59,9 +59,9 @@ however, it does not describe the individual host-specific features.
 
 # 1 Feature Overview
 
-This document describes a means (framework) for an application executed inside a container to securely request the execution of an operation ("action") by the host OS. The components of such framework are:
+This document describes a means (framework) for an application executed on host or inside a container to securely request the execution of an operation ("action") by the host OS. The components of such framework are:
 * the host services component (executed on the host OS), 
-* the translib API component (executed insisde a container)
+* the translib API component (executed on the host OS or inside a container)
 
 This framework is intended to be used by the SONiC management and telemetry containers, but can be extended for other application containers as well.
 
@@ -96,14 +96,14 @@ N/A
 ### 1.2.1 Basic Approach
 
 The new code for the client application TransLib API  is added to the existing Translib modules to provide a D-Bus based
-API to issue requests/queries from a container based application to the host OS. 
+API to issue requests/queries from an application to the host OS. 
 
 The host service (executed as a daemon on the host OS) is a Python based
 application that listens on service-specific D-Bus endpoints.https://en.wikipedia.org/wiki/D-Bus
 
 The individual app modules extend the host service by providing a Python snippet (a "servlet") that registers against a D-Bus endpoint. New servlets can be defined and added as needed.
 
-The application client inside containers executes DBus methods (effectively remote procedure calls), using the DBus end-points provided by the servlets on the host OS.
+The application client executes DBus methods (effectively remote procedure calls), using the DBus end-points provided by the servlets on the host OS.
 
 ### 1.2.2 Container
 
@@ -292,12 +292,12 @@ Input is patch file name, and output are return code and error message.
 
 "config apply-patch" command could take a few seconds, and D-Bus client should use timeout or asynchronous request.
 
-#### 3.6.4.6 gcu.create_cp
+#### 3.6.4.6 gcu.create_checkpoint
 This API will execute the "config checkpoint" command.
 
 Input is checkpoint name, and output are return code and error message.
 
-#### 3.6.4.7 gcu.delete_cp
+#### 3.6.4.7 gcu.delete_checkpoint
 This API will execute the "config delete-checkpoint" command.
 
 Input is checkpoint name, and output are return code and error message.
@@ -334,10 +334,10 @@ N/A
 | 7 | Invoke gcu.apply_patch_db API, and CLI command failed. |
 | 8 | Invoke gcu.apply_patch_yang API, and CLI command is successful. |
 | 9 | Invoke gcu.apply_patch_yang API, and CLI command failed. |
-| 10 | Invoke gcu.create_cp API, and CLI command is successful. |
-| 11 | Invoke gcu.create_cp API, and CLI command failed. |
-| 12 | Invoke gcu.delete_cp API, and CLI command is successful. |
-| 13 | Invoke gcu.delete_cp API, and CLI command failed. |
+| 10 | Invoke gcu.create_checkpoint API, and CLI command is successful. |
+| 11 | Invoke gcu.create_checkpoint API, and CLI command failed. |
+| 12 | Invoke gcu.delete_checkpoint API, and CLI command is successful. |
+| 13 | Invoke gcu.delete_checkpoint API, and CLI command failed. |
 
 # 10 Internal Design Information
 N/A
