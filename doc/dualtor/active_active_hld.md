@@ -55,11 +55,6 @@ In this design:
 
 ![image info](./image/cluster_topology.png)
 
-__Bandwidth__ 
-Each ToR will have single port-channel to each T1. The port-channel will have 2 members of 100Gbps. Therefore, each T0 will have total of 8\*2\*100 Gbps = 1.6 Tbps to all T1s.   
-
-T1s will have 8 uplinks to T2s. Therefore, total T1s uplink will be 64. Total uplink bandwidth is 6.4Tbps.
-
 ## 2 Requrement Overview
 ### 2.1 Server Requirements
 In our cluster setup, as smart y-cable is replaced, some complexity shall be transferred to server NIC. 
@@ -324,8 +319,8 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
     </tr>
     <tr>
       <th rowspan=2>Default Route to T1</th>
-      <th colspan=2>Link Prober</th>
       <th rowspan=2>Link State</th>
+      <th colspan=2>Link Prober</th>
       <th rowspan=2>Link Manager State</th>
       <th colspan=2>gRPC Action to Update Server-Side Admin Forwarding State</th>
     </tr>
@@ -339,9 +334,9 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   <tbody>
     <tr>
       <th>Available</th>
-      <th>Active</th>
-      <th>Active</th>
       <th rowspan=2>Up</th>
+      <th>Active</th>
+      <th>Active</th>
       <th rowspan=2>Active</th>
       <th rowspan=2>Set to Active</th>
       <th>No-op</th>
@@ -354,18 +349,18 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
     </tr>
     <tr>
       <th>Available</th>
+      <th>Up</th>
       <th>Unknown</th>
       <th>*</th>
-      <th>Up</th>
       <th>Standby</th>
       <th>Set to standby</th>
       <th>No-op</th>
     </tr>
     <tr>
       <th>Available</th>
-      <th>*</th>
-      <th>*</th>
       <th>Down</th>
+      <th>*</th>
+      <th>*</th>
       <th>Standby</th>
       <th>Set to standby</th>
       <th>No-op</th>
