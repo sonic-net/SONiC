@@ -88,7 +88,7 @@ struct BulkStatsContext
 
 The flow of how to updating bulk context will be discussed in following section.
 
-An instance of BulkStatsContext shall be added to FlexCounter class for each object type.
+Instance of BulkStatsContext shall be added to FlexCounter class for each object type. One object type may have multiple BulkStatsContext instances.
 
 ```cpp
 
@@ -133,6 +133,7 @@ No extra logic on SONiC side is needed to handle warmboot/fastboot.
 
 - Bulk collect attribute value is not supported
 - Buffer pool stats is not support for bulk because different buffer pool may have different stats mode. E.g. pool1 has mode SAI_STATS_MODE_READ, pool2 has mode SAI_STATS_MODE_READ_AND_CLEAR. The new SAI bulk API only allows specify one stats mode.
+- Maximum object number at one bulk call is a limitation based on vendor implementation.
 
 ### Testing Requirements/Design
 
