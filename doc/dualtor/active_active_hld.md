@@ -31,7 +31,7 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.3 Linkmgrd](#33-linkmgrd)
     - [3.3.1 Link Prober](#331-link-prober)
     - [3.3.2 Link State](#332-link-state)
-    - [3.3.3 Admin Forwarding State](#333-admin-forwarding-state)
+    - [3.3.3 Forwarding State](#333-forwarding-state)
     - [3.3.4 Acitve-Active State Machine](#334-acitve-active-state-machine)
     - [3.3.5 Default route to T1](#335-default-route-to-t1)
     - [3.3.6 Incremental Featrues](#336-incremental-featrues)
@@ -67,6 +67,7 @@ Note that, this complexity can be handled by active-active smart cables, or any 
 1. Server should provide support for ToR to control traffic forwarding, and follow this control when dispensing traffic. 
     * gRPC is introduced for this requirement. 
     * Each ToR will have a well-known IP. Server NIC should dispatch gRPC replies towards these IPs to the corresponding uplinks.
+1. Server NIC should avoid sending traffic through unhealthy links when detecting a link state down. 
 1. Server should replicate these northbound traffic to both ToRs:
     * Specified ICMP replies (for probing link health status)
     * ARP propagation
@@ -290,8 +291,13 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
 #### 3.3.2 Link State  
   When link is down, linkmgrd will receive notification from SWSS based on kernel message from netlink. This notification will be used to determine if ToR is healthy. 
 
-#### 3.3.3 Admin Forwarding State   
-  ToRs will signal NIC if the link is active / standby, we will call this active / standby state as admin forwarding state. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding.  
+#### 3.3.3 Forwarding State   
+
+**Admin Forwarding State**  
+  ToRs will signal NIC if the link is active / standby, we will call this active / standby state as **admin forwarding state**. It's up to NIC to determine which link to use if both are active, but it should never choose to use a standby link. This logic provides ToR more control over traffic forwarding.  
+
+**Operational Forwarding State**  
+  Server side should maintain an operational forwarding state as well. When link is down, eventually admin forwarding state will be updated to standby. But before that, if server side detects link down, it should stop sending traffic through this link even the admin state is active. In this way, we ensure the ToRs have control over traffic forwarding, and also guarantee immediate reaction when link state is down.  
   
 #### 3.3.4 Acitve-Active State Machine  
   Active-acitve state transition logics are simplified compared to active-standby. In active-standby, linkmgrd makes mux toggle decisions based on y-cable direction, while for active-active, two links are more independent. Linkmgrd will only make state transition decisions based on healthy indicators. 
