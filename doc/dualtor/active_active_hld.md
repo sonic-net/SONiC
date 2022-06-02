@@ -33,7 +33,7 @@ This document provides the high level design of SONiC dual toR solution, support
     - [3.3.2 Link State](#332-link-state)
     - [3.3.3 Admin Forwarding State](#333-admin-forwarding-state)
     - [3.3.4 Acitve-Active State Machine](#334-acitve-active-state-machine)
-    - [3.3.5 Default gateway to T1](#335-default-gateway-to-t1)
+    - [3.3.5 Default route to T1](#335-default-route-to-t1)
     - [3.3.6 Incremental Featrues](#336-incremental-featrues)
   - [3.4 Orchagent](#34-orchagent)
     - [3.4.1 IPinIP tunnel](#341-ipinip-tunnel)
@@ -306,8 +306,8 @@ Linkmgrd will provide the determination of a ToR / link's readiness for use.
   When control channel is unreachable, ToR won't block the traffic forwarding, but it will periodically check gRPC server's healthiness. It will make sure server side's admin forwarding state aligns with linkmgrd's decision.
   ![grpc_failure](./image/gRPC_failure.png) 
 
-#### 3.3.5 Default gateway to T1  
-  If default gateway to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
+#### 3.3.5 Default route to T1  
+  If default route to T1 is missing, dual ToR system can suffer from northbound packet loss, hence linkmgrd also monitors defaul route state. If default route is missing, linkmgrd will stop sending ICMP probing request and fake an unhealthy status. This functionality can be disabled as well, the details is included in [default_route](https://github.com/Azure/sonic-linkmgrd/blob/master/doc/default_route.md).
 
   To summarize the state transition decision we talk about, and the corresponding gRPC action to take, we have this decision table below: 
 
