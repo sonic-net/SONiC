@@ -10,8 +10,8 @@
     + [2.1 Considerations](#2-1-considerations)
     + [2.2 New class](#2-2-new-class)
     + [2.3 Other code change](#2-3-other-code-change)
-    + [2.4 Other solutions](#2-4-other-solutions)
-    + [2.2 New class](#222-new-class)
+    + [2.4 Code example](#2-4-code-example)
+    + [2.5 Other solutions](#2-5-other-solutions)
 - [3 Error handling](#3-error-handling)
 - [4 Serviceability and Debug](#4-serviceability-and-debug)
 - [5 Unit Test](#5-unit-test)
@@ -70,31 +70,41 @@ This document provides a detailed description on the new features for:
 ## 2.2 New class
  - YangModelLoader class
    - load table name to default value mapping to memory.
-
  - DefaultValueProvider class
    - Find default value information by table name and config DB key
    - Merge default value to API result.
-
- - DBDecorator interface
- - ConfigDBDecorator class
-   - This class contains all logic and knowledge for apply default to config DB query result. 
+ - YangDefaultValueConnectorDecorator python class
+ - YangDefaultValuePoppableDecorator class
+ - YangDefaultValueEnumerableDecorator class
 
 ## 2.3 Other code change
- - DBConnector class add new methods:
-   - const std::shared_ptr<swss::DBDecorator> setDBDecorator(std::shared_ptr<swss::DBDecorator> &db_decorator);
-   - const std::shared_ptr<swss::DBDecorator> getDBDecorator(swss::DBDecoratorType type) const;
-   - const DecoratorMapping &getDBDecorators() const;
+ - Add new methods to TableEntryEnumerable  interface:
+   - virtual bool hget(const std::string &key, const std::string &field, std::string &value) = 0;
+   - virtual void dump(TableDump &tableDump) = 0;
+   
+## 2.4 Code example
+ - Connector decorator:
+```
+    from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, YangDefaultValueConnectorDecorator, YangDefaultValueTableDecorator
 
- - Following class will add new parameter to ctor:
-   - ConfigDBConnector_Native
-   - ConfigDBPipeConnector_Native
-   - ConfigDBConnector
+    conn = ConfigDBConnector()
+    decorator = YangDefaultValueConnectorDecorator(conn)
+    decorator.connect()
+    decorator.get_table("VLAN_INTERFACE")
+    decorator.get_entry("VLAN_INTERFACE", "Vlan1000")
+    decorator.get_config()
+```
+ - Table decorator:
+```
+    from swsscommon.swsscommon import DBConnector, Table, YangDefaultValueTableDecorator
 
- - Existed ctor for following class will mark as depracated:
-   - ConfigDBConnector_Native
-   - ConfigDBPipeConnector_Native
+    db = swsscommon.DBConnector("CONFIG_DB", 0)
+    table = swsscommon.Table(db, 'VLAN_INTERFACE')
+    decorator = swsscommon.YangDefaultValueEnumerableDecorator(table)
+    decorator.get("Vlan1000")
+```
 
-## 2.4 Other solutions
+## 2.5 Other solutions
 
 |                                                              | Pros                                                         | Cons                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
