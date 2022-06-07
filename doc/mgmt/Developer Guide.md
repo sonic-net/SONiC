@@ -1,6 +1,6 @@
 # SONiC Management Framework Developer Guide
 
-## Rev 1.3
+## Rev 1.4
 
 ## Table of Contents
 
@@ -94,8 +94,9 @@
 | 0.9  | 06/22/2020 |       Sachin Hola       | Incorporated Phase-II changes, with new repo structure.      |
 | 1.0  | 10/09/2020 | Anand Kumar Subramanian | Debugging performance issues                                 |
 | 1.1  | 08/10/2021 |      Kwangsuk Kim       | Updated Transformer section including query parameter etc.   |
-| 1.2  | 12/10/2021 |      Arun Barboza       | Added Pruning API description.                              |
+| 1.2  | 12/10/2021 |      Arun Barboza       | Added Pruning API description.                               |
 | 1.3  | 12/28/2021 |      Arun Barboza       | Added Redaction API description.                             |
+| 1.4  | 06/06/2022 |      Arun Barboza       | Update Pruning API description.                              |
 
 ## About this Manual
 
@@ -519,7 +520,7 @@ TODO
 #### 2.4.3 DB Access APIs
 
 The DB access layer implements a wrapper over the go-redis package enhancing the functionality as described in:
-[Management Framework HLD, DB access layer](https://github.com/Azure/SONiC/blob/master/doc/mgmt/Management%20Framework.md#32264-db-access-layer)
+[Management Framework HLD, DB access layer](https://github.com/project-arlo/SONiC/blob/master/doc/mgmt/Management%20Framework.md#32265-db-access-layer)
 
 #### 2.4.4 Logging
 
@@ -2576,6 +2577,13 @@ IDec 17 22:46:33.136191+00:00 2021  157611 xlate_prune.go:76] xfmrPruneQP: Total
 ```
 
 In the above example, the *func* gives the subtree transformer function name, and the *LastTime* gives the time taken in the infra to prune the section of the data tree handled by that subtree transformer.
+
+
+Following are some of the observations.
+
+- The fields query parameter is assumed to be well formed. If it is not well-formed, the pruning API may not perform as expected. Strict validation of fields query parameter is outside the scope of pruning. For example, the following is not a well-formed fields query parameter, because it does not satisfy the ABNF for the fields parameter :  ....?fields=(state)
+
+- key fields are not pruned.
 
 ### 2.6 App Module
 
