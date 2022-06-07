@@ -1397,6 +1397,7 @@ The APIs are broadly classified into the following areas:
 
     * Initialization/Close: NewDB(), DeleteDB()
     * Read                : GetEntry(), GetKeys(), GetKeysPattern(), GetTable()
+                            GetTablePattern(), ExistsKeyPattern()
     * Write               : SetEntry(), CreateEntry(), ModEntry(), DeleteEntry()
                             DeleteEntryField()
     * Transactions        : StartTx(), CommitTx(), AbortTx(), AppendWatchTx()
@@ -1406,6 +1407,28 @@ The APIs are broadly classified into the following areas:
 
 Detail Method Signature:
     Please refer to the code for the detailed method signatures.
+
+    Here are some descriptions for select APIs.
+
+    func (d *DB) GetTablePattern(ts *TableSpec, pat Key) (Table, error)
+
+    GetTablePattern is similar to GetTable, except, it gets a subset of
+    the table restricted by the key pattern "pat". It is expected that there
+    will be a single call to the underlying go-redis layer, perhaps through
+    the use of a script. However, the caller is not advised to rely on this,
+    and encouraged to use this instead of the current GetTable() for reasonably
+    sized subsets of tables ("reasonably sized" to be determined by experiments)
+    to obtain a more performant behavior.
+    Note: The time/hit statistics do not cover the error cases.
+
+
+    func (d *DB) ExistKeysPattern(ts *TableSpec, pat Key) (bool, error)
+
+    ExistKeysPattern checks if a key pattern exists in a table
+    Note:
+    1. Statistics do not capture when the CAS Tx Cache results in a quicker
+       response. This is to avoid mis-interpreting per-connection statistics.
+
 
 Concurrent Access via Redis CAS transactions:
 
