@@ -41,7 +41,8 @@ This document provides the high level design of SONiC dual toR solution, support
   - [3.5 Transceiver Daemon](#35-transceiver-daemon)
     - [3.5.1 Cable Control through gRPC](#351-cable-control-through-grpc)
   - [3.6 State Transition Flow](#36-state-transition-flow)
-  - [3.7 Command Line](#37-command-line)
+  - [3.7 Further Enhancement](#37-further-enhancement)
+  - [3.8 Command Line](#38-command-line)
 
 [4 Warm Reboot Support](#4-warm-reboot-support)
 
@@ -430,7 +431,16 @@ The following UML sequence illustrates the state transtion when linkmgrd state m
 
 ![state transition flow](./image/state_transition_flow.png)
 
-### 3.7 Command Line  
+### 3.7 Further Enhancement
+**Advertise updated routes to T1**  
+Current failover strategy can smoothly handle the link failure cases, but if one of the ToRs crashes, and if T1 still sends traffic to the crashed ToR, we will see packet loss. 
+
+A further improvement in rescuing scenario, is when detecting peer's unhealthy status, local ToR advertises specific routes (i.e. longer prefix), so that traffic from T1 does't go to crashed ToR as all. 
+
+**Server Servicing & ToR Upgrade**  
+For server graceful restart, We already have gRPC service defined in [3.5.1](#351-cable-control-through-grpc). An indicator of ongoing server servicing should be defined based on that notification, so ToR can avoid upgrades in the meantime. Vice versa, we can also define gRPC APIs to notify server when ToR upgrade is ongoing.
+
+### 3.8 Command Line  
 TBD 
 
 ## 4 Warm Reboot Support
