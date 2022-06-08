@@ -24,7 +24,7 @@ DEFID_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definition
 
 echo '{' > sonic_image_links.json
 first=1
-for BRANCH in  master 202106 202012 201911 201811  
+for BRANCH in  master 202111 202106 202012 201911 201811
 do
 	if [ -z "${first}" ]; then
 		echo ',' >> sonic_image_links.json
