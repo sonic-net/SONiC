@@ -370,33 +370,33 @@ cleared from the STATE_DB.
 To be updated based on the syncd warm restart feature understanding from broadcom.
 ## 3.2 Datastructure Changes
 
-Struct mfpm_msg_hdr_t
+Struct ipmc_fpm_msg_hdr_t
 
 |    Data Type     | Field_name | Description |
 | -----------------| ---------- | ----------- |
 |  uint8_t         |  version   | Protocol version |
-|  mfpm_msg_type_t |  msg_type  | message type     |
+|  ipmc_fpm_msg_type_t |  msg_type  | message type     |
 |  uint16_t        |  msg_len   | Length of the entire message including header length |
 
 Enum mfpm_msg_type_t
 
 |   Enum name    | Value |
 | --------------- | ---------- | 
-|   MFPM_MSG_TYPE_NONE  | 0  | 
-|   MFPM_MSG_TYPE_SET    |  1  | 
-|   MFPM_MSG_TYPE_GET | 2 |
-|   MFPM_MSG_TYPE_MAX | 3 |
+|   IPMC_FPM_MSG_TYPE_NONE  | 0  | 
+|   IPMC_FPM_MSG_TYPE_SET_AGING_TIME    |  1  | 
+|   IPMC_FPM_MSG_TYPE_GET_ROUTE_STATUS | 2 |
+|   IPMC_FPM_MSG_TYPE_MAX | 3 |
 
 Enum mfpm_route_status_t
 
 |   Enum name    | Value |
 | ---------------| ---------- | 
-|   MFPM_ROUTE_NOT_FOUND  | 0  | 
-|   MFPM_ROUTE_ACTIVE   |  1  | 
-|   MFPM_ROUTE_INACTIVE | 2 |
+|   IPMC_FPM_ROUTE_NOT_FOUND  | 0  | 
+|   IPMC_FPM_ROUTE_ACTIVE   |  1  | 
+|   IPMC_FPM_ROUTE_INACTIVE | 2 |
 
 
-struct mfpm_route_info_t
+struct ipmc_fpm_route_info_t
 
 |   Data Type    | Field_name |  Description   |
 | -------------- | ---------- | -------------- |
@@ -404,21 +404,21 @@ struct mfpm_route_info_t
 | char[INTERFACE_NAMSIZ]      | iif_name   | Incoming interface name |
 | struct ip_addr | src        | Source address of the route |
 | struct ip_addr | grp        | Group address of the route  |
-| mfpm_route_status_t         | entry_status | Entry aliveness status | 
+| ipmc_fpm_route_status_t         | entry_status | Entry aliveness status | 
 
-struct mfpm_kat_info_t
+struct ipmc_fpm_kat_info_t
 
 |   Data Type    | Field_name |  Description   |
 | -------------- | ---------- | -------------- |
 | unit32_t       | vrf_id     | VRF Id         |
 | unsigned int   | keep_alive_time | Keep alive timer config to be applied in NPU |
 
-union mfpm_data_msg_t
+union ipmc_fpm_data_msg_t
 
 |   Data Type    | Field_name |  Description   |
 | -------------- | ---------- | -------------- |
-|  mfpm_kat_info_t | kat_info | Keep alive timer config to be set |
-|  mfpm_route_info_t | route_info | Info to get Route status from MFPM client |
+|  ipmc_fpm_kat_info_t | kat_info | Keep alive timer config to be set |
+|  ipmc_fpm_route_info_t | route_info | Info to get Route status from MFPM client |
 
 ### 3.2.1 **SAI specific data structure and callback changes**
 
@@ -449,6 +449,8 @@ typedef enum _sai_ipmc_event_t
 SAI_IPMC_EVENT_AGE,
       
 SAI_IPMC_EVENT_DONT_AGE,
+      
+SAI_IPMC_EVENT_DELETED
       
 } sai_ipmc_event_t;
 
@@ -840,7 +842,7 @@ module: sonic-pim
 
 |ip pim spt-threshold infinity  | Command to disable or re-enable shortest path tree (SPT) swtchover for all the multicast groups or a given prefix-list.|  
 | ------------------------------------------------ | ------------------------------------------------------------ |
-|                                  **Syntax**                                   | ip pim [vrf vrf-name] spt-threshold infinity { prefix-list prefix-list-name} |     
+|                                  **Syntax**                                   | ip pim [vrf vrf-name] spt-threshold infinity [{ prefix-list prefix-list-name}] |     
 |                                                                               | no ip pim [vrf vrf-name] spt-threshold infinity       |
 | **Parameters**                                                                |                                                                                       |     
 | vrf                                                                           | Enter the keyword vrf followed by the name of the VRF      |     
@@ -967,7 +969,7 @@ Below are the IP multicast scaling numbers:
 | Number of Multicast Route Entries    | 8192          |
 | Number of PIM Neighbours             | 64            |
 
-Linux kernel supports only 32 multicast routing interfaces of which one interface is reserved for PIM register interface.  So, PIM/IGMP can be enabled on only 31 routing interfaces.
+Linux kernel supports only 32 multicast routing interfaces of which one interface is reserved for PIM register interface.  So, PIM/IGMP can be enabled on only 31 routing interfaces. There is no restriction on the number of static RPs configuration, since we claim that PIM can be enabled only on 32 interfaces including register interface, so we have to restrict the static RP also to 31.
 
 # 10 Unit Test
 Below list covers the major testcase that would be covered as part of this feature. The rest of the cases are covered in devtest scripts.
