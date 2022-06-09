@@ -234,7 +234,7 @@ The following diagram depicts the interactions among modules in SONIC to achieve
 
 The interactions between FRR PIM, Linux kernel, ipmcFpmSyncd and ipmcOrch for updating a multicast (*,G) and (S,G) route entry from PIM to the hardware are explained below:
 
-A small change has been introduced in ipmFpmsyncd for handling the KAT timer expiry of (S,G) routes which is explained in case 3 below.
+A small change has been introduced in ipmcFpmsyncd for handling the KAT timer expiry of (S,G) routes which is explained in case 3 below.
 
 #### Case 1: Flow for (*,G) route update
 
@@ -346,7 +346,7 @@ Configuration sequence,
 IPMC aging timeout is switch attribute for SAI. This is global configuration for a switch and applicable to all VRF, all AFI's.
 
 Following the sequence of configuration,
-1. FRR sends update to ipmcfpmsyncd with aging value using struct mfpm_kat_info_t.
+1. FRR sends update to ipmcfpmsyncd with aging value using struct ipmc_fpm_kat_info_t.
 2. ipmcfpmsyncd populate "ipmc_aging_time" entry in  SWITCH_TABLE (APPL_DB)
 3. ipmcorchagent, receives SWITCH_TABLE (APPL_DB) update and calls set_switch_attribute with attr as SAI_SWITCH_ATTR_IPMC_AGING_TIME and value "ipmc_aging_time" <br>
 
@@ -355,8 +355,7 @@ Following the sequence of configuration,
 Following will be added in the syncd inorder to process the IPMC entry or entries AGE and DONTAGE data,
 
 1. Establish a connection with STATE_DB inorder to add or remove IPMC entries AGE and DONTAGE data.
-2. New notification handler (Notificationhandler::onIpmcEvent) API will be defined and registered with SAI to receive IPMC specific AGE and
-   DONTAGE notifications.
+2. New notification handler (Notificationhandler::onIpmcEvent) API will be defined and registered with SAI to receive IPMC specific AGE, DONTAGE and DELETE notifications.
    IPMC specific notification will be identified with the enum "SAI_SWITCH_NOTIFICATION_NAME_IPMC_EVENT" which will be added 
    newly in SAI layer. 
 3. On receiving the IPMC entry/entries AGE or DONTAGE data, required validations will be done after 
@@ -364,7 +363,7 @@ Following will be added in the syncd inorder to process the IPMC entry or entrie
    will be defined to add or delete the data to/from the STATE_DB.
 
 ##### 3.1.3.1.2 IPMC Entry deletion
-Whenever a IPMC entry is deleted for any reason, AGE and DONTAGE data belongs to that particular IPMC entry will be
+Whenever a IPMC entry is deleted for any reason, SAI will give a callback with DELETE notification for the IPMC entry then the AGE and DONTAGE data of the particular IPMC entry will be
 cleared from the STATE_DB.
 ##### 3.1.3.1.3 SYNCD WARM restart
 To be updated based on the syncd warm restart feature understanding from broadcom.
@@ -378,7 +377,7 @@ Struct ipmc_fpm_msg_hdr_t
 |  ipmc_fpm_msg_type_t |  msg_type  | message type     |
 |  uint16_t        |  msg_len   | Length of the entire message including header length |
 
-Enum mfpm_msg_type_t
+Enum ipmc_fpm_msg_type_t
 
 |   Enum name    | Value |
 | --------------- | ---------- | 
@@ -387,7 +386,7 @@ Enum mfpm_msg_type_t
 |   IPMC_FPM_MSG_TYPE_GET_ROUTE_STATUS | 2 |
 |   IPMC_FPM_MSG_TYPE_MAX | 3 |
 
-Enum mfpm_route_status_t
+Enum ipmc_fpm_route_status_t
 
 |   Enum name    | Value |
 | ---------------| ---------- | 
@@ -418,7 +417,7 @@ union ipmc_fpm_data_msg_t
 |   Data Type    | Field_name |  Description   |
 | -------------- | ---------- | -------------- |
 |  ipmc_fpm_kat_info_t | kat_info | Keep alive timer config to be set |
-|  ipmc_fpm_route_info_t | route_info | Info to get Route status from MFPM client |
+|  ipmc_fpm_route_info_t | route_info | Info to get Route status from IPMC_FPM client |
 
 ### 3.2.1 **SAI specific data structure and callback changes**
 
@@ -1008,7 +1007,7 @@ Below list covers the major testcase that would be covered as part of this featu
       
 # 11  Design expections from Vendor
 ## 11.1 ACL and COPP requirements
-An ACL to lift unknown multicast address is required to honor the source traffic. The qualifiers and the corresponding actions are listed below.
+An ACL to lift unknown multicast address is required to honor the source traffic along with shapers in a minimal rate. The qualifiers and the corresponding actions are listed below.
 
 |    ACL                          | Qualifiers                      |   Action                     |
 |---------------------------------|---------------------------------|------------------------------|
@@ -1017,7 +1016,7 @@ An ACL to lift unknown multicast address is required to honor the source traffic
 
 As explained above in the section 3.1.3, SAI shall execute a callback to notify the IPMC entries AGE and DONTAGE data. As part of the callback API definition, SAI provided data shall be posted to syncd notification processor thread. As part of syncd notification processor thread, data shall be validated and written to STATE_DB for further processing. Whenever an IPMC entry is getting deleted for any reason other than AGE out, AGE data for that particular IPMC entry should be cleaned up from STATE_DB if exists.
 
-As AGE or DONTAGE data shall be added to STATE_DB in notification processor thread conetxt, deletion must be done from the same thread context to avoid inconsistencies in STATE_DB.
+As AGE or DONTAGE data shall be added to STATE_DB in notification processor thread context, deletion must be done from the same thread context to avoid inconsistencies in STATE_DB. 
 
-Hence, expection is that SAI shall also invoke a separate call back whenever an IPMC entry is deleted from NPU. As part of this callback API, data shall be posted to notification processor thread for removing AGE or DONTAGE data belongs to a particular IPMC entry from STATE_DB.
+Hence, SAI will execute the same callback with a new enum to indicate that the IPMC entry is deleted from NPU. As part of this callback API, data shall be posted to notification processor thread for removing AGE or DONTAGE data belongs to a particular IPMC entry from STATE_DB.
 
