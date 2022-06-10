@@ -64,7 +64,7 @@ The picture below demonstrates the architecture and workflow of distributed data
 ![system](img/system-diagram.jpg)
 
 
-A series of demos of the proposed feature  can be found at [distributeddpvdemo.tech](DDPV-Demos). All demos are conducted on a small testbed of commodity switches installed with SONiC or ONL. 
+A series of demos of the proposed feature  can be found at [distributeddpvdemo.tech](DDPV-Demos). All demos are conducted on a small testbed of commodity switches installed with SONiC or ONL. A technical report of the detailed design of DDPV can be found at [https://arxiv.org/abs/2205.07808](arXiv).
 
 # Requirements
 * The ddpv container needs to have access to the device data plane (i.e., FIB and ACL) stored in the database container.
@@ -265,3 +265,12 @@ Ashish Bhargava, Paul-Andre C Bissonnette, Shane Foster, Andrew
 Helwer, Mark Kasten, Ivan Lee, et al. 2019. Validating Datacenters
 at Scale. In Proceedings of the ACM Special Interest Group on Data
 Communication. 200–213.
+
+[2] Qiao Xiang, Ridi Wen, Chenyang Huang, Jiwu Shu, Franck Le, 2022. Switch as a
+Verifier: Toward Scalable Data Plane Checking via Distributed, On-Device
+Verification. https://arxiv.org/abs/2205.07808
+
+
+
+
+
