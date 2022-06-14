@@ -164,8 +164,8 @@ check program container_memory_lldp with path "/usr/bin/memory_checker lldp"
 
 ### 2.2.2 CLI (and usage example)
 The CLI tool will provide the following functionality:
-3. Show memory threshold of docker container(s).
-6. Configure memory threshold of a docker container.
+1. Show memory threshold of docker container(s).
+2. Configure memory threshold of a docker container.
 
 
 #### 2.2.2.1 Show Memory Threshold of Containers 
