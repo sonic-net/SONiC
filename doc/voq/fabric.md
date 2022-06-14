@@ -170,7 +170,7 @@ PORT            RxCells     TxCells      Crc       Fec  Corrected
 
 ### 2.7.1 Fabric Status
 
-In a later phase, a `show fabric status` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will show the status as `down`. The status will also be `down` for fabric links that are down due to some other physical error. To identify links that are down due to error vs links that are not expected to be up because of the chassis connectivity, we need to build up a list of expected fabric connectivity for each ASIC. This can be computed ahead of time based on the vendor configuration and populated in the minigraph. This will be implemented in a later phase.
+In a later phase, a `show fabric status` command will be added to show the remote switch ID and link ID for each fabric link of an ASIC. The command will be added for both forwarding ASICs on Linecards and fabric ASICs on Fabric cards. This will be obtained from the SAI_PORT_ATTR_FABRIC_REACHABILITY port attribute of the fabric port. Note that for fabric links that do not have a link partner because of the configuration of the chassis, this will show the status as `down`. The status will also be `down` for fabric links that are down due to some other physical error. To identify links that are down due to error vs links that are not expected to be up because of the chassis connectivity, we need to build up a list of expected fabric connectivity for each ASIC. This can be computed ahead of time based on the vendor configuration and populated in the minigraph. This will be implemented in a later phase.
 
 ## 2.8 Fabric Link Monitor
 
@@ -180,21 +180,9 @@ The design of fabric link monitor is intentionally scoped to use local component
 
 ### 2.8.1 Monitor Fabric Link Status
 
-Unhealthy fabric links may lead to traffic drops. Fabric link monitoring is an important tool to minimize traffic loss. The fabric link monitor algorithm monitors fabric link status and takes links out of service if one or more criteria are true. This is needed on both fabric ASICs and forwarding ASICs.
+Unhealthy fabric links may lead to traffic drops. Fabric link monitoring is an important tool to minimize traffic loss. The fabric link monitor algorithm monitors fabric link status and isolates the link if one or more criteria are true. By isolating a fabric link, the link is still up in the physical layer, but is taken out of service and does not distribute traffic. This feature is needed on both fabric ASICs and forwarding ASICs.  
 
-#### 2.8.1.1 Cli commands
-
-```
-> config fabric port set [port_id] isolate
-```
-
-```
-> config fabric port remove [port_id] isolate
-```
-
-The above two commands are added and can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ).
-
-#### 2.8.1.2 Fabric link monitoring criteria
+#### 2.8.1.1 Fabric link monitoring criteria
 
 The fabric link monitoring algorithm checks two type of errors on a link: crc errors and uncorrectable errors. 
 
@@ -202,12 +190,45 @@ The criteria can be extended to include checking other errors later.
 
 #### 2.8.1.2 Monitoring algorithm
 
-Instead of reacting to the counter changes, Orchagent adds a new poller and periodically polls status of all fabric links. By default, the total number of received cells, cells with crc errors, cells with uncorrectable errors are fetched from all serdes links periodically and the error rates are caculated using these numbers. If any one of the error rate is above the threshold for a number of consecutive polls, the link is identified as a unhealthy link. Then the link is automatically isolated to not distribute traffic.
+Instead of reacting to the counter changes, Orchagent adds a new poller and periodically polls status of all fabric links. By default, the total number of received cells, cells with crc errors, cells with uncorrectable errors are fetched from all serdes links periodically and the error rates are calculated using these numbers. If any one of the error rates is above the threshold for a number of consecutive polls, the link is identified as an unhealthy link. Then the link is automatically isolated to not distribute traffic.
+
+#### 2.8.1.1 Cli commands
+
+Several commands will be added to set fabric link monitor config parameters.
+```
+> config fabric port monitor error threshold <#crcCells> <#rxCells>
+```
+The above command can be used to set a fabric link monitoring error threshold.
+
+#crcCells: Number of errors over specified number of received cells.
+#rxCells: Total number of received cells in which errors are monitored.
+
+If more than #crcCells out of #rxCells received cells seen with error, the fabric link needs to be isolated.
+
+```
+> config fabric port monitor poll threshold isolation <#polls>
+```
+The above command can be used to set the number of consecutive polls in which the threshold needs to be detected to isolate a link. 
+
+```
+> config fabric port monitor poll threshold recovery <#polls>
+```
+The above command sets the number of consecutive polls in which no error is detected to unisolate a link .
+
+```
+> config fabric port isolate [port_id]
+```
+
+```
+> config fabric port unisolate [port_id]
+```
+
+Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as force isolate a fabric link. 
+
 
 ### 2.8.2 Monitor Fabric Capacity
 
-When the fabric link monitoring feature is enabled, fabric links may not be operational in a system due to link down, or link isolation by the monitoring algorithm. As a result, the effective capacity of total fabric links may be less than required bandwith, and lead to performance degradation. Implementing a capacity monitoring algorithm in Orchagent will be useful to alert capacity changes.
-
+When the fabric link monitoring feature is enabled, fabric links may not be operational in a system due to link down, or link isolation by the monitoring algorithm. As a result, the effective capacity of total fabric links may be less than required bandwidth, and lead to performance degradation. Implementing a capacity monitoring algorithm in Orchagent will be useful to alert capacity changes. This feature is for forwarding ASICs on Linecards.
 
 #### 2.8.2.1 Cli command
 
@@ -222,17 +243,17 @@ A show command is added to display the fabric capacity on a system.
 > show fabric monitor capacity
 Monitored fabric capacity threshold: 90%
 
-ASIC     Operating   Capacity      %       Last Event   Last Time  
-         Links
------    ------      --------     ----     ----------   ---------
-0        110         112          98       None          Never
-1        112         112          100      None          Never  
+ASIC     Operating   Total #      %       Last Event   Last Time  
+         Links       of Links
+-----    ------      --------     ----    ----------   ---------
+0        110         112          98      None          Never
+1        112         112          100     None          Never  
 ....
 ```
 
 #### 2.8.2.2 Monitoring algorithm
 
-Orchagent will track the total number of fabric links that are isolated. Once the number of total operational fabric links is below a configured threshold, alert users with a system log.
+Orchagent will track the total number of fabric links that are isolated. Once the number of total operational fabric links is below a configured threshold, alert users with a system log. The action is very conservative in this document, and can be extended to other actions like shutdown the ASIC in the future.
 
 ### 2.8.3 Monitor Traffic on Fabric Links
 
@@ -243,12 +264,16 @@ Monitoring traffic on fabric links is another important tool to diagnose fabric 
 The following proposed CLI is used to show the traffic among fabric links on both fabric ASICs and forwarding ASICs.
 
 ```
-> show fabric counters rate
+> show fabric counters rate mbps
 
  Asic     Link    RX         TX
+          ID
  –------  -----   ---------  ----------
+ 0         1      0          36113
+ ....
+ 0        19      0          36107  
  0        20      0          36110
-  ....
+ ....
 ```
 
 # 3 Testing
