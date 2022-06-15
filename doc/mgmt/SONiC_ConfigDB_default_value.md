@@ -1,4 +1,4 @@
-# ConfigDB default value from Yang model
+# Multiple layer ConfigDB
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -6,6 +6,7 @@
     + [SONiC issue solved by this feature](#sonic-issue-solved-by-this-feature)
 - [1 Functional Requirement](#1-functional-requirement)
     + [1.1 swss-common return default value from Yang model](#1-1-swss-common-return-default-value-from-yang-model)
+    + [1.2 swss-common return static config from static config layer](#1-1-swss-common-return-static-config-from-static-config-layer)
 - [2 Design](#2-design)
     + [2.1 Considerations](#2-1-considerations)
     + [2.2 New class](#2-2-new-class)
@@ -23,11 +24,18 @@
 
 # About this Manual
 This document provides a detailed description on the new features for:
- - Get default value from Yang model.
- - swss-common API support read default value from config DB.
+ - Multiple layer Config DB.
+ - Yang model default value layer.
+ - Static config layer.
+ - swss-common API change.
 
 ## SONiC issue solved by this feature
- - Potential risk: Yang model default value conflict with hardcoded value:
+ - Static config data modify by user but can't revert:
+    - Buffer config are static data render by J2 templates.
+    - User config mixed with static buffer config:
+      - Buffer config update by GCU will overwrite user config.
+      - User can't revert user change to default config.
+ - Potential risk, Yang model default value conflict with hardcoded value:
     - Default value hardcoded in source code.
     - Yang model default value not used.
  - SONiC utilities not support get default value:
@@ -42,10 +50,26 @@ This document provides a detailed description on the new features for:
    - Application can read config without default value, also can read config with default value.
  - Backward compatibility with existed code and applications.
 
+## 1.2 swss-common return static config from static config layer
+ - Static buffer config stored in static config DB.
+ - Return static config is optional.
+   - Application can decide read config without static config or not.
+ - Backward compatibility with existed code and applications.
+   - For backward compatibility when initialize buffer config from graph, config will be write to both ConfigDB and static config DB.
+   - After code migrate to use static buffer config, static config will only write to static config DB.
+
 # 2 Design
- - Design diagram:
+ - Layered config DB design diagram:
+
+<img src="./images/swss-common-layer.png"  />
+
+ - Yang default value layer diagram:
 
 <img src="./images/swss-common-default-value.png"  />
+
+ - Static config DB design diagram:
+
+<img src="./images/swss-common-static-config.png"  />
 
 ## 2.1 Considerations
 ### How to get default value
@@ -55,27 +79,36 @@ This document provides a detailed description on the new features for:
 | Get default value from Yang model in read API.               | Redis config DB keeps no change.                  | 3 MB memory per-process because need load Yang model and reference libyang.<br>50ms to load yang model.<br>8ms to read default value 10000 times. |
 | Write default value to default value DB when write config DB. | Better read performance, Less memory consumption. | Need add new Redis DB for default value.                     |
 
+### How to get static config
+ - Static config will stored in a new redis database 'StaticConfigDB'
+ - Static Config DB will have exactly schema with config DB.
+ - Data will read form static DB with swsscommon API.
 ### API compatibility
 
 |                                        | Pros                                                         | Cons                                                         |
 | -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Change API to return default value. | Less code change, all app will get default value automatically. | There are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
+| Change API to return default value and static config. | Less code change, all app will get default value and static config automatically. | For default value, there are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
 | Existed API keeps no change.      | When update existed code, can cleanup code to remove hard coded default value. | All apps need code update.                                   |
 
 ### Current design:
-   - Get default value from Yang model in read API.
    - Existed read API keeps no change. 
-
+   - Add decorator API to return default value and static config data.
 
 ## 2.2 New class
  - YangModelLoader class
    - load table name to default value mapping to memory.
+
  - DefaultValueProvider class
    - Find default value information by table name and config DB key
    - Merge default value to API result.
- - YangDefaultValueConnectorDecorator python class
- - YangDefaultValuePoppableDecorator class
- - YangDefaultValueEnumerableDecorator class
+
+ - StaticConfigProvider class
+   - Read static config from static config DB.
+   - Merge static config to API result.
+
+ - LayeredConfigDBConnectorDecorator python class
+ - LayeredConfigDBPoppableDecorator class
+ - LayeredConfigDBEnumerableDecorator class
 
 ## 2.3 Other code change
  - Add new methods to TableEntryEnumerable  interface:
@@ -104,7 +137,7 @@ This document provides a detailed description on the new features for:
     decorator.get("Vlan1000")
 ```
 
-## 2.5 Other solutions
+## 2.5 Other solutions for Yang model default value
 
 |                                                              | Pros                                                         | Cons                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -135,7 +168,8 @@ This document provides a detailed description on the new features for:
 
  - Involve project owner to migrate to new API.
    - If project still using swsssdk, then switch to swsscommon with new API.
-   - When migrate to new API, also clean up hardcoded default values. 
+   - When migrate to new API, also clean up hardcoded default values.
+   - Fix code in buffer manager for a special case for dynamic buffer profile.
 
 # 7 References
 ## SONiC YANG MODEL GUIDELINES
