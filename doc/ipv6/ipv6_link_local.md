@@ -153,8 +153,9 @@ The below diagram shows the deployment use case.
 
 ![Deployment use case](images/bgp.jpg)
 
-The following command shows the IPv4 routes learned via IPv6 link-local next hops on Router A:
+The following command output shows the IPv4 routes learned via IPv6 link-local next hops in FRR and same IPv4 routes learned via IPv4 link-local next hops in Kernel and APPL_DB on Router A:
 
+FRR :
 ```
 sonic# show ip route
 Codes: K - kernel route, C - connected, S - static, R - RIP,
@@ -165,7 +166,23 @@ Codes: K - kernel route, C - connected, S - static, R - RIP,
 
 B    192.168.0.0/24 [20/0] via fe80::5054:ff:fe03:6175, Ethernet0, 00:00:06
 ```
+Kernel :
+```
+192.168.0.0/24 proto bgp metric 20
+        nexthop via 169.254.0.1 dev Ethernet0 weight 1 onlink
 
+root@sonic:/home/admin# ip neigh show | grep -v eth0
+169.254.0.1 dev Ethernet24 lladdr 50:54:00:03:61:75 PERMANENT
+```
+APPL_DB :
+```
+root@sonic:/home/admin# sonic-db-cli APPL_DB keys NEIGH_TABLE*
+1) "NEIGH_TABLE:Ethernet0:169.254.0.1"
+
+root@sonic:/home/admin# sonic-db-cli APPL_DB hgetall ROUTE_TABLE:192.168.0.0/24
+{'ifname': 'Ethernet0', 'nexthop': '169.254.0.1'}
+root@sonic:/home/admin#
+```
 
 ## 2.2 Functional Description
 This document describes the functional changes required to support IPv6 link-local addresses.
