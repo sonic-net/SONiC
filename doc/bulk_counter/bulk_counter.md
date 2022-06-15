@@ -29,12 +29,12 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
 
 - Syncd shall use bulk stats APIs based on object type. E.g. for a counter group that queries queue and pg stats, queue stats support bulk while pg stats does not, in that case queue stats shall use bulk API, pg stats shall use non bulk API
 - For a certain object type in a counter group, it shall use bulk stats only if:
-  - The stats capability for each counter IDs shall include SAI_STATS_MODE_BULK_READ, SAI_STATS_MODE_BULK_CLEAR, SAI_STATS_MODE_BULK_READ_AND_CLEAR (avoid handling stats mode change)
+  - The stats capability for each counter IDs shall match the stats mode of the counter group
   - Each object queries exactly the same counter IDs. (Requirement from function signature of sai_bulk_object_get_stats and sai_bulk_object_clear_stats)
 - Syncd shall automatically fall back to old way if bulk stats APIs are not supported
 - Syncd shall utilize API sai_query_stats_capability to query bulk capability. Syncd shall treat counter as no bulk capability if API sai_query_stats_capability return error except SAI_STATUS_BUFFER_OVERFLOW (SAI_STATUS_BUFFER_OVERFLOW requires a retry with larger buffer)
 - Syncd shall call bulk stats API in flex counter thread and avoid calling it in main thread to make sure main thread only handles short and high priority tasks. (This is the default behavior in flex counter infrastructure)
-- In phase 1, the change is limited to syncd only, no CLI/swss change. Syncd shall use bulk stats API by querying the statistic capability. Syncd shall deduce the bulk stats mode according to the stats mode defined in FLEX DB:
+- In phase 1, the change is limited to syncd only, no CLI/swss change. Syncd shall deduce the bulk stats mode according to the stats mode defined in FLEX DB:
   - SAI_STATS_MODE_READ -> SAI_STATS_MODE_BULK_READ
   - SAI_STATS_MODE_READ_AND_CLEAR -> SAI_STATS_MODE_BULK_READ_AND_CLEAR
 
@@ -64,37 +64,35 @@ This structure is created because:
 - Avoid constructing these information each time collecting statistic. The bulk context shall only be updated under below cases:
   - New object join counter group. E.g. adding a new port object.
   - Existing object leave counter group. E.g removing an existing port object.
+  - Other case such as counter IDs is updated by user.
 
 ```cpp
 struct BulkStatsContext
 {
-    bool support = true;
+    sai_object_type_t object_type;
     std::vector<sai_object_id_t> object_vids;
     std::vector<sai_object_key_t> object_keys; 
     std::vector<sai_stat_id_t> counter_ids;
-    std::vector<sai_status_t> get_statuses;
-    std::vector<sai_status_t> clear_statuses;
+    std::vector<sai_status_t> statuses;
     std::vector<uint64_t> counters;
     std::shared_ptr<sai_stat_capability_list_t> stats_capas;
 };
 ```
-- support: indicate if bulk is supported for this object type.
+- object_type: object type.
 - object_keys: objects that participate the bulk call. E.g. for port, SAI object id value shall be put into sai_object_key_t structure.
 - counter_ids: SAI statistic IDs that will be queried/cleared by the bulk call.
-- get_statuses: SAI bulk get return value for each object.
-- clear_statuses: SAI bulk clear return value for each object. Only effective if stats mode is read and clear.
+- statuses: SAI bulk API return value for each object.
 - counters: counter values that will be fill by vendor SAI.
 - stats_capas: stats capability for each statitstic IDs for current object type.
 
 The flow of how to updating bulk context will be discussed in following section.
 
-Instance of BulkStatsContext shall be added to FlexCounter class for each object type. One object type may have multiple BulkStatsContext instances.
+For a given object type, diffrent object instance may support different stats capability, so, a list of BulkStatsContext shall be added to FlexCounter class for each object type.
 
 ```cpp
 
-BulkStatsContext m_portBulkContext;
-BulkStatsContext m_priorityGroupBulkContext;
-BulkStatsContext m_queueBulkContext;
+std::vector<BulkStatsContext> m_portBulkContexts;
+std::vector<BulkStatsContext> m_priorityGroupBulkContexts;
 ...
 
 ```
@@ -134,6 +132,15 @@ No extra logic on SONiC side is needed to handle warmboot/fastboot.
 - Bulk collect attribute value is not supported
 - Buffer pool stats is not support for bulk because different buffer pool may have different stats mode. E.g. pool1 has mode SAI_STATS_MODE_READ, pool2 has mode SAI_STATS_MODE_READ_AND_CLEAR. The new SAI bulk API only allows specify one stats mode.
 - Maximum object number at one bulk call is a limitation based on vendor implementation.
+
+### Performance Improvement
+
+A rough test has been done on Nvidia platform for queue. 
+
+- Non bulk API: get stats for one queue takes X seconds; get stats for 32 port * 8 queue is 256X seconds;
+- Bulk API: get stats for one queue takes Y seconds; get stats for 32 port * 8 queue is almost Y seconds;
+
+X is almost euqal to Y. So, more object instances, more performance improvement. 
 
 ### Testing Requirements/Design
 
