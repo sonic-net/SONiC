@@ -30,11 +30,9 @@ This document provides a detailed description on the new features for:
  - swss-common API change.
 
 ## SONiC issue solved by this feature
- - Static config data modify by user but can't revert:
-    - Buffer config are static data render by J2 templates.
-    - User config mixed with static buffer config:
-      - Buffer config update by GCU will overwrite user config.
-      - User can't revert user change to default config.
+ - Static config data can modify by user, for example:
+    - Buffer profile are static data render by J2 templates.
+    - User config mixed with static buffer profile, user can modify buffer profile, but can't revert user change to default config.
  - Potential risk, Yang model default value conflict with hardcoded value:
     - Default value hardcoded in source code.
     - Yang model default value not used.
@@ -63,13 +61,9 @@ This document provides a detailed description on the new features for:
 
 <img src="./images/swss-common-layer.png"  />
 
- - Yang default value layer diagram:
+ - API design diagram:
 
 <img src="./images/swss-common-default-value.png"  />
-
- - Static config DB design diagram:
-
-<img src="./images/swss-common-static-config.png"  />
 
 ## 2.1 Considerations
 ### How to get default value
