@@ -64,7 +64,10 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/31/2019  | Amitabha Sen       | Initial version                   |
-| 0.2 | 06/20/2022  | Kannan Selvaraj    |                                   |
+| 0.2 | 06/20/2022  | Kannan Selvaraj    | Updated load-balance round-robin  |
+|     |             |                    | show command display as STATIC    |
+|     |             |                    | CONFIG_DB flag is changed from    |
+|     |             |                    | static to on                      |
 
 # About this Manual
 This document provides details on achieving Static Port Channel functionality in SONiC. 
