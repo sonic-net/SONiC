@@ -35,7 +35,7 @@
 This document provides an overview of the implementation of making the SWSS Logger persistent for SWSS Syncd and SAI components.
 
 # Motivation
-Loglevel verbosity is part of the configuration of the OS. Today the loglevel is not persistent to reboot. We have a requirement to make it save the loglevel configuration after reboot as the other OS configuration.
+Loglevel verbosity is part of the configuration of the OS. Today, the loglevel is not persistent and gets a default value after reboot. We have a requirement to add the option to save the loglevel in a persistent mode.
 
 # todo update
 # Definitions/Abbreviation
@@ -45,25 +45,29 @@ Loglevel verbosity is part of the configuration of the OS. Today the loglevel is
 | SAI           | Switch Abstraction Interface              |
 
 
-# 1 Overview
-The user can configure loglevel verbosity to each component (in SWSS, Syncd and SAI). Inorder to configure loglevel the user will use the "swssloglevel" script. The script update the LOGLEVEL DB with the new verbosity. After reboot the LOGLEVEL DB flushes and the loglevel of the components return to the default.
+# 1 Background
+Today, the user can configure the loglevel verbosity to each component in SWSS, Syncd and SAI. In order to configure the loglevel, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After a reboot, the LOGLEVEL DB flushes, and the loglevel value of all components returns to default.
 
 # 2 Requirements Overview
-#todo complete
+
 ## 2.1 Functional requirements
 
 The persistent logger should meet the following high-level functional requirements:
-- User will have the option to decide whether he wants the loglevel to be persisatent.
-- Not to compromise the fast and warm reboot performance.
+- User will have the option to decide whether he wants the loglevel to be persisatent or not. Default will be no persistent.
+- Not impact the fast and warm reboot performance.
 
 # 3 Logger design
 ## 3.1 High level design
 
-Simmilary to the config_db.json we will add loglevel_db.json. 
+We will add a new "loglevel save" command, to allow the user to save the loglevel.
 
-We consider another approach, move the LOGLEVEL DB content into the Config DB. Since the Config DB is persistent, the loglevel will be persistent to reboot "free" by using the "config save" CLI command. We discarded this approach because of the scenario that user config loglevel didn't want it to be persistent but used the "config save CLI command for saving other configurations.
+Simmilary to the config_db.json, we will add a new loglevel_db.json:
+- On startup: we will load the loglevel_db.json file to the LOG LEVEL DB.
+- On the swssloglevel: We will save the loglevel to the LOG LEVEL DB.
+- On "loglevel save": We will copy the LOG LEVEL DB to the loglevel_db.json.
 
-todo; consinder 2 approch inorder it not to be 
+### Other approach:
+We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the loglevel will also be persistent to reboot. The loglevel will be saved when using the "config save" CLI command. We discarded this approach to allow our users to save the configuration without saving the loglevel.
 
 #todo add the photo
 ![wjh in sonic](/doc/wjh/wjh_overview.svg)
