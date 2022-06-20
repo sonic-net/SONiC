@@ -24,9 +24,7 @@
 * [WJH in SONiC](#33-wjh-in-sonic-overview)
 * [Init flow](#41-wjhd-init-flow)
 * [Channel create and set flow](#42-wjhd-channel-create-and-set-flow)
-* [Channel remove flow](#43-wjhd-channel-remove-flow)
-* [Deinit flow](#44-wjhd-deinit-flow)
-* [User flow](#45-wjhd-user-flow)
+
 
 # Revision
 | Rev | Date     | Author          | Change Description                 |
@@ -37,9 +35,9 @@
 This document provides an overview of the implementation of making the SWSS Logger persistent for SWSS Syncd and SAI components.
 
 # Motivation
-Loglevel verbosity is part of the configuration of the OS. today not presistent and we have require to it persistent after rebotIt will be convenient if the loglevel will be persistent to reboot the same as the other OS configuration.
+Loglevel verbosity is part of the configuration of the OS. Today the loglevel is not persistent to reboot. We have a requirement to make it save the loglevel configuration after reboot as the other OS configuration.
 
-# todo update add sonic to table
+# todo update
 # Definitions/Abbreviation
 | Abbreviation  | Description                               |
 |---------------|-------------------------------------------|
@@ -48,32 +46,25 @@ Loglevel verbosity is part of the configuration of the OS. today not presistent 
 
 
 # 1 Overview
-
-1. cli config
-2. per component
-2. not persistent to reboot
-todoay warmreboot - not flush 
-loglevel db schema
+The user can configure loglevel verbosity to each component (in SWSS, Syncd and SAI). Inorder to configure loglevel the user will use the "swssloglevel" script. The script update the LOGLEVEL DB with the new verbosity. After reboot the LOGLEVEL DB flushes and the loglevel of the components return to the default.
 
 # 2 Requirements Overview
 #todo complete
 ## 2.1 Functional requirements
 
 The persistent logger should meet the following high-level functional requirements:
-todo change the first
-- The loglevel verbosity the user configures for some component is persistent after a cold and fast reboot if, and only if, the user asks for it by the "loglevel save" CLI command 
-- The logger is persistent to warmboot
-- config reload??? - add
+- User will have the option to decide whether he wants the loglevel to be persisatent.
+- Not to compromise the fast and warm reboot performance.
 
-Phase 1
-- Logger persistent for SWSS Syncd and SAI components
-todo renove
-Phase2
-- Logger persistent for all components, including python app, lldp, pemon, etc.
-todo; consinder 2 approch inorder it not to be 
 # 3 Logger design
-#todo change titel
-## 3.1 WJH in SONiC overview 
+## 3.1 High level design
+
+Simmilary to the config_db.json we will add loglevel_db.json. 
+
+We consider another approach, move the LOGLEVEL DB content into the Config DB. Since the Config DB is persistent, the loglevel will be persistent to reboot "free" by using the "config save" CLI command. We discarded this approach because of the scenario that user config loglevel didn't want it to be persistent but used the "config save CLI command for saving other configurations.
+
+todo; consinder 2 approch inorder it not to be 
+
 #todo add the photo
 ![wjh in sonic](/doc/wjh/wjh_overview.svg)
 
