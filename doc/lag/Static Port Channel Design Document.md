@@ -1,155 +1,277 @@
-# Static Port Channel in SONIC
+# Feature Name 
+### Static Port Channel in SONiC
 
 # High Level Design Document
-
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
-- [DHCP Relay for IPv6 HLD](#dhcp-relay-for-ipv6-hld)
-- [High Level Design Document](#high-level-design-document)
-      - [Rev 0.1](#rev-01)
-- [Table of Contents](#table-of-contents)
-- [List of Tables](#list-of-tables)
-- [List of Figures](#list-of-figures)
-- [Revision](#revision)
-- [About this Manual](#about-this-manual)
-- [Scope](#scope)
-- [Definitions/Abbreviation](#definitionsabbreviation)
-- [1 Requirements Overview](#1-requirements-overview)
-  - [1.1 Functional requirements](#11-functional-requirements)
-  - [1.2 Configuration and Management Requirements](#12-configuration-and-management-requirements)
-- [2 Modules design](#2-modules-design)
-  - [2.1 DHCP Relay for IPv6 build and runtime dependencies](#21-dhcp-relay-for-ipv6-build-and-runtime-dependencies)
-  - [2.2 DHCP Relay for IPv6 process in dhcp-relay container](#22-dhcp-relay-for-ipv6-process-in-dhcp-relay-container)
-  - [2.3 DHCP Monitor](#23-dhcp-monitor)
-- [3 CLI](#3-cli)
-- [4 Init flow](#4-init-flow)
+  * [List of Tables](#list-of-tables)
+  * [Revision](#revision)
+  * [About This Manual](#about-this-manual)
+  * [Scope](#scope)
+  * [Definition/Abbreviation](#definition_abbreviation)
+  * [1 Feature Overview](#1-feature-overview)
+    * [1.1 Requirements](#11-requirements)
+      * [1.1.1 Functional Requirements](#111-functional-requirements)
+      * [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
+      * [1.1.3 Scalability Requirements](#113-scalability-requirements)
+      * [1.1.4 Warm Boot Requirements](#114-warm-boot-requirements)
+    * [1.2 Design Overview](#12-design-overview)
+      * [1.2.1 Basic Approach](#121-basic-approach)
+      * [1.2.2 Container](#122-container)
+      * [1.2.3 SAI Overview](#123-sai-overview)
+  * [2 Functionality](#2-functionality)
+    * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
+      * [2.1.1 Enterprise](#211-enterprise)
+      * [2.1.2 Data Center](#212-data-center)
+    * [2.2 Functional Description](#22-functional-description)
+  * [3 Design](#3-design)
+    * [3.1 Overview](#31-overview)
+      * [3.1.1 Teamd configuration](#311-teamd-configuration)
+      * [3.1.2 Team Manager](#312-team-manager)
+    * [3.2 DB Changes](#32-db-changes)
+      * [3.2.1 CONFIG DB](#321-config-db)
+      * [3.2.2 APP DB](#322-app-db)
+      * [3.2.3 STATE DB](#323-state-db)
+      * [3.2.4 ASIC DB](#324-asic-db)
+      * [3.2.5 COUNTER DB](#325-counter-db)
+    * [3.3 Switch State Service Design](#33-switch-state-service-design)
+      * [3.3.1 Orchestration Agent](#331-orchestration-agent)
+      * [3.3.2 Other Process](#331-other-process)
+    * [3.4 SyncD](#34-syncd)
+    * [3.5 SAI](#35-sai)
+    * [3.6 CLI](#36-cli)
+      * [3.6.1 Data Models](#361-data-models)
+      * [3.6.2 Configuration Commands](#362-configuration-commands)
+      * [3.6.3 Show Commands](#363-show-commands)      
+      * [3.6.4 Debug Commands](#364-debug-commands)      
+      * [3.6.5 Rest API Support](#365-rest-api-support)      
+  * [4 Flow Diagrams](#4-flow-diagrams)
+    * [4.1 Port Channel Creation](#41-port-channel-creation)
+    * [4.2 Port Channel Member Addition](#42_port-channel-member-addition)
+  * [5 Error Handling](#5-error-handling)
+  * [6 Serviceability and Debug](#6-serviceability-and-debug)
+  * [7 Warm Boot Support](#7-warm-boot-support)
+  * [8 Scalability](#8-scalability)
+  * [9 Teammgr Changes](#9-scalability)
+  * [10 Unit Test](#9-unit-test)
+  * [11 References](#references)
+    * [Openconfig support for Port Channel](#openconfig-support-for-port-channel)
 
 # List of Tables
-* [Table 1: Abbreviations](#definitionsabbreviation)
-
-# List of Figures
-* [DHCPv6 Diagram](#2-modules-design)
-* [DHCPv6 init flow](#4-init-flow)
+[Table 1: Abbreviations](#table-1-abbreviations)
 
 # Revision
-| Rev | Date     | Author          | Change Description                 |
-|:---:|:--------:|:---------------:|------------------------------------|
-| 0.1 | 03/04    | Shlomi Bitton   | Initial version                    |
+| Rev |     Date    |       Author       | Change Description                |
+|:---:|:-----------:|:------------------:|-----------------------------------|
+| 0.1 | 10/31/2019  | Amitabha Sen       | Initial version                   |
+| 0.2 | 06/20/2022  | Kannan Selvaraj    |                                   |
 
 # About this Manual
-This document provides an overview of the implementation and integration of DHCP Relay for IPv6 feature in SONiC.
+This document provides details on achieving Static Port Channel functionality in SONiC. 
 
 # Scope
-This document describes the high level design of the DHCP Relay for IPv6 feature in SONiC.
+This document describes the high level design of Static Port Channel functionality.
 
-# Definitions/Abbreviation
-| Abbreviation  | Description                               |
-|---------------|-------------------------------------------|
-| DHCP          | Dynamic Host Configuration Protocol       |
+# Definition/Abbreviation
+### Table 1: Abbreviations
+| **Term**                 | **Meaning**                         |
+|--------------------------|-------------------------------------|
+| LAG                      | Link Aggregation Group              |
+| LACP                     | Link Aggregation Control Protocol   |
 
-# 1 Requirements Overview
+# 1 Feature Overview
+## 1.1 Requirements
+### 1.1.1 Functional Requirements
+1. Support Port Channel in Static mode. Static Port Channel member ports are always available for traffic transmission and reception if the ports links are up. Port types and features are supported in the same way as SONiC LAGs today. MLAG should seamlessly work in Static Mode.
 
-## 1.1 Functional Requirements
+### 1.1.2 Configuration and Management Requirements
+1. Provide configuration to set a Port Channel mode as Static with the click CLI.
+2. Enhance show commands to display the Port Channel mode as Static when configured so with the click CLI.
 
-DHCP Relay for IPv6 feature in SONiC should meet the following high-level functional requirements:
+### 1.1.3 Scalability Requirements
+1. The maximum number of Port Channels configurable (Static and Dynamic put together) per system is 256.
+2. The maximum number of member ports configurable per Port Channel are 32.
 
-- Give the support for relaying DHCP packets from downstream networks to upstream networks using IPv6 addresses.
-- Provide the functionality as a seperate process running on dhcp-relay docker container.
-- Relaying messages to multiple unicast and multicast addresses.
+### 1.1.4 Warm Boot Requirements
+The traffic loss during a warm reboot should be within the prescribed limits of warm boot.
 
-## 1.2 Configuration and Management Requirements
+## 1.2 Design Overview
+### 1.2.1 Basic Approach
+A Static Port Channel has its member ports always available for traffic as long the links are up. All ports are mandated to have the same speed to become members of a Port Channel. Teamd uses loadbalance runner for a Static Port Channel.
 
-- DHCPv6 trap should be enabled through the COPP manager when the DHCP relay feature is enabled and vice versa. 
-- Downstream network is the VLAN interface with the relay configuration. Global IPv6 address is required to be configured on that interface. 
-- Config DB schema should meet the following format:
+### 1.2.2 Container
+An instance of Teamd process is created when a Port Channel (Static or Dynamic) is created. Teamd process runs as part of the Teamd docker. 
+
+### 1.2.3 SAI Overview
+There are no changes to SAI headers/implementation to support this feature. 
+
+# 2 Functionality
+## 2.1 Target Deployment Use Cases
+Static Port Channels can be deployed in both Enterprise and Data center networks. Example usage scenarios for Static Port Channels are:
+
+  - To attach legacy equipment that does not support LACP.
+  - To handle warm boot cases where the control plane outage can exceed 3 * long timeout.
+
+### 2.1.1 Enterprise
+![Enterprise](images/enterprise_lag.PNG)
+
+### 2.1.2 Data Center
+![Data Center](images/data_center_lag.PNG)
+
+## 2.2 Functional Description
+A Port Channel bundles individual ports into a group to provide increased bandwidth, load balancing and redundancy. A Port Channel can be either Static or Dynamic. A Dynamic Port Channel runs Link Aggregation Signaling protocols like LACP to mark the links active for traffic. A Static Port Channel has its member ports always available for traffic. Incoming LACPDUs are silently ignored.
+
+Static Port Channel uses the loadbalance runner which hashes CPU sourced or CPU forwarded traffic among the member ports. Traffic forwarded in hardware on the Port Channel uses the silicon specific traffic hashing algorithm. 
+
+# 3 Design
+
+## 3.1 Overview
+Upon creating a static Port Channel, the "Teamd" daemon corresponding to that Port Channel is instantiated in static mode.
+
+### 3.1.1 Teamd configuration
+A user should be able to create the Port Channel in static or dynamic mode. For static mode, the CONFIG_DB is updated with a flag.
+Note: Port Channels are dynamic by default in SONiC. 
+
+### 3.1.2 Team Manager
+Team Manager listens to Port Channel update events from the PORTCHANNEL and PORTCHANNEL_MEMBER table in CONFIG_DB. For the Static Port Channel add event it starts Teamd  with loadbalance as the runner; whereas for the dynamic Port Channel Teammgr starts Teamd with lacp as the runner. 
+
+## 3.2 DB Changes
+### 3.2.1 CONFIG DB
+To support the static mode for a Port Channel, the PORTCHANNEL table is modified to add a new key-value pair where the value is a "true" or a "false".
 ```
-{
-"VLAN": {
-  "Vlan1000": {
-    "dhcp_servers": [
-      "192.0.0.1", 
-      "192.0.0.2", 
-    ], 
-    "dhcpv6_servers": [ 
-      "21da:d3:0:2f3b::7", 
-      "21da:d3:0:2f3b::6", 
-    ], 
-    "vlanid": "1000" 
-    } 
-  }
-}
+"PORTCHANNEL|PortChannel0001": {
+        "type": "hash",
+        "value": {
+            "on": "true"
+        }
+    }
+
+127.0.0.1:6379[4]> hgetall "PORTCHANNEL|PortChannel0001"
+ 9) "on"
+10) "true"
+
+```
+### 3.2.2 APP DB
+No new tables are needed.
+
+### 3.2.3 STATE DB
+No new tables are needed.
+
+### 3.2.4 ASIC DB
+No new tables are needed.
+
+### 3.2.5 COUNTER DB
+No new tables are needed.
+
+## 3.3 Switch State Service Design
+### 3.3.1 Orchestration Agent
+No changes are needed.
+
+### 3.3.2 Other Process
+No changes are needed.
+
+## 3.4 SyncD
+No changes are needed.
+
+## 3.5 SAI
+No changes are needed.
+
+## 3.6 CLI
+
+### 3.6.1 Data Models
+Please refer [Openconfig support for Port Channel](#openconfig-support-for-port-channel) for details on the Data Model.
+
+### 3.6.2 Configuration Commands
+
+Please refer [Openconfig support for Port Channel](#openconfig-support-for-port-channel) for details on KLISH CLI.
+
+```
+click CLI
+1. config portchannel add PortChannel<number> --static=true
+   Create a Static Port Channel.
+
 ```
 
-# 2 Modules design
+### 3.6.3 Show Commands
 
-![DHCPv6 Diagram](/doc/DHCPv6_Relay/diagram.png)
+Please refer [Openconfig support for Port Channel](#openconfig-support-for-port-channel) for details on KLISH CLI.
 
-## 2.1 DHCP Relay for IPv6 build and runtime dependencies
-
-The DHCP Relay for IPv6 feature, same as the IPv4 version, will be based on the open source project 'isc-dhcp'.
-
-## 2.2 DHCP Relay for IPv6 process in dhcp-relay container
-
-A new process will run in parallel to the other process for IPv4 support.
-The new process will listen to DHCP packets for IPv6 and forward them to the relevant interface according to the configuration.
-For example, from the configuration described on the previous section, the following daemon will start:
 ```
-admin@sonic:/# /usr/sbin/dhcrelay -6 -d --name-alias-map-file /tmp/port-name-alias-map.txt -l Vlan1000 -u 21da:d3:0:2f3b::7%Ethernet28 -u 21da:d3:0:2f3b::6%Ethernet28
-```
+click CLI
+1. show interfaces portchannel
+This command is modified to show the Port Channel Protocol as None for a Static Port Channel.
 
-## 2.3 DHCP Monitor
+Flags: A - active, I - inactive, Up - up, Dw - Down, N/A - not available,
+       S - selected, D - deselected, * - not synced
+  No.  Team Dev         Protocol       Ports
+-----  ---------------  -------------  --------------
+ 0001  PortChannel0001  STATIC(A)(Up)  Ethernet112(S)
+ 0002  PortChannel0002  STATIC(A)(Up)  Ethernet116(S)
+ 0003  PortChannel0003  STATIC(A)(Up)  Ethernet120(S)
 
-The existing DHCP monitor will be enhanced in order to support monitoring for DHCP IPv6 as well.
+```
+### 3.6.4 Debug Commands
+No new debug commands are added.
 
-## 3 CLI
+### 3.6.5 Rest API Support
+Please refer [Openconfig support for Port Channel](#openconfig-support-for-port-channel) for details on Rest API support.
 
-The existing CLI will be enhanced to support configuring DHCP IPv6 along with the IPv4 support.
+# 4 Flow Diagrams
+The below flow diagrams illustrate the interactions of TeamD with rest of the components in SONiC.
 
-**config vlan dhcp_relay add**
+## 4.1 Port Channel Creation
+![Port Channel Creation](images/port_channel_creation.PNG)
 
-Usage:
-```
-config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
-```
-Example:
-```
-admin@sonic:~$ sudo config vlan dhcp_relay add 1000 21da:d3:0:2f3b::7
-Added DHCP relay destination address 21da:d3:0:2f3b::7 to Vlan1000
-Restarting DHCP relay service...
-```
+## 4.2. Port Channel Member Addition
+![Port Channel Member Addition](images/port_channel_member_addition.PNG)
 
-**config vlan dhcp_relay delete**
+# 5 Error Handling
+No new error handling support is added.
 
-Usage:
-```
-config vlan dhcp_relay del <vlan-id> <dhcp_relay_destination_ip>
-```
-Example:
-```
-admin@sonic:~$ sudo config vlan dhcp_relay del 1000 21da:d3:0:2f3b::7
-Removed DHCP relay destination address 21da:d3:0:2f3b::7 from Vlan1000
-Restarting DHCP relay service...
-```
+# 6 Serviceability and Debug
+No new Serviceability or Debug support are added.
 
-**show vlan brief**
+# 7 Warm Boot Support
+Teamd supports warm boot. There is minimal traffic loss on the Port Channel during a system warm boot as the data plane is disrupted for less than 1 second.
 
-Usage:
-```
-show vlan brief
-```
-Example:
-```
-admin@sonic:~$ show vlan brief
-+-----------+----------------------+------------+----------------+-----------------------+-------------+
-|   VLAN ID | IP Address           | Ports      | Port Tagging   | DHCP Helper Address   | Proxy ARP   |
-+===========+======================+============+================+=======================+=============+
-|      1000 | 21da:d3:0:2f3b::6/96 | Ethernet28 | untagged       | 21da:d3:0:2f3b::6     | disabled    |
-|           |                      |            |                | 21da:d3:0:2f3b::7     |             |
-+-----------+----------------------+------------+----------------+-----------------------+-------------+
-```
+# 8 Scalability
+Teamd will support the necessary scalability requirements.
 
-## 4 Init flow
+# 9 TeamMgr Changes
+When static port-channel is configured then teammgr invokes teamd instance as follows
+root          27       1  0 Jun17 ?        00:01:10 /usr/bin/teamd -r -t PortChannel0001 -c {"device":"PortChannel0001","hwaddr":"00:e0:ec:7a:88:11","runner":{"name":"roundrobin","min_ports":1}} -L /var/warmboot/teamd/ -g -d
 
-![DHCPv6 init flow](/doc/DHCPv6_Relay/init.svg)
+round-robin load-balancing is configured for the kernel interface port-channel.
 
+# 10 Unit Test
+1. Create a Static Port Channel.
+  - Verify that there is an entry in the PORTCHANNEL table in CONFIG_DB for the Port Channel and it is marked Static.
+  - Verify that there is an entry in the kernel for the Port Channel and its state is Down.
+  - Verify that there is an entry in the LAG\_TABLE in APPL_DB for the Port Channel and the operational status is Down.
+  - Verify that there is an entry in the PORTCHANNEL in STATE_DB for the Port Channel.
+  - Verify that there is an entry in the ASIC_DB for the Port Channel.
+  - Verify that there is an entry in the hardware for the Port Channel with no member ports.
+  - Dump Teamd instance config and Verify that the Port Channel is present and the runner is "loadbalance".
+  - Dump Teamd instance state and verify that the Port Channel is present.
+
+2. Add a member to the Static Port Channel.
+  - Verify that there is an entry in the PORTCHANNEL\_MEMBER table in CONFIG_DB for the Port Channel with its member port.
+  - Verify that there is an entry in the kernel for the Port Channel and its state is Up.
+  - Verify that there is an entry in the LAG\_TABLE in APPL_DB for the Port Channel and the operational status is Up.
+  - Verify that there is an entry in the LAG\_MEMBER\_TABLE in APPL_DB for the Port Channel and its member.
+  - Verify that there is an entry in the PORTCHANNEL in STATE_DB for the Port Channel.
+  - Verify that there is an entry in the ASIC_DB for the Port Channel with its member port.
+  - Verify that there is an entry in the hardware for the Port Channel with its member port.
+  - Dump Teamd instance config and Verify that the Port Channel is present with its member port.
+  - Dump Teamd instance state and verify that the Port Channel is present with its member port.
+
+3. Delete the member from the Static Port Channel and verify that the system is restored to the state as after test case 1.
+
+4. Delete the Static Port Channel and verify that the Redis database, kernel, hardware and Teamd instance have deleted all information about the Port Channel. 
+ 
+
+# References
+
+## Openconfig support for Port Channel
+https://github.com/project-arlo/SONiC/pull/11/files#diff-db29451602b3f687564afebd0df1e6f4
