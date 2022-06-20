@@ -434,6 +434,10 @@ For full configuration, there’re 2 possible solutions:
 
 <img src="images/full_rpc_gnoi.png" alt="full-gnmi-gnoi" width="500px"/>
 
+The full configuration request will be overwritten by subsequent full configuration request or incremental configuration request.
+
+<img src="images/mixed requests.png" alt="overwritten-config" width="500px"/>
+
 ### 1.2.2 Container
 
 All the introduced features will be part of the sonic-gnmi package installed in sonic-gnmi container.
