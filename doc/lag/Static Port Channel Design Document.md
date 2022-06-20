@@ -53,7 +53,6 @@
   * [6 Serviceability and Debug](#6-serviceability-and-debug)
   * [7 Warm Boot Support](#7-warm-boot-support)
   * [8 Scalability](#8-scalability)
-  * [9 Teammgr Changes](#9-scalability)
   * [10 Unit Test](#9-unit-test)
   * [11 References](#references)
     * [Openconfig support for Port Channel](#openconfig-support-for-port-channel)
@@ -134,7 +133,12 @@ A user should be able to create the Port Channel in static or dynamic mode. For 
 Note: Port Channels are dynamic by default in SONiC. 
 
 ### 3.1.2 Team Manager
-Team Manager listens to Port Channel update events from the PORTCHANNEL and PORTCHANNEL_MEMBER table in CONFIG_DB. For the Static Port Channel add event it starts Teamd  with loadbalance as the runner; whereas for the dynamic Port Channel Teammgr starts Teamd with lacp as the runner. 
+Team Manager listens to Port Channel update events from the PORTCHANNEL and PORTCHANNEL_MEMBER table in CONFIG_DB. For the Static Port Channel add event it starts Teamd  with round-robin as the runner; whereas for the dynamic Port Channel Teammgr starts Teamd with lacp as the runner. 
+
+When static port-channel is configured then teammgr invokes teamd instance as follows
+root          27       1  0 Jun17 ?        00:01:10 /usr/bin/teamd -r -t PortChannel0001 -c {"device":"PortChannel0001","hwaddr":"00:e0:ec:7a:88:11","runner":{"name":"roundrobin","min_ports":1}} -L /var/warmboot/teamd/ -g -d
+
+round-robin load-balancing is configured for the kernel interface port-channel.
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -238,13 +242,7 @@ Teamd supports warm boot. There is minimal traffic loss on the Port Channel duri
 # 8 Scalability
 Teamd will support the necessary scalability requirements.
 
-# 9 TeamMgr Changes
-When static port-channel is configured then teammgr invokes teamd instance as follows
-root          27       1  0 Jun17 ?        00:01:10 /usr/bin/teamd -r -t PortChannel0001 -c {"device":"PortChannel0001","hwaddr":"00:e0:ec:7a:88:11","runner":{"name":"roundrobin","min_ports":1}} -L /var/warmboot/teamd/ -g -d
-
-round-robin load-balancing is configured for the kernel interface port-channel.
-
-# 10 Unit Test
+# 9 Unit Test
 1. Create a Static Port Channel.
   - Verify that there is an entry in the PORTCHANNEL table in CONFIG_DB for the Port Channel and it is marked Static.
   - Verify that there is an entry in the kernel for the Port Channel and its state is Down.
