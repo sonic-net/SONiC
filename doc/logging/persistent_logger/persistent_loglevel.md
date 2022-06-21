@@ -35,7 +35,7 @@
 This document provides an overview of the implementation of making the SWSS Logger persistent for SWSS Syncd and SAI components.
 
 # Motivation
-Loglevel verbosity is part of the configuration of the OS. Today, the loglevel is not persistent and gets a default value after reboot. We have a requirement to add the option to save the loglevel in a persistent mode.
+Log level verbosity is part of the configuration of the OS. Today, the log level is not persistent and gets a default value after reboot. We have a requirement to add the option to save the log level in a persistent mode.
 
 # todo update
 # Definitions/Abbreviation
@@ -46,41 +46,46 @@ Loglevel verbosity is part of the configuration of the OS. Today, the loglevel i
 
 
 # 1 Background
-Today, the user can configure the loglevel verbosity to each component in SWSS, Syncd and SAI. In order to configure the loglevel, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After a reboot, the LOGLEVEL DB flushes, and the loglevel value of all components returns to default.
+Today, the user can configure the log level verbosity to each component in SWSS, Syncd and SAI. In order to configure the log level in runtime, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After a reboot, the LOGLEVEL DB flushes, and the log level value of all components returns to default.
 
 # 2 Requirements Overview
 
 ## 2.1 Functional requirements
 
 The persistent logger should meet the following high-level functional requirements:
-- User will have the option to decide whether he wants the loglevel to be persisatent or not. Default will be no persistent.
+- User will have the option to decide whether he wants the log level to be persisatent or not. Default will be no persistent.
 - Not impact the fast and warm reboot performance.
 
 # 3 Logger design
 ## 3.1 High level design
 
-We will add a new "loglevel save" command, to allow the user to save the loglevel.
+We will add a new "log-level save" command, to allow the user to save the log level.
 
 Simmilary to the config_db.json, we will add a new loglevel_db.json:
-- On startup: we will load the loglevel_db.json file to the LOG LEVEL DB.
-- On the swssloglevel: We will save the loglevel to the LOG LEVEL DB.
-- On "loglevel save": We will copy the LOG LEVEL DB to the loglevel_db.json.
+- On startup: we will load the loglevel_db.json file into the LOGLEVEL DB.
+- On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
+- On "swssloglevel" (already implemented): We will save the log level to the LOGLEVEL DB.
 
 ### Other approach:
-We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the loglevel will also be persistent to reboot. The loglevel will be saved when using the "config save" CLI command. We discarded this approach to allow our users to save the configuration without saving the loglevel.
+We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command. We discarded this approach to allow our users to save the configuration without saving the log level.
 
-#todo add the photo
+## 3.2 Persistent logger flow
+
+- Each component has a singleton Logger object with a loglevel property.
+- On startup:
+  - The loglevel_db.json file is loaded into the LOGLEVEL DB.
+  - The loglevel property is set accordingly to the loglevel value on the LOGLEVEL DB.
+- When a component writes a log message, the Logger writes the message only if the loglevel of the message is above the current loglevel property.
+- When the user wants to set a new log level to a component, he uses the "swssloglevel" CLI command. The "swssloglevel" script sets the new verbosity to the LOGLEVEL DB (database #3).
+- The LOGLEVEL DB change triggers an event, which is caught by the listener thread (each component has its own listener thread).
+- The listener thread changes the loglevel property of the Logger.
+- The user can use the "log-level save" command to save the current loglevel and make it persistent. It will copy the LOGLEVEL DB content into the loglevel_db.json.
+
+
 ![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
 
-When the user wants to set a loglevel to a component, he uses the CLI command "swssloglevel". The CLI command writes the new verbosity to the LOGLEVEL DB (database #3).
-The loglevel DB change triggers an event caught by the listener thread (each component has its listener thread).
-The listener thread changes the loglevel in the Logger instance (each component has its listener thread).
 
-When a component writes a log message to the output file, first, the Logger checks if the loglevel of the log message is not above the Logger minimum loglevel, and just if so, it writes the message to the output file. 
-
-To make the configurable loglevel verbosity persistent the user use dedicated CLI command "log-level save". This CLI command will copy the LOGLEVEL DB content into "loglevel_db.json" file.
-When the switch starts up we will copy the loglevel_db.json content into LOGLEVEL DB.
-# etc/
+# etc/sonic/loglevel_db.json
 init flow
 ## 3.2 CLI commands
 
