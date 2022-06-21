@@ -46,28 +46,28 @@ Log level verbosity is part of the configuration of the OS. Today, the log level
 
 
 # 1 Background
-Today, the user can configure the log level verbosity to each component in SWSS, Syncd and SAI. In order to configure the log level in runtime, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After a reboot, the LOGLEVEL DB flushes, and the log level value of all components returns to default.
+Today, the user can configure the log level verbosity to each component in SWSS, Syncd, and SAI. In order to configure the log level in runtime, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After a reboot, the LOGLEVEL DB flushes, and the log level value of all components returns to default.
 
 # 2 Requirements Overview
 
 ## 2.1 Functional requirements
 
-The persistent logger should meet the following high-level functional requirements:
-- User will have the option to decide whether he wants the log level to be persisatent or not. Default will be no persistent.
+The persistent Logger should meet the following high-level functional requirements:
+- The user can decide whether he wants the log level to be persistent or not. The default will be no persistent.
 - Not impact the fast and warm reboot performance.
 
 # 3 Logger design
-## 3.1 High level design
+## 3.1 High-level design
 
-We will add a new "log-level save" command, to allow the user to save the log level.
+We will add a new "log-level save" command to allow the user to save the log level.
 
-Simmilary to the config_db.json, we will add a new loglevel_db.json:
+Similar to the config_db.json, we will add a new loglevel_db.json:
 - On startup: we will load the loglevel_db.json file into the LOGLEVEL DB.
 - On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
 - On "swssloglevel" (already implemented): We will save the log level to the LOGLEVEL DB.
 
-### Other approach:
-We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command. We discarded this approach to allow our users to save the configuration without saving the log level.
+### Another approach:
+We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command. We discarded this approach to allow users to save the configuration without saving the log level.
 
 ## 3.2 Persistent logger flow
 
@@ -107,10 +107,10 @@ admin@sonic:~$ redis-cli -n 3 HGETALL ‘orchagent:orchagent’
 
 4) “SYSLOG”
 ```
-In addition to the log level, the LOGLEVEL DB contains the logoutput file. After "log-level save" the logoutput will be persistent to reboot too.
+In addition to the log level, the LOGLEVEL DB contains the log output file. After "log-level save" the log output will be persistent to reboot too.
 
 ## loglevel_db.json
-Simmilary to the config_db.json, we will add a new loglevel_db.json. The json file will be added to etc/sonic/loglevel_db.json.
+Similar to the config_db.json, we will add a new loglevel_db.json. The JSON file will be added to etc/sonic/loglevel_db.json.
 
 ```json
 {
@@ -132,18 +132,14 @@ Simmilary to the config_db.json, we will add a new loglevel_db.json. The json fi
 
 # 5 Warm Boot Support
 
-## 5.1 System level
+# todo check who it impact today
 
-WJH service hast to be shutdown prior to syncd and time sensetive services like BGP.
+## 5.1 System level
 
 ## 5.2 Service level
 
-No support.
-
-It is required to test the new service start impact on system performance during system *warm* startup to ensure no additional delay is added in control plane restoration time.
-
 # 6 Fast Boot Support
 
-WJH service has to be stopped prior to syncd and time sensetive services like BGP.
+consider return to default before
 
 # 7 Open Questions
