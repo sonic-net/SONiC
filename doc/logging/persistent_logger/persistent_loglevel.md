@@ -70,7 +70,7 @@ Simmilary to the config_db.json, we will add a new loglevel_db.json:
 We considered another approach, to move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the loglevel will also be persistent to reboot. The loglevel will be saved when using the "config save" CLI command. We discarded this approach to allow our users to save the configuration without saving the loglevel.
 
 #todo add the photo
-![wjh in sonic](/doc/wjh/wjh_overview.svg)
+![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
 
 When the user wants to set a loglevel to a component, he uses the CLI command "swssloglevel". The CLI command writes the new verbosity to the LOGLEVEL DB (database #3).
 The loglevel DB change triggers an event caught by the listener thread (each component has its listener thread).
