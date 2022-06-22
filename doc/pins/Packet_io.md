@@ -203,6 +203,10 @@ Both the sender and the sniffer can be compiled via bazel or sonic-buildimage. E
 
 The packet metadata carried with process_callback_function gets put into a comment in the pcapng. If the sniffer is to be run outside of P4Runtime the user might want to construct their own custom receive thread using customCallbackReceive found in the header file for the sniffer, since the carried metadata might be different.
 
+##Sender application
+The `sender` application is currently used for testing purposes.  It can create a packet, add the appropriate metadata and then send it to the generic netlink device where the `listening` application can pick it up and act on it.  It is also useful for recreating error conditions where generic netlink functionality is part of the causality chain.  
+New applications that are designed to send to the generic netlink devices directly instead of using a kernel module can use this code as a template.
+
 ```
 - sudo [sender] : will send a sample packet using genetlink.
 - sudo [sender] -inputfile=hello.pcapng : will read the packets from a given file and send them via genetlink.
