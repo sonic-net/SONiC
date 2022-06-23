@@ -4,26 +4,44 @@
 
 #### Rev 0.1
 
-# todo update
 # Table of Contents
 - [What Just Happened in SONiC HLD](#what-just-happened-in-sonic-hld)
+- [Persistent logger HLD](#persistent-logger-hld)
 - [High Level Design Document](#high-level-design-document)
-      - [Rev 0.3](#rev-03)
-- [3 Modules design](#3-modules-design)
-  - [3.13 WJH daemon](#313-wjh-daemon)
-    - [3.13.1 Push vs Pull](#3131-push-vs-pull)
+      - [Rev 0.1](#rev-01)
+- [Table of Contents](#table-of-contents)
+- [List of Tables](#list-of-tables)
+- [List of Figures](#list-of-figures)
+- [Revision](#revision)
+- [Scope](#scope)
+- [Motivation](#motivation)
+- [Definitions/Abbreviation](#definitionsabbreviation)
+- [1 Background](#1-background)
+  - [1.1 "swssloglevel" usage](#11-"swssloglevel"-usage)
+  - [1.2 LOGLEVEL DB schema](#12-loglevel-db-schema)
+- [2 Requirements Overview](#2-requirements-overview)
+- [3 Persistent log level design](#3-persistent-log-level-design)
+  - [3.1 High-level design](#31-high-level-design)
+  - [3.2 Persistent logger flow](#32-persistent-logger-flow)
+    - [3.2.1 Return to default log level](#321-return-to-default-log-level)
+- [4 Flows](#4-flows)
+  - [4.1 Logger init flow](#41-logger-init-flow)
+  - [4.2 "config reload" and "config save" flows](#42-"config-reload"-and-"config-save"-flows)
+- [5 Warm Boot Support](#5-warm-boot-support)
+  - [5.1 Keep log level persistent to warm-boot automatic](#51-keep-log-level-persistent-to-warm-boot-automatic)
+  - [5.2 Make the log level persistent to warm-boot only by command](#52-make-the-log-level-persistent-to-warm-boot-only-by-command)
+- [6 Fast Boot Support](#6-fast-boot-support)
+- [7 Young module](#7-young-module)
+- [8 Open Questions](#8-open-questions)
+  - [8.1 Log level persistency in warm-boot](#81-log-level-persistency-in-warm-boot)
 
-# todo update
+
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
-* [Table 2: Raw Channel Data](#raw-channel-1)
-* [Table 3: Aggregated Channel Data](#aggregated-channel)
 
-# todo update
+
 # List of Figures
-* [WJH in SONiC](#33-wjh-in-sonic-overview)
-* [Init flow](#41-wjhd-init-flow)
-* [Channel create and set flow](#42-wjhd-channel-create-and-set-flow)
+* [persistent logger flow](#321-return-to-default-log-level)
 
 
 # Revision
@@ -131,7 +149,7 @@ admin@sonic:~$ log-level save
 - On startup: we will load the loglevel_db.json file into the LOGLEVEL DB.
 
 
-## 3.3 Persistent logger flow
+## 3.2 Persistent logger flow
 
 - Each component has a singleton Logger object with a log level property and listener thread.
 - On startup:
@@ -144,7 +162,7 @@ admin@sonic:~$ log-level save
 - The user can use the "log-level save" command to save the current loglevel and make it persistent. It will copy the LOGLEVEL DB content into the loglevel_db.json.
 In addition to the log level, the LOGLEVEL DB contains the log output file. After "log-level save" the log output will be persistent to reboot too.
 
-### 3.3.1 Return to default log level
+### 3.2.1 Return to default log level
 
   To return to the default log level, the user will remove the loglevel_db.json and reboot the switch.
 
@@ -166,7 +184,7 @@ When the system startup and the Database container initialize, we will load the 
   - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the loglevel_db.json loads into the LOGLEVEL DB. In case there are messages before the loading, the messages will be in the default log level.
 
 
-## 4.2 Config reload and config save flows
+## 4.2 "config reload" and "config save" flows
 
   When the user runs "config reload" or "config save", it will not affect the loglevel state.
    - If the user wants to save its log level configuration, he will use the dedicated CLI command "log-level save".
@@ -179,13 +197,13 @@ When the system startup and the Database container initialize, we will load the 
   That current state could be problematic. Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
 
 
-## 5.1 Keep loglevel persistent to warm-boot automatic
+## 5.1 Keep log level persistent to warm-boot automatic
   
   The current implementation supports this approach and does not need to add any additional implementation.
 ### todo add how it impact today (run warm bolot with default loglevel and with debug loglevel)
 
 
-## 5.2 Make the loglevel persistent to warm-boot only by command
+## 5.2 Make the log level persistent to warm-boot only by command
 
   We will add the LOGLEVEL DB to the list of the dbies we flush before warm-boot.
   In startup, the loglevel_db.json will load on the LOGLEVEL DB.
