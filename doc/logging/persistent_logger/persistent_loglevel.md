@@ -46,7 +46,7 @@ Log level verbosity is part of the configuration of the OS. Today, the log level
 
 
 # 1 Background
-Today, the user can configure the log level verbosity to each component in SWSS, Syncd, and SAI. In order to configure the log level in runtime, the user uses the "swssloglevel" script. The script updates the LOGLEVEL DB with the new verbosity. After reboot, the LOGLEVEL DB flushes, and the log level value of all components returns to default.
+Today, the user can configure the log level verbosity to each component in SWSS, Syncd, and SAI. In order to configure the log level in runtime, the user uses the **"swssloglevel" script**. The script updates the **LOGLEVEL DB** with the new verbosity. After reboot, the LOGLEVEL DB flushes, and the log level value of all components returns to default.
 
 ## 1.1 "swssloglevel" usage
 
@@ -78,7 +78,7 @@ The LOGLEVEL DB is database #3. It contains a table for each component.
 Here is an example of the orchagent component table:
 
 ```
-admin@sonic:~$ redis-cli -n 3 HGETALL ‘orchagent:orchagent’
+admin@sonic:~$ redis-cli -n 3 HGETALL "orchagent:orchagent"
 
 1) “LOGLEVEL”
 
@@ -112,6 +112,7 @@ We discarded this second approach to allow users to save the log level with deti
 admin@sonic:~$ log-level save
 ```
 
+ 
  - Similar to the config_db.json, we will add a new loglevel_db.json. The JSON file will be added to etc/sonic/loglevel_db.json.
 
 ```json
@@ -125,7 +126,7 @@ admin@sonic:~$ log-level save
 }
 ```
 
-- On "swssloglevel": We will set the log level to the LOGLEVEL DB (This is the behavior we have today and it redmain as it is).
+- On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior we have today, and it redmain as it is (with addition of set all components to default log level).
 - On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
 - On startup: we will load the loglevel_db.json file into the LOGLEVEL DB.
 
@@ -143,6 +144,10 @@ admin@sonic:~$ log-level save
 - The user can use the "log-level save" command to save the current loglevel and make it persistent. It will copy the LOGLEVEL DB content into the loglevel_db.json.
 In addition to the log level, the LOGLEVEL DB contains the log output file. After "log-level save" the log output will be persistent to reboot too.
 
+### 3.3.1 Return to default log level
+
+  To return to the default log level, the user will remove the loglevel_db.json and reboot the switch.
+
 
 ![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
 
@@ -155,18 +160,42 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 ## 4.1 Logger init flow todo complete
 
-##todo comlete dast, warm, cold reboot and config reload 
+## 4.2 Config reload and config save flows
+
+  When the user runs "config reload" or "config save", it will not affect the loglevel state.
+   - If the user wants to save its log level configuration, he will use the dedicated CLI command "log-level save".
+   - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
+
 
 # 5 Warm Boot Support
+  
+  In today's implementation, we don't flush the LOGLEVEL DB before warm-boot, which means that if the user configures some loglevel (for example, debug), after warm-boot, the system startup with the same configurable loglevel (debug).
+  That current state could be problematic. Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
 
-# todo check who it impact today
 
-## 5.1 System level
+## 5.1 Keep loglevel persistent to warm-boot automatic
+  
+  The current implementation supports this approach and does not need to add any additional implementation.
+# todo add how it impact today (run warm bolot with default loglevel and with debug loglevel)
 
-## 5.2 Service level
+
+## 5.2 Make the loglevel persistent to warm-boot only by command
+
+  We will add the LOGLEVEL DB to the list of the dbies we flush before warm-boot.
+  In startup, the loglevel_db.json will load on the LOGLEVEL DB.
 
 # 6 Fast Boot Support
 
-consider return to default before
+  In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
 
-# 7 Open Questions
+# 7 Young module
+
+##todo complete
+
+# 8 Open Questions
+
+## 8.1 Log level persistency in warm-boot
+  
+  Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
+
+
