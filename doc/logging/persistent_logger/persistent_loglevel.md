@@ -149,16 +149,22 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
   To return to the default log level, the user will remove the loglevel_db.json and reboot the switch.
 
 
+
+
 ![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
 
 
 
 
-#todo add init flow
 
 # 4 Flows
 
 ## 4.1 Logger init flow todo complete
+
+When the system startup and the Database container initialize, we will load the loglevel_db.json into the LOGLEVEL DB (similar to the config_db.json). If the loglevel.json file is deleted, the system will generate a new loglevel_db.json file with default log level values.
+
+  - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the loglevel_db.json loads into the LOGLEVEL DB. In case there are messages before the loading, the messages will be in the default log level.
+
 
 ## 4.2 Config reload and config save flows
 
@@ -176,7 +182,7 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 ## 5.1 Keep loglevel persistent to warm-boot automatic
   
   The current implementation supports this approach and does not need to add any additional implementation.
-# todo add how it impact today (run warm bolot with default loglevel and with debug loglevel)
+### todo add how it impact today (run warm bolot with default loglevel and with debug loglevel)
 
 
 ## 5.2 Make the loglevel persistent to warm-boot only by command
@@ -190,12 +196,12 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 # 7 Young module
 
-##todo complete
+### todo complete
 
 # 8 Open Questions
 
 ## 8.1 Log level persistency in warm-boot
   
-  Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
+ - Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
 
 
