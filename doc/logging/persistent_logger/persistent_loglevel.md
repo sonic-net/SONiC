@@ -5,7 +5,6 @@
 #### Rev 0.1
 
 # Table of Contents
-- [What Just Happened in SONiC HLD](#what-just-happened-in-sonic-hld)
 - [Persistent logger HLD](#persistent-logger-hld)
 - [High Level Design Document](#high-level-design-document)
       - [Rev 0.1](#rev-01)
