@@ -31,9 +31,8 @@
   - [5.1 Keep log level persistent to warm-boot automatic](#51-keep-log-level-persistent-to-warm-boot-automatic)
   - [5.2 Make the log level persistent to warm-boot only by command](#52-make-the-log-level-persistent-to-warm-boot-only-by-command)
 - [6 Fast Boot Support](#6-fast-boot-support)
-- [7 Young module](#7-young-module)
-- [8 Open Questions](#8-open-questions)
-  - [8.1 Log level persistency in warm-boot](#81-log-level-persistency-in-warm-boot)
+- [7 Open Questions](#8-open-questions)
+  - [7.1 Log level persistency in warm-boot](#81-log-level-persistency-in-warm-boot)
 
 
 # List of Tables
@@ -55,7 +54,6 @@ This document provides an overview of the implementation of making the SWSS Logg
 # Motivation
 Log level verbosity is part of the configuration of the OS. Today, the log level is not persistent and gets a default value after reboot. It is required to add the ability to make the loglevel persistent.
 
-# todo update
 # Definitions/Abbreviation
 | Abbreviation  | Description                               |
 |---------------|-------------------------------------------|
@@ -177,7 +175,7 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 # 4 Flows
 
-## 4.1 Logger init flow todo complete
+## 4.1 Logger init flow
 
 When the system startup and the Database container initialize, we will load the loglevel_db.json into the LOGLEVEL DB (similar to the config_db.json). If the loglevel.json file is deleted, the system will generate a new loglevel_db.json file with default log level values.
 
@@ -200,7 +198,6 @@ When the system startup and the Database container initialize, we will load the 
 ## 5.1 Keep log level persistent to warm-boot automatic
   
   The current implementation supports this approach and does not need to add any additional implementation.
-### todo add how it impact today (run warm bolot with default loglevel and with debug loglevel)
 
 
 ## 5.2 Make the log level persistent to warm-boot only by command
@@ -212,13 +209,9 @@ When the system startup and the Database container initialize, we will load the 
 
   In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
 
-# 7 Young module
+# 7 Open Questions
 
-### todo complete
-
-# 8 Open Questions
-
-## 8.1 Log level persistency in warm-boot
+## 7.1 Log level persistency in warm-boot
   
  - Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
 
