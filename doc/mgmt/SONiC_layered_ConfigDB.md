@@ -173,10 +173,8 @@ This document provides a detailed description on the new features for:
    - When migrate to new API, also clean up hardcoded default values.
    - Fix code in buffer manager for a special case for dynamic buffer profile.
 
- - buffer-manager change to use static config.
-   - after this, sonic-cfggen and sonic-util change to not generate static config to CONFIG_DB.
-
-
+ - Buffer manager change to use static config.
+   - After this, sonic-cfggen and sonic-util change to not generate static config to CONFIG_DB.
 
 # 7 References
 ## SONiC YANG MODEL GUIDELINES
