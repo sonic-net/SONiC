@@ -222,8 +222,9 @@ The event will now be published as below per schema. The instance data would ind
 ```   
 
 ## gNMI client
-A gNMI client could subscribe for events with optional filter on event source in streaming mode.
-Below shows the command & o/p for subscribing all, and receiving BGP events.
+A gNMI client could subscribe for events in streaming mode.
+At the rate of 10K/second and to conserve switch resources, only one gNMI client is supported and hence all events are sent to the client with no additonal filtering. It is expected that the client will save events in a an external storage and consumer clients can watch/query from the external resource with filters.
+Below shows the command & o/p for subscribing all events.
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
 
