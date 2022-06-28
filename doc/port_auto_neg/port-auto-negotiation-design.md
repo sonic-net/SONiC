@@ -26,7 +26,7 @@
   - [SWSS Enhancements](#swss-enhancements)
   - [portsyncd and portmgrd Consideration](#portsyncd-and-portmgrd-consideration)
   - [Port Breakout Consideration](#port-breakout-consideration)
-  - [xcvrd Consideration](#xcvrd-consideration)
+  - [PMON xcvrd Consideration](#pmon-xcvrd-consideration)
 - [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
 - [Restrictions/Limitations](#restrictions/limitations)
 - [Testing Requirements/Design](#testing-requirements/design)
@@ -36,10 +36,11 @@
 
 ### Revision
 
- | Rev |     Date    |       Author       | Change Description                |
- |:---:|:-----------:|:------------------:|-----------------------------------|
- | 0.1 |             |      Junchao Chen  | Initial version                   |
- | 0.2 |             |      Junchao Chen  | Fix review comment                |
+ | Rev |     Date    |       Author        | Change Description                         |
+ |:---:|:-----------:|:-------------------:|--------------------------------------------|
+ | 0.1 |             |      Junchao Chen   | Initial version                            |
+ | 0.2 |             |      Junchao Chen   | Fix review comment                         |
+ | 0.3 |             | Dante (Kuo-Jung) Su | Add support for SFPs and operational states|
 
 ### Scope
 This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change, yang model change and swss change.
@@ -51,7 +52,12 @@ N/A
 
 The IEEE 802.3 standard defines a set of Ethernet protocols that are comprised of speed rate and interface type. It allows for configuring multiple values at the same time for port provisioning and advertising to the remote side. However, on SONiC, user can configure the speed of port, and user can configure auto negotiation mode via config DB. Port attributes such as interface type, advertised speeds, advertised interface types are not supported.
 
-The feature in this document is to address the above issues.
+The feature in this document is to address the above issues, and support the following medium typs
+
+- Twisted-pair cables (Non-Gearbox design)
+- SFP/QSFP/QSFPDD CR/KR transceivers (Non-Gearbox design)
+
+The complexities behind vendor-specific SAI implementation is outside the scope of this document.
 
 ### Requirements
 
@@ -86,6 +92,11 @@ Currently, SAI already defines a few port attributes to support port auto negoti
 3. If autoneg is enabled and adv_speeds is not configured or empty, SAI must advertise it with all supported speeds.
 4. If autoneg is enabled and adv_interface_types is not configured or empty, SAI must advertise it with all supported interface types.
 5. If autoneg is disabled and interface_type is not configured, SAI must use SAI_PORT_INTERFACE_TYPE_NONE.
+6. If autoneg is enabled, the administrative port speed updates should not disable the autoneg. The configured speed should be cached in swss#orchagent and gets replayed when autoneg is transitioned from enabled to disabled.
+7. If autoneg is enabled, while the administrative interface type updates via CONFIG_DB should be blocked, the dynamic interface type updates from pmon#xcvrd via APPL_DB should be delivered to the SAI to update the autoneg advertisement. Please refer to [PMON xcvrd Consideration](#pmon-xcvrd-consideration) for details.
+8. If autoneg is enabled on a SFP/QSFP/QSFPDD port, SAI should also activate the link-training to dynamically tune the TX FIR.
+9. If autoneg is enabled on a SFP/QSFP/QSFPDD port, when it's transitioned to disabled, the port speed, FEC, interface type and TX FIR should be restored with the corresponding values in the APPL_DB. If the individual configuration is not present in the APPL_DB, the SAI driver defaults should be restored. Precisely speaking, default interface type is SAI_PORT_INTERFACE_TYPE_NONE, default fec mode is SAI_PORT_FEC_MODE_NONE and TX FIR is vendor-specific, as it's NOT a set of constants applicable to all switch ASIC.
+10. If autoneg is enabled on a SFP/QSFP/QSFPDD port, the "fec" field of APPL_DB should override the result of autoneg.
 
 The related port attributes are listed below:
 ```cpp
@@ -234,26 +245,29 @@ This command always replace the advertised interface types instead of append. Fo
 
 ##### Show interfaces auto negotiation status
 
-As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation status. All data of this command are fetched from **APPL_DB**.
+As command `show interfaces status` already has 11 columns, a new CLI command will be added to display the port auto negotiation status. All data of this command are fetched from **APPL_DB** and **STATE_DB**.
 
 ```
 Format:
-  show interfaces autoneg-status <interface_name>
+  show interfaces autoneg status <interface_name>
 
 Arguments:
   interface_name: optional. Name of the interface to be shown. e.g: Ethernet0. If interface_name is not given, this command shows auto negotiation status for all interfaces.
 
 Example:
-  show interfaces autoneg-status
-  show interfaces autoneg-status Ethernet0
+  show interfaces autoneg status
+  show interfaces autoneg status Ethernet0
 
 Return:
   error message if interface_name is invalid otherwise:
 
-  Interface    Auto-Neg Mode    Speed    Adv Speeds    Type    Adv Types    Oper    Admin
------------  ---------------  -------  ------------  ------  -----------  ------  -------
-  Ethernet0         disabled      25G           N/A     N/A          N/A    down       up
- Ethernet32          enabled      40G      40G,100G     KR4      KR4,CR4      up       up
+  Interface    Auto-Neg Mode    Speed    Adv Speeds    Rmt Adv Speeds    Type    Adv Types    Oper    Admin
+-----------  ---------------  -------  ------------  ----------------  ------  -----------  ------  -------
+  Ethernet0          enabled     400G           N/A              400G     CR4          CR4      up       up
+  Ethernet8          enabled     400G           N/A               N/A     KR4          KR4    down       up
+ Ethernet16          enabled     400G           N/A              400G     CR4          CR4      up       up
+ Ethernet24              N/A     400G           N/A               N/A     N/A          N/A    down       up
+ Ethernet32         disabled     400G           N/A               N/A     N/A          N/A    down       up
 ```
 
 ##### CLI validation
@@ -379,7 +393,7 @@ The change in APP_DB is similar to CONFIG_DB. 3 new fields **adv_speeds**, **int
 Valid value of the new fields are the same as **PORT** table in CONFIG_DB.
 
 Here is the table to map the fields and SAI attributes:
-| **Parameter**       | **sai_port_attr_t**
+| **Parameter**       | **sai_port_attr_t**                            |
 |---------------------|------------------------------------------------|
 | adv_interface_types | SAI_PORT_ATTR_ADVERTISED_INTERFACE_TYPE        |
 | adv_speeds          | SAI_PORT_ATTR_ADVERTISED_SPEED                 |
@@ -390,15 +404,19 @@ Here is the table to map the fields and SAI attributes:
 #### State DB Enhancements
 
 To support validate interface speed on CLI side, a new field **supported_speeds** will be added to **PORT_TABLE**.
+To support checking remote advertised speeds, a new field **rmt_adv_speeds** will be added to **PORT_TABLE**.
 
 	; Defines information for port state
 	key                     = PORT_TABLE:port_name           ; state of the port
 	; field                 = value
     ...
 	supported_speeds        = STRING                         ; supported speed list
-  speed                   = STRING                         ; operational speed
+	speed                   = STRING                         ; operational speed
+	rmt_adv_speeds          = STRING                         ; advertised speed list of the remote
 
-An example value of supported_speeds could be "10000,25000,40000,100000".
+- supported_speeds: A list of supported speeds separated by commas, for example, "10000,25000,40000,100000".
+- speed: Operational speed, for example, "100000".
+- rmt_adv_speeds: A list of supported speeds advertised by the connected remote, for example, "10000,25000,40000,100000".
 
 Before this feature, port speed in APP DB indicates both the configured speed and the operational speed. It is OK without this feature because port operational speed must be configured speed or port operational status is down. However, this is not true with this feature. Consider following flow:
 
@@ -413,6 +431,13 @@ To overcome this issue, following changes are required:
 1. Put port operational speed to STATE DB PORT_TABLE
 2. intfutil, portstat, voqutil shall be change to get port operational speed from STATE DB first. For backward compatible, intfutil, portstat, voqutil shall still get port operational speed from APP DB if port speed is not available in STATE DB or port operational state is down.
 
+Here is the table to map the fields and SAI attributes:
+| **Parameter**       | **sai_port_attr_t**                            |
+|---------------------|------------------------------------------------|
+| rmt_adv_speeds      | SAI_PORT_ATTR_REMOTE_ADVERTISED_SPEED          |
+| speed               | SAI_PORT_ATTR_SPEED                            |
+| supported_speeds    | SAI_PORT_ATTR_SUPPORTED_SPEED                  |
+
 #### YANG Model Enhancements
 
 The port yang model needs to update according to DB schema change. The yang model changes of new fields are described below:
@@ -420,7 +445,7 @@ The port yang model needs to update according to DB schema change. The yang mode
 ```
 leaf autoneg {
   type string {
-    pattern "0|1";
+    pattern "off"|"on";
   }
 }
 
@@ -470,6 +495,8 @@ Will be migrated to:
 
 #### SWSS Enhancements
 
+##### Setting Auto Negotiation
+
 The current SONiC speed setting flow in PortsOrch can be described in following pseudo code:
 
 ```
@@ -511,6 +538,14 @@ else if autoneg == false:
         setInterfaceType(port, interface_type)
 ```
 
+##### Getting Remote Advertisement
+
+A new periodic timer task will be introduced into PortsOrch, it periodically loops through physical ports and update the per-port remote advertisement if autoneg is enabled and the link is down.
+
+![](flow_rmt_adv.png)
+
+##### Backward Compatibility Considerations
+
 SONiC usually does not call SAI interface when there is no related configuration in APPL_DB. In order to keep backward compatible, this feature also apply this rule.
 
 swss will do validation for auto negotiation related fields, although it still CANNOT guarantee that all parameters passed to SAI will be accepted by SAI. swss validation for these field are described below:
@@ -519,6 +554,7 @@ swss will do validation for auto negotiation related fields, although it still C
 2. adv_speeds value from APPL_DB must be able to transfer to a list of valid speed values. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
 3. interface_type value from APPL_DB must be able to transfer to a valid interface type value. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
 4. adv_interface_types value from APPL_DB must be able to transfer to a list of valid interface type values. For invalid value, swss must catch the exception, log the error value and skip the rest configuration of this port.
+
 
 #### portsyncd and portmgrd Consideration
 
@@ -617,18 +653,15 @@ I choose this solution because:
 
 Dynamic port breakout feature also introduces a hwsku.json file to describe the port capability. It defines the default dynamic breakout mode for now. As we won't automatically set auto negotiation attributes for a port after port breakout, it is not necessary to change the hwsku.json in this feature.
 
-#### xcvrd Consideration
+#### PMON xcvrd Consideration
 
-It is recommended to use CLI/CONFIG_DB to setting the port auto negotiation attributes. But there is still other way.
+While it is possible to use CLI/CONFIG_DB for setting the port auto negotiation attributes, this feature is also available via [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md)
 
-There is a media_setting.json which is used for setting the default value for some port attributes. This media_setting.json is handled by xcvrd for setting pre-emphasis value for ports. xcvrd process the file this way:
+- **Interface Type**  
+  Unfortunately, it's not straightforward for users to identify which interface type is most appropriate to the attached transceivers, and the link will not get up unless the connected devices are both advertising the same interface type. This requires domain knowledge, correct EERPOM information and the individual hardware datasheet review process. Hence it's recommended to use [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) to automate the while process. A interface type update request from [media_settings.json](https://github.com/Azure/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md) is triggered by the transceiver detection of pmon#xcvrd, which leverages **APPL_DB** instead of **CONFIG_DB**, hence the requests will not be blocked by **portsyncd**. If the interface type update request arrives when autoneg is enabled, it should alter the advertisement and restart the autoneg. That said, if the user has interface type configured in both CONFIG_DB and media_settings.json, it wouldn't be possible to predict which would take precedence as there is no logic giving one priority over other. Hence please be sure to use either CLI/CONFIG_DB or media_settings.json at a time, never have both of them activated.
 
-1. When xcvrd start, it reads the media_setting.json and set pre-emphasis values to APPL_DB for each port
-2. When a new cable is inserted, xcvrd uses the value in media_setting.json to set pre-emphasis value to APPL_DB for this port.
-
-xcvrd just reads the configuration from media_settings.json and set value to APPL_DB. xcvrd does not care what the configuration is. So user could use media_settings.json to specify the default value for autoneg, adv_speeds and other port attributes. **Nothing needs to be changed in xcvrd**.
-
-However, it is worthy mentioning that: if user have port attributes configured both in CONFIG_DB and media_settings.json, the value in media_settings.json will override the value in CONFIG_DB after rebooting, restarting pmon or re-insert cables. Base on that, if user choose to use media_settings.json, they probably should not use CLI or CONFIG_DB to avoid configuration loss after rebooting, restarting pmon or re-insert cables.
+- **Pre-Emphasis**  
+  Typically, prior to some process, such as transmission over cable, or recording to phonograph record or tape, the input frequency range most susceptible to noise is boosted. This is referred to as "pre-emphasis" - before the process the signal will undergo. While this is rarely necessay to the native RJ45 ports, it's important to SFP/QSFP/QSFPDD ports. For optical arrangements (e.g. SR/LR/DR transceivers), the loss is miniscule. The loss budget allocated for the host PCB board is small, which implies the pre-emphasis calibrated is supposed to work regardless of the fiber cable attached. On the other hand, on passive media, there is a significant amount of frequency dependent loss and the channel loss can range up to the CR/KR loss spec. It is therefore important and useful to activate Link-Training to "train" the TX FIR in both directions to help equalize that loss. IEEE 802.3 Clause 72, Clause 73 and Clause 93 define the auto-negotiation and link-training support for CR/KR transceivers, while the support of opticals (e.g. SR/LR/DR) are never in the scope. On the other hand, when autoneg is enabled, the link-training will also be activated, and the link-training handshake will only get started after negotiation if autoneg is enabled. Furtherly, link-training is to dynamically tune hardware signals at runtime, as a result, the static pre-emphasis parameters in media_setting.json is not necessary and will not be taken into autoneg process.
 
 ### Warmboot and Fastboot Design Impact
 
