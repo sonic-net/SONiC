@@ -1,12 +1,12 @@
-# Multiple layer ConfigDB
+# Multiple overlay ConfigDB
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
     + [SONiC issue solved by this feature](#sonic-issue-solved-by-this-feature)
 - [1 Functional Requirement](#1-functional-requirement)
-    + [1.1 swss-common return default value from Yang model](#1-1-swss-common-return-default-value-from-yang-model)
-    + [1.2 swss-common return static config from static config layer](#1-1-swss-common-return-static-config-from-static-config-layer)
+    + [1.1 swss-common return default value from Yang model overlay](#1-1-swss-common-return-default-value-from-yang-model-overlay)
+    + [1.2 swss-common return static config from static config overlay](#1-1-swss-common-return-static-config-from-static-config-overlay)
 - [2 Design](#2-design)
     + [2.1 Considerations](#2-1-considerations)
     + [2.2 New class](#2-2-new-class)
@@ -24,9 +24,9 @@
 
 # About this Manual
 This document provides a detailed description on the new features for:
- - Multiple layer Config DB.
- - Yang model default value layer.
- - Static config layer.
+ - Multiple overlay Config DB.
+ - Yang model default value overlay.
+ - Static config overlay.
  - swss-common API change.
 
 ## SONiC issue solved by this feature
@@ -44,12 +44,12 @@ This document provides a detailed description on the new features for:
    - Currently SONiC only support 'show running'
 
 # 1 Functional Requirement
-## 1.1 swss-common return default value from Yang model
+## 1.1 swss-common return default value from Yang model overlay
  - Return default value is optional.
    - Application can read config without default value, also can read config with default value.
  - Backward compatibility with existed code and applications.
 
-## 1.2 swss-common return static config from static config layer
+## 1.2 swss-common return static config from static config overlay
  - Static buffer config stored in static config DB.
  - Return static config is optional.
    - Application can decide read config without static config or not.
