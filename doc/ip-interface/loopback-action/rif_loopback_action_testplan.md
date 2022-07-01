@@ -48,17 +48,17 @@ No scale test related
 #### Config
 The following command can be used to configure loopback action on L3 interface:
 ```
-config interface loopback-action <interface-name> <action>
+config interface ip loopback-action <interface-name> <action>
 ```
 action options: "drop", "forward"
 
 Examples:
 ```
-config interface loopback-action Ethernet248 drop
-config interface loopback-action Vlan100 forward
-config interface loopback-action PortChannel1 drop
-config interface loopback-action Ethernet0.10 drop
-config interface loopback-action Po10.10 drop
+config interface ip loopback-action Ethernet248 drop
+config interface ip loopback-action Vlan100 forward
+config interface ip loopback-action PortChannel1 drop
+config interface ip loopback-action Ethernet0.10 drop
+config interface ip loopback-action Po10.10 drop
 ```
 
 #### Show
@@ -136,16 +136,16 @@ The test will be supported on any topology
 4. Verify the loopback action is not changed with show cli command.
 5. Send traffic to do the validation: 
    - Verify the traffic will be dropped/forwarded as expected.
-   - The RIF TX_ERR counter will increase on the interface that the loppback action is configured to drop
-   - The RIF TX_ERR counter will not increase on the interface that the loppback action is configured to forward
+   - The RIF TX_ERR counter will increase on the interface that the loopback action is configured to drop
+   - The RIF TX_ERR counter will not increase on the interface that the loopback action is configured to forward
 
-### Test cases #3 - Verify loopback action is saved after reboot(config reload reboot, fast-reboot), the interface type will cover all the 5 types of ip interface.
+### Test cases #3 - Verify loopback action is saved after reboot(config reload, reboot, fast-reboot, warm-reboot), the interface type will cover all the 5 types of ip interface.
 1. Configure the loopback action on the interface, some to drop, some to forward.
 2. Config save -y
-3. Do reboot randomly(config reload/reboot/fast-reboot)
+3. Do reboot(config reload/reboot/fast-reboot/warm-reboot)
 4. Verify the loopback action is saved correctly with show cli command.
 5. Send traffic to do the validation: 
    - Verify the traffic will be dropped as expected.
-   - The RIF TX_ERR counter will increase on the interface that the loppback action is configured to drop
-   - The RIF TX_ERR counter will not increase on the interface that the loppback action is configured to forward
+   - The RIF TX_ERR counter will increase on the interface that the loopback action is configured to drop
+   - The RIF TX_ERR counter will not increase on the interface that the loopback action is configured to forward
 
