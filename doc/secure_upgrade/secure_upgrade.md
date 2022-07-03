@@ -153,7 +153,7 @@ Note - The script has the ability to support the use of a public key that was pr
 - Good flows:
   
   -  Verify image - check basic flow of signing and verification
-- Bad flows:
+- Bad flows - 
   Check if verification catches bad images:
   -  Verify image that was modified after build
   -  Verify image with wrong image size in sharch
