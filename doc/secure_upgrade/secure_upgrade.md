@@ -152,14 +152,14 @@ Note - The script has the ability to support the use of a public key that was pr
 
 - Good flows:
   
-  -  verify image - check basic flow of signing and verification
+  -  Verify image - check basic flow of signing and verification
 - Bad flows:
-	-  Check if verification catches bad images:
-		-Verify image that was modified after build
-		-Verify image with wrong image size in sharch
-		-Verify image with the wrong sha1 in sharch
-		-Verify image with modified signature
-		-Verify image signed with one key and verified with a different key 
+  Check if verification catches bad images:
+  -  Verify image that was modified after build
+  -  Verify image with wrong image size in sharch
+  -  Verify image with the wrong sha1 in sharch
+  -  Verify image with modified signature
+  -  Verify image signed with one key and verified with a different key 
 
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
 - Good flow
