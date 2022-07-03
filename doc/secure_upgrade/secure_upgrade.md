@@ -150,16 +150,16 @@ We can use the verification script su_verify_image_sign_dev.sh as part of standa
 
 Note - The script has the ability to support the use of a public key that was provided by the user and not only from BIOS. 
 
-- Good flow:
+- Good flows:
   
-  -  verify image
-- Bad flow:
-
-	-  Image that was modified after build
-	-  Image with wrong image size in sharch
-	-  Image with the wrong sha1 in sharch
-	-  Image with modified signature
-	-  Image signed with one key and verified with a different key 
+  -  verify image - check basic flow of signing and verification
+- Bad flows:
+	-  Check if verification catches bad images:
+		-Verify image that was modified after build
+		-Verify image with wrong image size in sharch
+		-Verify image with the wrong sha1 in sharch
+		-Verify image with modified signature
+		-Verify image signed with one key and verified with a different key 
 
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
 - Good flow
