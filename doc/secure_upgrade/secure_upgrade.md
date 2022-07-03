@@ -78,9 +78,9 @@ Verification flow calls a verification script during image installation, in (1.7
 ###  1.7. <a name='High-LevelDesign'></a>High-Level Design
 
 
-####  1.7.1. <a name='Thisfeaturehas2flowstobesupported:'></a>This feature has 2 flows to be supported:
+This feature has 2 flows to be supported:
 	
-####  1.7.2. <a name='Signingprocess'></a>Signing process  
+####  1.7.1. <a name='Signingprocess'></a>Signing process  
 
 Sign sonic image during build process in build_image.sh script, right after generation.
 We want to add the flags SONIC_SU_MODE_ENABLED and SONIC_SU_PROD_ENABLED to allow several modes of secure upgrade- when SONIC_SU_MODE_ENABLED == n no change will be made to the current build process. In case of SONIC_SU_MODE_ENABLED == y SONIC_SU_PROD_ENABLED will determine if we sign with development script (equals 'n') or production script (equals 'y').
@@ -95,7 +95,7 @@ We will allow the use of 2 script types in this flow -
 
 ![signing_options](signing_options.png)
 
-####  1.7.3. <a name='Verificationprocess'></a>Verification process
+####  1.7.2. <a name='Verificationprocess'></a>Verification process
 - SONIC install – changes will be mainly done in sonic-installer main.py where bootloader methods are being called and will only affect 'sonic-installer install' command (other sonic-installer commands will not be affected). The installation process is triggered by install.sh script, which is different for every platform.
 In our opinion, python modifications will be easier to add and maintain than install.sh changes, as changing install.sh (for each platform) will require much more sources to maintain and test (different HW to check on, test cases for each HW, etc.).
 - A signed image will go through a verification process before installation, as main.py will call a dedicated bash script to split the signature from the image and check it with a public key certificate.
