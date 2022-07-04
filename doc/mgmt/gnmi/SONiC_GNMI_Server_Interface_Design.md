@@ -410,20 +410,26 @@ sonic-restapi uses one authentication mechanism:
 #### 1.2.1.9 ACL
 GNMI server will not support OpenConfig Yang models, so ACL configuration will use CONFIG_DB schema and SONiC Yang Models.
 
-#### 1.2.1.10 Docker to Host communication
+#### 1.2.1.10 Data Protection
+
+For ApplDB, gNMI clients can write table directly. We need to specify which table can be changed, which one can not.
+
+We will create new Yang models for ApplDB, if gNMI set request modifies a table without Yang models, this set request should be rejected. And we can also follow gNMI spec to use "config false" tag, please refer to [link](https://datatracker.ietf.org/doc/html/rfc7950#section-4.2.3).
+
+#### 1.2.1.11 Docker to Host communication
 'config apply-patch' and 'config reload' are designed to run on host, and it's difficult to support them in container:
 1. These commands will update redis database and restart container, when they restart gnmi, bgp, syncd and swss, the ongoing gnmi operation will be broken.
 2. 'config reload' will stop service at first, run some other operations, and then restart service. If we run this command in container, it will be broken at the stop service step.
 3. These commands will execute some host scripts and use systemctl to restart service, it will be dangerous to support these operations in container.
 The solution is to add host services for 'config apply-patch' and 'config reload' on host, and gNMI server uses dbus method to invoke these services to update configuration
 
-##### 1.2.1.10.1 Incremental Configurations
+##### 1.2.1.11.1 Incremental Configurations
 
 For incremental configuration, 'config apply-patch' should not restart gNMI, bgp, synd and swss.
 
 <img src="images/incremental_rpc.svg" alt="incremental" width="800px"/>
 
-##### 1.2.1.10.2 Full Configurations
+##### 1.2.1.11.2 Full Configurations
 
 For full configuration, there’re 2 possible solutions: 
 * gNMI server needs to send response at first, and then invoke 'config reload'.
