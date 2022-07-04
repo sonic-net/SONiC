@@ -64,7 +64,7 @@ To understand the requirements, we need to go over current SONiC management comp
 
 * SONIC CLI commands
 
-<img src="images/cli.png" alt="cli" width="500px"/>
+<img src="images/cli.svg" alt="cli" width="600px"/>
 
 1. Users could use SONiC CLI command "show runningconfig all" to read current configuration. 
     - The blue arrow indicates this process.
@@ -79,7 +79,7 @@ And we have the possibility to improve generic_config_updater performance.
 
 * SONIC Restapi
 
-<img src="images/restapi.png" alt="restapi" width="500px"/>
+<img src="images/restapi.svg" alt="restapi" width="800px"/>
 
 sonic-restapi is a docker container running in SONiC, which exposes HTTPS endpoints to perform dynamic configuration including config VNET routes.
 One challenge of sonic-restapi is to provide a general config schema. Currently its API is designed case by case.
@@ -117,7 +117,7 @@ sonic-telemetry provides gNMI/gNOI server interface. And sonic-telemetry provide
 
 ## 1.2	Design Overview
 
-<img src="images/gnmi.png" alt="gnmi-server" width="500px"/>
+<img src="images/gnmi.svg" alt="gnmi-server" width="600px"/>
 
 ### 1.2.1 Basic Approach
 
@@ -133,7 +133,7 @@ Currently we do not support rollback for ApplDB, therefore VNET route will be an
 
 Since a single SetRequest will be treated as a transaction, sonic-gnmi does not support parallel write operations. We will put the SetRequests in a queue and serve them with a single worker.
 
-<img src="images/set_lock.png" alt="set" width="500px"/>
+<img src="images/set_lock.svg" alt="set" width="800px"/>
 
 * Get
 
@@ -141,7 +141,7 @@ Every set RPC will create a checkpoint of running configuration before any modif
 
 Get RPC during write period should use checkpoint, and normally Get RPC will directly fetch ConfigDB.
 
-<img src="images/get_lock.png" alt="get" width="500px"/>
+<img src="images/get_lock.svg" alt="get" width="800px"/>
 
 #### 1.2.1.2 Yang Validation
 
@@ -160,7 +160,7 @@ And we use the first element to specify the target database.
 
 A single request cannot have both SONiC YANG paths and ConfigDB/ApplDB schema paths. 
 
-<img src="images/message_example.png" alt="message-example" width="500px"/>
+<img src="images/message_example.svg" alt="message-example" width="600px"/>
 
 1. Stage 1: SONiC DB Schema
 
@@ -176,9 +176,9 @@ At stage 2, we will support SONiC Yang schema.
 * If origin is ‘sonic_yang’ and target is ‘APPL_DB’, request will use SONiC Yang models schema, and special_config_updater will be invoked.
 * If origin is ‘sonic_yang’ and target is 'CONFIG_DB' or NULL, request will use SONiC Yang models schema, and sonic_config_engine or generic_config_engine will be invoked.
 
-<img src="images/data_flow.png" alt="set-flow" width="500px"/>
+<img src="images/data_flow.svg" alt="set-flow" width="800px"/>
 
-<img src="images/data_flow_get.png" alt="get-flow" width="500px"/>
+<img src="images/data_flow_get.svg" alt="get-flow" width="800px"/>
 
 Assume running-config to be:
 
@@ -396,7 +396,7 @@ For full system reboot, client has to reprogram ApplDB. If the gnmi container re
 
 We propose to use Capabilities RPC as heartbeat to detect reboot, and after reboot, client should compare ApplDB configuration and check if needs to reprogram.
 
-<img src="images/heartbeat.png" alt="heartbeat" width="500px"/>
+<img src="images/heartbeat.svg" alt="heartbeat" width="800px"/>
 
 #### 1.2.1.8 Authentication
 sonic-telemetry provides three authentication mechanisms, and sonic-gnmi will use the same mechanisms:
@@ -421,22 +421,22 @@ The solution is to add host services for 'config apply-patch' and 'config reload
 
 For incremental configuration, 'config apply-patch' should not restart gNMI, bgp, synd and swss.
 
-<img src="images/incremental_rpc.png" alt="incremental" width="500px"/>
+<img src="images/incremental_rpc.svg" alt="incremental" width="800px"/>
 
 ##### 1.2.1.10.2 Full Configurations
 
 For full configuration, there’re 2 possible solutions: 
 * gNMI server needs to send response at first, and then invoke 'config reload'.
 
-<img src="images/full_rpc.png" alt="full-gnmi" width="500px"/>
+<img src="images/full_rpc.svg" alt="full-gnmi" width="800px"/>
 
 * Use gNMI request and gNOI request together to implement full configuration update.
 
-<img src="images/full_rpc_gnoi.png" alt="full-gnmi-gnoi" width="500px"/>
+<img src="images/full_rpc_gnoi.svg" alt="full-gnmi-gnoi" width="800px"/>
 
 The full configuration request will be overwritten by subsequent full configuration request or incremental configuration request.
 
-<img src="images/mixed requests.png" alt="overwritten-config" width="500px"/>
+<img src="images/mixed requests.svg" alt="overwritten-config" width="800px"/>
 
 ### 1.2.2 Container
 
