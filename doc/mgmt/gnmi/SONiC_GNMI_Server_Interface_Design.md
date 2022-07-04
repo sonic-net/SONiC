@@ -444,6 +444,15 @@ The full configuration request will be overwritten by subsequent full configurat
 
 <img src="images/mixed requests.svg" alt="overwritten-config" width="800px"/>
 
+#### 1.2.1.12 Backward Compatibility
+
+SONiC telemetry is using prefix target to identify target database, and we can use the same method to support backward compatibility.
+
+* If prefix target is ConfigDB or ApplDB, gNMI server should follow current design for set request.
+* If prefix target is empty, gNMI server should invoke translib API for set request.
+
+Now we have two gNMI server, one for read and one for configure. When SONiC telemetry and SONiC gNMI are stable in the future, we can use this prefix target solution to merge them to a single container. 
+
 ### 1.2.2 Container
 
 All the introduced features will be part of the sonic-gnmi package installed in sonic-gnmi container.
