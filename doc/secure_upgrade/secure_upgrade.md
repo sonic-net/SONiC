@@ -148,33 +148,33 @@ As mentioned in 1.5 and 1.11.2, this flow requires secure upgrade enabled ONIE, 
 ####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases  
 We can use the verification script su_verify_image_sign_dev.sh as part of standalone test cases, without the need to run the whole installation process. 
 
-Note - The script has the ability to support the use of a public key that was provided by the user and not only from BIOS. 
+Note - The script can support the use of a public key that was provided by the user and not only from BIOS. 
 
 - Good flows:
   
   -  Verify image - check basic flow of signing and verification
 - Bad flows - 
   Check if verification catches bad images:
-  -  Verify image that was modified after build
-  -  Verify image with wrong image size in sharch
-  -  Verify image with the wrong sha1 in sharch
-  -  Verify image with modified signature
-  -  Verify image signed with one key and verified with a different key 
+  -  Verify an image that was modified after build
+  -  Verify an image with wrong image size in sharch
+  -  Verify an image with the wrong sha1 in sharch
+  -  Verify an image with modified signature
+  -  Verify an image signed with one key and verified with a different key 
 
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
 - Good flows
 	- Install secure image from secure SONIC
-	- Install secure image from from non-secure SONIC
+	- Install secure image from non-secure SONIC
 	- Install secure image from secure ONIE
 	- Install secure image from non-secure ONIE
 	- Install non-secure image from secure SONIC (SB flag is off in BIOS)
-	- Install non-secure image from secure ONIE (SB flag is off in BIOS)
-	- Install non-secure image from non-secure SONIC (nothing should be changed in this flow)
+	- Install a non-secure image from secure ONIE (SB flag is off in BIOS)
+	- Install a non-secure image from non-secure SONIC (nothing should be changed in this flow)
 - Bad flow
-	- Try to install unsigned image from SONIC, on secure boot enabled machine.
-	- Try to install unsigned image from ONIE, on secure boot enabled machine.
-	- Try to install signed image from SONIC, on secure boot enabled machine, while specific ceritifacte for this image is not available from UEFI.
-	- Try to install signed image that was modified after build from SONIC, on secure boot enabled machine.
+	- Try to install an unsigned image from SONIC, on secure boot enabled machine.
+	- Try to install an unsigned image from ONIE, on secure boot enabled machine.
+	- Try to install a signed image from SONIC, on secure boot enabled machine, while specific certificate for this image is not available from UEFI.
+	- Try to install a signed image that was modified after build from SONIC, on secure boot enabled machine.
 
 ###  1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any 
 
