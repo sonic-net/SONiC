@@ -21,9 +21,12 @@
     - [2.2 Functional Description](#22-functional-description)
         - [2.2.1 Monitoring Memory Usage of Containers](#221-monitoring-memory-usage-of-containers)
         - [2.2.2 CLI (and usage example)](#222-cli-and-usage-example)
-            - [2.2.2.1 Show Memory Threshold of Container(s)](#2221-show-memory-threshold-of-containers)
-            - [2.2.2.2 Show Memory Threshold of A Specific Container](#2222-show-memory-threshold-of-a-specific-container)
-            - [2.2.2.3 Configure Memory Threshold of A Specific Container](#2223-configure-memory-threshold-of-a-specific-container)
+            - [2.2.2.1 Show High Memory Alerting of Container(s)](#2221-show-high-memory-alerting-of-containers)
+            - [2.2.2.2 Show Memory Threshold of Container(s)](#2222-show-memory-threshold-of-containers)
+            - [2.2.2.3 Show High Memory Alerting of a Specific Container](#2223-show-high-memory-alerting-of-a-specific-container)
+            - [2.2.2.4 Show Memory Threshold of A Specific Container](#2224-show-memory-threshold-of-a-specific-container)
+            - [2.2.2.5 Configure High Memory Alerting of a Specific Container](#2225-configure-high-memory-alerting-of-a-specific-container)
+            - [2.2.2.6 Configure Memory Threshold of a Specific Container](#2226-configure-memory-threshold-of-a-specific-container)
         - [2.2.3 CONTAINER_FEATURE Table](#223-container_feature-table)
 
 # List of Tables
@@ -184,13 +187,13 @@ check program container_memory_lldp with path "/usr/bin/memory_checker lldp"
 
 ### 2.2.2 CLI (and usage example)
 The CLI tool will provide the following functionality:
-1. Show alerting status of docker container.
+1. Show alerting status of docker container(s).
 2. Configure alerting status of a docker container.
-3. Show memory threshold of docker container.
+3. Show memory threshold of docker container(s).
 4. Configure memory threshold of a docker container.
 
 
-#### 2.2.2.1 Show Memory Threshold of Containers 
+#### 2.2.2.1 Show High Memory Alerting of Containers 
 ```
 admin@sonic:~$ show feature high_memory_alerting
 Container Name              HighMemAlerting
@@ -212,7 +215,7 @@ swss                          enabled
 #### 2.2.2.2 Show Memory Threshold of Containers 
 ```
 admin@sonic:~$ show feature memory_threhsold
-Container Name         Memory Threshold (Bytes)
+Container Name               MemThreshold
 --------------------  -------------------------
 database               	      1073741824
 lldp                          1073741824
@@ -227,7 +230,7 @@ syncd                         1073741824
 swss                          1073741824
 ```
 
-#### 2.2.2.3 Show Memory Threshold of a Specific Container
+#### 2.2.2.3 Show High Memory Alerting status of a Specific Container
 ```
 admin@sonic:~$ show feature high_memory_alerting database
 Container Name              HighMemAlerting
@@ -238,7 +241,7 @@ database               	      enabled
 #### 2.2.2.4 Show Memory Threshold of a Specific Container
 ```
 admin@sonic:~$ show feature memory_threhsold database
-Container Name         Memory Threshold (Bytes)
+Container Name               MemThreshold
 --------------------  -------------------------
 database               	      1073741824
 ```
@@ -248,7 +251,7 @@ database               	      1073741824
 admin@sonic:~$ sudo config feature high_memory_alerting database <enabled|disabled>
 ```
 
-#### 2.2.2.5 Configure the Memory Threshold of a specific container
+#### 2.2.2.6 Configure the Memory Threshold of a specific container
 ```
 admin@sonic:~$ sudo config feature memory_threshold database <threshold_value_in_bytes>
 ```
