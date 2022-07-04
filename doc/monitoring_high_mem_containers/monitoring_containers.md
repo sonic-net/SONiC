@@ -55,24 +55,32 @@ generating corresponding alert messages are the key not only for timely involvin
 external mitigation effort but also for the intended functionalities of entire
 SONiC switch.
 
-If memory usage of a container increases continuously during a period of time,
-there will be high probability that memory leak occurs in this container.
-This feature will detect such issue and generate alerting messages into syslog.
+This feature includes two components: user can leverage the first component to
+enable or disable high memory alerting of each container; second component is
+is used to do monitor and alert. Specifically, if memory usage of a container 
+increases continuously during a period of time, there will be high probability 
+that memory leak occurs in this container. As such, the second component will 
+detect such issue and generate alerting messages into syslog if high memory 
+alerting of this container is enabled.
 
-## 1.1 Monitoring Mmeory Usage of Containers
-This feature is used to monitor and alert high memory usage of containers in
-SONiC. Monit system tool is leveraged to detect whether the memory usage of a
+## 1.1 Monitoring Memory Usage of Containers
+This feature is employed to monitor and alert high memory usage of containers 
+as well as provide user's an ability to enable or disable such alerting on demand.
+Monit system tool is leveraged to detect whether the memory usage of a
 docker container is beyond the pre-defined threshold.
 
-We define memory usage threshold for each container and Monit in background will
-compare the runtime memory usage of a container with the threshold periodically.
-If memory usage of a container is continuously beyond the threshold during the
-specified monitoring interval, then alerting messages will be written into syslog.
+Be default, high memory alerting of each container is enabled and memory usage 
+threshold of each container is initialized in `CONFIG_DB`. Monit in background 
+will compare the runtime memory usage of a container with configured threshold 
+periodically. If memory usage of a container is continuously beyond the threshold 
+during the specified monitoring interval, then alerting messages will be written 
+into syslog.
 
-We also provide configuration options for users such that the memory threshold
-can be changed on demand. Specifically, `show` command can be issued to retrieve
-the threshold value of each container from `CONFIG_DB` while `config` command
-is implemented to configure threshold value of containers,
+We also provide configuration options for users such that the alerting ability
+and memory threshold of each container can be changed. Specifically, `show` 
+command can be issued to retrieve the current alerting ability and
+the threshold value of containers from `CONFIG_DB` while `config` command
+is implemented to configure the alerting ability and threshold value of containers,
 
 ## 1.2 Requirements
 
@@ -82,14 +90,18 @@ is implemented to configure threshold value of containers,
    number of times during the monitoring interval. 
    If memory usage of the container is still larger than thershold after the
    monitoring interval, Monit should generate and write alert into syslog periodically.
-2. `CONFIG_DB` can be configured to set memory threshold of each docker container.
-3. Users can access the memory threshold of each docker cotnainer via the CLI utility
-    1. Users can retrieve memory threshold of docker container(s).
-    2. Users can configure memory threshold of docker container.
+2. `CONFIG_DB` can be configured to retrieve and set alerting ability of each container.
+3. `CONFIG_DB` can be configured to retrieve and set memory threshold of each container.
+4. Users can access the alerting ability of each container via the CLI utility
+    1. Users can retrieve alerting ability of a container.
+    2. Users can configure alerting ability of a container.
+5. Users can access the memory threshold of each container via the CLI utility
+    1. Users can retrieve memory threshold of a container.
+    2. Users can configure memory threshold of a container.
 
 ### 1.2.2 Configuration and Management Requirements
-The default memory threshold of containers should be initialized in the `init_cfg.json.j2` file.
-Configuration of this feature can be changed via:
+The default alerting ability and memory threshold of containers should be initialized 
+in the `init_cfg.json.j2` file. Configuration of this feature can be changed via:
 1. config_db.json
 2. CLI
 
@@ -119,19 +131,18 @@ and Monit will log an alert message into the syslog.
 Specifically, for monitoring memory usage of a container, the workflow can be
 described as following steps:
 1.  Monit spawns a process to execute the script `memory_checker` every 1 minute
-2.  `memory_checker` accepts <container_name> as a parameter and checks whether
-    the container is running
-3.  If the container is running, `memory_checker` retrieves its runtime memory
-    usage from command output of `docker stats`; Otherwiese, `memory_checker`
-    exits and logs an message indicating the specified container is not running.
-4. `memory_checker` reads the memory threshold from `CONFIG_DB` and compare it
-    with runtime memory usage.
-5.  If runtime memory usage is larger than memory threshold, then `memory_checker`
+2.  `memory_checker` accepts <container_name> as a parameter and retrieves 
+    alerting ability and memory threshold of this container from `CONFIG_DB`.
+3.  If high memory alerting is enabled and the container is running, `memory_checker` 
+    retrieves its runtime memory usage from command output of `docker stats`; 
+    Otherwiese, `memory_checker` exits and logs an message indicating the 
+    specified container is not running.
+4.  If runtime memory usage is larger than memory threshold, then `memory_checker`
     exits with non-zero value; Otherwise, `memory_checker` exits with zero value.
-6.  Monit will write an alerting message into syslog if it receives non-zero
+5.  Monit will write an alerting message into syslog if it receives non-zero
     value from `memory_checker` for specified number of times during a monitoring
     interval.
-7.  After monitoring interval, Monit will write alerting messages into syslog
+6.  After monitoring interval, Monit will write alerting messages into syslog
     every 1 minute if it receives non-zero value from `memory_checker` in every
     1 minute polling cycle.
 
@@ -197,7 +208,7 @@ swss                          104857600
 ```
 
 
-#### 2.2.2.2 Show Memory Threshold of A Specific Container
+#### 2.2.2.2 Show Memory Threshold of a Specific Container
 ```
 admin@sonic:~$ show feature mem_threhsold database
 Container Name         Memory Threshold (Bytes)
