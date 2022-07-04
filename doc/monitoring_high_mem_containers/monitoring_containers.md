@@ -53,19 +53,18 @@ the services from other modules.
 Due to limited memory size on deivce, monitoring memory usage of containers and
 generating corresponding alert messages are the key not only for timely involving
 external mitigation effort but also for the intended functionalities of entire
-SONiC switch.
-
-This feature includes two components: user can leverage the first component to
-enable or disable high memory alerting of each container; second component is
-is used to do monitor and alert. Specifically, if memory usage of a container 
+SONiC switch. As such, we propose this feature which includes two components: 
+the first component will provide the ability 
+to enable or disable high memory alerting of each container; second component is
+used to do monitor and alert. Specifically, if memory usage of a container 
 increases continuously during a period of time, there will be high probability 
-that memory leak occurs in this container. As such, the second component will 
-detect such issue and generate alerting messages into syslog if high memory 
+that memory leak occurs in this container. The second component is able
+to detect such issue and generate alert messages into syslog if high memory 
 alerting of this container is enabled.
 
 ## 1.1 Monitoring Memory Usage of Containers
 This feature is employed to monitor and alert high memory usage of containers 
-as well as provide user's an ability to enable or disable such alerting on demand.
+as well as provide user's an ability to enable or disable the alerting on demand.
 Monit system tool is leveraged to detect whether the memory usage of a
 docker container is beyond the pre-defined threshold.
 
@@ -76,11 +75,11 @@ periodically. If memory usage of a container is continuously beyond the threshol
 during the specified monitoring interval, then alerting messages will be written 
 into syslog.
 
-We also provide configuration options for users such that the alerting ability
+We also provide configuration options for users such that the alerting status
 and memory threshold of each container can be changed. Specifically, `show` 
-command can be issued to retrieve the current alerting ability and
+command can be issued to retrieve the current alerting status and
 the threshold value of containers from `CONFIG_DB` while `config` command
-is implemented to configure the alerting ability and threshold value of containers,
+is implemented to configure the alerting status and threshold value of containers,
 
 ## 1.2 Requirements
 
@@ -90,17 +89,17 @@ is implemented to configure the alerting ability and threshold value of containe
    number of times during the monitoring interval. 
    If memory usage of the container is still larger than thershold after the
    monitoring interval, Monit should generate and write alert into syslog periodically.
-2. `CONFIG_DB` can be configured to retrieve and set alerting ability of each container.
+2. `CONFIG_DB` can be configured to retrieve and set alerting status of each container.
 3. `CONFIG_DB` can be configured to retrieve and set memory threshold of each container.
-4. Users can access the alerting ability of each container via the CLI utility
-    1. Users can retrieve alerting ability of a container.
-    2. Users can configure alerting ability of a container.
+4. Users can access the alerting status of each container via the CLI utility
+    1. Users can retrieve alerting status of a container.
+    2. Users can configure alerting status of a container.
 5. Users can access the memory threshold of each container via the CLI utility
     1. Users can retrieve memory threshold of a container.
     2. Users can configure memory threshold of a container.
 
 ### 1.2.2 Configuration and Management Requirements
-The default alerting ability and memory threshold of containers should be initialized 
+The default alerting status and memory threshold of containers should be initialized 
 in the `init_cfg.json.j2` file. Configuration of this feature can be changed via:
 1. config_db.json
 2. CLI
@@ -132,11 +131,11 @@ Specifically, for monitoring memory usage of a container, the workflow can be
 described as following steps:
 1.  Monit spawns a process to execute the script `memory_checker` every 1 minute
 2.  `memory_checker` accepts <container_name> as a parameter and retrieves 
-    alerting ability and memory threshold of this container from `CONFIG_DB`.
+    alerting status and memory threshold of this container from `CONFIG_DB`.
 3.  If high memory alerting is enabled and the container is running, `memory_checker` 
     retrieves its runtime memory usage from command output of `docker stats`; 
-    Otherwiese, `memory_checker` exits and logs an message indicating the 
-    specified container is not running.
+    Otherwiese, `memory_checker` exits and logs an message indicating
+    either alerting is disabled or specified container is not running.
 4.  If runtime memory usage is larger than memory threshold, then `memory_checker`
     exits with non-zero value; Otherwise, `memory_checker` exits with zero value.
 5.  Monit will write an alerting message into syslog if it receives non-zero
@@ -154,7 +153,7 @@ This feature is used to perform monitoring memory usage of a docker container:
     interval.
     A non-zero value indicates runtime memory usage of a docker container is
     larger then its memory threshold.
-2.  After monitoring interval, Monit will write alerting messages into syslog
+2.  After the monitoring interval, Monit will write alerting messages into syslog
     every 1 minute if it receives non-zero value from `memory_checker` in every
     1 minute polling cycle.
 
@@ -185,40 +184,73 @@ check program container_memory_lldp with path "/usr/bin/memory_checker lldp"
 
 ### 2.2.2 CLI (and usage example)
 The CLI tool will provide the following functionality:
-1. Show memory threshold of docker container(s).
-2. Configure memory threshold of a docker container.
+1. Show alerting status of docker container.
+2. Configure alerting status of a docker container.
+3. Show memory threshold of docker container.
+4. Configure memory threshold of a docker container.
 
 
 #### 2.2.2.1 Show Memory Threshold of Containers 
 ```
-admin@sonic:~$ show feature mem_threhsold
+admin@sonic:~$ show feature high_memory_alerting
+Container Name              HighMemAlerting
+--------------------  -------------------------
+database               	      enabled
+lldp                          enabled
+radv                          enabled
+pmon                          enabled
+snmp                          enabled
+telemetry                     enabled
+bgp                           enabled
+dhcp_relay                    enabled
+teamd                         enabled
+syncd                         enabled
+swss                          enabled
+```
+
+
+#### 2.2.2.2 Show Memory Threshold of Containers 
+```
+admin@sonic:~$ show feature memory_threhsold
 Container Name         Memory Threshold (Bytes)
 --------------------  -------------------------
-database               	      157286400 
-lldp                          104857600
-radv                          31457280
-pmon                          104857600
-snmp                          104857600
-telemetry                     209715200
-bgp                           314572800
-dhcp_relay                    62914560
-teamd                         73400320
-syncd                         629145600
-swss                          104857600
+database               	      1073741824
+lldp                          1073741824
+radv                          1073741824
+pmon                          1073741824
+snmp                          1073741824
+telemetry                     1073741824
+bgp                           1073741824
+dhcp_relay                    1073741824
+teamd                         1073741824
+syncd                         1073741824
+swss                          1073741824
 ```
 
-
-#### 2.2.2.2 Show Memory Threshold of a Specific Container
+#### 2.2.2.3 Show Memory Threshold of a Specific Container
 ```
-admin@sonic:~$ show feature mem_threhsold database
+admin@sonic:~$ show feature high_memory_alerting database
+Container Name              HighMemAlerting
+--------------------  -------------------------
+database               	      enabled
+```
+
+#### 2.2.2.4 Show Memory Threshold of a Specific Container
+```
+admin@sonic:~$ show feature memory_threhsold database
 Container Name         Memory Threshold (Bytes)
 --------------------  -------------------------
-database               	      157286400 
+database               	      1073741824
 ```
 
-#### 2.2.2.3 Configure the Memory Threshold of a specific container
+#### 2.2.2.5 Configure the High Memory Alerting of a specific container
 ```
-admin@sonic:~$ sudo config feature mem_threshold database <threshold_value_in_bytes>
+admin@sonic:~$ sudo config feature high_memory_alerting database <enabled|disabled>
+```
+
+#### 2.2.2.5 Configure the Memory Threshold of a specific container
+```
+admin@sonic:~$ sudo config feature memory_threshold database <threshold_value_in_bytes>
 ```
 
 ### 2.2.3 FEATURE Table
@@ -231,7 +263,7 @@ Example:
             "has_timer": false,
             "has_global_scope": true,
             "has_per_asic_scope": true,
-            "auto_restart": "enabled",
+            "high_mem_alert": "enabled",
             "mem_threshold": 157286400,
         },
         "lldp": {
@@ -239,7 +271,7 @@ Example:
             "has_timer": false,
             "has_global_scope": true,
             "has_per_asic_scope": false,
-            "auto_restart": "enabled",
+            "high_mem_alert": "enabled",
             "mem_threshold": 104857600,
         },
     }
