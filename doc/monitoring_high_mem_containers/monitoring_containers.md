@@ -24,7 +24,7 @@
             - [2.2.2.1 Show High Memory Alerting of Container(s)](#2221-show-high-memory-alerting-of-containers)
             - [2.2.2.2 Show Memory Threshold of Container(s)](#2222-show-memory-threshold-of-containers)
             - [2.2.2.3 Show High Memory Alerting of a Specific Container](#2223-show-high-memory-alerting-of-a-specific-container)
-            - [2.2.2.4 Show Memory Threshold of A Specific Container](#2224-show-memory-threshold-of-a-specific-container)
+            - [2.2.2.4 Show Memory Threshold of a Specific Container](#2224-show-memory-threshold-of-a-specific-container)
             - [2.2.2.5 Configure High Memory Alerting of a Specific Container](#2225-configure-high-memory-alerting-of-a-specific-container)
             - [2.2.2.6 Configure Memory Threshold of a Specific Container](#2226-configure-memory-threshold-of-a-specific-container)
         - [2.2.3 CONTAINER_FEATURE Table](#223-container_feature-table)
@@ -246,12 +246,12 @@ Container Name               MemThreshold
 database               	      1073741824
 ```
 
-#### 2.2.2.5 Configure the High Memory Alerting of a specific container
+#### 2.2.2.5 Configure High Memory Alerting of a specific container
 ```
 admin@sonic:~$ sudo config feature high_memory_alerting database <enabled|disabled>
 ```
 
-#### 2.2.2.6 Configure the Memory Threshold of a specific container
+#### 2.2.2.6 Configure Memory Threshold of a specific container
 ```
 admin@sonic:~$ sudo config feature memory_threshold database <threshold_value_in_bytes>
 ```
