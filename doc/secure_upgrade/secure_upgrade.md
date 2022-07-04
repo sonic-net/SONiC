@@ -62,7 +62,7 @@ Secure installation and upgrade of OS are setting a requirement to ensure the im
 ###  1.5. <a name='Requirements'></a>Requirements
 
 We want to enable secure upgrade of SONIC. This will include secure upgrade of SONIC while installing SONIC via ONIE or SONIC. The feature requires a signing process which requires a signing private key and certificate and a verification process which requires a public key certificate for validation. Both processes are required to be supported by various scenarios such as development and release.
-In order to do secure installation of SONIC from ONIE, it has to include the flowing secure upgrade verification commit TODO (on pull request - waiting for it to be created)
+In order to do secure installation of SONIC from ONIE, it has to include the flowing secure upgrade verification commit TBD (on pull request - waiting for it to be created)
 Device arch should support secure boot including UEFI tools.
 
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
@@ -132,7 +132,7 @@ NA
 Device arch should support secure boot including UEFI tools.
 This feature is dependent on BIOS secure boot flag being enabled.
 ####  1.11.2. <a name='ONIEsecureupgradeverificationcode'></a> ONIE secure upgrade verification code
-Secure installation of SONIC from ONIE requires a specific verification code, which can be picked from the following ONIE pull request TODO
+Secure installation of SONIC from ONIE requires a specific verification code, which can be picked from the following ONIE pull request TBD (waiting for it to be created)
 
 ###  1.12. <a name='Upgradeanddowngradeflows'></a> Upgrade and downgrade flows
 we want to discuss the following flows:
@@ -143,7 +143,7 @@ This is the main flow supported by the feature - each signed image will be verif
 ####  1.12.3. <a name='downgradefromsecuredSONICtonon-securedSONIC'></a> downgrade from secured SONIC to non-secured SONIC
 This flow will only be enabled if secure boot BIOS flag is disabled, as we assume users with access to BIOS should have the ability to downgrade the OS version.
 ####  1.12.4. <a name='secureupgradefromsecureupgradeenabledONIEtosecuredSONIC'></a>secure upgrade from secure upgrade enabled ONIE to secured SONIC
-As mentioned in 1.5 and 1.11.2, this flow requires secure upgrade enabled ONIE, with code available in TODO.
+As mentioned in 1.5 and 1.11.2, this flow requires secure upgrade enabled ONIE, with code available in link TBD.
 ###  1.13. <a name='TestingRequirementsDesign'></a> Testing Requirements/Design 
 ####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases  
 We can use the verification script su_verify_image_sign_dev.sh as part of standalone test cases, without the need to run the whole installation process. 
@@ -162,12 +162,19 @@ Note - The script has the ability to support the use of a public key that was pr
   -  Verify image signed with one key and verified with a different key 
 
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
-- Good flow
-
-	- The basic test will include building a signed image and installing it after verification.
+- Good flows
+	- Install secure image from secure SONIC
+	- Install secure image from from non-secure SONIC
+	- Install secure image from secure ONIE
+	- Install secure image from non-secure ONIE
+	- Install non-secure image from secure SONIC (SB flag is off in BIOS)
+	- Install non-secure image from secure ONIE (SB flag is off in BIOS)
+	- Install non-secure image from non-secure SONIC (nothing should be changed in this flow)
 - Bad flow
-	
-	- Trying to install unsigned image on secure boot enabled machine.
+	- Try to install unsigned image from SONIC, on secure boot enabled machine.
+	- Try to install unsigned image from ONIE, on secure boot enabled machine.
+	- Try to install signed image from SONIC, on secure boot enabled machine, while specific ceritifacte for this image is not available from UEFI.
+	- Try to install signed image that was modified after build from SONIC, on secure boot enabled machine.
 
 ###  1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any 
 
