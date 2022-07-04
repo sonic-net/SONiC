@@ -414,7 +414,7 @@ GNMI server will not support OpenConfig Yang models, so ACL configuration will u
 
 For ApplDB, gNMI clients can write table directly. We need to specify which table can be changed, which one can not.
 
-We will create new Yang models for ApplDB, if gNMI set request modifies a table without Yang models, this set request should be rejected. And we can also follow gNMI spec to use "config false" tag, please refer to [link](https://datatracker.ietf.org/doc/html/rfc7950#section-4.2.3).
+We will create new Yang models for ApplDB, if gNMI set request modifies a table without Yang models, this set request should be rejected. And we can also use "config false" tag, please refer to [link](https://datatracker.ietf.org/doc/html/rfc7950#section-4.2.3).
 
 #### 1.2.1.11 Docker to Host communication
 'config apply-patch' and 'config reload' are designed to run on host, and it's difficult to support them in container:
