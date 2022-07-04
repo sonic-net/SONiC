@@ -170,7 +170,7 @@ Note - The script can support the use of a public key that was provided by the u
 	- Install non-secure image from secure SONIC (SB flag is off in BIOS)
 	- Install a non-secure image from secure ONIE (SB flag is off in BIOS)
 	- Install a non-secure image from non-secure SONIC (nothing should be changed in this flow)
-- Bad flow
+- Bad flows
 	- Try to install an unsigned image from SONIC, on secure boot enabled machine.
 	- Try to install an unsigned image from ONIE, on secure boot enabled machine.
 	- Try to install a signed image from SONIC, on secure boot enabled machine, while specific certificate for this image is not available from UEFI.
