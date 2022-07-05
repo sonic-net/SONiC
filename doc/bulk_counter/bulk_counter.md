@@ -30,7 +30,7 @@ SONiC flex counter infrastructure shall utilize bulk stats API to gain better pe
 - Syncd shall use bulk stats APIs based on object type. E.g. for a counter group that queries queue and pg stats, queue stats support bulk while pg stats does not, in that case queue stats shall use bulk API, pg stats shall use non bulk API
 - For a certain object in a counter group, it shall use bulk stats only if all counter IDs support bulk API
 - Syncd shall automatically fall back to old way if bulk stats APIs are not supported
-- Syncd shall utilize sai_bulk_object_clear_stats/sai_bulk_object_clear_stats to query bulk capability. Syncd shall treat counter as no bulk capability if API return error
+- Syncd shall utilize sai_bulk_object_get_stats/sai_bulk_object_clear_stats to query bulk capability. Syncd shall treat counter as no bulk capability if API return error
 - Syncd shall call bulk stats API in flex counter thread and avoid calling it in main thread to make sure main thread only handles short and high priority tasks. (This is the default behavior in current flex counter infrastructure)
 - In phase 1, the change is limited to syncd only, no CLI/swss change. Syncd shall deduce the bulk stats mode according to the stats mode defined in FLEX DB:
   - SAI_STATS_MODE_READ -> SAI_STATS_MODE_BULK_READ
