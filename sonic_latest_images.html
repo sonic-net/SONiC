@@ -1,3 +1,4 @@
+
 <html lang="en">
 
 <head>
@@ -33,7 +34,7 @@
 
 <body>
     <div class="text-center">
-	<img class="d-block mx-auto mb-4" src="https://azure.github.io/SONiC/pdf/newsletters/newsletter_images/sonic-logo_40percentage.png" alt="SONiC logo">
+	<img class="d-block mx-auto mb-4" src="https://sonic-net.github.io/SONiC/pdf/newsletters/newsletter_images/sonic-logo_40percentage.png" alt="SONiC logo">
     </div>
     <div class="list-group" id="builds">
             <table style="width:1200px" border="2" align="center" id="disp_table" >
@@ -67,7 +68,6 @@
 
 		</p>
 		<p class="mt-4">
-		  <b> NOTE: </b> The 5 digit number given in the cells specifies the build Id of the images.
 		</p>
 		<p class="mt-4">
 		    <a  href="https://sonic-build.azurewebsites.net/ui/sonic/Pipelines">click here</a></span></td> for previous builds <br>
@@ -80,7 +80,7 @@
 
     <script>
 	$(document).ready(function () {
-	    $.getJSON("https://raw.githubusercontent.com/Azure/SONiC/sonic_latest_images_links/sonic_image_links.json", 
+	    $.getJSON("https://raw.githubusercontent.com/sonic-net/SONiC/sonic_latest_images_links/sonic_image_links.json", 
 		function(data) {
 		    dbs = data;
 		    branches = Object.keys(data);
@@ -92,9 +92,10 @@
 			for (let j = 0; j < images.length; j++) {
 			    image_name = images[j];
 				image = data[branches[i]][images[j]];
+				commit_dif = data[branches[i]][images[j]];
 			    image_platform = image_name.split(".")[0];
 			    image_platform2 = image_name;
-			    if(image_platform.length == 1){
+				if(image_platform.length == 1){
 				platform = ""
 			    }else{
 				platform = image_platform.split("sonic-")[1];
@@ -106,7 +107,8 @@
 			    image_avail = true;
 			    image_url = image['url'];
 				build_id = image['build'];
-			    if(image_url === 'null' || image_url === ""){
+				commit = commit_dif['diff'];
+				if(image_url === 'null' || image_url === ""){
 				image_avail = false;
 			    }
 			    if ( !$("#"+platform).length ){
@@ -114,11 +116,13 @@
 				$("#disp_table").append(platform_column);
 			    }
 			    if (image_avail)
-				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+platform2+"-"+build_id+"</a></span></td>";
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+platform2+"-"+build_id+"</a> : <a href=\""+ commit +"\">commit_diff</a></span></td>";
+				
 			    else
 				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
-
+				
 			    $("#"+platform).append(image_column);
+				
 			}
 		    }
 
