@@ -189,15 +189,15 @@ std::thread StartReceive(
   - Multicast group / queue functionality is likely unchanged.
   - Packet metadata can be specified by the using application in the P4 program.  
 
-## Sniffer and Sender Applications:
-The `sniffer` application provides the means of a `tcpdump`-like tool to listen to the genetlink device. The sniffer can be used for listening to traffic, as well as recording the traffic into a file or displaying to standard out. The resulting pcapng file can then be viewed using Wireshark. The `sender` application can be used to send an example packet or packets from a pcap/pcapng file through genetlink. The sender also registers a new genetlink family and group called genl_packet and packets respectively. 
+## Sniffer and Packet Generator Applications:
+The `sniffer` application provides the means of a `tcpdump`-like tool to listen to the genetlink device. The sniffer can be used for listening to traffic, as well as recording the traffic into a file or displaying to standard out. The resulting pcapng file can then be viewed using Wireshark. The `generator` application can be used to send an example packet or packets from a pcap/pcapng file through the genetlink interface. The generator also registers a new genetlink family and group called genl_packet and packets respectively. 
 
-The `sender` application is currently used for testing purposes.  It can create a packet, add the appropriate metadata and then send it to the generic netlink device where the `listening` application can pick it up and act on it.  It is also useful for recreating error conditions where generic netlink functionality is part of the causality chain.  
+The `generator` application is currently used for testing purposes.  It can create a packet, add the appropriate metadata and then send it to the generic netlink device where the `listening` application can pick it up and act on it.  It is also useful for recreating error conditions where generic netlink functionality is part of the causality chain.  It should be noted that the generator does not send packets out any other type of interface whether physical or kernel based.  
 New applications that are designed to send to the generic netlink devices directly instead of using a kernel module can use this code as a template.
 
-Both the sender and the sniffer can be compiled via bazel or sonic-buildimage. Either way, once compiled or the necessary binary installed the following commands can be used to use the two applications ([sniffer] indicates the sniffer application and [sender] indicates the sender application):
+Both the generator and the sniffer can be compiled via bazel or sonic-buildimage. Either way, once compiled or the necessary binary installed the following commands can be used to use the two applications ([sniffer] indicates the sniffer application and [generator] indicates the packet generator application):
 
-Both sniffer and sender use the pcapplusplus library which is an actively maintained open source library.
+Both sniffer and generator use the pcapplusplus library which is an actively maintained open source library.
 
 The packet metadata carried with process_callback_function gets put into a comment in the pcapng. If the sniffer is to be run outside of P4Runtime the user might want to construct their own custom receive thread using customCallbackReceive found in the header file for the sniffer, since the carried metadata might be different.
 
@@ -209,8 +209,8 @@ The packet metadata carried with process_callback_function gets put into a comme
 - [sniffer] -o=hello.pcapng : By providing a filename you can write the genetlink packets into a given file. In this example it will be hello.pcapng.
 - [sniffer] -verbose : will print out verbose information about the packets received including metadata and packet contents.
 
-- sudo [sender] : will send a sample packet using genetlink.
-- sudo [sender] -inputfile=hello.pcapng : will read the packets from a given file and send them via genetlink.
-- sudo [sender] -packet=AABBCCDD : will send the given packet in hex representation via genetlink. 
+- sudo [generator] : will send a sample packet using genetlink.
+- sudo [generator] -inputfile=hello.pcapng : will read the packets from a given file and send them via genetlink.
+- sudo [generator] -packet=AABBCCDD : will send the given packet in hex representation via genetlink. 
 ```
 
