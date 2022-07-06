@@ -1,4 +1,4 @@
-# DHCP Relay for IPv6 HLD
+# In-Band ZTP HLD
 
 # High Level Design Document
 
