@@ -5,7 +5,7 @@
 |  Rev  | Date       | Author     | Change Description |
 | :---: | :--------: | :--------: | ------------------ |
 |  0.1  | 2022-02-22 | Xuhui Miao | Initial version    |
-|  0.2  | 2022-05-07 | Xuhui Miao | Update Fips config |
+|  0.2  | 2022-07-07 | Xuhui Miao | Update Fips config |
 
 ## Table of Contents
 - [Abbreviation](#abbreviation)
@@ -24,6 +24,7 @@
   * [Enable FIPS on system level](#Enable-FIPS-on-system-level)
   * [Enable FIPS on application level](#Enable-FIPS-on-application-level)
   * [SONiC Build Options](#SONiC-Build-Options)
+- [SONiC FIPS Command lines](#SONiC-FIPS-Command-lines)
 - [Q&A](#Q&A)
 
 
@@ -178,6 +179,16 @@ Support to enable/disable FIPS config, the flage is disabled by default. IF the 
 ENABLE_FIPS ?= n
 ```
 If the ENABLE_FIPS_FEATURE is not set, then the option ENABLE_FIPS is useless.
+
+## SONiC FIPS Command lines
+### The command line to enable or disable FIPS
+sonic-installer set-fips <image> [--enable-fips=[true|false]]
+
+### The command line to show FIPS status
+sonic-installer get-fips <image>
+
+Returns the following message: Fips is enabled/disabled.
+
 
 ## Q&A
 ### Does SymCrypt use Linux Kernel crypto module?
