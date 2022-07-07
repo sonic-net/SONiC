@@ -98,7 +98,8 @@ sonic-telemetry provides gNMI/gNOI server interface. And sonic-telemetry provide
 * Set and get RPCs must be supported. Customer will use get RPC to retrieve configurations including FRR and VNET route, and use set RPC to apply new configurations.
 * SetRequest message must support to incrementally update configuration and fully update configurations.
 * Data models can be SONiC Yang models or CONFIG_DB schema.
-* Ability to configure/read different DBs - ApplDB, ConfigDB, StateDB, CountersDB etc.
+* Ability to read different DBs - ApplDB, ConfigDB, StateDB, CountersDB etc.
+* Ability to write different DBs - ApplDB, ConfigDB.
 * Configurations must be verified using YANG models even it is in CONFIG_DB schema.
 * Need to configure huge VNET route entries to ApplDB, with high speed.
 * Configurations for ConfigDB must be persisted after a device restart.
