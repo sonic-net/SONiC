@@ -4,7 +4,7 @@
 
 | **Document Name** | **Link** |
 |-------------------|----------|
-| Syslog Source IP HLD | [https://github.com/sonic-net/SONiC/blob/983fb02b909c236e06f2849ee990d4f3fd377516/doc/syslog/syslog-design.md]|
+| Syslog Source IP HLD | [https://github.com/sonic-net/SONiC/blob/master/doc/syslog/syslog-design.md]|
 
 
 ## Overview
