@@ -182,12 +182,16 @@ If the ENABLE_FIPS_FEATURE is not set, then the option ENABLE_FIPS is useless.
 
 ## SONiC FIPS Command lines
 ### The command line to enable or disable FIPS
-sonic-installer set-fips <image> [--enable-fips=[true|false]]
+sonic-installer set-fips <image> [--enable-fips|--disable-fips]
+
+If the image is not specified, the next boot image will be used.
+The default behavior is to enable FIPS, if none of the option --enable-fips or --disable-fips specified.
 
 ### The command line to show FIPS status
 sonic-installer get-fips <image>
 
-Returns the following message: Fips is enabled/disabled.
+Returns the following message: FIPS is enabled/disabled.
+If the image is not specified, the next boot image will be used.
 
 
 ## Q&A
