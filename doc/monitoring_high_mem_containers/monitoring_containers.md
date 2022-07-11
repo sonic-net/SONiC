@@ -56,17 +56,17 @@ the services from other modules.
 Due to limited memory size on deivce, monitoring memory usage of containers and
 generating corresponding alert messages are the key not only for timely involving
 external mitigation effort but also for the intended functionalities of entire
-SONiC switch. As such, we propose this feature which includes two components: 
-the first component will provide the ability 
+SONiC switch. As such, we propose this high memory alerting mechanism which includes 
+two components: the first component will provide the configuration options
 to enable or disable high memory alerting of each container; second component is
-used to do monitor and alert. Specifically, if memory usage of a container 
-increases continuously during a period of time, there will be high probability 
-that memory leak occurs in this container. The second component is able
-to detect such issue and generate alert messages into syslog if high memory 
-alerting of this container is enabled.
+used to do monitor memory usage of containers and alert. Specifically, if 
+memory usage of a container increases continuously during a period of time, 
+there will be high probability that memory leak occurs in this container. 
+The second component is able to detect such issue and generate alert messages 
+into syslog if high memory alerting of this container is enabled.
 
 ## 1.1 Monitoring Memory Usage of Containers
-This feature is employed to monitor and alert high memory usage of containers 
+This mechanism is employed to monitor and alert high memory usage of containers 
 as well as provide user's an ability to enable or disable the alerting on demand.
 Monit system tool is leveraged to detect whether the memory usage of a
 docker container is beyond the pre-defined threshold.
@@ -114,24 +114,24 @@ This feature will not affect the Fast-Reboot/Warm-Reboot procedures.
 
 ### 1.3.1 Basic Approach
 Monitoring the running status of critical processes and resource usage of
-docker containers depends on the Monit system tool. Since Monit natively
-provides a mechanism to check whether a process is running or not, it will
+docker containers depend on the Monit system tool. Since Monit natively
+provides the mechanism to check whether a process is running or not, it will
 be straightforward to monitor the critical processes in SONiC. 
 
-However, Monit only provides a method to monitor the resource usage on a
+However, Monit only provides a mechanism to monitor the resource usage in a
 per-process level not a per-container level. As such, monitoring the resource
-usage of a docker container is not straightforward as monitoring processes.
-In our design, we propose to utilize the mechanism with which Monit can spawn
-a process and check the return value of the process. We will have Monit
+usage of a docker container is not as straightforward as monitoring processes.
+In this design, we propose to utilize the mechanism with which Monit can spawn
+a process and check its return value. We will have Monit
 launch a script which reads the resource usage of a container and compares
-the resource usage with a configured threshold value for that container.
+the resource usage with a configured threshold value of that container.
 If the current resource usage is less than the configured threshold value,
 the script will return 0 and Monit will not take action. However, if the
 resource usage exceeds the threshold, the script will return a non-zero value
 and Monit will log an alert message into the syslog.
 
 Specifically, for monitoring memory usage of a container, the workflow can be
-described as following steps:
+described as the following steps:
 1.  Monit spawns a process to execute the script `memory_checker` every 1 minute
 2.  `memory_checker` accepts <container_name> as a parameter and retrieves 
     alerting status and memory threshold of this container from `CONFIG_DB`.
@@ -144,7 +144,7 @@ described as following steps:
 5.  Monit will write an alerting message into syslog if it receives non-zero
     value from `memory_checker` for specified number of times during a monitoring
     interval.
-6.  After monitoring interval, Monit will write alerting messages into syslog
+6.  After the monitoring interval, Monit will write alerting messages into syslog
     every 1 minute if it receives non-zero value from `memory_checker` in every
     1 minute polling cycle.
 
@@ -155,7 +155,7 @@ This feature is used to perform monitoring memory usage of a docker container:
     value from `memory_checker` for specified number of times during a monitoring
     interval.
     A non-zero value indicates runtime memory usage of a docker container is
-    larger then its memory threshold.
+    larger than its memory threshold.
 2.  After the monitoring interval, Monit will write alerting messages into syslog
     every 1 minute if it receives non-zero value from `memory_checker` in every
     1 minute polling cycle.
@@ -167,14 +167,14 @@ This feature is used to perform monitoring memory usage of a docker container:
 ### 2.2.1 Monitoring Memory Usage of Containers
 Monit can be employed to monitor the resource usage such as CPU, memory and disk
 of each process. Unfortunately Monit is unable to do the resource monitoring
-in the container level. Thus we propose a new design to monitor memory usage of
+in the container level. Thus we propose a mechanism to monitor memory usage of
 a docker container based on Monit.
 
 Specifically, Monit will launch a script `memory_checker` and check its exit value.
 A non-zero value indicates runtime memory usage of a docker container is larger than
 its memory threshold. Monit will write an alerting message into syslog if it receives
 non-zero value from `memory_checker` for specified number of times during a monitoring
-interval. After monitoring interval, Monit will write alerting messages into syslog
+interval. After the monitoring interval, Monit will write alerting messages into syslog
 every 1 minute if it receives non-zero value from `memory_checker` in every 1 minute
 polling cycle.
 
