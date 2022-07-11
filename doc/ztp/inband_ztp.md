@@ -17,6 +17,8 @@
   - [3.1 ZTP provision over in-band network on init](#31-ZTP-provision-over-in-band-network-on-init)
     - [3.1.1 config-setup service](#311-config-setup-service)
     - [3.1.2 interfaces-config service](#312-interfaces-config-service)
+    - [3.1.3 ZTP service](#313-ztp-service)
+
 
 # Revision
 | Rev | Date     | Author          | Change Description                 |
@@ -50,60 +52,67 @@ In band ZTP feature in SONiC should meet the following high-level functional req
 
 
 ## 2.2 Configuration and Management Requirements
-- When ZTP is enabled, in-band ZTP is enabled by default.
+- Provisioning over in-band network is enabled by default when the ZTP package is included.
 - There is no CLI command to disable in-band ZTP.
 - DHCP_L2 and DHCPV6_L2 traps should be enabled using COPP manager for in-band ZTP.
+- A configuration option is provided in the ZTP configuration file ztp_cfg.json to enable or disable in-band provisioning feature. Use "feat-inband" : false in /host/ztp/ztp_cfg.json to disable ZTP in-band provisioning. 
 
 # 3 Modules design
 
-![In-band ZTP modules](images/inband-ztp-modules.png)
+![In-band ZTP modules](images/modules-design.png)
 
 ## 3.1 ZTP provision over in-band network on init
-Services config-setup and interface-config perform the groundwork fror ZTP service. 
+Services config-setup and interface-config perform the groundwork for ZTP service. 
 
 ### 3.1.1 config-setup service
 First service to run is config-setup, it does the following:
 
 ![config-setup](images/config-setup.png)
 
-Service config-setup creates 2 files using sonic-cfggen:
-- config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP and PORT
+- Create the following files using sonic-cfggen:
+1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP and PORT
 DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
-ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds all ZTP defines (helper files location, sub features admin state etc.).
+ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds all ZTP defines (sub features admin state, helper files location, etc.).
 PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
 
-- /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 related configuration (e.g. DUID:DHCP unique identifier type) 
+2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 related configuration (e.g. DUID:DHCP unique identifier type) 
 
-Service config-setup then perform config reload to load the newly created config_db.json, stop ZTP process if running and delete ZTP session data to prepare for a new ZTP session.
+- Run config reload to load the newly created config_db.json, then it stops ZTP process if running and delete ZTP session data to prepare for a new ZTP session.
 
 ### 3.1.2 interfaces-config service
 After config reload, service interfaces-config runs and perfrom the following:
 
 ![interfaces-config](images/interfaces-config.png)
 
-Service interfaces-config first check if file ztp_dhcp.json exist, if so:
+Check if file ztp_dhcp.json exist, if so:
 - Read interfaces data from PORT_TABLE in App DB (alias, speed, oper_status etc.)
 - Use sonic-cfggen to create the following files (supply interface data as input):
-1. /etc/network/interfaces file (using interfaces.j2). This file contains network interface configuration like static IP address, network netmask, default gateway or DHCP enable. It will be used when service will run "systemctl restart networking" to start DHCP discovery.
-2. /etc/dhcp/dhclient.conf file (using dhclient.conf.j2). This file contains configuration information for dhclient. 
+1. /etc/network/interfaces file (using interfaces.j2). This file contains network interface configuration like static IP address, network netmask, enable DHCP etc.
+2. /etc/dhcp/dhclient.conf file (using dhclient.conf.j2). This file defines the DHCP information provided to the client by the server (DHCP options and requests).
 3. /etc/sysctl.d/90-dhcp6-systcl.conf (using 90-dhcp6-systcl.conf.j2). This file contains DHCPv6 related configuration accept_ra (accept router advertisements) and accept_ra_defrtr (learn default router in router advertisement).
-- Restart networking service, this will start DHCP discovery on all in-band interfaces and mgmt interface.
-- dhcp-enter-hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip will set the offered IP address on the in-band interfaces.
-- At this point, switch receives DHCP option 67 or 239, dhcp-exit-hook /etc/dhcp/dhclient-exit-hooks.d/ztp read the received option and write to a file on the filesystem.
-if file ztp_dhcp.json does not exist:
-- Same files will be created with one difference in 
 
 
+### 3.1.3 ZTP service
+ZTP service perform the following:
 
+![ztp-engine](images/ztp-engine.png)
 
+- Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, ZTP json, simple provisioning script or minigraph. See below order of precedence:
+1. ZTP JSON file specified in pre-defined location as part of the image
+2. ZTP JSON URL specified via DHCP Option-67
+3. ZTP JSON URL specified via DHCPv6 Option-59
+4. Simple provisioning script URL specified via DHCP Option-239
+5. Simple provisioning script URL specified via DHCPv6 Option-239
+6. Minigraph URL and ACL URL specified via DHCP Option 225, 226
 
+For each option mentioned above, there is a predefined path to a file on the filesystem. When the correspnding option will arrive in the DHCP packet we will parse it and write to this file.
+We determine ZTP mode by checking if the file exist If it does, we read the URL and use it to download the ZTP JSON/provisioning script.
 
-
-
-
-
-
-
-
+- If none of the files exist, we perform restart to the networking service, this will start DHCP discovery on all in-band interfaces.
+- DHCP process starts, server sends offer, client sends request, server sends ack with the IP address and the required DHCP option.
+- DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
+- Another hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
+- Go back to discovery mode, this time, one of the files will exist and discover will succeed.
+- Process the available configuration sections in ZTP JSON 
 
 
