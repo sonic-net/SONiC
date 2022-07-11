@@ -150,7 +150,7 @@ described as the following steps:
 
 # 2 Functionality
 ## 2.1 Target Deployment Use Cases
-This feature is used to perform monitoring memory usage of a docker container:
+This mechanism is used to perform monitoring memory usage of docker containers:
 1.  Monit will write an alerting message into syslog if it receives non-zero
     value from `memory_checker` for specified number of times during a monitoring
     interval.
@@ -168,7 +168,7 @@ This feature is used to perform monitoring memory usage of a docker container:
 Monit can be employed to monitor the resource usage such as CPU, memory and disk
 of each process. Unfortunately Monit is unable to do the resource monitoring
 in the container level. Thus we propose a mechanism to monitor memory usage of
-a docker container based on Monit.
+docker containers based on Monit.
 
 Specifically, Monit will launch a script `memory_checker` and check its exit value.
 A non-zero value indicates runtime memory usage of a docker container is larger than
@@ -178,7 +178,7 @@ interval. After the monitoring interval, Monit will write alerting messages into
 every 1 minute if it receives non-zero value from `memory_checker` in every 1 minute
 polling cycle.
 
-Below is Monit configuration file of lldp container:
+Below is an example showing Monit configuration file of lldp container:
 
 ```bash
 check program container_memory_lldp with path "/usr/bin/memory_checker lldp"
