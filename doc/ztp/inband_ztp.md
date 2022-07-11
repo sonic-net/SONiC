@@ -56,7 +56,7 @@ In-band ZTP feature in SONiC should meet the following requirements:
 
 ![In-band ZTP modules](images/modules-design.png)
 
-Services config-setup and interface-config perform the groundwork for ZTP service and config manager in SWSS is registering the required trap.
+Services config-setup and interface-config perform the groundwork for ZTP service and copp manager in SWSS is registering the required trap.
 
 ## 3.1 ZTP provision over in-band network on init
 
@@ -77,7 +77,7 @@ PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.j
 ### 3.1.2 interfaces-config service
 After config reload, service interfaces-config runs and perfrom the following:
 
-![interfaces-config](images/interfaces-config.png)
+![interfaces-config](images/interfaces-config.svg)
 
 Check if file ztp_dhcp.json exist, if so:
 - Read interfaces data from PORT_TABLE in app DB (alias, speed, oper_status etc.)
