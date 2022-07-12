@@ -45,7 +45,7 @@ Alternitively, ZTP can download a provisioning script and execute it. DHCP optio
 # 2 Requirements
 
 ## 2.1 Functional requirements
-In-band ZTP feature in SONiC should meet the following requirements:
+In-band ZTP in SONiC should meet the following requirements:
 - ZTP should be able to provision the switch over in-band network in addition to the out-of-band network.
 - DHCP discovery should be performed on all in-band interfaces.
 - The first interface to provide provisioning data will be used and any provisioning data provided by other interfaces is ignored.
