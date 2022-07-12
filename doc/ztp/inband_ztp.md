@@ -18,8 +18,7 @@
     - [3.1.2 interfaces-config service](#312-interfaces-config-service)
     - [3.1.3 ZTP service](#313-ztp-service)
     - [3.1.4 SWSS COPP](#314-swss-copp)
-
-
+  - [3.2 ZTP provision over in-band network on runtime](#31-ZTP-provision-over-in-band-network-on-runtime)
 
 # Revision
 | Rev | Date     | Author          | Change Description                 |
@@ -200,4 +199,8 @@ static map<string, sai_hostif_trap_type_t> trap_id_map = {
 };
 ```
 
-
+## 3.2 ZTP provision over in-band network on runtime
+User can force ZTP service to run using CLI command "ztp run", this will restart ZTP operation.
+In this scenario, ztp-engine performs the following:
+1. Verify all ZTP sub features (inband, ipv4, ipv6) are enabled in config DB. If not, create config_db.json and ztp_dhcp.json (same as config-setup does on init) and perfrom config reload to load the newly created config_db.json.
+2. Rest of the flow is as described in [3.1.3 ZTP service](#313-ztp-service)
