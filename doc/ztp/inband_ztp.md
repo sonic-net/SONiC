@@ -96,7 +96,7 @@ ZTP service perform the following:
 
 ![ztp-engine](images/ztp-engine.svg)
 
-- Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, ZTP json, simple provisioning script or minigraph. See below order of precedence:
+- Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, remote ZTP json, simple provisioning script or updategraph. See below order of precedence:
 1. ZTP json file specified in pre-defined location as part of the image
 2. ZTP json file downloaded using URL specified in DHCP Option-67
 3. ZTP json file downloaded using URL specified in DHCPv6 Option-59
@@ -105,7 +105,7 @@ ZTP service perform the following:
 6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively
 
 For each option mentioned above, there is a predefined path to a file on the filesystem. When the correspnding option will arrive in the DHCP packet, we will parse it and write to this file.
-We determine ZTP mode by checking if the file exist, if it does, we read the URL from it, and use it to download the ZTP json/provisioning script.
+We determine ZTP mode by checking if the file exist, if it does, we read the URL from it, downloading the ZTP json or the provisioning script and skip all other options.
 
 - If none of the files exist (discovery failed), wait for in-band interfaces to be created (read interfaces from config DB and poll for existance of /sys/class/net/${PORT}), then check for oper state change in one on of the in-band interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all in-band interfaces.
 - In the case where discovery failed and no link up detected, we keep a timer to restart interfaces-config service periodically every 300 seconds.
