@@ -38,8 +38,8 @@ This document describes the high level design of the in-band ZTP feature in SONi
 
 
 # 1 Overview
-When a newly deployed SONiC switch boots for the first time, it should allow automatic setup of the switch without user intervention. This framework is called ZTP.
-ZTP allows switch that boots from factory default to communicate with remote provisioning server (DHCP server), download a file called ZTP json and perform the configuration tasks listed in it. Configuration tasks are defined with the corresponding plugin that will be applied by ZTP. Plugin can be config_db.json to apply, SW image to install, SNMP community string or graphservice provided with minigraph xml and ACL json . ZTP allows to perform one or more configuration tasks. It also allow ordering of those tasks as defined in the ZTP json. DHCP option 67 (59 for DHCPv6) in the DHCP offer contains the url to the ZTP json.  ZTP service will download the ZTP json, process it and execute the configuration tasks listed in it.
+When a newly deployed SONiC switch boots for the first time, it should allow automatic configuration of the switch without user intervention. This framework is called ZTP.
+ZTP allows switch that boots from factory default to communicate with remote provisioning server (DHCP server), download a file called ZTP json and perform the configuration tasks listed in it. Configuration tasks are defined with the corresponding plugin to be applied by ZTP service. Plugin can be config_db.json to apply, SW image to install, SNMP community string or minigraph xml and ACL json for graphservice task. ZTP allows to perform one or more configuration tasks. It also allow ordering of those tasks as defined in the ZTP json. DHCP option 67 (59 for DHCPv6) in the DHCP offer contains the url to the ZTP json.  ZTP service will download the ZTP json, process it and execute the configuration tasks listed in it.
 Alternitively, ZTP can download a provisioning script and execute it. DHCP option 239 (239 for DHCPv6) in the DHCP offer contains the url to the script.
 
 # 2 Requirements
@@ -53,7 +53,7 @@ In-band ZTP should meet the following requirements:
 ## 2.2 Configuration and management requirements
 - Provisioning over in-band network is enabled by default when the ZTP package is included.
 - There is no CLI command to disable in-band ZTP, however, user can add "feat-inband" : false in /host/ztp/ztp_cfg.json to disable in-band ZTP.
-- DHCP_L2 and DHCPV6_L2 traps should be enabled using COPP manager for in-band ZTP.
+- DHCP_L2 and DHCPV6_L2 traps should be enabled for in-band ZTP.
 
 # 3 Modules design
 
