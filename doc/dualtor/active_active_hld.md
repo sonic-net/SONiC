@@ -50,7 +50,7 @@ This document provides the high level design of SONiC dual toR solution, support
 There are a certain number of racks in a row, each rack will have 2 ToRs, and each row will have 8 Tier One (T1s) network devices. Each server will have a NIC connected to 2 ToRs with 100 Gbps DAC cables. 
 
 In this design:
-* Both upper ToR (labeled as UT0) and lower ToR (labeled as LT0) will advertise same VLAN to upstream T1s, each T1 will see 2 available next hops for the VLAN. 
+* Both upper ToR (labeled as UT0) and lower ToR (labeled as LT0) will advertise same IP to upstream T1s, each T1 will see 2 available next hops for the VLAN. 
 * Both UT0 and LT0 are expected to carry traffic in normal scenarios. 
 * The software stack on server host will see 200 Gbps NIC. 
 
