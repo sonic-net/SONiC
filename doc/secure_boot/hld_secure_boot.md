@@ -37,7 +37,7 @@
 |  0.1  | 06/2022 |   David Pilnik   | Phase 1 Design     |
 ###  1.2. <a name='Scope'></a>Scope
 
-This secure boot HLD doc described the requirements, architecture, and configuration details of the secure boot feature in switches Sonic OS based.
+This secure boot HLD doc described the requirements, architecture, and configuration details of the secure boot feature in switches SONiC OS based.
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 	SB - Secure Boot
@@ -55,10 +55,16 @@ What Secure boot provides is an anchor for that first "trusted program". It allo
 
 ###  1.5. <a name='Requirements'></a>Requirements
 
-We require to enable secure boot in Sonic OS. The feature has a signing process and a verification process. Both processes are required to be supported from the scenarios such as development and production.
+We require to enable secure boot in SONiC OS. The feature has a signing process and a verification process. Both processes are required to be supported from the scenarios such as development and production.
 
 Assumption that Secure boot should be supported by UEFI & CPU arch and Onie OS installed in the Switch device.
 
+Enable/disable the feature in runtime:
+Once you install a secure image in a secure device, is possible to disable the security verification of secure boot, but it's partially.
+How to disable the secure boot flow, is by setting in the BIOS "secure boot" to disable.
+As a result of that, the shim, and the grub will be not verified anymore, but still, the KO and warmboot(kexec) feature will remain secured, that because the modification to support KO and kexec was done in kernel in the build process and cannot be modified in runtime.
+So, this is the reason why secure boot in runtime can be disabled, but just partially.
+Technical details of the kernel build flag can be found in the building chapter.
 ###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 
 Arc design diagram\
@@ -66,12 +72,12 @@ Arc design diagram\
 
 Sign Arch description:
 There are 2 main signing build flows, the details and modifications required will be described in chapter 4.
-The general difference of dev sign flow - In the build process the build will use a signing script with development keys to sign the boot components. As a result of that, the sonic.bin will contain the boot components signed.
+The general difference of dev sign flow - In the build process the build will use a signing script with development keys to sign the boot components. As a result of that, the sonic-os.bin will contain the boot components signed.
 
 The production sign flow, have some differences from the dev flow, the signing process of the boot components happens in the signing server for a security reason.
 
 So, the build process should send the components to the signing server and get back the component signed.
-Similar to the dev flow, the production flow will have sonic.bin with boot components signed inside as well.
+Similar to the dev flow, the production flow will have sonic-os.bin with boot components signed inside as well.
 
 As a consequence that the signing happens in the signing server and every vendor can use a different signing server that could have different kinds of API to connect/send/sign the boot components, it is required to support a generic solution.
 
@@ -107,7 +113,7 @@ Shim is a simple software package that is designed to work as a first-stage boot
 shim (debian link)
 
 ##### Grub Role
-Grub is a bootloader, differs from Shim by having the ability to run the kernel and allow as to choose the kernel (i.e: Onie/Sonic) that will be used by using a menu.
+Grub is a bootloader, differs from Shim by having the ability to run the kernel and allow as to choose the kernel (i.e: Onie/SONiC) that will be used by using a menu.
 
 ##### Vmlinuz Role
 vmlinuz is the name of the Linux kernel executable. vmlinuz is a compressed Linux kernel, and it is capable of loading the operating system into memory so that the computer becomes usable and application programs can be run.
@@ -117,11 +123,11 @@ Kernel modules or KO are pieces of code that can be loaded and unloaded into the
 Initrd - The initial RAM disk (initrd) is an initial root file system that is mounted prior to when the real rootfile system is available. The initrd is bound to the kernel and loaded as part of the kernel boot procedure. The kernel then mounts this initrd as part of the two-stage boot process to load the modules to make the real file systems available and get at the real root file system.
 
 The initrd contains a minimal set of directories and executables to achieve this, such as the insmod tool to install kernel modules into the kernel.
-Regarding Sonic:
+Regarding SONiC:
 
 In general, the system can boot also without using the initrd (required to build the kernel with some specifics modification), some users comment that in runtime the boot time will be better but others comment the opposite.
 
-Sonic is using the initrd, so we will remain it as in the original repo unsigned. (In order to sign it is required to use a gpg key, but there is not really a use case for that. (Probably future work.)
+SONiC is using the initrd, so we will remain it as in the original repo unsigned. (In order to sign it is required to use a gpg key, but there is not really a use case for that. (Probably future work.)
 
 Grub.cfg - The grub.cfg file is the GRUB configuration file. It is generated by the grub2-mkconfig program using a set of primary configuration files and the grub default file as a source for user configuration specifications. The /boot/grub2/grub.cfg file is first generated during Linux installation and regenerated when a new kernel is installed.
 
@@ -131,10 +137,10 @@ The grub.cfg file contains Bash-like code and a list of installed kernels in an 
 
 
 ####  1.7.3. <a name='SignFlowdiagramdescription:'></a>Sign Flow diagram description:
-Sign flow occurs when building the Sonic image.
+Sign flow occurs when building the SONiC image.
 In the Build process, we need to sign the components shown in the Design Diagram chapter (shim, grub, vmlinuz, kernel modules) and do some modifications in the Linux kernel, that in order to pass the runtime secure boot verification.
 
-This chapter will be described which Sonic modification is required.
+This chapter will be described which SONiC modification is required.
 
 Compilation Flag added:
 - SB_DEV_KEYS_PATH – have the path where dev private key stored
@@ -143,7 +149,7 @@ Compilation Flag added:
   - Dev (default)
   - Production
 - SB_KERNEL_MOD_PUB_KEY – the path of the public key that will be embedded in VMLINUZ for verifying KO.
-These 3 flags will be saved in this file: Sonic/rules/config
+These 3 flags will be saved in this file: SONiC/rules/config
 
 ##### Sign keys
 The sign algorithm is RSA, is an asymmetric algorithm, so the sign flow is signing with private keys, and the verification flow is verifying with the public keys.
@@ -153,7 +159,7 @@ The production keys will be stored according to the design of the signing server
 The development keys will be not stored in Git, instead will be a variable named SB_DEV_KEYS_PATH in compilation time, and the developer will set the location of his private keys.
 
 ##### How to sing the components
-Signing Script: we need to sign shim, grub, vmlinuz, and KO, to do that it will be added a sign script in the Sonic repo in the /script folder named signing_secure_boot_sign_dev.
+Signing Script: we need to sign shim, grub, vmlinuz, and KO, to do that it will be added a sign script in the SONiC repo in the /script folder named signing_secure_boot_sign_dev.
 
 This script will sign all the components described before. (Using sbsign tool for .efi files and sign-file for KO files.)
 This script will be used in the development flow with dev keys.
@@ -166,10 +172,10 @@ In general, the build flow when it is used in production will send the shim, gru
 
 The build flow will know which sign script to choose by reading the SB_BUILD flag value as explained in chapter 2.
 
-##### Shim Sonic modification
+##### Shim SONiC modification
 Currently, there is no Shim installed. So, it's required to get Shim from external Debian repo & sign it with the development/production private key depending on the flow.
 
-In the Sonic repo will be added a new /src folder named shim, in this folder will be a Makefile that will download & extract the unsigned Debian shim pkg, then, call the secure_boot_sign.py script and sign the file shimX64.efi or arm version as well.
+In the SONiC repo will be added a new /src folder named shim, in this folder will be a Makefile that will download & extract the unsigned Debian shim pkg, then, call the secure_boot_sign.py script and sign the file shimX64.efi or arm version as well.
 
 The shimX64.efi signed file should be copied in the build process to the path: /boot/efi/EFI
 
@@ -181,8 +187,8 @@ So It is required to mount this created partition with this name /boot/efi/EFI a
 - So, when the boot process starts, UEFI will look for the shim file in this location to verify it and then continue with the boot flow.
 - There is a possibility to download shim already signed by Microsoft, but then, if we need to do some modifications, or choose another Shim version in the future we will depend on having a version that Microsoft supports as well.
 
-##### GRUB Sonic modification
-Currently, the Grub file is created when installing a Sonic image, the code is in the prefix of the Sonic image that contained the script install.sh.
+##### GRUB SONiC modification
+Currently, the Grub file is created when installing a SONiC image, the code is in the prefix of the SONiC image that contained the script install.sh.
 
 The problem is that in SB we need the grub to be signed, so we will download the grub file from the Debian source and sign it instead of creating it in install.sh.
 
@@ -193,22 +199,33 @@ The grub.efi signed file should copy to the path: /boot/efi/EFI.
 In addition, in case the build is without SB the grub flow will do the same flow as was coded before.
 The Grub flow will know if is require doing the SB flow or the old one by reading the SB_BUILD value.
 
-##### Vmlinuz Sonic modification
-In Sonic the submodule name sonic-linux-kernel contained the Linux kernel.
+##### Vmlinuz SONiC modification
+In SONiC the submodule name sonic-linux-kernel contained the Linux kernel.
 
 We need to do the following modification to support SB:
 - We need to integrate the pub key that will be used to verify kernel modules, to do that, we need the following modification in the Linux kernel configuration:
 
-CONFIG_MODULE_SIG_FORCE=y
-CONFIG_MODULE_SIG_KEY="" // this is a configuration to enforce vmlinuz to sign kernel modules, but we will do that differently, so it will be empty (see explanation in Kernel Modules verification).
+- CONFIG_MODULE_SIG_FORCE=y
 
-CONFIG_SYSTEM_TRUSTED_KEYS="custom_certs/nv_Sonic_key_certificate.pem" //this variable is saying where the public key is. This key will verify the kernel modules, this path should be custom chosen by the user.
+enforce to check signature of KO.
+
+- CONFIG_MODULE_SIG_KEY=""
+
+ this is a configuration to enforce vmlinuz to sign kernel modules, but we will do that differently, so it will be empty (see explanation in Kernel Modules verification).
+
+- CONFIG_SYSTEM_TRUSTED_KEYS=< custom_vendor_certificates_path > (Format file=pem)
+
+this variable is saying where the public key is. This key will verify the kernel modules, this path should be custom chosen by the user.
 
 So, we will add a build variable where the developer can set the key location in his environment.
-- Finally, after the configuration changes, we need to sign the file vmlinuz.efi (similar like we sign shim, grub with the sign script)
+
+- CONFIG_KEXEC_VERIFY_SIG=y
+Details in Warmboot chapter.
+
+Finally, after the configuration changes, we need to sign the file vmlinuz.efi (similar like we sign shim, grub with the sign script)
 
 Note: Same as other modifications if the SB_BUILD flag is “no sign” those modifications will not happen and the kernel will remain the same as before the feature was implemented
-##### Kernel Module Sonic modification
+##### Kernel Module SONiC modification
 Most of the kernel modules are in sonic-linux-kernel repo, but there are more KO like Ofed & SDK.
 
 The secure_boot_sign.py script wrapper the sign-file tool as well and will sign all the KO.
@@ -231,10 +248,10 @@ set SB flag to enable in BIOS, save shim, grub in this location: /boot/efi/EFI, 
 
 ##### the modules and sub-modules that are modified for this design
 
-- Repo where the code will be added: https://gitlab-master.nvidia.com/nbu-sws/nos/Sonic/-/tree/master
+- Repo where the code will be added: https://github.com/Azure/sonic-buildimage
 - Modules/Submodules that will be changed:
   - Sonic-linux-kernel submodule: https://github.com/Azure/sonic-linux-kernel
-  - Sonic install module. https://github.com/Azure/sonic-buildimage/blob/master/installer/x86_64/install.sh
+  - SONiC install module. https://github.com/Azure/sonic-buildimage/blob/master/installer/x86_64/install.sh
 
 ###  1.8. <a name='SAIAPI'></a>SAI API
 N/A
@@ -250,7 +267,24 @@ N/A
 
 
 ###  1.10. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that the existing warmboot/fastboot feature is not affected due to this design and explain the same.
+
+Secure Boot feature support warmboot, but in order to save the system secured when doing warmboot is necessary to add a few additions.
+
+Tech details: Warmboot is using a system call named kexec, this call can install a new kernel without doing cold boot, so in order to support the warmboot and maintain the system security is required to verify that the new kernel that will be installed is from the vendor.
+In order to do that, this new kernel should be signed and be verify when triggering kexec.
+
+In order to ensure that kexec will verify the new kernel, need to do the following additions:
+ - When building the kernel is necessary to set this flag CONFIG_KEXEC_VERIFY_SIG to be “true”.
+
+	This means that the new kernel that will be install in warmboot will be verified.
+
+ - Is necessary to add flag ‘-s’ to kexec.
+
+	This is to ensure that kexec will be secure as well.
+
+Note: key that will verify the signature will be embedded in build time in Vmlinuz similar than what we did for KO.
+
+
 
 ###  1.11. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
 Explained in the requirement chapter.
@@ -263,7 +297,7 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 ####  1.12.1. <a name='UnitTestcases'></a>Unit Test cases
 
-The test will verify the signed boot components with dev keys when building the Sonic image.
+The test will verify the signed boot components with dev keys when building the SONiC image.
 
 It is possible to verify the boot component one by one without the BIOS runtime verification, that by calling signs tools and using them to verify the signatures with the dev pub keys.
 - Verify with public key the signed SHIM
@@ -271,11 +305,12 @@ It is possible to verify the boot component one by one without the BIOS runtime 
 - Verify with public key the signed Vmlinux
 - Verify with public key the signed KO
 
-In case any of the unitest will failed, the Sonic Image will be not created.
+In case any of the unitest will failed, the SONiC Image will be not created.
 
 ####  1.12.2. <a name='SystemTestcases'></a>System Test cases
 Positive test:
-- Verify runtime secure boot with a signed sonic image installed.
+- Verify runtime secure boot with a signed SONiC image installed.
+- warmboot: install a new sign kernel using warmboot.
 
 Negative test:
 - Test secure boot runtime verification of shim/grub/Vmlinuz/KO.
@@ -283,11 +318,13 @@ Negative test:
   Details: The test will modify the secure boot component and expect the verification to failed.
 - Test signature matching (asymmetric key match)
 
-  Details: The test will try to load a sonic image with a pub and private key that not match and expecting to failed.
+  Details: The test will try to load a SONiC image with a pub and private key that not match and expecting to failed.
 
 - Test that is not possible to add new Kernel modules in runtime.
 
-- Test SB verification when Sonic image no signed.
+- Test SB verification when SONiC image no signed.
+
+- Test Warmboot: install a new unsign kernel with warmboot and expect to fail.
 
 ###  1.13. <a name='OpenActionitems-ifany'></a>Open/Action items - if any
 
