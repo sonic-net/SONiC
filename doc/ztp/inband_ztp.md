@@ -17,6 +17,8 @@
     - [3.1.1 config-setup service](#311-config-setup-service)
     - [3.1.2 interfaces-config service](#312-interfaces-config-service)
     - [3.1.3 ZTP service](#313-ztp-service)
+    - [3.1.4 SWSS COPP](#314-swss-copp)
+
 
 
 # Revision
@@ -54,7 +56,7 @@ In-band ZTP feature in SONiC should meet the following requirements:
 
 # 3 Modules design
 
-![In-band ZTP modules](images/modules-design.png)
+![In-band ZTP modules](images/modules-design.svg)
 
 Services config-setup and interface-config perform the groundwork for ZTP service and copp manager in SWSS is registering the required trap.
 
@@ -63,7 +65,7 @@ Services config-setup and interface-config perform the groundwork for ZTP servic
 ### 3.1.1 config-setup service
 First service to run is config-setup, it performs the following:
 
-![config-setup](images/config-setup.png)
+![config-setup](images/config-setup.svg)
 
 - Create the following files using sonic-cfggen:
 1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP and PORT
@@ -91,7 +93,7 @@ Check if file ztp_dhcp.json exist, if so:
 ### 3.1.3 ZTP service
 ZTP service perform the following:
 
-![ztp-engine](images/ztp-engine.png)
+![ztp-engine](images/ztp-engine.svg)
 
 - Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, ZTP json, simple provisioning script or minigraph. See below order of precedence:
 1. ZTP json file specified in pre-defined location as part of the image
@@ -120,7 +122,7 @@ We determine ZTP mode by checking if the file exist, if it does, we read the URL
 In the below example, there are 3 sections to process:
 ```
 {
-    "ztp": {
+  "ztp": {
 		"01-configdb-json": {
 			"url": {
 				"source": "http://192.168.0.1/ZTP/config_db.json",
@@ -157,5 +159,45 @@ In the below example, there are 3 sections to process:
 2. Clear ZTP section from config_db.json.
 3. Delete file ztp_dhcp.json and restart interfaces-config service. When ztp_dhcp.json does not exist, interfaces-config service will create dhclient.conf without request of ZTP options.
 
+### 3.1.4 SWSS COPP
+To make DHCP packets arrive to CPU, need to register the following traps:
+- SAI_HOSTIF_TRAP_TYPE_DHCP_L2
+- SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2
+
+Service config-setup creates new config_db.json during init and performs config relaod to load it. We will add the following to this config_db.json:
+```
+COPP_TRAP|dhcpl2
+  always_enabled:true
+```
+ZTP engine will delete this table from config DB when ZTP finishes its work.
+
+COPP manager listens to changes in COPP_TRAP table, therefore will handle and register the traps.
+When COPP manger handles changes in COPP_TRAP table it uses static data that is being read in init and kept in the cache, this data is generated from copp_cfg.j2.
+We will add the following to copp_cfg.j2:
+```
+"l2dhcp": {
+  "trap_ids": "l2dhcp,l2dhcpv6",
+  "trap_group": "queue4_group4"
+},
+```
+```
+"queue4_group4": {
+  "trap_action":"trap",
+  "trap_priority":"4",
+  "queue": "4",
+  "meter_type":"packets",
+  "mode":"sr_tcm",
+  "cir":"600",
+  "cbs":"600",
+  "red_action":"drop"
+}
+```
+And extend trap_id_map with:
+```
+static map<string, sai_hostif_trap_type_t> trap_id_map = {
+  {"l2dhcp", SAI_HOSTIF_TRAP_TYPE_DHCP_L2},
+  {"l2dhcpv6", SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2}
+};
+```
 
 
