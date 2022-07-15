@@ -386,9 +386,10 @@ Example below
     - maxLength: 18446744073709551615
     minLength: 0
     type: string
-    **x-pattern: (([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\p{N}\p{L}]+)?**
+    **x-pattern: (([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\%[\p{N}\p{L}]+)?**
     x-yang-type: string
 ```
+NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual jinja2 code in SONiC.
 
 * As seen in above example all String types will have maxLength and minLength fields. If the length statement is defined on the YANG node, then the value for maxLength and minLength is derived from the length statement otherwise default length specified by YANG will be considered. And also a custom vendor extension called x-length will include a copy of length statement's value. If a type has one more length statements (may be indirectly using typedefs) all the length statements will be included as part of x-length extension separated by '|' character.
 
@@ -678,11 +679,12 @@ The actioner script receives the JSON output from the OpenAPI client API and inv
 Example: "show acl"
 
 ```
-{% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] %}
-   {% for acl_set in acl_sets %}
+{\% set acl_sets = acl_out['openconfig_aclacl']['acl_sets']['acl_set'] \%}
+   {\% for acl_set in acl_sets \%}
        Name:  {{ acl_set['state']['description'] }}
-   {% endfor %}
+   {\% endfor \%}
 ```
+NOTE: An extra backslash is added in front of % in the above code snippet. Remove the backslash while using the actual jinja2 code in SONiC.
 
 ###### 3.2.2.1.7 Generic REST Client for CLI
 

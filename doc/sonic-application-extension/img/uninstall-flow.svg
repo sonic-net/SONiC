@@ -1,0 +1,576 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Створено застосунком Microsoft Visio, експорт у формат SVG. uninstall-flow.svg Сторінка 1 -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events"
+		xmlns:v="http://schemas.microsoft.com/visio/2003/SVGExtensions/" width="9.96757in" height="6.57687in"
+		viewBox="0 0 717.665 473.535" xml:space="preserve" color-interpolation-filters="sRGB" class="st17">
+	<v:documentProperties v:langID="1058" v:viewMarkup="false"/>
+
+	<style type="text/css">
+	<![CDATA[
+		.st1 {fill:#4672c4;stroke:#c7c8c8;stroke-width:0.25}
+		.st2 {stroke:#4672c4;stroke-dasharray:7,5;stroke-linecap:round;stroke-linejoin:round;stroke-width:1}
+		.st3 {fill:#feffff;font-family:Calibri;font-size:0.833336em;font-weight:bold}
+		.st4 {font-size:1em}
+		.st5 {fill:#feffff;font-family:Calibri;font-size:1.00001em;font-weight:bold}
+		.st6 {marker-end:url(#mrkr4-85);stroke:#70ad47;stroke-linecap:round;stroke-linejoin:round;stroke-width:1}
+		.st7 {fill:#70ad47;fill-opacity:1;stroke:#70ad47;stroke-opacity:1;stroke-width:0.23584905660377}
+		.st8 {fill:#ffffff;stroke:none;stroke-linecap:butt}
+		.st9 {fill:#61973d;font-family:Calibri;font-size:0.666664em}
+		.st10 {fill:#ffffff;stroke:none;stroke-linecap:butt;stroke-width:7.2}
+		.st11 {marker-end:url(#mrkr3-101);stroke:#70ad47;stroke-dasharray:7,5;stroke-linecap:round;stroke-linejoin:round;stroke-width:1}
+		.st12 {fill:#70ad47;stroke:#70ad47;stroke-linecap:round;stroke-linejoin:round;stroke-width:1}
+		.st13 {fill:#ffffff;fill-opacity:0;stroke:#ebf1e8;stroke-width:0.75}
+		.st14 {fill:#ffffff;stroke:#ebf1e8;stroke-width:0.75}
+		.st15 {fill:#70ad47;font-family:Calibri;font-size:0.666664em;font-weight:bold}
+		.st16 {fill:#70ad47;font-family:Calibri;font-size:0.666664em}
+		.st17 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
+	]]>
+	</style>
+
+	<defs id="Markers">
+		<g id="lend4">
+			<path d="M 2 1 L 0 0 L 2 -1 L 2 1 " style="stroke:none"/>
+		</g>
+		<marker id="mrkr4-85" class="st7" v:arrowType="4" v:arrowSize="3" v:setback="8.48" refX="-8.48" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend4" transform="scale(-4.24,-4.24) "/>
+		</marker>
+		<g id="lend3">
+			<path d="M 2 1 L 0 0 L 2 -1 " style="stroke-linecap:round;stroke-linejoin:round;fill:none"/>
+		</g>
+		<marker id="mrkr3-101" class="st7" v:arrowType="3" v:arrowSize="3" orient="auto" markerUnits="strokeWidth"
+				overflow="visible">
+			<use xlink:href="#lend3" transform="scale(-4.24,-4.24) "/>
+		</marker>
+	</defs>
+	<g v:mID="0" v:index="1" v:groupContext="foregroundPage">
+		<title>Сторінка 1</title>
+		<v:pageProperties v:drawingScale="0.0393701" v:pageScale="0.0393701" v:drawingUnits="24" v:shadowOffsetX="8.50394"
+				v:shadowOffsetY="-8.50394"/>
+		<v:layer v:name="Сполучна лінія" v:index="0"/>
+		<g id="group64-1" transform="translate(109.991,-410.214)" v:mID="64" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія проекту</title>
+			<desc>Package Manager</desc>
+			<g id="shape65-2" v:mID="65" v:groupContext="shape" transform="translate(11.7435,0)">
+				<title>Аркуш.65</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape66-4" v:mID="66" v:groupContext="shape" transform="translate(28.7514,-29.0551)">
+				<title>Аркуш.66</title>
+				<path d="M8.5 473.53 a0 0 0 1 1 0 0 a0 0 0 1 1 0 0 Z" class="st1"/>
+			</g>
+			<g id="shape67-6" v:mID="67" v:groupContext="shape" transform="translate(24.8369,408.796)">
+				<title>Аркуш.67</title>
+			</g>
+			<g id="shape68-8" v:mID="68" v:groupContext="shape" transform="translate(510.79,473.535) rotate(90)">
+				<title>Аркуш.68</title>
+				<path d="M0 473.53 L391.18 473.53" class="st2"/>
+			</g>
+			<g id="shape64-11" v:mID="64" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="37.2553" cy="460.779" width="74.52" height="25.5118"/>
+				<rect x="0" y="448.023" width="74.5107" height="25.5118" class="st1"/>
+				<text x="20.28" y="457.78" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Package <tspan
+							x="18.6" dy="1.2em" class="st4">Manager</tspan></text>			</g>
+		</g>
+		<g id="group69-15" transform="translate(243.22,-410.214)" v:mID="69" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія проекту.12</title>
+			<desc>dockerd</desc>
+			<g id="shape70-16" v:mID="70" v:groupContext="shape" transform="translate(11.7435,0)">
+				<title>Аркуш.70</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape71-18" v:mID="71" v:groupContext="shape" transform="translate(28.7514,-29.0551)">
+				<title>Аркуш.71</title>
+				<path d="M8.5 473.53 a0 0 0 1 1 0 0 a0 0 0 1 1 0 0 Z" class="st1"/>
+			</g>
+			<g id="shape72-20" v:mID="72" v:groupContext="shape" transform="translate(24.8369,405.962)">
+				<title>Аркуш.72</title>
+			</g>
+			<g id="shape73-22" v:mID="73" v:groupContext="shape" transform="translate(510.79,473.535) rotate(90)">
+				<title>Аркуш.73</title>
+				<path d="M0 473.53 L388.35 473.53" class="st2"/>
+			</g>
+			<g id="shape69-25" v:mID="69" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="37.2553" cy="460.779" width="74.52" height="25.5118"/>
+				<rect x="0" y="448.023" width="74.5107" height="25.5118" class="st1"/>
+				<text x="20.41" y="463.78" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>dockerd</text>			</g>
+		</g>
+		<g id="group74-28" transform="translate(376.448,-410.214)" v:mID="74" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія проекту.17</title>
+			<desc>Docker Registry</desc>
+			<g id="shape75-29" v:mID="75" v:groupContext="shape" transform="translate(11.7435,0)">
+				<title>Аркуш.75</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape76-31" v:mID="76" v:groupContext="shape" transform="translate(28.7514,-29.0551)">
+				<title>Аркуш.76</title>
+				<path d="M8.5 473.53 a0 0 0 1 1 0 0 a0 0 0 1 1 0 0 Z" class="st1"/>
+			</g>
+			<g id="shape77-33" v:mID="77" v:groupContext="shape" transform="translate(24.8369,400.292)">
+				<title>Аркуш.77</title>
+			</g>
+			<g id="shape78-35" v:mID="78" v:groupContext="shape" transform="translate(510.79,473.535) rotate(90)">
+				<title>Аркуш.78</title>
+				<path d="M0 473.53 L382.68 473.53" class="st2"/>
+			</g>
+			<g id="shape74-38" v:mID="74" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="37.2553" cy="460.779" width="74.52" height="25.5118"/>
+				<rect x="0" y="448.023" width="74.5107" height="25.5118" class="st1"/>
+				<text x="4.69" y="463.78" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Docker Registry</text>			</g>
+		</g>
+		<g id="group79-41" transform="translate(509.676,-410.214)" v:mID="79" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія проекту.22</title>
+			<desc>CONFIG DB</desc>
+			<g id="shape80-42" v:mID="80" v:groupContext="shape" transform="translate(11.7435,0)">
+				<title>Аркуш.80</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape81-44" v:mID="81" v:groupContext="shape" transform="translate(28.7514,-29.0551)">
+				<title>Аркуш.81</title>
+				<path d="M8.5 473.53 a0 0 0 1 1 0 0 a0 0 0 1 1 0 0 Z" class="st1"/>
+			</g>
+			<g id="shape82-46" v:mID="82" v:groupContext="shape" transform="translate(24.8369,394.623)">
+				<title>Аркуш.82</title>
+			</g>
+			<g id="shape83-48" v:mID="83" v:groupContext="shape" transform="translate(510.79,473.535) rotate(90)">
+				<title>Аркуш.83</title>
+				<path d="M0 473.53 L377.01 473.53" class="st2"/>
+			</g>
+			<g id="shape79-51" v:mID="79" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="37.2553" cy="460.779" width="74.52" height="25.5118"/>
+				<rect x="0" y="448.023" width="74.5107" height="25.5118" class="st1"/>
+				<text x="14.04" y="463.78" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>CONFIG DB</text>			</g>
+		</g>
+		<g id="group84-54" transform="translate(642.905,-410.214)" v:mID="84" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія проекту.27</title>
+			<desc>Host OS FS</desc>
+			<g id="shape85-55" v:mID="85" v:groupContext="shape" transform="translate(11.7435,0)">
+				<title>Аркуш.85</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape86-57" v:mID="86" v:groupContext="shape" transform="translate(28.7514,-29.0551)">
+				<title>Аркуш.86</title>
+				<path d="M8.5 473.53 a0 0 0 1 1 0 0 a0 0 0 1 1 0 0 Z" class="st1"/>
+			</g>
+			<g id="shape87-59" v:mID="87" v:groupContext="shape" transform="translate(24.8369,400.292)">
+				<title>Аркуш.87</title>
+			</g>
+			<g id="shape88-61" v:mID="88" v:groupContext="shape" transform="translate(510.79,473.535) rotate(90)">
+				<title>Аркуш.88</title>
+				<path d="M0 473.53 L382.68 473.53" class="st2"/>
+			</g>
+			<g id="shape84-64" v:mID="84" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="37.2553" cy="460.779" width="74.52" height="25.5118"/>
+				<rect x="0" y="448.023" width="74.5107" height="25.5118" class="st1"/>
+				<text x="15.02" y="463.78" class="st3" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Host OS FS</text>			</g>
+		</g>
+		<g id="group89-67" transform="translate(0.25,-410.214)" v:mID="89" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+				<v:ud v:nameU="ShowActor" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="ShowDestruction" v:prompt="" v:val="VT0(0):5"/>
+			</v:userDefs>
+			<title>Лінія суб’єкта</title>
+			<desc>User</desc>
+			<g id="shape90-68" v:mID="90" v:groupContext="shape">
+				<title>Аркуш.90</title>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+			</g>
+			<g id="shape91-70" v:mID="91" v:groupContext="shape" transform="translate(17.0079,-29.0551)">
+				<title>Аркуш.91</title>
+				<path d="M3.4 473.53 L3.4 456.53 L3.4 463.33 L0 463.33 L0 449.72 L1.7 448.02 L15.31 448.02 L17.01 449.72 L17.01 463.33
+							 L13.61 463.33 L13.61 456.53 L13.61 473.53 L8.5 473.53 L8.5 459.93 L8.5 473.53 L3.4 473.53 ZM11.91 442.92
+							 A3.40157 3.40157 -180 1 0 5.1 442.92 A3.40157 3.40157 -180 1 0 11.91 442.92 Z" class="st1"/>
+			</g>
+			<g id="shape92-72" v:mID="92" v:groupContext="shape" transform="translate(17.0079,410.214)">
+				<title>Аркуш.92</title>
+			</g>
+			<g id="shape93-74" v:mID="93" v:groupContext="shape" transform="translate(499.046,473.535) rotate(90)">
+				<title>Аркуш.93</title>
+				<path d="M0 473.53 L392.6 473.53" class="st2"/>
+			</g>
+			<g id="shape89-77" v:mID="89" v:groupContext="groupContent">
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="25.5118" cy="460.779" width="51.03" height="25.5118"/>
+				<rect x="0" y="448.023" width="51.0236" height="25.5118" class="st1"/>
+				<text x="14.05" y="464.38" class="st5" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>User</text>			</g>
+		</g>
+		<g id="shape94-80" v:mID="94" v:groupContext="shape" v:layerMember="0" transform="translate(25.7618,-399.3)">
+			<title>Повідомлення</title>
+			<desc>uninstall &#60;package&#62;</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="60.7424" cy="480.621" width="73.98" height="17.6036"/>
+			<path d="M0 480.62 L113 480.62" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="28.6589" y="475.821" width="64.1673" height="9.59985" class="st8"/>
+			<text x="28.66" y="483.02" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>uninstall &#60;package&#62;</text>		</g>
+		<g id="shape107-88" v:mID="107" v:groupContext="shape" v:layerMember="0" transform="translate(147.247,-206.934)">
+			<title>Повідомлення.59</title>
+			<desc>remove rendered host scripts/files to host FS reload host ser...</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="266.457" cy="466.448" width="155.94" height="27.2035"/>
+			<path d="M0 466.45 L524.43 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="193.395" y="456.848" width="146.124" height="19.1997" class="st10"/>
+			<text x="193.39" y="464.05" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>remove rendered host scripts/files to host FS<v:newlineChar/><tspan
+						x="211.47" dy="1.2em" class="st4">reload host services configuration</tspan></text>		</g>
+		<g id="shape108-96" v:mID="108" v:groupContext="shape" v:layerMember="0" transform="translate(680.16,-203.107)">
+			<title>Повернуто повідомлення.60</title>
+			<desc>return</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="-266.457" cy="480.621" width="40" height="17.6036"/>
+			<path d="M0 480.62 L-532.91 480.62" class="st11"/>
+			<rect v:rectContext="textBkgnd" x="-276.779" y="475.821" width="20.6444" height="9.59985" class="st8"/>
+			<text x="-276.78" y="483.02" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>return</text>		</g>
+		<g id="shape111-104" v:mID="111" v:groupContext="shape" v:layerMember="0" transform="translate(147.247,-25.1271)">
+			<title>Повернуто повідомлення.63</title>
+			<desc>return</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="-60.7424" cy="466.448" width="40" height="17.6036"/>
+			<path d="M0 466.45 L-121.48 466.45" class="st11"/>
+			<rect v:rectContext="textBkgnd" x="-71.0646" y="461.648" width="20.6444" height="9.59985" class="st10"/>
+			<text x="-71.06" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>return</text>		</g>
+		<g id="shape112-111" v:mID="112" v:groupContext="shape" transform="translate(-443.521,441.321) rotate(-90)">
+			<title>Активація</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="360" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape113-113" v:mID="113" v:groupContext="shape" transform="translate(-322.036,441.321) rotate(-90)">
+			<title>Активація.65</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="360" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape120-115" v:mID="120" v:groupContext="shape" transform="translate(210.877,277.514) rotate(-90)">
+			<title>Активація.72</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape122-117" v:mID="122" v:groupContext="shape" v:layerMember="0" transform="translate(151.499,-247.222)">
+			<title>Повідомлення.74</title>
+			<desc>Deregister feature in FEATURE table (runnig &#38; persistent)</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="195.591" cy="466.448" width="196.21" height="17.6036"/>
+			<path d="M0 466.45 L382.7 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="102.393" y="461.648" width="186.396" height="9.59985" class="st10"/>
+			<text x="102.39" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Deregister feature in FEATURE table (runnig &#38; persistent)</text>		</g>
+		<g id="shape123-124" v:mID="123" v:groupContext="shape" v:layerMember="0" transform="translate(546.932,-243.395)">
+			<title>Повернуто повідомлення.75</title>
+			<desc>return</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="-199.843" cy="480.621" width="40" height="17.6036"/>
+			<path d="M0 480.62 L-399.69 480.62" class="st11"/>
+			<rect v:rectContext="textBkgnd" x="-210.165" y="475.821" width="20.6444" height="9.59985" class="st10"/>
+			<text x="-210.16" y="483.02" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>return</text>		</g>
+		<g id="shape124-131" v:mID="124" v:groupContext="shape" transform="translate(77.649,237.226) rotate(-90)">
+			<title>Активація.76</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape125-133" v:mID="125" v:groupContext="shape" v:layerMember="0" transform="translate(140.16,-284.214)">
+			<title>Повідомлення на себе</title>
+			<desc>Check package dependencies/conflicts</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="7.08661" cy="482.535" width="135.02" height="17.6036"/>
+			<path d="M7.09 473.53 L25.09 473.53 L25.09 491.53 L15.57 491.53" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="-55.5139" y="477.735" width="125.201" height="9.59985" class="st10"/>
+			<text x="-55.51" y="484.93" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Check package dependencies/conflicts</text>		</g>
+		<g id="shape126-140" v:mID="126" v:groupContext="shape" v:layerMember="0" transform="translate(140.16,-56.3082)">
+			<title>Повідомлення на себе.78</title>
+			<desc>Update installation status/version in DB</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="7.08661" cy="482.535" width="139.03" height="17.6036"/>
+			<path d="M7.09 473.53 L25.09 473.53 L25.09 491.53 L15.57 491.53" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="-57.518" y="477.735" width="129.209" height="9.59985" class="st10"/>
+			<text x="-57.52" y="484.93" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Update installation status/version in DB</text>		</g>
+		<g id="shape131-147" v:mID="131" v:groupContext="shape" v:layerMember="0" transform="translate(151.499,-162.147)">
+			<title>Повідомлення.56</title>
+			<desc>remove package metadata folder</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="264.331" cy="466.448" width="117.75" height="17.6036"/>
+			<path d="M0 466.45 L520.18 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="210.367" y="461.648" width="107.929" height="9.59985" class="st10"/>
+			<text x="210.37" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>remove package metadata folder</text>		</g>
+		<g id="shape132-154" v:mID="132" v:groupContext="shape" v:layerMember="0" transform="translate(675.908,-158.32)">
+			<title>Повернуто повідомлення.57</title>
+			<desc>return</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="-262.205" cy="480.621" width="40" height="17.6036"/>
+			<path d="M0 480.62 L-524.41 480.62" class="st11"/>
+			<rect v:rectContext="textBkgnd" x="-272.527" y="475.821" width="20.6444" height="9.59985" class="st10"/>
+			<text x="-272.53" y="483.02" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>return</text>		</g>
+		<g id="shape135-161" v:mID="135" v:groupContext="shape" transform="translate(210.877,322.301) rotate(-90)">
+			<title>Активація.71</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape139-163" v:mID="139" v:groupContext="shape" v:layerMember="0" transform="translate(151.499,-122.355)">
+			<title>Повідомлення.139</title>
+			<desc>docker rmi -f &#60;repo&#62;:latest</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="64.4882" cy="466.448" width="96.8" height="17.6036"/>
+			<path d="M0 466.45 L120.5 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="20.9984" y="461.648" width="86.9799" height="9.59985" class="st8"/>
+			<text x="21" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>docker rmi -f &#60;repo&#62;:latest</text>		</g>
+		<g id="shape140-170" v:mID="140" v:groupContext="shape" v:layerMember="0" transform="translate(147.247,-86.3555)">
+			<title>Повідомлення.140</title>
+			<desc>docker rmi -f &#60;repo&#62;:&#60;tag&#62;</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="66.6142" cy="466.448" width="96.91" height="17.6036"/>
+			<path d="M0 466.45 L124.75 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="23.0694" y="461.648" width="87.0897" height="9.59985" class="st10"/>
+			<text x="23.07" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>docker rmi -f &#60;repo&#62;:&#60;tag&#62;</text>		</g>
+		<g id="shape141-177" v:mID="141" v:groupContext="shape" v:layerMember="0" transform="translate(280.475,-104.355)">
+			<title>Повернуто повідомлення</title>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<path d="M0 466.45 L-128.98 466.45" class="st11"/>
+		</g>
+		<g id="shape142-182" v:mID="142" v:groupContext="shape" v:layerMember="0" transform="translate(280.475,-68.3555)">
+			<title>Повернуто повідомлення.142</title>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<path d="M0 466.45 L-128.98 466.45" class="st11"/>
+		</g>
+		<g id="shape143-187" v:mID="143" v:groupContext="shape" transform="translate(-188.808,362.093) rotate(-90)">
+			<title>Активація.143</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape144-189" v:mID="144" v:groupContext="shape" transform="translate(-188.808,398.093) rotate(-90)">
+			<title>Активація.144</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape145-191" v:mID="145" v:groupContext="shape" transform="translate(77.649,117.321) rotate(-90)">
+			<title>Активація.145</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="465.031" width="18" height="8.50394" class="st12"/>
+		</g>
+		<g id="shape146-193" v:mID="146" v:groupContext="shape" v:layerMember="0" transform="translate(151.499,-367.127)">
+			<title>Повідомлення.146</title>
+			<desc>Get feature status</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="195.591" cy="466.448" width="68.7" height="17.6036"/>
+			<path d="M0 466.45 L382.7 466.45" class="st6"/>
+			<rect v:rectContext="textBkgnd" x="166.15" y="461.648" width="58.882" height="9.59985" class="st10"/>
+			<text x="166.15" y="468.85" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Get feature status</text>		</g>
+		<g id="shape147-200" v:mID="147" v:groupContext="shape" v:layerMember="0" transform="translate(542.68,-363.3)">
+			<title>Повернуто повідомлення.147</title>
+			<desc>return</desc>
+			<v:userDefs>
+				<v:ud v:nameU="IsReturn" v:prompt="" v:val="VT0(1):5"/>
+				<v:ud v:nameU="IsAsync" v:prompt="" v:val="VT0(0):26"/>
+				<v:ud v:nameU="IsSelfMessage" v:prompt="" v:val="VT0(0):5"/>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="-195.591" cy="480.621" width="40" height="17.6036"/>
+			<path d="M0 480.62 L-391.18 480.62" class="st11"/>
+			<rect v:rectContext="textBkgnd" x="-205.913" y="475.821" width="20.6444" height="9.59985" class="st10"/>
+			<text x="-205.91" y="483.02" class="st9" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>return</text>		</g>
+		<g id="group148-207" transform="translate(71.1161,-24.7019)" v:mID="148" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<title>Інший фрагмент</title>
+			<g id="shape148-208" v:mID="148" v:groupContext="groupContent">
+				<rect x="0" y="153.22" width="630.709" height="320.315" class="st13"/>
+			</g>
+			<g id="shape149-210" v:mID="149" v:groupContext="shape" transform="translate(0,-302.711)">
+				<title>Аркуш.149</title>
+				<desc>alt</desc>
+				<v:userDefs>
+					<v:ud v:nameU="FoldSize" v:prompt="" v:val="VT0(0.098425196850394):24"/>
+					<v:ud v:nameU="BackFillColor" v:prompt="" v:val="VT5(#96afcf)"/>
+					<v:ud v:nameU="BackLineColor" v:prompt="" v:val="VT5(#1f477d)"/>
+					<v:ud v:nameU="BackCharColor" v:prompt="" v:val="VT5(#000000)"/>
+					<v:ud v:nameU="DarkerColor" v:prompt="" v:val="VT5(#000000)"/>
+					<v:ud v:nameU="BackFillColor" v:prompt="" v:val="VT5(#ffffff)"/>
+					<v:ud v:nameU="BackLineColor" v:prompt="" v:val="VT5(#ebf1e9)"/>
+					<v:ud v:nameU="BackCharColor" v:prompt="" v:val="VT5(#70ad47)"/>
+					<v:ud v:nameU="DarkerColor" v:prompt="" v:val="VT5(#70ad47)"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="32" cy="464.733" width="64" height="17.6036"/>
+				<path d="M0 473.53 L56.91 473.53 L64 466.45 L64 455.93 L0 455.93 L0 473.53 Z" class="st14"/>
+				<text x="4" y="467.13" class="st15" v:langID="1033"><v:paragraph/><v:tabList/>alt</text>			</g>
+			<g id="shape150-213" v:mID="150" v:groupContext="shape" transform="translate(0,-285.108)">
+				<title>Аркуш.150</title>
+				<desc>status != disabled</desc>
+				<v:userDefs>
+					<v:ud v:nameU="msvQuickStyleVariationRestore" v:prompt="" v:val="VT0(2):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="33.4468" cy="464.733" width="66.9" height="17.6036"/>
+				<text x="4" y="467.13" class="st16" v:langID="1033"><v:paragraph/><v:tabList/>status != disabled</text>			</g>
+		</g>
+		<g id="group152-215" transform="translate(71.1161,-27.5366)" v:mID="152" v:groupContext="group">
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:prompt="" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<title>Інший фрагмент.152</title>
+			<g id="shape152-216" v:mID="152" v:groupContext="groupContent">
+				<rect x="0" y="236.842" width="630.709" height="236.693" class="st13"/>
+			</g>
+			<g id="shape153-218" v:mID="153" v:groupContext="shape" transform="translate(0,-219.089)">
+				<title>Аркуш.153</title>
+				<desc>alt</desc>
+				<v:userDefs>
+					<v:ud v:nameU="FoldSize" v:prompt="" v:val="VT0(0.098425196850394):24"/>
+					<v:ud v:nameU="BackFillColor" v:prompt="" v:val="VT5(#96afcf)"/>
+					<v:ud v:nameU="BackLineColor" v:prompt="" v:val="VT5(#1f477d)"/>
+					<v:ud v:nameU="BackCharColor" v:prompt="" v:val="VT5(#000000)"/>
+					<v:ud v:nameU="DarkerColor" v:prompt="" v:val="VT5(#000000)"/>
+					<v:ud v:nameU="BackFillColor" v:prompt="" v:val="VT5(#ffffff)"/>
+					<v:ud v:nameU="BackLineColor" v:prompt="" v:val="VT5(#ebf1e9)"/>
+					<v:ud v:nameU="BackCharColor" v:prompt="" v:val="VT5(#70ad47)"/>
+					<v:ud v:nameU="DarkerColor" v:prompt="" v:val="VT5(#70ad47)"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="32" cy="464.733" width="64" height="17.6036"/>
+				<path d="M0 473.53 L56.91 473.53 L64 466.45 L64 455.93 L0 455.93 L0 473.53 Z" class="st14"/>
+				<text x="4" y="467.13" class="st15" v:langID="1033"><v:paragraph/><v:tabList/>alt</text>			</g>
+			<g id="shape154-221" v:mID="154" v:groupContext="shape" transform="translate(0,-191.886)">
+				<title>Аркуш.154</title>
+				<desc>requirements are met</desc>
+				<v:userDefs>
+					<v:ud v:nameU="msvQuickStyleVariationRestore" v:prompt="" v:val="VT0(2):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="33.1929" cy="459.933" width="66.39" height="27.2035"/>
+				<text x="4" y="457.53" class="st16" v:langID="1033"><v:paragraph/><v:tabList/>requirements are<v:newlineChar/><tspan
+							x="4" dy="1.2em" class="st4">met</tspan></text>			</g>
+		</g>
+	</g>
+</svg>

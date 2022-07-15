@@ -25,10 +25,13 @@ This section list out all the requirements for the HLD coverage and exemptions (
 This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
 This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture. 
 
+If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
+
 ### High-Level Design 
 
 This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
 		
+	- Is it a built-in SONiC feature or a SONiC Application Extension?
 	- What are the modules and sub-modules that are modified for this design?
 	- What are the repositories that would be changed?
 	- Module/sub-module interfaces and dependencies. 
@@ -55,9 +58,13 @@ This section should list the SAI APIs/objects used by the design so that silicon
 ### Configuration and management 
 This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
 
-#### CLI Enhancements 
+#### Manifest (if the feature is an Application Extension)
 
-This sub-section covers the addition/deletion/modification of CLI changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
+Paste a preliminary manifest in a JSON format.
+
+#### CLI/YANG model Enhancements 
+
+This sub-section covers the addition/deletion/modification of CLI changes and YANG model changes needed for the feature in detail. If there is no change in CLI for HLD feature, it should be explicitly mentioned in this section. Note that the CLI changes should ensure downward compatibility with the previous/existing CLI. i.e. Users should be able to save and restore the CLI from previous release even after the new CLI is implemented. 
 This should also explain the CLICK and/or KLISH related configuration/show in detail.
 
 #### Config DB Enhancements  

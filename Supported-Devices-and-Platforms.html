@@ -1,4 +1,8 @@
 <head>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+	<!-- INCLUDING JQUERY-->
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+
 <style>
 /* Split the screen in half */
 .splitl {
@@ -225,7 +229,7 @@ function Port_Config() {
 <tbody>
 <tr>
 <td style="width: 1%";></td>
-<td style="width:30%;"><img class="two" src="https://kannankvs.github.io/kvskSONiC/images/sonic-logo.png" alt="logo" width="270" height="120" /></td>
+<td style="width:30%;"><img class="two" src="https://kannankvs.github.io/kvskSONiC/images/sonic-logo.png" alt="logo" width="240" height="110" /></td>
 <td style="width: 2%";>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
 <td style="width: 2%">&nbsp; </td>
 <td style="width: 70% "><k><sub>Supported Platforms </sub><k></td>
@@ -244,815 +248,855 @@ function Port_Config() {
 <th>ASIC Vendor</th>
 <th>Switch ASIC</th>
 <th>Port Configuration</th>
-<th>Image</th>
+<th>Latest successful build</th>
 </tr>
 </thead>
-<tbody>
+<tbody id="data_table">
 <tr>
 <td>Accton</td>
 <td>AS4630-54PE</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Helix 5</td>
 <td>48x1G + 4x25G + 2x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS5712-54X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>72x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS5812-54X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>72x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS5835-54T</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x10G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS5835-54X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x10G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS6712-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7116-54X</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>Taurus</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7312-54X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7312-54XS</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7315-27XB</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Qumran</td>
 <td>20x10G + 4x25G + 3x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7326-56X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7512-32X</td>
-<td>Cavium</td>
+<td class="asic_vendor">Cavium</td>
 <td>XPliantCNX880**</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/cavium/job/buildimage-cavm-201709/lastSuccessfulBuild/artifact/target/sonic-cavium.bin" rel="nofollow">SONiC-ONIE-Cavium</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7712-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7716-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7716-32XB</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7726-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS7816-64X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>AS9716-32D</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Accton</td>
 <td>Minipack</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>128x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Alphanetworks</td>
 <td>SNH60A0-320Fv2</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Alphanetworks</td>
 <td>SNH60B0-640F</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7050QX-32</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7050QX-32S</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7050CX3-32S</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G + 2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7060CX-32S</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7060DX4-32</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G + 2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7060PX4-32</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G + 2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7170-32CD</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>32x100G + 2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7170-64C</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7260CX3-64</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7280CR3-32D4</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Jericho 2</td>
 <td>32x100G + 4x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Arista</td>
 <td>7280CR3-32P4</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Jericho 2</td>
 <td>32x100G + 4x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-aboot-broadcom.swi" rel="nofollow">SONiC-Aboot-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Barefoot</td>
 <td>SONiC-P4</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>P4 Emulated</td>
 <td>Configurable</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/p4/job/buildimage-p4-all/" rel="nofollow">SONiC-P4</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Barefoot</td>
 <td>Wedge 100BF-32</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Barefoot</td>
 <td>Wedge 100BF-65X</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Celestica</td>
 <td>DX010</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Celestica</td>
 <td>E1031</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Helix4</td>
 <td>48x1G + 4x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Celestica</td>
 <td>midstone-200i</td>
-<td>Innovium</td>
+<td class="asic_vendor">Marvell</td>
 <td>Teralynx 7</td>
 <td>128x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/innovium/job/buildimage-invm-all/lastSuccessfulBuild/artifact/target/sonic-innovium.bin" rel="nofollow">SONiC-ONIE-Innovium</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Celestica</td>
 <td>Silverstone</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Celestica</td>
 <td>Seastone_2</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Centec</td>
 <td>E582-48X2Q</td>
-<td>Centec</td>
+<td class="asic_vendor">Centec</td>
 <td>Goldengate</td>
 <td>48x10G + 2x40G + 4x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Centec</td>
 <td>E582-48X6Q</td>
-<td>Centec</td>
+<td class="asic_vendor">Centec</td>
 <td>Goldengate</td>
 <td>48x10G + 6x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Cig</td>
 <td>CS6436-56P</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>NP8366</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <td>Cig</td>
 <td>CS5435-54P</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>NP8363</td>
 <td>10GX48,100GX6</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <td>Cig</td>
 <td>CS6436-54P</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>NP8365</td>
 <td>25GX48,100GX6</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr> 
 <tr>
 <td>Dell</td>
+<td>N3248PXE</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X5</td>
+<td>48x10GCU+4x25G-2x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>N3248TE</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X3</td>
+<td>48x1G+4x10G-2x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>S5212F</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X5</td>
+<td>12x25G+3x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>S5224F</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3.X5</td>
+<td>24x25G+4x100G</td>
+<td></td>
+</tr>
+<tr>
+<td>Dell</td>
 <td>S5232F-ON</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>S5248F-ON</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>&nbsp;48x25G,4x100G,2x200G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
+</tr>
+<tr>
+<td>Dell</td>
+<td>s5296F</td>
+<td class="asic_vendor">Broadcom</td>
+<td>Trident 3</td>
+<td>96x25G</td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>S6000-ON</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>S6100-ON</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>64x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>Z9100-C32</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>Z9264</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>Z9332F</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G,2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a;</td>
+<td></td>
 </tr>
 <tr>
 <td>Dell</td>
 <td>Z9332f-C32</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a;</td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>AG5648</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>AG9032V1</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>AG9032V2A</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G + 1x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>AG9064</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>et-c032if</td>
-<td>Innovium</td>
+<td class="asic_vendor">Marvell</td>
 <td>Teralynx 7</td>
 <td>32x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/innovium/job/buildimage-invm-all/lastSuccessfulBuild/artifact/target/sonic-innovium.bin" rel="nofollow">SONiC-ONIE-Innovium</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>ET-6448M</td>
-<td>Marvell</td>
+<td class="asic_vendor">Marvell</td>
 <td>Prestera 98DX3255</td>
 <td>48xGE + 4x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Delta</td>
 <td>agc032</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G + 2x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Embedway</td>
 <td>ES6220 (48x10G)</td>
-<td>Centec</td>
+<td class="asic_vendor">Centec</td>
 <td>Goldengate</td>
 <td>48x10G + 2x40G + 4x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Embedway</td>
 <td>ES6428A-X48Q2H4</td>
-<td>Centec</td>
+<td class="asic_vendor">Centec</td>
 <td>Goldengate</td>
 <td>4x100G + 2x40G + 48x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/centec/job/buildimage-centec-201712/lastSuccessfulBuild/artifact/target/sonic-centec.bin" rel="nofollow">SONiC-ONIE-Centec</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Facebook</td>
 <td>Wedge 100-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S8810-32Q</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>32x40G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S8900-54XC</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S8900-64XC</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 16x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9100-32X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9130-32X</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>Taurus</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9180-32X</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9200-64X</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9230-64X</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>Taurus</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Ingrasys</td>
 <td>S9280-64X</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D6254QS</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 2</td>
 <td>72x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D6356</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D6556</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D7032Q</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D7054Q</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Inventec</td>
 <td>D7264Q</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Juniper Networks</td>
 <td>QFX5210-64C</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Juniper Networks</td>
 <td>QFX5200-32C-S</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 1</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Marvell</td>
 <td>RD-ARM-48XG6CG-A4</td>
-<td>Marvell</td>
+<td class="asic_vendor">Marvell</td>
 <td>Prestera 98EX54xx</td>
 <td>6x100G+48x10G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Marvell</td>
 <td>RD-BC3-4825G6CG-A4</td>
-<td>Marvell</td>
+<td class="asic_vendor">Marvell</td>
 <td>Prestera 98CX84xx</td>
 <td>6x100G+48x25G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Marvell</td>
 <td>98cx8580</td>
-<td>Marvell</td>
+<td class="asic_vendor">Marvell</td>
 <td>Prestera CX</td>
 <td>32x400G + 16x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/marvell/job/buildimage-mrvl-201803/lastSuccessfulBuild/artifact/target/sonic-marvell.bin" rel="nofollow">SONiC-ONIE-Marvell</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN2010</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>18x25G + 4x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN2100</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>16x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN2410</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN2700</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN3420</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 2</td>
 <td>48x25G + 12x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN3700</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 2</td>
 <td>32x200G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN3700C</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 2</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN3800</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 2</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN4600C</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 3</td>
 <td>64x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Nvidia</td>
 <td>SN4700</td>
-<td>Nvidia</td>
+<td class="asic_vendor">Nvidia</td>
 <td>Spectrum 3</td>
 <td>32x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/mellanox/job/buildimage-mlnx-all/lastSuccessfulBuild/artifact/target/sonic-mellanox.bin" rel="nofollow">SONiC-ONIE-Nvidia</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Mitac</td>
 <td>LY1200-B32H0-C3</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Pegatron</td>
 <td>Porsche</td>
-<td>Nephos</td>
+<td class="asic_vendor">Nephos</td>
 <td>Taurus</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/nephos/job/buildimage-nephos-all/lastSuccessfulBuild/artifact/target/sonic-nephos.bin" rel="nofollow">SONiC-ONIE-Nephos</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Quanta</td>
 <td>T3032-IX7</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Quanta</td>
 <td>T4048-IX8</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Quanta</td>
 <td>T4048-IX8C</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Trident 3</td>
 <td>48x25G + 8x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Quanta</td>
 <td>T7032-IX1B</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Quanta</td>
 <td>T9032-IX9</td>
-<td>Broadcom</td>
+<td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 3</td>
 <td>32x400G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/broadcom/job/buildimage-brcm-all/lastSuccessfulBuild/artifact/target/sonic-broadcom.bin" rel="nofollow">SONiC-ONIE-Broadcom</a></td>
+<td></td>
 </tr>
 <tr>
 <td>Wnc</td>
 <td>OSW1800</td>
-<td>Barefoot</td>
+<td class="asic_vendor">Barefoot</td>
 <td>Tofino</td>
 <td>48x25G + 6x100G</td>
-<td><a href="https://sonic-jenkins.westus2.cloudapp.azure.com/job/barefoot/job/buildimage-bf-all/lastSuccessfulBuild/artifact/target/sonic-barefoot.bin" rel="nofollow">SONiC-ONIE-Barefoot</a></td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -1075,5 +1119,81 @@ Note:
 <p>&nbsp;</p>
 <p>&nbsp;</p>
 
+<script>
+	var vendor_data = {Broadcom:"", Cavium:"", Nephos:"", Barefoot:"", Innovium:"", Centec:"", Marvell:"", Nvidia:""};
+	$(document).ready(function () {
+	    $.getJSON("sonic_image_links.json", 
+		function(data) {
+		    dbs = data;
+		    branches = Object.keys(data);
+		    image_data = [];
+			d2 = "abcd8";
+			$("#abcd_id").append(d2);
+		    for (let i = branches.length - 1 ; i >= branches.length - 1; i--) {
+			display_data = "<td style=\" text-align: center; padding-left: 0.5em; background-color: lightgrey; height: 45px; align: center;\"><span style=\"letter-spacing: 0.15em;  font-weight: bold; font-size: calc(11px + 0.6vw); \">" + branches[i].toUpperCase() +"</span></td>";
+			d3 = branches[i];
+			all_images = Object.keys(data[branches[i]]);
+			brcm_image = data[branches[i]][all_images[0]];
+			brcm_image_url = brcm_image['url'];
+			brcm_image_name = all_images[0];			
+			brcm_image_link ="<a href=\""+brcm_image_url+"\">"+brcm_image_name+"</a>";			
+			$("#master_branch").append(brcm_image_link);
+			$("#branch").append(display_data);
+			images = Object.keys(data[branches[i]]);
+			for (let j = 0; j < images.length; j++) {
+			    image_name = images[j];
+			    image = data[branches[i]][images[j]];
+			    image_platform = image_name.split(".")[0];
+			    if(image_platform.length == 1){
+				platform = ""
+			    }else{
+				platform = image_platform.split("sonic-")[1];
+				if(platform.length == 1){
+				    platform = ""
+				}
+			    }
+			    image_avail = true;
+			    image_url = image['url'];
+			    if(image_url === 'null' || image_url === ""){
+				image_avail = false;
+			    }
+			    if ( !$("#"+platform).length ){
+				platform_column = "<tr id=\""+ platform +"\"><td style=\" text-align: center; \"><strong>"+ platform.toUpperCase()+"</strong></td></tr>";
+				$("#disp_table").append(platform_column);
+			    }
+			    if (image_avail)
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\"><a href=\""+ image_url +"\">"+image_name+"</a></span></td>";
+			    else
+				image_column ="<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
+			    if(platform != ""){
+				vendor = platform.charAt(0).toUpperCase() + platform.slice(1);
+				vendor_data[vendor] = image_column;
+			    }
+
+			}
+		    }
+		    var table = document.getElementById("data_table").children;
+		    for (var i = 0; i < table.length; i++) {
+			vdata = table[i].children[2].textContent;
+			if (vdata == "Nvidia")
+			    vdata = "Mellanox";
+
+			if (vdata == "Marvell"){
+			    if(table[i].children[1].textContent.search("ARM") != -1)
+				vdata = "Marvell-armhf";
+			}
+
+			if(vendor_data[vdata] == "")
+			    table[i].children[5].innerHTML = "<td style=\"text-align: center;\"><span style=\"color: #0000ff;\">N/A</span></td>";
+			else
+				table[i].children[5].innerHTML = vendor_data[vdata];
+			    
+			}
+		    
+
+		});
+
+	});
+    </script>
 <head>
 <body>
