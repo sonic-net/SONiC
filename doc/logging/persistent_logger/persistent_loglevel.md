@@ -194,7 +194,7 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 
    - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
 
-  Link to the place in the code that loads the config_db.json onto the CONFIG DB: https://github.com/Azure/sonic-utilities/blob/ca728b8961812a28e3542b206417755f4fe2ba89/config/main.py#L1401
+  Link to the place in the code that loads the config_db.json into the CONFIG DB: https://github.com/Azure/sonic-utilities/blob/ca728b8961812a28e3542b206417755f4fe2ba89/config/main.py#L1401
 
 ## 4.3 "config save" flow
 
@@ -222,7 +222,7 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 
   In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
 
-# Unit Test
+# 7 Unit Testing
 
 # 8 Open Questions
 
