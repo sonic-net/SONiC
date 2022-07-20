@@ -25,13 +25,14 @@
     - [3.2.1 Return to default log level](#321-return-to-default-log-level)
 - [4 Flows](#4-flows)
   - [4.1 Logger init flow](#41-logger-init-flow)
-  - [4.2 "config reload" and "config save" flows](#42-"config-reload"-and-"config-save"-flows)
-- [5 Warm Boot Support](#5-warm-boot-support)
-  - [5.1 Keep log level persistent to warm-boot automatic](#51-keep-log-level-persistent-to-warm-boot-automatic)
-  - [5.2 Make the log level persistent to warm-boot only by command](#52-make-the-log-level-persistent-to-warm-boot-only-by-command)
+  - [4.2 "config reload" flow](#42-"config-reload"-flow)
+  - [4.3 ""config save" flow](#43-"config-save"-flow)
+- [5 Warm Reboot Support](#5-warm-reboot-support)
+  - [5.1 Keep log level persistent to warm-reboot automatic](#51-keep-log-level-persistent-to-warm-reboot-automatic)
+  - [5.2 Make the log level persistent to warm-reboot only by command](#52-make-the-log-level-persistent-to-warm-reboot-only-by-command)
 - [6 Fast Boot Support](#6-fast-boot-support)
 - [7 Open Questions](#8-open-questions)
-  - [7.1 Log level persistency in warm-boot](#81-log-level-persistency-in-warm-boot)
+  - [7.1 Log level persistency in warm-reboot](#81-log-level-persistency-in-warm-reboot)
 
 
 # List of Tables
@@ -177,32 +178,41 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 ## 4.1 Logger init flow
 
 When the system startup and the Database container initialize, we will load the loglevel_db.json into the LOGLEVEL DB (similar to the config_db.json). If the loglevel.json file is not exist, the system will generate a new loglevel_db.json automatically only after the user run "log-level save".
+The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2#L222
 
   - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the loglevel_db.json loads into the LOGLEVEL DB. In case there are messages before the loading, the messages will be in the default log level.
 
+## 4.2 "config reload" flow
 
-## 4.2 "config reload" and "config save" flows
+  There are two possible options:
+  1. When the user runs "config reload", it will not affect the loglevel state. In this case, if the user wants to load the loglevel_db.json into the LOGLEVEL DB he will execute a cold reboot.
+  2. When the user runs "config reload", not only the config_db.json will load into the CONFIG DB, but also the loglevel_db.json will load into the LOGLEVEL DB.
 
-  When the user runs "config reload" or "config save", it will not affect the loglevel state.
-   - If the user wants to save it's log level configuration, he will use the dedicated CLI command "log-level save".
    - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
 
+  Link to the place in the code that loads the config_db.json onto the CONFIG DB: https://github.com/Azure/sonic-utilities/blob/ca728b8961812a28e3542b206417755f4fe2ba89/config/main.py#L1401
 
-# 5 Warm Boot Support
+## 4.3 "config save" flow
+
+  When the user runs "config save", it will not affect the loglevel state.
+   - If the user wants to save its log level configuration, he will use the dedicated CLI command "log-level save".
+
+# 5 Warm Reboot Support
   
-  With current implementation, we don't flush the LOGLEVEL DB before warm-boot, which means that if the user configures some loglevel (for example, debug), after warm-boot, the system startup with the same configurable loglevel (debug).
+  With current implementation, we don't flush the LOGLEVEL DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
   That current state could be problematic. Do we want to keep that the loglevel is persistent to warm-reboot automatically as it is today?
 
 
-## 5.1 Keep log level persistent to warm-boot automatic
+## 5.1 Keep log level persistent to warm-reboot automatic
   
+  This approach can have an impact on the warm-reboot since there are many approaches to IO.
   The current implementation supports this approach and does not need to add any additional implementation.
 
 
-## 5.2 Make the log level persistent to warm-boot only by command
+## 5.2 Make the log level persistent to warm-reboot only by command
 
-  We will add the LOGLEVEL DB to the list of the dbies we flush before warm-boot.
-  In startup, the loglevel_db.json will load on the LOGLEVEL DB.
+  We will add the LOGLEVEL DB to the list of the dbies we flush before warm-reboot.
+  During boot time, in the startup, the loglevel_db.json will load on the LOGLEVEL DB.
 
 # 6 Fast Boot Support
 
@@ -210,8 +220,8 @@ When the system startup and the Database container initialize, we will load the 
 
 # 7 Open Questions
 
-## 7.1 Log level persistency in warm-boot
+## 7.1 Log level persistency in warm-reboot
   
- - Do we want to keep that the loglevel is persistent to warm-boot automatically as it is today?
+ - Do we want to keep that the loglevel is persistent to warm-reboot automatically as it is today?
 
 
