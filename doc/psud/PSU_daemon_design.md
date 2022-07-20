@@ -7,7 +7,7 @@
  | Rev |     Date    |       Author       | Change Description                       |
  |:---:|:-----------:|:------------------:|------------------------------------------|
  | 0.1 |             |      Chen Junchao  | Initial version                          |
- | 0.2 |   07/22     |      Or Farfara    | add input current, voltage and max power |
+ | 0.2 |   07/22     |      Or Farfara    | Add input current, voltage and max power |
 
 
 ## 1. Overview
