@@ -31,8 +31,9 @@
   - [5.1 Keep log level persistent to warm-reboot automatic](#51-keep-log-level-persistent-to-warm-reboot-automatic)
   - [5.2 Make the log level persistent to warm-reboot only by command](#52-make-the-log-level-persistent-to-warm-reboot-only-by-command)
 - [6 Fast Boot Support](#6-fast-boot-support)
-- [7 Open Questions](#8-open-questions)
-  - [7.1 Log level persistency in warm-reboot](#81-log-level-persistency-in-warm-reboot)
+- [7 Unit Test](#7-unit-test)
+- [8 Open Questions](#8-open-questions)
+  - [8.1 Log level persistency in warm-reboot](#81-log-level-persistency-in-warm-reboot)
 
 
 # List of Tables
@@ -142,7 +143,7 @@ admin@sonic:~$ log-level save
 }
 ```
 
-- On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior as we have today, and it remains as it is (we just add an option of setting all components to default log level).
+- On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior as we have today, and it remains as it is.
 - On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
 - On init: we will load the loglevel_db.json file into the LOGLEVEL DB.
 
@@ -151,7 +152,7 @@ admin@sonic:~$ log-level save
 
 - Each component has a singleton Logger object with a log level property and listener thread.
 - On init:
-  - The loglevel_db.json file (that will be kept on /etc/sonic/ folder) is loaded into the LOGLEVEL DB during the init of database docker.
+  - The loglevel_db.json file is loaded into the LOGLEVEL DB during the init of database docker.
   - The loglevel property is set accordingly to the loglevel value on the LOGLEVEL DB.
 - When a component writes a log message, the Logger writes the message only if the loglevel of the message is above the current loglevel property.
 - When the user wants to set a new log level to a component, he uses the "swssloglevel" CLI command. The "swssloglevel" script sets the new verbosity to the LOGLEVEL DB (database #3).
@@ -167,7 +168,9 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 
 
+
 ![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
+
 
 
 
@@ -219,9 +222,11 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 
   In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
 
-# 7 Open Questions
+# Unit Test
 
-## 7.1 Log level persistency in warm-reboot
+# 8 Open Questions
+
+## 8.1 Log level persistency in warm-reboot
   
  - Do we want to keep that the loglevel is persistent to warm-reboot automatically as it is today?
 
