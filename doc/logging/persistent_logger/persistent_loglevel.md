@@ -26,22 +26,24 @@
 - [4 Flows](#4-flows)
   - [4.1 System init flow](#41-system-init-flow)
   - [4.2 "config reload" flow](#42-"config-reload"-flow)
-  - [4.3 ""config save" flow](#43-"config-save"-flow)
+  - [4.3 "config save" flow](#43-"config-save"-flow)
 - [5 Warm Reboot Support](#5-warm-reboot-support)
-  - [5.1 Keep log level persistent to warm-reboot automatic](#51-keep-log-level-persistent-to-warm-reboot-automatic)
-  - [5.2 Make the log level persistent to warm-reboot only by command](#52-make-the-log-level-persistent-to-warm-reboot-only-by-command)
+  - [5.1 Make the log level persistent to warm-reboot only by command](#51-make-the-log-level-persistent-to-warm-reboot-only-by-command)
 - [6 Fast Boot Support](#6-fast-boot-support)
-- [7 Unit Test](#7-unit-test)
+- [7 Testing](#7-Testing)
+  - [7.1 Unit Testing](#71-unit-testing)
+  - [7.2 Manual Testing](#72-manual-testing)
 - [8 Open Questions](#8-open-questions)
   - [8.1 Log level persistency in warm-reboot](#81-log-level-persistency-in-warm-reboot)
-
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
 
 
 # List of Figures
+* [log-level save command](#32-persistent-logger-flow)
 * [persistent logger flow](#321-return-to-default-log-level)
+
 
 
 # Revision
@@ -144,8 +146,10 @@ admin@sonic:~$ log-level save
 ```
 
 - On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior as we have today, and it remains as it is.
-- On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
+- On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json (overriding existing file, if exists).
 - On init: we will load the loglevel_db.json file into the LOGLEVEL DB.
+
+![log-level save command](/doc/logging/persistent_logger/log-level_save_command.drawio.png)
 
 
 ## 3.2 Persistent logger flow
@@ -188,11 +192,9 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 
 ## 4.2 "config reload" flow
 
-  There are two possible options:
-  1. When the user runs "config reload", it will not affect the loglevel state. In this case, if the user wants to load the loglevel_db.json into the LOGLEVEL DB he will execute a cold reboot.
-  2. When the user runs "config reload", not only the config_db.json will load into the CONFIG DB, but also the loglevel_db.json will load into the LOGLEVEL DB.
+  When the user runs "config reload", not only the config_db.json will load into the CONFIG DB, but also the loglevel_db.json will load into the LOGLEVEL DB.
 
-   - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
+  - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
 
   Link to the place in the code that loads the config_db.json into the CONFIG DB: https://github.com/Azure/sonic-utilities/blob/ca728b8961812a28e3542b206417755f4fe2ba89/config/main.py#L1401
 
@@ -204,26 +206,43 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 # 5 Warm Reboot Support
   
   With current implementation, we don't flush the LOGLEVEL DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
-  That current state could be problematic. Do we want to keep that the loglevel is persistent to warm-reboot automatically as it is today?
-
-
-## 5.1 Keep log level persistent to warm-reboot automatic
-  
-  This approach can have an impact on the warm-reboot since there are many approaches to IO.
-  The current implementation supports this approach and does not need to add any additional implementation.
-
-
-## 5.2 Make the log level persistent to warm-reboot only by command
-
-  We will add the LOGLEVEL DB to the list of the dbies we flush before warm-reboot.
+  Because we want to make the log level persistent to reboot only by the "log-level save" CLI command we will add the LOGLEVEL DB to the list of the dbies we flush before warm-reboot.
   During boot time, in the startup, the loglevel_db.json will load on the LOGLEVEL DB.
 
 # 6 Fast Boot Support
 
   In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
 
-# 7 Unit Testing
+# 7 Testing
+## 7.1 Unit Testing
 
+  1. Verify that "config reload" loading the loglevel_db.json into LOGLEVEL DB:
+    1.1 Change log level for some component Notice to Info.
+    1.2 Run "log-level save".
+    1.3 Change the log level again to the same component from Info to Warnning.
+    1.4 Run "config reload".
+    1.5 Verify the log level is "Info".
+
+## 7.2 Manual Testing 
+
+  1. Verify log level is persistent to cold/fast/warm reboot after user run "log-level save":
+    1.1 Change log level for some component from Notice to Info.
+    1.2 Run "log-level save".
+    1.3 Verify the loglevel.json file was created.
+    1.3 Reboot.
+    1.4 Verify the log level is "Info".
+  2. Verify log level is not persistent to cold/fast/warm reboot if the user didn't run "log-level save": 
+    2.1 Change log level for some component Notice to Info.
+    2.2 Reboot.
+    2.3 Verify the log level is "Notice".
+  3. Verify loglevel returns to default after removing the "loglevel_db.json" file and reboot:
+    3.1 Change log level for some component Notice to Info.
+    3.2 Run "log-level save".
+    3.3 Delete loglevel_db.json file.
+    3.3 Reboot.
+    3.4 Verify the log level is "Notice".
+
+  
 # 8 Open Questions
 
 ## 8.1 Log level persistency in warm-reboot
