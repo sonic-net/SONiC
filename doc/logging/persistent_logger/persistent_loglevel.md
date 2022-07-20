@@ -24,7 +24,7 @@
   - [3.2 Persistent logger flow](#32-persistent-logger-flow)
     - [3.2.1 Return to default log level](#321-return-to-default-log-level)
 - [4 Flows](#4-flows)
-  - [4.1 Logger init flow](#41-logger-init-flow)
+  - [4.1 System init flow](#41-system-init-flow)
   - [4.2 "config reload" flow](#42-"config-reload"-flow)
   - [4.3 ""config save" flow](#43-"config-save"-flow)
 - [5 Warm Reboot Support](#5-warm-reboot-support)
@@ -46,7 +46,7 @@
 # Revision
 | Rev | Date     | Author          | Change Description                 |
 |:---:|:--------:|:---------------:|------------------------------------|
-| 0.1 | 06/21/22 | Eden Grisaro    | Initial version                    |
+| 0.1 | 07/20/22 | Eden Grisaro    | Initial version                    |
 
 # Scope
 This document provides high level design for SWSS Logger - log level persistent for SWSS, Syncd, and SAI components.
@@ -115,10 +115,10 @@ The persistent Logger should meet the following high-level functional requiremen
 ## 3.1 High-level design
 
 Two different design approaches were considered for making the loglevel persistent to reboot:
-1. Keep using the existing LOGLEVEL DB and make it persistent by adding loglevel_db.json file that will keep LOGLEVEL DB content with dedicated CLI command to save only LOG configuration.
-2. Move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command.
+1. Move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command.
+2. Keep using the existing LOGLEVEL DB and make it persistent by adding loglevel_db.json file that will keep LOGLEVEL DB content with dedicated CLI command to save only LOG configuration.
 
-To keep the flexibility for the user to save the log level in a separate flow (and not to save the log level following regular config save), it was decided to go with the second approach.
+There was a concern that the first approach would impact the boot time. In addition we wanted to keep the flexibility for the user to save the log level in a separate flow (and not to save the log level following regular config save), it was decided to go with the second approach.
 
 ### Making LOGLEVEL DB persistent by adding "loglevel_db.json" file
 
@@ -144,14 +144,14 @@ admin@sonic:~$ log-level save
 
 - On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior as we have today, and it remains as it is (we just add an option of setting all components to default log level).
 - On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json.
-- On startup: we will load the loglevel_db.json file into the LOGLEVEL DB.
+- On init: we will load the loglevel_db.json file into the LOGLEVEL DB.
 
 
 ## 3.2 Persistent logger flow
 
 - Each component has a singleton Logger object with a log level property and listener thread.
-- On startup:
-  - The loglevel_db.json file is loaded into the LOGLEVEL DB during the init of database docker.
+- On init:
+  - The loglevel_db.json file (that will be kept on /etc/sonic/ folder) is loaded into the LOGLEVEL DB during the init of database docker.
   - The loglevel property is set accordingly to the loglevel value on the LOGLEVEL DB.
 - When a component writes a log message, the Logger writes the message only if the loglevel of the message is above the current loglevel property.
 - When the user wants to set a new log level to a component, he uses the "swssloglevel" CLI command. The "swssloglevel" script sets the new verbosity to the LOGLEVEL DB (database #3).
@@ -176,7 +176,7 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 # 4 Flows
 
-## 4.1 Logger init flow
+## 4.1 System init flow
 
 When the system startup and the Database container initialize, we will load the loglevel_db.json into the LOGLEVEL DB (similar to the config_db.json). If the loglevel.json file is not exist, the system will generate a new loglevel_db.json automatically only after the user run "log-level save".
 The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2#L222
