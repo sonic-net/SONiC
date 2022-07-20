@@ -4,9 +4,10 @@
 
 ### Revision ###
 
- | Rev |     Date    |       Author       | Change Description                |
- |:---:|:-----------:|:------------------:|-----------------------------------|
- | 0.1 |             |      Chen Junchao  | Initial version                   |
+ | Rev |     Date    |       Author       | Change Description                       |
+ |:---:|:-----------:|:------------------:|------------------------------------------|
+ | 0.1 |             |      Chen Junchao  | Initial version                          |
+ | 0.2 |   07/22     |      Or Farfara    | add input current, voltage and max power |
 
 
 ## 1. Overview
@@ -41,6 +42,9 @@ PSU information is stored in PSU table:
 	change_event            = STRING                         ; change event of the psu
 	fan                     = STRING                         ; fan_name of the psu
 	led_status              = STRING                         ; led status of the psu
+	input_voltage           = STRING                         ; input voltage of the psu
+	input_current           = STRING                         ; input current of the psu
+	max_power               = STRING                         ; power capacity of the psu
 
 Now psud only collect and update "presence" and "status" field.
 
