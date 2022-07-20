@@ -4,7 +4,7 @@
 
 |  Rev  |   Date   |   Author   | Change Description |
 | :---: | :------: | :--------: | ------------------ |
-|  0.1  | 05/31/22 | Zhijian Li | Initial version    |
+|  0.1  | 07/20/22 | Zhijian Li | Initial version    |
 
 ## Overview
 
@@ -24,19 +24,13 @@ After the console device is plugged into the SONiC switch, we need to set up the
   2. Map console interface from `/dev/ttyUSB<id>` to `/dev/console-<line-number>`. (Usually done with the help of [udev](https://wiki.debian.org/udev))
   3. Any other necessary steps.
 
-Since we prefer the setup process completed after building SONiC image, a directory is provided to vendors to put all the files (eg. driver, udev `.rules`, etc.) they need. A `setup.sh` script file must be placed in this directory, which will be run **during the SONiC image build process**. After SONiC image has been built, all the necessary files will be installed.
+Vendors should package all the files and setup procedures into a corresponding `<vendor_name>-<model_name>.deb` file. Since we prefer the setup process completed after building a SONiC image, files used to build `.deb` packages should be put in the [Azure/sonic-buildimage](https://github.com/Azure/sonic-buildimage) repository, then the `.deb` packages will be built and installed automatically. 
 
 <!-- Pictures exported from Visio are zoomed to 70% -->
 
 ![A flow diagram to explain the setup process](./Portable-Console-Switch-High-Level-Design/setup.png)
 
-For example, vendor can prepare a `50-<vendor_name>-<model_name>.rules` file in this directory, and add the following lines in `setup.sh`:
-
-```bash
-cp ./50-<vendor_name>-<model_name>.rules /etc/udev/rules.d
-```
-
-Then SONiC will install the udev `.rules` file correctly and load it when system boot.
+For example, vendor can prepare a `50-<vendor_name>-<model_name>.rules` file in the `.deb` package, and copy it to `/etc/udev/rules.d` during the installation phase. In the post installation phase, vendor can use `udevadm trigger -c add` to trigger the udev rules.
 
 ### Udev `.rules` File Priority
 
