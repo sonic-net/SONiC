@@ -216,30 +216,30 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 ## 7.1 Unit Testing
 
   1. Verify that "config reload" loads the loglevel_db.json into LOGLEVEL DB:
-    1.1 Change the log level for some component from Notice to Info.
-    1.2 Run "log-level save".
-    1.3 Change the log level again to the same component from Info to Warning.
-    1.4 Run "config reload".
-    1.5 Verify the log level is "Info".
+    - Change the log level for some component from Notice to Info.
+    - Run "log-level save".
+    - Change the log level again to the same component from Info to Warning.
+    - Run "config reload".
+    - Verify the log level is "Info".
 
 ## 7.2 Manual Testing 
 
   1. Verify the log level is persistent to cold/fast/warm reboot after the user runs "log-level save":
-    1.1 Change the log level for some component from Notice to Info.
-    1.2 Run "log-level save".
-    1.3 Verify the loglevel.json file was created.
-    1.4 Reboot.
-    1.5 Verify the log level is "Info".
+    - Change the log level for some component from Notice to Info.
+    - Run "log-level save".
+    - Verify the loglevel.json file was created.
+    - Reboot.
+    - Verify the log level is "Info".
   2. Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "log-level save": 
-    2.1 Change the log level for some component from Notice to Info.
-    2.2 Reboot.
-    2.3 Verify the log level is "Notice".
+    - Change the log level for some component from Notice to Info.
+    - Reboot.
+    - Verify the log level is "Notice".
   3. Verify the log level returns to default after removing the "loglevel_db.json" file and reboot:
-    3.1 Change the log level for some component from Notice to Info.
-    3.2 Run "log-level save".
-    3.3 Delete loglevel_db.json file.
-    3.4 Reboot.
-    3.5 Verify the log level is "Notice".
+    - Change the log level for some component from Notice to Info.
+    - Run "log-level save".
+    - Delete loglevel_db.json file.
+    - Reboot.
+    - Verify the log level is "Notice".
 
 # 8 Open issues
 
