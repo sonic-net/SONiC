@@ -32,8 +32,6 @@
 - [7 Testing](#7-Testing)
   - [7.1 Unit Testing](#71-unit-testing)
   - [7.2 Manual Testing](#72-manual-testing)
-- [8 Open Questions](#8-open-questions)
-  - [8.1 Log level persistency in warm-reboot](#81-log-level-persistency-in-warm-reboot)
 
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
@@ -46,9 +44,9 @@
 
 
 # Revision
-| Rev | Date     | Author          | Change Description                 |
-|:---:|:--------:|:---------------:|------------------------------------|
-| 0.1 | 07/20/22 | Eden Grisaro    | Initial version                    |
+| Rev | Date     | Author          | Change Description                |
+|:---:|:--------:|:---------------:|-----------------------------------|
+| 0.1 | 07/20/22 | Eden Grisaro    | Initial version                   |
 
 # Scope
 This document provides high level design for SWSS Logger - log level persistent for SWSS, Syncd, and SAI components.
@@ -240,11 +238,6 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
     3.3 Delete loglevel_db.json file.
     3.4 Reboot.
     3.5 Verify the log level is "Notice".
-  
-# 8 Open Questions
 
-## 8.1 Log level persistency in warm-reboot
-  
- - Do we want to keep that the loglevel is persistent to warm-reboot automatically as it is today?
 
 
