@@ -215,7 +215,7 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 # 7 Testing
 ## 7.1 Unit Testing
 
-  1. Verify that "config reload" loads the loglevel_db.json into LOGLEVEL DB:
+  - Verify that "config reload" loads the loglevel_db.json into LOGLEVEL DB:
     - Change the log level for some component from Notice to Info.
     - Run "log-level save".
     - Change the log level again to the same component from Info to Warning.
@@ -224,17 +224,17 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
 
 ## 7.2 Manual Testing 
 
-  1. Verify the log level is persistent to cold/fast/warm reboot after the user runs "log-level save":
+  - Verify the log level is persistent to cold/fast/warm reboot after the user runs "log-level save":
     - Change the log level for some component from Notice to Info.
     - Run "log-level save".
     - Verify the loglevel.json file was created.
     - Reboot.
     - Verify the log level is "Info".
-  2. Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "log-level save": 
+  - Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "log-level save": 
     - Change the log level for some component from Notice to Info.
     - Reboot.
     - Verify the log level is "Notice".
-  3. Verify the log level returns to default after removing the "loglevel_db.json" file and reboot:
+  - Verify the log level returns to default after removing the "loglevel_db.json" file and reboot:
     - Change the log level for some component from Notice to Info.
     - Run "log-level save".
     - Delete loglevel_db.json file.
