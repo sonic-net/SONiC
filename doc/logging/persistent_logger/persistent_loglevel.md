@@ -32,7 +32,9 @@
 - [7 Testing](#7-Testing)
   - [7.1 Unit Testing](#71-unit-testing)
   - [7.2 Manual Testing](#72-manual-testing)
-
+- [8 Open issues](#8-open-issues)
+  - [8.1 Allow changing the default log level in first boot](#81-allow-changing-the-default-log-level-in-first-boot)
+  - [8.2 Support ZTP configuration](#82-support-ztp-configuration)
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
 
@@ -239,5 +241,9 @@ The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  htt
     3.4 Reboot.
     3.5 Verify the log level is "Notice".
 
+# 8 Open issues
+
+  ## 8.1 Allow changing the default log level in first boot
+  ## 8.2 Support ZTP configuration
 
 
