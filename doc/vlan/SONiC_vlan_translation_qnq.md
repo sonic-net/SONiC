@@ -85,6 +85,9 @@ This document provides comprehensive functional and design information about the
 | S-TAG                    | Service Provider VLAN Tag.              |
 | CE                       | Customer Edge          |
 | PE                       | (Service) Provider Edge|
+| VXLAN                    | Virtual extensible Local Area Network  |
+| VTEP                     | VXLAN Tunnel End Point|
+| VNI                      | Virtual Network Identifier|
 
 # 1 Feature Overview
 
@@ -852,7 +855,7 @@ curl -X DELETE "https://100.94.114.20/restconf/data/openconfig-interfaces:interf
 TBD
 
 ## 3.7 Warm Boot Support
-TBD
+Warm boot will be supported for Q-in-Q and Vlan translation configuration on Ethernet and PortChannel Interfaces.
 
 ## 3.8 Upgrade and Downgrade Considerations
 `Upgrade` from previous SONiC releases (which donot support Q-in-Q and Translation mapping rules) to the release 4.1 will be supported. The feature will introduced via additional configuration on the interfaces which are already SVLAN Members and also as a fresh configuration on the interfaces which are going to be made as VLAN members.
