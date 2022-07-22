@@ -1,7 +1,7 @@
 module sonic-passwh {
     yang-version 1.1;
     namespace "http://github.com/Azure/sonic-passwh";
-    prefix passwh;
+    prefix password;
 
     description "PASSWORD HARDENING YANG Module for SONiC OS";
 
@@ -18,75 +18,58 @@ module sonic-passwh {
             }
         }
 
-		container PASSWH {
-			description "PASSWORD HARDENING part of config_db.json";
-			container POLICIES {
-				leaf state {
-					description "state of the feature";
-					type feature_state;
-					default "disabled";
-				}
-				leaf expiration {
-					description "expiration time (days unit)";
-					default 180;
-					type uint32 {
-						range 1..365;
-					}
-				}
-				leaf expiration_warning {
-					description "expiration warning time (days unit)";
-					default 15;
-					type uint8 {
-						range 1..30;
-					}
-				}
-				leaf history_cnt {
-					description "num of old password that the system will recorded";
-					default 10;
-					type uint8 {
-						range 1..100;
-					}
-				}
-				leaf len_max {
-					description "password max length";
-					default 64;
-					type uint8 {
-						range 64..80;
-					}
-				}
-				leaf len_min {
-					description "password min length";
-					default 8;
-					type uint8 {
-						range 1..32;
-					}
-				}
-				leaf username_passw_match{
-					description "username password match";
-					default true;
-					type boolean;
-				}
-				leaf lower_class{
-					description "password lower chars policy";
-					default true;
-					type boolean;
-				}
-				leaf upper_class{
-					description "password upper chars policy";
-					default true;
-					type boolean;
-				}
-				leaf digits_class{
-					description "password digits chars policy";
-					default true;
-					type boolean;
-				}
-				leaf special_class{
-					description "password special chars policy";
-					default true;
-					type boolean;
-				}
-			}/*container policies */
-		} /* container PASSWH  */
+        container PASSW_HARDENING {
+            description "PASSWORD HARDENING part of config_db.json";
+            container POLICIES {
+                leaf state {
+                    description "state of the feature";
+                    type feature_state;
+                }
+                leaf expiration {
+                    description "expiration time (days unit)";
+                    type uint16 {
+                        range 1..365;
+                    }
+                }
+                leaf expiration_warning {
+                    description "expiration warning time (days unit)";
+                    type uint8 {
+                        range 1..30;
+                    }
+                }
+                leaf history_cnt {
+                    description "num of old password that the system will recorded";
+                    type uint8 {
+                        range 1..100;
+                    }
+                }
+                leaf len_min {
+                    description "password min length";
+                    type uint8 {
+                        range 1..32;
+                    }
+                }
+                leaf reject_user_passw_match{
+                    description "username password match";
+                    type boolean;
+                }
+                leaf lower_class{
+                    description "password lower chars policy";
+                    type boolean;
+                }
+                leaf upper_class{
+                    description "password upper chars policy";
+                    type boolean;
+                }
+                leaf digits_class{
+                    description "password digits chars policy";
+                    type boolean;
+                }
+                leaf special_class{
+                    description "password special chars policy";
+                    type boolean;
+                }
+            }/*container policies */
+        } /* container PASSWH  */
     }/* container sonic-passwh */
 }/* end of module sonic-passwh */
