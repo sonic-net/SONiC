@@ -1,0 +1,41 @@
+module sonic-static-config-delete {
+	namespace "http://github.com/Azure/sonic-acl";
+	prefix sacl;
+	yang-version 1.1;
+
+	import ietf-yang-types {
+		prefix yang;
+	}
+
+	import sonic-common {
+		prefix scommon;
+	}
+
+	organization
+		"BRCM";
+
+	contact
+		"BRCM";
+
+	description
+		"SONIC STATIC CONFIG DELETE";
+
+	revision 2021-07-22 {
+		description
+			"Initial revision.";
+	}
+
+	container sonic-static-config-delete {
+			scommon:db-name "CONFIG_DB";
+
+		list STATIC_CONFIG_DELETE {
+			key "itemkey";
+			scommon:key-delim "|";
+			scommon:key-pattern "STATIC_CONFIG_DELETE_TABLE|{itemkey}";
+
+			leaf itemkey {
+				type string;
+			}
+		}
+	}
+}

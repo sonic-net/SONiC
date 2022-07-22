@@ -11,8 +11,9 @@
     + [2.1 Considerations](#2-1-considerations)
     + [2.2 New class](#2-2-new-class)
     + [2.3 Other code change](#2-3-other-code-change)
-    + [2.4 Code example](#2-4-code-example)
-    + [2.5 Other solutions](#2-5-other-solutions)
+    + [2.4 Database Schema](#2-4-database-schema)
+    + [2.5 Code example](#2-5-code-example)
+    + [2.6 Other solutions](#2-6-other-solutions)
 - [3 Error handling](#3-error-handling)
 - [4 Serviceability and Debug](#4-serviceability-and-debug)
 - [5 Unit Test](#5-unit-test)
@@ -58,7 +59,12 @@ This document provides a detailed description on the new features for:
  - Backward compatibility with existed code and applications.
    - For backward compatibility when initialize buffer config from graph, config will be write to both config tables and static config tables.
    - After code migrate to use static buffer config, static config will only write to static config tables.
-
+   - Static config support delete/revert operation:
+     - In some user scenario, user need delete a static config, and also may add config back later.
+     - For delete operation, data in static config table will not be delete.
+     - Static overlay use STATIC_CONFIG_DELETE table to handle dlete/revert:
+       - When delete a static config item, static overlay will add the item key to STATIC_CONFIG_DELETE table.
+       - When read static config, all item in STATIC_CONFIG_DELETE will not include in result.
 # 2 Design
  - Layered config DB design diagram:
 
@@ -110,8 +116,16 @@ This document provides a detailed description on the new features for:
 ## 2.3 Other code change
  - Add new methods to TableEntryEnumerable  interface:
    - virtual bool hget(const std::string &key, const std::string &field, std::string &value) = 0;
-   
-## 2.4 Code example
+
+## 2.4 Database Schema
+ - All static config table will have exactly same schema with existed ConfigDB tables.
+ - STATIC_CONFIG_DELETE Table:
+```
+; Key
+itemkey              = 1*256VCHAR          ; Deleted static config item key.
+```
+
+## 2.5 Code example
  - Connector decorator:
 ```
     from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, OverlayConfigDBConnectorDecorator
@@ -133,7 +147,7 @@ This document provides a detailed description on the new features for:
     table.get("Vlan1000")
 ```
 
-## 2.5 Other solutions for Yang model default value
+## 2.6 Other solutions for Yang model default value
 
 |                                                              | Pros                                                         | Cons                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
