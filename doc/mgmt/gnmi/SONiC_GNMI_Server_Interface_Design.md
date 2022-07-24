@@ -92,6 +92,8 @@ sonic-restapi will be replaced by gNMI interface in the future.
 
 sonic-telemetry provides gNMI/gNOI server interface. And sonic-telemetry provides only telemetry via gRPC, and the gap is configuration.
 
+We will update sonic-telemetry to support configuration.
+
 ## 1.1 Requirements
 
 ### 1.1.1 Phase 1 Requirements
@@ -154,10 +156,11 @@ For ApplDB, we will create Yang models based on requirement. Today we only need 
 
 #### 1.2.1.3 Data Schema
 
-The ultimate goal is to use SONiC Yang models for configuration, and we also need to support ConfigDB schema and ApplDB schema for backward compatibility.
-We will follow OpenConfig specification to use origin field to support mixed schema.
+The ultimate goal is to use SONiC Yang models for configuration, and we also need to support ConfigDB schema and ApplDB schema:
 
-And we use the first element to specify the target database.
+* We will follow OpenConfig specification to use origin field to support mixed schema.
+
+* And we use the first element to specify the target database.
 
 A single request cannot have both SONiC YANG paths and ConfigDB/ApplDB schema paths. 
 
@@ -447,12 +450,25 @@ The full configuration request will be overwritten by subsequent full configurat
 
 #### 1.2.1.12 Backward Compatibility
 
-SONiC telemetry is using prefix target to identify target database, and we can use the same method to support backward compatibility.
+SONiC telemetry is using prefix target to identify target database, and we will add a new target to support mixed schema.
 
-* If prefix target is ConfigDB or ApplDB, gNMI server should follow current design for set request.
-* If prefix target is empty, gNMI server should invoke translib API for set request.
+    enum Target {
+      option allow_alias = true;
+      APPL_DB         = 0;
+      ASIC_DB         = 1;
+      COUNTERS_DB     = 2;
+      LOGLEVEL_DB     = 3;
+      CONFIG_DB       = 4;
+      // PFC_WD_DB shares the the same db number with FLEX_COUNTER_DB
+      PFC_WD_DB       = 5;
+      FLEX_COUNTER_DB = 5;
+      STATE_DB        = 6;
+      // For none-DB data
+      OTHERS          = 100;
+      // For mixed schema
+      MIXED_SCHEMA    = 101;
+    }
 
-Now we have two gNMI server, one for read and one for configure. When SONiC telemetry and SONiC gNMI are stable in the future, we can use this prefix target solution to merge them to a single container. 
 
 ### 1.2.2 Container
 
