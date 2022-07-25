@@ -134,7 +134,7 @@ Currently we do not support rollback for ApplDB, therefore VNET route will be an
 
 * Set
 
-Since a single SetRequest will be treated as a transaction, sonic-gnmi does not support parallel write operations. We will put the SetRequests in a queue and serve them with a single worker.
+Since a single SetRequest will be treated as a transaction, gNMI server does not support parallel write operations. We will put the SetRequests in a queue and serve them with a single worker.
 
 <img src="images/set_lock.svg" alt="set" width="800px"/>
 
@@ -403,7 +403,7 @@ We propose to use Capabilities RPC as heartbeat to detect reboot, and after rebo
 <img src="images/heartbeat.svg" alt="heartbeat" width="800px"/>
 
 #### 1.2.1.8 Authentication
-sonic-telemetry provides three authentication mechanisms, and sonic-gnmi will use the same mechanisms:
+sonic-telemetry provides three authentication mechanisms, and we will keep the same mechanism:
 * Password: Like HTTP Basic auth, you pass the username and password in the gRPC metadata
 * JWT: JSON Web Tokens standard. First you authenticate with username/password and then receive a JWT token. After you send the token in the gRPC metadata.
 * User Certificate: Use a valid client certificate with the username embedded in the CN field. The certificate is for authentication, the username is for authorization.
@@ -472,7 +472,7 @@ SONiC telemetry is using prefix target to identify target database, and we will 
 
 ### 1.2.2 Container
 
-All the introduced features will be part of the sonic-gnmi package installed in sonic-gnmi container.
+All the introduced features will be part of the sonic-telemetry package installed in sonic-telemetry container.
 
 # 2 Error Handling
 supervisord will autorestart gnmi service if it exits after it has successfully started up.
