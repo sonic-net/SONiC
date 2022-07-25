@@ -8,13 +8,13 @@
 
 ## Revision
 
-| Rev  |   Date    |              Author              | Change Description      |
-| :--: | :-------: | :------------------------------: | :---------------------: |
-| 0.1  | 7/17/2022 | Shitanshu Shah, Reshma Sudarshan |  Initial version        |
-
+| Rev  |   Date    |              Author              | Change Description           |
+| :--: | :-------: | :------------------------------: | :--------------------------: |
+| 0.1  | 7/17/2022 | Shitanshu Shah, Reshma Sudarshan |  Initial version             |
+| 0.2  | 7/24/2022 | Shitanshu Shah, Reshma Sudarshan |  Incorporate review comments |
 
 ## Overview
-SRv6 uSID (micro-segment) is extension of the SRv6 network programming model [SRv6 uSID instructions IETF draft](https://datatracker.ietf.org/doc/draft-filsfils-spring-net-pgm-extension-srv6-usid/). uSID is a compressed SID value which can be for example carried in 16-bits (unlike full IPv6 address to represent a SID). uSID as is designed scales well with much lower MTU overhead required per uSID carrier. uSID carrier is 128-bit IPv6 address that can carry upto 6 uSIDs [Refer to Example for more details]
+SRv6 uSID (micro-segment) is extension of the SRv6 network programming model, refer to IETF drafts [Compressed SRv6 Segment List Encoding]( draft-ietf-spring-srv6-srh-compression-02) and [SRv6 uSID instructions IETF draft](https://datatracker.ietf.org/doc/draft-filsfils-spring-net-pgm-extension-srv6-usid/). uSID is a compressed SID value which can be for example carried in 16-bits (unlike full IPv6 address to represent a SID). uSID as is designed scales well with much lower MTU overhead required per uSID carrier. uSID carrier is 128-bit IPv6 address that can carry upto 6 uSIDs [Refer to Example for more details]
 
 ## Scope
 The scope of this document is to enhance orchagent to support uSID programming instructions in this IETF draft. Current SAI API definitions already support uSID instructions. No SAI API change required in scope of this document. Current version of routing protocols in SONiC does not support SRv6, it is not in the scope of this document to add such a support for FRR routing stack.
@@ -78,7 +78,7 @@ uSID carrier is 128-bit IPv6 address which is specified in following format:
 - Active uSID:    The first uSID
 - Next uSID:      The next uSID after the Active uSID.
 - Last uSID:      The last uSID in the carrier before the End-of-Carrier
-- End-of-Carrier: A globally reserved uSID that marks the end of a uSID list. The End-of-Carrier ID is 0000. As may End-of-Carriers as required to complete full 128-bits IPv6 address
+- End-of-Carrier: A globally reserved uSID that marks the end of a uSID list. The End-of-Carrier ID is 0000. As many End-of-Carriers as required to complete full 128-bits IPv6 address
 
 ![](images/SRv6_uSID_Example.png)
 
