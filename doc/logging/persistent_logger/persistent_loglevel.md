@@ -122,7 +122,7 @@ To make the loglevel persistent to reboot, we will move the LOGLEVEL DB content 
 
 ### 3.1.1 CONFIG DB schema
 
- - A new "LOGGER" table is added to the CONFIG DB and the config_db.json with a minor change in the key. 
+ - A new "LOGGER" table will be added to the CONFIG DB:
 
 ```json
 {
@@ -134,15 +134,19 @@ To make the loglevel persistent to reboot, we will move the LOGLEVEL DB content 
   }
 }
 ```
+
+ There will be a minor change in the table keys(instead of "{componentName}:{componentName}" the key will be just the "{componentName}").
+
 ### 3.1.2 Delete LOGLEVEL DB
 ???
  - We will remove LOGLEVEL DB?
  - CHANGE SCHEMA.H NO DB 3
-### 3.1.3 Update "swssloglevel"
 
-In the current implementation the "swssloglevel" script sets the log level to the LOGLEVEL DB. We will change the script to a CLI command with the same functionality, execet that the log level set will be to the CONFIG DB.
+### 3.1.3 Add "config loglevel" CLI command to replace the "swssloglevel" script
 
-A new option, -d option, will be added and allow the user to return to the default log level for all the components.
+In the current implementation the "swssloglevel" script sets the log level in the LOGLEVEL DB. We will replace the script with a CLI command with the same functionality, execet that the log level will be saved in the CONFIG DB.
+
+To allow the user to set the default log level value for all the components, we will add a -d flag to the "config loglevel" command.
 
 ```
 admin@sonic:~$ config loglevel -h
@@ -166,7 +170,7 @@ Examples:
   config loglevel -d #return all components to default loglevel
 ```
 
-### 3.1.4 "config save" CLI command
+### 3.1.4 Make the log level persistent using the "config save" CLI command
 
 The content of the CONFIG DB will load into the config_db.json. This is the behavior we have today, and it remains as it is. If the user configures loglevel for some component and runs "config save" the loglevel will be persistent.
 
