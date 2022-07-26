@@ -88,12 +88,12 @@ This document describes the high level design of Static Port Channel functionali
 1. Support Port Channel in Static mode. Static Port Channel member ports are always available for traffic transmission and reception if the ports links are up. Port types and features are supported in the same way as SONiC LAGs today. MLAG should seamlessly work in Static Mode.
 
 ### 1.1.2 Configuration and Management Requirements
-1. Provide configuration to set a Port Channel mode as Static with the click CLI.
-2. Enhance show commands to display the Port Channel mode as Static when configured so with the click CLI.
+1. Provide configuration to set a Port Channel mode as on with the click CLI.
+2. Enhance show commands to display the Port Channel mode as STATIC when configured so with the click CLI.
 
 ### 1.1.3 Scalability Requirements
 1. The maximum number of Port Channels configurable (Static and Dynamic put together) per system is 256.
-2. The maximum number of member ports configurable per Port Channel are 32.
+2. The maximum number of member ports configurable per Port Channel are 32. (Generally depends on ASIC)
 
 ### 1.1.4 Warm Boot Requirements
 The traffic loss during a warm reboot should be within the prescribed limits of warm boot.
@@ -124,7 +124,7 @@ Static Port Channels can be deployed in both Enterprise and Data center networks
 ## 2.2 Functional Description
 A Port Channel bundles individual ports into a group to provide increased bandwidth, load balancing and redundancy. A Port Channel can be either Static or Dynamic. A Dynamic Port Channel runs Link Aggregation Signaling protocols like LACP to mark the links active for traffic. A Static Port Channel has its member ports always available for traffic. Incoming LACPDUs are silently ignored.
 
-Static Port Channel uses the loadbalance runner which hashes CPU sourced or CPU forwarded traffic among the member ports. Traffic forwarded in hardware on the Port Channel uses the silicon specific traffic hashing algorithm. 
+Static Port Channel uses the roundrobin runner which hashes CPU sourced or CPU forwarded traffic among the member ports. Traffic forwarded in hardware on the Port Channel uses the silicon specific traffic hashing algorithm. 
 
 # 3 Design
 
@@ -132,7 +132,7 @@ Static Port Channel uses the loadbalance runner which hashes CPU sourced or CPU 
 Upon creating a static Port Channel, the "Teamd" daemon corresponding to that Port Channel is instantiated in static mode.
 
 ### 3.1.1 Teamd configuration
-A user should be able to create the Port Channel in static or dynamic mode. For static mode, the CONFIG_DB is updated with a flag.
+A user should be able to create the Port Channel in static or dynamic mode. For static mode, the CONFIG_DB is updated with a "on": "true".
 Note: Port Channels are dynamic by default in SONiC. 
 
 ### 3.1.2 Team Manager
@@ -240,7 +240,7 @@ No new error handling support is added.
 No new Serviceability or Debug support are added.
 
 # 7 Warm Boot Support
-Teamd supports warm boot. There is minimal traffic loss on the Port Channel during a system warm boot as the data plane is disrupted for less than 1 second.
+Teamd supports warm boot. There is minimal traffic loss on the Port Channel during a system warm boot as the data plane is disrupted for less than 1 second. No new changes needed.
 
 # 8 Scalability
 Teamd will support the necessary scalability requirements.
@@ -253,7 +253,7 @@ Teamd will support the necessary scalability requirements.
   - Verify that there is an entry in the PORTCHANNEL in STATE_DB for the Port Channel.
   - Verify that there is an entry in the ASIC_DB for the Port Channel.
   - Verify that there is an entry in the hardware for the Port Channel with no member ports.
-  - Dump Teamd instance config and Verify that the Port Channel is present and the runner is "loadbalance".
+  - Dump Teamd instance config and Verify that the Port Channel is present and the runner is "round-robin".
   - Dump Teamd instance state and verify that the Port Channel is present.
 
 2. Add a member to the Static Port Channel.
