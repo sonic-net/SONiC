@@ -100,7 +100,7 @@ We will allow the use of 2 script types in this flow -
 In our opinion, python modifications will be easier to add and maintain than install.sh changes, as changing install.sh (for each platform) will require much more sources to maintain and test (different HW to check on, test cases for each HW, etc.).
 - A signed image will go through a verification process before installation, as main.py will call a dedicated bash script to split the signature from the image and check it with a public key certificate.
 Verification script called verify_image_sign.sh will verify using OpenSSL cms. Verification is enabled only if efi tools are enabled, and "Secure Boot" flag is enabled in BOIS. Accordingly, the certificate will be fetched from BIOS using EFI tools.
-
+![dev_verification_script](dev_verification_script.png)
 
 ###  1.8. <a name='SAIAPI'></a>SAI API 
 
