@@ -61,7 +61,7 @@ Secure installation and upgrade of OS are setting a requirement to ensure the im
 
 ###  1.5. <a name='Requirements'></a>Requirements
 
-We want to enable secure upgrade of SONIC. This will include secure upgrade of SONIC while installing SONIC via ONIE or SONIC. The feature requires a signing process which requires a signing private key and certificate and a verification process which requires a public key certificate for validation. Both processes are required to be supported by various scenarios such as development and release.
+We want to enable secure upgrade of SONIC. This will include secure upgrade of SONIC while installing SONIC via ONIE or SONIC. The feature requires a signing process which will include a private key and certificate. The verification process on the other end requires a public key certificate for validation. Both processes are required to be supported by various scenarios such as development and release.
 In order to do secure installation of SONIC from ONIE, it has to include the flowing secure upgrade verification commit TBD (on pull request - waiting for it to be created)
 Device arch should support secure boot including UEFI tools.
 
@@ -83,15 +83,15 @@ This feature has 2 flows to be supported:
 ####  1.7.1. <a name='Signingprocess'></a>Signing process  
 
 Sign sonic image during build process in build_image.sh script, right after generation.
-We want to add the flags SONIC_SU_MODE_ENABLED and SONIC_SU_PROD_ENABLED to allow several modes of secure upgrade- when SONIC_SU_MODE_ENABLED == n no change will be made to the current build process. In case of SONIC_SU_MODE_ENABLED == y SONIC_SU_PROD_ENABLED will determine if we sign with development script (equals 'n') or production script (equals 'y').
+We want to add the flag SECURE_UPGRADE_MODE to allow several modes of secure upgrade. When SECURE_UPGRADE_MODE == 'no_sign' no change will be made to the current build process. In case of SECURE_UPGRADE_MODE == 'dev', image will be signed by development script and when SECURE_UPGRADE_MODE == 'prod' - image will be signed by production script. In addition, we want to add the flags SECURE_UPGRADE_DEV_SIGNING_KEY and SECURE_UPGRADE_DEV_SIGNING_CERT, to provide the option to give path for development keys during the build.
 ![build_options](build_options.png)
 - After image creation, during onie-mk-demo.sh script, we create a new output file with the prefix sharch.sh script and the image. We calculate sha1 and original image size and update them in the prefix for verification during image install.
 - We will call a dedicated script to create an image signature:
 We will allow the use of 2 script types in this flow -
 
-	a.  development script - su_sign_image_dev.sh, which will use simple cms openSSL signing (enable with flag set to SONIC_SU_MODE_ENABLED == y and SONIC_SU_PROD_ENABLED == n) with development keys.
+	a.  development script - sign_image_dev.sh, which will use simple cms OpenSSL signing (enable with flag set to SECURE_UPGRADE_MODE == 'dev') with development keys (path provided in SECURE_UPGRADE_DEV_SIGNING_KEY and SECURE_UPGRADE_DEV_SIGNING_CERT).
 
-	b.  production script - su_sign_image_prod.sh (enable with the flag set to SONIC_SU_PROD_ENABLED == y) that each vendor will be able to provide for himself. 
+	b.  production script - sign_image_${platform}.sh (enable with the flag set to SECURE_UPGRADE_MODE == 'prod') that each vendor will be able to provide for themselves. When implementing this script, it is required to implement the method sign_image_prod(){} which is being called with arguments $output_image and $out_signature during the build process and is supposed to create a signature in $out_signature that will be concatenated to the image in the calling build script, afterward.
 
 ![signing_options](signing_options.png)
 
@@ -99,7 +99,7 @@ We will allow the use of 2 script types in this flow -
 - SONIC install – changes will be mainly done in sonic-installer main.py where bootloader methods are being called and will only affect 'sonic-installer install' command (other sonic-installer commands will not be affected). The installation process is triggered by install.sh script, which is different for every platform.
 In our opinion, python modifications will be easier to add and maintain than install.sh changes, as changing install.sh (for each platform) will require much more sources to maintain and test (different HW to check on, test cases for each HW, etc.).
 - A signed image will go through a verification process before installation, as main.py will call a dedicated bash script to split the signature from the image and check it with a public key certificate.
-Verification script called su_verify_image_sign.sh will verify using OpenSSL cms. Verification is enabled only if efi tools are enabled, and "Secure Boot" flag is enabled in BOIS. Accordingly, the certificate will be fetched from BIOS using EFI tools.
+Verification script called verify_image_sign.sh will verify using OpenSSL cms. Verification is enabled only if efi tools are enabled, and "Secure Boot" flag is enabled in BOIS. Accordingly, the certificate will be fetched from BIOS using EFI tools.
 
 
 ###  1.8. <a name='SAIAPI'></a>SAI API 
@@ -140,19 +140,19 @@ This flow will only be enabled if secure boot BIOS flag is disabled, as we assum
 As mentioned in 1.5 and 1.11.2, this flow requires secure upgrade enabled ONIE, with code available in link TBD.
 ###  1.13. <a name='TestingRequirementsDesign'></a> Testing Requirements/Design 
 ####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases  
-We can use the verification script su_verify_image_sign_dev.sh as part of standalone test cases, without the need to run the whole installation process. 
-
-Note - The script can support the use of a public key that was provided by the user and not only from BIOS. 
+We can use the verification script as part of standalone test cases, without the need to run the whole installation process. 
+In this test flow, we create a simple mock image, signing it with self-signing keys, and then checking each scenario in a different test case.
+We use the verification script verify_image_sign_test.sh which calls the same common script verify_image_sign_common.sh as the image verification script.
 
 - Good flows:
   
-  -  Verify image - check basic flow of signing and verification
+  -  Verify image - check the basic flow of signing and verification
 - Bad flows - 
   Check if verification catches bad images:
-  -  Verify an image that was modified after build
-  -  Verify an image with wrong image size in sharch
-  -  Verify an image with the wrong sha1 in sharch
-  -  Verify an image with modified signature
+  -  Verify an image that was modified after the build
+  -  Verify an image with a wrong image size in sharch
+  -  Verify an image with a wrong sha1 in sharch
+  -  Verify an image with a modified signature
   -  Verify an image signed with one key and verified with a different key 
 
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
@@ -167,8 +167,8 @@ Note - The script can support the use of a public key that was provided by the u
 - Bad flows
 	- Try to install an unsigned image from SONIC, on secure boot enabled machine.
 	- Try to install an unsigned image from ONIE, on secure boot enabled machine.
-	- Try to install a signed image from SONIC, on secure boot enabled machine, while specific certificate for this image is not available from UEFI.
-	- Try to install a signed image that was modified after build from SONIC, on secure boot enabled machine.
+	- Try to install a signed image from SONIC, on secure boot enabled machine, while a specific certificate for this image is not available from UEFI.
+	- Try to install a signed image that was modified after the build process from SONIC, on secure boot enabled machine.
 
 ###  1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any 
 
