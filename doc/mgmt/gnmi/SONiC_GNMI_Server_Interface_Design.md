@@ -398,7 +398,9 @@ If the target database is not ConfigDB, we can't guarantee persisitence.
 
 For full system reboot, client has to reprogram ApplDB. If the gnmi container restarts, client doesn't need to reprogram.
 
-We propose to use Capabilities RPC as heartbeat to detect reboot, and after reboot, client should compare ApplDB configuration and check if needs to reprogram.
+We propose to use Capabilities RPC as heartbeat to detect reboot, and we will expose reset status.
+
+After reboot, client should check reset status to decide if needs to reprogram.
 
 <img src="images/heartbeat.svg" alt="heartbeat" width="800px"/>
 
