@@ -61,6 +61,7 @@ Log level verbosity is part of the configuration of the OS. Today, the log level
 |---------------|-------------------------------------------|
 | SONiC         | Software for open networking in the cloud | 
 | SAI           | Switch Abstraction Interface              |
+| CONFIG DB	    | Configuration Database                    |
 
 
 # 1 Background
@@ -112,67 +113,77 @@ admin@sonic:~$ redis-cli -n 3 HGETALL "orchagent:orchagent"
 
 The persistent Logger should meet the following high-level functional requirement:
 - The user will be able to save the configuration of the loglevel and make it persistent after reboot.
+- Not impact warm/fast reboot when the user uses the default configuration.
 
 # 3 Persistent log level design
 ## 3.1 High-level design
 
-Two different design approaches were considered for making the loglevel persistent to reboot:
-1. Move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved when using the "config save" CLI command.
-2. Keep using the existing LOGLEVEL DB and make it persistent by adding loglevel_db.json file that will keep LOGLEVEL DB content with dedicated CLI command to save only LOG configuration.
+To make the loglevel persistent to reboot, we will move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved using the "config save" CLI command.
 
-There was a concern that the first approach would impact the boot time. In addition we wanted to keep the flexibility for the user to save the log level in a separate flow (and not to save the log level following regular config save), it was decided to go with the second approach.
+### 3.1.1 CONFIG DB schema
 
-### Making LOGLEVEL DB persistent by adding "loglevel_db.json" file
-
- - We will add a new "log-level save" command to allow the user to save the log level.
-
-```
-admin@sonic:~$ log-level save
-```
-
- 
- - Similar to the config_db.json, we will add a new loglevel_db.json. The JSON file will be added to etc/sonic/loglevel_db.json.
+ - A new "LOGGER" table is added to the CONFIG DB and the config_db.json with a minor change in the key. 
 
 ```json
 {
   "LOGGER": {
-    "orchagent:orchagent": {
+    "orchagent": {
       "LOGLEVEL": "INFO",
       "LOGOUTPUT": "SYSLOG"
     }
   }
 }
 ```
+### 3.1.2 Delete LOGLEVEL DB
+???
+ - We will remove LOGLEVEL DB?
+ - CHANGE SCHEMA.H NO DB 3
+### 3.1.3 Update "swssloglevel"
 
-- On "swssloglevel": We will set the log level to the LOGLEVEL DB, This is the behavior as we have today, and it remains as it is.
-- On "log-level save": We will copy the LOGLEVEL DB content into the loglevel_db.json (overriding existing file, if exists).
-- On init: we will load the loglevel_db.json file into the LOGLEVEL DB.
+In the current implementation the "swssloglevel" script sets the log level to the LOGLEVEL DB. We will change the script to a CLI command with the same functionality, execet that the log level set will be to the CONFIG DB.
 
-![log-level save command](/doc/logging/persistent_logger/log-level_save_command.drawio.png)
+A new option, -d option, will be added and allow the user to return to the default log level for all the components.
 
+```
+admin@sonic:~$ config loglevel -h
+
+Usage: config loglevel [OPTIONS]
+SONiC logging severity level setting.
+
+Options:
+	 -h	print this message
+	 -l	loglevel value
+	 -c	component name in DB for which loglevel is applied (provided with -l)
+	 -a	apply loglevel to all components (provided with -l)
+	 -s	apply loglevel for SAI api component (equivalent to adding prefix "SAI_API_" to component)
+	 -p	print components registered in DB for which setting can be applied
+   -d return all components to default loglevel
+
+Examples:
+	config loglevel -l NOTICE -c orchagent # set orchagent severity level to NOTICE
+	config loglevel -l SAI_LOG_LEVEL_ERROR -s -c SWITCH # set SAI_API_SWITCH severity to ERROR
+	config loglevel -l SAI_LOG_LEVEL_DEBUG -s -a # set all SAI_API_* severity to DEBUG
+  config loglevel -d #return all components to default loglevel
+```
+
+### 3.1.4 "config save" CLI command
+
+The content of the CONFIG DB will load into the config_db.json. This is the behavior we have today, and it remains as it is. If the user configures loglevel for some component and runs "config save" the loglevel will be persistent.
+
+### 3.1.5 Listener thread tables
+
+In the current implementation, each component has a listener thread that registers to the LOGLEVEL DB table. Each change in the LOGLEVEL DB table is caught by the thread and trigger handler that change the component's Logger configuration. We will keep the same behavior on the CONFIG DB.
 
 ## 3.2 Persistent logger flow
 
 - Each component has a singleton Logger object with a log level property and listener thread.
-- On init:
-  - The loglevel_db.json file is loaded into the LOGLEVEL DB during the init of database docker.
-  - The loglevel property is set accordingly to the loglevel value on the LOGLEVEL DB.
 - When a component writes a log message, the Logger writes the message only if the loglevel of the message is above the current loglevel property.
-- When the user wants to set a new log level to a component, he uses the "swssloglevel" CLI command. The "swssloglevel" script sets the new verbosity to the LOGLEVEL DB (database #3).
-- The LOGLEVEL DB change triggers an event, which is caught by the listener thread.
+- When the user wants to set a new log level to a component, he uses the "config loglevel" CLI command. The "config loglevel" CLI command sets the new verbosity to the CONFIG DB (database #4).
+- The CONFIG DB change triggers an event, which is caught by the listener thread.
 - The listener thread changes the loglevel property of the Logger.
-- The user can use the "log-level save" command to save the current loglevel and make it persistent. It will copy the LOGLEVEL DB content into the loglevel_db.json.
-In addition to the log level, the LOGLEVEL DB contains the log output file. After "log-level save" the log output will be persistent to reboot too.
+- The user can use the "config save" command to save the current loglevel and make it persistent. It will copy the CONFIG DB content into the config_db.json.
 
-### 3.2.1 Return to default log level
-
-  To return to the default log level, the user will delete the loglevel_db.json and reboot the switch.
-
-
-
-
-
-![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
+In addition to the log level, the CONFIG DB contains the log output file. After "config save" the log output will be persistent to reboot too.
 
 
 
@@ -180,70 +191,134 @@ In addition to the log level, the LOGLEVEL DB contains the log output file. Afte
 
 
 
-# 4 Flows
+![persistent logger flow](/doc/logging/persistent_logger/persistent_loglevel.png)
+
+
+
+
+
+
+
+# 4 Flows???????
 
 ## 4.1 System init flow
 
-When the system startup and the Database container initialize, we will load the loglevel_db.json into the LOGLEVEL DB (similar to the config_db.json). If the loglevel.json file is not exist, the system will generate a new loglevel_db.json automatically only after the user run "log-level save".
-The Link to the place of loading loglevel_db.json into LOGLEVEL DB will be:  https://github.com/Azure/sonic-buildimage/blob/master/files/build_templates/docker_image_ctl.j2#L222
-
+When the system startup and the Database container initialize, the config_db.json loads into the CONFIG DB.
+ 
   - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the loglevel_db.json loads into the LOGLEVEL DB. In case there are messages before the loading, the messages will be in the default log level.
 
-## 4.2 "config reload" flow
 
-  When the user runs "config reload", not only the config_db.json will load into the CONFIG DB, but also the loglevel_db.json will load into the LOGLEVEL DB.
-
-  - We will **not** create similar CLI command to "config reload". The "config reload" command is necessary for features that can only configure from the config_db.json; this ability is unnecessary in the persistent loglevel feature.
-
-  Link to the place in the code that loads the config_db.json into the CONFIG DB: https://github.com/Azure/sonic-utilities/blob/ca728b8961812a28e3542b206417755f4fe2ba89/config/main.py#L1401
-
-## 4.3 "config save" flow
-
-  When the user runs "config save", it will not affect the loglevel state.
-   - If the user wants to save its log level configuration, he will use the dedicated CLI command "log-level save".
-
-# 5 Warm Reboot Support
+# 5 Cold and Fast Reboot Support
   
-  With current implementation, we don't flush the LOGLEVEL DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
+  The current implementation support cold and fast reboot. Sine in the cold and fast reboot, the CONFIG DB content is deleted the user need to run "config save" to make the log level persistent to cold and fast reboot.
+
+# 6 Warm Reboot Support
+
+  With current implementation, we don't flush the CONFIG DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
+
+  ?????
   Because we want to make the log level persistent to reboot only by the "log-level save" CLI command we will add the LOGLEVEL DB to the list of the dbies we flush before warm-reboot.
   During boot time, in the startup, the loglevel_db.json will load on the LOGLEVEL DB.
 
-# 6 Fast Boot Support
+# 7 Yang model
 
-  In the fast-boot, the database content is deleted. To make the log level persistent to fast-boot, we need to load the loglevel_db.json into the LOGLEVEL DB in the startup. Since the startup is from another partition, we need to migrate the loglevel_db.json similarly to the migrate in the config_db.json.
+  The following YANG model will be added in order to provide support for the logger:
+   - sonic-logger.yang -> container LOGGER
 
-# 7 Testing
-## 7.1 Unit Testing
+   ```
+    description "Logger Table yang Module for SONiC";
 
-  - Verify that "config reload" loads the loglevel_db.json into LOGLEVEL DB:
-    - Change the log level for some component from Notice to Info.
-    - Run "log-level save".
-    - Change the log level again to the same component from Info to Warning.
-    - Run "config reload".
-    - Verify the log level is "Info".
+    container sonic-logger {
 
-## 7.2 Manual Testing 
+        container LOGGER {
 
-  - Verify the log level is persistent to cold/fast/warm reboot after the user runs "log-level save":
+            description "Logger table in config_db.json";
+
+            list LOGGER_LIST {
+
+                key "name";
+
+                leaf name {
+                    description "Component name in LOGGER table (example for component: orchagent, Syncd, SAI components).";
+                    type string;
+                }
+
+                leaf loglevel {
+                    description "The loglevel verbosity for the component";
+                    mandatory true;
+                    
+                    type enumeration {
+                    
+                        enum SWSS_EMERG 
+                        enum SWSS_ALERT;
+                        enum SWSS_CRIT;
+                        enum SWSS_ERROR;
+                        enum SWSS_WARN;
+                        enum SWSS_NOTICE;
+                        enum SWSS_INFO;
+                        enumSWSS_DEBUG;
+
+                        enum SAI_LOG_LEVEL_CRITICAL;
+                        enum SAI_LOG_LEVEL_ERROR;
+                        enum SAI_LOG_LEVEL_WARN;
+                        enum SAI_LOG_LEVEL_NOTICE;
+                        enum SAI_LOG_LEVEL_INFO;
+                        enum SAI_LOG_LEVEL_DEBUG;
+                    }
+                }
+
+                leaf logoutput {
+                    mandatory true;
+                    type enumeration {
+                        enum SYSLOG;
+                        enum STDOUT;
+                        enum STDERR;
+                    }
+                    default SYSLOG;
+                }  
+            }
+        }
+    }
+   ```
+
+
+# 8 Testing
+
+## 8.1 update existing tests
+  
+  - Update logger tests.
+  - Update other tests that use the logger table.
+
+## 8.1 Unit Testing
+  
+  - Yang model tests:
+    - Logger table with wrong loglevel, or with wrong logoutput
+    - Logger table without loglevel or logoutput
+    - Logger table with valid values
+
+## 8.2 Manual Testing 
+
+  - Verify the log level is persistent to cold/fast/warm reboot after the user runs "config save":
     - Change the log level for some component from Notice to Info.
     - Run "log-level save".
     - Verify the loglevel.json file was created.
     - Reboot.
     - Verify the log level is "Info".
-  - Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "log-level save": 
+  - Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "config save": 
     - Change the log level for some component from Notice to Info.
     - Reboot.
     - Verify the log level is "Notice".
-  - Verify the log level returns to default after removing the "loglevel_db.json" file and reboot:
+  - Verify the log level returns to default ?????? after removing the "loglevel_db.json" file and reboot:
     - Change the log level for some component from Notice to Info.
     - Run "log-level save".
     - Delete loglevel_db.json file.
     - Reboot.
     - Verify the log level is "Notice".
 
-# 8 Open issues
+# 9 Open issues
 
-  ## 8.1 Allow changing the default log level in first boot
-  ## 8.2 Support ZTP configuration
+  ## 9.1 j2
+  ## 9.2 factory reset
+  ## 9.2 Support ZTP configuration
 
 
