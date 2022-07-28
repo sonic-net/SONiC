@@ -175,7 +175,7 @@ To make the loglevel persistent to reboot, we will move the Logger's tables in L
 
   - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
   - JINJA2_CACHE key is a bytecode cache for jinja2 template that stores bytecode in Redis.
-  - We will update the /sonic-swss-common/common/schema.h file to include the "JINJA2_CACHE" key.
+  - We will update the /sonic-swss-common/common/schema.h file to include the "JINJA2_CACHE" key (since it missing from the schema today).
 
  ```json
 {
@@ -190,6 +190,7 @@ To make the loglevel persistent to reboot, we will move the Logger's tables in L
 In the current implementation, the "swssloglevel" script sets the log level in the LOGLEVEL DB.
 - We will update the script so that the log level will be saved in the CONFIG DB.
 - To allow the user to set the default log level value for all the components, we will add a -d flag to the "swssloglevel" script.
+  The default log levels are: SWSS_NOTICE, SAI_LOG_LEVEL_NOTICE.
 
 ```
 admin@sonic:~$ swssloglevel -h
@@ -204,7 +205,7 @@ Options:
 	 -a	apply loglevel to all components (provided with -l)
 	 -s	apply loglevel for SAI api component (equivalent to adding prefix "SAI_API_" to component)
 	 -p	print components registered in DB for which setting can be applied
-         -d return all components to default loglevel
+         -d     return all components to default loglevel
 
 Examples:
 	swssloglevel -l NOTICE -c orchagent # set orchagent severity level to NOTICE
@@ -379,5 +380,6 @@ When the system startup and the Database container initialize, and the config_db
     - Change the log level for some components from Notice to Info.
     - Reboot.
     - Verify the log level is "Notice".
-
+  - Verify that we able change the log level for all the components.
+  
 
