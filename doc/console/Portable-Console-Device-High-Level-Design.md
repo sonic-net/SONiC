@@ -13,7 +13,7 @@ In this design document, we provide the standard for adapting console devices to
 ## Assumption
 
 1. In the current design, we only support **USB** console devices.
-2. Only **one** vendor's console devices can work on a SONiC switch at the same time. If console devices from multiple vendors are plugged in at the same time and the user doesn't manually specify `vendor_name`, none of these devices will work. (Look at [Factory Function Design](#factory-function-design) for more information.)
+2. Only **one model** of console devices can work on SONiC switch at the same time. If console devices of different models are plugged in at the same time and the user doesn't manually specify `vendor_name` and `model_name`, none of these devices will work. (Look at [Factory Function Design](#factory-function-design) for more information.)
 3. Multiple console devices of the **same model** from the **same vendor** can be daisy-chained to extend more console ports. Whether daisy-chaining is supported and how many devices are supported in daisy-chain depends on the vendor's implementation.
 
 ## Setup Portable Console Device in SONiC
@@ -42,7 +42,7 @@ Since [`man udev`](https://man7.org/linux/man-pages/man7/udev.7.html) mentions t
 
 ### CONSOLE_SWITCH_TABLE
 
-The `CONSOLE_SWITCH_TABLE` holds the configuration database for the purpose of console switch features. This table is filled by the management framework. Two new fields will be added to this table.
+The `CONSOLE_SWITCH_TABLE` holds the configuration database for the purpose of console switch features. This table is filled by the management framework. Three new fields will be added to this table.
 
 ```
 ; Console switch feature table
@@ -50,9 +50,9 @@ key = CONSOLE_SWITCH:console_mgmt
 
 ; field = value
 autodetect  = "enable"/"disable" ; "enabled" means factory function will auto detect which vendor's device is plugged in
-                                   ; "disabled" means factory function will read vendor_name from config_db
-vendor_name = 1*255 VCHAR          ; vendor name of portable console device
-model_name  = 1*255 VCHAR          ; model name of portable console device
+                                 ; "disabled" means factory function will read vendor_name from config_db
+vendor_name = 1*255 VCHAR        ; vendor name of portable console device
+model_name  = 1*255 VCHAR        ; model name of portable console device
 ```
 
 ## Portable Console Device API Design
@@ -73,7 +73,7 @@ sonic_console/
     └── console_<model-name>.py
 ```
 
-The base class will be put in `console_base.py`. The factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendor will be put in the corresponding `<vendor-name>` directory. The implementations of different models of the same vendor should be put in the corresponding `console_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
+The base class will be put in `console_base.py`. The factory function for creating concrete portable console device object will be put in `factory.py`. Classes implemented by vendors will be put in the corresponding `<vendor-name>` directory. The implementations of different models of the same vendor should be put in the corresponding `console_<model-name>.py` files. For instance, the simulator implemented by Microsoft will be put in `microsoft/console_simulator.py`.
 
 ### Base Class Design
 
@@ -365,8 +365,6 @@ This command displays the status of power supply units of the portable console d
   -----  -------------  ------------  --------  -------------  -------------  -----------  --------  -----
   PSU 1  MTEF-PSF-AC-A  MT1621X15246  A3                11.97           4.56        54.56  OK        green
   ```
-
-<!-- show platform psustatus -->
 
 ### Console Config Commands
 
