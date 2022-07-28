@@ -28,7 +28,7 @@ Vendors should package all the files and setup procedures into a corresponding `
 
 <!-- Pictures exported from Visio are zoomed to 70% -->
 
-![A flow diagram to explain the setup process](./Portable-Console-Switch-High-Level-Design/setup.png)
+![A flow diagram to explain the setup process](./Portable-Console-Device-High-Level-Design/setup.png)
 
 For example, vendor can prepare a `50-<vendor_name>-<model_name>.rules` file in the `.deb` package, and copy it to `/etc/udev/rules.d` during the installation phase. In the post installation phase, vendor can use `udevadm trigger -c add` to trigger the udev rules.
 
@@ -248,7 +248,7 @@ Factory function `get_portable_console_device` supports three ways to identify w
 
 The flow chart below describes how `get_portable_console_device` function works:
 
-![factory-function-flow-chart.png](./Portable-Console-Switch-High-Level-Design/factory-function.png)
+![factory-function-flow-chart.png](./Portable-Console-Device-High-Level-Design/factory-function.png)
 
 As mentioned above, only the third way is our recommendation, which can automatically detect which vendor's device is plugged in and create the corresponing object. The first and second ways are reserved for more flexibility, so they are given higher priority.
 
