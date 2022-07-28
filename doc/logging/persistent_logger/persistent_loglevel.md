@@ -142,8 +142,8 @@ To make the loglevel persistent to reboot, we will move the Logger's tables in L
     }
   },
 
-  "JINJA2_CACHE": { // A bytecode cache for jinja2 template that stores bytecode in Redis
-    ...
+  "JINJA2_CACHE": { 
+    
   }
 }
 ```
@@ -174,12 +174,13 @@ To make the loglevel persistent to reboot, we will move the Logger's tables in L
 #### New LOGLEVEL DB schema:
 
   - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
+  - JINJA2_CACHE key is a bytecode cache for jinja2 template that stores bytecode in Redis.
   - We will update the /sonic-swss-common/common/schema.h file to include the "JINJA2_CACHE" key.
 
  ```json
 {
   "JINJA2_CACHE": {
-    ...
+    
   }
 }
 ```
@@ -209,7 +210,7 @@ Examples:
 	swssloglevel -l NOTICE -c orchagent # set orchagent severity level to NOTICE
 	swssloglevel -l SAI_LOG_LEVEL_ERROR -s -c SWITCH # set SAI_API_SWITCH severity to ERROR
 	swssloglevel -l SAI_LOG_LEVEL_DEBUG -s -a # set all SAI_API_* severity to DEBUG
-        swssloglevel -d #return all components to default loglevel
+        swssloglevel -d # return all components to default loglevel
 ```
 The change is the file: /sonic-swss-common/common/loglevel.cpp
 
