@@ -1,11 +1,11 @@
-# Persistent logger HLD
+# Persistent log level HLD
 
 # High Level Design Document
 
 #### Rev 0.1
 
 # Table of Contents
-- [Persistent logger HLD](#persistent-logger-hld)
+- [Persistent log level HLD](#persistent-log-level-hld)
 - [High Level Design Document](#high-level-design-document)
       - [Rev 0.1](#rev-01)
 - [Table of Contents](#table-of-contents)
@@ -21,20 +21,22 @@
 - [2 Requirements Overview](#2-requirements-overview)
 - [3 Persistent log level design](#3-persistent-log-level-design)
   - [3.1 High-level design](#31-high-level-design)
-  - [3.2 Persistent logger flow](#32-persistent-logger-flow)
-    - [3.2.1 Return to default log level](#321-return-to-default-log-level)
+    - [3.1.1 Move Logger's tables which store in LOGLEVEL DB to CONFIG DB](#311-move-logger's-tables-which-store-in-loglevel-db-to-config-db)
+    - [3.1.2 Update "swssloglevel" script](#312-update-"swssloglevel"-script)
+    - [3.1.3 Make the log level persistent using the "config save" CLI command](#313-make-the-log-level-persistent-using-the-"config-save"-cli-command)
+    - [3.1.4 Listener thread tables](#314-listener-thread-tables)
+  - [3.2 Persistent Logger flow](#32-persistent-logger-flow)
 - [4 Flows](#4-flows)
   - [4.1 System init flow](#41-system-init-flow)
-  - [4.2 "config reload" flow](#42-"config-reload"-flow)
-  - [4.3 "config save" flow](#43-"config-save"-flow)
-- [5 Warm Reboot Support](#5-warm-reboot-support)
-- [6 Fast Boot Support](#6-fast-boot-support)
-- [7 Testing](#7-Testing)
-  - [7.1 Unit Testing](#71-unit-testing)
-  - [7.2 Manual Testing](#72-manual-testing)
-- [8 Open issues](#8-open-issues)
-  - [8.1 Allow changing the default log level in first boot](#81-allow-changing-the-default-log-level-in-first-boot)
-  - [8.2 Support ZTP configuration](#82-support-ztp-configuration)
+- [5 Cold and Fast Reboot Support](#5-cold-and-fast-reboot-support)
+- [6 Warm Reboot Support](#6-warm-reboot-support)
+- [7 Yang model](#7-yang-model)
+- [8 Testing](#8-testing)
+  - [8.1 Unit Testing](#81-unit-testing)
+  - [8.2 Manual Testing](#82-manual-testing)
+
+
+
 # List of Tables
 * [Table 1: Abbreviations](#definitionsabbreviation)
 
@@ -113,16 +115,44 @@ admin@sonic:~$ redis-cli -n 3 HGETALL "orchagent:orchagent"
 
 The persistent Logger should meet the following high-level functional requirement:
 - The user will be able to save the configuration of the loglevel and make it persistent after reboot.
-- Not impact warm/fast reboot when the user uses the default configuration.
+- Warm/Fast reboot won't be impacted following this change.
 
 # 3 Persistent log level design
 ## 3.1 High-level design
 
-To make the loglevel persistent to reboot, we will move the LOGLEVEL DB content into the Config DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved using the "config save" CLI command.
+To make the loglevel persistent to reboot, we will move the Logger's tables in LOGLEVEL DB to CONFIG DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved using the "config save" CLI command.
 
-### 3.1.1 CONFIG DB schema
+### 3.1.1 Move Logger's tables which store in LOGLEVEL DB to CONFIG DB
 
- - A new "LOGGER" table will be added to the CONFIG DB:
+#### Current LOGLEVEL DB schema:
+
+ ```json
+{
+  "orchagent": {
+    "orchagent": {
+      "LOGLEVEL": "INFO",
+      "LOGOUTPUT": "SYSLOG"
+    }
+  },
+
+  "SAI_API_BUFFER": {
+    "SAI_API_BUFFER": {
+      "LOGLEVEL": "SAI_LOG_LEVEL_NOTICE",
+      "LOGOUTPUT": "SYSLOG"
+    }
+  },
+
+  "JINJA2_CACHE": { // A bytecode cache for jinja2 template that stores bytecode in Redis
+    ...
+  }
+}
+```
+
+#### New CONFIG DB schema:
+
+ - A new "LOGGER" table will be added to the CONFIG DB.
+ - There will be a minor change in the table keys(instead of "{componentName}:{componentName}" the key will be  the "Logger:{componentName}").
+ - The filed logoutput that indicates to which file to print the logs will also be persistent.
 
 ```json
 {
@@ -130,28 +160,40 @@ To make the loglevel persistent to reboot, we will move the LOGLEVEL DB content 
     "orchagent": {
       "LOGLEVEL": "INFO",
       "LOGOUTPUT": "SYSLOG"
+    },
+
+    "SAI_API_BUFFER": {
+      "LOGLEVEL": "INSAI_LOG_LEVEL_NOTICEFO",
+      "LOGOUTPUT": "SYSLOG"
     }
   }
 }
 ```
 
- There will be a minor change in the table keys(instead of "{componentName}:{componentName}" the key will be just the "{componentName}").
 
-### 3.1.2 Delete LOGLEVEL DB
-???
- - We will remove LOGLEVEL DB?
- - CHANGE SCHEMA.H NO DB 3
+#### New LOGLEVEL DB schema:
 
-### 3.1.3 Add "config loglevel" CLI command to replace the "swssloglevel" script
+  - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
+  - We will update the /sonic-swss-common/common/schema.h file to include the "JINJA2_CACHE" key.
 
-In the current implementation the "swssloglevel" script sets the log level in the LOGLEVEL DB. We will replace the script with a CLI command with the same functionality, execet that the log level will be saved in the CONFIG DB.
+ ```json
+{
+  "JINJA2_CACHE": {
+    ...
+  }
+}
+```
 
-To allow the user to set the default log level value for all the components, we will add a -d flag to the "config loglevel" command.
+### 3.1.2 Update "swssloglevel" script
+
+In the current implementation, the "swssloglevel" script sets the log level in the LOGLEVEL DB.
+- We will update the script so that the log level will be saved in the CONFIG DB.
+- To allow the user to set the default log level value for all the components, we will add a -d flag to the "swssloglevel" script.
 
 ```
-admin@sonic:~$ config loglevel -h
+admin@sonic:~$ swssloglevel -h
 
-Usage: config loglevel [OPTIONS]
+Usage: swssloglevel [OPTIONS]
 SONiC logging severity level setting.
 
 Options:
@@ -161,31 +203,56 @@ Options:
 	 -a	apply loglevel to all components (provided with -l)
 	 -s	apply loglevel for SAI api component (equivalent to adding prefix "SAI_API_" to component)
 	 -p	print components registered in DB for which setting can be applied
-   -d return all components to default loglevel
+         -d return all components to default loglevel
 
 Examples:
-	config loglevel -l NOTICE -c orchagent # set orchagent severity level to NOTICE
-	config loglevel -l SAI_LOG_LEVEL_ERROR -s -c SWITCH # set SAI_API_SWITCH severity to ERROR
-	config loglevel -l SAI_LOG_LEVEL_DEBUG -s -a # set all SAI_API_* severity to DEBUG
-  config loglevel -d #return all components to default loglevel
+	swssloglevel -l NOTICE -c orchagent # set orchagent severity level to NOTICE
+	swssloglevel -l SAI_LOG_LEVEL_ERROR -s -c SWITCH # set SAI_API_SWITCH severity to ERROR
+	swssloglevel -l SAI_LOG_LEVEL_DEBUG -s -a # set all SAI_API_* severity to DEBUG
+        swssloglevel -d #return all components to default loglevel
 ```
+The change is the file: /sonic-swss-common/common/loglevel.cpp
 
-### 3.1.4 Make the log level persistent using the "config save" CLI command
+### 3.1.3 Make the log level persistent using the "config save" CLI command
 
-The content of the CONFIG DB will load into the config_db.json. This is the behavior we have today, and it remains as it is. If the user configures loglevel for some component and runs "config save" the loglevel will be persistent.
+The content of the CONFIG DB will load to the config_db.json. This is our behavior today, and it remains as it is. If the user configures loglevel for some component and runs "config save" the loglevel will be persistent.
 
-### 3.1.5 Listener thread tables
+### 3.1.4 Listener thread tables
 
-In the current implementation, each component has a listener thread that registers to the LOGLEVEL DB table. Each change in the LOGLEVEL DB table is caught by the thread and trigger handler that change the component's Logger configuration. We will keep the same behavior on the CONFIG DB.
+In the current implementation, each component has a listener thread that registers to the LOGLEVEL DB table. Each change in the LOGLEVEL DB table is caught by the thread and trigger handler that change the component's Logger configuration. We will keep the same behavior on the CONFIG DB by changing the "settingThread" function.
+This change will impact the following components:
 
-## 3.2 Persistent logger flow
+buffermgrd                    
+coppmgrd                      
+fdbsyncd                      
+fpmsyncd                      
+gearsyncd                     
+intfmgrd                     
+nbrmgrd
+neighsyncd
+orchagent
+portmgrd                      
+portsyncd                  
+syncd                 
+teammgrd                  
+teamsyncd               
+tlm_teamd                    
+tunnelmgrd                 
+vlanmgrd                      
+vrfmgrd                      
+vxlanmgrd                    
+wjhd   
+
+The change is the file: /sonic-swss-common/common/logger.cpp
+
+## 3.2 Persistent Logger flow
 
 - Each component has a singleton Logger object with a log level property and listener thread.
 - When a component writes a log message, the Logger writes the message only if the loglevel of the message is above the current loglevel property.
-- When the user wants to set a new log level to a component, he uses the "config loglevel" CLI command. The "config loglevel" CLI command sets the new verbosity to the CONFIG DB (database #4).
+- When the user wants to set a new log level to a component, he uses the "swssloglevel" script. The "swssloglevel" script sets the new verbosity to the CONFIG DB (database #4).
 - The CONFIG DB change triggers an event, which is caught by the listener thread.
 - The listener thread changes the loglevel property of the Logger.
-- The user can use the "config save" command to save the current loglevel and make it persistent. It will copy the CONFIG DB content into the config_db.json.
+- The user can use the "config save" command to save the current loglevel and make it persistent. It will copy the CONFIG DB content to the config_db.json.
 
 In addition to the log level, the CONFIG DB contains the log output file. After "config save" the log output will be persistent to reboot too.
 
@@ -195,7 +262,7 @@ In addition to the log level, the CONFIG DB contains the log output file. After 
 
 
 
-![persistent logger flow](/doc/logging/persistent_logger/persistent_loglevel.png)
+![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
 
 
 
@@ -203,31 +270,27 @@ In addition to the log level, the CONFIG DB contains the log output file. After 
 
 
 
-# 4 Flows???????
+# 4 Flows
 
 ## 4.1 System init flow
 
-When the system startup and the Database container initialize, the config_db.json loads into the CONFIG DB.
+When the system startup and the Database container initialize, and the config_db.json loads to CONFIG DB.
  
-  - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the loglevel_db.json loads into the LOGLEVEL DB. In case there are messages before the loading, the messages will be in the default log level.
+  - There is a concern about the log level of messages written before the database container is initialized (if it exists). From my understanding, the RSYSLOG-CONFIG is up only after the DATABASE container, so there won't be logs before the config_db.json loads to the CONFIG DB. In case there are messages before the loading, the messages will be in the default log level.
 
 
 # 5 Cold and Fast Reboot Support
   
-  The current implementation support cold and fast reboot. Sine in the cold and fast reboot, the CONFIG DB content is deleted the user need to run "config save" to make the log level persistent to cold and fast reboot.
+  The current implementation support cold and fast reboot. Sine in the cold and fast reboot, the CONFIG DB content is deleted, the user needs to run "config save" to make the log level persistent to cold and fast reboot.
 
 # 6 Warm Reboot Support
 
-  With current implementation, we don't flush the CONFIG DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
-
-  ?????
-  Because we want to make the log level persistent to reboot only by the "log-level save" CLI command we will add the LOGLEVEL DB to the list of the dbies we flush before warm-reboot.
-  During boot time, in the startup, the loglevel_db.json will load on the LOGLEVEL DB.
+  With the current implementation, we don't flush the CONFIG DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
 
 # 7 Yang model
 
-  The following YANG model will be added in order to provide support for the logger:
-   - sonic-logger.yang -> container LOGGER
+  The following YANG model will be added in order to provide support for the Logger:
+   - sonic-logger.yang
 
    ```
     description "Logger Table yang Module for SONiC";
@@ -287,17 +350,20 @@ When the system startup and the Database container initialize, the config_db.jso
 
 
 # 8 Testing
-
-## 8.1 update existing tests
   
-  - Update logger tests.
-  - Update other tests that use the logger table.
-
 ## 8.1 Unit Testing
-  
+
+  - Update the existing test that uses the LOGLEVEL DB:
+    /sonic-swss-common/tests/logger_ut.cpp
+
+  - Verify the log levels of all components returns to default after running "swssloglevel -d":
+    - Change the log level for some components from Notice to Info.
+    - Run "swssloglevel -d".
+    - Verify all components return to the default log level.
+
   - Yang model tests:
-    - Logger table with wrong loglevel, or with wrong logoutput
-    - Logger table without loglevel or logoutput
+    - Logger table with a wrong loglevel, or with a wrong logoutput
+    - Logger table without loglevel or logoutput fileds
     - Logger table with valid values
 
 ## 8.2 Manual Testing 
@@ -308,21 +374,9 @@ When the system startup and the Database container initialize, the config_db.jso
     - Verify the loglevel.json file was created.
     - Reboot.
     - Verify the log level is "Info".
-  - Verify the log level is not persistent to cold/fast/warm reboot if the user didn't run "config save": 
-    - Change the log level for some component from Notice to Info.
+  - Verify the log level is not persistent to cold/fast reboot if the user didn't run "config save": 
+    - Change the log level for some components from Notice to Info.
     - Reboot.
     - Verify the log level is "Notice".
-  - Verify the log level returns to default ?????? after removing the "loglevel_db.json" file and reboot:
-    - Change the log level for some component from Notice to Info.
-    - Run "log-level save".
-    - Delete loglevel_db.json file.
-    - Reboot.
-    - Verify the log level is "Notice".
-
-# 9 Open issues
-
-  ## 9.1 j2
-  ## 9.2 factory reset
-  ## 9.2 Support ZTP configuration
 
 
