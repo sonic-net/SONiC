@@ -102,8 +102,11 @@ This section covers the high level design of the Secure Boot feature.
 ##### Sign flow diagram
 ![secure boot flow](secure_boot_flow.jpg)
 
-##### Run-time verification flow diagram
+##### Run-time verification flow diagram with BIOS as first instance of trust
 ![secure_boot_verification_flow](secure_boot_verification_flow.jpg)
+
+##### Run-time verification flow diagram with HW root of trust
+![secure_boot_verification_flow](secure_boot_hw_verification_flow.jpg)
 
 ####  1.7.2. <a name='ModuleElementsBreakdown'></a>Module Elements Breakdown
 
@@ -135,6 +138,16 @@ The grub.cfg file contains Bash-like code and a list of installed kernels in an 
 
 (Not modification required)
 
+##### First instance of trust
+SB chain of trust has different options for this first instance of trust.
+This HLD show 2 options:
+1.  BIOS/UEFI as the first instance of trust, vendors can store their public keys in the UEFI DB, by doing that, they enforce to boot images that were only signed with a private key that matches the vendor's public key.
+the diagram can be founded in the "Run-time verification flow diagram with BIOS as the first instance of trust".
+This is a generic way that Linux support using the secure boot feature and we add support to it as well.
+Linux Debian SB link: https://wiki.debian.org/SecureBoot
+
+2. HW as a root of trust, full HW root of trust is reliant on the HW vendor and production flow since customers can add this by themselves depending on the HW platform they have.
+So in this HLD, we showed the diagram "Run-time verification flow diagram with HW root of trust", but, this implementation should be decided by the vendor.
 
 ####  1.7.3. <a name='SignFlowdiagramdescription:'></a>Sign Flow diagram description:
 Sign flow occurs when building the SONiC image.
