@@ -42,7 +42,6 @@
 
 
 # List of Figures
-* [log-level save command](#32-persistent-logger-flow)
 * [persistent logger flow](#321-return-to-default-log-level)
 
 
@@ -372,7 +371,7 @@ When the system startup and the Database container initialize, and the config_db
 
   - Verify the log level is persistent to cold/fast/warm reboot after the user runs "config save":
     - Change the log level for some component from Notice to Info.
-    - Run "log-level save".
+    - Run "config save".
     - Verify the loglevel.json file was created.
     - Reboot.
     - Verify the log level is "Info".
