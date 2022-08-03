@@ -229,10 +229,6 @@ fdbsyncd
 fpmsyncd                      
 gearsyncd                     
 intfmgrd                     
-nbrmgrd
-neighsyncd
-orchagent
-portmgrd                      
 portsyncd                  
 syncd                 
 teammgrd                  
@@ -242,7 +238,11 @@ tunnelmgrd
 vlanmgrd                      
 vrfmgrd                      
 vxlanmgrd                    
-wjhd   
+wjhd                 
+nbrmgrd                 
+neighsyncd                
+orchagent                 
+portmgrd  
 
 The change is the file: /sonic-swss-common/common/logger.cpp
 
@@ -295,56 +295,63 @@ When the system startup and the Database container initialize, and the config_db
 
    ```
     description "Logger Table yang Module for SONiC";
+    
+    typedef swss_loglevel{
+    
+        enum EMERG 
+        enum ALERT;
+        enum CRIT;
+        enum ERROR;
+        enum WARN;
+        enum NOTICE;
+        enum INFO;
+        enum DEBUG;
+    }
+    
+    typedef sai_loglevel{
 
+        enum SAI_LOG_LEVEL_CRITICAL;
+        enum SAI_LOG_LEVEL_ERROR;
+        enum SAI_LOG_LEVEL_WARN;
+        enum SAI_LOG_LEVEL_NOTICE;
+        enum SAI_LOG_LEVEL_INFO;
+        enum SAI_LOG_LEVEL_DEBUG;
+    }
+    
     container sonic-logger {
 
-        container LOGGER {
+      container LOGGER {
 
-            description "Logger table in config_db.json";
+        description "Logger table in config_db.json";
 
-            list LOGGER_LIST {
+        list LOGGER_LIST {
 
-                key "name";
+          key "name";
 
-                leaf name {
-                    description "Component name in LOGGER table (example for component: orchagent, Syncd, SAI components).";
-                    type string;
-                }
+          leaf name {
+              description "Component name in LOGGER table (example for component: orchagent, Syncd, SAI components).";
+              type string;
+          }
 
-                leaf loglevel {
-                    description "The loglevel verbosity for the component";
-                    mandatory true;
-                    
-                    type enumeration {
-                    
-                        enum SWSS_EMERG 
-                        enum SWSS_ALERT;
-                        enum SWSS_CRIT;
-                        enum SWSS_ERROR;
-                        enum SWSS_WARN;
-                        enum SWSS_NOTICE;
-                        enum SWSS_INFO;
-                        enumSWSS_DEBUG;
+          leaf loglevel {
+              description "The log verbosity for the component";
+              mandatory true;
+              
+              type loglevel_union {
+                  type swss_loglevel;
+                  type sai_loglevel;
+              }
+          }
 
-                        enum SAI_LOG_LEVEL_CRITICAL;
-                        enum SAI_LOG_LEVEL_ERROR;
-                        enum SAI_LOG_LEVEL_WARN;
-                        enum SAI_LOG_LEVEL_NOTICE;
-                        enum SAI_LOG_LEVEL_INFO;
-                        enum SAI_LOG_LEVEL_DEBUG;
-                    }
-                }
-
-                leaf logoutput {
-                    mandatory true;
-                    type enumeration {
-                        enum SYSLOG;
-                        enum STDOUT;
-                        enum STDERR;
-                    }
-                    default SYSLOG;
-                }  
-            }
+          leaf logoutput {
+              mandatory true;
+              type enumeration {
+                  enum SYSLOG;
+                  enum STDOUT;
+                  enum STDERR;
+              }
+              default SYSLOG;
+          }  
         }
     }
    ```
