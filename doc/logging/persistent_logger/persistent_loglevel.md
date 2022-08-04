@@ -30,6 +30,7 @@
   - [4.1 System init flow](#41-system-init-flow)
 - [5 Cold and Fast Reboot Support](#5-cold-and-fast-reboot-support)
 - [6 Warm Reboot Support](#6-warm-reboot-support)
+  - [6.1 Support warm upgrade](#61-support-warm-upgrade)
 - [7 Yang model](#7-yang-model)
 - [8 Testing](#8-testing)
   - [8.1 Unit Testing](#81-unit-testing)
@@ -288,7 +289,7 @@ When the system startup and the Database container initialize, and the config_db
 
   With the current implementation, we don't flush the CONFIG DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
 
-## 6.1 Support warm upgrade:
+## 6.1 Support warm upgrade
 
  Since we are not flushing the LOGLEVEL DB when we perform a warm upgrade, we need to update the db migrator.
   - Add LOGLEVEL DB connector in the db migrator.
