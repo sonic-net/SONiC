@@ -396,5 +396,7 @@ When the system startup and the Database container initialize, and the config_db
     - Reboot.
     - Verify the log level is "Notice".
   - Verify that we able change the log level for all the components.
+  - Verify the LOGLEVEL DB does not not contain the Logger tables after a warm upgrade.
+  - Verify the CONFIG DB contains the Logger tables after a warm upgrade.
   
 
