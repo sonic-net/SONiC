@@ -1,6 +1,6 @@
 # SONiC PSU Daemon Design #
 
-### Rev 0.1 ###
+### Rev 0.2 ###
 
 ### Revision ###
 
@@ -14,8 +14,16 @@
 The purpose of PSU daemon is to collect platform PSU data and trigger proper actions if necessary. Major functions of psud include:
 
 - Collect constant PSU data during daemon boot up, such as PSU number.
-- Collect variable PSU data periodically.
-- Monitor PSU event, set LED color and trigger syslog according to event type.
+- Collect variable PSU data periodically, including:
+  - PSU entity information
+  - PSU present status and power good status
+  - PSU power, current, voltage and voltage threshold
+  - PSU temperature and temperature threshold
+- Monitor PSU event, set LED color and trigger syslog according to event type, including:
+  - PSU present status and power good status
+  - whether the PSU voltage exceeds the minimal and maximum thresholds
+  - whether the PSU temperature exceeds the threshold
+  - whether the total PSU power consumption exceeds the budget (modular switch only)
 
 ## 2. PSU data collection
 
@@ -46,8 +54,8 @@ PSU information is stored in PSU table:
     temp                    = 1*3.3DIGIT                     ; temperature of the PSU
     temp_threshold          = 1*3.3DIGIT                     ; temperature threshold of the PSU
     voltage                 = 1*3.3DIGIT                     ; the output voltage of the PSU
-    voltage_min_threshold   = 1*3.3DIGIT                     ; the lower voltage threshold of the PSU
-    voltage_max_threshold   = 1*3.3DIGIT                     ; the upper voltage threshold of the PSU
+    voltage_min_threshold   = 1*3.3DIGIT                     ; the minimal voltage threshold of the PSU
+    voltage_max_threshold   = 1*3.3DIGIT                     ; the maximum voltage threshold of the PSU
     current                 = 1*3.3DIGIT                     ; the current of the PSU
     power                   = 1*3.3DIGIT                     ; the power of the PSU
 
