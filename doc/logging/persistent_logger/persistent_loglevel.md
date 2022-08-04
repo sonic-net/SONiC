@@ -288,6 +288,13 @@ When the system startup and the Database container initialize, and the config_db
 
   With the current implementation, we don't flush the CONFIG DB before warm-reboot, which means that if the user configures some loglevel (for example, debug), after warm-reboot, the system startup with the same configurable loglevel (debug).
 
+## 6.1 Support warm upgrade:
+
+ Since we are not flushing the LOGLEVEL DB when we perform a warm upgrade, we need to update the db migrator.
+  - Add LOGLEVEL DB connector in the db migrator.
+  - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key).
+  - Exposing the "del" function from the swss-common/sonicv2-connector.h to the db migrator. 
+
 # 7 Yang model
 
   The following YANG model will be added in order to provide support for the Logger:
@@ -354,7 +361,7 @@ When the system startup and the Database container initialize, and the config_db
           }  
         }
     }
-    
+
    ```
 
 
