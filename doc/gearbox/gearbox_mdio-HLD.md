@@ -1,4 +1,4 @@
-# Sonic gbsyncd/PAI mdio access HLD
+# SONiC NPU MDIO access support and gbsyncd docker enhancement HLD
 
 #### Rev 0.1
 
@@ -6,15 +6,15 @@
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#definition_abbreviation)
-  * [Document/References](#document_references)
+  * [Definition/Abbreviation](#definition-abbreviation)
+  * [Document/References](#document-references)
   * [Overview](#overview)
   * [Requirements](#requirements)
   * [Architecture Design](#architecture-design)
   * [High-Level Design](#High-Level-Design)
   * [SAI API](#SAI-API)
   * [Configuration and management](#Configuration-and-management)
-  * [Restrictions/Limitations](#Restrictions_Limitations)
+  * [Restrictions/Limitations](#Restrictions-Limitations)
 
 ## List of Tables
 - [Table 1: Abbreviations](#table-1-abbreviations)
@@ -24,6 +24,7 @@
 | Rev  |    Date    |       Author      | Change Description                              |
 |:----:|:----------:|:-----------------:|:-----------------------------------------------:|
 | 0.1  | 07/31/2022 |   Jiahua Wang     | Initial version                                 |
+| 0.2  | 08/03/2022 |   Jiahua Wang     | Fix title and references                        |
 
 ### About this Manual
 
@@ -53,10 +54,8 @@ This document describes the high level design of the gbsyncd mdio access functio
 
 | **Document**                       | **Location**  |
 |------------------------------------|---------------|
-| Add switch api for clause 22 mdio access | [https://github.com/opencomputeproject/SAI/pull/1507](https://github.com/opencomputeproject/SAI/pull/1507) |
-| Add sai\_mdio\_access\_clause22=1 in td3x2-a720dt-48s-flex.config.bcm | [https://github.com/Azure/sonic-buildimage/pull/11303](https://github.com/Azure/sonic-buildimage/pull/11303) |
-| Add support of mdio IPC server class using sai switch api and unix socket | [https://github.com/sonic-net/sonic-sairedis/pull/1080](https://github.com/sonic-net/sonic-sairedis/pull/1080) |
-| Add mdio IPC client library | [https://github.com/Azure/sonic-buildimage/pull/11280](https://github.com/Azure/sonic-buildimage/pull/112804) |
+| SONiC Gearbox Manager High Level Design Document | [https://github.com/sonic-net/SONiC/blob/master/doc/gearbox/gearbox_mgr_design.md](https://github.com/sonic-net/SONiC/blob/master/doc/gearbox/gearbox_mgr_design.md) |
+
 
 ### Overview 
 
