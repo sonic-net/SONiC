@@ -20,13 +20,12 @@ RDMA (Remote Direct Memory Access) over Converged Ethernet (ROCEv2) support
 
 # Revision
 
-| Rev |     Date    |       Author       | Change Description                |
-|:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 06/17/2021 |   Venkatesan Mahalingam         | Initial version                   |
-| 0.2 | 07/16/2021 |   Venkatesan Mahalingam         | Addressed review comments                   |
-| 0.3 | 08/03/2021 |   Venkatesan Mahalingam         | Added sample configurations                  |
-| 0.4 | 06/30/2022 |   Ashok Daparthi                | Added ROCE default configurations and |
-|     |            |                                 | 4.1 enhancements |
+| Rev |     Date    |       Author      	  | Change Description                |
+|:---:|:-----------:|:---------------------------:|-----------------------------------|
+| 0.1 | 06/17/2021  |   Venkatesan Mahalingam     | Initial version                   |
+| 0.2 | 07/16/2021  |   Venkatesan Mahalingam     | Addressed review comments         |
+| 0.3 | 08/03/2021  |   Venkatesan Mahalingam     | Added sample configurations       |
+| 0.4 | 06/30/2022  |   Ashok Daparthi            | Added ROCE default configurations |
 
 # About this Manual
 
@@ -37,11 +36,11 @@ this provides the North Bound Interface (NBI) interfaces i.e REST/gNMI/KLISH for
 
 # Scope
 
-ROCEv2 uses available SONIC Qos Maps, Scheduler, ECN, PFC features to achieve functionality which is detailed in other design documents.
+ROCEv2 uses available SONiC Qos Maps, Scheduler, ECN, PFC features to achieve functionality which is detailed in other design documents.
 This document describes the high level design changes done for ROCEv2 support and other enhancements done in SONiC to achieve better manageability.
 
 This document covers the following,
-  
+
 1) NBI interface to initialize QoS buffers for PFC
 2) NBI interface to enable ROCE for PFC
 3) NBI interface to modify buffer pool
@@ -56,16 +55,22 @@ This document covers the following,
 
 ## Table 1: Abbreviations
 
-| **Term**                 | **Meaning**                         |
-|--------------------------|-------------------------------------|
-| RDMA                     | Remote Direct Memory Access         |
-| ROCEv2                   | RDMA over Converged Ethernet version 2           |
-| PFC                      | Priority Flow Control               |
-| WRED                     | Weighted random early detection     |
-| ECN                      | Early congestion notification       |
-| CNP                      | Congestion notification packets     |
-| PG                         | Priority group               |
-| ISCSI                         |              |
+| **Term**                 | **Meaning**        	                |
+|--------------------------|--------------------------------------------|
+| RDMA                     | Remote Direct Memory Access         	|
+| ROCEv2                   | RDMA over Converged Ethernet version 2	|
+| PFC                      | Priority Flow Control               	|
+| WRED                     | Weighted random early detection     	|
+| ECN                      | Early congestion notification       	|
+| CNP                      | Congestion notification packets     	|
+| PG                       | Priority group           		 	|
+| TC                       | Traffic Class           		 	|
+| ISCSI                    | Internet Small Computer System Interface   |
+| MMU                      | Memory Management Unit          		|
+| HDRM                     | Headroom           		 	|
+| NOS                      | Network Operating System          		|
+| DWRR                     | Deficit Weighted Round Robin       	|
+
 
 # 1 Feature Overview
 
@@ -85,8 +90,7 @@ ROCEv2 includes
   ROCEv2 uses PFC to prevent buffer overflow and get zero-packet loss by generating priority based pause. With PFC, port having lossless and lossy priorities traffic at the same time by sending pause frame to only one (or some) priority traffic without impacting the others priority traffic. PFC is propagated on a hop by hop basis. And PFC frames are sent from node that has experienced congestion toward the sender. For example, from a switch to another switch, then from a switch to a server’s NIC.
 
 * 802.1Qaz Enhanced Transmission Selection (ETS)
-  With ETS, specific bandwidth is assigned to each of the CoS. It prevents a single traffic class of “hogging” all the bandwidth and starving other classes. A
-  And when a given load doesn’t fully utilize its allocated bandwidth, it is available to others classes.
+  With ETS, specific bandwidth is assigned to each of the CoS. It prevents a single traffic class of “hogging” all the bandwidth and starving other classes. And when a given load doesn’t fully utilize its allocated bandwidth, it is available to others classes.
 
 * Data Center Bridging Capability Exchange protocol (DCBX) – 802.1Qaz [optional]
 
@@ -95,7 +99,7 @@ ROCEv2 includes
 
 * 802.1Qau Explicit Congestion Notification (ECN)
   ECN is an extension to WRED that marks packets instead of dropping them when the average queue length exceeds a specific threshold value.
-  When configured with the WRED ECN feature, switches, routers and end hosts use this marking as a signal that the network is congested to slow down sending packets.
+  WRED ECN needs to be configured for all the nodes between source and destination host. When configured with the WRED ECN feature, switches, routers and end hosts use this marking as a signal that the network is congested to slow down sending packets.
   PFC performs by per-hop behavior, which at times might take more time than others to propagate congestion information to the sender.
   With ECN, congestion on any network device is propagated immediately to the endpoints and traffic is marked on any network device that experienced congestion.
 
@@ -108,14 +112,13 @@ ROCEv2 uses PFC and ECN are used together, ECN should be the primary congestion 
 ### 1.1.1 Functional Requirements
 
 - ROCEv2 support by hardening PFC, ETS, ECN
-
 - Support 2 lossless priorities.
 - Support enable/disable lossless configurations.
 - Support Tuning lossless buffers like HDRM pool size, PG/Q min or alpha, PG_HDRM, HRDM offsets.
-- Support applying/removing buffers configuration during Dynamically breaking ports.
 - Provide required performance and monitoring features.
-- Support easy way to configure ROCEv2 required features (qos maps, PFC, ETS, ECN) with well known standard default values.
+- Support easy way to configure ROCEv2 required features (QoS maps, PFC, ETS, ECN) with well known standard default values.
 - Support ROCEv2 and above changes in TD3 and TH3 platforms.
+- All ports should be breakout before enabled lossless/roce, otherwise only next reboot only should bring ports in lossless mode/user allowed to use ports for lossy mode.
 
 ### 1.1.2 Functional Requirements out of scope
 
@@ -124,12 +127,13 @@ ROCEv2 uses PFC and ECN are used together, ECN should be the primary congestion 
 - Support all Queues and PG's in lossy mode and user should able to tune buffer configurations.
 - Support dynamic moving of PG3&4 and Q3&4 from lossy to lossless and vice versa.
 - DCBX
-- ROCEv2 over VXLAN support such as Copy 802.1p/DSCP/ECN bits from inner to outer header at ingress and vice-versa at egress to honor the QOS and priorities
+- ROCEv2 over VXLAN support such as Copy 802.1p/DSCP/ECN bits from inner to outer header at ingress and vice-versa at egress to honor the QoS and priorities
 - Support of Dynamic tuning of HDRM and buffers supported in Azure sonic "202012" branch.
 - Support of selecting lossless PG and Q other than 3 &4.
 - Support of enhanced functionality/configurations for "click" based management. 
 - Support of control traffic isolation from data traffic.
 - Support used to enable/disable lossless subset of ports/all ports.
+- Support applying/removing buffers configuration during Dynamically breaking ports.
 
 ### 1.1.3 Configuration and Management Requirements
 
@@ -143,11 +147,11 @@ This requirement is to follow the default lossless buffer settings defined for a
 
 #### 1.1.3.2 roce enable/disable
 
-This requirement is to follow the default lossless buffer settings defined for a particular platform.
+This requirement is to follow the default lossless buffer settings defined for a particular platform along with WRED/ECN configurations.
 
 #### 1.1.3.3 QoS buffer pool modifications
 
-This requirement is to add/delete the buffer pool for ingress & egress QoS operations.
+This requirement is to modify the buffer pool for ingress & egress QoS operations.
 
 #### 1.1.3.4 QoS buffer profile add/delete
 
@@ -180,7 +184,7 @@ for lossless profile based on the cable length and speed so that user can create
 
 - ROCEv2 required features are already implemented in SONiC, approach is to hardening existing features.
 
-- New code changes in buffermgrd to handle lossless buffer settings during DPB.
+- New code changes to handle setting lossless buffer configurations on ports created newly during DPB.
 
 - Implement QoS buffer configuration and get support using transformer in sonic-mgmt-framework.
 
@@ -192,12 +196,12 @@ The front end code change will be done in management-framework container includi
 - Python script to handle CLI request (actioner)
 - Jinja template to render CLI output (renderer)
 - OpenConfig YANG model for QoS buffer openconfig-qos.yang
-- SONiC QOS buffer model on Redis DB schema
+- SONiC QoS buffer model on Redis DB schema
 - Transformer functions to convert OpenConfig YANG model to SONiC YANG model for buffer related configurations
 
-swss: Changes included  
+SWSS:
 
-- Generate default buffer configurations generation and applying to config_db to ports during DPB.
+- Generate default ROCE configurations and apply to config_db for new ports created with DPB.
 
 ### 1.2.3 SAI Overview
 
@@ -222,12 +226,12 @@ There is no new API's required, SAI enhanced to support buffer tuning after movi
 
 ## 2.2 Functional Description
 
-ROCEv2 is collection of features in SONIC i.e QOS classification, scheduling(ETS), PFC, PFC Asymmetric, PFC watchdog, ECN, remark and counters and stats.
-All below configurations already present in SONIC, Functionality adding as part of enhancements is to solve inherit problems in SONIC and provide better controllability with CLI, gNMI and REST support.
+ROCEv2 is collection of features in SONiC i.e QoS classification, scheduling(ETS), PFC, PFC Asymmetric, PFC watchdog, ECN, remark and counters and stats.
+All below configurations already present in SONiC, Functionality adding as part of enhancements is to solve inherit problems in SONiC and provide better controllability with CLI, gNMI and REST support.
 
 ### 2.2.1 Configurations already supported
 
-#### 2.2.1.1 dot1p & DSCP to Traffic Class mapping: -
+#### 2.2.1.1 dot1p & DSCP to Traffic Class mapping:
 
 DSCP is preferred over dot1p when both are present in the data traffic but both is not expected to co-exist.
 
@@ -299,7 +303,7 @@ sonic(config)# priority-flow-control watchdog counter-poll
 
 #### 2.2.1.8 counters
 
-- Support for queue, pg watermark counters  
+- Support for queue, pg watermark counters
 - Support for ECN marked counters
 - support for queue counters
 - Support for PFC counters
@@ -312,43 +316,43 @@ clear priority-group watermark headroom
 
 show queue watermark unicast|multicast 
 
-show priority-group watermark shared 
+show priority-group watermark shared
 
-show priority-group watermark headroom 
-show priority-group watermark headroom 
+show priority-group watermark headroom
+show priority-group watermark headroom
 ```
 
 ### 2.2.1.9 Existing CLICK commands
 
 ``` config qos reload ```
-- Clear all qos maps, scheduler, wred and buffer configuration tables  in config db 
--  Generate defaults qos and buffer configuration on all ports by buffer_config.j2/qos_config.j2 files 
+- Clear all qos maps, scheduler, wred and buffer configuration tables  in config db
+-  Generate defaults qos and buffer configuration on all ports by buffer_config.j2/qos_config.j2 files
 
 ``` config qos clear ```
-- Clear all qos maps, scheduler, wred and buffer configuration tables  in config db 
- 
+- Clear all qos maps, scheduler, wred and buffer configuration tables  in config db
+
 ``` config qos buffers reload ```
 
-- Clear all buffer configuration tables  in config db 
-- Generate defaults buffer configuration on all ports by buffer_config.j2/qos_config.j2 files 
+- Clear all buffer configuration tables in config db
+- Generate defaults buffer configuration on all ports by buffer_config.j2/qos_config.j2 files
 
 ``` config qos buffers clear  ```
 
-- Clear all buffer configuration tables  in config db 
+- Clear all buffer configuration tables  in config db
 
 ``` config qos classifiers reload ```
-- Clear all qos maps, scheduler, wred  configuration tables  in config db 
-- Generate defaults qos configuration on all ports by buffer_config.j2/qos_config.j2 files 
+- Clear all qos maps, scheduler, wred configuration tables  in config db
+- Generate defaults qos configuration on all ports by buffer_config.j2/qos_config.j2 files
 
 ``` config qos classifier clear  ```
-- Clear all qos maps, scheduler, wred  configuration tables  in config db 
+- Clear all qos maps, scheduler, wred  configuration tables  in config db
 
 
-ROCEv2 to work, PFC should work. PFC to work all required configurations to set properly and need provision to modify values based on customer needs. Which will allow to get better throughput and latency incase of defaults provided by SONIC does not work in some deployments. PFC is mainly depends on buffer configuration set on PG's and Q's.
+ROCEv2 to work, PFC should work. PFC to work all required configurations to set properly and need provision to modify values based on customer needs. Which will allow to get better throughput and latency incase of defaults provided by SONiC does not work in some deployments. PFC is mainly depends on buffer configuration set on PG's and Q's.
 
-### 2.2.2 Default SONIC buffers
+### 2.2.2 Default SONiC buffers
 
-Present SONIC buffers default are SDK defaults. MMU has concept of applying buffers at pool's, PG's and Queue's. Buffer thresholds and accounting done at ingress and egress. And total buffers can split to pool's, PG's/Q's can map to pool. Each PG/Q can have some reserved buffers and rest can be shared in the same pool. Shared can have static limit and dynamic limit(%) of available shared buffers at instance.
+Present SONiC buffers default are SDK defaults. MMU has concept of applying buffers at pool's, PG's and Queue's. Buffer thresholds and accounting done at ingress and egress. And total buffers can split to pool's, PG's/Q's can map to pool. Each PG/Q can have some reserved buffers and rest can be shared in the same pool. Shared can have static limit and dynamic limit(%) of available shared buffers at instance.
 
 #### 2.2.2.1 SDK buffer defaults
 
@@ -366,31 +370,15 @@ Egress:
 - Single pool - Max buffer size by removing the reserved sizes.
 - All queues are lossy mode i.e tail drop can happen after utilization of total shared buffers.
   - Q_min  -
-  - Q shared is dynamic mode with value of 3.  
+  - Q shared is dynamic mode with value of 3.
 
-#### 2.2.2.2 SONIC buffer defaults
+#### 2.2.2.2 SONiC buffer defaults
 
-There is no NOS/SONIC defaults, SDK defaults are SONIC defaults when ROCEv2/lossless behavior not enabled.
+There is no NOS/SONiC defaults, SDK defaults are SONiC defaults when ROCEv2/lossless behavior not enabled.
 
-#### 2.2.2.3 SONIC lossy buffer defaults - Out of scope.
+#### 2.2.2.3 Backend mechanism to support buffer configuration and get
 
-By Enhance SONIC, SONIC will initialize the buffer as same as SDK
-
-- SONIC has platform specific buffer file(buffer.json.j2) to get defaults specific to NPU.
-- Single pool for both ingress and egress
-- Ingress traffic is mapped to PG7
-- Avoid dropping packets at Ingress by Set PG7 static limit to max buffer size.  
-  - This is to make sure features depends on buffers utilization like ECN to work
-  - Control traffic is not dropping.
-- Set all egress queues (Q0-Q9) & MC0-9 and CPU Q0-48 with dynamic shared mode to get fair share of buffers.
-- SONIC should have always pool, pg, q buffers configured.
-- Initialize PG7 and Q0-9 queue on lossy mode.
-- Set all CPU queues with dynamic shared mode to get fair share of buffers.
-- Set Multicast queues on all port with dynamic shared mode to get fair share of buffers.
-
-#### 2.2.2.4 Backend mechanism to support buffer configuration and get
-
-QOS has the following tables in the Redis ConfigDB, the size & xoff values vary based on HW capabilities.
+QoS has the following tables in the Redis ConfigDB, the size & xoff values vary based on HW capabilities.
 
 ```
 "BUFFER_POOL": {
@@ -464,18 +452,19 @@ QOS has the following tables in the Redis ConfigDB, the size & xoff values vary 
   },
   .......
   .......
-}                                                                                                                                                                        
+}
+
 ```
 
-The above tables are can populated in the SONiC system upon executing the '"config qos relaod"/"config qos buffer reload"/"buffer init"/"roce enable"' command, otherwise there is no buffers configs from NOS. 
+The above tables are populated in the SONiC system upon executing the '"config qos reload"/"config qos buffer reload"/"buffer init"/"roce enable"' command, otherwise there is no configs from NOS.
 
 #### 2.2.2.5 Lossy ingress Buffer
 
-- PG7 is default priority group to map lossy traffic. 
-- Traffic mapped to PG7 are not pause enabled. 
+- PG7 is default priority group to map lossy traffic.
+- Traffic mapped to PG7 are not pause enabled.
 - Always PG7 have "ingress_lossy_profile" profile applied or user defined buffer profile applied.
-- Ingress lossy profile settings should make sure no traffic drops at ingress due to buffer thresholds by setting static_th to max buffer size. 
-- User defined buffer profiles applied pg should persist after saving config's and reload.
+- Ingress lossy profile settings should make sure no traffic drops at ingress due to buffer thresholds by setting static_th to max buffer size.
+- User defined buffer profiles applied PG should persist after saving config's and reload.
 - "ingress_lossy_profile" is not allowed to modify and delete not supported.
 
 ```
@@ -490,7 +479,7 @@ The above tables are can populated in the SONiC system upon executing the '"conf
 #### 2.2.2.6 Lossy egress Buffer 
 
 - Lossy queue means, i.e traffic can drop by tail drop when it congested and available buffers are fair share for required queues.
-- Lossy egress buffer profile set with "dynamic" mode.  
+- Lossy egress buffer profile set with "dynamic" mode.
 - Always lossy unicast queues should have "egress_lossy_profile" profile or user defined buffer profile applied.
 - Always Multicast queues have "egress_lossy_profile" profile applied.
 - Always CPU queues have "egress_lossy_profile" profile applied.
@@ -509,7 +498,7 @@ The above tables are can populated in the SONiC system upon executing the '"conf
 
 #### 2.2.2.7 Ingress Lossless Buffer
 
-- Ingress PG lossless buffers, which are used to generate pause (PFC) and to handle RTT packets(HDRM).  
+- Ingress PG lossless buffers, which are used to generate pause (PFC) and to handle RTT packets(HDRM).
 - PG3&4 is reserved for ingress lossless traffic. Map only lossless traffic should be mapped to these PG's.
 - Ingress PG3&4 lossless buffer profiles are dynamically derived based on speed of port and cable length and allowed to modify/ apply new user defined lossless profiles.
 - Lossless profile is dynamic mode, After PG utilizes shared available buffer, pause will generate.
@@ -529,9 +518,9 @@ The above tables are can populated in the SONiC system upon executing the '"conf
 
 ```
 
-#### 2.2.2.8 Egress Lossless Buffers  
+#### 2.2.2.8 Egress Lossless Buffers
 
-- Lossless queue's should not drop any traffic due to buffer limits. lossless profiles is set with static_th of max buffer size. 
+- Lossless queue's should not drop any traffic due to buffer limits. lossless profiles is set with static_th of max buffer size.
 - Egress Queue lossless buffers should allow packets which are allowed by ingress lossless PG's.
 - Q3 and Q4 are reserved for egress lossless traffic. Map only lossless traffic should be mapped to these Q's.
 - Egress Q3&Q4 are applied with "egress_lossless_profile"
@@ -607,7 +596,7 @@ Below are buffer pool, profiles setting for TD3 and TH3 platforms
 - For lossless, egress_lossless_pool is used and configured with maximum buffer size.
   But lossy pool size is adjusted based on configuration in above file, this is to share some lossless buffers to lossy traffic and guarantee lossless behavior.
 - Pool size modifications are supported but pool delete and modifying pool names not supported.
-- XOFF pool limits are updated  based on port count in platform.
+- XOFF pool limits are updated based on port count in each platform.
 
 #### 2.2.3.2 TH3 Platform lossless mode buffer settings
 
@@ -669,51 +658,52 @@ Change default buffers to lossless buffers to support lossless behavior. This ch
 - Apply PG3&PG4 with default lossless buffer profiles and PG7 with lossy profile
 - Apply Q3&Q4 with lossless buffer profiles and All other queues in system with lossy.
 
-"buffer init" supports only initializing only buffers at pool, pg and queue. All other required configurations to support ROCEv2 should be done by user. 
+"buffer init" supports only initializing only buffers at pool, PG and queue. All other required configurations to support ROCEv2 should be done by user.
 
-To minimize user configurations mistakes this release will enhanced to provide "roce enable" to set ROCEv2 default configurations. 
+To minimize user configurations mistakes this release will enhanced to provide "roce enable" to set ROCEv2 default configurations.
 
 ### 2.2.5 Moving from lossless mode to defaults
 
-SONIC clears buffer configuration from NOS to bring it to original defaults by "buffer deinit"/"roce disable". This changes requires reboot for clean initialization of MMU.
+SONiC clears buffer configuration from NOS to bring it to original defaults by "buffer deinit"/"roce disable". This changes requires reboot for clean initialization of MMU.
 
-"buffer de-init" supports clearing only buffers at pool, pg and queue. All other required configurations should be removed by user to disable ROCEv2. 
-To minimize user configurations mistakes this release will enhanced clear all roce defaults by "roce disable". 
+"buffer de-init" supports clearing only buffers at pool, PG and queue. All other required configurations should be removed by user to disable ROCEv2.
+
+To minimize user configurations mistakes this release will enhanced clear all roce defaults by "roce disable".
 
 ### 2.2.6 Dynamic buffer configuration change
 
-NPU has limitations for changing buffer configurations when traffic is running on PG/Q or port, which leads to MMU to corrupt. 
+NPU has limitations for changing buffer configurations when traffic is running on PG/Q or port, which leads to MMU to corrupt.
 
-- SONIC Default buffer configurations will be applied before declare portsReady.
+- SONiC Default buffer configurations will be applied before declare portsReady.
 - Recommended to change any buffer parameters when there is no traffic in system.
 
 Below are buffer parameters are supported for tuning
 
 ### Table 1: Configurations change supported in lossless mode
 
-| **Attribute**                 | **Drain**                         |
-|--------------------------|-------------------------------------|
-| pool size                | Yes        |
-| pool xoff                | Yes        |
-| ingress PG profile creation      | Yes        |
+| **Attribute**                 | **Support**|
+|-------------------------------|------------|
+| pool size                	| Yes        |
+| pool xoff                	| Yes        |
+| ingress PG profile creation   | Yes        |
 | ingress PG profile apply      | Yes        |
-| ingress PG MIN       | Yes        |
-| ingress PG dynamic th        | Yes        |
-| ingress PG shared th        | Yes        |
-| ingress PG xoff th        | Yes        |
+| ingress PG MIN       		| Yes        |
+| ingress PG dynamic th         | Yes        |
+| ingress PG shared th          | Yes        |
+| ingress PG xoff th        	| Yes        |
 | Egress Q buffer profile       | Yes        |
-| Egress Q buffer profile apply       | Yes        |
-| Egress Q min       | Yes        |
-| Egress Q dynamic th       | Yes        |
-| Egress Q static  th       | Yes        |
+| Egress Q buffer profile apply | Yes        |
+| Egress Q min      		| Yes        |
+| Egress Q dynamic th       	| Yes        |
+| Egress Q static  th       	| Yes        |
 
 ### 2.2.7 ROCEv2 default configurations
 
-Typical deployments for lossless is ROCEv2 and ISCSI and it not limited to these 2. Customers can use any unicast traffic as lossless, but SONIC supports only 2 lossless priorities in this release. ROCEv2 is achieved by enable multiple features. SONIC is enhanced to provide single command as configuration option to setup with default ROCEv2/ISCSI lossless settings, classifications, ECN, scheduling etc and also provided to option to modify based on customer specific needs with mgmt-framework CLI.
+Typical deployments for lossless is ROCEv2 and ISCSI and it not limited to these 2. Customers can use any unicast traffic as lossless, but SONiC supports only 2 lossless priorities in this release. ROCEv2 is achieved by enable multiple features. SONiC is enhanced to provide single command as configuration option to setup with default ROCEv2/ISCSI lossless settings, classifications, ECN, scheduling etc and also provided to option to modify based on customer specific needs with mgmt-framework CLI.
 
-- Added "roce enable" CLI to enable lossless functionality in SONIC and also it configures below default configurations
+- Added "roce enable" CLI to enable lossless functionality in SONiC and also it configures below default configurations
 
-- SONIC supports 2 lossless priorities
+- SONiC supports 2 lossless priorities
   - Priority 3 is default reserved for RDMA
   - Priority 4 is default reserved for ISCSI
 - RDMA traffic is classified as DSCP 24 & 26/DOT1P 3 -> TC-3 -> PG-3 -> Q-3  
@@ -721,7 +711,7 @@ Typical deployments for lossless is ROCEv2 and ISCSI and it not limited to these
 - CNP packets generated by server typically marked with DSCP 48, default DSCP 48 mapped to Q6 to give high priority scheduling.
 - All other DSCP/DOT1P -> TC0 -> PG7 -> Q0
 
-- Default DSCP 24&26 are general use for RDMA from server world in case RDMA traffic coming from different DSCP, SONIC provides option to change default DSCP-TC map. But recommends to use traffic class 3.
+- Default DSCP 24&26 are general use for RDMA from server world in case RDMA traffic coming from different DSCP, SONiC provides option to change default DSCP-TC map. But recommends to use traffic class 3.
 
 - Configure buffers from lossy to lossless i.e refer 2.2.4
 - ECN is enabled on Q3
@@ -903,44 +893,44 @@ Below is set of default configurations set in all existing ports:
 
 #### 2.2.8.1 buffer init
 
-- Buffer mode is lossless already, No change to system configurations. 
+- Buffer mode is lossless already, No change to system configurations.
 - No pre applied buffer configurations, enable all default settings.
 - Update buffer mode as "Lossless" in "SWITCH" db table in config db.
-- Configs are saved and system will reboot 
+- Configs are saved and system will reboot
 
-#### 2.2.8.2 roce enable 
+#### 2.2.8.2 roce enable
 
-- if "buffer init" is done, Return "roce enable" with erorr. This will avoid conflicts. 
+- if "buffer init" is done, Return "roce enable" with error. This will avoid conflicts.
 - if ROCE already enabled, No change to system configurations.
 - Check if any conflicting configurations across all ports. i.e Any pre applied buffer configurations, maps, scheduler, wred and return error with details.
 - No pre applied configurations, enable all default settings.
-- With ``` roce enable force-defaults ```, below is behavior 
-  - clear all roce default buffer, maps, scheduler, wred configurations 
+- With ``` roce enable force-defaults ```, below is behavior
+  - clear all roce default buffer, maps, scheduler, wred configurations
   - Generate all ROCE defaults in all ports.
 - Update roce as true in "SWITCH" db table in config db.
 - ROCE state is stored in "SWITCH" db table in config db.
-- Configs are saved and system will reboot 
+- Configs are saved and system will reboot
 
 #### 2.2.8.3 buffer deinit
 
-- roce enabled in SWITCH table, buffer de-init cannot be done. 
-- if buffer mode is not lossless, no changes required. 
+- roce enabled in SWITCH table, buffer de-init cannot be done.
+- if buffer mode is not lossless, no changes required.
 - All buffer configurations are removed from config db.
 - Remove buffer mode from SWITCH table in config db.
-- Configs are saved and system will reboot 
+- Configs are saved and system will reboot
 
 #### 2.2.8.4 roce disable
 
-- roce is not enabled in SWITCH table, no action. 
+- roce is not enabled in SWITCH table, no action.
 - Remove all buffer configurations from Config DB.
 - All default ROCE required configurations are removed i.e maps, scheduler, ecn.
-- Configs are saved and system will reboot 
+- Configs are saved and system will reboot
 
-#### 2.2.8.5 buffer init {losy}- future enhancements
+#### 2.2.8.5 buffer init {lossy}- future enhancements not in 4.1
 
 - ``` buffer init lossy ``` will be enhanced to configure buffers with lossy defaults. And can be used to provide buffer tuning in lossy mode.
 
-#### 2.2.8.6 roce enable {} - future enhancements
+#### 2.2.8.6 roce enable {} - future enhancements not in 4.1
 
 - Take RDMA, CNP, ISCSI DSCP values and generate DSCP_TC maps.
 - Bandwidth % for split for between lossy and lossless traffic.
@@ -962,20 +952,18 @@ config qos reload --json-data --dry-run
 config qos reload --update --all-new-ports
 
 ```
-- Clear only default ROCE qos maps, scheduler, wred etc. 
+- Clear only default ROCE qos maps, scheduler, wred etc.
 
 ```
 config qos classifier clear --defaults
 ```
 
-### 2.2.9 Dynamic port breakout - TBD
+### 2.2.9 Dynamic port breakout
 
-- While bootup, All ports are applied with lossless profiles based on "buffer init"/"roce enable" configuration.
+- Recommended to breakout ports before moving to lossless mode.
+- Ports created after moving to lossless mode should not be usable until next reboot.
+- While next bootup, All new ports are applied with lossless profiles based on "buffer init"/"roce enable" configuration.
 - All configurations removed before on port delete as part of DPB and set with NULL oid for PG and Q buffer profiles on that port.
-
-- New ports created as part of DBP 
-  - Apply with configurations based on "roce enable/buffer init" status.
-
 
 ## 2.3 Backend change to support new configurations
 
@@ -1037,52 +1025,20 @@ default_lossless_buffer_profile = true/false ; default value - true
 
 ### 3.3.1 Qos Configuration generation
 
-#### 3.3.1.1 SONIC NOS defaults configuration generation - Not for this release
-
-SONIC ```files/build_templates/buffers_config.j2``` and ```files/build_templates/qos_config.j2``` files are used for generate default buffer and qos configurations by using the platfrom specific files like ```/usr/share/sonic/hwsku/qos.json.j2``` and ```/usr/share/sonic/hwsku/buffer.json.j2```
-
-- buffers_config.j2 & qos_config.j2 files are enhanced to generate lossy configuration by taking input "buffer_mode=lossy". Default buffer mode is lossless to support backward compatibility.
-
-- New file ```/usr/share/sonic/hwsku/buffer_lossy.json.j2``` added which will be used to generate config while bootup and config reload.
-
-```
-{%- set default_topo = 't1' %}
-{%- set default_buffer_mode = 'lossy' %}
-{%- set default_buffer_pool_xoff = '6291456' %}
-{%- include 'buffers_config.j2' %}
-```
-
-As part of database docker post start action, QOS/buffer configs are generated and the Config DB shall be loaded with default tables and/or any previously configured CoPP tables as part of the following handler in ```files/build_templates/docker_image_ctl.j2```. Any user defined configuration in config_db.json will overwrite the defaults loaded from buffer.json & qos.json.
-
-```
-function postStartAction()
-  # Load Lossy Qos configuration before config_db.json
-  /usr/local/bin/sonic-cfggen -d -t /usr/share/sonic/hwsku/buffers_lossy.json.j2 -y /etc/sonic/sonic_version.yml > /etc/sonic/buffers.json --write-to-db
-  /usr/local/bin/sonic-cfggen -d -t /usr/share/sonic/hwsku/qos_lossy.json.j2 -y /etc/sonic/sonic_version.yml > /etc/sonic/qos.json --write-to-db
-  # Load User defined/lossless Qos configuration by config_db.json load.
-   
-```
-
-The default qos buffer configurations cannot be deleted.
-
-config save:
-
-* As existing design all qos configurations are saved in config_db.json
-
-config reload:
-
-* Add loading the default buffer.json & qos.json file during Click "config reload" script before loading config_db.json
-
-config qos reload/config qos buffer reload:
 
 #### 3.3.1.1 Port ROCE/buffer configuration generation
 
-SONIC ```files/build_templates/buffers_config.j2``` and ```files/build_templates/qos_config.j2``` files are used for generate default buffer and qos configurations by using the platfrom specific files like ```/usr/share/sonic/hwsku/qos.json.j2``` and ```/usr/share/sonic/hwsku/buffer.json.j2```
+SONiC ```files/build_templates/buffers_config.j2``` and ```files/build_templates/qos_config.j2``` files are used for generate default buffer and qos configurations by using the platfrom specific files like ```/usr/share/sonic/hwsku/qos.json.j2``` and ```/usr/share/sonic/hwsku/buffer.json.j2```
 
-- buffers_config.j2 & qos_config.j2 files are enhanced to generate configuration by taking input "roce_enable/buffer_mode_lossless". 
+- buffers_config.j2 & qos_config.j2 files are enhanced to generate configuration by taking input "roce_enable/buffer_mode_lossless".
 
+- buffers_config.j2 & qos_config.j2 are modified to remove references for "AZURE" and changed to generate ROCE configurations listed section 2.2.7(ROCEv2 default configurations)
 
-As part of "swss" docker pre start action, ROCE configs are generated with ports does not have default configurations in config db. This is handled in ```files/build_templates/docker_image_ctl.j2```.
+##### 3.3.1.2 Dynamic port breakout
+
+All new ports created with DPB will be configured with lossless/ROCE configurations in next reboot. To achieve this
+
+As part of "swss" docker pre start action, ROCE configs are generated with ports does not have default configurations in config DB. This is handled in ```files/build_templates/docker_image_ctl.j2```.
 
 ```
 function preStartAction()
@@ -1093,20 +1049,13 @@ function preStartAction()
   config qos buffers reload -update --all-new-ports 
 
 ```
+
 ### 3.3.2 Configuration Manager
 
-#### 3.3.2.1 buffermgrd changes
 
-- Load /etc/sonic/buffers.json & /etc/sonic/qos.json
+#### 3.3.2.1 CPU port buffer configurations
 
-- Get switch buffer mode from Config DB SWITCH table.
-
-##### 3.3.2.1.1 Dynamic port breakout
-
-
-##### 3.3.2.1.1 CPU port buffer configurations
-
-- CPU port are not handled BUFFER_QUEUE/BUFFER_PG. Changes are done to take CPU port also as KEY and to accept CPu queue index 0-43. 
+- CPU port are not handled BUFFER_QUEUE/BUFFER_PG. Changes are done to take CPU port also as KEY and to accept CPU queue index 0-24.
 
 ```
 sonic-buffer-pg.yang 
@@ -1114,15 +1063,15 @@ sonic-buffer-queue.yang
 ```
 - TBD code details.
 
-##### 3.3.2.1.1 Per port multicast queues buffer configurations
+#### 3.3.2.2 Per port multicast queues buffer configurations
 
-- Configurations Generation and apply profiles to multicast queues enhanced in ``` buffer_config.j2 ``` 
+- Configurations Generation and apply profiles to multicast queues enhanced in ``` buffer_config.j2 ```
 
-- YANG index validations are modified 
+- YANG index validations are modified
 ```
 sonic-buffer-queue.yang
 ```
-- No changes are expected in backend. 
+- No changes are expected in backend.
 
 
 ### 3.3.1.2 Defaults Configurations
@@ -1153,14 +1102,24 @@ buf.map.egress_pool1.ingress_pool=0
 buf.map.egress_pool2.ingress_pool=1
 
 ```
-TBD - Based on BRCM response
+Following are attribute support added in TD3, Th3 after moving to lossless mode:
+
+- SAI_BUFFER_POOL_ATTR_SIZE
+- SAI_BUFFER_POOL_ATTR_XOFF_SIZE
+- SAI_BUFFER_PROFILE_ATTR_RESERVED_BUFFER_SIZE
+- SAI_BUFFER_PROFILE_ATTR_BUFFER_SIZE
+- SAI_BUFFER_PROFILE_ATTR_SHARED_DYNAMIC_TH
+- SAI_BUFFER_PROFILE_ATTR_SHARED_STATIC_TH
+- SAI_BUFFER_PROFILE_ATTR_XOFF_TH
+- SAI_BUFFER_PROFILE_ATTR_XON_TH
+- SAI_BUFFER_PROFILE_ATTR_XON_OFFSET_TH
 
 ## 3.6 User Interface
 
 ### 3.6.1 Data Models
 
 YANG model needed for QoS buffer handling in the management framework:
-
+gb
 **openconfig-qos-deviation.yang** - RPC for buffer initialization \
 **openconfig-qos-buffer.yang** - YANG objects for fine tuning the system defaults
 
@@ -1264,13 +1223,13 @@ module: openconfig-qos
 
 #### 3.6.2.1 CLICK Configuration Commands
 
-- Generate default Configurations for newly created ports  or ports does not have ROCE/buffer configurations and load it to config db. This can be used to generate configs after DPB.
+- Generate default Configurations for newly created ports  or ports does not have ROCE/buffer configurations and load it to config DB. This can be used to generate configs after DPB.
 
 ```
 config qos reload --update --all-new-ports
 
 ```
-- Clear only default ROCE qos maps, scheduler, wred etc. 
+- Clear only default ROCE qos maps, scheduler, wred etc.
 
 ```
 config qos classifier clear --defaults
@@ -1344,7 +1303,7 @@ Associate priority group (ingress) with buffer profile.
 sonic(config)# interface Ethernet0
 sonic(conf-if-Ethernet0)# qos buffer priority-group <pg-value-range> <profile-name(depend on profile config)>
 ```
-- Support only to allow apply to pg3, pg4. 
+- Support only to allow apply to PG3, PG4.
 
 ##### 3.6.2.2.8 Dissociate priority-group from buffer profile
 
@@ -1490,40 +1449,35 @@ DELETE - Delete a existing buffer configuration from CONFIG DB.
 
 # 7 Warm Boot Support
 
-This support is added in the hostcfgd and hence no explicit handling is needed.
-
 # 8 Scalability
 
 # 9 Limitations
 
 # 9 Unit Test
 
-## 9.1 Functional Test Cases
-
-## 9.2 Negative Test Cases
-
 The unit-test for this feature will include:
 
-#### 9.1 Configuration via CLI
 
-1) Initialize buffer settings to populate various buffer tables and make sure all the tables are populated.\
-2) Remove buffer settings and check whether all the default tables are removed \
-3) Create buffer pool (type ingress & egress) and check the config-DB \
-4) Remove buffer pool and verify that buffer pool entry is not present in the config-DB \
+## 9.1 Configuration via CLI
+
+1) Initialize buffer settings to populate various buffer tables and make sure all the tables are populated.
+2) Remove buffer settings and check whether all the default tables are removed
+3) Create buffer pool (type ingress & egress) and check the config DB
+4) Remove buffer pool and verify that buffer pool entry is not present in the config DB
 5) Disable default buffer profile under interface and verify that default lossless profile
    based on able length and speed is not created.
 
-#### 9.2 Configuration via gNMI
+## 9.2 Configuration via gNMI
 
 Same test as CLI configuration Test but using gNMI request.
 Additional tests will be done to set buffer configuration at different levels of Yang models.
 
-#### 9.3 Get configuration via gNMI
+## 9.3 Get configuration via gNMI
 
 Same as CLI show test but with gNMI request, will verify the JSON response is correct.
 Additional tests will be done to get buffer configuration and buffer states at different levels of Yang models.
 
-#### 9.4 ONCHANGE/SAMPLE/TARGET_DEFINED subscription support
+## 9.4 ONCHANGE/SAMPLE/TARGET_DEFINED subscription support
 
 Below is the list of URIs supported at the top level for gNMI subscription request,
 all subsequent paths from parent are expected to support the same subscription request as that of the parent.
@@ -1539,7 +1493,7 @@ all subsequent paths from parent are expected to support the same subscription r
 |"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-queues"|y|
 |"/openconfig-qos:qos/openconfig-qos-buffer:buffer/buffer-queues/buffer-queue[ifname=*, queue=*]"|y|
 
-#### 9.4 Configuration via REST (POST/PUT/PATCH)
+## 9.5 Configuration via REST (POST/PUT/PATCH)
 
 Same test as CLI configuration Test but using REST POST request
 Additional tests will be done to set buffer configuration at different levels of Yang models.
@@ -1554,13 +1508,45 @@ Default lossless profile configuration under interface - /restconf/data/openconf
 Same as CLI show test but with REST GET request, will verify the JSON response is correct.
 Additional tests will be done to get buffer configuration and buffer states at different levels of Yang models.
 
+ 
+## 9.1 Functional Test Cases
+
+- Verify pool, queue, PG's MMU registers after "buffer init"/"roce enable"
+- Apply and Verify DSCP->TC, TC->Q, TC->PG, PFC_PRIROITY->QUEUE maps behavior
+- Verify PFC generation on PG3 by oversubscribing traffic
+- Verify PFC honoring on Q3 for received pause frames 
+- Verify traffic is paused only on lossless priority
+- Verify ECN marking functionality by configuring ECN
+- Verify each PG is able to utilize configured HDRM limit from pool.
+- Verify each lossless queue is able to utilize max buffers from pool.
+- Modify HDRM pool limit and verify MMU register to confirm 
+- Modify buffer profiles and verify MMU register to confirm
+- Verify new Click command options 
+- Verify new klish configuration and show commands
+
+- Enable ROCE and send traffic with ROCE DSCP and verify.
+  - PFC generation
+  - PFC honoring
+  - No ingress drops on PG3
+  - No Egress drop on Q3
+  - ECN Marking on Q3 before PFC generation
+  - ETS scheduling
+  - Make sure end to end no single packet dropped.
+
+- Disable ROCE and make sure all ROCE default are cleared.
+- Verify conflict cases with "buffer init" vs "roce enable" and vice versa 
+- Verify conflict cases with "buffer de-init" vs "roce eable" and vice versa
+- Do breakout port in lossless mode and verify after reboot port is configured with ROCE defaults.
+
+## 9.2 Negative Test Cases
+
 # 10 Internal Design Information
 
 # 11 Configuration Example
 
-Supported 2 ways to configure 
+Supported 2 ways to configure
 
-## 11.1 Configuration Example with single command 
+## 11.1 Configuration Example with single command
 
 Enabled ROCE with defaults
 
@@ -1568,7 +1554,7 @@ Enabled ROCE with defaults
 sonic(config)# roce enable
 
 ```
-## 11.2 Configuration Example with buffer command 
+## 11.2 Configuration Example with buffer command
 
 The below configurations are already supported and should be configured along with above buffer configuration for ROCEv2 Functionality.
 
@@ -1579,13 +1565,13 @@ The below configurations are already supported and should be configured along wi
 |2 |1| 0 |3 |No |DWRR - 25%|
 |3 |3 |3 |1 |Yes| DWRR - 10%|
 |4 |4 |4 |4 |Yes |DWRR - 25%|
-|7 |7 |0 |7 |No |Strict|
+|7 |7 |0 |7 |No |Strict Priority|
 
 
 Initialize lossless buffer
 
 ```
-sonic(config)#buffer init 
+sonic(config)#buffer init
 
 ```
 
