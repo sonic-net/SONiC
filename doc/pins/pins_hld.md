@@ -281,7 +281,7 @@ Here is the full list of supplementary HLD docs:
 [p4rt-db-hld]: in_progress.md
 [p4orch-hld]: p4orch_hld.md
 [appl-state-hld]: in_progress.md
-[packet-hld]: in_progress.md
+[packet-hld]: Packet_io.md
 
 <!-- Repository Links -->
 [buildimage-repo]: https://github.com/Azure/sonic-buildimage
