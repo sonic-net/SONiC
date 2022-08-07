@@ -86,6 +86,10 @@ This document provides comprehensive functional and design information about the
 | OpenHW                   | Running Enterprise SONiC by Dell Technologies on platforms that are not Dell|
 | PKI                      | Public Key Infrastructure |
 | DDL                      | Dell Digital Locker |
+| OrchAgent                | Orchestrator Agent |
+| SWSS                     | SWitch State Service !
+| .deb                     | a software package used by the Debian Linux distribution |
+
 
 # 1 Feature Overview
 
@@ -163,6 +167,27 @@ The Software License Management Framework will provide users to install the eSON
 
 __Figure 1: Enterprise SONiC License Management__
 
+### 3.1.1 User
+  * User will login into the DDL and download the license files they are entitiled
+  * They can either copy the license directly into the switch or they can store the license in any file servers like FTP, HTTP & SSH.
+  * User will use the license file stored wither locally or remote using the license file URL.
+  * Users can either use the CLI "license install <filename/URL>" or the equivalent REST API.
+  * While using the CLI to install license, users will be prompted an EULA. And the license will be installed only when the user accepts the EULA.
+
+### 3.1.2 CLI/REST
+  * The CLI/REST API will validate the syntax and the URL of the license file before passing the same to the OrchAgent in running in the SWSS docker.
+  * The CLI/REST API will use the DBUS interface to interact with the License Manager(Task/Thread) in OrchAgent in SWSS Docker
+
+### 3.1.3 License Manager
+  * The main functionality of the License Management Feature will be implemented in 2 Parts - licmgr & liblicense
+
+### 3.1.4 liblicense
+   * The liblicense will be implemeted as a shared library and will be packaged into a .deb package file
+   * The Validation of the Dell License will be done the APIs implemented in liblicense
+   * The liblicense library will package the Dell PKI digital signature validation and its associated public/private keys
+   * It will be available as a .deb package for the Enterprise SONiC Image
+   * Also, a stub liblicense with API stub API implementation will also be available
+   * BRCM's rebrading will replace the stub liblicensing with the Dell liblicensing .deb package
 
 ### 3.1.1 Service and Docker Management
   * Separate license manager is added as task(thread) inside the existing ORCHAgent
