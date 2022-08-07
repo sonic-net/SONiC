@@ -141,7 +141,7 @@ SONiC License Management will add the functionality to verify, install and valid
 
 With this functionality users will be able install Dell Enterprise SONiC license for the switch from their home directory or any of the remote file servers using FTP, SSH & HTTP.
 
-![image info](images/router-with-servers.jpg "Figure 1: Enterprise SONiC License Management Topology")
+![image info](License_Management_Framework_Images/router-with-servers.jpg "Figure 1: Enterprise SONiC License Management Topology")
 
 ### 1.3.2 Container
 
@@ -159,7 +159,7 @@ With the Software License Management, users will be able to:
 
 The Software License Management Framework will provide users to install the eSONiC License in the switch.
 
-![image info](images/License-Management-Framework-Detailed-Design.jpg "Figure 2: Enterprise SONiC License Management Framwwork")
+![image info](License_Management_Framework_Images/License-Management-Framework-Detailed-Design.jpg "Figure 2: Enterprise SONiC License Management Framwwork")
 
 __Figure 1: Enterprise SONiC License Management__
 
@@ -251,7 +251,7 @@ The installed license must be stored in the persistent/config partition which is
 
 # 4 Flow Diagrams
 
-![image info](images/License-Management-Eventflow.jpg "Figure 3: Enterprise SONiC License Management Call Flow")
+![image info](License_Management_Framework_Images/License-Management-Eventflow.jpg "Figure 3: Enterprise SONiC License Management Call Flow")
 
 # 5 Error Handling
 
