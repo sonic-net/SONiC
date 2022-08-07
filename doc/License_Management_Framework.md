@@ -177,9 +177,23 @@ __Figure 1: Enterprise SONiC License Management__
 ### 3.1.2 CLI/REST
   * The CLI/REST API will validate the syntax and the URL of the license file before passing the same to the OrchAgent in running in the SWSS docker.
   * The CLI/REST API will use the DBUS interface to interact with the License Manager(Task/Thread) in OrchAgent in SWSS Docker
+  * The license file will be downloaded and store in the "/etc/licenses/<license filename>"
 
 ### 3.1.3 License Manager
   * The main functionality of the License Management Feature will be implemented in 2 Parts - licmgr & liblicense
+  * The licmgr(License Manager) will run as thread in the existing OrchAgent.
+  * The licmgr will invoke the liblicense API to validate the license file("/etc/licenses/<license filename>")
+  * The license file directory will be mounted as a volume in OrchAgent docker
+  * The licmgr will use DBUS interface to expose the API to be called from the CLI/REST API
+  * The licmgr will also verify the existing license(installed previously) after the bootup
+    * If there is no existing license - a periodic syslog message will be generated for the users to install a valid SONiC License
+	* If the license file is exists and it is invalid/expired - a periodic syslog message will be generated for the users to install a valid SONiC License
+	* If the license file existe and it is valid - the licmgr will compute the expiry datetime
+	  * If the expiry datetime is less than 90 days - a periodic syslog message will be generated for the users to renew the license
+ * The licmgr will compute expiry datetime counter(hours to expiry) periodically - every 1 hour.
+ * The licmgr will also store the encrypted computed expiry datetime counter for retrival during the bootup.
+ * This will help the licmgr to detect the backdating the license.
+ * During bootup, the expiry datetime will be recomputed according to the system clock(aging forward - switch bootup after a long period of time).
 
 ### 3.1.4 liblicense
    * The liblicense will be implemeted as a shared library and will be packaged into a .deb package file
@@ -207,14 +221,10 @@ At high-level the following fields will be added to the DB to capture the instal
   * License Duration (In days)
   * License File Location
 
-## 3.3 Switch State Service Design
-Refer the Figure 2: Enterprise SONiC License Management Framwwork
-
-### 3.3.1 Orchestration Agent
-
 ## 3.4 User Interface
 
 ### 3.4.1 Data Models
+To be filled.
 
 ### 3.4.2 CLI
 
@@ -277,6 +287,7 @@ The installed license must be stored in the persistent/config partition which is
 # 4 Flow Diagrams
 
 ![image info](License_Management_Framework_Images/License-Management-Eventflow.jpg "Figure 3: Enterprise SONiC License Management Call Flow")
+
 
 # 5 Error Handling
 
