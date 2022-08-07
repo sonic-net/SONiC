@@ -29,7 +29,7 @@
 		* 5.4. [User state](#UserState)
 		* 5.5. [User full-name](#UserFullName)
 		* 5.6. [User role](#UserRole)
-		* 5.7. [User password](#UserPassword)
+		* 5.7. [User hashed-password](#UserHashedPassword)
 * 6. [SAI API](#SAIAPI)
 * 7. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
 * 8. [Restrictions/Limitations](#RestrictionsLimitations)
@@ -440,7 +440,7 @@ Usercfgd will get the "primary_group" and "secondary_groups" of the new role fro
 - usermod  --gid {primary_group} {user_name}
 - usermod  --groups {secondary_groups} {user_name}
 
-###  5.7 <a name='UserPassword'></a>User hashed-password
+###  5.7 <a name='UserHashedPassword'></a>User hashed-password
 #####  5.7.1 <a name='FlowDigram:'></a>Flow digram:
 ![password_flow](password_flow.png)
 #####  5.7.2 <a name='FlowDescription::'></a>Flow description:
