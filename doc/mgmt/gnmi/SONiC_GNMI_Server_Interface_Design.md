@@ -71,7 +71,7 @@ To understand the requirements, we need to go over current SONiC management comp
 2. User could use SONiC CLI command "config apply-patch" to incrementally update configurations systematically and validate target configuration using SONiC Yang models. With generic_config_updater, all operations in a 'config apply-patch' command are processed in a single transaction that will either succeed or fail as a whole.
     - "config apply-patch" supports ConfigDB, and Yang models.
     - The green arrow indicates this process, and dotted arrow indicates Yang validation.
-3. SONiC CLI commands can use "config reload" to fully update configurations and validate target configuration using SONiC Yang models.
+3. SONiC CLI commands can use "config reload" to erase original and fully reload configurations from a file and validate target configuration using SONiC Yang models.
     - "config reload" already support input in ConfigDB schema or in yang models schema.
     - The yellow arrow indicates this process, and dotted arrow indicates Yang validation.
 
@@ -120,7 +120,7 @@ We will update sonic-telemetry to support configuration.
 
 ## 1.2	Design Overview
 
-<img src="images/gnmi.svg" alt="gnmi-server" width="600px"/>
+<img src="images/gnmi.svg" alt="gnmi-server" width="1000px"/>
 
 ### 1.2.1 Basic Approach
 
