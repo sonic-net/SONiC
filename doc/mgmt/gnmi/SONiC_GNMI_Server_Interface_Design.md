@@ -122,6 +122,10 @@ We will update sonic-telemetry to support configuration.
 
 <img src="images/gnmi.svg" alt="gnmi-server" width="1000px"/>
 
+We will update sonic-telemetry to support configuration in the same container.
+
+And there will be a config files for disable/enable telemetry/new-gnmi feature.
+
 ### 1.2.1 Basic Approach
 
 #### 1.2.1.1 Transaction
