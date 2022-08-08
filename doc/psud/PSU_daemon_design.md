@@ -8,8 +8,8 @@
  | Rev |     Date    |       Author       | Change Description                |
  |:---:|:-----------:|:------------------:|-----------------------------------|
  | 0.1 |             |      Chen Junchao  | Initial version                   |
- | 0.2 | August 4st, 2022 | Stephen Sun | Update according to the current implementation |
- | 0.3 | August 8st, 2022 | Or Farfara | Add input current, voltage and max power |
+ | 0.2 | August 4th, 2022 | Stephen Sun | Update according to the current implementation |
+ | 0.3 | August 8th, 2022 | Or Farfara | Add input current, voltage and max power |
 
 
 ## 1. Overview
@@ -61,9 +61,9 @@ PSU information is stored in PSU table:
     voltage_max_threshold   = 1*3.3DIGIT                     ; the maximum voltage threshold of the PSU
     current                 = 1*3.3DIGIT                     ; the current of the PSU
     power                   = 1*3.3DIGIT                     ; the power of the PSU
-	  input_voltage           = 1*3.3DIGIT                     ; input voltage of the psu
-	  input_current           = 1*3.3DIGIT                     ; input current of the psu
-	  max_power               = 1*3.3DIGIT                     ; power capacity of the psu
+    input_voltage           = 1*3.3DIGIT                     ; input voltage of the psu
+    input_current           = 1*3.3DIGIT                     ; input current of the psu
+    max_power               = 1*4.3DIGIT                     ; power capacity of the psu
     
 
 Now psud only collect and update "presence" and "status" field.
