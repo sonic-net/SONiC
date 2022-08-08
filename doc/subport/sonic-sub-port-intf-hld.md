@@ -172,7 +172,7 @@ Example configuration:
     "Ethernet0.100|192.0.0.1/21": {},
     "Ethernet0.100|fc0a::/112": {}
     "Eth64.10": {
-        “vlan” : 100,
+        "vlan" : 100,
         "admin_status" : "up"
     },
     "Eth64.10|192.168.0.1/21": {},

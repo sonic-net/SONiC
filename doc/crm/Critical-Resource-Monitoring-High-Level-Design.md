@@ -104,7 +104,7 @@ Monitoring process should periodically poll SAI counters for all required resour
 
 ```"<Date/Time> WARNING <Process name>: THRESHOLD_EXCEEDED for <TH_TYPE> <%> Used count <value> free count <value>"```
 
-```"<Date/Time> NOTICE <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <%> Used count <value> free count <value>"```
+```"<Date/Time> WARNING <Process name>: THRESHOLD_CLEAR for <TH_TYPE> <%> Used count <value> free count <value>"```
 
 ```<TH_TYPE> = <TH_PERCENTAGE, TH_USED, TH_FREE>```
 
