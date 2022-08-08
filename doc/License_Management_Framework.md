@@ -87,7 +87,7 @@ This document provides comprehensive functional and design information about the
 | PKI                      | Public Key Infrastructure |
 | DDL                      | Dell Digital Locker |
 | OrchAgent                | Orchestrator Agent |
-| SWSS                     | SWitch State Service !
+| SWSS                     | SWitch State Service |
 | .deb                     | a software package used by the Debian Linux distribution |
 
 
@@ -103,7 +103,7 @@ This document will detail how the Licensing Framework will be implemented on Ent
 
 The License Management will validate the customer's license having Enterprise SONiC and OpenHW switches.
   1. Users download their entitled license from the Dell License Portal - DDL (Dell Digital Locker)
-  2. Install their entitled licenses into the switches using any local or remote http/ssh/ftp serveres
+  2. Install their entitled licenses into the switches using any local or remote http/ssh/ftp servers
 
 ## 1.2 Requirements
 
@@ -135,11 +135,11 @@ The License Management will validate the customer's license having Enterprise SO
 
 SONiC License Management will add the functionality to verify, install and validate the Dell-issued software licenses for the Enterprise SONiC.
 
-  * License Verification - Will use Public Key Infrastruture(PKI) Digital Signature to verify whether the installed license is issued by Dell (Vendor)
+  * License Verification - Will use Public Key Infrastructure(PKI) Digital Signature to verify whether the installed license is issued by Dell (Vendor)
   * Install License - Store the license persistently on the switch
-  * License Validation - Periodially check the installed license for expiry
+  * License Validation - Periodically check the installed license for expiry
   * Users will also be alerted when the installed license nears expiry.
-  * An alter message will be generated periodically when license enpires
+  * An alter message will be generated periodically when license expires
 
 ### 1.3.1 Basic Approach
 
@@ -154,7 +154,7 @@ No new container is added. The details of the changes will be discussed in the D
 # 2 Functionality
 
 With the Software License Management, users will be able to:
-  1. Installl Dell Enterprise SONiC License in the switch
+  1. Install Dell Enterprise SONiC License in the switch
   2. View the details of installed Dell Enterprise SONiC License in the switch
 
 # 3 Design
@@ -168,16 +168,16 @@ The Software License Management Framework will provide users to install the eSON
 __Figure 1: Enterprise SONiC License Management__
 
 ### 3.1.1 User
-  * User will login into the DDL and download the license files they are entitiled
+  * User will login into the DDL and download the license files they are entitled
   * They can either copy the license directly into the switch or they can store the license in any file servers like FTP, HTTP & SSH.
-  * User will use the license file stored wither locally or remote using the license file URL.
+  * User will be allowed to install the license file stored locally or remote using the license file URL.
   * Users can either use the CLI "license install <filename/URL>" or the equivalent REST API.
   * While using the CLI to install license, users will be prompted an EULA. And the license will be installed only when the user accepts the EULA.
 
 ### 3.1.2 CLI/REST
   * The CLI/REST API will validate the syntax and the URL of the license file before passing the same to the OrchAgent in running in the SWSS docker.
   * The CLI/REST API will use the DBUS interface to interact with the License Manager(Task/Thread) in OrchAgent in SWSS Docker
-  * The license file will be downloaded and store in the "/etc/licenses/<license filename>"
+  * The license file will be downloaded and stored in the "/etc/licenses/<license filename>"
 
 ### 3.1.3 License Manager
   * The main functionality of the License Management Feature will be implemented in 2 Parts - licmgr & liblicense
@@ -187,8 +187,8 @@ __Figure 1: Enterprise SONiC License Management__
   * The licmgr will use DBUS interface to expose the API to be called from the CLI/REST API
   * The licmgr will also verify the existing license(installed previously) after the bootup
     * If there is no existing license - a periodic syslog message will be generated for the users to install a valid SONiC License
-	* If the license file is exists and it is invalid/expired - a periodic syslog message will be generated for the users to install a valid SONiC License
-	* If the license file existe and it is valid - the licmgr will compute the expiry datetime
+	* If the license file exists and is invalid/expired - a periodic syslog message will be generated for the users to install a valid SONiC License
+	* If the license file exists and is valid - the licmgr will compute the expiry datetime
 	  * If the expiry datetime is less than 90 days - a periodic syslog message will be generated for the users to renew the license
  * The licmgr will compute expiry datetime counter(hours to expiry) periodically - every 1 hour.
  * The licmgr will also store the encrypted computed expiry datetime counter for retrival during the bootup.
@@ -196,12 +196,12 @@ __Figure 1: Enterprise SONiC License Management__
  * During bootup, the expiry datetime will be recomputed according to the system clock(aging forward - switch bootup after a long period of time).
 
 ### 3.1.4 liblicense
-   * The liblicense will be implemeted as a shared library and will be packaged into a .deb package file
+   * The liblicense will be implemented as a shared library and will be packaged into a .deb package file
    * The Validation of the Dell License will be done the APIs implemented in liblicense
    * The liblicense library will package the Dell PKI digital signature validation and its associated public/private keys
    * It will be available as a .deb package for the Enterprise SONiC Image
    * Also, a stub liblicense with API stub API implementation will also be available
-   * BRCM's rebrading will replace the stub liblicensing with the Dell liblicensing .deb package
+   * BRCM's rebranding will replace the stub liblicensing with the Dell liblicensing .deb package
 
 ### 3.1.1 Service and Docker Management
   * Separate license manager is added as task(thread) inside the existing ORCHAgent
@@ -322,3 +322,4 @@ This section will describe the details of the liblicensing deb packing procedure
 ## 12.4 Design Alternatives
 
 ## 12.5 Release Matrix
+	
