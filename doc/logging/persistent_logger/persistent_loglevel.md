@@ -296,72 +296,80 @@ When the system startup and the Database container initialize, and the config_db
   - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key).
   - Exposing the "del" function from the swss-common/sonicv2-connector.h to the db migrator. 
 
+(Downgrade will not be supported).
+
 # 7 Yang model
 
   The following YANG model will be added in order to provide support for the Logger:
    - sonic-logger.yang
 
    ```
+
     description "Logger Table yang Module for SONiC";
     
-    typedef swss_loglevel{
-    
-        enum EMERG 
-        enum ALERT;
-        enum CRIT;
-        enum ERROR;
-        enum WARN;
-        enum NOTICE;
-        enum INFO;
-        enum DEBUG;
+    typedef swss_loglevel {
+        type enumeration {
+            enum EMERG;
+            enum ALERT;
+            enum CRIT;
+            enum ERROR;
+            enum WARN;
+            enum NOTICE;
+            enum INFO;
+            enum DEBUG;
+        }
     }
     
-    typedef sai_loglevel{
-
-        enum SAI_LOG_LEVEL_CRITICAL;
-        enum SAI_LOG_LEVEL_ERROR;
-        enum SAI_LOG_LEVEL_WARN;
-        enum SAI_LOG_LEVEL_NOTICE;
-        enum SAI_LOG_LEVEL_INFO;
-        enum SAI_LOG_LEVEL_DEBUG;
+    typedef sai_loglevel {
+        type enumeration {
+            enum SAI_LOG_LEVEL_CRITICAL;
+            enum SAI_LOG_LEVEL_ERROR;
+            enum SAI_LOG_LEVEL_WARN;
+            enum SAI_LOG_LEVEL_NOTICE;
+            enum SAI_LOG_LEVEL_INFO;
+            enum SAI_LOG_LEVEL_DEBUG;
+        }
     }
     
     container sonic-logger {
 
-      container LOGGER {
+        container LOGGER {
 
-        description "Logger table in config_db.json";
+            description "Logger table in config_db.json";
 
-        list LOGGER_LIST {
+            list LOGGER_LIST {
 
-          key "name";
+                key "name";
 
-          leaf name {
-              description "Component name in LOGGER table (example for component: orchagent, Syncd, SAI components).";
-              type string;
-          }
+                leaf name {
+                    description "Component name in LOGGER table (example for component: orchagent, Syncd, SAI components).";
+                    type string;
+                }
 
-          leaf loglevel {
-              description "The log verbosity for the component";
-              mandatory true;
-              
-              type loglevel_union {
-                  type swss_loglevel;
-                  type sai_loglevel;
-              }
-          }
+                leaf LOGLEVEL {
+                    description "The log verbosity for the component";
+                    mandatory true;
+                    type union {
+                        type swss_loglevel;
+                        type sai_loglevel;
+                    }
+                }
 
-          leaf logoutput {
-              mandatory true;
-              type enumeration {
-                  enum SYSLOG;
-                  enum STDOUT;
-                  enum STDERR;
-              }
-              default SYSLOG;
-          }  
+                leaf LOGOUTPUT {
+                    type enumeration {
+                        enum SYSLOG;
+                        enum STDOUT;
+                        enum STDERR;
+                    }
+                    default SYSLOG;
+                }  
+            }
+            /* end of list LOGGER_LIST */
         }
+        /* end of LOGGER container */
     }
+    /* end of sonic-logger container */
+
 
    ```
 
