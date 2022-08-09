@@ -240,7 +240,7 @@ portmgrd
 The change is the file: /sonic-swss-common/common/logger.cpp
 
 
-### 3.1.5 Removing LOGLEVEL DB - phase 2
+### 3.1.5 Removing LOGLEVEL DB
 
   - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
   - JINJA2_CACHE key is a bytecode cache for jinja2 template that stores bytecode in Redis. The JINJA2 cache was created to optimize the warm reboot performance.
@@ -295,8 +295,7 @@ for example /sonic-swss-common/common/table.cpp:
 };
 ```
 
- - In addition we will remove the LOGLEVEL DB connector from sonic-swss-common/tests/logger_ut.cpp that not in use.
-
+ - In addition we will remove the LOGLEVEL DB connector from /sonic-swss/fdbsyncd/fdbsyncd.cpp that not in use.
 
 ## 3.2 Persistent Logger flow
 
