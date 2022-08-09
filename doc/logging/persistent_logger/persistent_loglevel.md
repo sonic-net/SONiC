@@ -7,7 +7,7 @@
 # Table of Contents
 - [Persistent log level HLD](#persistent-log-level-hld)
 - [High Level Design Document](#high-level-design-document)
-      - [Rev 0.1](#rev-01)
+  - [Rev 0.1](#rev-01)
 - [Table of Contents](#table-of-contents)
 - [List of Tables](#list-of-tables)
 - [List of Figures](#list-of-figures)
@@ -25,6 +25,7 @@
     - [3.1.2 Update "swssloglevel" script](#312-update-"swssloglevel"-script)
     - [3.1.3 Make the log level persistent using the "config save" CLI command](#313-make-the-log-level-persistent-using-the-"config-save"-cli-command)
     - [3.1.4 Listener thread tables](#314-listener-thread-tables)
+    - [3.1.5 Removing LOGLEVEL DB - phase 2](#315-removing-loglevel-db-phase-2)
   - [3.2 Persistent Logger flow](#32-persistent-logger-flow)
 - [4 Flows](#4-flows)
   - [4.1 System init flow](#41-system-init-flow)
@@ -121,6 +122,9 @@ The persistent Logger should meet the following high-level functional requiremen
 ## 3.1 High-level design
 
 To make the loglevel persistent to reboot, we will move the Logger's tables in LOGLEVEL DB to CONFIG DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved using the "config save" CLI command.
+We will split this design into two phases to keep the pr with a small content:
+Phase 1: make the loglevel persistent by moving it to the CONFIG DB.
+Phase 2: Removing LOGLEVEL DB and the jinja2 cache.
 
 ### 3.1.1 Move Logger's tables which store in LOGLEVEL DB to CONFIG DB
 
@@ -166,21 +170,6 @@ To make the loglevel persistent to reboot, we will move the Logger's tables in L
       "LOGLEVEL": "INSAI_LOG_LEVEL_NOTICEFO",
       "LOGOUTPUT": "SYSLOG"
     }
-  }
-}
-```
-
-
-#### New LOGLEVEL DB schema:
-
-  - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
-  - JINJA2_CACHE key is a bytecode cache for jinja2 template that stores bytecode in Redis.
-  - We will update the /sonic-swss-common/common/schema.h file to include the "JINJA2_CACHE" key (since it missing from the schema today).
-
- ```json
-{
-  "JINJA2_CACHE": {
-    
   }
 }
 ```
@@ -247,6 +236,65 @@ portmgrd
 
 The change is the file: /sonic-swss-common/common/logger.cpp
 
+
+### 3.1.5 Removing LOGLEVEL DB - phase 2
+
+  - After moving the Logger's table from LOGLEVEL DB, the leftover in LOGLEVEL DB will be the JINJA2_CACHE key.
+  - JINJA2_CACHE key is a bytecode cache for jinja2 template that stores bytecode in Redis. The JINJA2 cache was created to optimize the warm reboot performance.
+  - After the jinja2 cache was created, we added other optimizations for the warm reboot and raised the concern that the jinja2 cache does not improve the warm reboot performance anymore. After we checked the warm reboot performance with and without the jinja2 cache and saw no difference between them, we recommend removing the jinja2 cache and the LOGLEVEL DB.
+
+#### Removing LOGLEVEL DB from schema.h
+
+ - Removing the LOGLEVEL DB from the dbies list.
+ ```
+ /***** DATABASE *****/
+
+#define APPL_DB         0
+#define ASIC_DB         1
+#define COUNTERS_DB     2
+#define LOGLEVEL_DB     3
+#define CONFIG_DB       4
+#define PFC_WD_DB       5
+#define FLEX_COUNTER_DB 5
+#define STATE_DB        6
+#define SNMP_OVERLAY_DB 7
+#define RESTAPI_DB      8
+#define GB_ASIC_DB      9
+#define GB_COUNTERS_DB  10
+#define GB_FLEX_COUNTER_DB  11
+#define CHASSIS_APP_DB      12
+#define CHASSIS_STATE_DB    13
+#define APPL_STATE_DB       14
+
+```
+
+#### Removing jinja2_cache
+
+ - Removing /sonic-config-engine/build/lib/redis_bcc.py file.
+
+#### Removing LOGLEVEL DB from dbies list
+
+There are files (about 50 files) that contain the LOGLEVEL DB as part of a list of all the dbies. We will remove the LOGLEVEL DB from these files.
+
+for example /sonic-swss-common/common/table.cpp:
+
+```
+  const TableNameSeparatorMap TableBase::tableNameSeparatorMap = {
+   { APPL_DB,             TABLE_NAME_SEPARATOR_COLON },
+   { ASIC_DB,             TABLE_NAME_SEPARATOR_COLON },
+   { COUNTERS_DB,         TABLE_NAME_SEPARATOR_COLON },
+   { LOGLEVEL_DB,         TABLE_NAME_SEPARATOR_COLON },
+   { CONFIG_DB,           TABLE_NAME_SEPARATOR_VBAR  },
+   { PFC_WD_DB,           TABLE_NAME_SEPARATOR_COLON },
+   { FLEX_COUNTER_DB,     TABLE_NAME_SEPARATOR_COLON },
+   { STATE_DB,            TABLE_NAME_SEPARATOR_VBAR  },
+   { APPL_STATE_DB,       TABLE_NAME_SEPARATOR_COLON }
+};
+```
+
+ - In addition we will remove the LOGLEVEL DB connector from sonic-swss-common/tests/logger_ut.cpp that not in use.
+
+
 ## 3.2 Persistent Logger flow
 
 - Each component has a singleton Logger object with a log level property and listener thread.
@@ -264,7 +312,7 @@ In addition to the log level, the CONFIG DB contains the log output file. After 
 
 
 
-![persistent logger flow](/doc/logging/persistent_logger/persistent_logger.png)
+![persistent logger flow](/doc/logging/persistent_logger/persistent-logger-flow.png)
 
 
 
@@ -293,7 +341,7 @@ When the system startup and the Database container initialize, and the config_db
 
  Since we are not flushing the LOGLEVEL DB when we perform a warm upgrade, we need to update the db migrator.
   - Add LOGLEVEL DB connector in the db migrator.
-  - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key).
+  - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key) and delete LOGLEVEL DB.
   - Exposing the "del" function from the swss-common/sonicv2-connector.h to the db migrator. 
 
 (Downgrade will not be supported).
