@@ -212,5 +212,6 @@ The packet metadata carried with process_callback_function gets put into a comme
 - sudo [generator] : will send a sample packet using genetlink.
 - sudo [generator] -inputfile=hello.pcapng : will read the packets from a given file and send them via genetlink.
 - sudo [generator] -packet=AABBCCDD : will send the given packet in hex representation via genetlink. 
+
 ```
 
