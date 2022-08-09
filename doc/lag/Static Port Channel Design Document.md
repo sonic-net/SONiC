@@ -100,7 +100,7 @@ The traffic loss during a warm reboot should be within the prescribed limits of 
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-A Static Port Channel has its member ports always available for traffic as long the links are up. All ports are mandated to have the same speed to become members of a Port Channel. Teamd uses loadbalance runner for a Static Port Channel.
+A Static Port Channel has its member ports always available for traffic as long the links are up. All ports are mandated to have the same speed to become members of a Port Channel. Teamd uses round-robin for a Static Port Channel.
 
 ### 1.2.2 Container
 An instance of Teamd process is created when a Port Channel (Static or Dynamic) is created. Teamd process runs as part of the Teamd docker. 
