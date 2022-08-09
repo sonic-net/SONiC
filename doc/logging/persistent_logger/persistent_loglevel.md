@@ -122,8 +122,11 @@ The persistent Logger should meet the following high-level functional requiremen
 ## 3.1 High-level design
 
 To make the loglevel persistent to reboot, we will move the Logger's tables in LOGLEVEL DB to CONFIG DB. Since the Config DB is already persistent, the log level will also be persistent to reboot. The log level will be saved using the "config save" CLI command.
+
 We will split this design into two phases to keep the pr with a small content:
+
 Phase 1: make the loglevel persistent by moving it to the CONFIG DB.
+
 Phase 2: Removing LOGLEVEL DB and the jinja2 cache.
 
 ### 3.1.1 Move Logger's tables which store in LOGLEVEL DB to CONFIG DB
