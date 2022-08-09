@@ -908,19 +908,19 @@ N/A
 | 14        | Dynamic port breakout as described [here](https://github.com/Azure/SONiC/blob/master/doc/dynamic-port-breakout/sonic-dynamic-port-breakout-HLD.md).|
 | 15        | Remove an item that has a default value. |
 | 16        | Modifying items that rely depends on each other based on a `must` condition rather than direct connection such as `leafref` e.g. /CRM/acl_counter_high_threshold (check [here](https://github.com/Azure/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-crm.yang)). |
-| 17        | Updating Syslog configs. |
-| 18        | Updating AAA configs. |
-| 19        | Updating DHCP configs. |
+| 17        | [Updating Syslog configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_syslog.py) |
+| 18        | [Updating AAA configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_aaa.py) |
+| 19        | [Updating DHCP configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_dhcp_relay.py) |
 | 20        | Updating IPv6 configs. |
 | 21        | Updating monitor configs (EverflowAlaysOn). |
 | 22        | Updating BGP speaker configs. |
-| 23        | Updating BGP listener configs. |
-| 24        | Updating Bounce Back Routing configs. |
-| 25        | Updating control-plane ACLs (NTP, SNMP, SSH) configs. |
+| 23        | [Updating BGP listener configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_bgpl.py) |
+| 24        | ~~Updating Bounce Back Routing configs.~~ |
+| 25        | [Updating control-plane ACLs (NTP, SNMP, SSH) configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_cacl.py) |
 | 26        | Updating Ethernet interfaces configs. |
-| 27        | Updating VLAN interfaces configs. |
-| 28        | Updating port-channel interfaces configs. |
-| 29        | Updating loopback interfaces configs. |
+| 27        | [Updating VLAN interfaces configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_vlan_interface.py) |
+| 28        | [Updating port-channel interfaces configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_portchannel_interface.py) |
+| 29        | [Updating loopback interfaces configs.](https://github.com/Azure/sonic-mgmt/blob/master/tests/generic_config_updater/test_lo_interface.py) |
 | 30        | Updating BGP prefix hijack configs. |
 | 31        | Updating QoS headroom pool and buffer pool size. |
 | 32        | Add/Remove Rack. |

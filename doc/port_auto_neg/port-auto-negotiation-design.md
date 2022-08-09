@@ -41,6 +41,7 @@
  | 0.1 |             |      Junchao Chen   | Initial version                            |
  | 0.2 |             |      Junchao Chen   | Fix review comment                         |
  | 0.3 |             | Dante (Kuo-Jung) Su | Add support for SFPs and operational states|
+ | 0.4 |             |      Junchao Chen   | Port incremental configuration             |
 
 ### Scope
 This document is the design document for port auto negotiation feature on SONiC. This includes the requirements, CLI change, DB schema change, DB migrator change, yang model change and swss change.
@@ -516,26 +517,39 @@ The new SONiC speed setting flow can be described in following pseudo code:
 port = getPort(alias)
 if autoneg changed:
     setPortAutoNeg(port, autoneg)
+    if autoneg == on:
+        // Due to incremental port configuration support, we might only get an "autoneg" field change from APP_DB.
+        // In this case, we will need to apply previous saved adv_speeds and adv_interface_types to SAI. If there
+        // is no previous configuration, will use default empty adv_speeds and adv_interface_types which indicates
+        // all supported speeds and all supported interface types.
+        setPortAdvSpeed(port, port.adv_speeds)
+        setPortAdvInterfaceType(port, port.adv_interface_types)
+    elif autoneg == off:
+        // Due to incremental port configuration support, we might only get an "autoneg" field change from APP_DB.
+        // In this case, we will need to apply previous saved speed and interface_type to SAI. Speed is a mandatory configuration.
+        // If there is no previous configuration for interface_type, it shall use SAI_PORT_INTERFACE_TYPE_NONE by default.
+        setPortSpeed(port, port.speed)
+        setInterfaceType(port, port.interface_type)
 
-if autoneg == true:
-    speed_list = vector()
-    if adv_speeds changed or autoneg changed:
-        // if adv_speeds == "all", leave speed_list empty which means all supported speeds
-        if adv_speeds != "all":
-            speed_list = adv_speeds
-    setPortAdvSpeed(port, speed_list)
+if adv_speeds changed:
+    if autoneg == on:
+        setPortAdvSpeed(port, adv_speeds) // empty adv_speeds means all supported speeds
+    port.adv_speeds = adv_speeds
 
-    interface_type_list = vector()
-    if adv_interface_types changed or autoneg changed:
-        // if adv_interface_types == "all", leave interface_type_list empty which means all supported types
-        if adv_interface_types != "all"
-            interface_type_list = adv_interface_types
-    setPortAdvInterfaceType(port, interface_type_list)
-else if autoneg == false:
-    if speed changed or autoneg changed:
-        setPortSpeed(port, speed)
-    if interface_type changed or autoneg changed:
+if adv_interface_types changed:
+    if autoneg == on:
+        setPortAdvInterfaceType(port, adv_interface_types)
+    port.adv_interface_types = adv_interface_types
+
+if speed changed:
+    if autoneg != on:
+        setPortSpeed(port, speed) // for autoneg is off/not_set, apply the speed to SAI, this is for backward compatible
+    port.speed = speed
+
+if interface_type changed:
+    if autoneg == off:
         setInterfaceType(port, interface_type)
+    port.interface_type = interface_type
 ```
 
 ##### Getting Remote Advertisement
@@ -558,9 +572,18 @@ swss will do validation for auto negotiation related fields, although it still C
 
 #### portsyncd and portmgrd Consideration
 
-No changes for portsyncd and portmgrd.
+Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles all fields. There are a few issues here:
 
-Due to historical reason, portsyncd and portmgrd both handle **PORT** table changes in **CONFIG_DB** and write **APPL_DB** according to configuration change. portmgrd handles fields including "mtu", "admin_status" and "learn_mode"; portsyncd handles the rest fields.
+1. portsyncd is designed to listen to kernel port status change and fire the change event to high level, it should not handle **CONFIG_DB** change. portmgrd is the right place to handle port configuration change according to SONiC architecture.
+2. Configuration change for "mtu", "admin_status" and "learn_mode" will be handled twice which is not necessary
+3. portsyncd put all configuration to **APPL_DB** even if user only changes part of them. E.g. user changes "speed" of the port, portsyncd will put configuration like "mtu", "admin_status", "autoneg" to **APPL_DB**. This is not necessary too.
+
+To address these issues, a few changes shall be made:
+
+1. portsyncd no longer listen to **CONFIG_DB** changes
+2. portmgrd shall be extended to handle all port configuration changes
+3. portmgrd shall implement incremental configuration update. It means that portmgrd shall not put configuration to **APPL_DB** if the field is not changed compare to previous value.
+4. portsorch shall be changed to handle incremental port configuration changes
 
 #### Port Breakout Consideration
 
