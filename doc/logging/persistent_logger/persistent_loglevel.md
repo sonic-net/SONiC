@@ -333,7 +333,7 @@ When the system startup and the Database container initialize, and the config_db
 
 # 5 Cold and Fast Reboot Support
   
-  The current implementation support cold and fast reboot. Sine in the cold and fast reboot, the CONFIG DB content is deleted, the user needs to run "config save" to make the log level persistent to cold and fast reboot.
+  The current implementation support cold and fast reboot. Since in the cold and fast reboot, the CONFIG DB content is deleted, the user needs to run "config save" to make the log level persistent to cold and fast reboot.
 
 # 6 Warm Reboot Support
 
