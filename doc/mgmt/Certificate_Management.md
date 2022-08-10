@@ -51,7 +51,6 @@ This document provides comprehensive functional and design information about the
 | **Term**                 | **Meaning**                             |
 |--------------------------|-----------------------------------------|
 | PKI                      | Public Key Infrastructure               |
-| CSR                      | Certificate Signing Request             |
 | gNMI                     | gRPC Network Management Interface       |
 | gNOI                     | gRPC Network Operations Interface       |
 | CA                       | Certificate Authority                   |
@@ -65,6 +64,8 @@ This document provides comprehensive functional and design information about the
 X.509 Public Key Certificates are used by REST and gNMI services currently and will be used by other services in the future. Configuring these certificates requires manually generating and placing the certificate and key files on the filesystem. Then you must configure the redis keys and restart the services. There is also the issue of upgrades where the location the certificates are placed is not preserved causing these services to break until the files locations are restored. Moreover the process of generating certificates, especially CA certificates and signing and distributing them is complex and error prone. Finally, when certificates expire or are about to expire, there is no warning or alarm for this event or any other issue with the certificates such as invalid hostnames, weak encryption, revocation etc.
 
 The certificate management feature will introduce a new YANG model and CLIs to address the above issues. It will handle certificate generation, signing, distribution and file management along with association of these certificates with a given service via a security profile. It will also ensure that the certificates are available after upgrade/downgrade and handle certificate rotation and alarms to alert on certificate issues. RPCs will be defined in the YANG model and exposed via REST and gNOI RPC interfaces to trigger certificate related actions.
+
+The feature will be done in two phases. Phase one will supply the CLI and basic certificate management functionality to install, delete, view and assosciate certificates with services to replace the current manual process. Phase two will provide a CA mode to facilitate the creation, signing, distribution and rotation of certificates.
 
 ## 1.1 Target Deployment Use Cases
 
@@ -95,11 +96,10 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Add ability to remove host and CA certificates
   - Add ability to configure CRL
   - Add ability to configure OCSP
-  - Add ability to generate self-signed certificates as well as certificate signing requests
   - Add ability to associate host and CA certs with application
   - Add CLIs to configure and manage certificates
   - Add validation and monitoring of certificates
-  - FIPS support: generate/install fips keys and use only in fips mode. fips keys will be stored in separate sub-directory.
+  - FIPS support: install fips keys and use only in fips mode. fips keys will be stored in separate sub-directory.
   - Peer Name Checking. Each application using security-profile should check if peer-name-check is set and act accordingly.
   - Key usage check. Each application using security-profile should check if key-usage-check is set and if so verify the key is used appropriately.
 
@@ -108,8 +108,6 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 
 ### Configurability
   - Install CA certificate from local file (alias location), remote location or copy and past into CLI
-  - Generate self-signed certificate 
-  - Generate certificate signing request (CSR)
   - Install certificate and private key from local file (alias location), remote location
   - Delete CA certificate
   - Delete certificate
@@ -126,7 +124,6 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Create new security profile
   - Delete security profile
   - Associate a certificate, private key file and CA trust-store with a security-profile
-  - Have option to specify CA server to have your CSR signed by it
 
 ### User Interfaces  
   - The feature is managed through the SONiC Management Framework, including full support for KLISH, REST and gNMI  
@@ -160,7 +157,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
 
-The certificate management functionality will be implemented using a new YANG model and accompanying KLISH CLI. The functionality of generating new certificate and key pairs, signing request, downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate generation, signing etc. The downloading of the certificates from remote locations will be handled with calls to curl.
+The certificate management functionality will be implemented using a new YANG model and accompanying KLISH CLI. The functionality of downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate operations. The downloading of the certificates from remote locations will be handled with the existing file managament API.
 
 To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events and downloading CRL lists and make OCSP requests.
 
@@ -194,21 +191,6 @@ This model will also be proposed to the openconfig community. The model is discu
 
 To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
-**gNOI RPCs**
-
-| **RPC Name**                   | **Description** |
-| ------------------------------ | --------------- |
-| Rotate                         | Rotate will replace an existing Certificate on the target by creating a new CSR request and placing the new Certificate based on the CSR on the target. If the stream is broken or any steps in the process fail the target must rollback to the original Certificate. |
-| Install                        | Install will put a new Certificate on the target by creating a new CSR request and placing the new Certificate based on the CSR on the target.The new Certificate will be associated with a new Certificate Id on the target. If the target has a preexisting Certificate with the given Certificate Id, the operation should fail. If the stream is broken or any steps in the process fail the target must revert any changes in state. |
-| GenerateCSR                    | When credentials are generated on the device, generates a key-pair and returns the Certificate Signing Request (CSR). The CSR has the public key, which when signed by the CA, becomes the Certificate  |
-| LoadCertificate                | Loads a certificate signed by a Certificate Authority (CA). |
-| LoadCertificateAuthorityBundle | Loads a bundle of CA certificates. |
-| GetCertificates                | An RPC to get the certificates on the target. |
-| RevokeCertificates             | An RPC to revoke specific certificates. If a certificate is not present on the target, the request should silently succeed. Revoking a certificate should render the existing certificate unusable by any endpoints. |
-| CanGenerateCSR                 | An RPC to ask a target if it can generate a Certificate. |
-
-In addition, to facilitate local generation of self-signed certificates and easier KLISH implementation these RPCs will also be defined for both REST and gNOI:
-
 **Custom RPCs**
 
 | **RPC Name**                   | **Description** |
@@ -217,12 +199,6 @@ In addition, to facilitate local generation of self-signed certificates and easi
 | crypto-ca-cert-delete | This procedure is used to delete an X.509 CA certificate |
 | crypto-host-cert-install | This procedure is used to install the X.509 host certificate |
 | crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
-| crypto-cdp-refresh | Refresh CRL distribution point (CDP) |
-| crypto-cert-generate | This procedure is used to create X.509 CSRs or self-signed certificates |
-| crypto-cert-ca-sign | Sign CSR that was sent to us |
-| crypto-cert-ca-csr-install | Send CSR to CA |
-| crypto-cert-ca-csr-delete | Delete CSR |
-| crypto-cert-signed-cert-get | Get/Download the signed certificate after the CA has signed it |
 
 ### 1.3.3 KLISH CLI
 
@@ -234,7 +210,6 @@ A new CLI will be added with the following commands:
 | ----------- | --------------- |
 | crypto ca-cert install | Install CA cert from local (alias location) or remote location or via pasting raw cert file |
 | crypto ca-cert delete | Delete CA certificate |
-| crypto cert generate | Generate signing request or self-signed host certificate |
 | crypto cert install | Install host certificate from local (alias location) or remote location |
 | crypto cert delete | Delete host certificate |
 | crypt cert verify | Verify host cert |
@@ -266,7 +241,6 @@ When the security-profile model is configured and the RPC's are called, the data
 | Delete Host Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate in use | Return certificate in use error |
 | Delete CA Cert | Certificate is root CA for another cert | Return certificate is root CA for child error |
-| CSR Create | Invalid CSR | Return invalid CSR error |
 
 **Notes:**
   - In addition, checking if a certificate has been revoked must be enabled on a per-application basis (rest, gNMI etc.) in the options provided to the server tls settings.
@@ -302,12 +276,10 @@ The sysmonitor.py script will be enhanced to detect the following conditions, an
 
 The directory `/etc/sonic/cert` will be used to store certificates and will be mounted on the containers by default. The directory will be preserved during upgrade/downgrade through the use of upgrade hook scripts. All certificate copying, generation and associations will only use this directory path as the target. Under this directory will contain the following sub-directories:
 
-  - ca-certs
+  - ca
+  - ca/<trust-store-name>
   - certs
-  - trust_store
   - keys
-  - csr
-  - crl
   - fips
   - fips/keys
 
@@ -374,20 +346,7 @@ The config DB will contain the new model's information.
         +--w name?
       +--w crypto-host-cert-delete
         +--w name?
-      +--w crypto-cert-generate
-        +--w type?
-        +--w destination-path?
-        +--w parameters?
     rpcs:
-      +--w crypto-cert-ca-sign
-        +--w name?
-      +--w crypto-cert-ca-csr-install
-        +--w name?
-        +--w csr?
-      +--w crypto-cert-ca-csr-delete
-        +-- name?
-      +--w crypto-cert-signed-cert-get
-        +-- name?
     +--rw trust-store
        +--rw name                   string
        +--rw ca-list* [name]
