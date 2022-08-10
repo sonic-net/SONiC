@@ -83,7 +83,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 1.2 Requirements
 
 ### Overview
-  - The certificate management feature should allow for host and CA certificates to be installed, generated and removed as well as applied to specific applications. Certificates should also be validated and monitored for issues such as expiration and revocation. The switch should be able to sign Certificates thereby acting as a CA.
+  - The certificate management feature should allow for host and CA certificates to be installed and removed as well as applied to specific applications. Certificates should also be validated and monitored for issues such as expiration and revocation.
 
 
 ### Functionality
