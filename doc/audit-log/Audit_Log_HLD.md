@@ -29,7 +29,7 @@ Audit log provides a way to monitor several security relevant information on the
 
 ## 1.1 Requirements
 
-- The log messages will be stored as a separate file under /var/log on the switch itself and will follow similar format to syslog messages. No support for remote logging or remote destination.
+- The log messages will be stored as a separate file under /var/log on the switch itself and will follow similar format to syslog messages. Support for local and remote logging will be enabled by default.
 
 - The audit log should contain the following messages:
   1. Log messages corresponding to login and logout through SSH and Console. The message content & format is from open source modules and is fixed.
@@ -391,3 +391,4 @@ Jun 12 19:36:04.059130 sonic INFO mgmt-framework#/usr/sbin/rest_server[711]: [RE
 - get request through CLI, REST, gNMI, verify show audit-log displays user, command string (for CLI) / path (for REST/gNMI) and status
 - delete request through CLI, REST, gNMI, verify show audit-log displays user, command string (for CLI) / path (for REST/gNMI) and status
 - Verify that show tech-support has audit log packaged
+- Verify audit log messages export to configured remote Syslog servers.
