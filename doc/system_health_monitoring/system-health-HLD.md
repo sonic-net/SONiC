@@ -148,12 +148,14 @@ Considering that different vendors platform may have different LED color capabil
 }
 ```
 
+The field "booting" is deprecated because there is no booting stage anymore. For backward compatible, user can still configure this field but it won't take effect.
+
 
 ## 2. System health monitor service business logic
 
 System health monitor daemon will run on the host, and periodically (every 60 seconds) check critical services, processes status, output of the command "monit summary", PSU, Fan, and thermal status which is stored in the state DB. If anything is abnormal, system status LED will be set to fault status. When fault condition relieved, system status will be set to normal status.
 
-Since system health is depending on Monit service, it shall start after Monit service. Before the switch boot up finish, the system health monitoring service shall get the monit service startup delay and make sure monit service run first.
+System health service shall start after database.service and updategraph.service. Monit service has a default 300 seconds start delay, system health service shall not wait for Monit service as Monit service only monitors part of the system. But system health service shall treat system as "Not OK" until Monit service start to work.
 
 Empty FEATURE table will be considered as fault condition.
 A service whose critical_processes file cannot be parsed will be considered as fault condition. Empty or absence of critical_processes file is not a fault condition and shall be skipped.
@@ -163,7 +165,6 @@ Incomplete data in the DB will also be considered as fault condition, e.g., PSU 
 
 Monit, thermalctld and psud will raise syslog when fault condition encountered, so system health monitor will only generate some general syslog on these situation to avoid redundant. For example, when fault condition meet, "system health status change to fault" can be print out, "system health status change to normal" when it recovered.
 
-this service will be started after system boot up(after database.service and updategraph.service).
 
 ## 3. System health data in redis database
 

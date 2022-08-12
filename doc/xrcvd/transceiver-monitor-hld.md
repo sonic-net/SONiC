@@ -237,7 +237,7 @@ A thread will be started to periodically refresh the DOM sensor information.
 
 Detailed flow as showed in below chart:
 
-![](https://github.com/keboliu/SONiC/blob/master/images/xcvrd-flow.svg)
+![](https://github.com/Azure/SONiC/blob/d1159ca728112f10319fa47de4df89c445a27efc/images/transceiver_monitoring_hld/xcvrd_flow.svg)
 
 #### 1.4.1 State machine of sfp\_state\_update\_task process ####
 
