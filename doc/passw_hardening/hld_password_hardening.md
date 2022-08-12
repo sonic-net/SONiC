@@ -49,7 +49,7 @@
 
 ###  1.2. <a name='Scope'></a>Scope
 
-This password hardening hld doc described the requirements, architecture and configuration details of password hardening feature in switches Sonic OS based.
+This password hardening hld doc described the requirements, architecture and configuration details of password hardening feature in switches SONIC OS based.
 
 ###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
 	PW - password
@@ -100,7 +100,7 @@ See linux 3d party component chapter for more description
 ![password hardening flow](ph_diagram.jpg)
 
 ####  1.7.1. <a name='Flowdescription:'></a>Flow description:
-When the feature is enabled, Users by using Sonic CLI will set new password policies/configuration (see PW options below) saving those in CONF_DB in PASSWH_TABLE.
+When the feature is enabled, Users by using SONIC CLI will set new password policies/configuration (see PW options below) saving those in CONF_DB in PASSWH_TABLE.
 
 The daemon named hostcfgd daemon will be extended to listen to password hardening policies/configurations from PASSWH table, parse the inputs and set the new policies to PAM lib using pam-cracklib, chage, pwhistory libs.
 
@@ -231,15 +231,11 @@ For saving password with sha512, need to modify the /etc/pam.d/system-auth-a fil
 
 ###  1.8. <a name='InitFlow'></a>Init Flow
 ####  1.8.1. <a name='Compilation'></a>Compilation
-This feature will be enabled by default in the compilation stage, this means that it will be compiled, and will be not compiled only when the user specifically adds the relevant compilation flag "INCLUDE_PASSWH=n" in sonic-buildimage/rules/config file.
+This feature will be compiled always, but it will be disabled by default (from running time point of view).
+Meaning that the switch will boot with an image that includes the feature code and the status of the feature will be disabled, so no password hardening policies are configured in the system. 
+This default configuration can be founded in init_cfg.json.j2.
 
-In addition, the feature will have CLI as a "plugin", meaning that when the feature is not compiled will be not appear in the CLI of the switch, and vice versa.
-
-Feature enable details:
-when compilation flag is enabled(default value), users can still enable or disable this feature in runtime.
-By default if the feature was compiled, the feature status will be disabled, meaning that the switch will boot with the feature compiled, but disable.
-the disable default configuration can be founded in init_cfg.json.j2 file.
-In case, the user want to enable the feature it can be done by using the Sonic CLI (details in CLI chapter).
+In addition, the user can enable/disable the feature in running time by using the SONIC CLI (details in CLI chapter).
 
 ####  1.8.2. <a name='Dependencies'></a>Dependencies
 Service dependencies: same dependencies as HOSTCFGD, INIT_CONF and NTP service.
