@@ -1,20 +1,20 @@
 # SONiC NPU MDIO access support and gbsyncd docker enhancement HLD
 
-#### Rev 0.1
+#### Rev 0.3
 
 ## Table of Content 
   * [List of Tables](#list-of-tables)
   * [Revision](#revision)
   * [Scope](#scope)
-  * [Definition/Abbreviation](#definition-abbreviation)
-  * [Document/References](#document-references)
+  * [Definition/Abbreviation](#definition/abbreviation)
+  * [Document/References](#document/references)
   * [Overview](#overview)
   * [Requirements](#requirements)
   * [Architecture Design](#architecture-design)
   * [High-Level Design](#High-Level-Design)
   * [SAI API](#SAI-API)
   * [Configuration and management](#Configuration-and-management)
-  * [Restrictions/Limitations](#Restrictions-Limitations)
+  * [Restrictions/Limitations](#Restrictions/Limitations)
 
 ## List of Tables
 - [Table 1: Abbreviations](#table-1-abbreviations)
@@ -25,6 +25,7 @@
 |:----:|:----------:|:-----------------:|:-----------------------------------------------:|
 | 0.1  | 07/31/2022 |   Jiahua Wang     | Initial version                                 |
 | 0.2  | 08/03/2022 |   Jiahua Wang     | Fix title and references                        |
+| 0.3  | 08/12/2022 |   Jiahua Wang     | Overloading VendoSai class constructor          |
 
 ### About this Manual
 
@@ -84,7 +85,7 @@ The informationn of PHY device using clause 22 mdio can also be added to the gea
 
 ![syncd gbsyncd MDIO IPC](images/MDIO-IPC.png)
 
-A new syncd class called VendoPaiDLL is created to handle the dynamic loading of the libraries. The VendorPaiDLL is very similar to the syncd class VendorSai. The VendorSai class handles the SAI library. The VendorPaiDLL will handle the PAI library and MDIO access library.
+The VendorSai class constructor is overloaded to handle the dynamic linking of the libraries. The  syncd class VendorSai currently only has a constructor with no argument. The linked SAI library path is determined at syncd build time. New constructors with arguments for the VendorSai class is introduced as the overloading constructors. The new constructors can either have the SAI/PAI library path as the argument or have PHY id as one of the arguments. When the constructor with PHY id as the argument is used, the syncd can index into the "phys" section of gearbox configuration file "gearbox\_config.json" to get the PAI library path and MDIO access library path at run time.
 
 ### High-Level Design 
 
@@ -94,22 +95,25 @@ The high level design of the gbsyncd mdio access function using the mdio bus fro
 	- Syncd, SAI and some sonic device files are modified.
 	- There are 3 repositories that would be changed, sonic-sairedis, SAI and sonic-buildimage.
 	- gbsyncd will have dependencies on syncd to create the Unix IPC socket. 
-	- Syncd will have 2 new classes, one for the MDIO IPC server, another one for loading the PAI library and MDIO access library.
+	- Syncd will have new classes for the MDIO IPC server and for the parser of gearbox configuration.
+	- There is a new MDIO IPC client library is added.
 	- External PHY firmware download time always has performance requirements/impact.
 	- For debugging, beside the syslog logging, the Unix socket IPC mechanism can be simulated by socat.
 	- The current change is only limited to the Broadcom switch NPU platform.
 	- SAI switch api has added the mido clause 22 access functions.
 	- The SaiInterface class has added the mdio clause 45 read/write and mdio clause 22 read/write virtual functions.
-	- The derived class VendoPai also has overridden the mdio clause 45 read/write and mdio clause 22 read/write virtual functions.
-	- 2 keys are added to the gearbox configuration file "gearbox\_config.json".
+	- The VendoSai class overrides the mdio clause 45 read/write and mdio clause 22 read/write virtual functions.
+	- New keys are added to the gearbox configuration file "gearbox\_config.json".
 
-The VendorPaiDll class is used in syncd.cpp. We assume the context number is the same as the PHY id.
+When the VendorSai class constructor with PHY id argument is used in syncd.cpp, we can assume a simple case where syncd context number is the same as the PHY id.
 
 	int syncd_main(int argc, char **argv)
 	{
 	    ...
 	    if (commandLineOptions->m_globalContext != 0) {   
-	        auto vendorSai = std::make_shared<VendorPaiDLL>((int)commandLineOptions->m_globalContext);
+	        auto vendorSai = std::make_shared<VendorSai>(
+	        (int)commandLineOptions->m_globalContext,
+	        (int)commandLineOptions->m_globalContext);
 	        ...
 	    } else {   
 	        auto vendorSai = std::make_shared<VendorSai>();
@@ -118,11 +122,14 @@ The VendorPaiDll class is used in syncd.cpp. We assume the context number is the
 	    ...
 	}
 
-The VendorPaiDLL class is implemented in VendorPaiDLL.cpp. The functions gbsyncd\_get\_pai\_lib\_name(), gbsyncd\_get\_phy\_access\_lib\_name() and gbsyncd\_get\_mdio\_cl22\_only() will get the JSON key values for "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" in the configuration file "gearbox\_config.json".
+For the case that multiple PHY ids aggregate in a single syncd context, it is a new separate topic. We don't discuss the topic in this HLD.
 
-	VendorPaiDLL::VendorPaiDLL(int phy_id)
+The VendorSai overloading constructor will use the functions gbsyncd\_get\_pai\_lib\_name(phy\_id),  gbsyncd\_get\_phy\_access\_lib\_name(phy\_id) and gbsyncd\_get\_mdio\_cl22\_only(phy\_id) to get the JSON key values for "lib\_name", "phy\_access\_lib\_name" and "mdio\_cl22\_only" in the configuration file "gearbox\_config.json".
+
+	VendorSai::VendorSai(int phy_id, int context)
 	{
 	    ...
+	    m_context = context;
 	    m_sai_dll_handle = dlopen (gbsyncd_get_pai_lib_name().c_str(), RTLD_LAZY);
 	    *(void**)(&dll_sai_api_initialize) = dlsym(m_sai_dll_handle, "sai_api_initialize");
 	    *(void**)(&dll_sai_api_uninitialize) = dlsym(m_sai_dll_handle, "sai_api_uninitialize");
@@ -146,8 +153,10 @@ The VendorPaiDLL class is implemented in VendorPaiDLL.cpp. The functions gbsyncd
 	    }   
 	    ...
 	}
-	...
-	sai_status_t VendorPaiDLL::create(
+
+The VendorSai::create() function can set the correct the MDIO access functions for PAI in gbsyncd context.
+
+	sai_status_t VendorSai::create(
         _In_ sai_object_type_t objectType,
         _Out_ sai_object_id_t* objectId,
         _In_ sai_object_id_t switchId,
@@ -162,7 +171,7 @@ The VendorPaiDLL class is implemented in VendorPaiDLL.cpp. The functions gbsyncd
 		    
 		    for (auto i = 0; i < attr_count; i++)
 		    {
-		        if (attr_list[i].id == SAI_SWITCH_ATTR_REGISTER_READ)
+		        if (attr_list[i].id == SAI_SWITCH_ATTR_REGISTER_READ && m_context !=0)
 		        {
 		        attr.id = SAI_SWITCH_ATTR_REGISTER_READ;
 		        attr.value.ptr =  (void *) m_mdio_read;
