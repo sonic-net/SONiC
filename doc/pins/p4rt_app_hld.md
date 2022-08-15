@@ -16,6 +16,7 @@ _Rev v0.1_
   * [Response path](#response-path)
 - [APPL DB Schema High-Level Design](#appl-db-schema-high-level-design)
 - [Testing Requirements/Design](#testing-requirements-design)
+- [Configuring P4RT Application](#configuring-p4rt-application)
 - [Open/Action items - if any](#open-action-items---if-any)
 
 ## Revision
@@ -164,6 +165,29 @@ P4RT application introduces new tables that are written to APPL_DB for the table
 
 The P4RT application code will have unit & component tests that together will give >80% code coverage.
 
+## Configuring P4RT Application
+
+The P4RT application is configured at the start-up by reading the P4RT configuration from the CONFIG_DB. If no valid config exists in CONFIG_DB, it uses the default values. The configuration can be added to the CONFIG_DB by being manually added to the config_db.json file. The P4RT container will need to be restarted if the configuration is changed.
+
+Below is an example of adding P4RT configuration to config_db.json. The user can modify this block based on their environment settings. 
+
+```
+"P4RT": {
+  "certs": {
+    "server_crt": "/keys/server_cert.lnk",
+    "server_key": "/keys/server_key.lnk",
+    "ca_crt": "/keys/ca_cert.lnk",
+    "cert_crl_dir": "/keys/crl"
+  },
+  "p4rt_app": {
+    "port": "9559",
+    "use_genetlink": "false",
+    "use_port_ids": "false",
+    "save_forwarding_config_file" : "/etc/sonic/p4rt_forwarding_config.pb.txt",
+    "authz_policy": "/keys/authorization_policy.json"
+  }
+}
+```
 
 ## Open/Action items - if any
 
