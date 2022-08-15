@@ -353,15 +353,24 @@ N/A
 1. Verify command "config syslog rate-limit-host"
 2. Verify command "config syslog rate-limit-container"
 3. Verify command "show syslog rate-limit-host"
-4. Verify command "config syslog rate-limit-container"
+4. Verify command "show syslog rate-limit-container"
 
 #### sonic-mgmt Test cases
 
-A new test case shall be added, test flow like below:
+Two new test case shall be added:
+
+##### test_syslog_rate_limit_container
+
 1.	Loop each container
 2.	Change the syslog rate limit of current container
 3.	Use a generated script to print log from current container which is fast enough to hit the limit
 4.	Check syslog that some logs are dropped
+
+##### test_syslog_rate_limit_host
+
+1.	Change the syslog rate limit of host
+2.	Use a generated script to print log from host which is fast enough to hit the limit
+3.	Check syslog that some logs are dropped
 
 #### Open questions:
 1. How about have an agent to handle syslog rate limit configuration change in each container?
