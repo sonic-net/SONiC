@@ -5,6 +5,7 @@
 |  Rev  | Date       | Author     | Change Description |
 | :---: | :--------: | :--------: | ------------------ |
 |  0.1  | 2022-02-22 | Xuhui Miao | Initial version    |
+|  0.2  | 2022-07-07 | Xuhui Miao | Update Fips config |
 
 ## Table of Contents
 - [Abbreviation](#abbreviation)
@@ -23,6 +24,7 @@
   * [Enable FIPS on system level](#Enable-FIPS-on-system-level)
   * [Enable FIPS on application level](#Enable-FIPS-on-application-level)
   * [SONiC Build Options](#SONiC-Build-Options)
+- [SONiC FIPS Command lines](#SONiC-FIPS-Command-lines)
 - [Q&A](#Q&A)
 
 
@@ -126,14 +128,29 @@ For OpenSSH, Centos provides a [patch](https://git.centos.org/rpms/openssh/raw/c
 ## SONiC FIPS Configuration
 
 ### Enable FIPS on system level
-Add the Linux System parameter fips=1, in grub config, one of implemetation as below:
+Set the Linux System parameter sonic_fips=1, to validate if the FIPS is enabled:
+```
+grep 'sonic_fips=1' /proc/cmdline
+```
 
+There is another parameter fips=1 supported for SymCrypt OpenSSL to enable FIPS. The parameter will enable the Linux Kernel FIPS, but the Linux Kernel FIPS is not supported yet, and it is out of scope in this document. In future, when the FIPS is supported by SONiC Linux Kernel, and the parameter fips=1 has already set, it is not necessary to set sonic_fips=1.
+
+For grub, one of implemetation as below:
 cat /etc/grub.d/99-fips.cfg
 ```
-GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT fips=1"
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT sonic_fips=1"
 ```
 
-To validate the FIPS enabled, grep 'fips=1' /proc/cmdline.
+For uboot, use fw_setenv to variable linuxargs to change the boot options.
+```
+OTHER_OPTIONS=$(fw_printenv linuxargs | sed 's/linuxargs=//')
+fw_setenv linuxargs "$OTHER_OPTIONS sonic_fips=1"
+```
+
+For Aboot, add the config in /host/image-{version}/kernel-cmdline, example:
+```
+reboot=p console=ttyS0 acpi=on Aboot=Aboot-norcal7-7.2.0-pcie2x4-6128821 <other parameters...> sonic_fips=1
+```
 
 ### Enable FIPS on application level
 ```
@@ -162,6 +179,20 @@ Support to enable/disable FIPS config, the flage is disabled by default. IF the 
 ENABLE_FIPS ?= n
 ```
 If the ENABLE_FIPS_FEATURE is not set, then the option ENABLE_FIPS is useless.
+
+## SONiC FIPS Command lines
+### The command line to enable or disable FIPS
+sonic-installer set-fips <image> [--enable-fips|--disable-fips]
+
+If the image is not specified, the next boot image will be used.
+The default behavior is to enable FIPS, if none of the option --enable-fips or --disable-fips specified.
+
+### The command line to show FIPS status
+sonic-installer get-fips <image>
+
+Returns the following message: FIPS is enabled/disabled.
+If the image is not specified, the next boot image will be used.
+
 
 ## Q&A
 ### Does SymCrypt use Linux Kernel crypto module?
