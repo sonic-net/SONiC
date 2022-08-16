@@ -65,9 +65,7 @@
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 | 10/31/2019  | Amitabha Sen       | Initial version                   |
 | 0.2 | 06/20/2022  | Kannan Selvaraj    | Updated load-balance round-robin  |
-|     |             |                    | show command display as STATIC    |
-|     |             |                    | CONFIG_DB flag is changed from    |
-|     |             |                    | static to on                      |
+|     |             |                    | show command display as NONE      |
 
 # About this Manual
 This document provides details on achieving Static Port Channel functionality in SONiC. 
@@ -136,10 +134,10 @@ A user should be able to create the Port Channel in static or dynamic mode. For 
 Note: Port Channels are dynamic by default in SONiC. 
 
 ### 3.1.2 Team Manager
-Team Manager listens to Port Channel update events from the PORTCHANNEL and PORTCHANNEL_MEMBER table in CONFIG_DB. For the Static Port Channel add event it starts Teamd  with round-robin as the runner; whereas for the dynamic Port Channel Teammgr starts Teamd with lacp as the runner. 
+Team Manager listens to Port Channel update events from the PORTCHANNEL and PORTCHANNEL_MEMBER table in CONFIG_DB. For the Static Port Channel add event it starts Teamd  with load-balance as the runner; whereas for the dynamic Port Channel Teammgr starts Teamd with lacp as the runner. 
 
 When static port-channel is configured then teammgr invokes teamd instance as follows
-root          27       1  0 Jun17 ?        00:01:10 /usr/bin/teamd -r -t PortChannel0001 -c {"device":"PortChannel0001","hwaddr":"00:e0:ec:7a:88:11","runner":{"name":"roundrobin","min_ports":1}} -L /var/warmboot/teamd/ -g -d
+root          27       1  0 Jun17 ?        00:01:10 /usr/bin/teamd -r -t PortChannel0001 -c {"device":"PortChannel0001","hwaddr":"00:e0:ec:7a:88:11","runner":{"name":"loadbalance","min_ports":1}} -L /var/warmboot/teamd/ -g -d
 
 round-robin load-balancing is configured for the kernel interface port-channel.
 
@@ -195,7 +193,7 @@ Please refer [Openconfig support for Port Channel](#openconfig-support-for-port-
 
 ```
 click CLI
-1. config portchannel add PortChannel<number> --static=true
+1. config portchannel add PortChannel<number> --on=true
    Create a Static Port Channel.
 
 ```
@@ -213,9 +211,9 @@ Flags: A - active, I - inactive, Up - up, Dw - Down, N/A - not available,
        S - selected, D - deselected, * - not synced
   No.  Team Dev         Protocol       Ports
 -----  ---------------  -------------  --------------
- 0001  PortChannel0001  STATIC(A)(Up)  Ethernet112(S)
- 0002  PortChannel0002  STATIC(A)(Up)  Ethernet116(S)
- 0003  PortChannel0003  STATIC(A)(Up)  Ethernet120(S)
+ 0001  PortChannel0001  NONE(A)(Up)  Ethernet112(S)
+ 0002  PortChannel0002  NONE(A)(Up)  Ethernet116(S)
+ 0003  PortChannel0003  NONE(A)(Up)  Ethernet120(S)
 
 ```
 ### 3.6.4 Debug Commands
