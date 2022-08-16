@@ -18,7 +18,7 @@ N/A
 
 ### Overview
 
-Logging in SONiC is organized with rsyslogd. Each container has its own rsyslogd instance plus a daemon running on a host. The rsyslogd instance which is running on the host is used to collect the messages from within containers and store them at /var/log/syslog path. Rsyslog config file are generated from templates:
+Logging in SONiC is organized with rsyslogd. Each container has its own rsyslogd instance plus a daemon running on host side. The rsyslogd instance which is running on the host is used to collect the messages from within containers and store them at certain path (E.g. /var/log/syslog). Rsyslog config file are generated from templates:
 
 - Container scope:
   - Multi ASIC: https://github.com/Azure/sonic-buildimage/blob/master/files/image_config/rsyslog/rsyslog-container.conf.j2
@@ -39,7 +39,7 @@ This feature allows user to configure SystemLogRateLimitInterval and SystemLogRa
 
 ### Requirements
 
-- Add syslog message rate limit configuration for host and containers
+- Support syslog message rate limit configuration for host and containers
 - New CLI for rate limit configuration
 - Have rate limit configuration persistent
 - Default rate limit shall be applied if no configuration provided
@@ -102,10 +102,10 @@ New tables shall be added to CONFIG DB to store the rate limit configuration. in
 {% if SYSLOG_CONFIG is defined %}
 {% if 'GLOBAL' in SYSLOG_CONFIG %}
 {% if 'rate_limit_interval' in SYSLOG_CONFIG['GLOBAL']%}
-{% rate_limit_interval = SYSLOG_CONFIG['GLOBAL']['rate_limit_interval'] %}
+{% set rate_limit_interval = SYSLOG_CONFIG['GLOBAL']['rate_limit_interval'] %}
 {% endif %}
 {% if 'rate_limit_burst' in SYSLOG_CONFIG['GLOBAL']%}
-{% rate_limit_burst = SYSLOG_CONFIG['GLOBAL']['rate_limit_burst'] %}
+{% set rate_limit_burst = SYSLOG_CONFIG['GLOBAL']['rate_limit_burst'] %}
 {% endif %}
 {% endif %}
 {% endif %}
@@ -121,16 +121,16 @@ $SystemLogRateLimitBurst {{ rate_limit_burst }}
 #### rsyslog-container.conf.j2
 
 ```
-{% rate_limit_interval = '300' %}
-{% rate_limit_burst = '20000' %}
+{% set rate_limit_interval = '300' %}
+{% set rate_limit_burst = '20000' %}
 
 {% if SYSLOG_CONFIG_FEATURE is defined %}
 {% if container_name in SYSLOG_CONFIG_FEATURE %}
 {% if 'rate_limit_interval' in SYSLOG_CONFIG_FEATURE[container_name]%}
-{% rate_limit_interval = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_interval'] %}
+{% set rate_limit_interval = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_interval'] %}
 {% endif %}
 {% if 'rate_limit_burst' in SYSLOG_CONFIG_FEATURE[container_name]%}
-{% rate_limit_burst = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_burst'] %}
+{% set rate_limit_burst = SYSLOG_CONFIG_FEATURE[container_name]['rate_limit_burst'] %}
 {% endif %}
 {% endif %}
 {% endif %}
@@ -234,9 +234,9 @@ show syslog rate-limit-container [<service_name>]
 
 Example:
 show syslog rate-limit-host
-SERVICE    INTERVAL     BURST
---------   ----------   --------
-GLOBAL     500          50000
+INTERVAL     BURST
+----------   --------
+500          50000
 
 show syslog rate-limit-container
 SERVICE    INTERVAL     BURST
