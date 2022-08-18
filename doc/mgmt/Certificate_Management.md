@@ -334,88 +334,88 @@ The config DB will contain the new model's information.
 
 #### sonic-pki YANG model:
 
-module: sonic-pki
-    +--rw sonic-pki
-       +--rw PKI_GLOBALS
-       |  +--rw PKI_GLOBALS_LIST* [name]
-       |     +--rw name         enumeration
-       |     +--rw fips-mode?   boolean
-       +--rw SECURITY_PROFILES
-       |  +--rw SECURITY_PROFILES_LIST* [profile-name]
-       |     +--rw profile-name           string
-       |     +--rw certificate-name?      -> /sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST/cert-name
-       |     +--rw key-name?              string
-       |     +--rw trust-store?           -> /sonic-pki/TRUST_STORES/TRUST_STORES_LIST/name
-       |     +--rw revocation-check?      boolean
-       |     +--rw peer-name-check?       boolean
-       |     +--rw key-usage-check?       boolean
-       |     +--rw cdp-list*              string
-       |     +--rw ocsp-responder-list*   string
-       +--rw TRUST_STORES
-       |  +--rw TRUST_STORES_LIST* [name]
-       |     +--rw name       string
-       |     +--rw ca-name*   -> /sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST/cert-name
-       +--rw PKI_HOST_CERTIFICATES
-       |  +--rw PKI_HOST_CERTIFICATES_LIST* [cert-name]
-       |     +--rw cert-name    string
-       |     +--rw key-name?    string
-       +--rw PKI_CA_CERTIFICATES
-          +--rw PKI_CA_CERTIFICATES_LIST* [cert-name]
-             +--rw cert-name    string
+    module: sonic-pki
+        +--rw sonic-pki
+          +--rw PKI_GLOBALS
+          |  +--rw PKI_GLOBALS_LIST* [name]
+          |     +--rw name         enumeration
+          |     +--rw fips-mode?   boolean
+          +--rw SECURITY_PROFILES
+          |  +--rw SECURITY_PROFILES_LIST* [profile-name]
+          |     +--rw profile-name           string
+          |     +--rw certificate-name?      -> /sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST/cert-name
+          |     +--rw key-name?              string
+          |     +--rw trust-store?           -> /sonic-pki/TRUST_STORES/TRUST_STORES_LIST/name
+          |     +--rw revocation-check?      boolean
+          |     +--rw peer-name-check?       boolean
+          |     +--rw key-usage-check?       boolean
+          |     +--rw cdp-list*              string
+          |     +--rw ocsp-responder-list*   string
+          +--rw TRUST_STORES
+          |  +--rw TRUST_STORES_LIST* [name]
+          |     +--rw name       string
+          |     +--rw ca-name*   -> /sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST/cert-name
+          +--rw PKI_HOST_CERTIFICATES
+          |  +--rw PKI_HOST_CERTIFICATES_LIST* [cert-name]
+          |     +--rw cert-name    string
+          |     +--rw key-name?    string
+          +--rw PKI_CA_CERTIFICATES
+              +--rw PKI_CA_CERTIFICATES_LIST* [cert-name]
+                +--rw cert-name    string
 
-  rpcs:
-    +---x crypto-ca-cert-install
-    |  +---w input
-    |  |  +---w file-path?       string
-    |  |  +---w file-contents?   string
-    |  |  +---w file-name?       string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x crypto-ca-cert-delete
-    |  +---w input
-    |  |  +---w file-name?   string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x crypto-host-cert-install
-    |  +---w input
-    |  |  +---w file-path?   string
-    |  |  +---w key-path?    string
-    |  |  +---w password?    string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x crypto-host-cert-delete
-    |  +---w input
-    |  |  +---w file-name?   string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    +---x crypto-ca-cert-display
-    |  +---w input
-    |  |  +---w file-name?   string
-    |  |  +---w raw-file?    boolean
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    |     +--ro cert-details*    string
-    |     +--ro filename*        string
-    +---x crypto-host-cert-display
-    |  +---w input
-    |  |  +---w file-name?   string
-    |  +--ro output
-    |     +--ro status?          int32
-    |     +--ro status-detail?   string
-    |     +--ro cert-details*    string
-    |     +--ro filename*        string
-    +---x crypto-cert-verify
-       +---w input
-       |  +---w cert-name?   string
-       +--ro output
-          +--ro status?          int32
-          +--ro status-detail?   string
-          +--ro verify-output?   string
+      rpcs:
+        +---x crypto-ca-cert-install
+        |  +---w input
+        |  |  +---w file-path?       string
+        |  |  +---w file-contents?   string
+        |  |  +---w file-name?       string
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        +---x crypto-ca-cert-delete
+        |  +---w input
+        |  |  +---w file-name?   string
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        +---x crypto-host-cert-install
+        |  +---w input
+        |  |  +---w file-path?   string
+        |  |  +---w key-path?    string
+        |  |  +---w password?    string
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        +---x crypto-host-cert-delete
+        |  +---w input
+        |  |  +---w file-name?   string
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        +---x crypto-ca-cert-display
+        |  +---w input
+        |  |  +---w file-name?   string
+        |  |  +---w raw-file?    boolean
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        |     +--ro cert-details*    string
+        |     +--ro filename*        string
+        +---x crypto-host-cert-display
+        |  +---w input
+        |  |  +---w file-name?   string
+        |  +--ro output
+        |     +--ro status?          int32
+        |     +--ro status-detail?   string
+        |     +--ro cert-details*    string
+        |     +--ro filename*        string
+        +---x crypto-cert-verify
+          +---w input
+          |  +---w cert-name?   string
+          +--ro output
+              +--ro status?          int32
+              +--ro status-detail?   string
+              +--ro verify-output?   string
 
 ### 3.3.2 CLI
 
