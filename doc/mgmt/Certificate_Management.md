@@ -41,6 +41,7 @@
 | 0.1 | <07/20/2021>|   Eric Seifert     | Initial version                   |
 | 0.2 | <08/24/2021>|   Eric Seifert     | Add Functionality Section         |
 | 0.3 | <09/17/2021>|   Eric Seifert     | Address Review Comments           |
+| 0.4 | <08/18/2022>|   Eric Seifert     | Address comments                  |
 
 # About this Manual
 This document provides comprehensive functional and design information about the certificate management feature implementation in SONiC.
@@ -99,7 +100,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Add ability to associate host and CA certs with application
   - Add CLIs to configure and manage certificates
   - Add validation and monitoring of certificates
-  - FIPS support: install fips keys and use only in fips mode. fips keys will be stored in separate sub-directory.
+  - FIPS support: install fips keys and use only in fips mode. Only fips or non-fips certificates will be allowed at once depending on the global setting.
   - Peer Name Checking. Each application using security-profile should check if peer-name-check is set and act accordingly.
   - Key usage check. Each application using security-profile should check if key-usage-check is set and if so verify the key is used appropriately.
 
@@ -115,9 +116,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
   - Display trusted CAs
   - Display raw PEM Format certificate
   - Configure certificate revocation check behavior
-  - Refresh CRL
   - Configure CRL download location(s)
-  - Configure CRL Override
   - Display CRL
   - Configure OCSP
   - Show OCSP
@@ -157,7 +156,7 @@ Although only REST and gNMI are to be targeted initially for use with certificat
 ## 1.3 Design Overview
 ### 1.3.1 Basic Approach
 
-The certificate management functionality will be implemented using a new YANG model and accompanying KLISH CLI. The functionality of downloading and installing will be implemented in a python script that the CLI will call. The script will use the already installed openssl tools on the system for the certificate operations. The downloading of the certificates from remote locations will be handled with the existing file managament API.
+The certificate management functionality will be implemented using a new YANG model and accompanying KLISH CLI. The script will use the already installed openssl tools on the system for the certificate operations. The downloading of the certificates from remote locations will be handled with the existing file managament API.
 
 To monitor the certificates validity and the correct configuration of the services, new periodically called functions will be added to SONiC sysmonitor.py script. These functions will be responsible for creating alarms and events and downloading CRL lists and make OCSP requests.
 
@@ -165,31 +164,34 @@ To monitor the certificates validity and the correct configuration of the servic
 
 The sonic-crypto YANG model will describe the following structure(s) and field(s):
 
-  - security-profile
-    - profile-name
-    - certificate-filename
-    - trust-store (System or app specific)
-    - revocation-check
-    - peer-name-check
-    - key-usage-check
-
-  - trust-store
-    - name
-    - ca-list
-      - name
-
-  - cdp-config
-    - frequency
-    - last-checked
-    - cdp-list
-      - url
-
-  - ocsp-config
-    - responder
+       +--rw PKI_GLOBALS
+       |  +--rw PKI_GLOBALS_LIST* [name]
+       |     +--rw name         enumeration
+       |     +--rw fips-mode?   boolean
+       +--rw SECURITY_PROFILES
+       |  +--rw SECURITY_PROFILES_LIST* [profile-name]
+       |     +--rw profile-name           string
+       |     +--rw certificate-name?      -> /sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST/cert-name
+       |     +--rw key-name?              string
+       |     +--rw trust-store?           -> /sonic-pki/TRUST_STORES/TRUST_STORES_LIST/name
+       |     +--rw revocation-check?      boolean
+       |     +--rw peer-name-check?       boolean
+       |     +--rw key-usage-check?       boolean
+       |     +--rw cdp-list*              string
+       |     +--rw ocsp-responder-list*   string
+       +--rw TRUST_STORES
+       |  +--rw TRUST_STORES_LIST* [name]
+       |     +--rw name       string
+       |     +--rw ca-name*   -> /sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST/cert-name
+       +--rw PKI_HOST_CERTIFICATES
+       |  +--rw PKI_HOST_CERTIFICATES_LIST* [cert-name]
+       |     +--rw cert-name    string
+       |     +--rw key-name?    string
+       +--rw PKI_CA_CERTIFICATES
+          +--rw PKI_CA_CERTIFICATES_LIST* [cert-name]
+             +--rw cert-name    string
 
 This model will also be proposed to the openconfig community. The model is discussed in more detail below.
-
-To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto), the following RPCs will be defined, but initially only available in gNOI due to limitations with REST RPCs:
 
 **Custom RPCs**
 
@@ -199,6 +201,10 @@ To align with the gNOI [cert.proto](https://github.com/openconfig/gnoi/blob/mast
 | crypto-ca-cert-delete | This procedure is used to delete an X.509 CA certificate |
 | crypto-host-cert-install | This procedure is used to install the X.509 host certificate |
 | crypto-host-cert-delete | This procedure is used to delete the X.509 host certificate |
+| crypto-ca-cert-display | This procedure retrieves and returns the x.509 CA cert |
+| crypto-host-cert-display | This procedure retrieves and returns the x.509 host cert |
+| crypto-cert-verify | This procedure validates the x.509 host cert |
+
 
 ### 1.3.3 KLISH CLI
 
@@ -210,18 +216,21 @@ A new CLI will be added with the following commands:
 | ----------- | --------------- |
 | crypto ca-cert install | Install CA cert from local (alias location) or remote location or via pasting raw cert file |
 | crypto ca-cert delete | Delete CA certificate |
+| crypto ca-cert verify | Verify CA certificate |
 | crypto cert install | Install host certificate from local (alias location) or remote location |
 | crypto cert delete | Delete host certificate |
 | crypt cert verify | Verify host cert |
-| crypt ca-cert verify | Verify CA cert |
 | show crypto cert | Show installed certificates list or specific cert details |
 | show crypto ca-cert | Show installed CA certificates list or specific cert details |
-| show file cert | Show raw certificate file in PEM format |
-| crypto security-profile | Create security-profile |
+| show crypto cert file | Show raw host certificate file in PEM format |
+| show crypto ca-cert file | Show raw CA certificate file in PEM format |
+| crypto security-profile <name> | Create security-profile |
 | crypto security-profile certificate | Associate security-profile with certificate |
 | crypto security-profile trust-store | Associate security-profile with trust-store |
+| crypto security-profile ocsp-list | Associate security-profile with ocsp list |
+| crypto security-profile cdp-list | Associate security-profile with cdp list |
 | crypto trust-store <name> | Create new or access existing trust-store |
-| crypto trust-store <name> add <ca-name> | Add CA cert to trust-store |
+| crypto trust-store <name> ca-cert <ca-name> | Add CA cert to trust-store |
 
 **Note:**
 Association of security-profile to application happens in the application specific CLI (i.e. telemetry, rest etc.). The CLIs will follow the format below:
@@ -280,8 +289,6 @@ The directory `/etc/sonic/cert` will be used to store certificates and will be m
   - ca/<trust-store-name>
   - certs
   - keys
-  - fips
-  - fips/keys
 
 The keys directories and all files within will have correct permissions 0700 so that no unauthorized users can read the private key files. The fips directory will store the fips mode keys and certs separately from the non-fips mode keys/certs. The trust-store directory will hold directories named after the trust-stores and symlinks to each certificate in the trust-store. There will be one default system trust-store directory that will be a symlink to the host system's trust-store directory (/etc/ssl/certs). Any certificate added to this trust store will be added to the system trust-store and update-ca-certificates will be ran.
 
@@ -325,76 +332,94 @@ The config DB will contain the new model's information.
 
 ### 3.3.1 Data Models
 
-#### sonic-crypto YANG model:
+#### sonic-pki YANG model:
 
-    +--rw security-profile* [profile-name]
-       +--rw profile-name            string
-       +--rw certificate-name?       leaf-ref
-       +--rw trust-stores* [trust-store]
-           +--rw trust-store         leaf-ref
-       +--rw revocation-check?       boolean
-       +--rw peer-name-check?        boolean
-       +--rw key-usage-check?        boolean
-    rpcs:
-      +--x crypto-ca-cert-install
-        +--w file-path?
-        +--w name?
-      +--w crypto-ca-cert-delete
-        +--w name?
-      +--w crypto-host-cert-install
-        +--w file-path?
-        +--w name?
-      +--w crypto-host-cert-delete
-        +--w name?
-    rpcs:
-    +--rw trust-store
-       +--rw name                   string
-       +--rw ca-list* [name]
-           +--rw certificate-name?  leaf-ref
-    +--rw cdp-config
-       +--rw frequency              integer
-       +--ro last-checked           integer
-       +--rw cdp-list* [url]
-           +rw url?                 string
-    +--rw ocsp-config
-       +--rw responder              string
-    rpcs:
-      +--x crypto-cdp-refresh
-        +--w url
+module: sonic-pki
+    +--rw sonic-pki
+       +--rw PKI_GLOBALS
+       |  +--rw PKI_GLOBALS_LIST* [name]
+       |     +--rw name         enumeration
+       |     +--rw fips-mode?   boolean
+       +--rw SECURITY_PROFILES
+       |  +--rw SECURITY_PROFILES_LIST* [profile-name]
+       |     +--rw profile-name           string
+       |     +--rw certificate-name?      -> /sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST/cert-name
+       |     +--rw key-name?              string
+       |     +--rw trust-store?           -> /sonic-pki/TRUST_STORES/TRUST_STORES_LIST/name
+       |     +--rw revocation-check?      boolean
+       |     +--rw peer-name-check?       boolean
+       |     +--rw key-usage-check?       boolean
+       |     +--rw cdp-list*              string
+       |     +--rw ocsp-responder-list*   string
+       +--rw TRUST_STORES
+       |  +--rw TRUST_STORES_LIST* [name]
+       |     +--rw name       string
+       |     +--rw ca-name*   -> /sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST/cert-name
+       +--rw PKI_HOST_CERTIFICATES
+       |  +--rw PKI_HOST_CERTIFICATES_LIST* [cert-name]
+       |     +--rw cert-name    string
+       |     +--rw key-name?    string
+       +--rw PKI_CA_CERTIFICATES
+          +--rw PKI_CA_CERTIFICATES_LIST* [cert-name]
+             +--rw cert-name    string
+
+  rpcs:
+    +---x crypto-ca-cert-install
+    |  +---w input
+    |  |  +---w file-path?       string
+    |  |  +---w file-contents?   string
+    |  |  +---w file-name?       string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    +---x crypto-ca-cert-delete
+    |  +---w input
+    |  |  +---w file-name?   string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    +---x crypto-host-cert-install
+    |  +---w input
+    |  |  +---w file-path?   string
+    |  |  +---w key-path?    string
+    |  |  +---w password?    string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    +---x crypto-host-cert-delete
+    |  +---w input
+    |  |  +---w file-name?   string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    +---x crypto-ca-cert-display
+    |  +---w input
+    |  |  +---w file-name?   string
+    |  |  +---w raw-file?    boolean
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    |     +--ro cert-details*    string
+    |     +--ro filename*        string
+    +---x crypto-host-cert-display
+    |  +---w input
+    |  |  +---w file-name?   string
+    |  +--ro output
+    |     +--ro status?          int32
+    |     +--ro status-detail?   string
+    |     +--ro cert-details*    string
+    |     +--ro filename*        string
+    +---x crypto-cert-verify
+       +---w input
+       |  +---w cert-name?   string
+       +--ro output
+          +--ro status?          int32
+          +--ro status-detail?   string
+          +--ro verify-output?   string
 
 ### 3.3.2 CLI
 
 #### 3.3.2.1 Configuration Commands
-
-#### Configure CRL frequency
-
-    crypto x509 crl frequency <days>
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| frequency | How often CDP will be checked for updates in number of days. (Default 7) |
-
-*Note: sysmonitor.py will perform cdp updates based on desired frequency*
-
-#### Configure CRL download location
-
-    [no] revocation crl identifier
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| identifier | URL path to crl list |
-
-#### Configure OCSP responder location
-
-    [no] ocsp responder identifier
-
-*Parameters*
-|**Name**|**Description**|
-| ------ | ------------- |
-| identifier | URL path to responder |
-
 
 #### Create new or access existing trust-store
 
@@ -407,18 +432,17 @@ The config DB will contain the new model's information.
 
 #### Add/Remove CA to trust-store
 
-*Sub command of crypto trust-store*
-
-    [no] ca-cert <name>
+    [no] crypto trust-store <ts name> ca-cert <cert name>
 
 *Parameters*
 |**Name**|**Description**|
 | ------ | ------------- |
+| ts name | Trust Store Name
 | ca-cert | name of existing CA cert to add to trust-store |
 
 #### Create new or access existing security-profile
 
-    security-profile <name>
+    crypto security-profile <name>
 
 *Parameters*
 |**Name**|**Description**|
@@ -427,23 +451,43 @@ The config DB will contain the new model's information.
 
 #### Associate host certificate to security-profile
 
-*Sub command of security-profile*
-
-    certificate <name>
+    crypto seurity-profile certificate <sp name> <cert>
 
 *Parameters*
 |**Name**|**Description**|
 | ------ | ------------- |
-| name | name of existing host cert to associate with security-profile |
+| sp name | Name os security profile
+| cert | name of existing host cert to associate with security-profile |
 
 #### Associate trust-store to security-profile
 
-    [no] trust-store <name>
+    [no] crypto security-profile trust-store <sp name> <ts name>
 
 *Parameters*
 |**Name**|**Description**|
 | ------ | ------------- |
-| name | name of existing trust-store to associate with security-profile. If unset, the system trust-store will be used. |
+| sp name | security profile name |
+| ts name | name of existing trust-store to associate with security-profile. If unset, the system trust-store will be used. |
+
+#### Associate OCSP list to security-profile
+
+    [no] crypto security-profile ocsp-list <sp name> <ocsp list>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| sp name | security profile name |
+| ocsp list | Comma separated list of urls |
+
+#### Associate CDP list to security-profile
+
+    [no] crypto security-profile cdp-list <sp name> <cdp list>
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| sp name | security profile name |
+| cdp list | Comma separated list of urls |
 
 #### 3.3.2.2 Show Commands
 
@@ -467,20 +511,30 @@ The config DB will contain the new model's information.
 
 #### Raw PEM Format Certificate
 
-    show file cert <name>
+    show crypto cert file <name>
 
 *Parameters*
 |**Name**|**Description**|
 | ------ | ------------- |
 | name | name of certificate |
 
-### Show CRL distribution points
+#### Raw PEM Format CA Certificate
 
-    show revocation crl
+    show crypto ca-cert file <name>
 
-### Show OCSP responder
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of certificate |
 
-    show ocsp
+#### Security Profiles
+
+    show crypto security-profile
+
+*Parameters*
+|**Name**|**Description**|
+| ------ | ------------- |
+| name | name of security-profile |
 
 #### 3.3.2.3 Exec Commands
 
@@ -606,43 +660,51 @@ Verify certificate using openssl verify command.
 | ------ | ------------- |
 | name | The CA certificate name which will be verified |
 
-#### Refresh CRL
-
-*Force CDP refresh*
-
-    crypto cert refresh crl
-
 ### 3.3.3 REST API Support
 
 **URLs:**
 
-    /sonic-crypto:security-profile
-    /sonic-crypto:security-profile/security-profile
-    /sonic-crypto:security-profile/security-profile/name
-    /sonic-crypto:security-profile/security-profile/certificate-name
-    /sonic-crypto:security-profile/security-profile/trust-stores
-    /sonic-crypto:security-profile/security-profile/trust-stores/trust-store
-    /sonic-crypto:security-profile/security-profile/peer-name-check
-    /sonic-crypto:security-profile/security-profile/key-usage-check
+    /sonic-pki:sonic-pki/PKI_GLOBALS:
+    /sonic-pki:sonic-pki/PKI_GLOBALS/PKI_GLOBALS_LIST={name}:
+    /sonic-pki:sonic-pki/PKI_GLOBALS/PKI_GLOBALS_LIST:
+    /sonic-pki:sonic-pki/PKI_GLOBALS/PKI_GLOBALS_LIST={name}/name:
+    /sonic-pki:sonic-pki/PKI_GLOBALS/PKI_GLOBALS_LIST={name}/fips-mode:
 
-    /sonic-crypto:trust-stores
-    /sonic-crypto:trust-stores/trust-store
-    /sonic-crypto:trust-stores/trust-store/name
-    /sonic-crypto:trust-stores/trust-store/ca-list
-    /sonic-crypto:trust-stores/trust-store/ca-list/certificate-name
+    /sonic-pki:sonic-pki/SECURITY_PROFILES:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/profile-name:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/certificate-name:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/key-name:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/trust-store:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/revocation-check:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/peer-name-check:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/key-usage-check:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/cdp-list:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/cdp-list={cdp-list}:
+    /sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST={profile-name}/ocsp-responder-list:
 
-    /sonic-crypto:cdp-config
-    /sonic-crypto:cdp-config/frequency
-    /sonic-crypto:cdp-config/last-checked
-    /sonic-crypto:cdp-config/cdp-list
-    /sonic-crypto:cdp-config/cdp-list/url
+    /sonic-pki:sonic-pki/TRUST_STORES:
+    /sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST={name}:
+    /sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST:
+    /sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST={name}/name:
+    /sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST={name}/ca-name:
+    /sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST={name}/ca-name={ca-name}:
 
-    /sonic-crypto:ocsp-config
-    /sonic-crypto:ocsp-config/responder
+    /sonic-pki:sonic-pki/PKI_HOST_CERTIFICATES:
+    /sonic-pki:sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST={cert-name}:
+    /sonic-pki:sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST:
+    /sonic-pki:sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST={cert-name}/cert-name:
+    /sonic-pki:sonic-pki/PKI_HOST_CERTIFICATES/PKI_HOST_CERTIFICATES_LIST={cert-name}/key-name:
+    /sonic-pki:sonic-pki/PKI_CA_CERTIFICATES:
+    /sonic-pki:sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST={cert-name}:
+    /sonic-pki:sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST:
+    /sonic-pki:sonic-pki/PKI_CA_CERTIFICATES/PKI_CA_CERTIFICATES_LIST={cert-name}/cert-name:
+
 
 ### 3.3.4 gNMI Support
 
-The YANG model defined above will be available to read/write from gNMI as well as REST. In addition to the RPCs defined, gNOI defines a set of certificate management RPCs here: [https://github.com/openconfig/gnoi/blob/master/cert/cert.proto](https://github.com/openconfig/gnoi/blob/master/cert/cert.proto) and are described above.
+The YANG model defined above will be available to read/write from gNMI as well as REST.
 
 ## 3.4 Upgrade and Downgrade Considerations
 The certificate directory /etc/sonic/cert must be preserved during upgrades and downgrades. This is achieved using upgrade hook scripts that will copy from the directory to the new partition.
