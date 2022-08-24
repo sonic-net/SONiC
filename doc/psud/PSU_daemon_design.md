@@ -30,9 +30,9 @@ The purpose of PSU daemon is to collect platform PSU data and trigger proper act
 
 #### 1.1.1 Why we need it
 
-An ethernet switch is typically equipped with more than one PSUs for redundancy. It can be deployed in different scenarios with different kinds of xSFP modules, traffic type and traffic load. All these factors affect the power consumption of an ethernet switch.
+An Ethernet switch is typically equipped with more than one PSU for redundancy. It can be deployed in different scenarios with different types of xSFP modules, traffic type and traffic load. All these factors affect the power consumption of an Ethernet switch.
 
-On some platforms, the capacity of a single PSU is not large enough to afford all the components and xSFP modules running at the highest performance at the same time. In this case, we do not have redundancy any longer. Users should be notified of that in order to take steps in advance, which is achieved via periodically checking the current power of PSUs against their maximum allowed power, AKA, power thresholds.
+On some platforms, the capacity of a single PSU is not large enough to afford all the components and xSFP modules running at the highest performance at the same time. In this case, we do not have redundancy any longer and users should be notified of that, which is achieved via periodically checking the current power of PSUs against their maximum allowed power, AKA, power thresholds.
 
 On some platforms, the maximum allowed power of the PSUs is not fxied but a dynamic value depending on other factors. For example, it can depend on the temperature of certain sensors on a switch to avoid overheat.
 
@@ -168,7 +168,7 @@ PSU 2  MTEF-PSF-AC-A  MT1629X14913  A3                12.01           4.38      
 The field `Status` represents the status of the PSU, which can be the following:
 - `OK` which represents no alarm raised due to PSU power exceeding the threshold
 - `Not OK` which can be caused by:
-  - power is not good, which means the PSU is present but no power
+  - power is not good, which means the PSU is present but no power (Eg. the power is down or power cable is unplugged)
 - `WARNING` which can be caused by:
   - power exceeds the PSU's power threshold
 
