@@ -10,6 +10,7 @@
  - [High-Level Design](#high-level-design)
     - [Initialization Flow](#initialization-flow)
     - [doPortTask Flow](#doPortTask-flow)
+    - [Error Flow](#error-flow)
  - [SAI API](#sai-api)
  - [Configuration and Management](#configuration-and-management)
     - [CLI/YANG model Enhancements](#cli/yang-model-enhancements)
@@ -49,11 +50,23 @@ SAI introduced new capability which allows using bulk operation for creating any
 ### Requirements
 
 * SONiC will support both bulk approach and legacy approach.
-* Before creating the ports, SONiC will check if bulk operation is supported by SAI. If not, it will fallback to legacy approach.
-* Ports creation bulk approach in SONiC expectes SAI to not create the port in create_switch() phase.
-* Before creating the ports, even if bulk is suported, SONiC will check if SAI created ports as before. If so, it will fallback to legacy approach.
+* Before creating the ports, SONiC will check if bulk creation operation is supported by SAI. If not, it will fallback to legacy approach.
+* SONiC will check if SAI created ports in create_switch() phase. If so, it will save them for later comparison logic.
+* In case there is a mismatch between pre-created ports by SAI and configured ports from APP DB - a ports removal shall be performed.
+
+    * In case remove_ports() API is supported, the bulk removal will be performed.
+    * Otherwise, ports removal will be done one by one as before.
+
+
 * SONiC will send the bulk request only when all ports are configured in APP DB, PORT table. Meaning, only when "PortConfigDone" flag is raised.
-* In case create_ports() API is called with an empty list of ports, SONiC expects SAI to return a status different from SAI_STATUS_NOT_IMPLEMENTED or SAI_STATUS_NOT_SUPPORTED. This call will be made in order to check if bulk approach is supported and implemented in vendor's SAI.
+
+
+* In case one of the port Bulk APIs is called with an empty list of ports, SONiC expects SAI to return a status different from SAI_STATUS_NOT_IMPLEMENTED or SAI_STATUS_NOT_SUPPORTED. This call will be made in order to check if bulk approach is supported and implemented in vendor's SAI.
+
+* Setting ports attributes will be performed after ports creation:
+    * In case set_ports_attribute() is supported, the bulk set will be performed.
+    * Otherwise, it will set ports attribute one by one as before.
+
 * After feature is implemented, SAI initialization time should be reduced. Hence, we expect fast-boot up time to meet max 30 seconds restriction.
 
 
@@ -85,39 +98,74 @@ Notes:
 
 * Multi-Asic is covered for these changes. In Multi-Asic environment, there are multiple instances of swss and Redis DB and each DB has it's own PORT table. Hence, port configuration is per Asic.
 
-* When create_ports() API is called with an empty list of ports, SONiC expects SAI to return any status except of SAI_STATUS_NOT_IMPLEMENTED or SAI_STATUS_NOT_SUPPORTED. This call will be performed in order to validate the API is supported or not.
+* When one of the Bulk APIs is called with an empty list of ports, SONiC expects SAI to return any status except of SAI_STATUS_NOT_IMPLEMENTED or SAI_STATUS_NOT_SUPPORTED. This call will be performed in order to validate the API is supported or not.
 
 #### Initialization Flow
 
 As part of PortsOrch initialization we query for all pre-configured ports in SAI and put that in a list for the later comparison logic.
 
-Now that SAI will no longer initialize all ports from SAI profile file, this query is not relevant.
-It will no longer be part of PortsOrch initialization and will only be done in case bulk option is not supported.
+This logic will remain, and pre-created ports will be saved.
 
-2 checks will be performed in initialization flow.
-1. Is bulk option supported? It will be checked using the following flow:
+Few checks will be performed in initialization flow.
+1. Is bulk creation supported? It will be checked using the following flow:
 
     * If sai_port_api->create_ports() is NULL --> Not supported.
     * If not NULL, call it (with an empty list of ports).
     * If return status is SAI_STATUS_NOT_IMPLEMENTED or SAI_STATUS_NOT_SUPPORTED --> Not supported.
     * Otherwise, supported.
 
+    If not supported, fallback to legacy flow (old flow diagram).
+
+
 2. Are ports configured in SAI?
 
-    In order to check this, we will query the number of ports created in SAI using sai_switch_api->get_switch_attribute() API, while attr id is SAI_SWITCH_ATTR_PORT_NUMBER.
-
-    If ports number is greater than 0, fallback to legacy flow.
+    In order to check this, we will query the ports list created in SAI using sai_switch_api->get_switch_attribute() API, while attr id is SAI_SWITCH_ATTR_PORT_LIST.
+    If there are ports in the list taken from SAI, they will be proceessed as before and saved in a list for the later comparison logic.
 
 
 #### doPortTask Flow
 
 Currently, in case a new port was added to PORT table in APP DB, PortsOrch compares the new port configurations in APP DB, to the pre configured port attributes queried from SAI. In case of a mismatch, it will remove the configured port and recreate port with attributes taken from APP DB.
 
-According to new logic, in case BULK option is supported, the function will wait for PortConfigDone flag to be raised. Meaning, all ports from Config DB are now in APP DB.
+According to new logic, in case BULK creation option is supported, the function will wait for PortConfigDone flag to be raised. Meaning, all ports from Config DB are now in APP DB.
 
-Then, per each port, it will add it's attributes to sai_attribute_t list. After all attributes are added, sai_port_api->create_ports() API will be called.
+Then, the comparison logic will be performed. In case there are ports need to be removed: If bulk removal is supported, remove_ports() will be called.
+Otherwise, usual removal will be performed.
 
-\* Creating Host Interfaces and setting SAI attributes will be done one by one as beofre.
+Then, per each port needs to be created, SONiC will add it's attributes to sai_attribute_t list. After all attributes are added, sai_port_api->create_ports() API will be called.
+
+The same flow will be performed for ports attribute setting.
+If bulk set_attribute is supported, set_ports_attribute() API will be called.
+Otherwise, setting SAI attributes will be done one by one as before.
+
+\* Creating Host Interfaces will be done one by one as beofre.
+
+
+An important Note:
+
+In order to use SAI bulk APIs, the global flag in syncd (-l / --enableBulk) should enable the bulk opertaion.
+If this flag will not be provided upon syncd startup, bulk operation will be translated to regular operation. Hence, time will not be enhanced.
+Each vendor should enable the flag for it's config_syncd_vendor function in syncd_init_common.sh script.
+Note that this flag will enable bulk opertaions for all available options (e.g. route, vlan and now ports).
+
+
+#### Error Flow
+In SAI Bulk APIs, one of the parameters is a list of objects typs sai_status_t.
+
+```
+sai_status_t create_ports(_In_ sai_object_id_t switch_id, _In_ uint32_t object_count, _In_ const uint32_t *attr_count, _In_ const sai_attribute_t **attr_list, _In_ sai_bulk_op_error_mode_t mode, _Out_ sai_object_id_t *object_id, _Out_ sai_status_t *object_statuses);
+
+sai_status_t remove_ports(_In_ uint32_t object_count, _In_ const sai_object_id_t *object_id, _In_ sai_bulk_op_error_mode_t mode, _Out_ sai_status_t *object_statuses);
+
+sai_status_t set_ports_attribute(_In_ uint32_t object_count, _In_ const sai_object_id_t *object_id, _In_ const sai_attribute_t *attr_list, _In_ sai_bulk_op_error_mode_t mode, _Out_ sai_status_t *object_statuses);
+
+sai_status_t get_ports_attribute(_In_ uint32_t object_count, _In_ const sai_object_id_t *object_id, _In_ const uint32_t *attr_count, _Inout_ sai_attribute_t **attr_list, _In_ sai_bulk_op_error_mode_t mode, _Out_ sai_status_t *object_statuses);
+```
+
+After each Bulk API call, SONiC will go over all statuses in the list and make sure all of them are success.
+In case Bulk create/remove contains status which is not success, it will throw runtime error as being done today. The exception will be caught by Orch, which will clear the request.
+
+If setting Bulk attribute for all ports returned a non-success status, it will just not add the attribute as being done today.
 
 
 ### SAI API
