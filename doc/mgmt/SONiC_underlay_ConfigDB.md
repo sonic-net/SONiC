@@ -8,7 +8,7 @@
   + [Problem Statement](#problem-statement)
 - [1 Functional Requirement](#1-functional-requirement)
   + [1.1 swss-common return default value from Yang model underlay](#1-1-swss-common-return-default-value-from-yang-model-underlay)
-  + [1.2 swss-common return static config from static config underlay](#1-1-swss-common-return-static-config-from-static-config-underlay)
+  + [1.2 swss-common return profile from profile underlay](#1-1-swss-common-return-profile-config-from-profile-underlay)
 - [2 Design](#2-design)
   + [2.1 Considerations](#2-1-considerations)
   + [2.2 Other solutions](#2-2-other-solutions)
@@ -35,64 +35,70 @@ This document provides a detailed description on the new features for:
 - swss-common API change.
 
 ## Terminologies
+
 - Yang model:
+  
   - The Yang model define a hierarchical data structure.
   - SONiC Define config DB schema with Yang model, please refer to [SONiC YANG MODEL GUIDELINES](#7-1-sonic-yang-model-guidelines)
 
 - Default value:
+  
   - Yang model support define default value for configuration items.
   - For example, default value for nat_zone:
-  ```
-				leaf nat_zone {
-					description "NAT Zone for the vlan interface";
-					type uint8 {
-						range "0..3" {
-							error-message "Invalid nat zone for the vlan interface.";
-							error-app-tag nat-zone-invalid;
-						}
-					}
-                                        default "0";
-				}
-  ```
+    
+    ```
+        leaf nat_zone {
+            description "NAT Zone for the vlan interface";
+            type uint8 {
+                range "0..3" {
+                    error-message "Invalid nat zone for the vlan interface.";
+                    error-app-tag nat-zone-invalid;
+                }
+            }
+                                default "0";
+        }
+    ```
 
 - J2 template:
+  
   - SONiC using Jinja2 template generate configuration files during deply minigraph.
+  
   - For example, buffer config are rendered by J2 template:
-  ```
-{%- set default_cable = '40m' %}
-
-{%- macro generate_buffer_pool_and_profiles() %}
-    "BUFFER_POOL": {
-        "ingress_lossless_pool": {
-            "size": "26531072",
-            "type": "ingress",
-            "mode": "dynamic",
-            "xoff": "6291456"
-        },
-        "egress_lossless_pool": {
-            "size": "32822528",
-            "type": "egress",
-            "mode": "static"
-        }
-    },
     
-    ......
+    ```
+        {%- set default_cable = '40m' %}
+        {%- macro generate_buffer_pool_and_profiles() %}
+            "BUFFER_POOL": {
+                "ingress_lossless_pool": {
+                    "size": "26531072",
+                    "type": "ingress",
+                    "mode": "dynamic",
+                    "xoff": "6291456"
+                },
+                "egress_lossless_pool": {
+                    "size": "32822528",
+                    "type": "egress",
+                    "mode": "static"
+                }
+            },
     
-{%- endmacro %}
-  ```
+            ......
+    
+        {%- endmacro %}
+    ```
 
-- Static config:
-  - Static config is part of OS image, should upgrade with OS upgrade.
-  - Static config are suggested values based on expirence.
-  - User can overwrite static config.
-
+- Profile
+  
+  - Profile is part of OS image, should upgrade with OS upgrade.
+  - Profile are suggested values based on expirence.
+  - User can overwrite profile.
 
 ## Problem Statement
 
 - SONiC still using old default value and config from j2 template after OS upgrade:
   - Following config may update after OS upgrade:
     - Default value: defined in yang model.
-    - Static config: defined in j2 template.
+    - Profile: defined in j2 template.
   - Currently all config stored in config DB, so above configs can't be update after OS upgrade.
 - Potential risk, Yang model default value conflict with hardcoded value:
   - Default value hardcoded in source code.
@@ -111,48 +117,52 @@ This document provides a detailed description on the new features for:
   - Application can read config without default value, also can read config with default value.
 - Backward compatibility with existing code and applications.
 
-## 1.2 swss-common return static config from profile underlay
+## 1.2 swss-common return profile from profile underlay
 
-- Static buffer config stored in static config tables.
-- Return static config is optional.
-  - Application can decide read config with static config or not:
-    - When application read static config:
-      - If user overwrite the static config, user config will be return.
-      - If user not overwrite the static config, static config will be return.
-      - If user 'delete' the static config, will return nothing.
-    - When application not read static config, API will only return user config.
-      - If user overwrite the static config, user config will be return.
-      - If user not overwrite the static config, will return nothing.
-      - If user 'delete' the static config, then there also will no user config exist, will return nothing.
+- Buffer profile stored in profile tables.
+
+- Return profile is optional.
+  
+  - Application can decide read config with profile or not:
+    - When application read profile:
+      - If user overwrite the profile, user config will be return.
+      - If user not overwrite the profile, profile will be return.
+      - If user 'delete' the profile, will return nothing.
+    - When application not read profile, API will only return user config.
+      - If user overwrite the profile, user config will be return.
+      - If user not overwrite the profile, will return nothing.
+      - If user 'delete' the profile, then there also will no user config exist, will return nothing.
 
 - Backward compatibility with existing code and applications.
-  - For backward compatibility when initialize buffer config from minigraph, config will be write to both config tables and static config tables.
-  - After code migrate to use static buffer config, static config will only write to static config tables.
-  - Static config support delete/revert operation:
-    - In some user scenario, user need delete a static config, and also may add config back later.
-    - For delete operation, data in static config table will not be delete, profile underlay use PROFILE_DELETE table to handle delete/revert:
-      - When delete a static config item, profile underlay will add the item key to PROFILE_DELETE table.
-      - When read static config, any key in PROFILE_DELETE will not exist in result.
+  
+  - For backward compatibility when initialize buffer config from minigraph, config will be write to both config tables and profile tables.
+  - After all code migrate to use profile underlay, profile will only write to profile tables.
+  - Profile support delete/revert operation:
+    - In some user scenario, user need delete a profile, and also may add config back later.
+    - For delete operation, data in profile table will not be delete, profile underlay use PROFILE_DELETE table to handle delete/revert:
+      - When delete a profile item, profile underlay will add the item key to PROFILE_DELETE table.
+      - When read profile, any key in PROFILE_DELETE will not exist in result.
       - When user set deleted item back, the item key will be remove from PROFILE_DELETE table.
       - For example:
-        - BUFFER_POOL table are static config:
-    ```
-    "BUFFER_POOL": {
-        "ingress_lossless_pool": {
+        - BUFFER_POOL table are profile:
+          
+          ```
+          "BUFFER_POOL": {
+          "ingress_lossless_pool": {
             "size": "26531072",
             "type": "ingress",
             "mode": "dynamic",
             "xoff": "6291456"
-        },
-        "egress_lossless_pool": {
+          },
+          "egress_lossless_pool": {
             "size": "32822528",
             "type": "egress",
             "mode": "static"
-        }
-    }
-  ```
+          }
+          }
+          ```
         - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclam unused buffer resource.
-        - When delete a static config item 'ingress_lossless_pool', the key of this item will be write to PROFILE_DELETE table. and swsscommon read API will not return this item anymore.
+        - When delete a profile item 'ingress_lossless_pool', the key of this item will be write to PROFILE_DELETE table. and swsscommon read API will not return this item anymore.
         - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be remove from PROFILE_DELETE table. and swsscommon read API will return this item.
 
 # 2 Design
@@ -165,13 +175,13 @@ This document provides a detailed description on the new features for:
 
 <img src="./images/swss-common-default-value.png"  />
 
-## 2.1 Considerations
-
 ### Current design:
 
 - Existing read API keeps no change. 
-- Add decorator API to return default value and static config data.
-- Load static config as lazy as possible.
+- Add decorator API to return default value and profile data.
+- Load yang model as lazy as possible.
+
+## 2.1 Considerations
 
 ### How to get default value
 
@@ -180,25 +190,25 @@ This document provides a detailed description on the new features for:
 | Get default value from Yang model in read API.                | Redis config DB keeps no change.                  | 3 MB memory per-process because need load Yang model and reference libyang.<br>50ms to load yang model.<br>8ms to read default value 10000 times. |
 | Write default value to default value DB when write config DB. | Better read performance, Less memory consumption. | Need add new Redis DB for default value.                                                                                                          |
 
-### How to get static config
+### How to get profile
 
-- Static config will stored in a new redis database 'PROFILE_DB', database index is 15.
-- Static config DB tables will have exactly same name and schema with config DB tables.
-- Data will read form static config DB with swsscommon API.
-- Static config DB will save and persist for warm-reboot and fast-reboot.
+- Profile will stored in a new redis database 'PROFILE_DB', database index is 15.
+- Profile DB tables will have exactly same name and schema with config DB tables.
+- Data will read form profile DB with swsscommon API.
+- Profile DB will save and persist for warm-reboot and fast-reboot.
 
 ### API compatibility
 
-|                                                       | Pros                                                                              | Cons                                                                                                                                     |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Change API to return default value and static config. | Less code change, all app will get default value and static config automatically. | For default value, there are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
-| Existing API keeps no change.                          | When update existing code, can cleanup code to remove hard coded default value.    | All apps need code update.                                                                                                               |
+|                                                 | Pros                                                                            | Cons                                                                                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Change API to return default value and profile. | Less code change, all app will get default value and profile automatically.     | For default value, there are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
+| Existing API keeps no change.                   | When update existing code, can cleanup code to remove hard coded default value. | All apps need code update.                                                                                                               |
 
 ## 2.2 Other solutions for Yang model default value
 
 |                                                                                                                                                                                                        | Pros                                                                                                                                                                                   | Cons                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1. All existing APIs change to return default value.<br>2. Add new API to get 'real' data from config DB, which not have default value.                                                                 | Less code change, all app will get default value automatically.                                                                                                                        | 1. There are hardcoded default value in many different place, the default value of those code may different with default value from Yang model, so new default value from config DB may cause code bug, this is a potential risk.<br/>2. 3 MB memory per-process because need load Yang model.<br/>3. 0.05 second to load yang model |
+| 1. All existing APIs change to return default value.<br>2. Add new API to get 'real' data from config DB, which not have default value.                                                                | Less code change, all app will get default value automatically.                                                                                                                        | 1. There are hardcoded default value in many different place, the default value of those code may different with default value from Yang model, so new default value from config DB may cause code bug, this is a potential risk.<br/>2. 3 MB memory per-process because need load Yang model.<br/>3. 0.05 second to load yang model |
 | 1. Write API change: when write data to config DB, also write default value to 'Default_value_DB'.<br/>2. Read API change: read default value from 'Default_value_DB' and merge with config DB result. | 1. Less memory consumption and better performance when only call read API: read API no need to load yang model.<br/>2. Less code change, all app will get default value automatically. | Hardcoded default value code still need cleanup.                                                                                                                                                                                                                                                                                     |
 
 ## 2.3 New class
@@ -212,10 +222,10 @@ This document provides a detailed description on the new features for:
   - Find default value information by table name and config DB key
   - Merge default value to API result.
 
-- StaticConfigProvider class
+- ProfileProvider class
   
-  - Read static config from static config DB.
-  - Merge static config to API result.
+  - Read profile from profile DB.
+  - Merge profile to API result.
 
 - YangDefaultUnderlay python class
 
@@ -230,12 +240,13 @@ This document provides a detailed description on the new features for:
 
 ## 2.5 Database Schema
 
-- All static config table will have exactly same schema with existing ConfigDB tables.
+- All profile table will have exactly same schema with existing ConfigDB tables.
+  
   - BUFFER_POOL
   - BUFFER_PROFILE
 
 - PROFILE_DELETE Table:
-
+  
   ```
   ; Key
   itemkey              = 1*256VCHAR          ; Deleted profile item key.
@@ -264,24 +275,29 @@ This document provides a detailed description on the new features for:
    db = DBConnector("CONFIG_DB", 0)
    # Still can use Table to read user config:
    # table = Table(db, 'VLAN_INTERFACE')
-   # Use UnderlayTable to read default value, static config and use config:
+   # Use UnderlayTable to read default value, profile and use config:
    table = UnderlayTable(db, 'VLAN_INTERFACE')
    table.get("Vlan1000")
   ```
 
 # 3 Reboot
+
 - Profile DB follow same life cycle with config DB.
 
 ## 3.1 Warn-reboot/fast-reboot
+
 - Profile DB will save and persist during warn-reboot and fast-reboot.
 
 ## 3.1 Cold-reboot
+
 - Profile DB will follow same process with config DB to handle cold-reboot.
 
 ## 3.2 Schema upgrade and DB migration
+
 - Profile DB will follow same process with config DB to handle schema upgrade and DB migration.
 
 ## 3.3 OS upgrade
+
 - static_db will re-initialize with J2 templates after OS upgrade.
 
 # 4 Error handling
@@ -304,14 +320,14 @@ This document provides a detailed description on the new features for:
 - swss common API change:
   
   - support Yang model default value.
-  - support static config value.
+  - support profile value.
 
-- Static config DB code change:
+- Profile DB code change:
   
-  - sonic-cfggen change to support generate static config to PROFILE_DB.
-  - sonic-util change to support generate static config when load minigraph.
+  - sonic-cfggen change to support generate profile to PROFILE_DB.
+  - sonic-util change to support generate profile when load minigraph.
   - for backward compatibility, config tables still generate to CONFIG_DB.
-  - for warm-reboot/fast-reboot, save and persist static config DB.
+  - for warm-reboot/fast-reboot, save and persist profile DB.
 
 ## 7.2 Phase 2
 
@@ -327,9 +343,9 @@ This document provides a detailed description on the new features for:
   - When migrate to new API, also clean up hardcoded default values.
   - Fix code in buffer manager for a special case for dynamic buffer profile.
 
-- Buffer manager change to use static config.
+- Buffer manager change to use profile table class.
   
-  - After this, sonic-cfggen and sonic-util change to not generate static config to CONFIG_DB.
+  - After this, sonic-cfggen and sonic-util change to not generate profile to CONFIG_DB.
 
 # 8 References
 
