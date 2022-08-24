@@ -4,24 +4,26 @@
 
 - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
-  + [SONiC issue solved by this feature](#sonic-issue-solved-by-this-feature)
+  + [Terminologies](#terminologies)
+  + [Problem Statement](#problem-statement)
 - [1 Functional Requirement](#1-functional-requirement)
   + [1.1 swss-common return default value from Yang model overlay](#1-1-swss-common-return-default-value-from-yang-model-overlay)
   + [1.2 swss-common return static config from static config overlay](#1-1-swss-common-return-static-config-from-static-config-overlay)
 - [2 Design](#2-design)
   + [2.1 Considerations](#2-1-considerations)
-  + [2.2 New class](#2-2-new-class)
-  + [2.3 Other code change](#2-3-other-code-change)
-  + [2.4 Database Schema](#2-4-database-schema)
-  + [2.5 Code example](#2-5-code-example)
-  + [2.6 Other solutions](#2-6-other-solutions)
-- [3 Error handling](#3-error-handling)
-- [4 Serviceability and Debug](#4-serviceability-and-debug)
-- [5 Unit Test](#5-unit-test)
-- [6 Migration steps](#6-migration-steps)
-  + [6.1 Phase 1](#6-1-phase-1)
-  + [6.2 Phase 1](#6-2-Phase-2)
-- [7 References](#7-references)
+  + [2.2 Other solutions](#2-2-other-solutions)
+  + [2.3 New class](#2-3-new-class)
+  + [2.4 Other code change](#2-4-other-code-change)
+  + [2.5 Database Schema](#2-5-database-schema)
+  + [2.6 Code example](#2-6-code-example)
+- [3 Reboot](#3-reboot)
+- [4 Error handling](#4-error-handling)
+- [5 Serviceability and Debug](#5-serviceability-and-debug)
+- [6 Unit Test](#6-unit-test)
+- [7 Migration steps](#7-migration-steps)
+  + [6.1 Phase 1](#7-1-phase-1)
+  + [6.2 Phase 1](#7-2-Phase-2)
+- [8 References](#8-references)
 
 # About this Manual
 
@@ -32,7 +34,60 @@ This document provides a detailed description on the new features for:
 - Static config overlay.
 - swss-common API change.
 
-## SONiC issue solved by this feature
+## Terminologies
+- Yang model:
+  - The Yang model define a hierarchical data structure.
+  - SONiC Define config DB schema with Yang model, please refer to [SONiC YANG MODEL GUIDELINES](#7-1-sonic-yang-model-guidelines)
+
+- Default value:
+  - Yang model support define default value for configuration items.
+  - For example, default value for nat_zone:
+  ```
+				leaf nat_zone {
+					description "NAT Zone for the vlan interface";
+					type uint8 {
+						range "0..3" {
+							error-message "Invalid nat zone for the vlan interface.";
+							error-app-tag nat-zone-invalid;
+						}
+					}
+                                        default "0";
+				}
+  ```
+
+- J2 template:
+  - SONiC using Jinja2 template generate configuration files during deply minigraph.
+  - For example, buffer config are rendered by J2 template:
+  ```
+{%- set default_cable = '40m' %}
+
+{%- macro generate_buffer_pool_and_profiles() %}
+    "BUFFER_POOL": {
+        "ingress_lossless_pool": {
+            "size": "26531072",
+            "type": "ingress",
+            "mode": "dynamic",
+            "xoff": "6291456"
+        },
+        "egress_lossless_pool": {
+            "size": "32822528",
+            "type": "egress",
+            "mode": "static"
+        }
+    },
+    
+    ......
+    
+{%- endmacro %}
+  ```
+
+- Static config:
+  - Static config is part of OS image, should upgrade with OS upgrade.
+  - Static config are suggested values based on expirence.
+  - User can overwrite static config.
+
+
+## Problem Statement
 
 - SONiC still using old default value and config from j2 template after OS upgrade:
   - Following config may update after OS upgrade:
@@ -42,7 +97,7 @@ This document provides a detailed description on the new features for:
 - Potential risk, Yang model default value conflict with hardcoded value:
   - Default value hardcoded in source code.
   - Yang model default value does not be used.
-- SONiC utilities not support get user config and full config:
+- SONiC utilities not support get user config and all config:
   - Vender OS have different show command:
     - show running: only return user config.
     - show running all: return user config, default value from yang model, and config from j2 template.
@@ -54,15 +109,24 @@ This document provides a detailed description on the new features for:
 
 - Return default value is optional.
   - Application can read config without default value, also can read config with default value.
-- Backward compatibility with existed code and applications.
+- Backward compatibility with existing code and applications.
 
 ## 1.2 swss-common return static config from static config overlay
 
 - Static buffer config stored in static config tables.
 - Return static config is optional.
-  - Application can decide read config with static config or not.
-- Backward compatibility with existed code and applications.
-  - For backward compatibility when initialize buffer config from graph, config will be write to both config tables and static config tables.
+  - Application can decide read config with static config or not:
+    - When application read static config:
+      - If user overwrite the static config, user config will be return.
+      - If user not overwrite the static config, static config will be return.
+      - If user 'delete' the static config, will return nothing.
+    - When application not read static config, API will only return user config.
+      - If user overwrite the static config, user config will be return.
+      - If user not overwrite the static config, will return nothing.
+      - If user 'delete' the static config, then there also will no user config exist, will return nothing.
+
+- Backward compatibility with existing code and applications.
+  - For backward compatibility when initialize buffer config from minigraph, config will be write to both config tables and static config tables.
   - After code migrate to use static buffer config, static config will only write to static config tables.
   - Static config support delete/revert operation:
     - In some user scenario, user need delete a static config, and also may add config back later.
@@ -71,6 +135,26 @@ This document provides a detailed description on the new features for:
       - When delete a static config item, static overlay will add the item key to STATIC_CONFIG_DELETE table.
       - When read static config, any key in STATIC_CONFIG_DELETE will not exist in result.
       - When user set deleted item back, the item key will be remove from STATIC_CONFIG_DELETE table.
+      - For example:
+        - BUFFER_POOL table are static config:
+    ```
+    "BUFFER_POOL": {
+        "ingress_lossless_pool": {
+            "size": "26531072",
+            "type": "ingress",
+            "mode": "dynamic",
+            "xoff": "6291456"
+        },
+        "egress_lossless_pool": {
+            "size": "32822528",
+            "type": "egress",
+            "mode": "static"
+        }
+    }
+  ```
+        - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclam unused buffer resource.
+        - When delete a static config item 'ingress_lossless_pool', the key of this item will be write to STATIC_CONFIG_DELETE table. and swsscommon read API will not return this item anymore.
+        - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be remove from STATIC_CONFIG_DELETE table. and swsscommon read API will return this item.
 
 # 2 Design
 
@@ -84,6 +168,12 @@ This document provides a detailed description on the new features for:
 
 ## 2.1 Considerations
 
+### Current design:
+
+- Existing read API keeps no change. 
+- Add decorator API to return default value and static config data.
+- Load static config as lazy as possible.
+
 ### How to get default value
 
 |                                                               | Pros                                              | Cons                                                                                                                                              |
@@ -93,7 +183,7 @@ This document provides a detailed description on the new features for:
 
 ### How to get static config
 
-- Static config will stored in a new redis database 'STATIC_CONFIG_DB'
+- Static config will stored in a new redis database 'STATIC_CONFIG_DB', database index is 15.
 - Static config DB tables will have exactly same name and schema with config DB tables.
 - Data will read form static config DB with swsscommon API.
 - Static config DB will save and persist for warm-reboot and fast-reboot.
@@ -103,14 +193,16 @@ This document provides a detailed description on the new features for:
 |                                                       | Pros                                                                              | Cons                                                                                                                                     |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Change API to return default value and static config. | Less code change, all app will get default value and static config automatically. | For default value, there are hardcoded default value may different with Yang model, new default value from config DB may cause code bug. |
-| Existed API keeps no change.                          | When update existed code, can cleanup code to remove hard coded default value.    | All apps need code update.                                                                                                               |
+| Existing API keeps no change.                          | When update existing code, can cleanup code to remove hard coded default value.    | All apps need code update.                                                                                                               |
 
-### Current design:
+## 2.2 Other solutions for Yang model default value
 
-- Existed read API keeps no change. 
-- Add decorator API to return default value and static config data.
+|                                                                                                                                                                                                        | Pros                                                                                                                                                                                   | Cons                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. All existing APIs change to return default value.<br>2. Add new API to get 'real' data from config DB, which not have default value.                                                                 | Less code change, all app will get default value automatically.                                                                                                                        | 1. There are hardcoded default value in many different place, the default value of those code may different with default value from Yang model, so new default value from config DB may cause code bug, this is a potential risk.<br/>2. 3 MB memory per-process because need load Yang model.<br/>3. 0.05 second to load yang model |
+| 1. Write API change: when write data to config DB, also write default value to 'Default_value_DB'.<br/>2. Read API change: read default value from 'Default_value_DB' and merge with config DB result. | 1. Less memory consumption and better performance when only call read API: read API no need to load yang model.<br/>2. Less code change, all app will get default value automatically. | Hardcoded default value code still need cleanup.                                                                                                                                                                                                                                                                                     |
 
-## 2.2 New class
+## 2.3 New class
 
 - YangModelLoader class
   
@@ -126,40 +218,43 @@ This document provides a detailed description on the new features for:
   - Read static config from static config DB.
   - Merge static config to API result.
 
-- OverlayConfigDBConnectorDecorator python class
+- YangDefaultUnderlay python class
 
 - OverlayConfigTable c++ class
 
 - OverlaySubscriberStateTable c++ class
 
-## 2.3 Other code change
+## 2.4 Other code change
 
 - Add new methods to TableEntryEnumerable  interface:
   - virtual bool hget(const std::string &key, const std::string &field, std::string &value) = 0;
 
-## 2.4 Database Schema
+## 2.5 Database Schema
 
-- All static config table will have exactly same schema with existed ConfigDB tables.
+- All static config table will have exactly same schema with existing ConfigDB tables.
+  - BUFFER_POOL
+  - BUFFER_PROFILE
+
 - STATIC_CONFIG_DELETE Table:
-  
+
   ```
   ; Key
   itemkey              = 1*256VCHAR          ; Deleted static config item key.
   ```
 
-## 2.5 Code example
+## 2.6 Code example
 
-- Connector decorator:
+- Connector underlay:
   
   ```
-   from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, OverlayConfigDBConnectorDecorator
+   from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, YangDefaultUnderlay
   
    conn = ConfigDBConnector()
-   decorator = OverlayConfigDBConnectorDecorator(conn)
-   decorator.connect()
-   decorator.get_table("VLAN_INTERFACE")
-   decorator.get_entry("VLAN_INTERFACE", "Vlan1000")
-   decorator.get_config()
+   underlay = YangDefaultUnderlay(conn)
+   underlay.connect()
+   underlay.get_table("VLAN_INTERFACE")
+   underlay.get_entry("VLAN_INTERFACE", "Vlan1000")
+   underlay.get_config()
   ```
 
 - OverlayConfigTable:
@@ -175,30 +270,37 @@ This document provides a detailed description on the new features for:
    table.get("Vlan1000")
   ```
 
-## 2.6 Other solutions for Yang model default value
+# 3 Reboot
+- static_config DB follow same life cycle with config DB.
 
-|                                                                                                                                                                                                        | Pros                                                                                                                                                                                   | Cons                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1. All existed APIs change to return default value.<br>2. Add new API to get 'real' data from config DB, which not have default value.                                                                 | Less code change, all app will get default value automatically.                                                                                                                        | 1. There are hardcoded default value in many different place, the default value of those code may different with default value from Yang model, so new default value from config DB may cause code bug, this is a potential risk.<br/>2. 3 MB memory per-process because need load Yang model.<br/>3. 0.05 second to load yang model |
-| 1. Write API change: when write data to config DB, also write default value to 'Default_value_DB'.<br/>2. Read API change: read default value from 'Default_value_DB' and merge with config DB result. | 1. Less memory consumption and better performance when only call read API: read API no need to load yang model.<br/>2. Less code change, all app will get default value automatically. | Hardcoded default value code still need cleanup.                                                                                                                                                                                                                                                                                     |
+## 3.1 Warn-reboot/fast-reboot
+- static_config DB will save and persist during warn-reboot and fast-reboot.
 
-# 3 Error handling
+## 3.1 Cold-reboot
+- static_config DB will follow same process with config DB to handle cold-reboot.
+
+## 3.2 Schema upgrade and DB migration
+- static_config DB will follow same process with config DB to handle schema upgrade and DB migration.
+
+## 3.3 OS upgrade
+- static_db will re-initialize with J2 templates after OS upgrade.
+
+# 4 Error handling
 
 - Load yang model: throw exception when found yang model data issue.
 - swss-common API: if not found Yang model schema data for a given table name, write warning message to syslog.
 
-# 4 Serviceability and Debug
+# 5 Serviceability and Debug
 
 - Debug version will write debug log to syslog.
 
-# 5 Unit Test
+# 6 Unit Test
 
-- All new code will 100% covered by gtest test case.
-- Add E2E test case for all new APIs.
+- All new code will 100% covered by gtest or pytest test case.
 
-# 6 Migration steps
+# 7 Migration steps
 
-## 6.1 Phase 1
+## 7.1 Phase 1
 
 - swss common API change:
   
@@ -212,7 +314,7 @@ This document provides a detailed description on the new features for:
   - for backward compatibility, config tables still generate to CONFIG_DB.
   - for warm-reboot/fast-reboot, save and persist static config DB.
 
-## 6.1 Phase 2
+## 7.2 Phase 2
 
 - Find out all projects need update by code scan:
   
@@ -230,7 +332,7 @@ This document provides a detailed description on the new features for:
   
   - After this, sonic-cfggen and sonic-util change to not generate static config to CONFIG_DB.
 
-# 7 References
+# 8 References
 
 ## SONiC YANG MODEL GUIDELINES
 
