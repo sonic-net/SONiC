@@ -1,4 +1,4 @@
-module sonic-static-config-delete {
+module sonic-profile-delete {
 	namespace "http://github.com/Azure/sonic-acl";
 	prefix sacl;
 	yang-version 1.1;
@@ -18,20 +18,20 @@ module sonic-static-config-delete {
 		"BRCM";
 
 	description
-		"SONIC STATIC CONFIG DELETE";
+		"SONIC PROFILE DELETE";
 
-	revision 2021-07-22 {
+	revision 2022-07-22 {
 		description
 			"Initial revision.";
 	}
 
-	container sonic-static-config-delete {
-			scommon:db-name "CONFIG_DB";
+	container sonic-profile-delete {
+			scommon:db-name "PROFILE_DB";
 
-		list STATIC_CONFIG_DELETE {
+		list PROFILE_DELETE {
 			key "itemkey";
 			scommon:key-delim "|";
-			scommon:key-pattern "STATIC_CONFIG_DELETE_TABLE|{itemkey}";
+			scommon:key-pattern "PROFILE_DELETE_TABLE|{itemkey}";
 
 			leaf itemkey {
 				type string;

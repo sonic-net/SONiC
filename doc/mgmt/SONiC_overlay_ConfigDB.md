@@ -1,4 +1,4 @@
-# SONiC overlay ConfigDB
+# Underlay ConfigDB with Yang Default Values and SONiC Image Default Profiles
 
 ## Table of Contents
 
@@ -7,8 +7,8 @@
   + [Terminologies](#terminologies)
   + [Problem Statement](#problem-statement)
 - [1 Functional Requirement](#1-functional-requirement)
-  + [1.1 swss-common return default value from Yang model overlay](#1-1-swss-common-return-default-value-from-yang-model-overlay)
-  + [1.2 swss-common return static config from static config overlay](#1-1-swss-common-return-static-config-from-static-config-overlay)
+  + [1.1 swss-common return default value from Yang model underlay](#1-1-swss-common-return-default-value-from-yang-model-underlay)
+  + [1.2 swss-common return static config from static config underlay](#1-1-swss-common-return-static-config-from-static-config-underlay)
 - [2 Design](#2-design)
   + [2.1 Considerations](#2-1-considerations)
   + [2.2 Other solutions](#2-2-other-solutions)
@@ -29,9 +29,9 @@
 
 This document provides a detailed description on the new features for:
 
-- Overlay Config DB.
-- Yang model default value overlay.
-- Static config overlay.
+- Underlay Config DB.
+- Yang model default value underlay.
+- Profile underlay.
 - swss-common API change.
 
 ## Terminologies
@@ -105,13 +105,13 @@ This document provides a detailed description on the new features for:
 
 # 1 Functional Requirement
 
-## 1.1 swss-common return default value from Yang model overlay
+## 1.1 swss-common return default value from Yang model underlay
 
 - Return default value is optional.
   - Application can read config without default value, also can read config with default value.
 - Backward compatibility with existing code and applications.
 
-## 1.2 swss-common return static config from static config overlay
+## 1.2 swss-common return static config from profile underlay
 
 - Static buffer config stored in static config tables.
 - Return static config is optional.
@@ -130,11 +130,10 @@ This document provides a detailed description on the new features for:
   - After code migrate to use static buffer config, static config will only write to static config tables.
   - Static config support delete/revert operation:
     - In some user scenario, user need delete a static config, and also may add config back later.
-    - For delete operation, data in static config table will not be delete.
-    - Static overlay use STATIC_CONFIG_DELETE table to handle delete/revert:
-      - When delete a static config item, static overlay will add the item key to STATIC_CONFIG_DELETE table.
-      - When read static config, any key in STATIC_CONFIG_DELETE will not exist in result.
-      - When user set deleted item back, the item key will be remove from STATIC_CONFIG_DELETE table.
+    - For delete operation, data in static config table will not be delete, profile underlay use PROFILE_DELETE table to handle delete/revert:
+      - When delete a static config item, profile underlay will add the item key to PROFILE_DELETE table.
+      - When read static config, any key in PROFILE_DELETE will not exist in result.
+      - When user set deleted item back, the item key will be remove from PROFILE_DELETE table.
       - For example:
         - BUFFER_POOL table are static config:
     ```
@@ -153,12 +152,12 @@ This document provides a detailed description on the new features for:
     }
   ```
         - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclam unused buffer resource.
-        - When delete a static config item 'ingress_lossless_pool', the key of this item will be write to STATIC_CONFIG_DELETE table. and swsscommon read API will not return this item anymore.
-        - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be remove from STATIC_CONFIG_DELETE table. and swsscommon read API will return this item.
+        - When delete a static config item 'ingress_lossless_pool', the key of this item will be write to PROFILE_DELETE table. and swsscommon read API will not return this item anymore.
+        - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be remove from PROFILE_DELETE table. and swsscommon read API will return this item.
 
 # 2 Design
 
-- Overlay config DB design diagram:
+- Underlay config DB design diagram:
 
 <img src="./images/swss-common-layer.png"  />
 
@@ -183,7 +182,7 @@ This document provides a detailed description on the new features for:
 
 ### How to get static config
 
-- Static config will stored in a new redis database 'STATIC_CONFIG_DB', database index is 15.
+- Static config will stored in a new redis database 'PROFILE_DB', database index is 15.
 - Static config DB tables will have exactly same name and schema with config DB tables.
 - Data will read form static config DB with swsscommon API.
 - Static config DB will save and persist for warm-reboot and fast-reboot.
@@ -220,9 +219,9 @@ This document provides a detailed description on the new features for:
 
 - YangDefaultUnderlay python class
 
-- OverlayConfigTable c++ class
+- UnderlayTable c++ class
 
-- OverlaySubscriberStateTable c++ class
+- UnderlaySubscriberStateTable c++ class
 
 ## 2.4 Other code change
 
@@ -235,11 +234,11 @@ This document provides a detailed description on the new features for:
   - BUFFER_POOL
   - BUFFER_PROFILE
 
-- STATIC_CONFIG_DELETE Table:
+- PROFILE_DELETE Table:
 
   ```
   ; Key
-  itemkey              = 1*256VCHAR          ; Deleted static config item key.
+  itemkey              = 1*256VCHAR          ; Deleted profile item key.
   ```
 
 ## 2.6 Code example
@@ -257,30 +256,30 @@ This document provides a detailed description on the new features for:
    underlay.get_config()
   ```
 
-- OverlayConfigTable:
+- UnderlayTable:
   
   ```
-   from swsscommon.swsscommon import DBConnector, Table, OverlayConfigTable 
+   from swsscommon.swsscommon import DBConnector, Table, UnderlayTable 
   
    db = DBConnector("CONFIG_DB", 0)
    # Still can use Table to read user config:
    # table = Table(db, 'VLAN_INTERFACE')
-   # Use OverlayConfigTable to read default value, static config and use config:
-   table = OverlayConfigTable(db, 'VLAN_INTERFACE')
+   # Use UnderlayTable to read default value, static config and use config:
+   table = UnderlayTable(db, 'VLAN_INTERFACE')
    table.get("Vlan1000")
   ```
 
 # 3 Reboot
-- static_config DB follow same life cycle with config DB.
+- Profile DB follow same life cycle with config DB.
 
 ## 3.1 Warn-reboot/fast-reboot
-- static_config DB will save and persist during warn-reboot and fast-reboot.
+- Profile DB will save and persist during warn-reboot and fast-reboot.
 
 ## 3.1 Cold-reboot
-- static_config DB will follow same process with config DB to handle cold-reboot.
+- Profile DB will follow same process with config DB to handle cold-reboot.
 
 ## 3.2 Schema upgrade and DB migration
-- static_config DB will follow same process with config DB to handle schema upgrade and DB migration.
+- Profile DB will follow same process with config DB to handle schema upgrade and DB migration.
 
 ## 3.3 OS upgrade
 - static_db will re-initialize with J2 templates after OS upgrade.
@@ -309,7 +308,7 @@ This document provides a detailed description on the new features for:
 
 - Static config DB code change:
   
-  - sonic-cfggen change to support generate static config to STATIC_CONFIG_DB.
+  - sonic-cfggen change to support generate static config to PROFILE_DB.
   - sonic-util change to support generate static config when load minigraph.
   - for backward compatibility, config tables still generate to CONFIG_DB.
   - for warm-reboot/fast-reboot, save and persist static config DB.
