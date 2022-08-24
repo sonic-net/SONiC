@@ -1,4 +1,4 @@
-# Multiple overlay ConfigDB
+# SONiC overlay ConfigDB
 
 ## Table of Contents
 
@@ -34,18 +34,18 @@ This document provides a detailed description on the new features for:
 
 ## SONiC issue solved by this feature
 
-- Still using old default value and config from j2 template after OS upgrade:
+- SONiC still using old default value and config from j2 template after OS upgrade:
   - Following config may update after OS upgrade:
     - Default value: defined in yang model.
     - Static config: defined in j2 template.
-  - Currently all config stored in config DB, so config above can't update after OS upgrade.
+  - Currently all config stored in config DB, so above configs can't be update after OS upgrade.
 - Potential risk, Yang model default value conflict with hardcoded value:
   - Default value hardcoded in source code.
-  - Yang model default value not used.
+  - Yang model default value does not be used.
 - SONiC utilities not support get user config and full config:
   - Vender OS have different show command:
     - show running: only return user config.
-    - show running all: user config, default value from yang model, and config from j2 template.
+    - show running all: return user config, default value from yang model, and config from j2 template.
   - Currently SONiC only support 'show running'
 
 # 1 Functional Requirement
@@ -67,13 +67,14 @@ This document provides a detailed description on the new features for:
   - Static config support delete/revert operation:
     - In some user scenario, user need delete a static config, and also may add config back later.
     - For delete operation, data in static config table will not be delete.
-    - Static overlay use STATIC_CONFIG_DELETE table to handle dlete/revert:
+    - Static overlay use STATIC_CONFIG_DELETE table to handle delete/revert:
       - When delete a static config item, static overlay will add the item key to STATIC_CONFIG_DELETE table.
-      - When read static config, all item in STATIC_CONFIG_DELETE will not include in result.
+      - When read static config, any key in STATIC_CONFIG_DELETE will not exist in result.
+      - When user set deleted item back, the item key will be remove from STATIC_CONFIG_DELETE table.
 
 # 2 Design
 
-- Layered config DB design diagram:
+- Overlay config DB design diagram:
 
 <img src="./images/swss-common-layer.png"  />
 
@@ -167,7 +168,9 @@ This document provides a detailed description on the new features for:
    from swsscommon.swsscommon import DBConnector, Table, OverlayConfigTable 
   
    db = DBConnector("CONFIG_DB", 0)
+   # Still can use Table to read user config:
    # table = Table(db, 'VLAN_INTERFACE')
+   # Use OverlayConfigTable to read default value, static config and use config:
    table = OverlayConfigTable(db, 'VLAN_INTERFACE')
    table.get("Vlan1000")
   ```
