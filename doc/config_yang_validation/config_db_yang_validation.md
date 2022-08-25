@@ -1,6 +1,6 @@
 # SONiC Config Update Validation via YANG
 
-## Table of Content 
+## Table of Content s
 
 - [1 Revision](#revision)
 - [2 Project Overview](#project-overview)
@@ -101,6 +101,7 @@ In performance-sensitive scenarios, such as warm and fast reboot, ad-hoc validat
 
 ## Design
 
+### Design Summary
 Currently, updates to ConfigDB are published via 2 steps:
 1.	ad-hoc ConfigDB field validation 
 2.	Call to config_db.set_entry(target_value) which blindly pushes the target_value passed via connection to ConfigDB using ConfigDBConnector object
@@ -114,15 +115,18 @@ Why use ConfigDBConnector class decorator:
 
 ### Decorator Graphical Depiction
 Existing ConfigDBConnector class and methods-
+
 ![](../../images/config_yang_validation/decorator1.png)
 
 Decorator only overrides contents of original set_entry() method to include YANG validation
+
 ![](../../images/config_yang_validation/decorator2.png)
 
 ### YANG Validation Implementation
 The YANG validation included in our ConfigDBConnector set_entry() decorator leverages the preexisting SONiC Generic Config Updater library, which uses YANG to validate JSON patches that contain write requests to ConfigDB, and then pushes these updates to ConfigDB only after YANG validation passes. 
 
 Sample JSON patch:
+
 ![](../../images/config_yang_validation/jsonpatch.png)
 
 ### Decorator Pseudo Code
