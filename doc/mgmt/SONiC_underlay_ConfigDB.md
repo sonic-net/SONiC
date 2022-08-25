@@ -2,28 +2,38 @@
 
 ## Table of Contents
 
-- [Table of Contents](#table-of-contents)
+- [Underlay ConfigDB with Yang Default Values and SONiC Image Default Profiles](#underlay-configdb-with-yang-default-values-and-sonic-image-default-profiles)
+  - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
-  + [Terminologies](#terminologies)
-  + [Problem Statement](#problem-statement)
+  - [Terminologies](#terminologies)
+  - [Problem Statement](#problem-statement)
 - [1 Functional Requirement](#1-functional-requirement)
-  + [1.1 swss-common return default value from Yang model underlay](#1-1-swss-common-return-default-value-from-yang-model-underlay)
-  + [1.2 swss-common return profile from profile underlay](#1-1-swss-common-return-profile-config-from-profile-underlay)
+  - [1.1 swss-common return default value from Yang model underlay](#11-swss-common-return-default-value-from-yang-model-underlay)
+  - [1.2 swss-common return profile from profile underlay](#12-swss-common-return-profile-from-profile-underlay)
 - [2 Design](#2-design)
-  + [2.1 Considerations](#2-1-considerations)
-  + [2.2 Other solutions](#2-2-other-solutions)
-  + [2.3 New class](#2-3-new-class)
-  + [2.4 Other code change](#2-4-other-code-change)
-  + [2.5 Database Schema](#2-5-database-schema)
-  + [2.6 Code example](#2-6-code-example)
+    - [Current design:](#current-design)
+  - [2.1 Considerations](#21-considerations)
+    - [How to get default value](#how-to-get-default-value)
+    - [How to get profile](#how-to-get-profile)
+    - [API compatibility](#api-compatibility)
+  - [2.2 Other solutions for Yang model default value](#22-other-solutions-for-yang-model-default-value)
+  - [2.3 New class](#23-new-class)
+  - [2.4 Other code change](#24-other-code-change)
+  - [2.5 Database Schema](#25-database-schema)
+  - [2.6 Code example](#26-code-example)
 - [3 Reboot](#3-reboot)
+  - [3.1 Warn-reboot/fast-reboot](#31-warn-rebootfast-reboot)
+  - [3.1 Cold-reboot](#31-cold-reboot)
+  - [3.2 Schema upgrade and DB migration](#32-schema-upgrade-and-db-migration)
+  - [3.3 OS upgrade](#33-os-upgrade)
 - [4 Error handling](#4-error-handling)
 - [5 Serviceability and Debug](#5-serviceability-and-debug)
 - [6 Unit Test](#6-unit-test)
 - [7 Migration steps](#7-migration-steps)
-  + [6.1 Phase 1](#7-1-phase-1)
-  + [6.2 Phase 1](#7-2-Phase-2)
+  - [7.1 Phase 1](#71-phase-1)
+  - [7.2 Phase 2](#72-phase-2)
 - [8 References](#8-references)
+  - [SONiC YANG MODEL GUIDELINES](#sonic-yang-model-guidelines)
 
 # About this Manual
 
@@ -177,7 +187,7 @@ This document provides a detailed description on the new features for:
 
 ### Current design:
 
-- Existing read API keeps no change. 
+- Existing API keeps no change. 
 - Add decorator API to return default value and profile data.
 - Load yang model as lazy as possible.
 
