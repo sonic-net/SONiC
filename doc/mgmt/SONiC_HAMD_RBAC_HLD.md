@@ -155,15 +155,16 @@ This document provides comprehensive functional and design information about the
 The HAM module, which is an integral component of sonic-mgmt-framework repository, provides user account management related services. The services can be used by any other module/application of SONiC. Hence, it will be separated out from the sonic-mgmt-frame repository (src/sonic-mgmt-framework/ham) and moved under the src folder - (../src/sonic-ham).
 
 In addition to that, the following enhancements would be done.
-. HAMd must update the user account information in the USER_DB. 
-. There must be a provision to associate more than one role to a user.
+- HAMd must update the user account information in the USER_DB. 
+- There must be a provision to associate more than one role to a user.
 
 ## RBAC enhancements overview
 SONiC supports two default roles, Admin (sysAdmin) and operator (NetOperator). The purpose of roles is to share privilege, security, and access among a group of users.
 
-Two more new roles need to be supported
-secAdmin (Security Admin)
-netAdmin (Network Admin)
+Two more new roles need to be supported :
+- secAdmin (Security Admin)
+- netAdmin (Network Admin)
+
 The existing RBAC feature must be enhanced to support the new roles.
 
 ## 1.1 Target Deployment Use Cases
@@ -185,14 +186,12 @@ The existing RBAC feature must be enhanced to support the new roles.
     -	secadmin  
     -	netadmin
 6.	TACACS and RADIUS modules must be enhanced to support these new user roles – secadmin and netadmin.
-7.	TACACS and RADIUS server’s configuration file must support a new attribute, SONiC_user_role.
-	Radius ==> SONiC-User-Group
-	Tacacs ==> group-name
+7.	TACACS and RADIUS server’s configuration file must support a new attribute for the defining the remote user's group name as an alternate to the existing privilege-level attribute.
 8.  TACACS and RADIUS modules of SONiC must be enhanced to parse the new attribute and take the appropriate action.
 9.	“username” command must be enhanced such a way that a user shall be allowed to map with more than one user role.
-    -	For example, “username <user_name> password <password> role admin, sysadmin”
+    -	For example: username < user_name> password < password> role admin, sysadmin
     -	This is applicable only to local users
-    -	For remote users (TACACS and RADIUS), this will be supported in the next release.
+    -	For remote users (TACACS and RADIUS), this will be supported in the future releases.
 10. Software upgrade must work seamlessly.
 
 ### 1.2.2 RBAC Requirements
@@ -324,7 +323,7 @@ Note: If a command is applicable to all roles then the tag "access" must not be 
 | | | configure-view |  [ no ] dropcounters [ options] and all its subcommand | admin, netadmin |
 | qos | qos_scheduler.xml |	configure-view	| [no] qos scheduler-policy | admin, netadmin |
 | | | enable-view	| show qos scheduler-policy | admin, netadmin, secadmin, operator |
-| | qos_interface.xml	| configure-if-view | queue <id> wred-policy ...	| admin, netadmin |
+| | qos_interface.xml	| configure-if-view | queue < id> wred-policy ...	| admin, netadmin |
 | | | | scheduler-policy ...	| admin, netadmin |
 | | | | qos-map ...	| admin, netadmin |
 | | | | priority-flow-control ... |	admin, netadmin |
@@ -422,9 +421,9 @@ Note: If a command is applicable to all roles then the tag "access" must not be 
 | | | configure-view	| ip load-share	| admin, netadmin |
 | Anycast gateway	| sag.xml	| enable-view	| show ip static-anycast-gateway	| admin, netadmin,  operator |
 | | | | show ipv6 static-anycast-gateway	| admin, netadmin,  operator |
-| | | configure-vlan-view/configure-subif-view |	ip anycast-address <address>	| admin, netadmin |
-| | | | ipv6 anycast-address <address>	| admin, netadmin |
-| | | configure-view	| ip anycast-mac-address <mac-address>	| admin, netadmin |
+| | | configure-vlan-view/configure-subif-view |	ip anycast-address < address>	| admin, netadmin |
+| | | | ipv6 anycast-address < address>	| admin, netadmin |
+| | | configure-view	| ip anycast-mac-address < mac-address>	| admin, netadmin |
 | | | | ip anycast-address enable	| admin, netadmin |
 | | | | ipv6 anycast-address enable	| admin, netadmin |
 | ptp	| ptp.xml	| enable-view	| show ptp ...	| admin, netadmin |
@@ -665,93 +664,64 @@ Note: If a command is applicable to all roles then the tag "access" must not be 
 | | | configure-view |	crm ...	| admin, netadmin |
 
 ## 2.1 Radius functionality
-Radius supports two main attributes: 'SONiC-User-Group' and 'Management-Privilege-Level'
-
-SONiC-User-Group has been implemented as a part of this feature.
+Radius supports the attribute: 'Management-Privilege-Level'.
+It carries a integer value (1 to 15) which defines the privilege level that is remote user is authorized.
 Management-Privilege-Level has been enhanced to support the two new roles : secadmin and netadmin.
 
-1. SONiC-User-Group
-The Groupname VSA (PW_VENDOR_SPECIFIC) was added as a part of the original RFC itself = RFC-2058
-This attribute has been implemented in the pam_radius and libnss-radius modules as a part of this feature in SONiC.
-
-Hereafter, remote users can be assigned with groupnames, which are configured in the Radius server as follows:
-
-<user name>    Cleartext-Password := "force10"
-SONiC-User-Group := ["secadmin" | "netadmin" | "admin" | "operator"]
-
-The newly added groups (netadmin and secadmin) have been mapped to MPL=14 and MPL=13 respectively.
-
-2. Management-Privilege-Level
 The Management-Privilege-Level VSA (PW_MANAGEMENT_PRIVILEGE_LEVEL) has been added as a part of the recent RFC-5607.
-But it has been already implemented in SONiC. MPL = 1 to 15 can be used for the remote users.
+It has been already implemented in SONiC. 
 
-<user name>    Cleartext-Password := "force10"
+< user name>    Cleartext-Password := "force10"
+
 Management-Privilege-Level = [1 to 15]
 
+
 - Management-Privilege-Level = 15 => admin
-	- Changed the supplementary groups : from "admin,sudo,docker" to "admin,adm,redis,sudo,docker"
+	- Supplementary groups : "admin,adm,redis,sudo,docker"
 
 - Management-Privilege-Level = 1 => operator
-	- Changed the supplementary groups : from "docker" to "operator,docker"
+	- Supplementary groups : "operator,docker"
 
 - Management-Privilege-Level = 14 => netadmin
-	- Added supplementary groups : "netadmin,redis,docker"
+	- Supplementary groups : "netadmin,redis,docker"
 
 - Management-Privilege-Level = 13 => secadmin
-	- Added supplementary groups : "secadmin,redis,docker"
+	- Supplementary groups : "secadmin,redis,docker"
 
 1 <= MPL <= 12 has been assigned with operator role by default.
 
 ## 2.2 Tacacs functionality
 
-Tacacs+ supports two main attributes: 'group-name' and 'priv-level'
-
-group-name has been implemented as a part of this feature.
-priv-level has been enhanced to support the two new roles : secadmin and netadmin.
-
-1. group-name
-Remote users can be assigned with groupnames, which are configured in the Radius server as follows:
-
-user = <username> {
-default service = permit
-pap = cleartext dellforce10
-service = exec {
-group-name = [admin|operator|secadmin|netadmin]                 
-}
-}
-
-The newly added groups (netadmin and secadmin) have been mapped to MPL=14 and MPL=13 respectively.
-
-2. priv-lvl
+Tacacs+ supports the attribute: 'priv-level', which defines the privilege level that is remote user is authorized.
 Users with priv-lvl attribute can be created as follows :
 
-user = <username> {
-default service = permit
-pap = cleartext dellforce10
-service = exec {
-priv-lvl = [1 to 15]
+user = < username> {
+
+	default service = permit
+	pap = cleartext dellforce10
+	service = exec {
+		priv-lvl = [1 to 15]
+	}
 }
-}
 
-User priv-lvl = 15 => admin
-	- Changed the supplementary groups : from "sudo,docker" to "admin,adm,redis,sudo,docker"
+- User priv-lvl = 15 => admin
+	- Supplementary groups : "admin,adm,redis,sudo,docker"
 
-User priv-lvl = 1 => operator
-	- Changed the supplementary groups : from "users" to "operator,docker"
-	- Changed the default login shell : from "/bin/bash" to "/usr/bin/sonic-launch-shell"
+- User priv-lvl = 1 => operator
+	- Supplementary groups : "operator,docker"
 
-User priv-lvl = 14 => netadmin
-	- Added supplementary groups : "netadmin,redis,docker"
+- User priv-lvl = 14 => netadmin
+	- Supplementary groups : "netadmin,redis,docker"
 
-User priv-lvl = 13 => secadmin
-	- Added supplementary groups : "secadmin,redis,docker"
+- User priv-lvl = 13 => secadmin
+	- Supplementary groups : "secadmin,redis,docker"
 
 1 <= priv-lvl<= 12 has been assigned with operator role by default.
 
 # 3 Design
 ## 3.1 HAM Design Overview
 
-The following diagram captures the current implementation of the command "username <username> password <password> role <role>". There will not be any changes in the following design.
+The following diagram captures the current implementation of the command "username < username> password < password> role < role>". There will not be any changes in the following design.
 
 ### Figure 1: HAM Design
 
@@ -776,9 +746,11 @@ The following diagram captures the current implementation of the command "userna
 ### 3.2.1 Pruning unauthorized commands
 
 - The COMMAND tag of KLISH supports a field called "access". This field would contain a list of Linux groups to grant access to.  Instead of Linux groups, the field would contain a list of "Roles (admin/operator/sysAdmin/netAdmin)" to grant access to.
+
        <COMMAND name="configure" access="admin:sysadmin" help="Enter configuration mode" />     
   
 - Though the "access" field of the COMMAND tag is used to define the list of roles, the real function(call_back_function) that controls permissions would be set by the HOOK tag.
+
 			<HOOK name="access" builtin="call_back_function"></HOOK> 
 
 - While parsing each command, the call_back_function takes the following arguments : 
@@ -876,12 +848,17 @@ NA
 NA
 
 ### 3.6.7 USER DB
-A new table would be added in the USER DB to store the user account information : USER_TABLE
+- A new USER DB is defined in SONiC in order to store user information in the Redis database.
+- A new table would be added in the USER DB to store the user account information : USER_TABLE
 
 user (key) : Username is a string.
+
 tenant (key) : The tenancy to which the user belongs to. It is a string.
+
 usertype: This is a enumeration of 'local' and 'remote' corresponding to the type of the user.
+
 role: The role of the user. This is a comma-separated list of strings. 
+
 
 ## 3.7 Switch State Service Design
 ### 3.7.1 Orchestration Agent
@@ -990,15 +967,15 @@ NA
 | | | User account entry in linux kernel | The entry would be persisted by the post script | Yes |
 | 4 | Remote user accounts | Entry present in USER_DB | Radius/Tacacs modules will not write the user details into the USER_DB | Yes |
 | | | New groups will be added as a part of the feature | The new groups will be removed when the remote user logs-in. No functionality issue | Yes |
-| 5 | Pruning the CLI tree | CLI tree will be pruned for both local and remote users | The CLI tree will not be pruned. All the commands will be visible. But when unauthorized commands are executed, the below error will be thrown : "%Error: Client is not authorized to perform this operation"
+| 5 | Pruning the CLI tree | CLI tree will be pruned for both local and remote users | The CLI tree will not be pruned. All the commands will be visible. But when unauthorized commands are executed, the below error will be thrown : "%Error: Client is not authorized to perform this operation" | Yes |
 
 ## 3.13 Resource Needs
-1. New Trie added - memory required  - TODO
-2. Complexity (insertion/deletion/find) will be O(log(n))
-3. The time taken to restart the mgmt-framework and telemetry containers - TODO
+1. Complexity of the Trie Tree functions (insertion/deletion/find) will be O(log(n))
+
 
 # 4 Flow Diagrams
 Refer to section 3. 
+
 
 # 5 Implementation guide lines
 
@@ -1006,22 +983,24 @@ Refer to section 3.
 All the commands in XML files under src/sonic-mgmt-framework/CLI/clitree/cli-xml must be updated with the access tag.
 The access field of each XML COMMAND tag must be updated with the appropriate RBAC information.
 For example,
-               <COMMAND name="configure terminal" access="admin:netadmin"
-                        help="Configure from the terminal"
-                        view="configure-view">
+
+    <COMMAND name="configure terminal" access="admin:netadmin"
+        help="Configure from the terminal"
+        view="configure-view">
 
 ## 5.2 RBAC New feature Implementation
 A new extension statement “user-role-priv” is added to specify the RBAC information.
 For all the annotation yangs, the newly defined extension statement should be added along with the other existing extension statements.
 
 For example,
+
 	deviation /oc-wmr:warm-restart/oc-wmr:config/oc-wmr:enable {
 	    deviate add {
 		sonic-ext:table-name "WARM_RESTART_ENABLE";
 		sonic-ext:key-transformer "wmr_config_en_key_xfmr";
 		sonic-ext:field-name "enable";
 		sonic-ext:user-role-priv "read: admin, netadmin,  secadmin, !operator;  write: admin, netadmin; rpc: admin";
-            }
+        }
 	}
 
 # 6 Error Handling
@@ -1039,7 +1018,6 @@ The gNMI server returns standard gRPC errors when authentication fails.
 
 # 7 Serviceability and Debug
 ## 7.1 Execution of unauthorized commands
-
 - For REST and gNMI, translib logs an error message in the rest_server log, when unauthorized commands are executed.
 	Aug 01 17:24:37.528338+00:00 2022      21 authorize.go:101] User selva not allowed for write in xpath /openconfig-warm-restart:warm-restart/config/enable
 	Aug 01 17:24:37.528357+00:00 2022      21 handler.go:96] [REST-1] Translib error tlerr.AuthorizationError - User is unauthorized for Update Operation
@@ -1047,25 +1025,29 @@ The gNMI server returns standard gRPC errors when authentication fails.
 - For CLI, the below error message will be returned when unauthorized commands are issued by the user.
 	% Error: Invalid input detected at "^" marker.
 
+
 # 8 Scalability
 NA
+
 
 # 9 Platform
 NA (platform agnostic)
 
+
 # 10 Security and Threat Model
 NA
+
 
 ## 10.1 Certificates, secrets, keys, and passwords
 NA
 
-# 11 Limitations
 
+# 11 Limitations
 1. The RBAC feature will not be supported in CLICK mode and FRR vtysh.
-       - Non-admin users like netadmin/secadmin/operator will not be allowed to access CLICK mode and FRR vtysh.
+    - Non-admin users like netadmin/secadmin/operator will not be allowed to access CLICK mode and FRR vtysh.
 
 2. Non-admin users have a slight delay in sonic-cli launch time compared to admin users.
-       - Admin users have complete access to all commands and hence don't have to go-through the checks, which results in zero delay.
+    - Admin users have complete access to all commands and hence don't have to go-through the checks, which results in zero delay.
 
 ### Table 6: Sonic-cli launch time optimization
 | **S.no** | **User role**     | **sonic-cli Launch time (in seconds)**   |
@@ -1112,9 +1094,9 @@ Note : sonic-cli launch time is directly proportional to the num of Xpaths the u
 | 26 |	Creating users with supplementary groups as role names	| Create users via any NBI. Give supplementary groups as role names. | The NBI should be capable of rejecting and throwing error.	
 | 27 |	Save & reload cases	| Write memory and reboot the switch. |	Ensure that local user data is not lost from any of the DB. Remote users which were written in the USER_DB should be lost but login should work seamlessly. Post login, remote users should be re-written into USER_DB
 | 28 |	Radius users with different MPL values	| Assign multiple MPL values (1 to 15) and ensure appropriate login. |	Admin user should be added to admin, redis, sudo, docker, adm groups and have full admin privileges. Netadmin users should be added to netadmin, docker, redis groups. Secadmin users should be added to secadmin, docker, redis groups. Operator users should be added to docker, operator groups.	
-| 29 |	Radius users with different group/role names | Assign different values to the newly added : SONiC-User-Group VSA (admin/operator/netadmin/secadmin)| Admin user should be added to admin, redis, sudo, docker, adm groups and have full admin priviledges. Netadmin users should be added to netadmin, docker, redis groups. Secadmin users should be added to secadmin, docker, redis groups. Operator users should be added to docker, operator groups.	
+| 29 |	Radius users with different group/role names | Assign different values to the newly added : Management-Policy-Id  VSA (admin/operator/netadmin/secadmin)| Admin user should be added to admin, redis, sudo, docker, adm groups and have full admin priviledges. Netadmin users should be added to netadmin, docker, redis groups. Secadmin users should be added to secadmin, docker, redis groups. Operator users should be added to docker, operator groups.	
 | 30 |	Radius users with invalid user group	| Assign invalid user group to a remote radius user defined in the server |	User should not be able to login. Error should be thrown since the user group is not appropriate.	
-| 31 |	Radius users with both MPL and group-name attributes	| In the radius server, add both the attributes (Management-Privilege-Level and SONiC-User-Group) and restart the server |	Error should be thrown and server process should be in "failed" state. This is because only one attribute can be assigned to a user	
+| 31 |	Radius users with both MPL and group-name attributes	| In the radius server, add both the attributes (Management-Privilege-Level and Management-Policy-Id) and restart the server |	Error should be thrown and server process should be in "failed" state. This is because only one attribute can be assigned to a user	
 | 32 |	Tacacs+ users with different priv-lvl values	| Assign priv-lvl (1 to 15) and ensure appropriate login.| Admin user should be added to admin, redis, sudo, docker, adm groups and have full admin priviledges. Operator users should be added to docker, operator groups.
 
 ### Table 8: RBAC CLI Test cases
@@ -1242,13 +1224,7 @@ The following major changes have been done in the HAMD module.
 ## 13.3 Radius code changes
 In the radius repo, the following have been modified: 
 
-1. libpam-radius :
-	- Added support for the new attribute "PW_VENDOR_SPECIFIC"
-	This maps to the new VSA : SONiC-User-Group
-	- When this attribute is received in the radius packet which will be sent from the server, libpam-radius processes it and add the same to the environment variables.
-	- Patch has been created with the above changes.
-
-2. libnss-radius :
+1. libnss-radius :
 	- In this section, the group name is read from the environment variable and the corresponding MPL is set, in order to enforce the group name sent from the Radius server.
 	- Added support for the two new roles : secadmin and netadmin
 	- Corrected the supplementary groups of the existing roles : admin and operator.
