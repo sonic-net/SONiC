@@ -32,6 +32,7 @@
 - [5 Cold and Fast Reboot Support](#5-cold-and-fast-reboot-support)
 - [6 Warm Reboot Support](#6-warm-reboot-support)
   - [6.1 Support warm upgrade](#61-support-warm-upgrade)
+  - [6.2 Support warm downgrade](#62-support-warm-downgrade)
 - [7 Yang model](#7-yang-model)
 - [8 Testing](#8-testing)
   - [8.1 Unit Testing](#81-unit-testing)
