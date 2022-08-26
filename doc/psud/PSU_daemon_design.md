@@ -252,7 +252,7 @@ class PsuBase(device_base.DeviceBase):
     def get_voltage_low_threshold(self):
         raise NotImplementedError
 
-    def get_psu_power_threshold(self)
+    def get_psu_power_warning_threshold(self)
         """
         Retrieve the warning threshold of the power on this PSU
         The value can be volatile, so the caller should call the API each time it is used.
@@ -285,9 +285,9 @@ Supervisord takes charge of this daemon. This daemon will loop every 3 seconds a
 
 #### 7.1 Unit test cases added for PSU power exceeding checking
 
-1. Neither `get_psu_power_threshold` nor `get_psu_power_critical_threshold` is supported by platform API when a new PSU is identified
+1. Neither `get_psu_power_warning_threshold` nor `get_psu_power_critical_threshold` is supported by platform API when a new PSU is identified
    In `psu_status`, power exceeding check should be stored as `not supported` and no further function call.
-2. Both `get_psu_power_threshold` and `get_psu_power_critical_threshold` are supported by platform API when a new PSU is identified
+2. Both `get_psu_power_warning_threshold` and `get_psu_power_critical_threshold` are supported by platform API when a new PSU is identified
    In `psu_status`, power exceeding check should be stored as `supported`
 3. PSU's power was less than the warning threshold and is in the range (warning threshold, critical threshold): no action
 4. PSU's power was in range (warning threshold, critical threshold) and is greater than the critical threshold
