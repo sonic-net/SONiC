@@ -125,7 +125,7 @@ PSU information is stored in PSU table:
     current                   = 1*3.3DIGIT                     ; the current of the PSU
     power                     = 1*4.3DIGIT                     ; the power of the PSU
     power_overload            = "true" / "false"               ; whether the PSU's power exceeds the threshold
-    power_threshold           = 1*4.3DIGIT                     ; The power (warning) threshold
+    power_warning_threshold   = 1*4.3DIGIT                     ; The power warning threshold
     power_critical_threshold  = 1*4.3DIGIT                     ; The power critical threshold
 
 Now psud only collect and update "presence" and "status" field.
