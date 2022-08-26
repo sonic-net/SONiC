@@ -165,6 +165,11 @@ The Entity MIB contains several groups of MIB objects: entityPhysical group, ent
 <br>**Pull Requests** :  [211](https://github.com/Azure/sonic-snmpagent/pull/211), [766](https://github.com/Azure/SONiC/pull/766), [3357](https://github.com/Azure/sonic-mgmt/pull/3357)
 
 
+#### 18. Enable/Disable auto negotiation and speed setting with number of lanes
+Add new CLIs to enable/disable auto negotiation per interface as well as setting the number of lanes per requested speed <br>
+<br> Refer [HLD document](https://github.com/Azure/SONiC/blob/9b58ef06ab49b489e3aed287659100ce7be8c76a/doc/port_auto_neg/port-auto-negotiation-design.md) and below mentioned PR's for more details. 
+<br>**Pull Requests** :  [732] (https://github.com/Azure/SONiC/pull/732)
+
 # SAI APIs
 
 Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.8.1 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.8.1%20Release%20notes.md)
