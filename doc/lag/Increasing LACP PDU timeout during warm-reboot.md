@@ -38,22 +38,12 @@ then the LAG is considered to be down, and data traffic is stopped. This results
 in an effective timeout of 3 seconds when using the short rate and 90 seconds
 when using the long rate.
 
-# Changing Max Retries for Warmboot
-
-As part of a SONiC device starting the warmboot process, LACP PDUs are sent to
-all of the peers, to refresh the timers on the peers. This allows the warmboot
-process the full 90 seconds for control plane to come back up and for PDUs to be
-sent again after warmboot. However, if the peer device is notified that this
-device is going through warmboot, then the number of retries can be increased,
-and the timeout can be raised.
-
 # Protocol
 
-When warmboot is starting, along with refreshing the LACP PDUs, an additional
-Ethernet packet will be sent to the peer specifying the number of retries to
-perform. This Ethernet packet will have an ethertype of 0x6300, and will not
-have an IPv4 or IPv6 layer on top of it. Instead, there will instead be multiple
-TLV fields, similar to LACP.
+To change the number of retries, an Ethernet packet of the fillowing structure
+will be sent. This Ethernet packet will have an ethertype of 0x6300, and will
+not have an IPv4 or IPv6 layer on top of it. Instead, there will instead be
+multiple TLV fields, similar to LACP.
 
 The TLV types will be defined as follows:
 
@@ -85,10 +75,38 @@ Information, and Retry Count TLVs. The receiving device must validate the actor
 and partner information, and then update the retry count as specified. No
 acknowledgment packet is sent back.
 
+The custom ethertype is so that if the packet is sent to non-SONiC devices
+or SONiC devices running an older version, then it can be silently discarded,
+without it getting incorrectly handled by the peer device and without it getting
+forwarded to a different device.
+
+# Changing Max Retries for Warmboot
+
+As part of a SONiC device starting the warmboot process, LACP PDUs are sent to
+all of the peers, to refresh the timers on the peers. This allows the warmboot
+process the full 90 seconds for control plane to come back up and for PDUs to be
+sent again after warmboot.
+
+Now, in addition to refreshing the PDUs timer, the above-specified Ethernet
+packet (with ethertype 0x6300) will be sent to the peer devices, with the new
+retry count set to 5. This notifies the peer device that for this device that
+for this LAG, it should allow up to 5 retries before bringing down this LAG. If
+the peer device is not running SONiC or is not running a version of SONiC, then
+the expectation is that the packet will just be dropped at the peer device with
+no handling. In either case, teamd will not wait for any acknowledgment packet.
+
+After warmboot is done, and teamd has started up after warmboot, it will send
+the above-specified Ethernet packet again, but this time, the new retry count is
+set to 3, thus restoring it to the standard value.
+
 # CLI
 
 No new CLI options or config options will be added, as this is not meant to be
-configurable.
+user-configurable.
+
+# Pull requests
+
+None as of right now.
 
 # References
 
