@@ -346,7 +346,26 @@ When the system startup and the Database container initialize, and the config_db
   - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key) and delete LOGLEVEL DB.
   - Exposing the "del" function from the swss-common/sonicv2-connector.h to the db migrator. 
 
-(Downgrade will not be supported).
+## 6.2 Support warm downgrade
+
+In the current implementation, after a cold/fast reboot, the CONFIG DB and the LOGLEVEL DB flush, and the config_db.json loads into the CONFIG DB.
+In addition, in the current implementation, after a warm reboot, the CONFIG DB and the LOGLEVEL DB are not flush, and the config_db.json does not load into the CONFIG DB.
+This current state leads us not fully support the warm-downgrade.
+
+Here are some scenarios to notice:
+Scenario 1:
+ 1. We have the image with the feature, and then we perform warm-downgrade.
+    The CONFIG DB will still contain the Logger tables, but they will not be used. In addition, new Logger tables with default values will be added to the LOGLEVEL DB. After warm-downgrade, the user will be able to change the loglevel.
+ 2. We perform warm-upgrade:
+    The Logger tables that were created in the LOGLEVEL DB from step 1 will override the unused tables in CONFIG DB.
+ 
+Scenario 2:
+ 1. We have the image with the feature, and the user changes the loglevel of some components. For example, the user changes the orchagent loglevel to DEBUG.
+ 2. running "config save". The Logger tables are saved to the config_db.json and are persistent.
+ 3. then we perform warm-downgrade.
+    The CONFIG DB will still contain the Logger tables, but they will not be used. In addition, new Logger tables with default values will be added to the LOGLEVEL DB.
+ 4. We perform cold-upgrade:
+    The LOGLEVEL DB will be removed. The CONFIG DB will start up with the Logger tables from the config_db.json, which means the verbosity of the orchagent will be DEBUG.
 
 # 7 Yang model
 
@@ -454,7 +473,7 @@ When the system startup and the Database container initialize, and the config_db
     - Reboot.
     - Verify the log level is "Notice".
   - Verify that we able change the log level for all the components.
-  - Verify the LOGLEVEL DB does not not contain the Logger tables after a warm upgrade.
+  - Verify the LOGLEVEL DB does not contain the Logger tables after a warm upgrade.
   - Verify the CONFIG DB contains the Logger tables after a warm upgrade.
   
 
