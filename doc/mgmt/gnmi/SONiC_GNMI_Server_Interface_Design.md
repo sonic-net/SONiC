@@ -418,7 +418,7 @@ sonic-restapi uses one authentication mechanism:
 * In the authentication of client certificate, after the certificate chain is validated by TLS, it will further check if the common name of the end-entity certificate is in the trusted common name list of the server config.
 
 #### 1.2.1.9 ACL
-GNMI server will not support OpenConfig Yang models, so ACL configuration will use CONFIG_DB schema and SONiC Yang Models.
+The new GNMI server interface will use CONFIG_DB schema and SONiC Yang Models for ACL configuration.
 
 #### 1.2.1.10 Data Protection
 
