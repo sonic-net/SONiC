@@ -207,22 +207,23 @@ To have system status LED can be set by this new service, a system status LED ob
 psud need to collect more PSU data to the DB to satisfy the requirement of this new service. more specifically, psud need to collect psu output voltage, temperature and their threshold.
 
 	; Defines information for a psu
-	key                     = PSU_INFO|psu_name              ; information for the psu
-	; field                 = value
-	presence                = BOOLEAN                        ; presence of the psu
-	model                   = STRING                         ; model name of the psu
-	serial                  = STRING                         ; serial number of the psu
-	status                  = BOOLEAN                        ; status of the psu
-	change_event            = STRING                         ; change event of the psu
-	fan                     = STRING                         ; fan_name of the psu
-	led_status              = STRING                         ; led status of the psu
-	temp                    = INT                            ; temperature of the PSU
-	temp_th                 = INT                            ; temperature threshold
-	voltage                 = INT                            ; output voltage of the PSU
-	voltage_max_th          = INT                            ; max threshold of the output voltage
-	voltage_min_th          = INT                            ; min threshold of the output voltage
-    power_overload          = "true" / "false"               ; whether the PSU's power exceeds the threshold
-    power_threshold         = 1*4.3DIGIT                     ; The power threshold which is exceeded in case power_overload is true
+	key                      = PSU_INFO|psu_name              ; information for the psu
+	; field                  = value
+	presence                 = BOOLEAN                        ; presence of the psu
+	model                    = STRING                         ; model name of the psu
+	serial                   = STRING                         ; serial number of the psu
+	status                   = BOOLEAN                        ; status of the psu
+	change_event             = STRING                         ; change event of the psu
+	fan                      = STRING                         ; fan_name of the psu
+	led_status               = STRING                         ; led status of the psu
+	temp                     = INT                            ; temperature of the PSU
+	temp_th                  = INT                            ; temperature threshold
+	voltage                  = INT                            ; output voltage of the PSU
+	voltage_max_th           = INT                            ; max threshold of the output voltage
+	voltage_min_th           = INT                            ; min threshold of the output voltage
+    power_overload           = "true" / "false"               ; whether the PSU's power exceeds the threshold
+    power_warning_threshold  = 1*4.3DIGIT                     ; The power warning threshold
+    power_critical_threshold = 1*4.3DIGIT                     ; The power critical threshold
 
 ## 5. System health monitor CLI
 
