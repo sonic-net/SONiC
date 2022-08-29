@@ -1,15 +1,15 @@
-# Underlay ConfigDB with Yang Default Values and SONiC Image Default Profiles
+# SONiC ConfigDB support Yang default values and profiles
 
 ## Table of Contents
 
-- [Underlay ConfigDB with Yang Default Values and SONiC Image Default Profiles](#underlay-configdb-with-yang-default-values-and-sonic-image-default-profiles)
+- [SONiC ConfigDB support Yang default values and profiles](#sonic-configdb-support-yang-default-values-and-profiles)
   - [Table of Contents](#table-of-contents)
 - [About this Manual](#about-this-manual)
   - [Terminologies](#terminologies)
   - [Problem Statement](#problem-statement)
 - [1 Functional Requirement](#1-functional-requirement)
-  - [1.1 swss-common return default value from Yang model underlay](#11-swss-common-return-default-value-from-yang-model-underlay)
-  - [1.2 swss-common return profile from profile underlay](#12-swss-common-return-profile-from-profile-underlay)
+  - [1.1 swss-common return default value from Yang model](#11-swss-common-return-default-value-from-yang-model)
+  - [1.2 swss-common return profile from profile DB](#12-swss-common-return-profile-from-profile-db)
 - [2 Design](#2-design)
     - [Current design:](#current-design)
   - [2.1 Considerations](#21-considerations)
@@ -22,10 +22,10 @@
   - [2.5 Database Schema](#25-database-schema)
   - [2.6 Code example](#26-code-example)
 - [3 Reboot](#3-reboot)
-  - [3.1 Warn-reboot/fast-reboot](#31-warn-rebootfast-reboot)
   - [3.1 Cold-reboot](#31-cold-reboot)
-  - [3.2 Schema upgrade and DB migration](#32-schema-upgrade-and-db-migration)
-  - [3.3 OS upgrade](#33-os-upgrade)
+  - [3.2 Warm-reboot](#31-warm-reboot)
+  - [3.3 Fast-reboot](#31-fast-reboot)
+  - [3.4 Schema upgrade and DB migration](#34-schema-upgrade-and-db-migration)
 - [4 Error handling](#4-error-handling)
 - [5 Serviceability and Debug](#5-serviceability-and-debug)
 - [6 Unit Test](#6-unit-test)
@@ -39,9 +39,8 @@
 
 This document provides a detailed description on the new features for:
 
-- Underlay Config DB.
-- Yang model default value underlay.
-- Profile underlay.
+- Yang model default value.
+- Profile DB.
 - swss-common API change.
 
 ## Terminologies
@@ -118,16 +117,19 @@ This document provides a detailed description on the new features for:
     - show running: only return user config.
     - show running all: return user config, default value from yang model, and config from j2 template.
   - Currently SONiC only support 'show running'
+- DB migrator has complex logic and hardcoded config data:
+  - DB migrator will be run in post startup action.
+  - DB migrator complex logic and hardcoded config for migrate from every historical version to latest version. This will keep increase and difficult to maintance.
 
 # 1 Functional Requirement
 
-## 1.1 swss-common return default value from Yang model underlay
+## 1.1 swss-common return default value from Yang model
 
 - Return default value is optional.
   - Application can read config without default value, also can read config with default value.
 - Backward compatibility with existing code and applications.
 
-## 1.2 swss-common return profile from profile underlay
+## 1.2 swss-common return profile from profile DB
 
 - Buffer profile stored in profile tables.
 
@@ -146,11 +148,11 @@ This document provides a detailed description on the new features for:
 - Backward compatibility with existing code and applications.
   
   - For backward compatibility when initialize buffer config from minigraph, config will be write to both config tables and profile tables.
-  - After all code migrate to use profile underlay, profile will only write to profile tables.
+  - After all code migrate to use profile DB, profile will only write to profile tables.
   - Profile support delete/revert operation:
     - In some user scenario, user need delete a profile, and also may add config back later.
-    - For delete operation, data in profile table will not be delete, profile underlay use PROFILE_DELETE table to handle delete/revert:
-      - When delete a profile item, profile underlay will add the item key to PROFILE_DELETE table.
+    - For delete operation, data in profile table will not be delete, profile use PROFILE_DELETE table to handle delete/revert:
+      - When delete a profile item, profile provider will add the item key to PROFILE_DELETE table.
       - When read profile, any key in PROFILE_DELETE will not exist in result.
       - When user set deleted item back, the item key will be remove from PROFILE_DELETE table.
       - For example:
@@ -177,7 +179,7 @@ This document provides a detailed description on the new features for:
 
 # 2 Design
 
-- Underlay config DB design diagram:
+- Config DB design diagram:
 
 <img src="./images/swss-common-layer.png"  />
 
@@ -237,11 +239,11 @@ This document provides a detailed description on the new features for:
   - Read profile from profile DB.
   - Merge profile to API result.
 
-- YangDefaultUnderlay python class
+- YangDefaultDecorator python class
 
-- UnderlayTable c++ class
+- DecoratorTable c++ class
 
-- UnderlaySubscriberStateTable c++ class
+- DecoratorSubscriberStateTable c++ class
 
 ## 2.4 Other code change
 
@@ -256,7 +258,9 @@ This document provides a detailed description on the new features for:
   - BUFFER_PROFILE
 
 - PROFILE_DELETE Table:
-  
+  - For usage of this table, please refer to [Backward compatibility with existing code and applications.](#backward-compatibility-with-existing-code-and-applications)
+  - This table is a config DB table, it will presist cross reboot. When re-render config, this table will be flushed as well as other config DB tables.
+  - Yang model: [link](./sonic-profile-delete.yang "profile delete table")
   ```
   ; Key
   itemkey              = 1*256VCHAR          ; Deleted profile item key.
@@ -264,51 +268,55 @@ This document provides a detailed description on the new features for:
 
 ## 2.6 Code example
 
-- Connector underlay:
+- Connector Decorator:
   
   ```
-   from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, YangDefaultUnderlay
+   from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector, YangDefaultDecorator
   
    conn = ConfigDBConnector()
-   underlay = YangDefaultUnderlay(conn)
-   underlay.connect()
-   underlay.get_table("VLAN_INTERFACE")
-   underlay.get_entry("VLAN_INTERFACE", "Vlan1000")
-   underlay.get_config()
+   decorator = YangDefaultDecorator(conn)
+   decorator.connect()
+   decorator.get_table("VLAN_INTERFACE")
+   decorator.get_entry("VLAN_INTERFACE", "Vlan1000")
+   decorator.get_config()
   ```
 
-- UnderlayTable:
+- DecoratorTable:
   
   ```
-   from swsscommon.swsscommon import DBConnector, Table, UnderlayTable 
+   from swsscommon.swsscommon import DBConnector, Table, DecoratorTable 
   
    db = DBConnector("CONFIG_DB", 0)
    # Still can use Table to read user config:
    # table = Table(db, 'VLAN_INTERFACE')
-   # Use UnderlayTable to read default value, profile and use config:
-   table = UnderlayTable(db, 'VLAN_INTERFACE')
+   # Use DecoratorTable to read default value, profile and use config:
+   table = DecoratorTable(db, 'VLAN_INTERFACE')
    table.get("Vlan1000")
   ```
 
 # 3 Reboot
 
-- Profile DB follow same life cycle with config DB.
-
-## 3.1 Warn-reboot/fast-reboot
-
-- Profile DB will save and persist during warn-reboot and fast-reboot.
+- 
 
 ## 3.1 Cold-reboot
 
-- Profile DB will follow same process with config DB to handle cold-reboot.
+- Code-reboot will reload minigraph, profile DB will re-render in reload minigraph.
 
-## 3.2 Schema upgrade and DB migration
+## 3.2 Warm-reboot
 
-- Profile DB will follow same process with config DB to handle schema upgrade and DB migration.
+- Profile DB will presist to file before warm-reboot, will load from saved file after warm-reboot.
+- DB migrator will run after warm reboot, will handle OS upgrade in DB migrator.
 
-## 3.3 OS upgrade
+## 3.3 Fast-reboot
 
-- static_db will re-initialize with J2 templates after OS upgrade.
+- Fast-reboot will reload minigraph, profile DB will re-render in reload minigraph.
+
+## 3.4 Schema upgrade and DB migration
+
+- DB migrator will re-render profile DB to handle schema change.
+  - Profile DB will rendered by cfg-gen command.
+- DB migrator code will implify by deprate hardcoded config and complex upgrade logic for profile config.
+- Some profile configuration change are disruptive, for example buffer config change,those change need fast-reboot to make sure change refelected on ASIC.
 
 # 4 Error handling
 
@@ -340,6 +348,16 @@ This document provides a detailed description on the new features for:
   - for warm-reboot/fast-reboot, save and persist profile DB.
 
 ## 7.2 Phase 2
+
+- Update sonic cli.
+  
+  - Add 'show all config' command, which will show following config:
+    - User config from config DB.
+    - Yang model default value.
+    - Profile.
+  - Add 'show user config' command, which will only show user config.
+  - For backward compatibility, 'show config' will mapping to 'show all config'.
+  - This will improve user expirence for debug config related issue.
 
 - Find out all projects need update by code scan:
   

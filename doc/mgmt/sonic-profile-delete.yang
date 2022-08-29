@@ -26,7 +26,7 @@ module sonic-profile-delete {
 	}
 
 	container sonic-profile-delete {
-			scommon:db-name "PROFILE_DB";
+			scommon:db-name "CONFIG_DB";
 
 		list PROFILE_DELETE {
 			key "itemkey";
