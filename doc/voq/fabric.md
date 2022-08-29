@@ -156,16 +156,12 @@ When a forwarding ASIC is initialized, the fabric ports are initialized by defau
 ## 2.7 Cli commands
 
 ```
-> show fabric counters -n <asic_namespace> [port_id]
-
-asic2 fabric port counter (number of fabric ports: 192)
-
-PORT            RxCells     TxCells      Crc       Fec  Corrected
--------------------------------------------------------------------------
- 0           : 71660578         2         0         0         0
- 1           : 71659798         1         0         0       213
- 2           :        0         1         0         0       167
- 3           :        0         2         0         0       193
+> show fabric counters port
+  ASIC    PORT    STATE    IN_CELL    IN_OCTET    OUT_CELL    OUT_OCTET    CRC    FEC_CORRECTABLE    FEC_UNCORRECTABLE    SYMBOL_ERR
+------  ------  -------  ---------  ----------  ----------  -----------  -----  -----------------  -------------------  ------------
+     0       0       up          1         135           0            0      0                 10           2009682570             0
+     0       1     down          0           0           0            0      0                  0           5163529467             0
+     0       2       up          1         206           2          403      0                 10           2015665810             0
 ```
 
 ### 2.7.1 Fabric Status
