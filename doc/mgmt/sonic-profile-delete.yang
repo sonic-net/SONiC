@@ -1,0 +1,41 @@
+module sonic-profile-delete {
+	namespace "http://github.com/Azure/sonic-acl";
+	prefix sacl;
+	yang-version 1.1;
+
+	import ietf-yang-types {
+		prefix yang;
+	}
+
+	import sonic-common {
+		prefix scommon;
+	}
+
+	organization
+		"BRCM";
+
+	contact
+		"BRCM";
+
+	description
+		"SONIC PROFILE DELETE";
+
+	revision 2022-07-22 {
+		description
+			"Initial revision.";
+	}
+
+	container sonic-profile-delete {
+			scommon:db-name "CONFIG_DB";
+
+		list PROFILE_DELETE {
+			key "itemkey";
+			scommon:key-delim "|";
+			scommon:key-pattern "PROFILE_DELETE_TABLE|{itemkey}";
+
+			leaf itemkey {
+				type string;
+			}
+		}
+	}
+}
