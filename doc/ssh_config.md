@@ -60,6 +60,10 @@ We want to enable global ssh server configuration in SONIC. In order to do so wi
 2. hostcfg demon - to update ssh config files once configDB relevant areas are modified (and for this feature, ssh global config table)
 3. OS ssh config files - specific for this stage we are only /etc/ssh/sshd_config is going to be modifed by the hostcfg demon.
 4. OS ssh service - to be restarted after each configuration change.
+
+Note:
+
+The Daemon is running in the host (without container) that matches this feature, because it is basically writing policies on ssh config files from the OS.
 ##### Flow diagram
 ![ssh_flow_community](ssh_flow_community.png)
 #### 1.7.1 <a name='Flow description'></a>Flow description
@@ -67,9 +71,6 @@ When the feature is enabled, users by using [auto-generated SONIC CLI](https://g
 
 The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_GLOBAL table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards.
 
-Note:
-
-The Daemon is running in the host (without container) that matches this feature, because it is basically writing policies on ssh config files from the OS.
 
 #### 1.7.2 <a name='SSH global policies'></a>SSH global policies
 
@@ -81,27 +82,6 @@ We want to enable configuring the following policies, with default values are ta
 | ports          |     Port number for SSH                                                   |     1-65535             |     22           |
 | tcp-forwarding |     enable the option of tcp forwarding for   the ssh server              |     enabled/disabled    |     enabled      |
 | x11-forwarding |     enable the option of x11 forwarding for   the ssh server              |     enabled/disabled    |     enabled      |
-
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
-		
-	- Is it a built-in SONiC feature or a SONiC Application Extension?
-	- What are the modules and sub-modules that are modified for this design?
-	- What are the repositories that would be changed?
-	- Module/sub-module interfaces and dependencies. 
-	- SWSS and Syncd changes in detail
-	- DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-	- Sequence diagram if required.
-	- Linux dependencies and interface
-	- Warm reboot requirements/dependencies
-	- Fastboot requirements/dependencies
-	- Scalability and performance requirements/impact
-	- Memory requirements
-	- Docker dependency
-	- Build dependency if any
-	- Management interfaces - SNMP, CLI, RestAPI, etc.,
-	- Serviceability and Debug (logging, counters, trace etc) related design
-	- Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-	- SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
 
 ###  1.8. <a name='Init flow'></a>Init flow 
 
@@ -117,7 +97,7 @@ tcp-fowarding: Enabled
 X11-forwarding: Enabled
 ```
 ###  1.9. <a name='SAI api'></a>SAI api
-Not changed.
+NA
 ###  1.10. <a name='Configurationandmanagement'></a>Configuration and management 
 
 ####  1.10.1. <a name='SSH_GLOBALconfigDBtable'></a>SSH_GLOBAL configDB table
@@ -200,7 +180,23 @@ module sonic-sshg {
     }/* container sonic-sshg */
 }/* end of module sonic-sshg */
 ```
+##### Config CLI
+When using [auto-generated SONIC CLI](https://github.com/sonic-net/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md), config CLI will be created as the following:
+```
+root@r-panther-13:/home/admin# config ssh_global login_attempts 10
+root@r-panther-13:/home/admin# config ssh_global login_timeout 200
+root@r-panther-13:/home/admin# config ssh_global ports 222
+root@r-panther-13:/home/admin# config ssh_global tcp_forwarding true
+root@r-panther-13:/home/admin# config ssh_global x11_forwarding false
+```
+##### show command
+```
+root@r-panther-13:/home/admin# show ssh_global
 
+LOGIN ATTEMPTS  LOGIN TIMEOUT  PORTS  TCP FORWARDING  X11 FORWARDING
+--------------  -------------  -----  --------------  --------------
+10              200            222    true            false
+```
 ####  1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
 
 The ConfigDB will be extended with next objects:
@@ -221,11 +217,12 @@ The ConfigDB will be extended with next objects:
 
 ####  1.10.5. <a name='ManifestifthefeatureisanApplicationExtension'></a>Manifest (if the feature is an Application Extension)
 
-Irrelevant.
+
+NA
 
 		
 ###  1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact  
-Irrelevant
+NA
 
 ###  1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations  
 
@@ -235,7 +232,14 @@ Ensure that the existing warmboot/fastboot requirements are met. For example, if
 Example sub-sections for unit test cases and system test cases are given below. 
 
 ####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases  
-
+- Configuration – good flow
+  - Perform show command
+  - Verify default values
+  - Configure all types and check with show command
+  - Configure login_attempts to X and try to connect with wrong password X+1 times
+  - Configure login_timeout to X, try to connect and wait for X+5 seconds (need to disconnect)
+  - Configure ports to 222 and see if unable to connect to 22
+  
 ####  1.13.2. <a name='SystemTestcases'></a>System Test cases
 
 ###  1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any 
