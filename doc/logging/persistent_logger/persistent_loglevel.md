@@ -32,11 +32,11 @@
 - [5 Cold and Fast Reboot Support](#5-cold-and-fast-reboot-support)
 - [6 Warm Reboot Support](#6-warm-reboot-support)
   - [6.1 Support warm upgrade](#61-support-warm-upgrade)
-  - [6.2 Support warm downgrade](#62-support-warm-downgrade)
-- [7 Yang model](#7-yang-model)
-- [8 Testing](#8-testing)
-  - [8.1 Unit Testing](#81-unit-testing)
-  - [8.2 Manual Testing](#82-manual-testing)
+- [7 Support downgrade](#7-support-warm-downgrade)
+- [8 Yang model](#8-yang-model)
+- [9 Testing](#8-testing)
+  - [9.1 Unit Testing](#91-unit-testing)
+  - [9.2 Manual Testing](#92-manual-testing)
 
 
 
@@ -347,28 +347,39 @@ When the system startup and the Database container initialize, and the config_db
   - In case of a warm upgrade, move Logger tables from LOGLEVEL DB to CONFIG DB (with a minor change in the key) and delete LOGLEVEL DB.
   - Exposing the "del" function from the swss-common/sonicv2-connector.h to the db migrator. 
 
-## 6.2 Support warm downgrade
+# 7 Support downgrade
 
 In the current implementation, after a cold/fast reboot, the CONFIG DB and the LOGLEVEL DB flush, and the config_db.json loads into the CONFIG DB.
 In addition, in the current implementation, after a warm reboot, the CONFIG DB and the LOGLEVEL DB are not flush, and the config_db.json does not load into the CONFIG DB.
-This current state leads us not fully support the warm-downgrade.
+This current state leads us not fully support the downgrade.
 
 Here are some scenarios to notice:
 Scenario 1:
- 1. We have the image with the feature, and then we perform warm-downgrade.
-    The CONFIG DB will still contain the Logger tables, but they will not be used. In addition, new Logger tables with default values will be added to the LOGLEVEL DB. After warm-downgrade, the user will be able to change the loglevel.
- 2. We perform warm-upgrade:
-    The Logger tables that were created in the LOGLEVEL DB from step 1 will override the unused tables in CONFIG DB.
- 
+ 1. We have the image with the feature.
+    The CONFIG DB will contain the Logger tables, and the LOGLEVEL DB will be empty.
+ 2. We perform a downgrade.
+    The CONFIG DB will not contain the Logger tables. In addition, new Logger tables with default values will be added to the LOGLEVEL DB. After the downgrade, the user will be able to change the loglevel.
+ 3. We perform warm-upgrade:
+    The Logger tables that were created in the LOGLEVEL DB from step 1 will move to the CONFIG DB.
+
 Scenario 2:
+ 1. We have the image with the feature.
+    The CONFIG DB will contain the Logger tables, and the LOGLEVEL DB will be empty.
+ 2. We perform a downgrade.
+    The CONFIG DB will not contain the Logger tables. In addition, new Logger tables with default values will be added to the LOGLEVEL DB. After the downgrade, the user will be able to change the loglevel.
+ 3. We perform a upgrade:
+    New Logger tables with default values will be added to the CONFIG DB. 
+
+Scenario 3:
  1. We have the image with the feature, and the user changes the loglevel of some components. For example, the user changes the orchagent loglevel to DEBUG.
  2. running "config save". The Logger tables are saved to the config_db.json and are persistent.
- 3. then we perform warm-downgrade.
-    The CONFIG DB will still contain the Logger tables, but they will not be used. In addition, new Logger tables with default values will be added to the LOGLEVEL DB.
- 4. We perform cold-upgrade:
-    The LOGLEVEL DB will be removed. The CONFIG DB will start up with the Logger tables from the config_db.json, which means the verbosity of the orchagent will be DEBUG.
+ 3. We perform a downgrade.
+    The CONFIG DB will contain the Logger tables from the config_db.json. In addition, new Logger tables with default values will be added to the LOGLEVEL DB. After the downgrade, the user will be able to change the loglevel.
+ 4. We perform warm-upgrade:
+    The Logger tables from the LOGLEVEL DB will override the unused Logger tables of the CONFIG DB. 
 
-# 7 Yang model
+
+# 8 Yang model
 
   The following YANG model will be added in order to provide support for the Logger:
    - sonic-logger.yang
@@ -444,9 +455,9 @@ Scenario 2:
    ```
 
 
-# 8 Testing
+# 9 Testing
   
-## 8.1 Unit Testing
+## 9.1 Unit Testing
 
   - Update the existing test that uses the LOGLEVEL DB:
     /sonic-swss-common/tests/logger_ut.cpp
@@ -461,7 +472,7 @@ Scenario 2:
     - Logger table without loglevel or logoutput fileds
     - Logger table with valid values
 
-## 8.2 Manual Testing 
+## 9.2 Manual Testing 
 
   - Verify the log level is persistent to cold/fast/warm reboot after the user runs "config save":
     - Change the log level for some component from Notice to Info.
