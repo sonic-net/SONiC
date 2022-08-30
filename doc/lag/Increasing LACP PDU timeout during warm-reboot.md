@@ -14,20 +14,23 @@ value.
 
 ## Requirements
 
-- Switch running a supported SONiC on both sides of the LAG
+- Switch running a supported SONiC with patches in libteam for this feature on
+  both sides of the LAG
 
 ## Assumptions
-
-TODO
-
-## Limitations
-
 
 Such a change is going against the LACP protocol, and as such, can only be
 supported if both sides of the LAG are running SONiC, and they are running a
 version of SONiC that understands this. If the peer side is not running a
 supported version of SONiC, or it is not running SONiC, then the current
 behavior is preseved.
+
+## Limitations
+
+There's a chance that the packet to change the retry count doesn't get to the
+peer device (due to congestion, for example). Because the protocol as defined
+below doesn't wait for an acknowledgment packet, there's no reliable way of
+knowing whether it was handled by the peer device or not.
 
 # Background
 
@@ -62,12 +65,14 @@ Both Actor Information and Partner Information have the following content:
 |      8        |   2    | Key             |
 |     10        |   2    | Port Priority   |
 |     12        |   2    | Port            |
+|     14        |   2    | Padding         |
 
 Retry count have the following content:
 
 | Starting byte | Length | Description     |
 |---------------|--------|-----------------|
 |      0        |   2    | New retry count |
+|      2        |   2    | Padding         |
 
 When the retry count needs to be changed, the sending device must send a packet
 with ethertype 0x6300, and the data will contain the Actor Information, Partner
