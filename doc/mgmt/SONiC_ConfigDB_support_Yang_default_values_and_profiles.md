@@ -173,9 +173,9 @@ This document provides a detailed description on the new features for:
           }
           }
           ```
-        - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclam unused buffer resource.
+        - On mellanox devices, when set buffer mode to 'dynamic' mode, buffer manager will use swsscommon API to delete buffer pool to reclaim unused buffer resource.
         - When delete a profile item 'ingress_lossless_pool', the key of this item will be write to PROFILE_DELETE table. and swsscommon read API will not return this item anymore.
-        - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be remove from PROFILE_DELETE table. and swsscommon read API will return this item.
+        - Revert operation: when user set buffer mode back, buffer manager will write the deleted item back, when this happen, the key of the item will be removed from PROFILE_DELETE table. and swsscommon read API will return this item.
 
 # 2 Design
 
