@@ -1,33 +1,33 @@
-<!-- vscode-markdown-toc -->
-* 1. [Table of Content](#TableofContent)
-	* 1.1. [Revision](#Revision)
-	* 1.2. [Scope](#Scope)
-	* 1.3. [Definitions/Abbreviations](#DefinitionsAbbreviations)
-	* 1.4. [Overview](#Overview)
-	* 1.5. [Requirements](#Requirements)
-	* 1.6. [Architecture Design](#ArchitectureDesign)
-	* 1.7. [High-Level Design](#High-LevelDesign)
-	* 1.8. [SAI API](#SAIAPI)
-	* 1.9. [Configuration and management](#Configurationandmanagement)
-		* 1.9.1. [Manifest (if the feature is an Application Extension)](#ManifestifthefeatureisanApplicationExtension)
-		* 1.9.2. [CLI/YANG model Enhancements](#CLIYANGmodelEnhancements)
-		* 1.9.3. [Config DB Enhancements](#ConfigDBEnhancements)
-	* 1.10. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
-	* 1.11. [Restrictions/Limitations](#RestrictionsLimitations)
-	* 1.12. [Testing Requirements/Design](#TestingRequirementsDesign)
-		* 1.12.1. [Unit Test cases](#UnitTestcases)
-		* 1.12.2. [System Test cases](#SystemTestcases)
-	* 1.13. [Open/Action items - if any](#OpenActionitems-ifany)
-
-<!-- vscode-markdown-toc-config
-	numbering=true
-	autoSave=true
-	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->
- SSH server global config HLD
-
+# SSH global config HLD
 ##  1. <a name='TableofContent'></a>Table of Content 
-
+- [SSH global config HLD](#ssh-global-config-hld)
+	- [1. <a name='TableofContent'></a>Table of Content](#1-table-of-content)
+		- [1.1. <a name='Revision'></a>Revision](#11-revision)
+		- [1.2. <a name='Scope'></a>Scope](#12-scope)
+		- [1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations](#13-definitionsabbreviations)
+		- [1.4. <a name='Overview'></a>Overview](#14-overview)
+		- [1.5. <a name='Requirements'></a>Requirements](#15-requirements)
+		- [1.6. <a name='ArchitectureDesign'></a>Architecture Design](#16-architecture-design)
+			- [1.6.1. <a name='ConfigModules'></a>Configuration modules](#161-configuration-modules)
+		- [1.7. <a name='High-LevelDesign'></a>High-Level Design](#17-high-level-design)
+				- [Flow diagram](#flow-diagram)
+			- [1.7.1 <a name='Flow description'></a>Flow description](#171-flow-description)
+			- [1.7.2 <a name='SSH global policies'></a>SSH global policies](#172-ssh-global-policies)
+		- [1.8. <a name='Init flow'></a>Init flow](#18-init-flow)
+			- [1.8.1. <a name='FeatureDefault'></a>Feature Default](#181-feature-default)
+		- [1.9. <a name='SAI api'></a>SAI api](#19-sai-api)
+		- [1.10. <a name='Configurationandmanagement'></a>Configuration and management](#110-configuration-and-management)
+			- [1.10.1. <a name='SSH_GLOBALconfigDBtable'></a>SSH_GLOBAL configDB table](#1101-ssh_global-configdb-table)
+			- [1.10.2. ConfigDB schemas](#1102-configdb-schemas)
+			- [1.10.3. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements](#1103-cliyang-model-enhancements)
+			- [1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements](#1104-config-db-enhancements)
+			- [1.10.5. <a name='ManifestifthefeatureisanApplicationExtension'></a>Manifest (if the feature is an Application Extension)](#1105-manifest-if-the-feature-is-an-application-extension)
+		- [1.11. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact](#111-warmboot-and-fastboot-design-impact)
+		- [1.12. <a name='RestrictionsLimitations'></a>Restrictions/Limitations](#112-restrictionslimitations)
+		- [1.13. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design](#113-testing-requirementsdesign)
+			- [1.13.1. <a name='UnitTestcases'></a>Unit Test cases](#1131-unit-test-cases)
+			- [1.13.2. <a name='SystemTestcases'></a>System Test cases](#1132-system-test-cases)
+		- [1.14. <a name='OpenActionitems-ifany'></a>Open/Action items - if any](#114-openaction-items---if-any)
 ###  1.1. <a name='Revision'></a>Revision  
 
 ###  1.2. <a name='Scope'></a>Scope  
@@ -67,7 +67,7 @@ The Daemon is running in the host (without container) that matches this feature,
 ##### Flow diagram
 ![ssh_flow_community](ssh_flow_community.png)
 #### 1.7.1 <a name='Flow description'></a>Flow description
-When the feature is enabled, users by using [auto-generated SONIC CLI](https://github.com/sonic-net/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md) or modifying the DB manually, will set ssh server policies/configuration (see options below) by modifing CONF_DB in SSH_GLOBAL_TABLE.
+When the feature is enabled, by modifying the DB manually, user will set ssh server policies/configuration (see options below) by modifing CONF_DB in SSH_GLOBAL_TABLE.
 
 The hostcfgd daemon will be extended to listen to ssh policies/configurations from SSH_GLOBAL table, parse the inputs and set the new policies to ssh config files, and update ssh server afterwards.
 
@@ -180,23 +180,6 @@ module sonic-sshg {
     }/* container sonic-sshg */
 }/* end of module sonic-sshg */
 ```
-##### Config CLI
-When using [auto-generated SONIC CLI](https://github.com/sonic-net/SONiC/blob/master/doc/cli_auto_generation/cli_auto_generation.md), config CLI will be created as the following:
-```
-root@r-panther-13:/home/admin# config ssh_global login_attempts 10
-root@r-panther-13:/home/admin# config ssh_global login_timeout 200
-root@r-panther-13:/home/admin# config ssh_global ports 222
-root@r-panther-13:/home/admin# config ssh_global tcp_forwarding true
-root@r-panther-13:/home/admin# config ssh_global x11_forwarding false
-```
-##### show command
-```
-root@r-panther-13:/home/admin# show ssh_global
-
-LOGIN ATTEMPTS  LOGIN TIMEOUT  PORTS  TCP FORWARDING  X11 FORWARDING
---------------  -------------  -----  --------------  --------------
-10              200            222    true            false
-```
 ####  1.10.4. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
 
 The ConfigDB will be extended with next objects:
@@ -233,9 +216,8 @@ Example sub-sections for unit test cases and system test cases are given below.
 
 ####  1.13.1. <a name='UnitTestcases'></a>Unit Test cases  
 - Configuration – good flow
-  - Perform show command
   - Verify default values
-  - Configure all types and check with show command
+  - Configure all types and check updated values
   - Configure login_attempts to X and try to connect with wrong password X+1 times
   - Configure login_timeout to X, try to connect and wait for X+5 seconds (need to disconnect)
   - Configure ports to 222 and see if unable to connect to 22
