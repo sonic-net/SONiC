@@ -338,21 +338,20 @@ This document provides a detailed description on the new features for:
 ## 7.1 Phase 1
 
 - swss common API change:
-  
+
   - support Yang model default value.
   - support profile value.
 
 - Profile DB code change:
-  
+
   - sonic-cfggen change to support generate profile to PROFILE_DB.
   - sonic-util change to support generate profile when load minigraph.
   - for backward compatibility, config tables still generate to CONFIG_DB.
-  - for warm-reboot/fast-reboot, save and persist profile DB.
 
 ## 7.2 Phase 2
 
 - Update sonic cli.
-  
+
   - Add 'show all config' command, which will show following config:
     - User config from config DB.
     - Yang model default value.
@@ -362,20 +361,25 @@ This document provides a detailed description on the new features for:
   - This will improve user expirence for debug config related issue.
 
 - Find out all projects need update by code scan:
-  
+
   - Any project using swsssdk.
   - Any project using swss common c++ lib.
   - Any project using swss common python lib.
 
 - Involve project owner to migrate to new API.
-  
+
   - If project still using swsssdk, then switch to swsscommon with new API.
   - When migrate to new API, also clean up hardcoded default values.
   - Fix code in buffer manager for a special case for dynamic buffer profile.
 
 - Buffer manager change to use profile table class.
-  
+
   - After this, sonic-cfggen and sonic-util change to not generate profile to CONFIG_DB.
+
+- Improve DB migrator.
+
+  - Re-generate profile DB when OS version changed after warm-reboot.
+  - Deprecate hardcoded profile configuration and profile migrate logic.
 
 # 8 References
 
