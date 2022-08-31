@@ -301,21 +301,23 @@ This document provides a detailed description on the new features for:
 ## 3.1 Cold-reboot
 
 - Code-reboot will reload minigraph, profile DB will re-render in reload minigraph.
+- sonic-cfggen and sonic-utility will update to support generate profile DB during reload minigraph.
 
 ## 3.2 Warm-reboot
 
-- Profile DB will presist to file before warm-reboot, will load from saved file after warm-reboot.
+- Profile DB will follow SONiC warm-reboot process, warm-reboot will save whole Redis DB to /host/warmboot/dump.rdb, please refer to [SONiC YANG MODEL GUIDELINES](#7-1-sonic-yang-model-guidelines)
 - DB migrator will run after warm reboot, will handle OS upgrade in DB migrator.
 
 ## 3.3 Fast-reboot
 
 - Fast-reboot will reload minigraph, profile DB will re-render in reload minigraph.
+- sonic-cfggen and sonic-utility will update to support generate profile DB during reload minigraph.
 
 ## 3.4 Schema upgrade and DB migration
 
 - DB migrator will re-render profile DB to handle schema change.
-  - Profile DB will rendered by cfg-gen command.
-- DB migrator code will implify by deprate hardcoded config and complex upgrade logic for profile config.
+  - Profile DB will generate by sonic-cfggen command.
+- DB migrator code will improve by deprate hardcoded config and complex upgrade logic.
 - Some profile configuration change are disruptive, for example buffer config change,those change need fast-reboot to make sure change refelected on ASIC.
 
 # 4 Error handling
@@ -380,3 +382,7 @@ This document provides a detailed description on the new features for:
 ## SONiC YANG MODEL GUIDELINES
 
 https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md
+
+## System-wide Warmboot
+
+https://github.com/sonic-net/SONiC/blob/9d800b1af99c7d2f22c234f1a17224a4de112c93/doc/warm-reboot/system-warmboot.md
