@@ -128,28 +128,62 @@ class PortableConsoleDeviceBase:
         """
         raise NotImplementedError
 
-    def get_serial_number(self):
+    def get_num_devices(self):
         """
-        Retrieves the serial number of the portable console device.
+        Retrieves the number of portable console devices plugged in (by daisy-chain).
 
-        :return: A string, denoting serial number of portable console device.
+        :return: An integer, the number of portable console devices plugged in.
         """
         raise NotImplementedError
 
-    def get_virtual_device_list(self):
+    def get_serial_numbers(self):
         """
-        Retrieves the line number and virtual device list of portable console device.
+        Retrieves the serial numbers of portable console devices.
 
-        :return: A dict, the key is line number (integer, 1-based),
-                         the value is virtual device path (string).
+        :return: A dict, the key is the index of the portable console device (integer, 0-based),
+                         the value is serial number (string).
                  eg.
                  {
-                     1: "/dev/console-1",
-                     2: "/dev/console-2",
+                     0: "device-S/N-1",
+                     1: "device-S/N-2",
                      ...
                  }
         """
         raise NotImplementedError
+
+    def get_all_lines(self):
+        """
+        Retrieves the infomation of all console lines on portable console devices.
+
+        :return: A dict, the key is console line number (integer, 1-based),
+                         the value is a dict which contains line information.
+                 eg.
+                 {
+                     1: {
+                         "device_index": 0,
+                         "virtual_device_path": "/dev/console-1"
+                     },
+                     2: {
+                         "device_index": 0,
+                         "virtual_device_path": "/dev/console-2"
+                     },
+                     ...
+                 }
+        """
+        raise NotImplementedError
+
+    def get_line(self, line_number):
+        """
+        Retrieves the information of a specific console line (1-based) on portable console devices.
+
+        :param index: An integer, console line number.
+        :return: A dict, contains the information of a specific line.
+                 eg.
+                 {
+                     "device_index": 0,
+                     "virtual_device_path": "/dev/console-1"
+                 }
+        """
 
     def get_num_psus(self):
         """
@@ -221,12 +255,32 @@ class PortableConsoleDeviceSimulator(PortableConsoleDeviceBase):
     def get_serial_number(self):
         return "Microsoft-Simulator-S/N"
 
-    def get_virtual_device_list(self):
+    def get_all_lines(self):
         return {
-            1: "/dev/console-1",
-            2: "/dev/console-2",
+            1: {
+                "device_index": 0,
+                "virtual_device_path": "/dev/console-1"
+            },
+            2: {
+                "device_index": 0,
+                "virtual_device_path": "/dev/console-2"
+            },
             # ...
         }
+
+    def get_line(self, line_number):
+        if line_number == 1:
+            return {
+                "device_index": 0,
+                "virtual_device_path": "/dev/console-1"
+            }
+        if line_number == 2:
+            return {
+                "device_index": 0,
+                "virtual_device_path": "/dev/console-2"
+            }
+        # ...
+        return None
 
     def get_num_psus(self):
         return 0
