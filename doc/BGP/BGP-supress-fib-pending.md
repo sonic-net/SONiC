@@ -4,20 +4,25 @@
 <!-- omit in toc -->
 ## Table of Content
 
-- [1. Revision](#1-revision)
-- [2. Scope](#2-scope)
-- [3. Definitions/Abbreviations](#3-definitionsabbreviations)
-- [4. Overview](#4-overview)
-- [5. Requirements](#5-requirements)
-- [6. Architecture Design](#6-architecture-design)
-- [7. High-Level Design](#7-high-level-design)
-- [RouteOrch](#routeorch)
-  - [High-Level Flow Diagram](#high-level-flow-diagram)
+- [1. Scope](#1-scope)
+- [2. Definitions/Abbreviations](#2-definitionsabbreviations)
+- [3. Overview](#3-overview)
+- [4. Requirements](#4-requirements)
+- [5. Architecture Design](#5-architecture-design)
+- [6. High-Level Design](#6-high-level-design)
+- [7. RouteOrch](#7-routeorch)
+  - [7.1. High-Level Flow Diagram](#71-high-level-flow-diagram)
+  - [7.2. Temporary route](#72-temporary-route)
+  - [7.3. Response Channel Performance considerations](#73-response-channel-performance-considerations)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
-  - [9.1. Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
-  - [9.2. CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
-  - [9.3. Config DB Enhancements](#93-config-db-enhancements)
+  - [9.1. Config DB Enhancements](#91-config-db-enhancements)
+    - [9.1.1. APP_STATE_LOGGING](#911-app_state_logging)
+    - [9.1.2. DEVICE_METADATA](#912-device_metadata)
+  - [9.2. Manifest (if the feature is an Application Extension)](#92-manifest-if-the-feature-is-an-application-extension)
+  - [9.3. CLI/YANG model Enhancements](#93-cliyang-model-enhancements)
+    - [9.3.1. APP_STATE_LOGGING](#931-app_state_logging)
+    - [9.3.2.  DEVICE_METADATA](#932--device_metadata)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Restrictions/Limitations](#11-restrictionslimitations)
 - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
@@ -25,17 +30,18 @@
   - [12.2. System Test cases](#122-system-test-cases)
 - [13. Open/Action items - if any](#13-openaction-items---if-any)
 
+<!-- omit in toc -->
 ### 1. Revision
 
 | Revision | Date        | Author           | Change Description |
 | -------- | ----------- | ---------------- | ------------------ |
 | 1.0      | Sep 15 2022 | Stepan Blyshchak | Initial proposal   |
 
-### 2. Scope
+### 1. Scope
 
 This document describes a feedback mechanism that allows BGP not to adveritise routes that haven't been programmed yet or failed to be programmed to ASIC.
 
-### 3. Definitions/Abbreviations
+### 2. Definitions/Abbreviations
 
 | Definitions/Abbreviation | Description                  |
 | ------------------------ | ---------------------------- |
@@ -46,7 +52,7 @@ This document describes a feedback mechanism that allows BGP not to adveritise r
 | FPM                      | Forwarding Plane Manager     |
 | SAI                      | Switch Abstraction Interface |
 
-### 4. Overview
+### 3. Overview
 
 The FRR implementation of BGP advertises prefixes learnt from a peer to other peers even if the routes do not get installed in the FIB. There can be scenarios where the hardware tables in some of the routers (along the path from the source to destination) is full which will result in all routes not getting installed in the FIB. If these routes are advertised to the downstream routers then traffic will start flowing and will be dropped at the intermediate router.
 
@@ -83,15 +89,15 @@ The problem with BGP programming occurs after the T1 switch is rebooted:
 When the traffic is bounced back on lossless queue, buffers on both sides are overflown, credit loop happens, with PFC storm and watchdog triggered shutting down the port.
 To avoid that, the route programming has to be synchronous down to the ASIC to avoid credit loops.
 
-### 5. Requirements
+### 4. Requirements
 
 This section list out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
 
-### 6. Architecture Design
+### 5. Architecture Design
 
 Described functionality does not require changes to the current SONiC architecture. This design follows existing SONiC architecture approaches and uses existing SONiC infrastrcuture.
 
-### 7. High-Level Design
+### 6. High-Level Design
 
 In order to support this feature
 
@@ -116,7 +122,8 @@ This section covers the high level design of the feature/enhancement. This secti
     - Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
     - SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
 
-### RouteOrch
+
+### 7. RouteOrch
 
 ```c++
 auto status = ReturnCode(saiStatus) << "Failed to create route " << ipPrefix.to_string().c_str() << " with next hop(s) " << nextHops.to_string().c_str();
@@ -125,12 +132,17 @@ SWSS_LOG_ERROR("%s", status.message().c_str());
 m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), status);
 ```
 
-#### High-Level Flow Diagram
+#### 7.1. High-Level Flow Diagram
 
 <!-- omit in toc -->
 ##### Figure 2. BGP Configuration Flow Diagram
 
 ```mermaid
+%%{
+  init: {
+    "theme": "forest"
+  }
+}%%
 sequenceDiagram
     participant CONFIG_DB
     participant A as BGP /usr/bin/docker_init.sh
@@ -168,6 +180,11 @@ sequenceDiagram
 ##### Figure 3. BGP-SWSS Flow Diagram
 
 ```mermaid
+%%{
+  init: {
+    "theme": "forest"
+  }
+}%%
 sequenceDiagram
     participant orchagent
     participant APPL_DB
@@ -178,38 +195,28 @@ sequenceDiagram
     participant Kernel
     participant zebra
     participant bgpd
-
     Note right of bgpd: A new prefix is received
-
     activate bgpd
     bgpd -->> zebra: <br>
     activate zebra
-
     zebra -->> Kernel: <br>
     activate Kernel
-
     Note right of Kernel: Route is programmed to kernel<br> without RTM_F_OFFLOAD flag
-
     Kernel -->> zebra: <br>
     deactivate Kernel
     zebra -->> fpmsyncd: Update via FPM channel
     activate fpmsyncd
-
     fpmsyncd -->> APPL_DB: Set ROUTE_TABLE entry
     activate APPL_DB
     APPL_DB -->> orchagent: <br>
     activate orchagent
     deactivate APPL_DB
-
     deactivate fpmsyncd
-
     deactivate zebra
     deactivate bgpd
-
     loop for each route
         orchagent -->> orchagent: Prepare bulk create request
     end
-
     orchagent -->> ASIC_DB: sai_route_api->create_route_entries
     activate ASIC_DB
     ASIC_DB -->> syncd: <br>
@@ -222,37 +229,51 @@ sequenceDiagram
         orchagent -->> APPL_STATE_DB: Set ROUTE_TABLE entry status
         activate APPL_STATE_DB
         APPL_STATE_DB -->> fpmsyncd: <br>
-
         activate fpmsyncd
-
         alt Route creation successful:
             fpmsyncd -->> Kernel: Set RTM_F_OFFLOAD
             activate Kernel
-
             Kernel -->> zebra: <br>
-
             activate zebra
-
             zebra -->> bgpd: <br>
             activate bgpd
-
             Note right of bgpd: The prefix advertisement was suppressed<br>Now RTM_F_OFFLOAD appears in the flags<br> and it is going to be advertised to peers.
-
             deactivate bgpd
-
             deactivate zebra
-
             deactivate Kernel
         end
-
         deactivate fpmsyncd
-
         APPL_STATE_DB -->> orchagent: <br>
         deactivate APPL_STATE_DB
     end
-
-
     deactivate orchagent
+```
+
+#### 7.2. Temporary route
+
+#### 7.3. Response Channel Performance considerations
+
+Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
+
+Adding a feedback mechanism to the system introduces a delay as each of the component needs to wait for the reply from the lower layer counterpart in order to proceed. SONiC has already moved to synchronous SAI Redis pipeline a route programming performance degradation caused by it is leveled by the use of SAIRedis Bulk API.
+
+By introducing a response channel it is required to leverage Redis Pipeline, so that the route configuration producer using Redis Pipeline with ```ProducerStateTable``` also receives route programming status responses produced by pipelined ```NotificationProducer``` which is part of ```ResponsePublisher```.
+
+On the other side, ```fpmsyncd``` does not wait for each individual route status but rather performs an asynchronous processing.
+
+```mermaid
+%%{
+  init: {
+    "theme": "forest"
+  }
+}%%
+flowchart LR
+    zebra("</br>zebra</br></br>") -- FPM channel --> fpmsyncd("</br>fpmsyncd</br></br>")
+    fpmsyncd -- "ProducerStateTable (Pipelined)" --> RouteOrch("</br>RouteOrch</br></br>")
+    RouteOrch -. "ResponsePublisher (Pipelined)" -.-> fpmsyncd
+    fpmsyncd -. FPM channel -.-> zebra
+    RouteOrch -- "SAIRedis Bulk API" --> syncd("</br>syncd</br></br>")
+    syncd -. "SAIRedis Bulk Reply" -.-> RouteOrch
 ```
 
 ### 8. SAI API
@@ -260,45 +281,136 @@ sequenceDiagram
 No new SAI API or changes to SAI design and behaviour needed for this functionality.
 
 ### 9. Configuration and management
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
 
-#### 9.1. Manifest (if the feature is an Application Extension)
+#### 9.1. Config DB Enhancements
+
+##### 9.1.1. APP_STATE_LOGGING
+
+Configuration schema in ABNF format:
+
+```abnf
+; APP_STATE_LOGGING table
+key   = APP_STATE_LOGGING|ROUTE_TABLE ; Configuration for ROUTE_TABLE
+state = "enabled"/"disabled"          ; Enable/disable response logging for ROUTE_TABLE
+```
+
+Sample of CONFIG DB snippet given below:
+
+```json
+{
+    "APP_STATE_LOGGING": {
+        "ROUTE_TABLE": {
+            "state": "enabled"
+        }
+    }
+}
+```
+
+##### 9.1.2. DEVICE_METADATA
+
+Configuration schema in ABNF format:
+
+```abnf
+; DEVICE_METADATA table
+key                      = DEVICE_METADATA|localhost ; Device metadata configuration table
+bgp-suppress-fib-pending = "enabled"/"disabled"        ; Globally enable/disable BGP suppress-fib-pending feature, by default this flag is disabled
+```
+
+Sample of CONFIG DB snippet given below:
+
+```json
+{
+    "DEVICE_METADATA": {
+        "localhost": {
+            "bgp-suppress-fib-pending": "enabled"
+        }
+    }
+}
+```
+
+This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behaviour as this flag is set to be disabled by default.
+
+#### 9.2. Manifest (if the feature is an Application Extension)
 
 This feature is implemented as part of existing BGP and SWSS containers, no manifest changes are required.
 
-#### 9.2. CLI/YANG model Enhancements
+#### 9.3. CLI/YANG model Enhancements
 
-A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```bgp-suppress-fib-pending``` which be set to ```"enable"``` or ```"disable"```.
+##### 9.3.1. APP_STATE_LOGGING
+
+A new table ```APP_STATE_LOGGING``` and a corresponding YANG model is added:
+
+```yang
+module sonic-app-state-logging {
+    yang-version 1.1;
+
+    namespace "http://github.com/Azure/sonic-app-state-logging";
+    prefix app-state-logging;
+
+    description "APP_STATE_LOGGING YANG module for SONiC OS";
+
+    revision 2022-09-15 {
+        description "Initial revision";
+    }
+
+    container sonic-app-state-logging {
+        container APP_STATE_LOGGING {
+            description "Controls the enablement of a response channel per APPL_DB table";
+
+            container ROUTE_TABLE {
+                description "Configure response channel for ASIC route configuration";
+
+                leaf state {
+                    description "Enablement state of response channel for the given table";
+                    type enumeration {
+                        enum enabled;
+                        enum disabled;
+                    }
+                    default disabled;
+                }
+            }
+        }
+    }
+}
+```
+
+Note that response channel for ROUTE_TABLE can be enabled regardless of ```synchronous_mode``` as we might still get a response from ```RouteOrch``` validation logic as well as ```SAIRedis``` validation.
+
+##### 9.3.2.  DEVICE_METADATA
+
+A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```bgp-suppress-fib-pending``` which can be set to ```"enable"``` or ```"disable"```.
 
 Snippet of ```sonic-device_metatadata.yang```:
 
 ```yang
 module sonic-device_metadata {
+    import sonic-app-state-logging {
+        prefix app-state-logging;
+    }
+
     revision 2022-09-15 {
         description "Add BGP suppress FIB pending configuration knob";
     }
 
     container sonic-device_metadata {
-
         container DEVICE_METADATA {
-
             description "DEVICE_METADATA part of config_db.json";
 
             container localhost{
-
                 leaf bgp-suppress-fib-pending {
                     description "Enable BGP suppress FIB pending feature. BGP will wait for route
                                  FIB intallation before announcing routes. This configuration requires
                                  restarting BGP sessions.";
                     type enumeration {
-                        enum enable;
-                        enum disable;
+                        enum enabled;
+                        enum disabled;
                     }
-                    default disable;
+                    default disabled;
 
-                    must "((current() = 'disable') or (current() = 'enable' and../synchronous_mode = 'enable'))";
+                    must "((current() = 'disabled') or (current() = 'enabled' and ../synchronous_mode = 'enable' and /app-state-logging:sonic-app-state-logging/app-state-logging:APP_STATE_LOGGING/app-state-logging:ROUTE_TABLE/app-state-logging:state = 'enabled'))" {
+                        error-message "ASIC synchronous mode and APP_STATE_LOGGIN for ROUTE_TABLE must to be enabled in order to enable BGP suppress FIB pending feature";
+                    }
                 }
-
             }
         }
     }
@@ -308,30 +420,6 @@ module sonic-device_metadata {
 This knob can only be set to ```"enable"``` when syncrhonous SAI configuration mode is on. This constraint is guaranteed by the ```must``` expression for this leaf.
 
 No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be implemented for this functionality.
-
-#### 9.3. Config DB Enhancements
-
-Configuration schema in ABNF format:
-
-```abnf
-; DEVICE_METADATA table
-key                      = DEVICE_METADATA:localhost ; Device metadata configuration table
-bgp-suppress-fib-pending = "enable"/"disable"        ; Globally enable/disable BGP suppress-fib-pending feature, by default this flag is disabled
-```
-
-Sample of CONFIG DB snippet given below:
-
-```json
-{
-    "DEVICE_METADATA": {
-        "localhost": {
-            "bgp-suppress-fib-pending": "enable"
-        }
-    }
-}
-```
-
-This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behaviour as this flag is set to be disabled by default.
 
 ### 10. Warmboot and Fastboot Design Impact
 Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
