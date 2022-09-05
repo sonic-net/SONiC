@@ -10,25 +10,28 @@
 - [4. Requirements](#4-requirements)
 - [5. Architecture Design](#5-architecture-design)
 - [6. High-Level Design](#6-high-level-design)
-- [7. RouteOrch](#7-routeorch)
-  - [7.1. High-Level Flow Diagram](#71-high-level-flow-diagram)
-  - [7.2. Temporary route](#72-temporary-route)
-  - [7.3. Response Channel Performance considerations](#73-response-channel-performance-considerations)
-- [8. SAI API](#8-sai-api)
-- [9. Configuration and management](#9-configuration-and-management)
-  - [9.1. Config DB Enhancements](#91-config-db-enhancements)
-    - [9.1.1. APP_STATE_LOGGING](#911-app_state_logging)
-    - [9.1.2. DEVICE_METADATA](#912-device_metadata)
-  - [9.2. Manifest (if the feature is an Application Extension)](#92-manifest-if-the-feature-is-an-application-extension)
-  - [9.3. CLI/YANG model Enhancements](#93-cliyang-model-enhancements)
-    - [9.3.1. APP_STATE_LOGGING](#931-app_state_logging)
-    - [9.3.2.  DEVICE_METADATA](#932--device_metadata)
-- [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
-- [11. Restrictions/Limitations](#11-restrictionslimitations)
-- [12. Testing Requirements/Design](#12-testing-requirementsdesign)
-  - [12.1. Unit Test cases](#121-unit-test-cases)
-  - [12.2. System Test cases](#122-system-test-cases)
-- [13. Open/Action items - if any](#13-openaction-items---if-any)
+  - [6.1. BGP Docker container startup](#61-bgp-docker-container-startup)
+  - [6.2. RouteOrch](#62-routeorch)
+  - [6.3. Temporary route](#63-temporary-route)
+  - [6.4. FPMsyncd](#64-fpmsyncd)
+  - [6.5. Response Channel Performance considerations](#65-response-channel-performance-considerations)
+- [7. SAI API](#7-sai-api)
+- [8. Configuration and management](#8-configuration-and-management)
+  - [8.1. Config DB Enhancements](#81-config-db-enhancements)
+    - [8.1.1. APP_STATE_LOGGING](#811-app_state_logging)
+    - [8.1.2. DEVICE_METADATA](#812-device_metadata)
+  - [8.2. Manifest (if the feature is an Application Extension)](#82-manifest-if-the-feature-is-an-application-extension)
+  - [8.3. CLI/YANG model Enhancements](#83-cliyang-model-enhancements)
+    - [8.3.1. APP_STATE_LOGGING](#831-app_state_logging)
+    - [8.3.2.  DEVICE_METADATA](#832--device_metadata)
+- [9. Warmboot and Fastboot Design Impact](#9-warmboot-and-fastboot-design-impact)
+  - [9.1. Warm Reboot](#91-warm-reboot)
+  - [9.2. Fast Reboot](#92-fast-reboot)
+- [10. Restrictions/Limitations](#10-restrictionslimitations)
+- [11. Testing Requirements/Design](#11-testing-requirementsdesign)
+  - [11.1. Unit Test cases](#111-unit-test-cases)
+  - [11.2. System Test cases](#112-system-test-cases)
+- [12. Open/Action items - if any](#12-openaction-items---if-any)
 
 <!-- omit in toc -->
 ### 1. Revision
@@ -91,7 +94,11 @@ To avoid that, the route programming has to be synchronous down to the ASIC to a
 
 ### 4. Requirements
 
-This section list out all the requirements for the HLD coverage and exemptions (not supported) if any for this design.
+- ```RouteOrch``` must use the ```ResponsePublisher``` API to create a feedback channel and write each route entry programming status for the ```fpmsyncd``` to consume
+- The response channel can be turned off based on user configuration in a new ```APP_STATE_LOGGING``` table in CONFIG DB. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```
+- A configuration knob ```bgp-suppress-fib-pending``` in ```DEVICE_METADATA``` table in CONFIG DB to control the enablement of the feature is required. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```. This knob can only be enabled if the corresponding response channel is enabled in ```APP_STATE_LOGGING```
+- ```fpmsyncd``` must consume the responses from ```RouteOrch``` when the feature is enabled and communicate the status of a route back to ```zebra``` using ```FPM``` channel
+- ```FRR``` must support ```bgp suppress-fib-pending``` as well as response channel via ```FPM```. Available as part of ```FRR``` 8.4 or requires a patched 8.2 release
 
 ### 5. Architecture Design
 
@@ -99,40 +106,7 @@ Described functionality does not require changes to the current SONiC architectu
 
 ### 6. High-Level Design
 
-In order to support this feature
-
-This section covers the high level design of the feature/enhancement. This section covers the following points in detail.
-
-    - Is it a built-in SONiC feature or a SONiC Application Extension?
-    - What are the modules and sub-modules that are modified for this design?
-    - What are the repositories that would be changed?
-    - Module/sub-module interfaces and dependencies.
-    - SWSS and Syncd changes in detail
-    - DB and Schema changes (APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, STATE_DB)
-    - Sequence diagram if required.
-    - Linux dependencies and interface
-    - Warm reboot requirements/dependencies
-    - Fastboot requirements/dependencies
-    - Scalability and performance requirements/impact
-    - Memory requirements
-    - Docker dependency
-    - Build dependency if any
-    - Management interfaces - SNMP, CLI, RestAPI, etc.,
-    - Serviceability and Debug (logging, counters, trace etc) related design
-    - Is this change specific to any platform? Are there dependencies for platforms to implement anything to make this feature work? If yes, explain in detail and inform community in advance.
-    - SAI API requirements, CLI requirements, ConfigDB requirements. Design is covered in following sections.
-
-
-### 7. RouteOrch
-
-```c++
-auto status = ReturnCode(saiStatus) << "Failed to create route " << ipPrefix.to_string().c_str() << " with next hop(s) " << nextHops.to_string().c_str();
-SWSS_LOG_ERROR("%s", status.message().c_str());
-
-m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), status);
-```
-
-#### 7.1. High-Level Flow Diagram
+#### 6.1. BGP Docker container startup
 
 <!-- omit in toc -->
 ##### Figure 2. BGP Configuration Flow Diagram
@@ -175,6 +149,9 @@ sequenceDiagram
 
     deactivate A
 ```
+
+
+#### 6.2. RouteOrch
 
 <!-- omit in toc -->
 ##### Figure 3. BGP-SWSS Flow Diagram
@@ -249,9 +226,11 @@ sequenceDiagram
     deactivate orchagent
 ```
 
-#### 7.2. Temporary route
+#### 6.3. Temporary route
 
-#### 7.3. Response Channel Performance considerations
+#### 6.4. FPMsyncd
+
+#### 6.5. Response Channel Performance considerations
 
 Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
 
@@ -276,15 +255,61 @@ flowchart LR
     syncd -. "SAIRedis Bulk Reply" -.-> RouteOrch
 ```
 
-### 8. SAI API
+A snippet of ```ResponsePublisher```'s API is going to be used:
+
+```c++
+// Intent attributes are the attributes sent in the notification into the
+// redis channel.
+// State attributes are the list of attributes that need to be written in
+// the DB namespace. These might be different from intent attributes. For
+// example:
+// 1) If only a subset of the intent attributes were successfully applied, the
+//    state attributes shall be different from intent attributes.
+// 2) If additional state changes occur due to the intent attributes, more
+//    attributes need to be added in the state DB namespace.
+// 3) Invalid attributes are excluded from the state attributes.
+// State attributes will be written into the DB even if the status code
+// consists of an error.
+void ResponsePublisher::publish(const std::string &table, const std::string &key,
+                                const std::vector<swss::FieldValueTuple> &intent_attrs,
+                                const ReturnCode &status,
+                                const std::vector<swss::FieldValueTuple> &state_attrs,
+                                bool replace = false) override;
+
+void ResponsePublisher::publish(const std::string &table, const std::string &key,
+                                const std::vector<swss::FieldValueTuple> &intent_attrs,
+                                const ReturnCode &status,
+                                bool replace = false) override;
+```
+
+Example usage in ```RouteOrch```:
+
+```c++
+auto status = ReturnCode(saiStatus) << "Failed to create route "
+                                    << ipPrefix.to_string().c_str()
+                                    << " with next hop(s) "
+                                    << nextHops.to_string().c_str();
+
+SWSS_LOG_ERROR("%s", status.message().c_str());
+
+m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), status);
+```
+
+A ```ResponsePublisher``` must have a constructor that accepts a ```RedisPipeline``` and a flag ```buffered``` to make it use the pipelining. The constructor is similar to one in use with ```ProducerStateTable```:
+
+```c++
+ResponsePublisher::ResponsePublisher(RedisPipeline *pipeline, bool buffered = false);
+```
+
+### 7. SAI API
 
 No new SAI API or changes to SAI design and behaviour needed for this functionality.
 
-### 9. Configuration and management
+### 8. Configuration and management
 
-#### 9.1. Config DB Enhancements
+#### 8.1. Config DB Enhancements
 
-##### 9.1.1. APP_STATE_LOGGING
+##### 8.1.1. APP_STATE_LOGGING
 
 Configuration schema in ABNF format:
 
@@ -306,7 +331,7 @@ Sample of CONFIG DB snippet given below:
 }
 ```
 
-##### 9.1.2. DEVICE_METADATA
+##### 8.1.2. DEVICE_METADATA
 
 Configuration schema in ABNF format:
 
@@ -330,13 +355,13 @@ Sample of CONFIG DB snippet given below:
 
 This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behaviour as this flag is set to be disabled by default.
 
-#### 9.2. Manifest (if the feature is an Application Extension)
+#### 8.2. Manifest (if the feature is an Application Extension)
 
 This feature is implemented as part of existing BGP and SWSS containers, no manifest changes are required.
 
-#### 9.3. CLI/YANG model Enhancements
+#### 8.3. CLI/YANG model Enhancements
 
-##### 9.3.1. APP_STATE_LOGGING
+##### 8.3.1. APP_STATE_LOGGING
 
 A new table ```APP_STATE_LOGGING``` and a corresponding YANG model is added:
 
@@ -376,7 +401,7 @@ module sonic-app-state-logging {
 
 Note that response channel for ROUTE_TABLE can be enabled regardless of ```synchronous_mode``` as we might still get a response from ```RouteOrch``` validation logic as well as ```SAIRedis``` validation.
 
-##### 9.3.2.  DEVICE_METADATA
+##### 8.3.2.  DEVICE_METADATA
 
 A new leaf is added to ```sonic-device_metadata/sonic-device_metadata/DEVICE_METADATA/localhost``` called ```bgp-suppress-fib-pending``` which can be set to ```"enable"``` or ```"disable"```.
 
@@ -421,21 +446,33 @@ This knob can only be set to ```"enable"``` when syncrhonous SAI configuration m
 
 No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be implemented for this functionality.
 
-### 10. Warmboot and Fastboot Design Impact
-Mention whether this feature/enhancement has got any requirements/dependencies/impact w.r.t. warmboot and fastboot. Ensure that existing warmboot/fastboot feature is not affected due to this design and explain the same.
+### 9. Warmboot and Fastboot Design Impact
 
-### 11. Restrictions/Limitations
+#### 9.1. Warm Reboot
 
-### 12. Testing Requirements/Design
+Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
+
+A warm reboot regression test suite needs to be ran and verified no degradation introduced by the feature.
+
+#### 9.2. Fast Reboot
+
+Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
+
+A fast reboot regression test suite needs to be ran and verified no degradation introduced by the feature.
+
+
+### 10. Restrictions/Limitations
+
+### 11. Testing Requirements/Design
 Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
 Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
 Example sub-sections for unit test cases and system test cases are given below.
 
-#### 12.1. Unit Test cases
+#### 11.1. Unit Test cases
 
-#### 12.2. System Test cases
+#### 11.2. System Test cases
 
-### 13. Open/Action items - if any
+### 12. Open/Action items - if any
 
 
 NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
