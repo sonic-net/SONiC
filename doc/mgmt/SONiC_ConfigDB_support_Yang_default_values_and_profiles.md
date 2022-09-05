@@ -243,8 +243,6 @@ This document provides a detailed description on the new features for:
 
 - DecoratorTable c++ class
 
-- DecoratorSubscriberStateTable c++ class
-
 ## 2.4 Other code change
 
 - Add new methods to TableEntryEnumerable  interface:
