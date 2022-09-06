@@ -159,6 +159,8 @@ sequenceDiagram
     deactivate A
 ```
 
+This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes.
+
 
 #### 6.2. RouteOrch
 
