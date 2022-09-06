@@ -1,9 +1,9 @@
 
-# VRF-Lite for SONiC High Level Design Document #
+# VRF-Lite High Level Design Document #
 
 
 ## Table of Content
-- [VRF-Lite for SONiC High Level Design Document](#vrf-lite-for-sonic-high-level-design-document)
+- [VRF-Lite High Level Design Document](#vrf-lite-high-level-design-document)
   - [Table of Content](#table-of-content)
     - [Revision History](#revision-history)
     - [Scope](#scope)
@@ -72,7 +72,7 @@ As vrf-lite is a subcategory of vrf it will be present under the table of vrf
 **Figure 1: Sample VRF-Lite Scenario**
 
 
-In the diagram, there are two virtual routers (VRF-A, VRF-B) established in a single physical router. This way Customer-A devices can communicate with each other, and customer B devices can communicate with each other. And customer A devices cannot communicate with the devices of Customer B. Customer A and B's traffic is segregated, and they cannot communicate with each other.
+In the diagram, there are two virtual routers (VRF-Lite A, VRF-Lite B) established in a single physical router. This way Customer-A devices can communicate with each other, and customer B devices can communicate with each other. And customer A devices cannot communicate with the devices of Customer B. Customer A and B's traffic is segregated, and they cannot communicate with each other.
 ### Architecture
 Existing architecture of [VRF](https://github.com/sonic-net/SONiC/blob/master/doc/vrf/sonic-vrf-hld.md) is used with slide modification for VRF-Lite support.
 
@@ -94,7 +94,7 @@ no MPLS core. VRF-lite therefore only consists of the customer edge router porti
 
 **Figure 3: Sequence diagram of the modification in MPLS add command**
 
-The SONiC CLI Command of “MPLS add” is slightly changed for Vrf-lite. The change is very minimal, we just introduce a simple check to verify whether the interface is added to Vrf-lite or not. If an interface is added to Vrf-lite the user is prompted with a message that you can not add MPLS to this interface as Vrf-lite does not support MPLS else, it is the same as mentioned in [MPLS hld](https://github.com/sonic-net/SONiC/blob/master/doc/mpls/MPLS_hld.md).
+The SONiC CLI Command of `config mpls add` is slightly changed for Vrf-lite. The change is very minimal, we just introduce a simple check to verify whether the interface is added to Vrf-lite or not. If an interface is added to Vrf-lite the user is prompted with a message that you can not add MPLS to this interface as Vrf-lite does not support MPLS else, it is the same as mentioned in [MPLS hld](https://github.com/sonic-net/SONiC/blob/master/doc/mpls/MPLS_hld.md).
 #### Show VRF-Lite Table
 ![Show VRF-Lite diagram](https://github.com/haris-khan1596/SONiC/blob/Vrf-lite/images/vrf-lite_hld/show_vrflite_design_diagram.png "Show VRF-Lite Sequence Diagram")
 
@@ -102,18 +102,18 @@ The SONiC CLI Command of “MPLS add” is slightly changed for Vrf-lite. The ch
 ### Command Line Interface
 #### Add/del CLI Commands
 1. The ```add vrflite``` command will do the following:
-   - Takes <vrflite_name> with the “Vrflite” prefix as input 
-   - Add vrf-lite in the Vrf table in config_db.
+   - Takes `<vrflite_name>` with the `Vrflite` prefix as input 
+   - Add vrf-lite in the Vrf table in `config_db`
 ```
 //create a vrf-lite:
 $ sudo config vrflite add <vrflite_name>
 $ sudo config vrflite add Vrflite-blue
 ```
 2. The ``del vrflite`` command will do the following:
-   - get interface list belonging to Vrflite-blue from app_db
+   - get interface list belonging to `Vrflite-blue` from `app_db`
    - delete interface(s) IP addresses
    - unbind interfaces(s) from Vrflite-blue
-   - delete Vrflite-blue from Vrf table in config_db
+   - delete Vrflite-blue from Vrf table in `config_db`
 ```
 //remove a vrf-lite:
 $ sudo config vrflite del <vrflite_name>
@@ -146,23 +146,23 @@ The `show vrflite` command gives the list of all the vrf-lite present in the Vrf
 $ show vrflite [<vrflite_name>]
 ```
 #### Using vrf prefix
-Since VRF-lite is a subset of VRF, we can accomplish the same thing using the VRF command prefix. However, only vrflite must be specified when using the “Vrflite” prefix.
+Since VRF-lite is a subset of VRF, we can accomplish the same thing using the VRF command. However, only vrflite must be specified when using the `Vrflite` prefix.
 
 ### SAI API
 N/A
 ### Warm Boot and Fast boot Require
 N/A
 ### Restrictions/Limitations
+This document is specific to VRF-Lite. It doesn't cover any broader aspect. 
 #### Unit Testcases
-**Functional Test cases**
-- Verify that the interface bind to vrf-lite has not MPLS enabled.
-- Verify that MPLS will not be enabled when vrf-lite is binded to that interface.
-
 **CLI Test cases**
-- Verify `show vrflite` command will show only the Vrf-lite table.
-- Verify `add/del` command of Vrflite command set will only add/delete Vrflite prefix Vrfs.
-- Verify `add/del` command of Vrf command set will also add/delete Vrflite prefix Vrfs.
-- Verify `bind/unbind` command of Vrflite command set can only bind/unbind Vrflite.
-- Verify `unbind` command of Vrf command set can also unbind Vrflite.
+- Verify CLI to show vrflite table
+- Verify CLI to  add/delete vrflite
+- Verify CLI to bind/unbind interface/subinterface to vrflite
 
+**Functional Level Tests**
+- Verify the addition and deletion of vrflite entries in the `Config_db`
+- Verify the binding and unbinding of vrflite to interfaces/subinterfaces
+- Verify that the status of `MPLS` is disabled when an interface/subinterface is bind to `vrflite`
+- Verify that `MPLS` can not be enabled on an interface/subinterface where `vrflite` is already enabled
 
