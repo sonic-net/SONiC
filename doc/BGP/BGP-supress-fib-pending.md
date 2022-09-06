@@ -12,9 +12,8 @@
 - [6. High-Level Design](#6-high-level-design)
   - [6.1. BGP Docker container startup](#61-bgp-docker-container-startup)
   - [6.2. RouteOrch](#62-routeorch)
-  - [6.3. Temporary route](#63-temporary-route)
-  - [6.4. FPMsyncd](#64-fpmsyncd)
-  - [6.5. Response Channel Performance considerations](#65-response-channel-performance-considerations)
+  - [6.3. FPMsyncd](#63-fpmsyncd)
+  - [6.4. Response Channel Performance considerations](#64-response-channel-performance-considerations)
 - [7. SAI API](#7-sai-api)
 - [8. Configuration and management](#8-configuration-and-management)
   - [8.1. Config DB Enhancements](#81-config-db-enhancements)
@@ -30,7 +29,8 @@
 - [10. Restrictions/Limitations](#10-restrictionslimitations)
 - [11. Testing Requirements/Design](#11-testing-requirementsdesign)
   - [11.1. Unit Test cases](#111-unit-test-cases)
-  - [11.2. System Test cases](#112-system-test-cases)
+  - [11.2. VS Test cases](#112-vs-test-cases)
+  - [11.3. System Test cases](#113-system-test-cases)
 - [12. Open/Action items - if any](#12-openaction-items---if-any)
 
 <!-- omit in toc -->
@@ -54,6 +54,7 @@ This document describes a feedback mechanism that allows BGP not to adveritise r
 | SYNCD                    | ASIC syncrhonization service |
 | FPM                      | Forwarding Plane Manager     |
 | SAI                      | Switch Abstraction Interface |
+| OID                      | Object Identifier            |
 
 ### 3. Overview
 
@@ -99,6 +100,8 @@ To avoid that, the route programming has to be synchronous down to the ASIC to a
 - A configuration knob ```bgp-suppress-fib-pending``` in ```DEVICE_METADATA``` table in CONFIG DB to control the enablement of the feature is required. This configuration is applied at startup and can't be changed while the system is running, requiring a ```config reload```. This knob can only be enabled if the corresponding response channel is enabled in ```APP_STATE_LOGGING```
 - ```fpmsyncd``` must consume the responses from ```RouteOrch``` when the feature is enabled and communicate the status of a route back to ```zebra``` using ```FPM``` channel
 - ```FRR``` must support ```bgp suppress-fib-pending``` as well as response channel via ```FPM```. Available as part of ```FRR``` 8.4 or requires a patched 8.2 release
+- Link-local2ME, IP2Me routes responses aren't published
+- MPLS, VNET routes are out of scope of this document
 
 ### 5. Architecture Design
 
@@ -108,13 +111,19 @@ Described functionality does not require changes to the current SONiC architectu
 
 #### 6.1. BGP Docker container startup
 
+BGP configuration template ```bgpd.main.j2``` requires update to support the new field ```bgp-suppress-fib-pending``` and configure FRR accordingly. The startup flow of BGP container is described below:
+
 <!-- omit in toc -->
 ##### Figure 2. BGP Configuration Flow Diagram
 
 ```mermaid
 %%{
   init: {
-    "theme": "forest"
+    "theme": "forest",
+    "sequence": {
+      "rightAngles": true,
+      "showSequenceNumbers": true
+    }
   }
 }%%
 sequenceDiagram
@@ -153,84 +162,177 @@ sequenceDiagram
 
 #### 6.2. RouteOrch
 
+```RouteOrch``` handles both local routes, pointing to local router interface, as well as next hop routes. On ```SET``` operation received in ```RouteOrch``` the ```RouteBulker``` is filled with create/set SAI operations depending on whether the route entry for the corresponding prefix was already created. In normal circumstances when next hop group is successfully created or found to be already existing the route entry is created or set with the corresponding next hop group SAI OID. The ```RouteOrch``` then calls ```RouteBulker::flush()``` that will form a bulk API call to SAIRedis. In ```RouteOrch::addRoutePost()``` the resulting object statuses are then collected and if some CREATE/SET operation failed orchagent calls ```abort()```, otherwise, on success, ```RouteOrch::addRoutePost()``` should publish the route programming status. Since there is no graceful handling of failed SAI operation the ```ResponsePublisher::publish()``` will be only called for a successfully programmed routes. In case a pre-condition for route programming is unmet, i.e unresolved neighbors in next hop group, the route entry programming is retried later and in such case there is no publishing of the result of the operation to ```APPL_STATE_DB``` until a pre-condition check is passed.
+
+*A note on a temporary route*:
+
+A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
+
 <!-- omit in toc -->
-##### Figure 3. BGP-SWSS Flow Diagram
+##### Figure 3. RouteOrch Route Set Flow
 
 ```mermaid
 %%{
   init: {
-    "theme": "forest"
+    "theme": "forest",
+    "sequence": {
+      "rightAngles": true,
+      "showSequenceNumbers": true
+    }
   }
 }%%
 sequenceDiagram
-    participant orchagent
-    participant APPL_DB
-    participant ASIC_DB
-    participant syncd
-    participant APPL_STATE_DB
-    participant fpmsyncd
-    participant Kernel
-    participant zebra
-    participant bgpd
-    Note right of bgpd: A new prefix is received
-    activate bgpd
-    bgpd -->> zebra: <br>
-    activate zebra
-    zebra -->> Kernel: <br>
-    activate Kernel
-    Note right of Kernel: Route is programmed to kernel<br> without RTM_F_OFFLOAD flag
-    Kernel -->> zebra: <br>
-    deactivate Kernel
-    zebra -->> fpmsyncd: Update via FPM channel
-    activate fpmsyncd
-    fpmsyncd -->> APPL_DB: Set ROUTE_TABLE entry
-    activate APPL_DB
-    APPL_DB -->> orchagent: <br>
-    activate orchagent
-    deactivate APPL_DB
-    deactivate fpmsyncd
-    deactivate zebra
-    deactivate bgpd
-    loop for each route
-        orchagent -->> orchagent: Prepare bulk create request
+  participant APPL_DB
+  participant RouteOrch
+  participant RouteBulker
+  participant ResponsePublisher
+  participant APPL_STATE_DB
+  participant ASIC_DB
+  participant SYNCD
+
+  APPL_DB --) RouteOrch: ROUTE_TABLE Notification
+  activate RouteOrch
+
+  RouteOrch ->> RouteOrch: doTask()
+
+  loop For each entry in m_toSync
+    alt NHG exist or can be added
+      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
+      activate RouteBulker
+      RouteBulker -->> RouteOrch: <br>
+      deactivate RouteBulker
+    else NH can't be added
+      Note right of RouteOrch: 1 NH is selected and addRoute()<br>is called with temporary NH
+      RouteOrch ->> RouteBulker: RouteBulker.create_entry() / RouteBulker.set_entry_attribute()
+      activate RouteBulker
+      RouteBulker -->> RouteOrch: <br>
+      deactivate RouteBulker
     end
-    orchagent -->> ASIC_DB: sai_route_api->create_route_entries
-    activate ASIC_DB
-    ASIC_DB -->> syncd: <br>
-    activate syncd
-    syncd -->> ASIC_DB: SAI bulk status
-    deactivate syncd
-    ASIC_DB -->> orchagent: SAI bulk status
-    deactivate ASIC_DB
-    loop for each route entry creation SAI status:
-        orchagent -->> APPL_STATE_DB: Set ROUTE_TABLE entry status
+  end
+
+  Note left of RouteOrch: On any error/pre-condition failed<br>RouteOrch is retrying to program <br>the route on next iteration<br>In this case no response is written<br>
+
+  RouteOrch ->> RouteBulker: RouteBulker.flush()
+  activate RouteBulker
+  RouteBulker ->> ASIC_DB: sai_route_api->create_route_entries()
+  activate ASIC_DB
+  ASIC_DB ->> SYNCD: sai_route_api->create_route_entries()
+  activate SYNCD
+  SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+  deactivate SYNCD
+  ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+  deactivate ASIC_DB
+
+  RouteBulker ->> ASIC_DB: sai_route_api->set_route_entries_attribute()
+  activate ASIC_DB
+  ASIC_DB ->> SYNCD: sai_route_api->set_route_entries_attribute()
+  activate SYNCD
+  SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+  deactivate SYNCD
+  ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+  deactivate ASIC_DB
+
+  RouteBulker -->> RouteOrch: <br>
+  deactivate RouteBulker
+
+  loop For each status in RouteBulker
+    alt SAI_STATUS_SUCCESS
+        RouteOrch ->> ResponsePublisher: ResponseBulisher.publish()
+        activate ResponsePublisher
+        ResponsePublisher ->> APPL_STATE_DB: <br>
         activate APPL_STATE_DB
-        APPL_STATE_DB -->> fpmsyncd: <br>
-        activate fpmsyncd
-        alt Route creation successful:
-            fpmsyncd -->> Kernel: Set RTM_F_OFFLOAD
-            activate Kernel
-            Kernel -->> zebra: <br>
-            activate zebra
-            zebra -->> bgpd: <br>
-            activate bgpd
-            Note right of bgpd: The prefix advertisement was suppressed<br>Now RTM_F_OFFLOAD appears in the flags<br> and it is going to be advertised to peers.
-            deactivate bgpd
-            deactivate zebra
-            deactivate Kernel
-        end
-        deactivate fpmsyncd
-        APPL_STATE_DB -->> orchagent: <br>
+        APPL_STATE_DB -->> ResponsePublisher: <br>
         deactivate APPL_STATE_DB
+        Note right of RouteOrch: Publish actual FVs <br>(in case of temporary route only 1 NH is added)
+        ResponsePublisher -->> RouteOrch: <br>
+        deactivate ResponsePublisher
+    else
+        RouteOrch ->> RouteOrch: abort
     end
-    deactivate orchagent
+  end
+
+  deactivate RouteOrch
 ```
 
-#### 6.3. Temporary route
+<!-- omit in toc -->
+##### Figure 4. RouteOrch Route Delete Flow
 
-#### 6.4. FPMsyncd
+Similar processing happens on ```DEL``` operation for a prefix from ```ROUTE_TABLE```. The removed prefixes are filled in ```RouteBulker``` which are then flushed forming a bulk remove API call to SAIRedis. ```RouteOrch::removeRoutePost()``` then collects the object statuses and if the status is not SAI_STATUS_SUCCESS orchagent ```abort()```s, otherwise it should publish the result via ```ResponsePublisher::publish()``` leaving ```intent_attrs``` vector empty which will remove the corresponding state key from ```APPL_STATE_DB```.
 
-#### 6.5. Response Channel Performance considerations
+```mermaid
+%%{
+  init: {
+    "theme": "forest",
+    "sequence": {
+      "rightAngles": true,
+      "showSequenceNumbers": true
+    }
+  }
+}%%
+sequenceDiagram
+  participant APPL_DB
+  participant RouteOrch
+  participant RouteBulker
+  participant ResponsePublisher
+  participant APPL_STATE_DB
+  participant ASIC_DB
+  participant SYNCD
+
+  APPL_DB --) RouteOrch: ROUTE_TABLE Notification
+  activate RouteOrch
+
+  RouteOrch ->> RouteOrch: doTask()
+
+  loop For each entry in m_toSync
+    RouteOrch ->> RouteBulker: RouteBulker.remove_entry()
+    activate RouteBulker
+    RouteBulker -->> RouteOrch: <br>
+    deactivate RouteBulker
+  end
+
+  Note left of RouteOrch: On any error/pre-condition failed<br>RouteOrch is retrying to remove <br>the route on next iteration<br>In this case no response is written<br>
+
+  RouteOrch ->> RouteBulker: RouteBulker.flush()
+  activate RouteBulker
+  RouteBulker ->> ASIC_DB: sai_route_api->remove_route_entries()
+  activate ASIC_DB
+  ASIC_DB ->> SYNCD: sai_route_api->remove_route_entries()
+  activate SYNCD
+  SYNCD -->> ASIC_DB: sai_status_t *object_statuses
+  deactivate SYNCD
+  ASIC_DB -->> RouteBulker: sai_status_t *object_statuses
+  deactivate ASIC_DB
+
+  RouteBulker -->> RouteOrch: <br>
+  deactivate RouteBulker
+
+  loop For each status in RouteBulker
+    alt SAI_STATUS_SUCCESS
+        RouteOrch ->> ResponsePublisher: ResponseBulisher.publish()
+        activate ResponsePublisher
+        ResponsePublisher ->> APPL_STATE_DB: <br>
+        activate APPL_STATE_DB
+        APPL_STATE_DB -->> ResponsePublisher: <br>
+        deactivate APPL_STATE_DB
+        Note right of RouteOrch: Publish the status and remove entry from APPL_STATE_DB
+        ResponsePublisher -->> RouteOrch: <br>
+        deactivate ResponsePublisher
+    else
+        RouteOrch ->> RouteOrch: abort
+    end
+  end
+
+  deactivate RouteOrch
+```
+
+#### 6.3. FPMsyncd
+
+<!-- omit in toc -->
+##### Figure 5. FPMsyncd response processing
+
+TODO
+
+#### 6.4. Response Channel Performance considerations
 
 Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
 
@@ -452,27 +554,31 @@ No python ```click```-based CLI command nor ```KLISH``` CLI is planned to be imp
 
 Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
 
-A warm reboot regression test suite needs to be ran and verified no degradation introduced by the feature.
 
 #### 9.2. Fast Reboot
 
-Warm reboot process remains unchanged. With BGP Graceful Restart, peers are keeping advertised routes in the FIB while the switch restarts.
-
-A fast reboot regression test suite needs to be ran and verified no degradation introduced by the feature.
-
+TODO
 
 ### 10. Restrictions/Limitations
 
 ### 11. Testing Requirements/Design
-Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
-Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
-Example sub-sections for unit test cases and system test cases are given below.
+
+Regression test, VS test and unit testing are required for this functionality.
+
+Fast/warm reboot regression test suite needs to be ran and verified no degradation introduced by the feature.
 
 #### 11.1. Unit Test cases
 
-#### 11.2. System Test cases
+TODO
+
+#### 11.2. VS Test cases
+
+TODO
+
+#### 11.3. System Test cases
+
+TODO
 
 ### 12. Open/Action items - if any
 
-
-NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
+TODO
