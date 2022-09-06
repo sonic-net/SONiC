@@ -1,21 +1,30 @@
 
-# Dynamic ACL #
+# Time-based ACL #
 
 
 ## Table of Content
 
-- [Revision](#revision)
-- [Scope](#scope)
-- [Definitions/Abbreviations](#definitionsabbreviations)
-- [Overview](#overview)
-- [Requirements](#requirements)
-- [Architecture Design](#architecture-design)
-- [High-Level Design](#high-level-design)
-  - [db schema](#db-schema)
-    - [CONFIG DB](#config-db)
-    - [STATE DB](#state-db)
-    - [acl-loader](#acl-loader)
-    - [acl_ttl_checker](#aclttlchecker)
+- [Time-based ACL](#time-based-acl)
+  - [Table of Content](#table-of-content)
+  - [Revision](#revision)
+  - [Scope](#scope)
+  - [Definitions/Abbreviations](#definitionsabbreviations)
+  - [Overview](#overview)
+  - [Requirements](#requirements)
+  - [Architecture Design](#architecture-design)
+  - [High-Level Design](#high-level-design)
+    - [db schema](#db-schema)
+      - [CONFIG DB](#config-db)
+      - [APP DB](#app-db)
+      - [acl-loader](#acl-loader)
+      - [dynamic_acl_mgrd](#dynamic_acl_mgrd)
+    - [Work flow](#work-flow)
+      - [Add and remove time-based ACL rule](#add-and-remove-time-based-acl-rule)
+      - [Refresh TTL of existing ACL rule](#refresh-ttl-of-existing-acl-rule)
+    - [Testing Requirements/Design](#testing-requirementsdesign)
+      - [Unit Test cases](#unit-test-cases)
+      - [System Test cases](#system-test-cases)
+  - [Open questions](#open-questions)
   -[Work flow](#work-flow)
     - [Add dynamic ACL rule](#add-dynamic-acl-rule)
     - [Refresh TTL of existing ACL rule](#refresh-ttl-of-existing-acl-rule)
@@ -30,7 +39,8 @@
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 |             | Bing Wang   | Initial version                   |
+| 0.1 |             | Bing Wang          | Initial version                   |
+| 0.2 |9/6/2022     | Shiyan Wang        |                                   |
 
 ## Scope
 
@@ -51,9 +61,10 @@ This doc proposes an enhancement to current ACL, which add a TTL to ACL rules an
 
 ## Requirements
 
+- ACL rules are added with a TTL value
 - ACL rules are removed when TTL expired
-- Support TTL refreshment
-- The count down of TTL keeps going after warm-boot
+- ACL rules' TTL can be refreshed
+- ACL rules with TTL are kept after reboot
 
 ## Architecture Design 
 
@@ -64,28 +75,33 @@ No SONiC architecture change is required to support dynamic ACL.
 ### db schema
 
 #### CONFIG DB
-Add a `dynamic` flag to current `ACL_RULE` table
-```
-key: ACL_RULE_TABLE:table_name:seq                    ; key of the rule entry in the table, seq is the order of the rules   
-                                                          ; when the packet is filtered by the ACL "policy_name".   
-                                                          ; A rule is always assocaited with a policy.
 
-;field        = value
-is_dynamic    = true/false       ; Boolean; Optional. There will be a TTL assigned to this rule if is_dynamic is true, the
-                                  ;rule will be removed from CONFIG DB.
-                                  ;If is_dynamic is false or absent, the rule will be persistent
-......
+A new table `DYNAMIC_ACL_RULE_TABLE` is introduced to config_db to record the ACL rules with the timestamp of creation, expiration and TTL of an ACL rule.
+The new table contains all fileds of ACL rules and new fields are added: `is_dynamic`, `ttl`, `creation_time` and `expiration_time`.
+```
+key: ACL_RULE_TABLE:table_name:seq  ; key of the rule entry in the table, seq is the order of the rules   
+                                    ; when the packet is filtered by the ACL "policy_name".   
+                                    ; A rule is always assocaited with a policy.
+
+;field          = value
+is_dynamic      = true/false  ; Boolean; Optional. Indicate the rule is a time-based ACL rule.
+creation_time   = Integer     ; timestamp when the rule is created or refreshed
+expiration_time = Integer     ; timestamp when the rule is expired
+ttl             = Integer     ; the ttl, in second
 ```
 A sample config for ACL rule
 ```json
 {
-    "ACL_RULE|DATAACL|RULE_1":{
+    "DYNAMIC_ACL_RULE_TABLE|DATAACL|DYNAMIC_RULE_1":{
         "DST_IP":"192.168.0.3/32",
         "ETHER_TYPE":"2048",
         "PACKET_ACTION":"FORWARD",
         "PRIORITY":"9999",
         "SRC_IP":"192.168.0.2/32",
-        "is_dynamic":"true"
+        "creation_time": "1662432143",
+        "expiration_time": "1662432153",
+        "is_dynamic": "True",
+        "ttl": "10"
     }
 }
 ```
@@ -113,7 +129,11 @@ A sample json config for ACL rule
                                         "destination-ip-address":"192.168.0.3/32"
                                     }
                                 },
-                                "ttl":"300"
+                                "dynamic-acl":{
+                                    "config":{
+                                        "ttl":"10"
+                                    }
+                                }
                             }
                         }
                     }
@@ -123,62 +143,50 @@ A sample json config for ACL rule
     }
 }
 ```
-The YANG of ACL_RULE is required to be updated to accept new field `is_dynamic`
+The YANG of ACL_RULE is required to be updated to accept new field `is_dynamic`, `ttl`, `creation_time` and `expiration_time`
 
-Orchagent (actually `aclorch`) won't consume the value of `is_dynamic`. So no change is required to `orchagent`.
-#### STATE DB
-A new table is introduced to state_db to record the timestamp of creation, expiration and TTL of an ACL rule.
-```
-  key                      = ACL_TTL_TABLE:acl_rule_name     ; acl_rule_name specifies the corresponding ACL rule name, must be unique
-  ;field                   = value  
-  creation_time            = Integer                         ; timestamp when the rule is created or refreshed  
-  expiration_time          = Integer                         ; timestamp when the rule will expire
-  ttl                      = Integer                         ; the ttl, in second 
-```
+Orchagent (actually `aclorch`) won't consume the value of the new flags. So no change is required to `orchagent`.
+#### APP DB
+Existing table `ACL_RULE_TABLE` is used to activate an effective ACL rule. The ACL rule format is the same as in CONFIG DB.
+
 A sample
 ```json
 {
-    "ACL_TTL_TABLE|DATAACL|RULE_1":{
-        "creation_time":1645686213,
-        "expiration_time":1645686513,
-        "ttl":300
+    "APP_ACL_RULE|DATAACL|DYNAMIC_RULE_1":{
+        "DST_IP":"192.168.0.3/32",
+        "ETHER_TYPE":"2048",
+        "PACKET_ACTION":"FORWARD",
+        "PRIORITY":"9999",
+        "SRC_IP":"192.168.0.2/32",
     }
 }
 ```
 #### acl-loader
 
-Update `acl-loader` script to parse new field `is_dynamic`. The entry will be created in `ACL_TTL_TABLE` in `state_db` if `ttl` is present for certain an ACL rule in `acl.json`. Please find more details in workflow diagram.  
+Update `acl-loader` script to parse new field `ttl`. The entry will be created in `DYNAMIC_ACL_RULE_TABLE` in `CONFIG DB` if `ttl` is present for certain an ACL rule in `acl.json`. Please find more details in workflow diagram.  
 
-#### acl_ttl_checker
+#### dynamic_acl_mgrd
 
-A helper script will be added to `swss` container. The checker is started after `orchagent` and check the TTL of dynamic ACL rules every 10 seconds by default. It will walk through all entries in `ACL_TTL_TABLE` and delete the corresponding `ACL_RULE` from `config_db` if
-
-- Current timestamp is larger than the `expiration_time` in the entry
-- The corresponding ACL rule is marked as dynamic
+A helper script will be added to `swss` container. The checker is started after `orchagent` and check the TTL of dynamic ACL rules every 10 seconds by default. It will walk through all entries in `DYNAMIC_ACL_RULE_TABLE`. New effective ACL rules are added to `APP_ACL_RULE` in `APP DB` and expired ACL rules are deleted both from `CONFIG DB` and `APP DB`.
 
 ### Work flow
-#### Add dynamic ACL rule
+#### Add and remove time-based ACL rule
 <p align=center>
-<img src="img/dynamic_acl_creation.png" alt="Figure 1. Create dynamic ACL rule workflow">
+<img src="img/time-based-acl-add-rule.png" alt="Figure 1. Create dynamic ACL rule workflow">
 </p>
 
 #### Refresh TTL of existing ACL rule
 <p align=center>
-<img src="img/dynamic_acl_refresh.png" alt="Figure 2. Refresh dynamic ACL rule workflow">
-</p>
-
-#### Remove ACL rule when TTL expires
-<p align=center>
-<img src="img/dynamic_acl_expiration.png" alt="Figure 1. Create dynamic ACL rule workflow">
+<img src="img/time-based-acl-refresh.png" alt="Figure 2. Refresh dynamic ACL rule workflow">
 </p>
 
 ### Testing Requirements/Design  
 
 #### Unit Test cases  
 
-1. Enhance unit test for `acl-loader` to verify ACL rule with TTL is created as expected; verify `ACL_TTL_TABLE` entry is created as expected.
-2. Add unit test for `acl_ttl_checker` to verify expired ACL entries are cleared. 
-
+1. Enhance unit test for `acl-loader` to verify ACL rule with TTL is accepted; verify `DYNAMIC_ACL_RULE_TABLE` entry is created by CLI in `CONFIG DB`.
+2. Enhance unit test for `acl-loader` to verfiy ACL rule is deleted by CLI in `CONFIG DB`.
+3. Add unit test for `dynamic_acl_mgrd` to verify effective ACL rule is added to `APP DB`; verify expired ACL rule is removed both from `APP DB` and `CONFIG DB`.
 
 #### System Test cases
 
