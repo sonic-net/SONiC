@@ -101,7 +101,7 @@ The SONiC CLI Command of “MPLS add” is slightly changed for Vrf-lite. The ch
 **Figure 4: Show VRF-Lite Sequence Diagram**
 ### Command Line Interface
 #### Add/del CLI Commands
-1. The ```add vrf-lite``` command will do the following:
+1. The ```add vrflite``` command will do the following:
    - Takes <vrflite_name> with the “Vrflite” prefix as input 
    - Add vrf-lite in the Vrf table in config_db.
 ```
@@ -109,7 +109,7 @@ The SONiC CLI Command of “MPLS add” is slightly changed for Vrf-lite. The ch
 $ sudo config vrflite add <vrflite_name>
 $ sudo config vrflite add Vrflite-blue
 ```
-2. The ``del vrf-lite`` command will do the following:
+2. The ``del vrflite`` command will do the following:
    - get interface list belonging to Vrflite-blue from app_db
    - delete interface(s) IP addresses
    - unbind interfaces(s) from Vrflite-blue
