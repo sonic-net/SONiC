@@ -275,7 +275,7 @@ module: openconfig-file-mgmt-private
 | **Syntax**                                              | commit [label \<LABEL\>] [time seconds] \| [confirm]  |
 | **Parameters**                                          |
 | confirm						  | To make the configuration changes permanent in running-configuration |
-| time   						  | 30 .. 3600 seconds for which the configuration changes kept in running-configuration as trial stage, default - 30 |
+| time   						  | 30 .. 3600 seconds for which the configuration changes kept in running-configuration as trial stage |
 | label   						  | commit label string, upto 72 characters |
 | **Default**                                             | None |
 | **Command mode**                                        | Config-s |
