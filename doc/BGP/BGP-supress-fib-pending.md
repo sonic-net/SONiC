@@ -162,14 +162,10 @@ sequenceDiagram
 
 #### 6.2. RouteOrch
 
-```RouteOrch``` handles both local routes, pointing to local router interface, as well as next hop routes. On ```SET``` operation received in ```RouteOrch``` the ```RouteBulker``` is filled with create/set SAI operations depending on whether the route entry for the corresponding prefix was already created. In normal circumstances when next hop group is successfully created or found to be already existing the route entry is created or set with the corresponding next hop group SAI OID. The ```RouteOrch``` then calls ```RouteBulker::flush()``` that will form a bulk API call to SAIRedis. In ```RouteOrch::addRoutePost()``` the resulting object statuses are then collected and if some CREATE/SET operation failed orchagent calls ```abort()```, otherwise, on success, ```RouteOrch::addRoutePost()``` should publish the route programming status. Since there is no graceful handling of failed SAI operation the ```ResponsePublisher::publish()``` will be only called for a successfully programmed routes. In case a pre-condition for route programming is unmet, i.e unresolved neighbors in next hop group, the route entry programming is retried later and in such case there is no publishing of the result of the operation to ```APPL_STATE_DB``` until a pre-condition check is passed.
-
-*A note on a temporary route*:
-
-A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
-
 <!-- omit in toc -->
-##### ResponsePublisher
+#### ResponsePublisher in RouteOrch
+
+```RouteOrch``` need to use existing ```ResponsePublisher``` API to be able to publish responses into ```APPL_STATE_DB```.
 
 A snippet of ```ResponsePublisher```'s API that is going to be used is given below. The ```state_attrs``` argument is used when a ```SET``` operation for a route entry in ```ROUTE_TABLE``` was performed successfully but the actual set of next hops differs from the intent. When the ```intent_attrs``` vector is empty it implies a ```DEL``` operations.
 
@@ -186,6 +182,16 @@ Example usage in ```RouteOrch```:
 ```c++
 m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), actualFvs, true);
 ```
+
+<!-- omit in toc -->
+#### RouteOrch Route Set Flow
+
+```RouteOrch``` handles both local routes, pointing to local router interface, as well as next hop routes. On ```SET``` operation received in ```RouteOrch``` the ```RouteBulker``` is filled with create/set SAI operations depending on whether the route entry for the corresponding prefix was already created. In normal circumstances when next hop group is successfully created or found to be already existing the route entry is created or set with the corresponding next hop group SAI OID. The ```RouteOrch``` then calls ```RouteBulker::flush()``` that will form a bulk API call to SAIRedis. In ```RouteOrch::addRoutePost()``` the resulting object statuses are then collected and if some CREATE/SET operation failed orchagent calls ```abort()```, otherwise, on success, ```RouteOrch::addRoutePost()``` should publish the route programming status. Since there is no graceful handling of failed SAI operation the ```ResponsePublisher::publish()``` will be only called for a successfully programmed routes. In case a pre-condition for route programming is unmet, i.e unresolved neighbors in next hop group, the route entry programming is retried later and in such case there is no publishing of the result of the operation to ```APPL_STATE_DB``` until a pre-condition check is passed.
+
+*A note on a temporary route*:
+
+A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
+
 
 <!-- omit in toc -->
 ##### Figure 3. RouteOrch Route Set Flow
@@ -272,6 +278,9 @@ sequenceDiagram
 
   deactivate RouteOrch
 ```
+
+<!-- omit in toc -->
+#### RouteOrch Route delete Flow
 
 <!-- omit in toc -->
 ##### Figure 4. RouteOrch Route Delete Flow
