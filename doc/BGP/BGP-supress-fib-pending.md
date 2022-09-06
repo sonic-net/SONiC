@@ -439,7 +439,8 @@ Configuration schema in ABNF format:
 ```abnf
 ; DEVICE_METADATA table
 key                      = DEVICE_METADATA|localhost ; Device metadata configuration table
-bgp-suppress-fib-pending = "enabled"/"disabled"        ; Globally enable/disable BGP suppress-fib-pending feature, by default this flag is disabled
+bgp-suppress-fib-pending = "enabled"/"disabled"      ; Globally enable/disable BGP suppress-fib-pending feature,
+                                                     ; by default this flag is disabled
 ```
 
 Sample of CONFIG DB snippet given below:
@@ -533,8 +534,12 @@ module sonic-device_metadata {
                     }
                     default disabled;
 
-                    must "((current() = 'disabled') or (current() = 'enabled' and ../synchronous_mode = 'enable' and /app-state-logging:sonic-app-state-logging/app-state-logging:APP_STATE_LOGGING/app-state-logging:ROUTE_TABLE/app-state-logging:state = 'enabled'))" {
-                        error-message "ASIC synchronous mode and APP_STATE_LOGGIN for ROUTE_TABLE must to be enabled in order to enable BGP suppress FIB pending feature";
+                    must "((current() = 'disabled') or (current() = 'enabled' and ../synchronous_mode = 'enable'
+                           and /app-state-logging:sonic-app-state-logging/app-state-logging:
+                               APP_STATE_LOGGING/app-state-logging:
+                               ROUTE_TABLE/app-state-logging:state = 'enabled'))" {
+                        error-message "ASIC synchronous mode and APP_STATE_LOGGIN for ROUTE_TABLE must
+                                       be enabled in order to enable BGP suppress FIB pending feature";
                     }
                 }
             }
