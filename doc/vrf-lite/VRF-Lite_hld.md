@@ -67,7 +67,7 @@ Each VRF domain can use the same or overlapping network addresses, as they have 
 
 As vrf-lite is a subcategory of vrf it will be present under the table of vrf 
 
-![VRF-Lite diagram](images/vrf-lite_hld/VRF_Lite_example.png "Sample VRF-Lite Scenario")
+![VRF-Lite diagram](https://github.com/haris-khan1596/SONiC/blob/Vrf-lite/images/vrf-lite_hld/VRF_Lite_example.png "Sample VRF-Lite Scenario")
 
 **Figure 1: Sample VRF-Lite Scenario**
 
@@ -76,7 +76,7 @@ In the diagram, there are two virtual routers (VRF-A, VRF-B) established in a si
 ### Architecture
 Existing architecture of [VRF](https://github.com/sonic-net/SONiC/blob/master/doc/vrf/sonic-vrf-hld.md) is used with slide modification for VRF-Lite support.
 
-![VRF-Lite Architecture ](images/vrf-lite_hld/VRF_LITE_Arch.png "Architecture")
+![VRF-Lite Architecture ](https://github.com/haris-khan1596/SONiC/blob/Vrf-lite/images/vrf-lite_hld/VRF_LITE_Arch.png "Architecture")
 
 **Figure 2: Architecture**
 
@@ -90,13 +90,13 @@ no MPLS core. VRF-lite therefore only consists of the customer edge router porti
 
 ### High-Level Design
 #### MPLS add Design
-![Modification in MPLS add](images/vrf-lite_hld/modified_MPLS_add_vrflite.png "modification in MPLS add command")
+![Modification in MPLS add](https://github.com/haris-khan1596/SONiC/blob/Vrf-lite/images/vrf-lite_hld/modified_MPLS_add_vrflite.png "modification in MPLS add command")
 
 **Figure 3: Sequence diagram of the modification in MPLS add command**
 
 The SONiC CLI Command of “MPLS add” is slightly changed for Vrf-lite. The change is very minimal, we just introduce a simple check to verify whether the interface is added to Vrf-lite or not. If an interface is added to Vrf-lite the user is prompted with a message that you can not add MPLS to this interface as Vrf-lite does not support MPLS else, it is the same as mentioned in [MPLS hld](https://github.com/sonic-net/SONiC/blob/master/doc/mpls/MPLS_hld.md).
 #### Show VRF-Lite Table
-![Show VRF-Lite diagram](images/vrf-lite_hld/show_vrflite_design_diagram.png "Show VRF-Lite Sequence Diagram")
+![Show VRF-Lite diagram](https://github.com/haris-khan1596/SONiC/blob/Vrf-lite/images/vrf-lite_hld/show_vrflite_design_diagram.png "Show VRF-Lite Sequence Diagram")
 
 **Figure 4: Show VRF-Lite Sequence Diagram**
 ### Command Line Interface
