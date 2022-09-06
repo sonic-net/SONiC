@@ -169,6 +169,25 @@ sequenceDiagram
 A special handling exists in ```RouteOrch``` for a case when there can't be more next hop groups created. In this case ```RouteOrch``` creates, a so called, "temporary" route, using only 1 next hop from the group and using it's ```SAI_OBJECT_TYPE_NEXT_HOP``` OID as ```SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID```. In this case, ```RouteOrch::addRoutePost()``` has to publish the route entry status as well as the actual ```nexthop``` field to ```APPL_STATE_DB```. A *temporary* route is kept in the ```m_toSync``` queue to be later on reprogrammed when sufficient resources are available for full next hop group creation.
 
 <!-- omit in toc -->
+##### ResponsePublisher
+
+A snippet of ```ResponsePublisher```'s API that is going to be used is given below. The ```state_attrs``` argument is used when a ```SET``` operation for a route entry in ```ROUTE_TABLE``` was performed successfully but the actual set of next hops differs from the intent. When the ```intent_attrs``` vector is empty it implies a ```DEL``` operations.
+
+```c++
+void ResponsePublisher::publish(const std::string &table, const std::string &key,
+                                const std::vector<swss::FieldValueTuple> &intent_attrs,
+                                const ReturnCode &status,
+                                const std::vector<swss::FieldValueTuple> &state_attrs,
+                                bool replace = false) override;
+```
+
+Example usage in ```RouteOrch```:
+
+```c++
+m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), ReturnCode(saiStatus), actualFvs, true);
+```
+
+<!-- omit in toc -->
 ##### Figure 3. RouteOrch Route Set Flow
 
 ```mermaid
@@ -336,11 +355,20 @@ TODO
 
 Route programming performance is one of crucial characteristics of a network switch. It is desired to program a lot of route entries as quick as possible. SONiC has optimized route programming pipeline levaraging Redis Pipeline in ```ProducerStateTable``` as well as SAIRedis bulk APIs. Redis pipelining is a technique for improving performance by issuing multiple commands at once without waiting for the response to each individual command. Such an optimization gives around ~5x times faster processing for ```Publisher/Subscriber``` pattern using a simple python script as a test.
 
+The following table shows the results for publishing 10k messages with and without Redis Pipeline proving the need for pipeline support for ```ResponseChannel```:
+
+| Scenario                         | Time (sec) |
+| -------------------------------- | ---------- |
+| Publish 10k messages             | 2.41       |
+| Publish 10k messages (Pipelined) | 0.43       |
+
 Adding a feedback mechanism to the system introduces a delay as each of the component needs to wait for the reply from the lower layer counterpart in order to proceed. SONiC has already moved to synchronous SAI Redis pipeline a route programming performance degradation caused by it is leveled by the use of SAIRedis Bulk API.
 
 By introducing a response channel it is required to leverage Redis Pipeline, so that the route configuration producer using Redis Pipeline with ```ProducerStateTable``` also receives route programming status responses produced by pipelined ```NotificationProducer``` which is part of ```ResponsePublisher```.
 
 On the other side, ```fpmsyncd``` does not wait for each individual route status but rather performs an asynchronous processing.
+
+The following schema represents communication methods between components:
 
 ```mermaid
 %%{
@@ -355,46 +383,6 @@ flowchart LR
     fpmsyncd -. FPM channel -.-> zebra
     RouteOrch -- "SAIRedis Bulk API" --> syncd("</br>syncd</br></br>")
     syncd -. "SAIRedis Bulk Reply" -.-> RouteOrch
-```
-
-A snippet of ```ResponsePublisher```'s API is going to be used:
-
-```c++
-// Intent attributes are the attributes sent in the notification into the
-// redis channel.
-// State attributes are the list of attributes that need to be written in
-// the DB namespace. These might be different from intent attributes. For
-// example:
-// 1) If only a subset of the intent attributes were successfully applied, the
-//    state attributes shall be different from intent attributes.
-// 2) If additional state changes occur due to the intent attributes, more
-//    attributes need to be added in the state DB namespace.
-// 3) Invalid attributes are excluded from the state attributes.
-// State attributes will be written into the DB even if the status code
-// consists of an error.
-void ResponsePublisher::publish(const std::string &table, const std::string &key,
-                                const std::vector<swss::FieldValueTuple> &intent_attrs,
-                                const ReturnCode &status,
-                                const std::vector<swss::FieldValueTuple> &state_attrs,
-                                bool replace = false) override;
-
-void ResponsePublisher::publish(const std::string &table, const std::string &key,
-                                const std::vector<swss::FieldValueTuple> &intent_attrs,
-                                const ReturnCode &status,
-                                bool replace = false) override;
-```
-
-Example usage in ```RouteOrch```:
-
-```c++
-auto status = ReturnCode(saiStatus) << "Failed to create route "
-                                    << ipPrefix.to_string().c_str()
-                                    << " with next hop(s) "
-                                    << nextHops.to_string().c_str();
-
-SWSS_LOG_ERROR("%s", status.message().c_str());
-
-m_publisher.publish(APP_ROUTE_TABLE_NAME, kfvKey(kofvs), kfvFieldsValues(kofvs), status);
 ```
 
 A ```ResponsePublisher``` must have a constructor that accepts a ```RedisPipeline``` and a flag ```buffered``` to make it use the pipelining. The constructor is similar to one in use with ```ProducerStateTable```:
