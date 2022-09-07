@@ -15,7 +15,7 @@
 
 
 **Related documents**
-[LACP Fallback Design Document](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/LACP%20Fallback%20Feature%20for%20SONiC_v0.3.docx)
+[LACP Fallback Design Document](https://github.com/sonic-net/SONiC/blob/gh-pages/doc/lag/LACP%20Fallback%20Feature%20for%20SONiC_v0.5.md)
 
 # Overview
 This feature test suite is targeting on testing LACP fallback feature on SONiC. In our testbed, 't0' and 't1-lag' have LAG configurations. Each test covers a basic functionality of LACP fallback feature and ensures the switch works as expected under production scenarios.

@@ -131,7 +131,7 @@ Backward compatibility is supported in the following ways:
 
 In this section we will introduce the ways it is achieved.
 
-Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf`](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
+Currently, the SONiC system starts buffer manager from swss docker by the `supervisor` according to the following settings in [`/etc/supervisor/conf.d/supervisord.conf.j2`](https://github.com/sonic-net/sonic-buildimage/blob/master/dockers/docker-orchagent/supervisord.conf.j2) in `swss` docker. For the traditional mode, the argument is `-l /usr/share/sonic/hwsku/pg_profile_lookup.ini` which means to load the pg lookup file.
 
 ```shell
 [program:buffermgrd]

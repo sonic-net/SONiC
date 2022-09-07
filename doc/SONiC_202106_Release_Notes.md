@@ -138,7 +138,7 @@ This implementation describes the high level design of RADIUS management user au
 #### 13. PDK - Platform Development Environment
 The SONiC PDE is part of the SONiC Platform Development Kit (PDK) which optimizes platform development. The SONiC PDK consists of PDDF (Platform Driver Development Framework) and PDE (Platform Development Environment)
 <br> Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/platform/pde.md) and below mentioned PR's for more details.
-<br> **Pull Requests** : [3778](https://github.com/sonic-net/sonic-buildimage/pull/3778) [28](https://github.com/sonic-net/sonic-platform-pdk-pde/pull/28), [107](https://github.com/sonic-net/sonic-build-tools/pull/107).
+<br> **Pull Requests** : [3778](https://github.com/sonic-net/sonic-buildimage/pull/3778) [28](https://github.com/sonic-net/sonic-platform-pdk-pde/pull/28), [107](https://github.com/Azure/sonic-build-tools/pull/107).
 
 
 #### 14. Broadcom silicon common config
