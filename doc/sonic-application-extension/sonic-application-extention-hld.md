@@ -156,14 +156,14 @@ Basic definitions:
 There are three notions: *package*, *repository* and *registry*. A repository is a Docker registry (private or open like Docker Hub)
 repository with tagged images for specific package.
 
-In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are repositories with a set of images.
+In the above figure *sonic-net/sonic-dhcp-relay* and *sonic-net/sonic-snmp* are repositories with a set of images.
 
 ### SONiC Package
 
 SONiC Packages must meet few requirements in order to be a SONiC compatible Docker image.
 
 - A package must provide a manifest as part of the Docker image.
-- Requirement on the container state recording by [Kubernetes HLD](https://github.com/Azure/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md)).
+- Requirement on the container state recording by [Kubernetes HLD](https://github.com/sonic-net/SONiC/blob/698e8d7991c0ca3d21b4488cf336efcfe891ef9a/doc/kubernetes/Kuberenetes-support.md)).
 
 <!-- omit in toc -->
 ###### Figure 2. High Level Overview of SONiC Package integration
@@ -254,13 +254,13 @@ A sample of the content in JSON format:
     "installed-version": "1.0.0"
   },
   "dhcp-relay": {
-    "repository": "Azure/sonic-dhcp-relay",
+    "repository": "sonic-net/sonic-dhcp-relay",
     "description": "DHCP relay feature",
     "default-reference": "sha256:5d41c289942008211c2964bca72800f5c9d5ea5aa4057528da617fb36463d4ab",
     "status": "not-installed"
   },
   "snmp": {
-    "repository": "Azure/sonic-snmp",
+    "repository": "sonic-net/sonic-snmp",
     "description": "Simple Network Monitoring Protocol",
     "default-reference": "1.0.0",
     "status": "installed",
@@ -945,7 +945,7 @@ be auto-generated as well. To avoid re-generating *swss.sh* script we will put d
 The file path is chosen to be */etc/sonic/\<service_name\>_dependent* for single instance services and
 */etc/sonic/\<service_name\>_dependent_multi_inst_dependent* for multi instance services.
 
-Example of required code change for swss is given below [swss.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/swss.sh):
+Example of required code change for swss is given below [swss.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/scripts/swss.sh):
 
 ```bash
 DEPENDENT="radv dhcp_relay"
@@ -961,9 +961,9 @@ The infrastructure is not deciding whether this script is needed for a particula
 container lifetime hooks provided by a feature, instead this script is always generated and if no specific actions descirbed above
 are needed it becomes a simple wrapper around a script under /usr/bin/.
 
-Examples are [swss.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/swss.sh),
-[syncd.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/syncd.sh),
-[bgp.sh](https://github.com/Azure/sonic-buildimage/blob/master/files/scripts/bgp.sh). These scripts
+Examples are [swss.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/scripts/swss.sh),
+[syncd.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/scripts/syncd.sh),
+[bgp.sh](https://github.com/sonic-net/sonic-buildimage/blob/master/files/scripts/bgp.sh). These scripts
 share a good amount of code, thus making it possible to templatize into a single script that can be parametrized
 during generation according to feature needs - place lifecycle action hooks and dependent service management.
 
@@ -984,7 +984,7 @@ after installation all the service scripts under */usr/local/bin/* are re-genera
 ##### /usr/bin/*feature*.sh
 
 The script under /usr/bin/ starts, stops or waits for container exit. This script is auto-generated during build time from
-[docker_image_ctl.j2](https://github.com/Azure/sonic-buildimage/blob/4006ce711fa6545b0870186ffa05d4df24edb8b7/files/build_templates/docker_image_ctl.j2).
+[docker_image_ctl.j2](https://github.com/sonic-net/sonic-buildimage/blob/4006ce711fa6545b0870186ffa05d4df24edb8b7/files/build_templates/docker_image_ctl.j2).
 To allow a runtime package installation, it is required to have this file as part of SONiC image and put it in
 */usr/share/sonic/templates/docker_image_ctl.j2*. The Jinja2 template will accept three arguments, *docker_container_name*,
 *docker_image_name* and *docker_run_options*, which derive from the */container/* node from manifest. Besides of options
@@ -1136,7 +1136,7 @@ ave to be also auto-generated from YANG in the future.
 
 ### SONiC Processes and Docker Statistics Telemetry Support
 
-[Processes And Docker Stats Telemetry HLD](https://github.com/Azure/SONiC/blob/master/doc/system-telemetry/process-docker-stats.md)
+[Processes And Docker Stats Telemetry HLD](https://github.com/sonic-net/SONiC/blob/master/doc/system-telemetry/process-docker-stats.md)
 
 This feature should be supported by SONiC Application Extension without any changes to existing feature implementation.
 
@@ -1146,7 +1146,7 @@ SONiC controls optional feature (aka services) via FEATURE table in CONFIG DB. O
 it must be treated in the same way as any optional SONiC feature.
 The SONiC package installation process will register new feature in CONFIG DB.
 
-[Optional Feature HLD Reference](https://github.com/Azure/SONiC/blob/master/doc/Optional-Feature-Control.md)
+[Optional Feature HLD Reference](https://github.com/sonic-net/SONiC/blob/master/doc/Optional-Feature-Control.md)
 
 Features are configured in *FEATURE* table in *CONFIG DB* and backend - *hostcfgd* daemon - enables, disables features according
 to the configuration. Default desired state for a SONiC Application Extension is "disabled". After installation, user can enable the feature:
@@ -1308,7 +1308,7 @@ admin@sonic:~$ sudo sonic-installer install -y sonic.bin --no-package-migration
 
 ### Kubernetes & SONiC Application Extension
 
-[Kubernetes HLD](https://github.com/Azure/SONiC/blob/be12cc665c316348352b868f515714f202861f63/doc/kubernetes/Kubernetes-support.md)
+[Kubernetes HLD](https://github.com/sonic-net/SONiC/blob/be12cc665c316348352b868f515714f202861f63/doc/kubernetes/Kubernetes-support.md)
 
 This section is WIP and describes the approach in very high level and needs more deep investigation.
 

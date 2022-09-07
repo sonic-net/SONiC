@@ -168,7 +168,7 @@ module sonic-auto_techsupport {
 
     yang-version 1.1;
 
-    namespace "http://github.com/Azure/sonic-auto_techsupport";
+    namespace "http://github.com/sonic-net/sonic-auto_techsupport";
     prefix auto_techsupport;
 
     import sonic-types {
@@ -482,7 +482,7 @@ The configuration in the init_cfg.json is loaded to the running config i.e. CONF
 
 ### 10  App Extension Considerations
 
-Detailed Info related to Appliation Extension can be found here: https://github.com/Azure/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
+Detailed Info related to Appliation Extension can be found here: https://github.com/sonic-net/SONiC/blob/master/doc/sonic-application-extension/sonic-application-extention-hld.md
 
 A new AUTO_TECHSUPPORT_FEATURE register/deregister option will be introduced. The existing FeatureRegistry class will be enahcned to also add/delete configuration related to AUTO_TECHSUPPORT_FEATURE table.
 
