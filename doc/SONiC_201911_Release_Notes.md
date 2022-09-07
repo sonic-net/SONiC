@@ -79,7 +79,7 @@ Refer [Loganalyzer API usage example](https://github.com/yvolynets-mlnx/sonic-mg
        
 #### Management Framework 
 Management framework is a SONiC application which is responsible for providing various common North Bound Interfaces (NBIs) for the purposes of managing configuration and status on SONiC switches. The application manages coordination of NBI’s to provide a coherent way to validate, apply and show configuration. Refer  [HLD Document](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md) 
-<br> **Pull Requests** :  [18](https://github.com/sonic-net/sonic-mgmt-framework/pull/18)   , [23](https://github.com/sonic-net/sonic-telemetry/pull/23)  ,   [3488](https://github.com/sonic-net/sonic-buildimage/pull/3488)  , [659](https://github.com/sonic-net/sonic-utilities/pull/659) 
+<br> **Pull Requests** :  [18](https://github.com/sonic-net/sonic-mgmt-framework/pull/18)   , [23](https://github.com/sonic-net/sonic-gnmi/pull/23)  ,   [3488](https://github.com/sonic-net/sonic-buildimage/pull/3488)  , [659](https://github.com/sonic-net/sonic-utilities/pull/659) 
 
 #### Management VRF
 Management VRF (mvrf) feature provides a separation between the management network traffic and the data plane network traffic using the linux CGROUPS based on l3mdev. Management interface (eth0) shall be enslaved in l3mdev. Management applications like SSH shall use the enslaved eth0 and corresponding mvrf routing table for management traffic.

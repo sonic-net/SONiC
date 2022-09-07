@@ -216,8 +216,8 @@ Management framework makes use of the translation library (Translib) written in 
 #### 1.2.2 Container
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
-The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
-Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-telemetry container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-telemetry repo can be compiled without the mgmt-framework being present in the code base.
+The gNMI support requires the gNMI server which is provided as a part of sonic-gnmi container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
+Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-gnmi container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-gnmi repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
 
@@ -2552,7 +2552,7 @@ Following are the list of Open source tools used in Management framework
 ## 12 Appendix B
 
 Following are the list of Open source libraries used in telemetry container. 
-Always refer to the [Makefile](https://github.com/sonic-net/sonic-telemetry/blob/master/Makefile) for the sonic-telemetry container for current package list.
+Always refer to the [Makefile](https://github.com/sonic-net/sonic-gnmi/blob/master/Makefile) for the sonic-gnmi container for current package list.
 
 
 1. [GRPC](https://google.golang.org/grpc)
