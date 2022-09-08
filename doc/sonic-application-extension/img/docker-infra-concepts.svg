@@ -54,7 +54,7 @@
 				<title>Sheet.13</title>
 				<g id="shape2-6" v:mID="2" v:groupContext="shape">
 					<title>Rounded Rectangle.2</title>
-					<desc>sonic-net/sonic-dhcp-relay</desc>
+					<desc>Azure/sonic-dhcp-relay</desc>
 					<v:userDefs>
 						<v:ud v:nameU="CTypeTopLeftSnip" v:prompt="" v:val="VT0(0):5"/>
 						<v:ud v:nameU="CTypeTopRightSnip" v:prompt="" v:val="VT0(0):5"/>
@@ -78,10 +78,10 @@
 					<path d="M6.61 152.52 L178.45 152.52 A6.60928 6.60928 -180 0 0 185.06 145.91 L185.06 79.81 A6.60928 6.60928 -180
 								 0 0 178.45 73.2 L6.61 73.2 A6.60928 6.60928 -180 0 0 -0 79.81 L0 145.91 A6.60928 6.60928 -180 0
 								 0 6.61 152.52 Z" class="st3"/>
-					<text x="26.41" y="89.8" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>sonic-net/sonic-dhcp-relay</text>				</g>
+					<text x="26.41" y="89.8" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Azure/sonic-dhcp-relay</text>				</g>
 				<g id="shape3-9" v:mID="3" v:groupContext="shape" transform="translate(211.5,-2.84217E-14)">
 					<title>Rounded Rectangle.3</title>
-					<desc>sonic-net/sonic-snmp</desc>
+					<desc>Azure/sonic-snmp</desc>
 					<v:userDefs>
 						<v:ud v:nameU="CTypeTopLeftSnip" v:prompt="" v:val="VT0(0):5"/>
 						<v:ud v:nameU="CTypeTopRightSnip" v:prompt="" v:val="VT0(0):5"/>
@@ -105,7 +105,7 @@
 					<path d="M6.61 152.52 L178.45 152.52 A6.60929 6.60929 -180 0 0 185.06 145.91 L185.06 79.81 A6.60929 6.60929 -180
 								 0 0 178.45 73.2 L6.61 73.2 A6.60929 6.60929 -180 0 0 0 79.81 L0 145.91 A6.60929 6.60929 -180 0 0
 								 6.61 152.52 Z" class="st3"/>
-					<text x="40.91" y="89.8" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>sonic-net/sonic-snmp</text>				</g>
+					<text x="40.91" y="89.8" class="st4" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Azure/sonic-snmp</text>				</g>
 				<g id="group8-12" transform="translate(36.2747,-15.7666)" v:mID="8" v:groupContext="group">
 					<title>Sheet.8</title>
 					<g id="shape5-13" v:mID="5" v:groupContext="shape" transform="translate(0,-11.528)">

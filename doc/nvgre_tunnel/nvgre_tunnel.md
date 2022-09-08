@@ -197,7 +197,7 @@ module sonic-nvgre-tunnel {
 
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-nvgre-tunnel";
+    namespace "http://github.com/Azure/sonic-nvgre-tunnel";
     prefix nvgre;
 
     import ietf-inet-types {

@@ -466,7 +466,7 @@ module sonic-syslog {
 
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-system-syslog";
+    namespace "http://github.com/Azure/sonic-system-syslog";
     prefix syslog;
 
     import ietf-inet-types {

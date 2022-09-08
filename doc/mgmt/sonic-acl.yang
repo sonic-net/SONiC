@@ -1,5 +1,5 @@
 module sonic-acl {
-	namespace "http://github.com/sonic-net/sonic-acl";
+	namespace "http://github.com/Azure/sonic-acl";
 	prefix sacl;
 	yang-version 1.1;
 

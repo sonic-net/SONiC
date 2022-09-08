@@ -313,7 +313,7 @@ SPECIAL_CLASS                         = "True" / "False"
 //filename:  sonic-passw.yang
 module sonic-passwh {
     yang-version 1.1;
-    namespace "http://github.com/sonic-net/sonic-passwh";
+    namespace "http://github.com/Azure/sonic-passwh";
 	prefix passwh;
 
     description "PASSWORD HARDENING YANG Module for SONiC OS";

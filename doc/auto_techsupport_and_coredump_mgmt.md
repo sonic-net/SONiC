@@ -168,7 +168,7 @@ module sonic-auto_techsupport {
 
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-auto_techsupport";
+    namespace "http://github.com/Azure/sonic-auto_techsupport";
     prefix auto_techsupport;
 
     import sonic-types {

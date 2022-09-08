@@ -1052,7 +1052,7 @@ module sonic-pbh {
 
     yang-version 1.1;
 
-    namespace "http://github.com/sonic-net/sonic-pbh";
+    namespace "http://github.com/Azure/sonic-pbh";
     prefix pbh;
 
     import ietf-inet-types {

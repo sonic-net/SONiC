@@ -156,7 +156,7 @@ Basic definitions:
 There are three notions: *package*, *repository* and *registry*. A repository is a Docker registry (private or open like Docker Hub)
 repository with tagged images for specific package.
 
-In the above figure *sonic-net/sonic-dhcp-relay* and *sonic-net/sonic-snmp* are repositories with a set of images.
+In the above figure *Azure/sonic-dhcp-relay* and *Azure/sonic-snmp* are repositories with a set of images.
 
 ### SONiC Package
 
@@ -254,13 +254,13 @@ A sample of the content in JSON format:
     "installed-version": "1.0.0"
   },
   "dhcp-relay": {
-    "repository": "sonic-net/sonic-dhcp-relay",
+    "repository": "Azure/sonic-dhcp-relay",
     "description": "DHCP relay feature",
     "default-reference": "sha256:5d41c289942008211c2964bca72800f5c9d5ea5aa4057528da617fb36463d4ab",
     "status": "not-installed"
   },
   "snmp": {
-    "repository": "sonic-net/sonic-snmp",
+    "repository": "Azure/sonic-snmp",
     "description": "Simple Network Monitoring Protocol",
     "default-reference": "1.0.0",
     "status": "installed",

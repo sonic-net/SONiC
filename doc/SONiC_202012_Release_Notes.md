@@ -127,7 +127,7 @@ The SONiC Management Framework provides a unified UI stack, enabling SONiC to be
 This set of enhancements extends the framework, including (but not limited to) the following additions: -
 
 -	CLI: Usability enhancements, performance enhancements, User-document generation
--	Translib Infrastructure: Much of the UI infrastructure is separated out into a new repo (sonic-mgmt-common), de-coupling it from the UI code (which remains in the sonic-mgmt-framework repo). This allows the sonic-gnmi container (which also uses the infra) to be built and used independently from sonic-mgmt-framework. Other enhancements include support for RPC, YANG versioning, bulk calls (e.g. from gNMI), Authorization, and other code optimizations
+-	Translib Infrastructure: Much of the UI infrastructure is separated out into a new repo (sonic-mgmt-common), de-coupling it from the UI code (which remains in the sonic-mgmt-framework repo). This allows the sonic-telemetry container (which also uses the infra) to be built and used independently from sonic-mgmt-framework. Other enhancements include support for RPC, YANG versioning, bulk calls (e.g. from gNMI), Authorization, and other code optimizations
 -	CVL: This is an infrastructure component to perform UI validations. It is enhanced here to support Dynamic Port Breakout configuration dependency and for improved performance.
 -	Transformer: This is an infrastructure component to perform YANG tree to configuration object translations. Enhancements include support for more overloading functions, cascaded operations (for dynamic port breakout) and aliasing
 -	REST Server: Enhancements include RBAC, RESTCONF, YANG module discovery, statistics and other optimizations
