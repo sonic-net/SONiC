@@ -145,7 +145,7 @@ sequenceDiagram
 
     CONFIG_DB -->> T: DEVICE_METADATA|localhost
 
-    alt "bgp-suppress-fib-pending" == "enable"
+    alt "bgp-suppress-fib-pending" == "enabled"
         T --> E: configure "bgp suppress-fib-pending" for router
     end
 
@@ -159,7 +159,14 @@ sequenceDiagram
     deactivate A
 ```
 
-This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes.
+This configuration is supported in both ```unified``` and ```separated``` FRR configuration modes. Configuration template snippet *bgpd.main.conf.j2*:
+
+```jinja2
+router bgp {{ DEVICE_METADATA['localhost']['bgp_asn'] }}
+{% if DEVICE_METADATA['localhost']['bgp-suppress-fib-pending'] == 'enabled' %}
+  bgp suppress-fib-pending
+{% endif %}
+```
 
 
 #### 6.2. RouteOrch
